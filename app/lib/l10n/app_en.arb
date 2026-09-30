@@ -173,6 +173,11 @@
     "description": "Fallback title when a chat has no name and no members to name it after."
   },
 
+  "selfChatTitle": "Notes to self",
+  "@selfChatTitle": {
+    "description": "Title of the chat used to sync notes and messages between the user's own devices."
+  },
+
   "muteDurationSheet_title": "Mute chat?",
   "@muteDurationSheet_title": {
     "description": "Title of the sheet asking how long to mute a chat. Phrased as a question about the chat, not about notifications."
@@ -678,6 +683,23 @@
   "@linkingDeviceScreen_error_codesExpired_reload": {
     "description": "Button that requests fresh linking codes."
   },
+  "linkingDeviceScreen_error_deviceLimit_title": "Device limit reached",
+  "@linkingDeviceScreen_error_deviceLimit_title": {
+    "description": "Title of the dialog on the new device when the existing device could not link it because the account reached its device limit."
+  },
+  "linkingDeviceScreen_error_deviceLimit_message": "{maxDevices, plural, one {You already have the maximum of {maxDevices} device. Unlink a device, then try again.} other {You already have the maximum of {maxDevices} devices. Unlink a device, then try again.}}",
+  "@linkingDeviceScreen_error_deviceLimit_message": {
+    "description": "Body of the device limit dialog on the new device. {maxDevices} is the maximum number of devices per account.",
+    "placeholders": {
+      "maxDevices": {
+        "type": "int"
+      }
+    }
+  },
+  "linkingDeviceScreen_error_deviceLimit_back": "Okay",
+  "@linkingDeviceScreen_error_deviceLimit_back": {
+    "description": "Button that closes the device limit dialog on the new device and leaves the linking flow."
+  },
   "linkingDevicesScreen_error_title": "Linking failed",
   "@linkingDevicesScreen_error_title": {
     "description": "Title of the dialog shown when linking a device fails."
@@ -694,6 +716,23 @@
   "@linkingDevicesScreen_error_dismiss": {
     "description": "Button that closes the linking failed dialog so the user can retry."
   },
+  "linkingDevicesScreen_error_deviceLimit_title": "Device limit reached",
+  "@linkingDevicesScreen_error_deviceLimit_title": {
+    "description": "Title of the linking error page on the existing device when the server rejected the new device because the account reached its device limit."
+  },
+  "linkingDevicesScreen_error_deviceLimit": "{maxDevices, plural, one {You can link up to {maxDevices} device. Unlink a device, then try again.} other {You can link up to {maxDevices} devices. Unlink a device, then try again.}}",
+  "@linkingDevicesScreen_error_deviceLimit": {
+    "description": "Body of the device limit error page on the existing device. {maxDevices} is the maximum number of devices per account.",
+    "placeholders": {
+      "maxDevices": {
+        "type": "int"
+      }
+    }
+  },
+  "linkingDevicesScreen_error_deviceLimit_dismiss": "Okay",
+  "@linkingDevicesScreen_error_deviceLimit_dismiss": {
+    "description": "Button that closes the device limit error page and returns to the linked devices screen."
+  },
 
   "linkedDevicesScreen_thisDevice": "This device",
   "@linkedDevicesScreen_thisDevice": {
@@ -703,11 +742,14 @@
   "@linkedDevicesScreen_linkedDevices": {
     "description": "Section header above the user's other linked devices."
   },
-  "linkedDevicesScreen_linkedOn": "Linked on {date}",
+  "linkedDevicesScreen_linkedOn": "Linked on {date} at {time}",
   "@linkedDevicesScreen_linkedOn": {
-    "description": "Subtitle of a device entry giving the date it was linked. The placeholder is an already formatted date.",
+    "description": "Subtitle of a device entry giving the date and time it was linked. Both placeholders are already formatted, the date with the month spelled out and the time as a clock time. Change the word joining them, or reorder them, as your language needs.",
     "placeholders": {
       "date": {
+        "type": "String"
+      },
+      "time": {
         "type": "String"
       }
     }
@@ -759,6 +801,27 @@
     "description": "Count of linked devices under the device list. Provide the plural forms your language needs. The zero case is worded without a number.",
     "placeholders": {
       "count": {
+        "type": "int"
+      }
+    }
+  },
+  "linkedDevicesScreen_deviceCountWithLimit": "{maxDevices, plural, one {{count} of {maxDevices} device linked.} other {{count} of {maxDevices} devices linked.}}",
+  "@linkedDevicesScreen_deviceCountWithLimit": {
+    "description": "Count of linked devices under the device list when the server sets a device limit. {count} includes this device, {maxDevices} is the limit. Provide the plural forms your language needs, and pick the placeholder that drives agreement in your language.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "maxDevices": {
+        "type": "int"
+      }
+    }
+  },
+  "linkedDevicesScreen_deviceLimitReached": "{maxDevices, plural, one {You’ve reached the limit of {maxDevices} linked device. Unlink a device if you want to link a new one.} other {You’ve reached the limit of {maxDevices} linked devices. Unlink a device if you want to link a new one.}}",
+  "@linkedDevicesScreen_deviceLimitReached": {
+    "description": "Shown on the linked devices screen in place of the link button when the account already has the maximum number of linked devices.",
+    "placeholders": {
+      "maxDevices": {
         "type": "int"
       }
     }
@@ -1087,6 +1150,57 @@
     "description": "System message marking where a newly linked device joined the chat."
   },
 
+  "systemMessage_deviceLinked": "You linked a new device named {device} to your account. {tapToView}",
+  "@systemMessage_deviceLinked": {
+    "description": "Notice in the self-chat message list when one of our own devices got linked. The device name is rendered in bold wherever it lands, so put it where your language needs it. tapToView is the call-to-action sentence (see systemMessage_devicesTapToView); place it wherever it reads naturally, with whatever punctuation or spacing your language needs around it.",
+    "placeholders": {
+      "device": {
+        "type": "String"
+      },
+      "tapToView": {
+        "type": "String"
+      }
+    }
+  },
+
+  "systemMessage_deviceLinkedUnknown": "You linked a new device to your account. {tapToView}",
+  "@systemMessage_deviceLinkedUnknown": {
+    "description": "Same as systemMessage_deviceLinked, for when the device's name isn't known yet (e.g. not synced).",
+    "placeholders": {
+      "tapToView": {
+        "type": "String"
+      }
+    }
+  },
+
+  "systemMessage_deviceUnlinked": "You unlinked the device {device} from your account. {tapToView}",
+  "@systemMessage_deviceUnlinked": {
+    "description": "Notice in the self-chat message list when one of our own devices got unlinked. The device name is rendered in bold wherever it lands, so put it where your language needs it. tapToView is the call-to-action sentence (see systemMessage_devicesTapToView); place it wherever it reads naturally, with whatever punctuation or spacing your language needs around it.",
+    "placeholders": {
+      "device": {
+        "type": "String"
+      },
+      "tapToView": {
+        "type": "String"
+      }
+    }
+  },
+
+  "systemMessage_deviceUnlinkedUnknown": "You unlinked a device from your account. {tapToView}",
+  "@systemMessage_deviceUnlinkedUnknown": {
+    "description": "Same as systemMessage_deviceUnlinked, for when the device's name isn't known anymore (it was already dropped once unlinked).",
+    "placeholders": {
+      "tapToView": {
+        "type": "String"
+      }
+    }
+  },
+
+  "systemMessage_devicesTapToView": "Tap to view your devices.",
+  "@systemMessage_devicesTapToView": {
+    "description": "Call-to-action rendered as its own tappable, emphasized run at the point the surrounding sentence places it. Tapping it opens the devices section of settings."
+  },
+
   "timestamp_now": "Now",
   "@timestamp_now": {
     "description": "Timestamp for a message sent moments ago. Kept short to fit next to the message."
@@ -1275,6 +1389,10 @@
   "newConnectionDialog_error_ownUsername": "You can't send a contact request to yourself.",
   "@newConnectionDialog_error_ownUsername": {
     "description": "Error shown when the user enters one of their own usernames."
+  },
+  "newConnectionDialog_error_rateLimited": "You've reached today's limit for contact requests. Try again tomorrow.",
+  "@newConnectionDialog_error_rateLimited": {
+    "description": "Error shown in the add contact dialog when the daily allowance of contact requests is spent. The allowance resets at midnight UTC."
   },
 
   "composer_inputHint": "Message {chatTitle}",

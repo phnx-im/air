@@ -25,24 +25,13 @@ use crate::{
     outbound_service::chat_message_queue::ChatMessageQueue,
 };
 
-use super::{OutboundService, OutboundServiceContext};
+use super::{OutboundService, OutboundServiceContext, SendOutcome};
 
 /// How often we attempt to send a message before marking it as failed.
 const MAX_SEND_ATTEMPTS: usize = 3;
 
 /// Delay between send attempts.
 const SEND_RETRY_DELAY: Duration = Duration::from_secs(1);
-
-/// The outcome of attempting to send a single queued chat message.
-enum SendOutcome {
-    /// The message was sent, or there is nothing left to send: it was deleted
-    /// locally, a sibling client already sent it, or the chat no longer accepts
-    /// messages. It can be removed from the queue.
-    Sent,
-    /// The message collided with a sibling client on the DS. It is left in the
-    /// queue and retried at a fresh generation by a later run.
-    Collided,
-}
 
 /// Whether the outbound service continues with the next queued message.
 enum RunControl {

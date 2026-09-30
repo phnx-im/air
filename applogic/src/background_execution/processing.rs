@@ -15,7 +15,7 @@ use uuid::Uuid;
 use crate::{
     api::user::User,
     background_execution::{IncomingNotificationContent, IncomingNotificationDismissal, stack},
-    logging::init_logger,
+    logging::{LogKind, init_logger},
     messages::FetchAndProcessAllMessagesError,
     notifications::{NotificationContent, NotificationId},
 };
@@ -36,7 +36,7 @@ pub(crate) fn init_environment(content: &str) -> Option<NotificationBatch> {
             return None;
         }
     };
-    init_logger(incoming_content.log_file_path.clone());
+    init_logger(incoming_content.log_file_path.clone(), LogKind::Background);
 
     let path = incoming_content.path;
     run_in_background_runtime("process-new-messages", move || retrieve_messages(path))
@@ -51,7 +51,10 @@ pub(crate) fn init_dismissal_environment(content: &str) -> Option<()> {
             return None;
         }
     };
-    init_logger(incoming_dismissal.log_file_path.clone());
+    init_logger(
+        incoming_dismissal.log_file_path.clone(),
+        LogKind::Background,
+    );
 
     let IncomingNotificationDismissal {
         path,

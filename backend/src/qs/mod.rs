@@ -74,7 +74,7 @@ use sqlx::PgPool;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    air_service::{BackendService, ServiceCreationError},
+    air_service::{BackendService, MaxDevices, ServiceCreationError},
     errors::StorageError,
     messages::intra_backend::DsFanOutMessage,
     qs::{queue::Queues, user_record::UserRecord},
@@ -101,6 +101,7 @@ pub struct Qs {
     db_pool: PgPool,
     queues: Queues,
     version_policy: VersionPolicy,
+    max_devices: MaxDevices,
     stop: CancellationToken,
 }
 
@@ -115,6 +116,7 @@ impl BackendService for Qs {
         db_pool: PgPool,
         domain: Fqdn,
         version_policy: VersionPolicy,
+        max_devices: u32,
         stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
         // Check if the requisite key material exists and if it doesn't, generate it.
@@ -135,6 +137,7 @@ impl BackendService for Qs {
             db_pool,
             queues,
             version_policy,
+            max_devices: MaxDevices::new(max_devices),
             stop,
         })
     }
@@ -161,6 +164,11 @@ impl BackendService for Qs {
 }
 
 impl Qs {
+    #[cfg(feature = "test_utils")]
+    pub fn max_devices_handle(&self) -> MaxDevices {
+        self.max_devices.clone()
+    }
+
     pub(crate) fn queues(&self) -> &Queues {
         &self.queues
     }

@@ -278,6 +278,14 @@ impl CoreUser {
         self_group.client_ids()
     }
 
+    /// Returns the maximum number of devices that can be linked to this client.
+    ///
+    /// The number is communicated by the server at connection establishment.
+    pub async fn max_devices(&self) -> anyhow::Result<u32> {
+        let mut read = self.db().read().await?;
+        Ok(OwnClientInfo::load_max_devices(&mut read).await?)
+    }
+
     /// The Privacy Pass token seeds this device has agreed on with its siblings.
     ///
     /// Exposed for tests: no production caller needs to observe the agreement,
@@ -309,6 +317,23 @@ impl CoreUser {
         operation_type: airprotos::auth_service::v1::OperationType,
     ) -> anyhow::Result<Vec<Vec<u8>>> {
         Ok(crate::privacy_pass::cached_tokens(self.db().read().await?, operation_type).await?)
+    }
+
+    /// For testing purposes only.
+    /// Pulls every pending redeemed-token broadcast forward, so the next
+    /// outbound run carries it.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub async fn expedite_redeemed_token_broadcast(&self) -> anyhow::Result<()> {
+        crate::privacy_pass::expedite_redeemed_broadcast(self.db()).await
+    }
+
+    /// For testing purposes only.
+    /// The redeemed tokens this device still has to tell its siblings about.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub async fn pending_redeemed_token_broadcasts(
+        &self,
+    ) -> anyhow::Result<Vec<airprotos::client::self_group::RedeemedTokens>> {
+        Ok(crate::privacy_pass::pending_redeemed_broadcasts(self.db().read().await?).await?)
     }
 
     /// The chat id of the self group ("Notes to self"), if there is one.

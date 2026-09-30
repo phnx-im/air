@@ -31,3 +31,34 @@ List<Locale> supportedLocalesWithFallback(
 
   return mutableLocales;
 }
+
+/// Resolves the device's preferred locales against [supported] the way
+/// [WidgetsApp] does on its own, after restoring the script of a Chinese
+/// locale that arrived without one.
+///
+/// iOS and Android report Chinese with its script, as in `zh_Hant_TW`, and
+/// the default resolution matches that on language and script. The Linux
+/// embedder never reports a script and Windows does not always, so the same
+/// device arrives as `zh_TW`, which would otherwise fall through to the bare
+/// `zh` entry and show Simplified Chinese to a Traditional reader.
+Locale resolveLocaleList(List<Locale>? preferred, Iterable<Locale> supported) {
+  final withScripts = preferred?.map(_withChineseScript).toList();
+  return basicLocaleListResolution(withScripts, supported);
+}
+
+/// Regions that write Chinese in the Traditional script.
+const _traditionalChineseRegions = {'TW', 'HK', 'MO'};
+
+Locale _withChineseScript(Locale locale) {
+  if (locale.languageCode != 'zh' || locale.scriptCode != null) {
+    return locale;
+  }
+  if (!_traditionalChineseRegions.contains(locale.countryCode)) {
+    return locale;
+  }
+  return Locale.fromSubtags(
+    languageCode: 'zh',
+    scriptCode: 'Hant',
+    countryCode: locale.countryCode,
+  );
+}

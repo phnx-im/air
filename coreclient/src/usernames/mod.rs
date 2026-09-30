@@ -7,7 +7,6 @@ use aircommon::{
     crypto::ConnectionDecryptionKey,
     identifiers::{Username, UsernameHash},
     messages::{
-        client_as::SerializedToken,
         client_as_out::UsernameDeleteResponse,
         connection_package::{ConnectionPackage, ConnectionPackageMetadata},
     },
@@ -16,14 +15,14 @@ use airprotos::auth_service::v1::{OperationType, SignedConnectionPackage};
 use anyhow::Context;
 pub use persistence::UsernameRecord;
 use tokio::task::spawn_blocking;
-use tracing::{error, info, warn};
+use tracing::{error, warn};
 
 use airapiclient::ApiClient;
 
 use crate::{
     clients::{CONNECTION_PACKAGES, CoreUser},
     db::access::{WriteConnection, WriteDbConnection},
-    privacy_pass,
+    privacy_pass::{self, ConsumedToken, TokenShortage},
     usernames::connection_packages::ConnectionPackageRecord,
 };
 
@@ -62,13 +61,15 @@ impl CoreUser {
 
         let api_client = self.api_client()?;
 
-        let token: SerializedToken = self
+        let consumed = self
             .consume_or_replenish_token(&api_client, OperationType::AddUsername)
-            .await
-            .inspect_err(|e| warn!(%e, "no privacy pass token available for username creation"))?;
+            .await?
+            .inspect_err(|error| {
+                warn!(%error, "no privacy pass token available for username creation");
+            })?;
 
         let result = api_client
-            .as_create_username(&username, hash, &signing_key, token)
+            .as_create_username(&username, hash, &signing_key, consumed.token.clone())
             .await;
 
         // If the server says our token key is stale, purge and replenish
@@ -84,7 +85,18 @@ impl CoreUser {
             other => other?,
         };
         if !created {
+            // The AS rolls the redemption back when the username is taken.
+            self.restore_unredeemed_token(OperationType::AddUsername, consumed)
+                .await;
             return Ok(None);
+        }
+
+        // Privacy Pass tokens are only redeemed when the username is successfully created.
+        if let Some(position) = consumed.position
+            && let Err(error) =
+                privacy_pass::mark_redeemed(self.db().write().await?, &position).await
+        {
+            warn!(%error, "failed to record a redeemed privacy pass token");
         }
 
         let record = UsernameRecord::new(username.clone(), hash, signing_key);
@@ -195,21 +207,20 @@ impl CoreUser {
 
     /// Consumes a token from the local cache.
     ///
-    /// Returns an error if the cache is empty. Callers must NOT replenish
-    /// and consume in the same request chain — doing so lets the server
-    /// correlate the authenticated issuance with the anonymous redemption
-    /// by timing. The background `TokenReplenishment` task keeps the cache
-    /// warm; if the cache is empty, replenish and let the caller retry
-    /// later.
+    /// The background `TokenReplenishment` task keeps the cache warm. An empty
+    /// cache starts a replenishment and reports the shortage, and the caller has
+    /// to give up for now: replenishing and consuming in one request chain
+    /// would let the server correlate the authenticated issuance with the
+    /// anonymous redemption by timing.
     pub(crate) async fn consume_or_replenish_token(
         &self,
         api_client: &ApiClient,
         operation_type: OperationType,
-    ) -> anyhow::Result<SerializedToken> {
-        if let Some(token) =
+    ) -> anyhow::Result<Result<ConsumedToken, TokenShortage>> {
+        if let Some(consumed) =
             privacy_pass::consume_token(self.db().write().await?, operation_type).await?
         {
-            return Ok(token);
+            return Ok(Ok(consumed));
         }
 
         let credentials_response = api_client.as_as_credentials().await?;
@@ -224,10 +235,7 @@ impl CoreUser {
             })
             .await?;
 
-        // Cache empty — replenish for future attempts but don't consume
-        // immediately. The caller should propagate this error and retry,
-        // providing a natural timing gap between issuance and redemption.
-        let outcome = privacy_pass::replenish(
+        let shortage = privacy_pass::replenish_empty_cache(
             self.db(),
             api_client,
             self.user_id().clone(),
@@ -235,12 +243,19 @@ impl CoreUser {
             operation_type,
         )
         .await?;
-        info!(?outcome, %operation_type, "replenished tokens on an empty cache");
+        Ok(Err(shortage))
+    }
 
-        anyhow::bail!(
-            "privacy pass token cache was empty; \
-             replenished — retry to use decorrelated tokens"
-        )
+    /// Puts a token back that the AS answered without redeeming. In case of
+    /// failure, we only log the warning, as there is nothing else to do.
+    pub(crate) async fn restore_unredeemed_token(
+        &self,
+        operation_type: OperationType,
+        consumed: ConsumedToken,
+    ) {
+        if let Err(error) = privacy_pass::restore_token(self.db(), operation_type, consumed).await {
+            warn!(%error, %operation_type, "failed to restore an unredeemed privacy pass token");
+        }
     }
 
     /// Purges all cached tokens (key rotation) and replenishes.

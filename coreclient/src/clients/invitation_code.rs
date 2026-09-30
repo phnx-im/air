@@ -65,7 +65,13 @@ impl CoreUser {
             }
             Err(e) => {
                 // Token is burned
-                if let Err(error) = TokenId::delete(self.db().write().await?, &token_id).await {
+                let burned = self
+                    .db()
+                    .with_write_transaction(async |txn| {
+                        privacy_pass::burn_token(txn, &token_id).await
+                    })
+                    .await;
+                if let Err(error) = burned {
                     warn!(%error, "failed to delete burned token");
                 }
                 return Err(e.into());
@@ -83,9 +89,9 @@ impl CoreUser {
         };
 
         self.db()
-            .with_write_transaction(async |txn| -> sqlx::Result<()> {
+            .with_write_transaction(async |txn| -> anyhow::Result<()> {
                 invitation_code.store(&mut *txn).await?;
-                TokenId::delete(txn, &token_id).await?;
+                privacy_pass::burn_token(txn, &token_id).await?;
                 Ok(())
             })
             .await?;

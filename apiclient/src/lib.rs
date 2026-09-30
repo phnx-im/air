@@ -98,6 +98,8 @@ impl ApiClient {
             .map_err(|_| ApiClientInitError::InvalidUrl(url.to_string()))?;
         let channel = Endpoint::from(uri)
             .tls_config(ClientTlsConfig::new().with_webpki_roots())?
+            .connect_timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(30))
             .http2_keep_alive_interval(Duration::from_secs(30))
             .connect_lazy();
         let as_grpc_client = AuthServiceClient::new(channel.clone());

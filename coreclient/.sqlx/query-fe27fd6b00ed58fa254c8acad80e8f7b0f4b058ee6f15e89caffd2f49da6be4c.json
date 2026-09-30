@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n            key,\n            payload,\n            previous\n        FROM self_group_outbox\n        WHERE kind = ?1\n        ORDER BY key",
+  "describe": {
+    "columns": [
+      {
+        "name": "key",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "self_group_outbox",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "name": "payload",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "self_group_outbox",
+            "name": "payload"
+          }
+        }
+      },
+      {
+        "name": "previous",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "self_group_outbox",
+            "name": "previous"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "fe27fd6b00ed58fa254c8acad80e8f7b0f4b058ee6f15e89caffd2f49da6be4c"
+}

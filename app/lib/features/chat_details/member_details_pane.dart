@@ -26,20 +26,20 @@ class MemberDetailsPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+
     final profile = context.select(
       (UsersCubit cubit) => cubit.state.profile(userId: memberId),
     );
 
     final groupTitle = context.select(
-      (ChatDetailsCubit cubit) => cubit.state.chat?.title,
+      (ChatDetailsCubit cubit) => cubit.state.chat?.title(loc),
     );
 
     final canKick = context.select(
       (MemberDetailsCubit cubit) =>
           cubit.state.roomState?.canKick(target: memberId) ?? false,
     );
-
-    final loc = AppLocalizations.of(context);
 
     return ModalPane(
       title: loc.contactDetailsScreen_title,

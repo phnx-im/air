@@ -33,6 +33,7 @@ final chats = [
     id: 1.chatId(),
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: UiChatType_Connection(userProfiles[0]),
     unreadMessages: 0,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
@@ -45,6 +46,7 @@ final chats = [
     id: 2.chatId(),
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: UiChatType_Connection(userProfiles[1]),
     unreadMessages: 0,
     lastUsed: DateTime.parse('2023-01-02T00:00:00.000Z'),
@@ -57,6 +59,7 @@ final chats = [
     id: 3.chatId(),
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: const UiChatType_Group(
       UiChatAttributes(title: 'Group', picture: null),
     ),

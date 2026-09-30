@@ -33,20 +33,32 @@ pub use timed_tasks::{APQ_KEY_PACKAGES, KEY_PACKAGES};
 mod attachment_recovery;
 pub(crate) mod chat_message_queue;
 mod chat_messages;
+mod deleted_messages;
 mod error;
 mod key_packages;
 mod profile;
 mod push_tokens;
 mod reaction_queue;
 mod reactions;
-mod receipt_queue;
+pub(crate) mod receipt_queue;
 mod receipts;
+mod redeemed_tokens;
 pub(crate) mod resync;
 mod retry_pending_chat_operations;
+mod self_chat;
 pub(crate) mod timed_tasks;
 
 /// Cadence at which a started outbound service wakes itself to run scheduled work.
 const PERIODIC_WAKE_INTERVAL: Duration = Duration::from_secs(60);
+
+/// The outcome of sending one MLS application message.
+enum SendOutcome {
+    /// The DS accepted the message, or there is nothing left to send.
+    Sent,
+    /// A sibling took the generation first. The item stays queued and a later
+    /// run re-encrypts it at a fresh generation.
+    Collided,
+}
 
 /// A service which is responsible for processing outbound messages.
 ///
@@ -328,6 +340,12 @@ impl OutboundServiceContext {
         }
         if let Err(error) = self.send_queued_receipts(&run_token).await {
             error!(%error, "Failed to send queued receipts");
+        }
+        if let Err(error) = self.send_redeemed_tokens(&run_token).await {
+            error!(%error, "Failed to send redeemed privacy pass tokens");
+        }
+        if let Err(error) = self.send_deleted_messages(&run_token).await {
+            error!(%error, "Failed to send deleted messages");
         }
         if let Err(error) =
             attachment_recovery::recover_interrupted_attachment_uploads(&self.db).await

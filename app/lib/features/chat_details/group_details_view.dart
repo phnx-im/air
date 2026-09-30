@@ -105,10 +105,11 @@ class _GroupTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return GestureDetector(
       onTap: () => _changeGroupTitle(context),
       child: Text(
-        chat.title,
+        chat.title(loc),
         textAlign: .center,
         style: typeScale.header.xl.style(weight: Weight.emphasized),
       ),
@@ -116,12 +117,13 @@ class _GroupTitle extends StatelessWidget {
   }
 
   void _changeGroupTitle(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final chatDetailsCubit = context.read<ChatDetailsCubit>();
     showDialog(
       context: context,
       builder: (context) => BlocProvider<ChatDetailsCubit>.value(
         value: chatDetailsCubit,
-        child: ChangeGroupTitleDialog(groupTitle: chat.title),
+        child: ChangeGroupTitleDialog(groupTitle: chat.title(loc)),
       ),
     );
   }
@@ -315,7 +317,7 @@ class _GroupActions extends StatelessWidget {
       context: context,
       builder: (_) => ConfirmDialog(
         title: loc.leaveChatDialog_title,
-        message: loc.leaveChatDialog_content(chat.title),
+        message: loc.leaveChatDialog_content(chat.title(loc)),
         cancel: loc.leaveChatDialog_cancel,
         confirm: loc.leaveChatDialog_leave,
       ),

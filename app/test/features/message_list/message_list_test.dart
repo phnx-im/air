@@ -16,7 +16,9 @@ import 'package:air/ds/patterns/reaction_bar/reaction_bar.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/util/time/time_labels.dart';
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/gestures.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
@@ -898,6 +900,137 @@ final replyMessages = [
   ),
 ];
 
+// The reader's own devices for the self-chat golden below. The unlinked
+// message references a clientId that is not in this list, matching how a
+// real client only remembers devices it currently has linked.
+final selfChatLinkedDevice = UiLinkedDevice(
+  clientId: 40.clientRecordId(),
+  name: 'MacBook Pro',
+  platform: LinkedDevicePlatform.macos,
+  linkedAt: DateTime.parse('2023-01-03T00:00:00.000Z'),
+  isThisDevice: false,
+);
+
+final selfChatDevices = LinkedDevicesState(
+  devices: [
+    UiLinkedDevice(
+      clientId: 41.clientRecordId(),
+      name: 'iPhone',
+      platform: LinkedDevicePlatform.ios,
+      linkedAt: DateTime.parse('2023-01-01T00:00:00.000Z'),
+      isThisDevice: true,
+    ),
+    selfChatLinkedDevice,
+  ],
+);
+
+final selfChatMessages = [
+  UiChatMessage(
+    id: 50.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-03T09:00:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          plainBody: 'Grocery list: eggs, milk, coffee',
+          topicId: Uint8List(0),
+          content: simpleMessage('Grocery list: eggs, milk, coffee'),
+          attachments: [],
+        ),
+      ),
+    ),
+    status: UiMessageStatus.read,
+    reactions: [],
+  ),
+  UiChatMessage(
+    id: 51.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-03T09:05:00.000Z'),
+    message: UiMessage_Display(
+      UiEventMessage.system(
+        UiSystemMessage.deviceLinked(selfChatLinkedDevice.clientId),
+      ),
+    ),
+    status: UiMessageStatus.read,
+    reactions: [],
+  ),
+  UiChatMessage(
+    id: 52.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-03T09:06:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          plainBody: 'Nice, syncing across to the laptop now',
+          topicId: Uint8List(0),
+          content: simpleMessage('Nice, syncing across to the laptop now'),
+          attachments: [],
+        ),
+      ),
+    ),
+    status: UiMessageStatus.read,
+    reactions: [],
+  ),
+  UiChatMessage(
+    id: 53.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-03T18:00:00.000Z'),
+    message: UiMessage_Display(
+      // Not in [selfChatDevices] any more, so this exercises the "unknown
+      // device" fallback text.
+      UiEventMessage.system(
+        UiSystemMessage.deviceUnlinked(99.clientRecordId()),
+      ),
+    ),
+    status: UiMessageStatus.read,
+    reactions: [],
+  ),
+  UiChatMessage(
+    id: 54.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-03T18:01:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          plainBody: 'Cleaned up an old device I no longer use',
+          topicId: Uint8List(0),
+          content: simpleMessage('Cleaned up an old device I no longer use'),
+          attachments: [],
+        ),
+      ),
+    ),
+    status: UiMessageStatus.sent,
+    reactions: [],
+  ),
+];
+
+final selfChatDetails = UiChatDetails(
+  id: chatId,
+  status: const UiChatStatus.active(),
+  isApq: false,
+  isSelfChat: true,
+  chatType: const UiChatType_Group(
+    UiChatAttributes(title: 'Notes to self', picture: null),
+  ),
+  unreadMessages: 0,
+  lastUsed: DateTime.parse('2023-01-03T18:01:00.000Z'),
+  mutedUntil: null,
+  pendingCommitFailed: false,
+  resyncFailed: false,
+);
+
+class MockLinkedDevicesCubit extends MockCubit<LinkedDevicesState>
+    implements LinkedDevicesCubit {}
+
 MessageCubit createMockMessageCubit({
   required UserCubit userCubit,
   required MessageState initialState,
@@ -917,6 +1050,7 @@ void main() {
     late MockMessageListCubit messageListCubit;
     late MockAttachmentsRepository attachmentsRepository;
     late MockUserSettingsCubit userSettingsCubit;
+    late MockLinkedDevicesCubit linkedDevicesCubit;
 
     setUp(() async {
       userCubit = MockUserCubit();
@@ -925,6 +1059,7 @@ void main() {
       messageListCubit = MockMessageListCubit();
       attachmentsRepository = MockAttachmentsRepository();
       userSettingsCubit = MockUserSettingsCubit();
+      linkedDevicesCubit = MockLinkedDevicesCubit();
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
       when(() => contactsCubit.state)
@@ -950,6 +1085,7 @@ void main() {
               BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
               BlocProvider<MessageListCubit>.value(value: messageListCubit),
               BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+              BlocProvider<LinkedDevicesCubit>.value(value: linkedDevicesCubit),
             ],
             child: Builder(
               builder: (context) {
@@ -1437,6 +1573,27 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/message_list_disabled_read_receipts.png'),
+      );
+    });
+
+    testWidgets('renders correctly for a multi-device self-chat', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1080, 1500);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      when(() => chatDetailsCubit.state)
+          .thenReturn(ChatDetailsState(chat: selfChatDetails, members: []));
+      when(() => linkedDevicesCubit.state).thenReturn(selfChatDevices);
+      messageListCubit.setState(selfChatMessages);
+
+      await tester.pumpWidget(buildSubject());
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_self_chat_devices.png'),
       );
     });
 

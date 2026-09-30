@@ -2,24 +2,35 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::HashSet;
+use std::{assert_matches, collections::HashSet};
 
-use aircommon::{credentials::LeafCredential, identifiers::UserId};
+use aircommon::{
+    credentials::LeafCredential,
+    identifiers::{UserId, Username},
+};
 use aircoreclient::{
     ChatId, ChatStatus, ChatType, EventMessage, Message, ReadReceiptsSetting, SystemMessage,
     UserProfile,
     clients::{
-        CoreUser, MarkChatAsRead,
-        multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
+        CoreUser, ListenResponse, MarkChatAsRead, listen_response,
+        multi_device::{
+            MultiDeviceLinkClientError, MultiDeviceProvisionClientError, MultiDeviceProvisionStep,
+        },
+        store::ClientRecord,
     },
 };
-use airprotos::{auth_service::v1::OperationType, relay_service::v1::LinkingSessionId};
-use airserver_test_harness::utils::setup::TestBackend;
+use airprotos::{
+    auth_service::v1::OperationType,
+    queue_service::v1::{SiblingClientState, sibling_client_state},
+    relay_service::v1::LinkingSessionId,
+};
+use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams};
 use chrono::{DateTime, Utc};
 use mimi_content::{MessageStatus, MimiContent};
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::time::sleep;
+use tokio_stream::{Stream, StreamExt};
 use uuid::Uuid;
 
 /// Sends `text` from `sender` into the self-group chat and asserts that
@@ -153,6 +164,7 @@ async fn link_new_device_named(
         let new_device =
             CoreUser::multi_device_provision_client(db_path, domain, Some(server_url), session_tx)
                 .await
+                .unwrap()
                 .unwrap();
         (new_device, tmp)
     });
@@ -335,6 +347,17 @@ async fn multi_device_linking_session() {
             "linked device should see the same members as the old device in group {label}"
         );
     }
+
+    // Linking the new device is recorded in the self group, not in each
+    // pre-existing chat: the old device's commit adding the new device's
+    // self-group leaf must produce a DeviceLinked system message identifying
+    // it, not a generic Add (which would render as e.g. "Alice added Alice").
+    let self_group_chat_id = ChatId::try_from(old_device_self_group.group_id()).unwrap();
+    assert_eq!(
+        device_linked_client_ids(old_device, self_group_chat_id).await,
+        vec![new_device.own_client_id().await.unwrap()],
+        "linking the new device should record a DeviceLinked system message in the self group"
+    );
 
     // Messages sent into the self group are seen by the other device.
     let self_chat_id = ChatId::try_from(old_device_self_group.group_id()).unwrap();
@@ -550,6 +573,7 @@ async fn multi_device_second_link_attempt_returns_error() {
         let new_device =
             CoreUser::multi_device_provision_client(db_path, domain, Some(server_url), session_tx)
                 .await
+                .unwrap()
                 .unwrap();
         (new_device, tmp)
     });
@@ -605,6 +629,7 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
             alice_session_tx,
         )
         .await
+        .unwrap()
         .unwrap();
         (new_device, tmp)
     });
@@ -621,6 +646,7 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
             bob_session_tx,
         )
         .await
+        .unwrap()
         .unwrap();
         (new_device, tmp)
     });
@@ -1013,6 +1039,420 @@ async fn multi_device_token_seed_agreement() {
             .unwrap(),
         "both devices must hold byte-identical tokens"
     );
+}
+
+/// The device's cached AddUsername tokens, in consumption order.
+async fn cached_tokens(user: &CoreUser) -> Vec<Vec<u8>> {
+    user.cached_privacy_pass_tokens(OperationType::AddUsername)
+        .await
+        .unwrap()
+}
+
+/// A username no other test can have taken.
+fn fresh_username() -> Username {
+    Username::new(format!("alice-{}", Uuid::new_v4().simple())).unwrap()
+}
+
+// Redemption is local to the spending device. Without a broadcast a sibling
+// keeps holding a token the AS has already seen and loses one of its own
+// requests to it. The spending device therefore publishes the position it
+// spent, which names the same token on every device.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test a redeemed token is dropped by the sibling", skip_all)]
+async fn multi_device_redeemed_token_is_removed_from_sibling() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let first_device = setup.get_user(&alice).user();
+
+    first_device.outbound_service().run_once().await;
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    second_device.outbound_service().run_once().await;
+    // Catch up on the echo of our own add commit and on the new device's own
+    // self-group commits, so the broadcast below is built at the DS epoch.
+    drain_queue(first_device).await;
+
+    let full_batch = cached_tokens(first_device).await;
+    assert!(!full_batch.is_empty(), "the first device must hold tokens");
+    assert_eq!(
+        cached_tokens(&second_device).await,
+        full_batch,
+        "both devices must start from the same batch"
+    );
+
+    assert!(
+        first_device
+            .add_username(fresh_username())
+            .await
+            .unwrap()
+            .is_some(),
+        "the username must be created"
+    );
+
+    let remaining = cached_tokens(first_device).await;
+    assert_eq!(
+        remaining.len(),
+        full_batch.len() - 1,
+        "creating the username spent one token"
+    );
+    assert_eq!(
+        cached_tokens(&second_device).await,
+        full_batch,
+        "the sibling still holds the spent token"
+    );
+
+    // The broadcast is held back to keep it apart from the redemption. The
+    // test skips that wait.
+    first_device
+        .expedite_redeemed_token_broadcast()
+        .await
+        .unwrap();
+    let epochs_before = first_device.self_group_epochs().await.unwrap();
+    first_device.outbound_service().run_once().await;
+
+    assert!(
+        first_device
+            .pending_redeemed_token_broadcasts()
+            .await
+            .unwrap()
+            .is_empty(),
+        "the DS accepting the message retires the broadcast"
+    );
+    assert_eq!(
+        first_device.self_group_epochs().await.unwrap(),
+        epochs_before,
+        "the broadcast is an application message, not a commit"
+    );
+
+    drain_queue(&second_device).await;
+    assert_eq!(
+        cached_tokens(&second_device).await,
+        remaining,
+        "the sibling must drop the redeemed token"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test a chat deletion reaches the sibling", skip_all)]
+async fn multi_device_deleted_chat_is_erased_on_sibling() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    // Onboarding into the pre-existing group runs in the background.
+    second_device.outbound_service().run_once().await;
+    let first_device = setup.get_user(&alice).user();
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
+    assert!(second_device.chat(&chat_id).await.is_some());
+
+    first_device.delete_chat(chat_id).await?;
+    drain_queue(&second_device).await;
+    assert!(
+        second_device.chat(&chat_id).await.is_some(),
+        "deleting the group leaves the chat in place until it is erased"
+    );
+
+    let self_chat_id = self_chat_id(first_device).await;
+    let epochs_before = first_device.self_group_epochs().await?;
+    first_device.erase_chat(chat_id).await?;
+    assert!(first_device.chat(&chat_id).await.is_none());
+    first_device.outbound_service().run_once().await;
+    assert_ne!(
+        first_device.self_group_epochs().await?,
+        epochs_before,
+        "the deletion travels in a self-group commit"
+    );
+    assert!(
+        first_device
+            .pending_chat_operation_info(self_chat_id)
+            .await?
+            .is_none(),
+        "the commit should be gone after a successful send"
+    );
+
+    drain_queue(&second_device).await;
+    assert!(
+        second_device.chat(&chat_id).await.is_none(),
+        "the sibling must erase the chat"
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test a local deletion reaches the sibling", skip_all)]
+async fn multi_device_deleted_message_is_removed_from_sibling() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    // Onboarding into the pre-existing group runs in the background.
+    second_device.outbound_service().run_once().await;
+    let first_device = setup.get_user(&alice).user();
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
+
+    let bob_device = setup.get_user(&bob).user();
+    drain_queue(bob_device).await;
+    let text = "delete me on every device";
+    let content = MimiContent::simple_markdown_message(text.to_owned(), [3; 16]);
+    bob_device
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await?;
+    bob_device.outbound_service().run_once().await;
+
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
+    assert_eq!(
+        count_messages_with_text(first_device, chat_id, text).await,
+        1
+    );
+    assert_eq!(
+        count_messages_with_text(&second_device, chat_id, text).await,
+        1
+    );
+
+    let message_id = first_device
+        .messages(chat_id, 100)
+        .await?
+        .iter()
+        .find(|message| {
+            message
+                .message()
+                .mimi_content()
+                .is_some_and(|content| content.string_rendering().is_ok_and(|s| s.contains(text)))
+        })
+        .map(|message| message.id())
+        .expect("the first device holds the message");
+
+    let epochs_before = first_device.self_group_epochs().await?;
+    first_device.delete_message(message_id).await?;
+    first_device.outbound_service().run_once().await;
+    assert_eq!(
+        count_messages_with_text(first_device, chat_id, text).await,
+        0
+    );
+    assert_eq!(
+        first_device.self_group_epochs().await?,
+        epochs_before,
+        "the deletion is an application message, not a commit"
+    );
+
+    drain_queue(&second_device).await;
+    assert_eq!(
+        count_messages_with_text(&second_device, chat_id, text).await,
+        0,
+        "the sibling must delete the message"
+    );
+
+    Ok(())
+}
+
+// A device that joins via Welcome cannot read the messages that carried past
+// redemptions, and its first batch fetch is answered from the request its
+// sibling registered. The provisioning package therefore carries the redeemed
+// positions, pending or not.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test a new device skips redeemed tokens", skip_all)]
+async fn multi_device_new_device_skips_redeemed_tokens() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let first_device = setup.get_user(&alice).user();
+
+    first_device.outbound_service().run_once().await;
+    assert!(
+        first_device
+            .add_username(fresh_username())
+            .await
+            .unwrap()
+            .is_some(),
+        "the username must be created"
+    );
+    let remaining = cached_tokens(first_device).await;
+
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    second_device.outbound_service().run_once().await;
+
+    assert_eq!(
+        cached_tokens(&second_device).await,
+        remaining,
+        "the new device must never hold the redeemed token"
+    );
+    assert!(
+        second_device
+            .pending_redeemed_token_broadcasts()
+            .await
+            .unwrap()
+            .is_empty(),
+        "the new device has nothing of its own to tell"
+    );
+}
+
+/// Links a fresh device to `user_id` and asserts that both sides fail with the
+/// device limit error and that the rejected device removed its local client.
+async fn assert_link_rejected_at_limit(
+    setup: &TestBackend,
+    user_id: &UserId,
+    max_devices: u32,
+) -> anyhow::Result<()> {
+    let domain = setup.domain().clone();
+    let server_url = setup.server_url();
+    let (session_tx, mut session_rx) = tokio::sync::mpsc::channel(1);
+    let tmp = TempDir::new()?;
+    let db_path = tmp.path().to_str().unwrap().to_owned();
+    let new_device_task = tokio::spawn({
+        let db_path = db_path.clone();
+        async move {
+            CoreUser::multi_device_provision_client(&db_path, domain, Some(server_url), session_tx)
+                .await
+        }
+    });
+    let session_id = recv_session_id(&mut session_rx).await;
+
+    let linked = setup
+        .get_user(user_id)
+        .user()
+        .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
+        .await?;
+    assert_matches!(
+        linked,
+        Err(MultiDeviceLinkClientError::DeviceLimitReached { max_devices: max })
+            if max == max_devices
+    );
+
+    let provisioned = new_device_task.await??;
+    assert_matches!(
+        provisioned,
+        Err(MultiDeviceProvisionClientError::DeviceLimitReached { max_devices: max })
+            if max == max_devices
+    );
+
+    assert!(
+        ClientRecord::load_all_from_air_db(&db_path)
+            .await?
+            .is_empty(),
+        "the rejected device must not keep a client record"
+    );
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test device limit", skip_all)]
+async fn multi_device_link_rejected_at_device_limit() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        max_devices: Some(2),
+        ..Default::default()
+    })
+    .await;
+    let alice = setup.add_user().await;
+    let (device_2, _tmp_2) = link_new_device(&setup, &alice).await;
+    let device_1 = setup.get_user(&alice).user();
+    drain_queue(device_1).await;
+    drain_queue(&device_2).await;
+
+    assert_link_rejected_at_limit(&setup, &alice, 2).await?;
+
+    // The self group is unchanged.
+    let a_id = device_1.own_client_id().await?;
+    let b_id = device_2.own_client_id().await?;
+    let members: HashSet<_> = device_1
+        .self_group_client_ids()
+        .await?
+        .into_iter()
+        .collect();
+    assert_eq!(members, HashSet::from([a_id, b_id]));
+
+    // After unlinking a device, linking works again.
+    device_1.unlink_device(b_id).await?;
+    let (device_3, _tmp_3b) = link_new_device(&setup, &alice).await;
+    let c_id = device_3.own_client_id().await?;
+    let members: HashSet<_> = device_1
+        .self_group_client_ids()
+        .await?
+        .into_iter()
+        .collect();
+    assert_eq!(members, HashSet::from([a_id, c_id]));
+
+    Ok(())
+}
+
+/// A self group above the device limit (e.g. after the limit was lowered)
+/// still accepts commits that don't grow it, so the user can sync and unlink.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test self group above the device limit", skip_all)]
+async fn multi_device_self_group_above_limit_can_shrink() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        max_devices: Some(3),
+        ..Default::default()
+    })
+    .await;
+    let alice = setup.add_user().await;
+    let (device_2, _tmp_2) = link_new_device(&setup, &alice).await;
+    drain_queue(&device_2).await;
+    let (device_3, _tmp_3) = link_new_device(&setup, &alice).await;
+    let device_1 = setup.get_user(&alice).user();
+    drain_queue(device_1).await;
+    drain_queue(&device_2).await;
+    drain_queue(&device_3).await;
+
+    setup.set_max_devices(1);
+
+    // Settings sync
+    device_1
+        .set_synced_user_setting(&ReadReceiptsSetting(true))
+        .await?;
+    device_1.outbound_service().run_once().await;
+    assert!(!device_1.has_pending_setting_changes().await?);
+    drain_queue_ok(&device_2, "settings sync above the limit").await;
+    drain_queue_ok(&device_3, "settings sync above the limit").await;
+    assert_eq!(read_receipts(&device_2).await, Some(true));
+
+    // Self update
+    let chat_id = self_chat_id(device_1).await;
+    device_1
+        .set_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
+        .await?;
+    let before = Utc::now();
+    device_1
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await?;
+    device_1.outbound_service().run_once().await;
+    let after = device_1.self_updated_at(chat_id).await?.unwrap();
+    assert!(
+        before < after,
+        "the DS should accept a self-update above the limit"
+    );
+    drain_queue_ok(&device_2, "self-update above the limit").await;
+    drain_queue_ok(&device_3, "self-update above the limit").await;
+
+    // Growing is still rejected.
+    assert_link_rejected_at_limit(&setup, &alice, 1).await?;
+
+    // Unlinking shrinks the group while it stays above the limit.
+    let a_id = device_1.own_client_id().await?;
+    let b_id = device_2.own_client_id().await?;
+    let c_id = device_3.own_client_id().await?;
+    device_1.unlink_device(c_id).await?;
+    drain_queue_ok(&device_2, "unlink above the limit").await;
+    let members: HashSet<_> = device_1
+        .self_group_client_ids()
+        .await?
+        .into_iter()
+        .collect();
+    assert_eq!(members, HashSet::from([a_id, b_id]));
+
+    send_and_receive(device_1, &[&device_2], chat_id, "after shrinking").await;
+
+    Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -2307,6 +2747,22 @@ async fn drain_queue_ok(user: &CoreUser, what: &str) {
     );
 }
 
+/// The client ids of every "device was linked" system message the device
+/// stores for the chat.
+async fn device_linked_client_ids(user: &CoreUser, chat_id: ChatId) -> Vec<Uuid> {
+    user.messages(chat_id, 100)
+        .await
+        .unwrap()
+        .iter()
+        .filter_map(|message| match message.message() {
+            Message::Event(EventMessage::System(SystemMessage::DeviceLinked(client_id))) => {
+                Some(*client_id)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 /// How many "`user_id` left" system messages the device stores for the chat.
 async fn count_self_removes(user: &CoreUser, chat_id: ChatId, user_id: &UserId) -> usize {
     user.messages(chat_id, 100)
@@ -2629,4 +3085,83 @@ async fn multi_device_both_devices_leave_before_the_commit() {
         charlie_user.mls_chat_participants(chat_id).await.unwrap(),
         remaining
     );
+}
+
+/// Returns the next sibling client state change, skipping other events.
+async fn next_sibling_client_state(
+    stream: &mut (impl Stream<Item = Result<ListenResponse, tonic::Status>> + Unpin),
+) -> sibling_client_state::Change {
+    loop {
+        let response = tokio::time::timeout(Duration::from_secs(5), stream.next())
+            .await
+            .expect("timeout waiting for sibling client state")
+            .expect("stream ended")
+            .expect("stream failed");
+        if let Some(listen_response::Event::SiblingClientState(SiblingClientState {
+            change: Some(change),
+        })) = response.event
+        {
+            return change;
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_sibling_client_state() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+
+    let (mut old_stream, old_responder) = old_device.listen_queue().await.unwrap();
+    let (mut new_stream, _new_responder) = new_device.listen_queue().await.unwrap();
+
+    old_responder.report_client_state(b"state".to_vec()).await;
+    let sibling_client_state::Change::Updated(updated) =
+        next_sibling_client_state(&mut new_stream).await
+    else {
+        panic!("expected updated");
+    };
+    assert_eq!(updated.blob.as_ref().unwrap().encrypted_blob, b"state");
+    let old_client_id = updated.client_id.unwrap();
+
+    // A new session gets the current state right after the version status.
+    let (mut new_stream, _new_responder) = new_device.listen_queue().await.unwrap();
+    assert_matches!(
+        new_stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::VersionStatus(_)),
+        }))
+    );
+    assert_matches!(
+        new_stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::SiblingClientState(SiblingClientState {
+                change: Some(sibling_client_state::Change::Updated(snapshot)),
+            })),
+        })) if snapshot.client_id == updated.client_id
+            && snapshot.epoch == updated.epoch
+            && snapshot.blob == updated.blob
+    );
+
+    // Ending the session clears the state.
+    old_responder.close(&mut old_stream).await;
+    let sibling_client_state::Change::Removed(removed) =
+        next_sibling_client_state(&mut new_stream).await
+    else {
+        panic!("expected removed");
+    };
+    assert_eq!(removed.client_id, Some(old_client_id));
+    assert!(removed.epoch > updated.epoch);
+
+    // Oversized states are ignored, the session goes on.
+    let (_old_stream, old_responder) = old_device.listen_queue().await.unwrap();
+    old_responder.report_client_state(vec![0; 1024]).await;
+    old_responder.report_client_state(b"after".to_vec()).await;
+    let sibling_client_state::Change::Updated(updated) =
+        next_sibling_client_state(&mut new_stream).await
+    else {
+        panic!("expected updated");
+    };
+    assert_eq!(updated.blob.unwrap().encrypted_blob, b"after");
 }

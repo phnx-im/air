@@ -317,6 +317,7 @@ mod tests {
             pool.clone(),
             "example.com".parse()?,
             Default::default(),
+            0,
             CancellationToken::new(),
         )
         .await?;
@@ -891,13 +892,14 @@ mod tests {
         let keys_before = load_batched_token_keys(&pool).await?;
         assert!(keys_before.is_empty());
 
-        // Rotation should create a key.
+        // Rotation should create a key per operation type.
         let rotated = rotate_keys_if_needed(&pool).await?;
-        assert!(rotated.contains(&OperationType::AddUsername));
-        assert!(rotated.contains(&OperationType::GetInviteCode));
+        for operation_type in OperationType::all() {
+            assert!(rotated.contains(&operation_type));
+        }
 
         let keys_after = load_batched_token_keys(&pool).await?;
-        assert_eq!(keys_after.len(), 2);
+        assert_eq!(keys_after.len(), OperationType::all().count());
 
         // Second call: key is fresh, no rotation needed.
         let rotated = rotate_keys_if_needed(&pool).await?;

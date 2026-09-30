@@ -36,8 +36,9 @@ const PROTECTED_TERMS: &[&str] = &["Air"];
 /// A description like "Label" costs a translator more than it gives.
 const MIN_DESCRIPTION_LENGTH: usize = 10;
 
-/// Characters we treat as sentence-final for source and translation parity.
-const TERMINAL_MARKS: &[char] = &['.', '?', '!', ':'];
+/// Sentence-final marks, each with the fullwidth form Chinese writes it as,
+/// so a translation ending in 。 counts as ending in '.'.
+const TERMINAL_MARKS: &[(char, char)] = &[('.', '。'), ('?', '？'), ('!', '！'), (':', '：')];
 
 #[derive(Args, Debug)]
 pub(crate) struct ValidateArgs {
@@ -509,7 +510,7 @@ fn check_terminal_punctuation(context: &KeyContext<'_>, report: &mut Report) {
     }
     let source_mark = terminal_mark(source);
     let translation_mark = terminal_mark(translation);
-    if source_mark == translation_mark {
+    if source_mark.map(ascii_mark) == translation_mark.map(ascii_mark) {
         return;
     }
     let detail = match (source_mark, translation_mark) {
@@ -528,7 +529,19 @@ fn check_terminal_punctuation(context: &KeyContext<'_>, report: &mut Report) {
 }
 
 fn terminal_mark(text: &str) -> Option<char> {
-    text.chars().last().filter(|ch| TERMINAL_MARKS.contains(ch))
+    text.chars().last().filter(|ch| {
+        TERMINAL_MARKS
+            .iter()
+            .any(|(ascii, wide)| ascii == ch || wide == ch)
+    })
+}
+
+/// The ASCII form of a terminal mark, so its fullwidth twin compares equal.
+fn ascii_mark(mark: char) -> char {
+    TERMINAL_MARKS
+        .iter()
+        .find(|(_, wide)| *wide == mark)
+        .map_or(mark, |(ascii, _)| *ascii)
 }
 
 #[cfg(test)]
@@ -547,6 +560,15 @@ mod tests {
     #[test]
     fn word_matching_finds_later_occurrences() {
         assert!(contains_word("Airport near Air HQ", "Air"));
+    }
+
+    #[test]
+    fn fullwidth_marks_match_their_ascii_forms() {
+        assert_eq!(terminal_mark("已复制到剪贴板。").map(ascii_mark), Some('.'));
+        assert_eq!(terminal_mark("确定要关闭吗？").map(ascii_mark), Some('?'));
+        assert_eq!(terminal_mark("请检查该网址：").map(ascii_mark), Some(':'));
+        assert_eq!(terminal_mark("Copied to clipboard."), Some('.'));
+        assert_eq!(terminal_mark("已复制到剪贴板"), None);
     }
 
     #[test]

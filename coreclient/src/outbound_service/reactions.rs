@@ -13,22 +13,11 @@ use crate::{
     Chat, ChatId, ChatMessage, ChatStatus,
     chats::reactions::Reaction,
     db::access::{WriteConnection, WriteDbTransaction},
-    groups::handle_group_not_found_on_ds,
     job::pending_chat_operation::PendingChatOperation,
     outbound_service::resync::Resync,
 };
 
-use super::{OutboundService, OutboundServiceContext, reaction_queue::ReactionQueue};
-
-/// The outcome of attempting to send a single queued reaction.
-enum SendOutcome {
-    /// The reaction was sent (or no longer needs sending) and can be removed
-    /// from the queue.
-    Sent,
-    /// The reaction collided with a sibling client on the DS. It is left in the
-    /// queue and retried at a fresh generation by a later run.
-    Collided,
-}
+use super::{OutboundService, OutboundServiceContext, SendOutcome, reaction_queue::ReactionQueue};
 
 impl OutboundService {
     /// Enqueue a reaction MLS message to be sent by the outbound service.
@@ -144,45 +133,7 @@ impl OutboundServiceContext {
 
         let content = MimiContent::deserialize(&dequeued.content)
             .context("Failed to deserialize queued reaction content")?;
-
-        // load group and create MLS message
-        let (group_state_ear_key, params, signer) =
-            self.new_mls_message(&chat, content, None).await?;
-        let epoch = params.epoch;
-        let sent_tags = params.collision_tags.clone();
-        let generation = params.generation;
-
-        // send MLS message to DS
-        if let Err(ds_error) = self
-            .api_clients
-            .get(&chat.owner_domain())?
-            .ds_send_message(params, &signer, &group_state_ear_key)
-            .await
-        {
-            if ds_error.is_not_found() {
-                self.db
-                    .with_write_transaction(async |txn| {
-                        handle_group_not_found_on_ds(txn, chat.group_id()).await
-                    })
-                    .await?;
-                return Err(ds_error.into());
-            }
-
-            // A collision means a competing sibling client took this generation;
-            // leave the reaction queued to be re-encrypted and retried.
-            if !ds_error.process_tag_collisions(&sent_tags).is_empty() {
-                return Ok(SendOutcome::Collided);
-            }
-            return Err(ds_error.into());
-        }
-
-        // message accepted by DS, confirm.
-        self.confirm_mls_message(&chat, epoch, generation)
-            .await
-            .inspect_err(|error| error!(%error, "failed to confirm MLS message"))
-            .ok();
-
-        Ok(SendOutcome::Sent)
+        self.send_application_message(&chat, content).await
     }
 
     /// Drop a permanently-failed reaction from the queue and roll back its

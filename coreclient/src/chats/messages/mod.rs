@@ -626,6 +626,10 @@ pub enum SystemMessage {
     CreateGroup(UserId),
     /// We got onboarded into a group after linking.
     Onboarded,
+    /// A device, identified by its client id, was linked.
+    DeviceLinked(Uuid),
+    /// A device, identified by its client id, was unlinked.
+    DeviceUnlinked(Uuid),
 }
 
 impl EventMessage {
@@ -652,7 +656,9 @@ impl SystemMessage {
             | SystemMessage::ReceivedConnectionConfirmation { .. }
             | SystemMessage::NewHandleConnectionChat(_)
             | SystemMessage::NewDirectConnectionChat(_)
-            | SystemMessage::Onboarded => None,
+            | SystemMessage::Onboarded
+            | SystemMessage::DeviceLinked(_)
+            | SystemMessage::DeviceUnlinked(_) => None,
         }
     }
 
@@ -740,6 +746,20 @@ impl SystemMessage {
             }
             SystemMessage::Onboarded => {
                 "This client has been onboarded into the group after linking".into()
+            }
+            SystemMessage::DeviceLinked(client_id) => {
+                let devices = core_user.linked_devices().await.unwrap_or_default();
+                match devices.iter().find(|device| &device.client_id == client_id) {
+                    Some(device) => format!("{} was linked", device.name),
+                    None => "A new device was linked".into(),
+                }
+            }
+            SystemMessage::DeviceUnlinked(client_id) => {
+                let devices = core_user.linked_devices().await.unwrap_or_default();
+                match devices.iter().find(|device| &device.client_id == client_id) {
+                    Some(device) => format!("{} was unlinked", device.name),
+                    None => "A device was unlinked".into(),
+                }
             }
         }
     }

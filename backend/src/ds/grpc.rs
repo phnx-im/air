@@ -295,6 +295,16 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     ) -> Result<(), Status> {
         let group_id = group_data.group_uuid();
 
+        if group_state.is_marked_for_deletion() {
+            StorableDsGroupData::<true>::delete(txn.as_mut(), group_id)
+                .await
+                .map_err(|error| {
+                    error!(%error, "Failed to delete group state");
+                    Status::internal("Failed to delete group state")
+                })?;
+            return Ok(());
+        }
+
         group_state
             .write_staged_welcome_infos(txn, group_id, ear_key)
             .await?;
@@ -863,13 +873,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
     ) -> Result<Response<RequestGroupIdResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
-        let qgid = self.ds.request_group_id().await;
-
-        let pq_qgid = if request.request_pq_group_id {
-            Some(self.ds.request_group_id().await)
-        } else {
-            None
-        };
+        let (qgid, pq_qgid) = self.ds.request_group_ids(request.request_pq_group_id)?;
 
         let group_profile_provisioning =
             if let Some(group_profile_size) = request.group_profile_size {
@@ -972,7 +976,6 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let reserved_group_id = self
             .ds
             .claim_reserved_group_id(qgid.group_uuid())
-            .await
             .ok_or_else(|| Status::invalid_argument("unreserved group id"))?;
 
         // encrypt and store group state
@@ -1158,12 +1161,10 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let t_reserved_group_id = self
             .ds
             .claim_reserved_group_id(t_qgid.group_uuid())
-            .await
             .ok_or_else(|| Status::invalid_argument("unreserved group id"))?;
         let pq_reserved_group_id = self
             .ds
             .claim_reserved_group_id(pq_qgid.group_uuid())
-            .await
             .ok_or_else(|| Status::invalid_argument("unreserved group id"))?;
         let encrypted_t_group_state = t_group_state.encrypt(&ear_key)?;
         let encrypted_pq_group_state = pq_group_state.encrypt(&ear_key)?;
@@ -2168,7 +2169,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
                 let (group_message, mut individual_fan_out_messages, virtual_client_hint) =
-                    group_state.group_operation(params, ear_key).await?;
+                    group_state
+                        .group_operation(params, ear_key, self.ds.max_devices.get())
+                        .await?;
 
                 group_state.proposals.clear();
 
@@ -2296,6 +2299,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         pq_message,
                         t_add_users_info,
                         pq_add_users_info,
+                        self.ds.max_devices.get(),
                     )?;
 
                     // Fan out the commit message to the destination clients

@@ -2,7 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{assert_matches, collections::HashMap, fs};
+use std::{
+    assert_matches,
+    collections::{BTreeSet, HashMap},
+    fs,
+};
 
 use airapiclient::as_api::AsRequestError;
 use aircommon::identifiers::Username;
@@ -11,6 +15,7 @@ use aircoreclient::{
     SystemMessage, UserProfile,
     clients::{CoreUser, MarkChatAsRead, store::ClientRecord},
 };
+use airprotos::auth_service::v1::OperationType;
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use mimi_content::MimiContent;
 use rand::RngExt;
@@ -166,6 +171,12 @@ async fn error_if_user_doesnt_exist() {
 
     let username = Username::new("non-existent".to_owned()).unwrap();
     let hash = username.calculate_hash().unwrap();
+    let tokens_before: BTreeSet<_> = alice_user
+        .cached_privacy_pass_tokens(OperationType::ConnectUsername)
+        .await
+        .unwrap()
+        .into_iter()
+        .collect();
 
     let res = alice_user
         .add_contact(username, hash, setup.apq_groups)
@@ -173,6 +184,22 @@ async fn error_if_user_doesnt_exist() {
         .unwrap();
 
     assert_matches!(res, Err(AddUsernameContactError::UsernameNotFound));
+
+    // The AS did not redeem the token, so the request costs nothing.
+    let tokens_after: BTreeSet<_> = alice_user
+        .cached_privacy_pass_tokens(OperationType::ConnectUsername)
+        .await
+        .unwrap()
+        .into_iter()
+        .collect();
+    assert_eq!(tokens_after, tokens_before);
+    assert!(
+        alice_user
+            .pending_redeemed_token_broadcasts()
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

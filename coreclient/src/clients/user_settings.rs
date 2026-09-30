@@ -7,9 +7,12 @@ use anyhow::bail;
 use tracing::{error, warn};
 
 use crate::{
-    clients::CoreUser,
+    clients::{
+        CoreUser,
+        self_group_outbox::{self, OutboxKind},
+    },
     db::{
-        access::{WriteConnection, WriteDbTransaction},
+        access::{ReadConnection, WriteConnection, WriteDbTransaction},
         notification::DbEntityId,
     },
 };
@@ -83,6 +86,10 @@ pub trait UserSetting: Send + Sync {
     fn decode(bytes: Vec<u8>) -> anyhow::Result<Self>
     where
         Self: Sized;
+
+    fn key() -> &'static [u8] {
+        Self::KEY.as_bytes()
+    }
 }
 
 /// A user setting that is synchronized across the user's devices through the
@@ -99,151 +106,171 @@ pub trait SyncedUserSetting: UserSetting {
     fn clear_in_update(update: &mut SettingsUpdate);
 }
 
+/// Runs a per-setting function once for every synced user setting.
+///
+/// This is the single registry of synced settings. Every per-setting operation
+/// is expanded from it, so adding a setting here covers all of them:
+/// [`SettingsUpdate::collect`], [`apply_settings_update`],
+/// [`merge_settings_update`], and the per-setting helpers behind
+/// [`SettingChanges`].
+///
+/// The macro expands `$f::<T>($($args),*).await?` for each setting, so every
+/// per-setting helper is an `async fn` returning `anyhow::Result<()>`. The
+/// merge helper needs neither a transaction nor async, but wearing that shape
+/// lets the single-arm macro stay the sole registry rather than growing a
+/// second arm that would duplicate the settings list. Call sites pass their own
+/// arguments, including a `&mut *txn` reborrow where a transaction is needed.
+macro_rules! for_each_synced_setting {
+    ($f:ident($($args:expr),* $(,)?)) => {
+        $f::<ReadReceiptsSetting>($($args),*).await?;
+        $f::<crate::clients::linked_devices::LinkedDevicesSetting>($($args),*).await?;
+    };
+}
+
 /// The user's not-yet-synchronized setting changes.
 ///
 /// This is the durable intent behind settings sync, separate from the commit
 /// that carries it: a `PendingChatOperation` is one send attempt, while this
-/// records which settings are still ours to assert. The outbound service
-/// stages a commit from the current stored settings state whenever pending
-/// changes exist and no self-group operation is in flight.
+/// records which settings are still ours to assert. The changes are parked in
+/// the [`self_group_outbox`] under [`OutboxKind::Settings`], one row per
+/// setting, keyed by [`UserSetting::KEY`]. The outbound service stages a commit
+/// from the current stored settings state whenever anything is parked and no
+/// self-group operation is in flight.
 ///
-/// A field leaves the pending changes when one of our commits carrying its
-/// currently intended value is accepted ([`Self::complete_sent`]), or when a
-/// sibling's accepted commit covers the field ([`Self::remove_covered`]): DS
-/// commit order decides the winner and we give the field up regardless of the
-/// incoming value. A terminal send failure rolls all touched fields back and
-/// clears the pending changes ([`Self::roll_back_and_clear`]).
-#[derive(Debug, Default, PartialEq)]
-pub(crate) struct SettingChanges {
-    /// The intended values of the touched settings. A present field is still
-    /// ours to assert.
-    changes: SettingsUpdate,
-    /// The values stored before the settings were first touched, for rollback
-    /// on terminal failure. A field absent here but present in `changes` had
-    /// no stored value.
-    previous: SettingsUpdate,
-}
+/// A field leaves the outbox when one of our commits carrying its currently
+/// intended value is accepted ([`Self::complete_sent`]), or when a sibling's
+/// accepted commit covers the field ([`Self::remove_covered`]): DS commit order
+/// decides the winner and we give the field up regardless of the incoming
+/// value. A terminal send failure rolls all touched fields back
+/// ([`Self::roll_back_and_clear`]).
+pub(crate) struct SettingChanges;
 
 impl SettingChanges {
-    fn is_empty(&self) -> bool {
-        self.changes == SettingsUpdate::default()
-    }
-
-    /// Records a local setting change: stores the value (optimistic) and folds
-    /// it into the pending changes.
+    /// Records a local setting change: stores the value (optimistic) and parks
+    /// it for the next self-group commit.
     ///
     /// The first touch of a field records the value stored before it, so a
-    /// terminal send failure can roll back to it. A later touch only folds the
-    /// new value in. Returns whether anything is left to synchronize: a tap
-    /// that re-asserts the stored value of an untouched setting is a no-op.
+    /// terminal send failure can roll back to it. A later touch only replaces
+    /// the parked value, since the value it replaces was never committed.
+    /// Returns whether anything is left to synchronize: a tap that re-asserts
+    /// the stored value of an untouched setting is a no-op.
     pub(crate) async fn record<T: SyncedUserSetting>(
         txn: &mut WriteDbTransaction<'_>,
         value: &T,
     ) -> anyhow::Result<bool> {
         let encoded = T::encode(value)?;
         let current = UserSettingRecord::load(&mut *txn, T::KEY).await?;
-        let mut pending = Self::load(&mut *txn).await?.unwrap_or_default();
-        let already_touched = T::from_update(&pending.changes).is_some();
+        let already_touched = self_group_outbox::load(&mut *txn, OutboxKind::Settings, T::key())
+            .await?
+            .is_some();
 
         if !already_touched && current.as_deref() == Some(encoded.as_slice()) {
             return Ok(false);
         }
 
-        if !already_touched && let Some(bytes) = current {
-            // A stored value we cannot decode is treated as unset, matching the
-            // read path in `user_setting`. A rollback then deletes the row, so
-            // the setting degrades to its default instead of the toggle failing
-            // for good.
-            match T::decode(bytes) {
-                Ok(value) => value.apply_to_update(&mut pending.previous),
-                Err(error) => {
-                    warn!(
-                        %error,
-                        setting = T::KEY,
-                        "Failed to decode the stored user setting, treating the previous value as unset"
-                    );
-                }
+        // A stored value we cannot decode is treated as unset, matching the
+        // read path in `user_setting`. A rollback then deletes the row, so the
+        // setting degrades to its default instead of the toggle failing for
+        // good.
+        let previous = current.filter(|bytes| match T::decode(bytes.clone()) {
+            Ok(_) => true,
+            Err(error) => {
+                warn!(
+                    %error,
+                    setting = T::KEY,
+                    "Failed to decode the stored user setting, treating the previous value as unset"
+                );
+                false
             }
-        }
-        value.apply_to_update(&mut pending.changes);
+        });
 
+        self_group_outbox::stage(
+            &mut *txn,
+            OutboxKind::Settings,
+            T::key(),
+            &encoded,
+            previous.as_deref(),
+        )
+        .await?;
         UserSettingRecord::store(&mut *txn, T::KEY, encoded).await?;
-        pending.store(&mut *txn).await?;
         Ok(true)
     }
 
-    async fn store_or_delete(self, txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<()> {
-        if self.is_empty() {
-            Self::delete(&mut *txn).await?;
-        } else {
-            self.store(&mut *txn).await?;
-        }
-        Ok(())
-    }
-
-    /// Removes every field covered by a sibling's accepted snapshot from the
-    /// pending changes. Coverage is value-independent: the sibling's commit is
-    /// earlier in DS order, so covered fields are no longer ours to change.
     pub(crate) async fn remove_covered(
         txn: &mut WriteDbTransaction<'_>,
         incoming: &SettingsUpdate,
     ) -> anyhow::Result<()> {
-        let Some(mut pending) = Self::load(&mut *txn).await? else {
-            return Ok(());
-        };
-        remove_covered_settings(&mut pending.changes, &mut pending.previous, incoming).await?;
-        pending.store_or_delete(txn).await
+        for_each_synced_setting!(remove_covered_setting(&mut *txn, incoming));
+        Ok(())
     }
 
-    /// Completes the pending changes after one of our own commits was
-    /// accepted. Only fields whose sent value equals the currently intended
-    /// value are removed: a field the user re-toggled while the commit was in
-    /// flight stays pending and is re-issued with the newer value.
     pub(crate) async fn complete_sent(
         txn: &mut WriteDbTransaction<'_>,
         sent: &SettingsUpdate,
     ) -> anyhow::Result<()> {
-        let Some(mut pending) = Self::load(&mut *txn).await? else {
-            return Ok(());
-        };
-        complete_sent_settings(&mut pending.changes, &mut pending.previous, sent).await?;
-        pending.store_or_delete(txn).await
+        for_each_synced_setting!(complete_sent_setting(&mut *txn, sent));
+        Ok(())
     }
 
-    /// Rolls the touched settings back to their pre-change values and clears
-    /// the pending changes. Used when a send fails terminally.
     pub(crate) async fn roll_back_and_clear(
         txn: &mut WriteDbTransaction<'_>,
     ) -> anyhow::Result<()> {
-        let Some(pending) = Self::load(&mut *txn).await? else {
-            return Ok(());
-        };
-        roll_back_settings(txn, &pending.changes, &pending.previous).await?;
-        Self::delete(txn).await?;
+        for_each_synced_setting!(roll_back_setting(&mut *txn));
         Ok(())
+    }
+
+    pub(crate) async fn has_pending(connection: impl ReadConnection) -> sqlx::Result<bool> {
+        Ok(
+            !self_group_outbox::load_kind(connection, OutboxKind::Settings)
+                .await?
+                .is_empty(),
+        )
     }
 }
 
-/// Runs a per-setting function once for every synced user setting.
-///
-/// This is the single registry of synced settings. Every per-setting operation
-/// is expanded from it, so adding a setting here covers all of them:
-/// [`SettingsUpdate::collect`], [`roll_back_settings`], [`apply_settings_update`],
-/// [`merge_settings_update`], [`remove_covered_settings`], and
-/// [`complete_sent_settings`].
-///
-/// The macro expands `$f::<T>($($args),*).await?` for each setting, so every
-/// per-setting helper is an `async fn` returning `anyhow::Result<()>`. The
-/// merge, remove, and complete helpers need neither a transaction nor async,
-/// but wearing that shape lets the single-arm macro stay the sole registry
-/// rather than growing a second arm that would duplicate the settings list.
-/// Call sites pass their own arguments, including a `&mut *txn` reborrow where
-/// a transaction is needed.
-macro_rules! for_each_synced_setting {
-    ($f:ident($($args:expr),* $(,)?)) => {
-        $f::<ReadReceiptsSetting>($($args),*).await?;
-        $f::<crate::clients::linked_devices::LinkedDevicesSetting>($($args),*).await?;
+async fn remove_covered_setting<T: SyncedUserSetting>(
+    txn: &mut WriteDbTransaction<'_>,
+    incoming: &SettingsUpdate,
+) -> anyhow::Result<()> {
+    if T::from_update(incoming).is_some() {
+        self_group_outbox::remove(txn, OutboxKind::Settings, T::key()).await?;
+    }
+    Ok(())
+}
+
+async fn complete_sent_setting<T: SyncedUserSetting>(
+    txn: &mut WriteDbTransaction<'_>,
+    sent: &SettingsUpdate,
+) -> anyhow::Result<()> {
+    let Some(sent_value) = T::from_update(sent) else {
+        return Ok(());
     };
+    self_group_outbox::complete_sent(txn, OutboxKind::Settings, T::key(), &sent_value.encode()?)
+        .await?;
+    Ok(())
+}
+
+async fn roll_back_setting<T: SyncedUserSetting>(
+    txn: &mut WriteDbTransaction<'_>,
+) -> anyhow::Result<()> {
+    let Some(entry) = self_group_outbox::load(&mut *txn, OutboxKind::Settings, T::key()).await?
+    else {
+        return Ok(());
+    };
+
+    // Only roll back if the stored value still matches what we parked. An
+    // incoming update that already overwrote it must not be clobbered.
+    if UserSettingRecord::load(&mut *txn, T::KEY).await?.as_deref() == Some(&entry.payload) {
+        match entry.previous {
+            Some(previous) => UserSettingRecord::store(&mut *txn, T::KEY, previous).await?,
+            None => UserSettingRecord::delete(&mut *txn, T::KEY).await?,
+        }
+        txn.notifier()
+            .update(DbEntityId::UserSetting(T::KEY.to_string()));
+    }
+
+    self_group_outbox::remove(&mut *txn, OutboxKind::Settings, T::key()).await?;
+    Ok(())
 }
 
 /// Constructor-style extension for [`SettingsUpdate`], which lives in the wire
@@ -273,52 +300,6 @@ async fn collect_setting<T: SyncedUserSetting>(
     if let Some(bytes) = UserSettingRecord::load(&mut *txn, T::KEY).await? {
         T::decode(bytes)?.apply_to_update(update);
     }
-    Ok(())
-}
-
-/// Rolls the touched settings in `update` back to their `previous` values.
-///
-/// For each setting present in `update`, the current stored value is restored
-/// to the `previous` value only if it still equals the value the update tried
-/// to set. If an incoming update has already overwritten it, the newer value is
-/// left in place. A settings-changed notification is emitted for every setting
-/// that was actually reverted, so the UI can refresh.
-pub(crate) async fn roll_back_settings(
-    txn: &mut WriteDbTransaction<'_>,
-    update: &SettingsUpdate,
-    previous: &SettingsUpdate,
-) -> anyhow::Result<()> {
-    for_each_synced_setting!(roll_back_setting(&mut *txn, update, previous));
-    Ok(())
-}
-
-async fn roll_back_setting<T: SyncedUserSetting>(
-    txn: &mut WriteDbTransaction<'_>,
-    update: &SettingsUpdate,
-    previous: &SettingsUpdate,
-) -> anyhow::Result<()> {
-    // Only act on settings this update actually touched.
-    let Some(intended) = T::from_update(update) else {
-        return Ok(());
-    };
-
-    let intended_bytes = intended.encode()?;
-    let current_bytes = UserSettingRecord::load(&mut *txn, T::KEY).await?;
-
-    // Only roll back if the stored value still matches what the operation tried
-    // to set. An incoming update that already overwrote it must not be clobbered.
-    if current_bytes.as_deref() != Some(intended_bytes.as_slice()) {
-        return Ok(());
-    }
-
-    match T::from_update(previous) {
-        Some(prev) => UserSettingRecord::store(&mut *txn, T::KEY, prev.encode()?).await?,
-        None => UserSettingRecord::delete(&mut *txn, T::KEY).await?,
-    }
-
-    txn.notifier()
-        .update(DbEntityId::UserSetting(T::KEY.to_string()));
-
     Ok(())
 }
 
@@ -381,55 +362,6 @@ async fn merge_setting<T: SyncedUserSetting>(
 ) -> anyhow::Result<()> {
     if let Some(value) = T::from_update(other) {
         value.apply_to_update(acc);
-    }
-    Ok(())
-}
-
-/// Removes every field present in `incoming` from `changes` and `previous`,
-/// regardless of the incoming value. See [`SettingChanges::remove_covered`].
-pub(crate) async fn remove_covered_settings(
-    changes: &mut SettingsUpdate,
-    previous: &mut SettingsUpdate,
-    incoming: &SettingsUpdate,
-) -> anyhow::Result<()> {
-    for_each_synced_setting!(remove_covered_setting(changes, previous, incoming));
-    Ok(())
-}
-
-async fn remove_covered_setting<T: SyncedUserSetting>(
-    changes: &mut SettingsUpdate,
-    previous: &mut SettingsUpdate,
-    incoming: &SettingsUpdate,
-) -> anyhow::Result<()> {
-    if T::from_update(incoming).is_some() {
-        T::clear_in_update(changes);
-        T::clear_in_update(previous);
-    }
-    Ok(())
-}
-
-/// Removes from `changes` and `previous` every field that `sent` asserts with
-/// the value `changes` still intends. See [`SettingChanges::complete_sent`].
-pub(crate) async fn complete_sent_settings(
-    changes: &mut SettingsUpdate,
-    previous: &mut SettingsUpdate,
-    sent: &SettingsUpdate,
-) -> anyhow::Result<()> {
-    for_each_synced_setting!(complete_sent_setting(changes, previous, sent));
-    Ok(())
-}
-
-async fn complete_sent_setting<T: SyncedUserSetting>(
-    changes: &mut SettingsUpdate,
-    previous: &mut SettingsUpdate,
-    sent: &SettingsUpdate,
-) -> anyhow::Result<()> {
-    let (Some(sent_value), Some(intended)) = (T::from_update(sent), T::from_update(changes)) else {
-        return Ok(());
-    };
-    if sent_value.encode()? == intended.encode()? {
-        T::clear_in_update(changes);
-        T::clear_in_update(previous);
     }
     Ok(())
 }
@@ -507,64 +439,12 @@ impl UserSetting for ExperimentalFeaturesSetting {
 pub(crate) struct UserSettingRecord {}
 
 pub(crate) mod persistence {
-    use aircommon::codec::{BlobDecoded, BlobEncoded};
-    use airprotos::client::self_group::SettingsUpdate;
-
     use crate::{
         clients::{own_client_info::OwnClientInfo, user_settings::SyncedUserSetting},
         db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
     };
 
     use super::{SettingChanges, UserSettingRecord};
-
-    impl SettingChanges {
-        pub(crate) async fn load(
-            mut connection: impl ReadConnection,
-        ) -> sqlx::Result<Option<Self>> {
-            struct SqlSettingChanges {
-                changes: BlobDecoded<SettingsUpdate>,
-                previous: BlobDecoded<SettingsUpdate>,
-            }
-
-            let record = sqlx::query_as!(
-                SqlSettingChanges,
-                r#"SELECT
-                    changes AS "changes: _",
-                    previous AS "previous: _"
-                FROM setting_changes WHERE id = 0"#
-            )
-            .fetch_optional(connection.as_mut())
-            .await?;
-
-            Ok(record.map(|record| Self {
-                changes: record.changes.0,
-                previous: record.previous.0,
-            }))
-        }
-
-        pub(super) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
-            let changes = BlobEncoded(&self.changes);
-            let previous = BlobEncoded(&self.previous);
-            sqlx::query!(
-                "INSERT INTO setting_changes (id, changes, previous) VALUES (0, ?, ?)
-                ON CONFLICT (id) DO UPDATE SET
-                    changes = excluded.changes,
-                    previous = excluded.previous",
-                changes as _,
-                previous as _,
-            )
-            .execute(connection.as_mut())
-            .await?;
-            Ok(())
-        }
-
-        pub(super) async fn delete(mut connection: impl WriteConnection) -> sqlx::Result<()> {
-            sqlx::query!("DELETE FROM setting_changes")
-                .execute(connection.as_mut())
-                .await?;
-            Ok(())
-        }
-    }
 
     impl UserSettingRecord {
         pub(crate) async fn load(
@@ -684,46 +564,19 @@ mod tests {
         Ok(())
     }
 
-    /// Rolls back to the previous value when the stored value still equals the
-    /// value the update tried to set.
-    #[sqlx::test]
-    async fn roll_back_reverts_when_unchanged(pool: SqlitePool) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-
-        // Previous value false, optimistically set to true.
-        UserSettingRecord::store(pool.write().await?, ReadReceiptsSetting::KEY, vec![0]).await?;
-        UserSettingRecord::store(pool.write().await?, ReadReceiptsSetting::KEY, vec![1]).await?;
-
-        pool.with_write_transaction(async |txn| {
-            roll_back_settings(
-                txn,
-                &read_receipts_update(true),
-                &read_receipts_update(false),
-            )
-            .await
-        })
-        .await?;
-
-        assert_eq!(stored_read_receipts(&pool).await?, Some(false));
-        Ok(())
-    }
-
-    /// Leaves the stored value alone when it no longer matches the update, i.e.
-    /// an incoming update already overwrote it.
+    /// Leaves the stored value alone when it no longer matches what was parked,
+    /// i.e. an incoming update already overwrote it.
     #[sqlx::test]
     async fn roll_back_keeps_newer_value(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
 
-        // The current value differs from the update's intent (true).
         UserSettingRecord::store(pool.write().await?, ReadReceiptsSetting::KEY, vec![0]).await?;
 
-        pool.with_write_transaction(async |txn| {
-            roll_back_settings(
-                txn,
-                &read_receipts_update(true),
-                &read_receipts_update(true),
-            )
-            .await
+        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            SettingChanges::record(txn, &ReadReceiptsSetting(true)).await?;
+            // A sibling's accepted commit overwrites the optimistic value.
+            apply_settings_update(txn, &read_receipts_update(false)).await?;
+            SettingChanges::roll_back_and_clear(txn).await
         })
         .await?;
 
@@ -801,8 +654,8 @@ mod tests {
             .await?;
         assert_eq!(stored_read_receipts(&pool).await?, Some(false));
         assert!(
-            SettingChanges::load(pool.read().await?).await?.is_none(),
-            "rollback must clear the pending changes"
+            !SettingChanges::has_pending(pool.read().await?).await?,
+            "rollback must clear the parked changes"
         );
 
         Ok(())
@@ -838,13 +691,17 @@ mod tests {
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
             assert!(SettingChanges::record(txn, &ReadReceiptsSetting(true)).await?);
 
-            let pending = SettingChanges::load(&mut *txn)
-                .await?
-                .expect("the change must be pending");
-            assert_eq!(pending.changes, read_receipts_update(true));
+            let parked = self_group_outbox::load(
+                &mut *txn,
+                OutboxKind::Settings,
+                ReadReceiptsSetting::key(),
+            )
+            .await?
+            .expect("the change must be parked");
+            assert_eq!(parked.payload, vec![1]);
             assert_eq!(
-                pending.previous.send_read_receipts, None,
-                "an undecodable previous value must be recorded as unset"
+                parked.previous, None,
+                "an undecodable previous value must be parked as unset"
             );
             Ok(())
         })
@@ -868,7 +725,7 @@ mod tests {
         })
         .await?;
 
-        assert!(SettingChanges::load(pool.read().await?).await?.is_none());
+        assert!(!SettingChanges::has_pending(pool.read().await?).await?);
         Ok(())
     }
 
@@ -885,7 +742,7 @@ mod tests {
                 SettingChanges::record(txn, &ReadReceiptsSetting(true)).await?;
                 SettingChanges::remove_covered(txn, &read_receipts_update(incoming)).await?;
                 assert!(
-                    SettingChanges::load(&mut *txn).await?.is_none(),
+                    !SettingChanges::has_pending(&mut *txn).await?,
                     "covered field must be dropped, incoming = {incoming}"
                 );
                 Ok(())
@@ -906,10 +763,14 @@ mod tests {
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
             SettingChanges::record(txn, &ReadReceiptsSetting(true)).await?;
             SettingChanges::remove_covered(txn, &SettingsUpdate::default()).await?;
-            let pending = SettingChanges::load(&mut *txn)
-                .await?
-                .expect("uncovered field must stay pending");
-            assert_eq!(pending.changes, read_receipts_update(true));
+            let parked = self_group_outbox::load(
+                &mut *txn,
+                OutboxKind::Settings,
+                ReadReceiptsSetting::key(),
+            )
+            .await?
+            .expect("uncovered field must stay parked");
+            assert_eq!(parked.payload, vec![1]);
             Ok(())
         })
         .await
@@ -924,7 +785,7 @@ mod tests {
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
             SettingChanges::record(txn, &ReadReceiptsSetting(true)).await?;
             SettingChanges::complete_sent(txn, &read_receipts_update(true)).await?;
-            assert!(SettingChanges::load(&mut *txn).await?.is_none());
+            assert!(!SettingChanges::has_pending(&mut *txn).await?);
             Ok(())
         })
         .await
@@ -945,10 +806,14 @@ mod tests {
             // The commit carrying true is accepted.
             SettingChanges::complete_sent(txn, &read_receipts_update(true)).await?;
 
-            let pending = SettingChanges::load(&mut *txn)
-                .await?
-                .expect("re-toggled field must stay pending");
-            assert_eq!(pending.changes, read_receipts_update(false));
+            let parked = self_group_outbox::load(
+                &mut *txn,
+                OutboxKind::Settings,
+                ReadReceiptsSetting::key(),
+            )
+            .await?
+            .expect("re-toggled field must stay parked");
+            assert_eq!(parked.payload, vec![0]);
             Ok(())
         })
         .await
@@ -971,23 +836,6 @@ mod tests {
         // A later empty snapshot leaves the accumulated value in place.
         merge_settings_update(&mut acc, &SettingsUpdate::default()).await?;
         assert_eq!(acc, read_receipts_update(false));
-        Ok(())
-    }
-
-    /// Deletes the row when the previous update carried no value for the setting.
-    #[sqlx::test]
-    async fn roll_back_deletes_when_previous_empty(pool: SqlitePool) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-
-        // Optimistically set to true; there was no prior row.
-        UserSettingRecord::store(pool.write().await?, ReadReceiptsSetting::KEY, vec![1]).await?;
-
-        pool.with_write_transaction(async |txn| {
-            roll_back_settings(txn, &read_receipts_update(true), &SettingsUpdate::default()).await
-        })
-        .await?;
-
-        assert_eq!(stored_read_receipts(&pool).await?, None);
         Ok(())
     }
 }

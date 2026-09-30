@@ -22,7 +22,9 @@ use aircommon::mls_group_config::{
     APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE, self_group_leaf_node_capabilities,
 };
 use airprotos::client::app_data::ClientAppData;
-use airprotos::client::self_group::{BlockedContactEntry, LinkedDevice, SettingsUpdate, TokenSeed};
+use airprotos::client::self_group::{
+    BlockedContactEntry, LinkedDevice, RedeemedTokens, SettingsUpdate, TokenSeed,
+};
 use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
 use anyhow::{Context, anyhow, bail};
 use apqmls::authentication::ApqCredentialWithKey;
@@ -40,11 +42,11 @@ use openmls::{
 use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use openmls_traits::OpenMlsProvider;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sha2::{Digest, Sha256};
 use std::time::Duration;
-use tls_codec::{Deserialize, DeserializeBytes, Serialize as _};
-use tokio::sync::oneshot;
+use tls_codec::{Deserialize as _, DeserializeBytes, Serialize as _};
+use tokio::{sync::oneshot, time::timeout};
 use tokio_stream::StreamExt;
 use tracing::{debug, error, info, warn};
 use url::Url;
@@ -55,7 +57,7 @@ use crate::{
     clients::{
         CIPHERSUITE, CoreUser,
         api_clients::ApiClients,
-        block_contact::pending::{apply_blocked_contacts_update, blocked_contacts_snapshot},
+        block_contact::persistence::{apply_blocked_contacts_update, blocked_contacts_snapshot},
         create_user::QsRegisteredUserState,
         listen_response,
         own_client_info::OwnClientInfo,
@@ -63,10 +65,14 @@ use crate::{
         store::{ClientRecord, UserCreationState},
         user_settings::{SettingsUpdateExt, apply_settings_update},
     },
+    delete_client_database,
     groups::{
         Group, client_auth_info::StorableUserCredential, openmls_provider::AirOpenMlsProvider,
     },
-    job::chat_operation::ChatOperation,
+    job::{
+        JobError,
+        chat_operation::{ChatOperation, ChatOperationError},
+    },
     key_stores::{
         MemoryUserKeyStore, indexed_keys::StorableIndexedKey,
         queue_ratchets::StorableQsQueueRatchet,
@@ -77,45 +83,52 @@ use crate::{
 
 const EXPORTER_LABEL: &str = "multi-device-linking";
 
+/// How long to wait for the new device to disconnect after sending it an
+/// abort.
+const LINKING_ABORT_GRACE: Duration = Duration::from_secs(5);
+
 /// Everything the old (existing) device hands to the new device over the
 /// secure linking channel so the new device can bootstrap a working
 /// [`CoreUser`] and join the user's self group.
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub(crate) struct ProvisioningPackage {
-    // Identity + AS user credential (shared across devices for the MVP).
-    pub(crate) user_id: UserId,
+    /// Identity + AS user credential (shared across devices for the MVP).
+    ///
+    /// Contains the user id.
     pub(crate) user_signing_key: UserSigningKey,
-    // User-level QS key material (shared by all of the user's devices).
+    /// User-level QS key material (shared by all of the user's devices).
     pub(crate) qs_user_id: QsUserId,
     pub(crate) qs_user_signing_key: QsUserSigningKey,
     pub(crate) friendship_token: FriendshipToken,
     pub(crate) push_token_ear_key: PushTokenEarKey,
     pub(crate) wai_ear_key: WelcomeAttributionInfoEarKey,
     pub(crate) qs_client_id_encryption_key: ClientIdEncryptionKey,
-    // Freshly created queue for the new device (created by the old device).
+    /// Freshly created queue for the new device (created by the old device).
     pub(crate) qs_client_id: QsClientId,
     pub(crate) qs_client_signing_key: QsClientSigningKey,
     pub(crate) qs_queue_decryption_key: RatchetDecryptionKey,
     pub(crate) qs_initial_ratchet_secret: RatchetSecret,
-    // User profile.
+    /// User profile
     pub(crate) user_profile_key: UserProfileKey,
-    // Self-group metadata not carried by the Welcome.
+    /// Self-group metadata not carried by the Welcome.
     pub(crate) self_group_id: GroupId,
-    pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
-    // Synced user settings snapshot so the new device starts with the
-    // provisioner's values.
+    /// Synced user settings snapshot so the new device starts with the
+    /// provisioner's values.
     pub(crate) synced_settings: SettingsUpdate,
-    // The agreed Privacy Pass token seeds, so the new device derives the same
-    // token requests as its sibling instead of running an agreement round for a
-    // key whose allowance epoch the sibling has already locked.
+    /// The agreed Privacy Pass token seeds, so the new device derives the same
+    /// token requests as its sibling instead of running an agreement round for a
+    /// key whose allowance epoch the sibling has already locked.
     pub(crate) token_seeds: Vec<TokenSeed>,
-    // Contacts blocked so far.
+    /// Contacts blocked so far.
     pub(crate) blocked_contacts: Vec<BlockedContactEntry>,
-    // The name the confirming user gave this device. Empty means "no choice
-    // made", and the new device falls back to its own platform label.
+    /// The tokens the user's devices have redeemed so far.
+    #[serde(default)]
+    pub(crate) redeemed_tokens: Vec<RedeemedTokens>,
+    /// The name the confirming user gave this device. Empty means "no choice
+    /// made", and the new device falls back to its own platform label.
     pub(crate) device_name: String,
-    // The higher-level groups the virtual client is already a member of, which
-    // the new emulator client onboards itself into.
+    /// The higher-level groups the virtual client is already a member of, which
+    /// the new emulator client onboards itself into.
     pub(crate) groups: Vec<HigherLevelGroup>,
 }
 
@@ -126,13 +139,18 @@ pub(crate) struct ProvisioningPackage {
 /// settings commit of its own would advance the self-group epoch behind the back
 /// of the device performing the add, breaking the next link with a wrong-epoch
 /// rejection.
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub(crate) struct SelfGroupJoinRequest {
     pub(crate) key_package: ApqKeyPackage,
     pub(crate) device: LinkedDevice,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) enum LinkingAbort {
+    DeviceLimitReached { max_devices: u32 },
+}
+
+#[derive(Serialize, Deserialize)]
 pub(crate) struct HigherLevelGroup {
     pub(crate) group_id: GroupId,
     pub(crate) pq_group_id: Option<GroupId>,
@@ -143,7 +161,7 @@ pub(crate) struct HigherLevelGroup {
     pub(crate) connection: Option<ConnectionContact>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct ConnectionContact {
     pub(crate) user_id: UserId,
     pub(crate) wai_ear_key: WelcomeAttributionInfoEarKey,
@@ -166,11 +184,11 @@ impl AeadDecryptable<MultiDeviceLinkingKey, EncryptedLinkingMessageCtype> for Li
 
 impl LinkingMessage {
     /// Serialize and Encrypt `value` under the linking key into a serialized relay frame.
-    fn seal<T>(value: T, cipher: &MultiDeviceLinkingKey) -> anyhow::Result<RelayFrame>
+    fn seal<T>(value: &T, cipher: &MultiDeviceLinkingKey) -> anyhow::Result<RelayFrame>
     where
         T: Serialize,
     {
-        let bytes = PersistenceCodec::to_vec(&value)?;
+        let bytes = PersistenceCodec::to_vec(value)?;
         let frame = LinkingMessage { bytes }
             .encrypt(cipher)?
             .tls_serialize_detached()?;
@@ -233,6 +251,14 @@ pub enum MultiDeviceProvisionStep {
 pub enum MultiDeviceLinkClientError {
     #[error("session ID not found")]
     SessionNotFound,
+    #[error("device limit reached: max = {max_devices}")]
+    DeviceLimitReached { max_devices: u32 },
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum MultiDeviceProvisionClientError {
+    #[error("device limit reached: max = {max_devices}")]
+    DeviceLimitReached { max_devices: u32 },
 }
 
 impl CoreUser {
@@ -245,7 +271,7 @@ impl CoreUser {
         domain: Fqdn,
         server_url: Option<Url>,
         session_tx: tokio::sync::mpsc::Sender<MultiDeviceProvisionStep>,
-    ) -> anyhow::Result<CoreUser> {
+    ) -> anyhow::Result<Result<CoreUser, MultiDeviceProvisionClientError>> {
         let (provider, credential_with_key, signature_keys) =
             make_provider_and_credential(b"initiator")?;
 
@@ -328,32 +354,64 @@ impl CoreUser {
         let core_user = Self::link_new_device(api_clients, db_path, package).await?;
         info!("bootstrapped linked client");
 
-        // Prepare a key-package for the old device to add us to its self-group.
-        let key_package = core_user.generate_self_group_key_package().await?;
+        let outcome: anyhow::Result<Result<(), MultiDeviceProvisionClientError>> = async {
+            // Prepare a key-package for the old device to add us to its self-group.
+            let key_package = core_user.generate_self_group_key_package().await?;
 
-        // Store our own entry locally and hand a copy to the old device, which
-        // publishes it on the add commit.
-        let device = core_user
-            .store_own_device_entry(Utc::now(), Some(&device_name))
-            .await?;
+            // Store our own entry locally and hand a copy to the old device, which
+            // publishes it on the add commit.
+            let device = core_user
+                .store_own_device_entry(Utc::now(), Some(&device_name))
+                .await?;
 
-        tx.send(LinkingMessage::seal(
-            SelfGroupJoinRequest {
-                key_package,
-                device,
-            },
-            &cipher,
-        )?)
-        .await
-        .context("send self-group join request")?;
-        info!("sent self-group key package and device entry to old device");
+            tx.send(LinkingMessage::seal(
+                &SelfGroupJoinRequest {
+                    key_package,
+                    device,
+                },
+                &cipher,
+            )?)
+            .await
+            .context("send self-group join request")?;
+            info!("sent self-group key package and device entry to old device");
 
-        core_user.join_self_group_from_queue().await?;
-        info!("joined self group");
+            let abort = async {
+                let frame = rx.next().await?.ok()?;
+                LinkingMessage::open::<LinkingAbort>(frame.as_slice(), &cipher).ok()
+            };
+            tokio::select! {
+                biased;
+                Some(LinkingAbort::DeviceLimitReached { max_devices }) = abort => {
+                    return Ok(Err(MultiDeviceProvisionClientError::DeviceLimitReached {
+                        max_devices,
+                    }));
+                }
+                result = core_user.join_self_group_from_queue() => result?,
+            }
+            Ok(Ok(()))
+        }
+        .await;
 
-        core_user.outbound_service().notify_vc_onboarding();
+        let failure = match outcome {
+            Ok(Ok(())) => {
+                info!("joined self group");
+                core_user.outbound_service().notify_vc_onboarding();
+                return Ok(Ok(core_user));
+            }
+            Ok(Err(error)) => Ok(Err(error)),
+            Err(error) => Err(error),
+        };
 
-        Ok(core_user)
+        // Clean up the local client database after failure.
+        let client_record_id = core_user.client_record_id();
+        drop(core_user);
+        delete_client_database(db_path, client_record_id)
+            .await
+            .inspect_err(|error| {
+                error!(%error, "failed to delete client database");
+            })
+            .ok();
+        failure
     }
 
     /// Establishes a session with a new device (with the given `session_id`). The `connected_tx` and `confirmation_rx` are
@@ -446,7 +504,7 @@ impl CoreUser {
         // Build the provisioning package (creates a fresh queue for the new
         // device) and hand it over the secure channel.
         let package = self.build_provisioning_package(device_name).await?;
-        tx.send(LinkingMessage::seal(package, &cipher)?)
+        tx.send(LinkingMessage::seal(&package, &cipher)?)
             .await
             .context("send provisioning package")?;
         info!("sent provisioning package to new device");
@@ -455,7 +513,43 @@ impl CoreUser {
         // and add it to the self group via the DS.
         let frame = rx.next().await.context("relay connection closed")??;
         let request: SelfGroupJoinRequest = LinkingMessage::open(frame.as_slice(), &cipher)?;
-        self.add_client_to_self_group(request).await?;
+        match self.add_client_to_self_group(request).await {
+            Ok(()) => (),
+            Err(JobError::Domain(ChatOperationError::DeviceLimitReached { max_devices })) => {
+                match LinkingMessage::seal(
+                    &LinkingAbort::DeviceLimitReached { max_devices },
+                    &cipher,
+                ) {
+                    Ok(frame) => {
+                        if let Err(error) = tx.send(frame).await {
+                            error!(%error, "failed to send linking abort");
+                        }
+                    }
+                    Err(error) => {
+                        error!(%error, "failed to seal linking abort");
+                    }
+                }
+
+                // Delete the new device's QS client only after it disconnected. Otherwise its queue
+                // polling fails before it reads the abort.
+                let disconnected = async { while rx.next().await.is_some() {} };
+                if timeout(LINKING_ABORT_GRACE, disconnected).await.is_err() {
+                    warn!("new device did not disconnect after linking abort");
+                }
+                self.api_client()?
+                    .qs_delete_client(package.qs_client_id, &package.qs_client_signing_key)
+                    .await
+                    .inspect_err(|error| {
+                        error!(%error, "failed to delete client of rejected device from QS");
+                    })
+                    .ok();
+
+                return Ok(Err(MultiDeviceLinkClientError::DeviceLimitReached {
+                    max_devices,
+                }));
+            }
+            Err(error) => return Err(error.into()),
+        }
         info!("added new device to self group");
 
         // Keep the RPC alive until the relay closes our stream, which happens
@@ -477,7 +571,6 @@ impl CoreUser {
 
         let self_group = Box::pin(self.ensure_self_group()).await?;
         let self_group_id = self_group.group_id().clone();
-        let identity_link_wrapper_key = self_group.identity_link_wrapper_key().clone();
 
         // Generate a fresh queue for the new device and register it under our
         // virtual client (QsUserId) at the QS.
@@ -510,9 +603,10 @@ impl CoreUser {
             .await?;
         let token_seeds = privacy_pass::committed_seeds(self.db().read().await?).await?;
         let blocked_contacts = blocked_contacts_snapshot(self.db().read().await?).await?;
+        let redeemed_tokens =
+            privacy_pass::redeemed_tokens_snapshot(self.db().read().await?).await?;
 
         Ok(ProvisioningPackage {
-            user_id: self.user_id().clone(),
             user_signing_key: key_store.signing_key.clone(),
             qs_user_id,
             qs_user_signing_key: key_store.qs_user_signing_key.clone(),
@@ -526,10 +620,10 @@ impl CoreUser {
             qs_initial_ratchet_secret,
             user_profile_key,
             self_group_id,
-            identity_link_wrapper_key,
             synced_settings,
             token_seeds,
             blocked_contacts,
+            redeemed_tokens,
             device_name,
             groups,
         })
@@ -674,7 +768,10 @@ impl CoreUser {
     /// The commit is staged and sent by the job system, so a failed send leaves
     /// the self group either retryable or clean, never stuck on a dead staged
     /// commit.
-    async fn add_client_to_self_group(&self, request: SelfGroupJoinRequest) -> anyhow::Result<()> {
+    async fn add_client_to_self_group(
+        &self,
+        request: SelfGroupJoinRequest,
+    ) -> Result<(), JobError<ChatOperationError>> {
         let SelfGroupJoinRequest {
             key_package,
             device,
@@ -745,6 +842,7 @@ impl CoreUser {
                     }
                     Some(listen_response::Event::Payload(_))
                     | Some(listen_response::Event::VersionStatus(_))
+                    | Some(listen_response::Event::SiblingClientState(_))
                     | None => {}
                 },
                 // Terminal status => stream is over, acks cannot be confirmed
@@ -796,109 +894,125 @@ impl CoreUser {
         let client_db = open_client_db(db_path, client_record_id).await?;
         let global_lock = open_lock_file(db_path)?;
 
-        let ProvisioningPackage {
-            user_id,
-            user_signing_key,
-            qs_user_id,
-            qs_user_signing_key,
-            friendship_token,
-            push_token_ear_key,
-            wai_ear_key,
-            qs_client_id_encryption_key,
-            qs_client_id,
-            qs_client_signing_key,
-            qs_queue_decryption_key,
-            qs_initial_ratchet_secret,
-            user_profile_key,
-            self_group_id,
-            identity_link_wrapper_key: _,
-            synced_settings,
-            token_seeds,
-            blocked_contacts,
-            device_name: _,
-            groups,
-        } = package;
+        let result: anyhow::Result<CoreUser> = async {
+            let ProvisioningPackage {
+                user_signing_key,
+                qs_user_id,
+                qs_user_signing_key,
+                friendship_token,
+                push_token_ear_key,
+                wai_ear_key,
+                qs_client_id_encryption_key,
+                qs_client_id,
+                qs_client_signing_key,
+                qs_queue_decryption_key,
+                qs_initial_ratchet_secret,
+                user_profile_key,
+                self_group_id,
+                synced_settings,
+                token_seeds,
+                blocked_contacts,
+                redeemed_tokens,
+                device_name: _,
+                groups,
+            } = package;
 
-        let shared_user_credential = user_signing_key.credential().clone();
-        let key_store = MemoryUserKeyStore {
-            signing_key: user_signing_key,
-            qs_client_signing_key,
-            qs_user_signing_key,
-            qs_queue_decryption_key,
-            push_token_ear_key,
-            friendship_token,
-            wai_ear_key,
-            qs_client_id_encryption_key,
-        };
+            let shared_user_credential = user_signing_key.credential().clone();
+            let key_store = MemoryUserKeyStore {
+                signing_key: user_signing_key,
+                qs_client_signing_key,
+                qs_user_signing_key,
+                qs_queue_decryption_key,
+                push_token_ear_key,
+                friendship_token,
+                wai_ear_key,
+                qs_client_id_encryption_key,
+            };
 
-        // Each linked device mints its own client id and a per-device self-group signing key.
-        let client_id = Uuid::new_v4();
-        let self_group_signing_key = SelfGroupSigningKey::generate(client_id)?;
+            // Each linked device mints its own client id and a per-device self-group signing key.
+            let user_id = key_store.signing_key.credential().user_id().clone();
+            let client_id = Uuid::new_v4();
+            let self_group_signing_key = SelfGroupSigningKey::generate(client_id)?;
 
-        let queued = client_db
-            .with_write_transaction(async |txn| -> anyhow::Result<usize> {
-                StorableUserCredential::new(key_store.signing_key.credential().clone())
+            let queued = client_db
+                .with_write_transaction(async |txn| -> anyhow::Result<usize> {
+                    StorableUserCredential::new(key_store.signing_key.credential().clone())
+                        .store(&mut *txn)
+                        .await?;
+                    StorableQsQueueRatchet::initialize(&mut *txn, qs_initial_ratchet_secret)
+                        .await?;
+                    user_profile_key.store_own(&mut *txn).await?;
+
+                    OwnClientInfo {
+                        qs_user_id,
+                        qs_client_id,
+                        user_id: user_id.clone(),
+                        client_id,
+                        self_group_id: Some(self_group_id),
+                        self_group_signing_key: Some(self_group_signing_key),
+                    }
                     .store(&mut *txn)
                     .await?;
-                StorableQsQueueRatchet::initialize(&mut *txn, qs_initial_ratchet_secret).await?;
-                user_profile_key.store_own(&mut *txn).await?;
 
-                OwnClientInfo {
-                    qs_user_id,
-                    qs_client_id,
-                    user_id: user_id.clone(),
-                    client_id,
-                    self_group_id: Some(self_group_id),
-                    self_group_signing_key: Some(self_group_signing_key),
-                }
-                .store(&mut *txn)
+                    // Schedule the fetching operation of our own profile information for when the [`CoreClient`]
+                    // starts (or more specifically, when the outbound service runs for the first time.)
+                    Self::schedule_fetch_user_profile(
+                        &mut *txn,
+                        (shared_user_credential, user_profile_key),
+                    )
+                    .await?;
+
+                    // Seed the synced settings and the token seeds before the
+                    // device processes any self-group traffic. A device joining via
+                    // Welcome cannot decrypt commits from before its join, so the
+                    // current state has to arrive in the linking payload.
+                    apply_settings_update(txn, &synced_settings).await?;
+                    privacy_pass::store_provisioned_seeds(txn, &token_seeds).await?;
+                    apply_blocked_contacts_update(txn, &blocked_contacts).await?;
+                    privacy_pass::apply_redeemed_tokens(txn, &redeemed_tokens).await?;
+
+                    // Queue the onboarding into the groups the virtual client is
+                    // already a member of. This is committed before the client
+                    // record is finished below, so an interrupted linking (crash, exit)
+                    // leaves the onboarding to be picked up.
+                    Self::enqueue_vc_onboarding(txn, groups).await
+                })
                 .await?;
+            info!(
+                queued,
+                "queued onboarding into existing higher-level groups"
+            );
 
-                // Schedule the fetching operation of our own profile information for when the [`CoreClient`]
-                // starts (or more specifically, when the outbound service runs for the first time.)
-                Self::schedule_fetch_user_profile(
-                    &mut *txn,
-                    (shared_user_credential, user_profile_key),
-                )
-                .await?;
+            let final_state = UserCreationState::FinalUserState(
+                QsRegisteredUserState::new(key_store, qs_user_id, qs_client_id)
+                    .persist()
+                    .await?,
+            );
+            final_state.store(client_db.write().await?).await?;
 
-                // Seed the synced settings and the token seeds before the
-                // device processes any self-group traffic. A device joining via
-                // Welcome cannot decrypt commits from before its join, so the
-                // current state has to arrive in the linking payload.
-                apply_settings_update(txn, &synced_settings).await?;
-                privacy_pass::store_provisioned_seeds(txn, &token_seeds).await?;
-                apply_blocked_contacts_update(txn, &blocked_contacts).await?;
+            let mut client_record = ClientRecord::new(user_id.clone(), client_record_id);
+            client_record.finish();
+            client_record.store(air_db.write().await?).await?;
 
-                // Queue the onboarding into the groups the virtual client is
-                // already a member of. This is committed before the client
-                // record is finished below, so an interrupted linking (crash, exit)
-                // leaves the onboarding to be picked up.
-                Self::enqueue_vc_onboarding(txn, groups).await
-            })
-            .await?;
-        info!(
-            queued,
-            "queued onboarding into existing higher-level groups"
-        );
+            Ok(final_state.final_state()?.into_self_user(
+                client_db,
+                client_record_id,
+                api_clients,
+                global_lock,
+            ))
+        }
+        .await;
 
-        let final_state = UserCreationState::FinalUserState(
-            QsRegisteredUserState::new(key_store, qs_user_id, qs_client_id)
-                .persist()
-                .await?,
-        );
-        final_state.store(client_db.write().await?).await?;
-
-        let mut client_record = ClientRecord::new(user_id.clone(), client_record_id);
-        client_record.finish();
-        client_record.store(air_db.write().await?).await?;
-
-        Ok(final_state.final_state()?.into_self_user(
-            client_db,
-            client_record_id,
-            api_clients,
-            global_lock,
-        ))
+        if result.is_err() {
+            // Clean up the local client database after failure.
+            delete_client_database(db_path, client_record_id)
+                .await
+                .inspect_err(|error| {
+                    error!(%error, "failed to delete client database");
+                })
+                .ok();
+        }
+        result
     }
 
     /// Whether a sibling device removed this device from the self group.
@@ -909,20 +1023,25 @@ impl CoreUser {
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches;
+
     use aircommon::credentials::test_utils::create_test_credentials;
     use aircommon::crypto::hpke::ClientIdDecryptionKey;
     use aircommon::identifiers::QualifiedGroupId;
+    use airprotos::auth_service::v1::OperationType;
     use airprotos::client::self_group::ContactBlocked;
     use uuid::Uuid;
 
     use super::*;
 
-    /// Builds a [`ProvisioningPackage`] with the given synced-settings snapshot
-    /// and token seeds, and otherwise freshly generated key material.
+    /// Builds a [`ProvisioningPackage`] with the given synced settings, token
+    /// seeds, blocked contacts and redeemed tokens, and otherwise freshly
+    /// generated key material.
     fn sample_package(
         synced_settings: SettingsUpdate,
         token_seeds: Vec<TokenSeed>,
         blocked_contacts: Vec<BlockedContactEntry>,
+        redeemed_tokens: Vec<RedeemedTokens>,
     ) -> anyhow::Result<ProvisioningPackage> {
         let user_id = UserId::random("example.com".parse()?);
         let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
@@ -946,25 +1065,44 @@ mod tests {
             qs_initial_ratchet_secret: RatchetSecret::random()?,
             user_profile_key: UserProfileKey::random(&user_id)?,
             self_group_id,
-            identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
             synced_settings,
             token_seeds,
             blocked_contacts,
+            redeemed_tokens,
             device_name: "Work laptop".to_owned(),
             groups: Vec::new(),
-            user_id,
         })
     }
 
-    /// A full package roundtrips through the linking channel with its synced
-    /// settings, token seeds and blocked contacts intact.
-    #[test]
-    fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
-        let seeds = vec![TokenSeed {
-            operation_type: 1,
+    fn sample_seeds() -> Vec<TokenSeed> {
+        vec![TokenSeed {
+            operation_type: OperationType::AddUsername,
             key_fingerprint: [0x11; 32],
             seed: [0x22; 32],
-        }];
+        }]
+    }
+
+    fn sample_redeemed() -> Vec<RedeemedTokens> {
+        vec![RedeemedTokens {
+            operation_type: OperationType::AddUsername,
+            key_fingerprint: [0x11; 32],
+            allowance_epoch: 679,
+            token_indices: vec![0, 4],
+        }]
+    }
+
+    #[test]
+    fn linking_abort_roundtrips_through_linking_channel() -> anyhow::Result<()> {
+        let key = MultiDeviceLinkingKey::random()?;
+        let frame =
+            LinkingMessage::seal(&LinkingAbort::DeviceLimitReached { max_devices: 2 }, &key)?;
+        let decoded: LinkingAbort = LinkingMessage::open(frame.as_slice(), &key)?;
+        assert_matches!(decoded, LinkingAbort::DeviceLimitReached { max_devices: 2 });
+        Ok(())
+    }
+
+    #[test]
+    fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
         let blocked_contacts = vec![BlockedContactEntry::Blocked(ContactBlocked {
             user_id: UserId::random("example.com".parse()?).into(),
             blocked_at: 1_767_225_600,
@@ -975,13 +1113,14 @@ mod tests {
                 send_read_receipts: Some(false),
                 linked_devices: None,
             },
-            seeds.clone(),
+            sample_seeds(),
             blocked_contacts.clone(),
+            sample_redeemed(),
         )?;
-        let user_id = package.user_id.clone();
+        let user_id = package.user_signing_key.credential().user_id().clone();
 
         let key = MultiDeviceLinkingKey::random()?;
-        let frame = LinkingMessage::seal(package, &key)?;
+        let frame = LinkingMessage::seal(&package, &key)?;
         let decoded: ProvisioningPackage = LinkingMessage::open(frame.as_slice(), &key)?;
 
         assert_eq!(
@@ -991,11 +1130,100 @@ mod tests {
                 linked_devices: None,
             }
         );
-        assert_eq!(decoded.token_seeds, seeds);
+        assert_eq!(decoded.token_seeds, sample_seeds());
         assert_eq!(decoded.blocked_contacts, blocked_contacts);
-        assert_eq!(decoded.user_id, user_id);
+        assert_eq!(decoded.redeemed_tokens, sample_redeemed());
+        assert_eq!(decoded.user_signing_key.credential().user_id(), &user_id);
         // The confirming user's device name rides along in the same package.
         assert_eq!(decoded.device_name, "Work laptop");
+
+        Ok(())
+    }
+
+    /// A provisioner from before redeemed-token sync sends no `redeemed_tokens`
+    /// key. Linking to it has to work, with nothing redeemed.
+    #[test]
+    fn a_package_without_redeemed_tokens_decodes_as_empty() -> anyhow::Result<()> {
+        /// The package as an older provisioner serializes it.
+        #[derive(serde::Serialize)]
+        struct OlderProvisioningPackage {
+            user_id: UserId,
+            user_signing_key: UserSigningKey,
+            qs_user_id: QsUserId,
+            qs_user_signing_key: QsUserSigningKey,
+            friendship_token: FriendshipToken,
+            push_token_ear_key: PushTokenEarKey,
+            wai_ear_key: WelcomeAttributionInfoEarKey,
+            qs_client_id_encryption_key: ClientIdEncryptionKey,
+            qs_client_id: QsClientId,
+            qs_client_signing_key: QsClientSigningKey,
+            qs_queue_decryption_key: RatchetDecryptionKey,
+            qs_initial_ratchet_secret: RatchetSecret,
+            user_profile_key: UserProfileKey,
+            self_group_id: GroupId,
+            identity_link_wrapper_key: IdentityLinkWrapperKey,
+            synced_settings: SettingsUpdate,
+            token_seeds: Vec<TokenSeed>,
+            blocked_contacts: Vec<BlockedContactEntry>,
+            device_name: String,
+            groups: Vec<HigherLevelGroup>,
+        }
+
+        let ProvisioningPackage {
+            user_signing_key,
+            qs_user_id,
+            qs_user_signing_key,
+            friendship_token,
+            push_token_ear_key,
+            wai_ear_key,
+            qs_client_id_encryption_key,
+            qs_client_id,
+            qs_client_signing_key,
+            qs_queue_decryption_key,
+            qs_initial_ratchet_secret,
+            user_profile_key,
+            self_group_id,
+            synced_settings,
+            token_seeds,
+            blocked_contacts,
+            redeemed_tokens: _,
+            device_name,
+            groups,
+        } = sample_package(
+            SettingsUpdate::default(),
+            sample_seeds(),
+            Vec::new(),
+            sample_redeemed(),
+        )?;
+        let older = OlderProvisioningPackage {
+            user_id: user_signing_key.credential().user_id().clone(),
+            user_signing_key,
+            qs_user_id,
+            qs_user_signing_key,
+            friendship_token,
+            push_token_ear_key,
+            wai_ear_key,
+            qs_client_id_encryption_key,
+            qs_client_id,
+            qs_client_signing_key,
+            qs_queue_decryption_key,
+            qs_initial_ratchet_secret,
+            user_profile_key,
+            self_group_id,
+            identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
+            synced_settings,
+            token_seeds,
+            blocked_contacts,
+            device_name,
+            groups,
+        };
+
+        let key = MultiDeviceLinkingKey::random()?;
+        let frame = LinkingMessage::seal(&older, &key)?;
+        let decoded: ProvisioningPackage = LinkingMessage::open(frame.as_slice(), &key)?;
+
+        assert_eq!(decoded.token_seeds, sample_seeds());
+        assert!(decoded.redeemed_tokens.is_empty());
 
         Ok(())
     }

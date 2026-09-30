@@ -221,6 +221,7 @@ pub struct _UserDebugInfo {
     pub timed_tasks: Vec<TimedTaskDebugInfo>,
     pub add_username_token_count: u32,
     pub invitation_code_token_count: u32,
+    pub connect_username_token_count: u32,
 }
 
 #[frb(mirror(TimedTaskDebugInfo))]

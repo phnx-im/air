@@ -57,7 +57,7 @@ class YouSectionContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) => switch (section) {
     YouSection.profile => const ProfileSection(),
-    YouSection.devices => const LinkedDevicesContent(),
+    YouSection.devices => const LinkedDevicesSection(),
     YouSection.account => const AccountSection(),
     YouSection.preferences => const PreferencesSection(),
     YouSection.help => const HelpSection(),

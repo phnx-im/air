@@ -28,7 +28,10 @@ class SuspendedKeyboardFocus {
   void restore() {
     final node = _node;
     // Gone from the tree, e.g. the chat was left while the modal was up.
-    if (node == null || node.context == null || !node.canRequestFocus) return;
+    final context = node?.context;
+    if (node == null || context == null || !node.canRequestFocus) return;
+    // Covered by another route, e.g. a sheet opened from a message action.
+    if (ModalRoute.isCurrentOf(context) == false) return;
     node.requestFocus();
   }
 }

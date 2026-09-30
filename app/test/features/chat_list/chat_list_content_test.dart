@@ -35,6 +35,7 @@ final chats = [
     id: 1.chatId(),
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: UiChatType_Connection(userProfiles[1]),
     unreadMessages: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
@@ -70,6 +71,7 @@ final chats = [
     id: 2.chatId(),
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: const UiChatType_HandleConnection(
       UiUsername(plaintext: 'eve_03'),
     ),
@@ -108,6 +110,7 @@ final chats = [
     id: 3.chatId(),
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: const UiChatType_Group(
       UiChatAttributes(title: 'Group', picture: null),
     ),
@@ -142,6 +145,7 @@ final chats = [
     id: 4.chatId(),
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: const UiChatType_Group(
       UiChatAttributes(title: 'Group', picture: null),
     ),
@@ -182,6 +186,7 @@ final chats = [
     id: 5.chatId(),
     status: const UiChatStatus.blocked(),
     isApq: false,
+    isSelfChat: false,
     chatType: UiChatType_Connection(userProfiles[3]),
     unreadMessages: 0,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
@@ -195,6 +200,7 @@ final chats = [
     id: 6.chatId(),
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: UiChatType_Connection(userProfiles[2]),
     unreadMessages: 3,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
@@ -228,6 +234,7 @@ final chats = [
     id: 7.chatId(),
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: const UiChatType_Group(
       UiChatAttributes(title: 'Photographs', picture: null),
     ),
@@ -267,6 +274,7 @@ final chats = [
     id: 8.chatId(),
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: const UiChatType_Group(
       UiChatAttributes(title: 'Archive Enthusiasts', picture: null),
     ),
@@ -306,6 +314,7 @@ final chats = [
     id: 9.chatId(),
     status: const UiChatStatus.active(),
     isApq: false,
+    isSelfChat: false,
     chatType: const UiChatType_Group(
       UiChatAttributes(title: 'Fun with Friends', picture: null),
     ),
@@ -583,6 +592,7 @@ UiChatDetails attachmentChat(UiAttachment attachment, {UiUserId? sender}) =>
       id: 8.chatId(),
       status: const UiChatStatus.active(),
       isApq: false,
+      isSelfChat: false,
       chatType: UiChatType_Connection(userProfiles[1]),
       unreadMessages: 0,
       lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
@@ -620,6 +630,7 @@ UiChatDetails reactedChat({
   id: 7.chatId(),
   status: const UiChatStatus.active(),
   isApq: false,
+  isSelfChat: false,
   chatType: UiChatType_Connection(userProfiles[1]),
   unreadMessages: 0,
   lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),

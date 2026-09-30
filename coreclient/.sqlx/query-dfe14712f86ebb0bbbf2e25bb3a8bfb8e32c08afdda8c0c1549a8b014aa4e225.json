@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM receipt_queue WHERE message_id = ? AND mimi_id != ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "dfe14712f86ebb0bbbf2e25bb3a8bfb8e32c08afdda8c0c1549a8b014aa4e225"
+}

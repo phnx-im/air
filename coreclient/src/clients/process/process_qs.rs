@@ -21,7 +21,7 @@ use aircommon::{
     virtual_client::KeyPackageBatchId,
 };
 use airprotos::client::{
-    group::GroupData, group_bootstrap::GroupBootstrapCarrier,
+    group::GroupData, group_bootstrap::GroupBootstrapCarrier, self_group::SelfGroupAppMessage,
     virtual_client::extract_virtual_client_commit_data,
 };
 use anyhow::{Context, Result, bail, ensure};
@@ -43,10 +43,14 @@ use crate::{
     ChatAttributes, ChatMessage, ChatStatus, Message, SystemMessage,
     chats::{
         GroupDataExt, StatusRecord,
-        messages::edit::{MessageEdit, handle_message_edit},
+        messages::{
+            edit::{MessageEdit, handle_message_edit},
+            persistence::apply_deleted_messages,
+        },
         reactions::Reaction,
     },
     clients::{
+        attachment::MimiContentExt,
         block_contact::{BlockedContact, BlockedContactError},
         own_client_info::OwnClientInfo,
         process::process_as::{ConnectionInfoSource, TargetedMessageSource},
@@ -60,6 +64,7 @@ use crate::{
         DecryptedProfileInfos, Group, JoinSigners, VerifiedGroup,
         client_auth_info::StorableUserCredential,
         process::{ProcessMessageProcessed, ProcessMessageResult},
+        self_group::SELF_CHAT_TITLE,
     },
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
@@ -67,6 +72,7 @@ use crate::{
         chat_message_queue::ChatMessageQueue,
         resync::{Resync, ResyncStatus},
     },
+    privacy_pass,
 };
 
 use super::{Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow};
@@ -462,12 +468,16 @@ impl CoreUser {
 
         if own_client_info.self_group_id.as_ref() == Some(group.group_id()) {
             debug!("joined self group as a linked device");
-            let group_data = group
+            let title = group
                 .group_data()?
-                .context("self group has no group data")?;
-            let (title, _profile) = group_data.into_parts(group.identity_link_wrapper_key());
+                .and_then(|group_data| {
+                    let (title, _profile) =
+                        group_data.into_parts(group.identity_link_wrapper_key());
+                    title
+                })
+                .unwrap_or_else(|| SELF_CHAT_TITLE.to_owned());
             let attributes = ChatAttributes {
-                title: title.context("self group has no title")?,
+                title,
                 picture: None,
             };
             let chat = Chat::new_group_chat(group.group_id().clone(), attributes);
@@ -532,6 +542,7 @@ impl CoreUser {
             SystemMessage::Add(Some(sender_user_id.clone()), self.user_id().clone()),
         );
         system_message.store(&mut *txn).await?;
+        let messages = vec![system_message];
 
         // WelcomeBundle Phase 4: Check whether our user profile key is up to
         // date and if not, update it.
@@ -556,7 +567,7 @@ impl CoreUser {
         Ok(QsMessageOutcome::new_chat(
             chat.id(),
             sender_user_id,
-            vec![system_message],
+            messages,
         ))
     }
 
@@ -1018,6 +1029,19 @@ impl CoreUser {
     ) -> anyhow::Result<HandledMessages> {
         let mut content = MimiContent::deserialize(&application_message.into_bytes());
 
+        // Application messages in the self group with extensions
+        if group.is_self_group()
+            && sender == self.user_id()
+            && let Ok(content) = &content
+            && let Some(message) = content.self_group_message()
+        {
+            let changed_chats = self.handle_self_group_app_message(txn, message).await?;
+            return Ok(HandledMessages {
+                changed_chats,
+                ..Default::default()
+            });
+        }
+
         // Delivery receipt
         if let Ok(content) = &content
             && let NestedPart::SinglePart {
@@ -1149,6 +1173,28 @@ impl CoreUser {
             new_messages: vec![message],
             ..Default::default()
         })
+    }
+
+    /// Applies a message another device of ours sent through the self group.
+    /// Returns the chats whose messages changed.
+    async fn handle_self_group_app_message(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        message: SelfGroupAppMessage,
+    ) -> anyhow::Result<Vec<ChatId>> {
+        match message {
+            SelfGroupAppMessage::RedeemedTokens(redeemed) => {
+                privacy_pass::apply_redeemed_tokens(txn, &[redeemed]).await?;
+                Ok(Vec::new())
+            }
+            SelfGroupAppMessage::DeletedMessages(deleted) => {
+                apply_deleted_messages(txn, &deleted).await
+            }
+            SelfGroupAppMessage::Unknown => {
+                debug!("skipping a self group application message of an unknown kind");
+                Ok(Vec::new())
+            }
+        }
     }
 
     /// Reconciles an inbound message whose Mimi ID we already store. Returns

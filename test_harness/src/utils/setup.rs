@@ -11,6 +11,7 @@ use std::{
 };
 
 use airbackend::{
+    air_service::MaxDevices,
     settings::{RateLimitsSettings, RegistrationPolicy, RegistrationSettings},
     version::VersionPolicy,
 };
@@ -23,7 +24,7 @@ use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, *};
 use airserver::network_provider::MockNetworkProvider;
 use anyhow::Context;
 use mimi_content::{
-    MimiContent, NestedPart,
+    MessageStatus, MimiContent, NestedPart,
     content_container::{EncryptionAlgorithm, HashAlgorithm},
 };
 use rand::{Rng, RngExt, distr::Alphanumeric, seq::IteratorRandom};
@@ -183,6 +184,8 @@ pub struct TestBackend {
     temp_dir: TempDir,
     /// Present only if we spawned a local server.
     listener_control_handle: Option<ControlHandle>,
+    /// Present only if we spawned a local server.
+    max_devices: Option<[MaxDevices; 3]>,
     /// Whether to create APQ groups by default
     ///
     /// Read from the `TEST_WITH_APQ_GROUPS` environment variable.
@@ -203,6 +206,8 @@ pub struct TestBackendParams {
     pub registration: RegistrationSettings,
     pub unredeemable_code: Option<String>,
     pub max_attachment_size: u64,
+    /// Overrides the configured device limit.
+    pub max_devices: Option<u32>,
 }
 
 impl TestBackendParams {
@@ -228,6 +233,7 @@ impl Default for TestBackendParams {
             },
             unredeemable_code: None,
             max_attachment_size: DEFAULT_MAX_ATTACHMENT_SIZE,
+            max_devices: None,
         }
     }
 }
@@ -267,6 +273,7 @@ impl TestBackend {
             listener_control_handle,
             invitation_codes,
             sent_challenges,
+            max_devices,
             _cleanup,
         ) = if let Ok(value) = std::env::var("TEST_SERVER_URL") {
             let url: Url = value.parse().unwrap();
@@ -279,6 +286,7 @@ impl TestBackend {
                 Vec::new(),
                 SentChallenges::default(),
                 None,
+                None,
             )
         } else {
             let network_provider = MockNetworkProvider::new();
@@ -288,6 +296,7 @@ impl TestBackend {
             let control_handle = app.control_handle.clone();
             let codes = app.codes.clone();
             let sent_challenges = app.sent_challenges.clone();
+            let max_devices = app.max_devices.clone();
             info!(%listen_addr, "using spawned test server");
             let cleanup: Box<dyn Any> = Box::new(app);
             (
@@ -296,6 +305,7 @@ impl TestBackend {
                 Some(control_handle),
                 codes,
                 sent_challenges,
+                Some(max_devices),
                 Some(cleanup),
             )
         };
@@ -316,11 +326,23 @@ impl TestBackend {
             domain,
             temp_dir: tempfile::tempdir().unwrap(),
             listener_control_handle,
+            max_devices,
             invitation_codes,
             sent_challenges,
             apq_groups,
             _guard: Some(_guard),
             _cleanup,
+        }
+    }
+
+    /// Changes the device limit of the spawned server at runtime.
+    pub fn set_max_devices(&self, max_devices: u32) {
+        let handles = self
+            .max_devices
+            .as_ref()
+            .expect("device limit can only be changed on a spawned server");
+        for handle in handles {
+            handle.set(max_devices);
         }
     }
 
@@ -990,11 +1012,22 @@ impl TestBackend {
             // new message.
             assert!(messages.new_messages.is_empty());
             assert!(messages.chats_with_changed_notifications.contains(&chat_id));
+            // Send out delivery receipts
+            recipient_user.outbound_service().run_once().await;
 
             // The edited message keeps its timestamp, so it is still the last message.
             let message = recipient_user.last_message(chat_id).await.unwrap().unwrap();
             assert_eq!(message.message(), target_message.message());
         }
+
+        // Fetch and process delivery receipts. An edit resets the delivery
+        // state, so the recipients must report on the edited version.
+        let sender = self.users.get_mut(sender_id).unwrap().user.clone();
+        let delivery_receipts = sender.qs_fetch_messages().await.unwrap();
+        sender.fully_process_qs_messages(delivery_receipts).await;
+        let message = sender.message(message.id()).await.unwrap().unwrap();
+        assert_eq!(message.status(), MessageStatus::Delivered);
+
         message.id()
     }
 
@@ -1019,7 +1052,7 @@ impl TestBackend {
 
         test_sender
             .user
-            .delete_message(chat_id, message_id)
+            .delete_message_for_everyone(chat_id, message_id)
             .await
             .unwrap();
         test_sender.user.outbound_service().run_once().await;
@@ -2028,6 +2061,12 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                     SystemMessage::Onboarded => Some(
                         "This client has been onboarded into the group after linking".to_owned(),
                     ),
+                    SystemMessage::DeviceLinked(uuid) => {
+                        Some(format!("You linked a new device with UUID {uuid}"))
+                    }
+                    SystemMessage::DeviceUnlinked(uuid) => {
+                        Some(format!("You unlinked a device with UUID {uuid}"))
+                    }
                 }
             } else {
                 None

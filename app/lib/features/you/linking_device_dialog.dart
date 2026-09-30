@@ -468,6 +468,7 @@ enum _LinkPhase {
   awaitingConfirmation,
   linking,
   sessionNotFound,
+  deviceLimit,
   failed,
 }
 
@@ -492,6 +493,7 @@ class _LinkingPage extends HookWidget {
     final session = useMemoized(() => startLinkSession(context, sessionId));
 
     final phase = useState(_LinkPhase.connecting);
+    final maxDevices = useState(0);
 
     // Subscribe to the linking event stream while this page is mounted.
     useEffect(() {
@@ -506,6 +508,9 @@ class _LinkingPage extends HookWidget {
             if (context.mounted) Navigator.of(context).pop();
           case MultiDeviceLinkEvent_SessionNotFound():
             phase.value = _LinkPhase.sessionNotFound;
+          case MultiDeviceLinkEvent_DeviceLimitReached(maxDevices: final max):
+            maxDevices.value = max;
+            phase.value = _LinkPhase.deviceLimit;
           case MultiDeviceLinkEvent_Failed():
             phase.value = _LinkPhase.failed;
         }
@@ -533,6 +538,14 @@ class _LinkingPage extends HookWidget {
         onBack: onBack,
         title: loc.linkingDevicesScreen_error_title,
         message: loc.linkingDevicesScreen_error_sessionNotFound,
+      ),
+      _LinkPhase.deviceLimit => _LinkErrorView(
+        onBack: onBack,
+        title: loc.linkingDevicesScreen_error_deviceLimit_title,
+        message: loc.linkingDevicesScreen_error_deviceLimit(maxDevices.value),
+        dismissLabel: loc.linkingDevicesScreen_error_deviceLimit_dismiss,
+        // Retrying cannot help, so close the modal instead of going back.
+        onDismiss: () => Navigator.of(context).pop(),
       ),
       _LinkPhase.failed => _LinkErrorView(
         onBack: onBack,
@@ -579,11 +592,19 @@ class _LinkErrorView extends StatelessWidget {
     required this.onBack,
     required this.title,
     required this.message,
+    this.dismissLabel,
+    this.onDismiss,
   });
 
   final String title;
   final String message;
   final VoidCallback onBack;
+
+  /// Defaults to the "Try again" label.
+  final String? dismissLabel;
+
+  /// Defaults to [onBack].
+  final VoidCallback? onDismiss;
 
   @override
   Widget build(BuildContext context) {
@@ -603,8 +624,8 @@ class _LinkErrorView extends StatelessWidget {
         ),
         const SizedBox(height: S.s24),
         Button(
-          label: loc.linkingDevicesScreen_error_dismiss,
-          onPressed: onBack,
+          label: dismissLabel ?? loc.linkingDevicesScreen_error_dismiss,
+          onPressed: onDismiss ?? onBack,
         ),
       ],
     );

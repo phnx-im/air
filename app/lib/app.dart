@@ -117,6 +117,7 @@ class _AppState extends State<App> {
     _backgroundService.stop();
     _userSettingsCubit.close();
     _appLocaleCubit.close();
+    _navigationCubit.close();
     super.dispose();
   }
 
@@ -193,6 +194,7 @@ class _AppState extends State<App> {
                     AppLocalizations.supportedLocales,
                     const Locale('en', 'US'),
                   ),
+                  localeListResolutionCallback: resolveLocaleList,
                   locale: locale,
                   debugShowCheckedModeBanner: false,
                   theme: lightTheme,

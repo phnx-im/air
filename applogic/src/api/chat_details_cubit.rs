@@ -181,7 +181,7 @@ impl ChatDetailsCubitBase {
                 Box::pin(
                     self.context
                         .core_user
-                        .delete_message(self.context.chat_id, message_id),
+                        .delete_message_for_everyone(self.context.chat_id, message_id),
                 )
                 .await
                 .inspect_err(|error| error!(%error, "Failed to send delete message"))?;
@@ -190,7 +190,7 @@ impl ChatDetailsCubitBase {
                 // Delete locally - completely remove the message from the database
                 self.context
                     .core_user
-                    .delete_message_locally(message_id)
+                    .delete_message(message_id)
                     .await
                     .inspect_err(|error| error!(%error, "Failed to delete message locally"))?;
             }
@@ -879,6 +879,11 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         .await
         .unwrap_or(false);
 
+    let is_self_chat = core_user
+        .chat_is_self_group(&group_id)
+        .await
+        .unwrap_or(false);
+
     UiChatDetails {
         id: chat.id,
         status: chat.status.into(),
@@ -891,6 +896,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         last_reaction: last_reaction.map(Into::into),
         draft,
         is_apq,
+        is_self_chat,
         muted_until: chat.muted_until.map(Into::into),
         pending_commit_failed,
         resync_failed,

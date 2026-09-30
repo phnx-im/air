@@ -37,6 +37,11 @@ class ResizablePanel extends StatefulWidget {
 
   final double initialWidth;
   final double minWidth;
+
+  /// Upper bound on the panel width. The panel is clamped to it on every
+  /// build, not only while dragging, so a caller can lower it as the row
+  /// narrows and the panel gives way. The dragged width is kept, and the panel
+  /// grows back to it once the bound allows.
   final double maxWidth;
 
   /// Builds the panel at the current width. A builder rather than a child, so
@@ -71,11 +76,14 @@ class _ResizablePanelState extends State<ResizablePanel> {
     _panelWidth = widget.initialWidth;
   }
 
+  double get _clampedWidth =>
+      _panelWidth.clamp(widget.minWidth, widget.maxWidth);
+
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        widget.panelBuilder(context, _panelWidth),
+        widget.panelBuilder(context, _clampedWidth),
         Expanded(
           child: Stack(
             children: [
@@ -93,7 +101,7 @@ class _ResizablePanelState extends State<ResizablePanel> {
                     behavior: .opaque,
                     onHorizontalDragStart: (details) {
                       _dragStartX = details.globalPosition.dx;
-                      _dragStartWidth = _panelWidth;
+                      _dragStartWidth = _clampedWidth;
                       setState(() => _resizing = true);
                     },
                     onHorizontalDragUpdate: onResize,

@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT operation_type, key_fingerprint, allowance_epoch, token_index\n         FROM privacy_pass_redeemed\n         WHERE broadcast_after IS NOT NULL AND broadcast_after <= ?\n         ORDER BY operation_type, key_fingerprint, allowance_epoch, token_index",
+  "describe": {
+    "columns": [
+      {
+        "name": "operation_type",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_redeemed",
+            "name": "operation_type"
+          }
+        }
+      },
+      {
+        "name": "key_fingerprint",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_redeemed",
+            "name": "key_fingerprint"
+          }
+        }
+      },
+      {
+        "name": "allowance_epoch",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_redeemed",
+            "name": "allowance_epoch"
+          }
+        }
+      },
+      {
+        "name": "token_index",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_redeemed",
+            "name": "token_index"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8037befd8837f8e3bed39833e5ecbb0942216d5eff1ab0e798a46a2c4cf838dc"
+}

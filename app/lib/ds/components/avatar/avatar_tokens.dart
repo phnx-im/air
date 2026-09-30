@@ -15,10 +15,16 @@ abstract final class AvatarTokens {
   /// letter tracks the circle instead of stepping through fixed tiers.
   static const double letterRatio = 0.5;
 
+  /// Fallback-icon size as a fraction of the circle's diameter, same tracking
+  /// rationale as [letterRatio].
+  static const double iconRatio = 0.5;
+
   static const Alignment gradientBegin = Alignment.topLeft;
   static const Alignment gradientEnd = Alignment.bottomRight;
 
   static double letterSize(double diameter) => diameter * letterRatio;
+
+  static double iconSize(double diameter) => diameter * iconRatio;
 
   /// The fallback gradient [seed] hashes onto.
   static LinearGradient gradientFor(String? seed) => LinearGradient(

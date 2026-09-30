@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
+import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/system_message/system_message.dart';
@@ -11,12 +12,14 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/emphasized_text.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:air/features/message_list/contact_request_dialog.dart';
 import 'package:air/features/message_list/timestamp.dart';
+import 'package:uuid/uuid_value.dart';
 
 class DisplayMessageTile extends StatelessWidget {
   final UiEventMessage eventMessage;
@@ -53,12 +56,14 @@ class _SystemMessageContent extends StatefulWidget {
 class _SystemMessageContentState extends State<_SystemMessageContent> {
   /// One recognizer per person
   final Map<UiUserId, TapGestureRecognizer> _profileTaps = {};
+  TapGestureRecognizer? _devicesTap;
 
   @override
   void dispose() {
     for (final recognizer in _profileTaps.values) {
       recognizer.dispose();
     }
+    _devicesTap?.dispose();
     super.dispose();
   }
 
@@ -69,6 +74,14 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
           ..onTap = () =>
               context.read<NavigationCubit>().openMemberDetails(userId),
   );
+
+  TapGestureRecognizer _devicesTapRecognizer() =>
+      _devicesTap ??= TapGestureRecognizer()
+        ..onTap = () {
+          context.read<NavigationCubit>()
+            ..switchTab(HomeTab.profile)
+            ..openYouSection(YouSection.devices);
+        };
 
   @override
   Widget build(BuildContext context) {
@@ -109,6 +122,7 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
           context,
           widget.message,
           recognizerFor: profileTap,
+          devicesTap: _devicesTapRecognizer,
         ),
         timestamp: Timestamp(widget.timestamp),
       ),
@@ -133,13 +147,15 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
 /// The spans carry no base style: [SystemMessage] applies it to whatever it is
 /// handed, so only the emphasized runs need one of their own.
 ///
-/// [recognizerFor] makes the people the sentence names tappable. A caller that
-/// leaves it out, such as the chat list reading the sentence back as plain
-/// text, gets the same words with nothing attached.
+/// [recognizerFor] makes the people the sentence names tappable, and
+/// [devicesTap] the link to the device list. A caller that leaves them out,
+/// such as the chat list reading the sentence back as plain text, gets the
+/// same words with nothing attached.
 TextSpan buildSystemMessageText(
   BuildContext context,
   UiSystemMessage message, {
   GestureRecognizer? Function(UiUserId userId)? recognizerFor,
+  GestureRecognizer Function()? devicesTap,
 }) {
   final loc = AppLocalizations.of(context);
   final nameStyle = SystemMessage.emphasisOf(
@@ -150,8 +166,19 @@ TextSpan buildSystemMessageText(
   String nameOf(UiUserId id) =>
       context.select((UsersCubit c) => c.state.profile(userId: id).displayName);
 
+  String? deviceNameOf(UuidValue clientId) => context.select(
+    (LinkedDevicesCubit c) => c.state.devices
+        .firstWhereOrNull((device) => device.clientId == clientId)
+        ?.name,
+  );
+
   EmphasizedValue user(UiUserId id) =>
       EmphasizedValue(nameOf(id), recognizer: recognizerFor?.call(id));
+
+  EmphasizedValue tapToViewDevices() => EmphasizedValue(
+    loc.systemMessage_devicesTapToView,
+    recognizer: devicesTap?.call(),
+  );
 
   return switch (message) {
     UiSystemMessage_Add(field0: final adder, field1: final added) =>
@@ -238,5 +265,33 @@ TextSpan buildSystemMessageText(
       text: loc.systemMessage_newDirectConnectionChat(nameOf(field0)),
     ),
     UiSystemMessage_Onboarded() => TextSpan(text: loc.systemMessage_onboarded),
+    UiSystemMessage_DeviceLinked(:final field0) => switch (deviceNameOf(
+      field0,
+    )) {
+      final String deviceName => emphasizedText(
+        (marks) => loc.systemMessage_deviceLinked(marks[0], marks[1]),
+        [EmphasizedValue(deviceName), tapToViewDevices()],
+        nameStyle,
+      ),
+      null => emphasizedText(
+        (marks) => loc.systemMessage_deviceLinkedUnknown(marks[0]),
+        [tapToViewDevices()],
+        nameStyle,
+      ),
+    },
+    UiSystemMessage_DeviceUnlinked(:final field0) => switch (deviceNameOf(
+      field0,
+    )) {
+      final String deviceName => emphasizedText(
+        (marks) => loc.systemMessage_deviceUnlinked(marks[0], marks[1]),
+        [EmphasizedValue(deviceName), tapToViewDevices()],
+        nameStyle,
+      ),
+      null => emphasizedText(
+        (marks) => loc.systemMessage_deviceUnlinkedUnknown(marks[0]),
+        [tapToViewDevices()],
+        nameStyle,
+      ),
+    },
   };
 }

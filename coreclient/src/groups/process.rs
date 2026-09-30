@@ -37,9 +37,10 @@ use tls_codec::DeserializeBytes as TlsDeserializeBytes;
 use tracing::{debug, error, instrument, warn};
 
 use crate::{
+    chats,
     clients::{
         api_clients::ApiClients,
-        block_contact::pending::{apply_blocked_contacts_update, complete_sent_entries},
+        block_contact,
         user_settings::{SettingChanges, apply_settings_update, merge_settings_update},
     },
     db::access::WriteDbTransaction,
@@ -93,9 +94,16 @@ async fn apply_self_group_payload(
     }
 
     if own_echo {
-        complete_sent_entries(txn, &payload.blocked_contacts).await?;
+        block_contact::persistence::complete_sent_entries(txn, &payload.blocked_contacts).await?;
     } else {
-        apply_blocked_contacts_update(txn, &payload.blocked_contacts).await?;
+        block_contact::persistence::apply_blocked_contacts_update(txn, &payload.blocked_contacts)
+            .await?;
+    }
+
+    if own_echo {
+        chats::persistence::remove_staged_deletion(txn, &payload.deleted_chats).await?;
+    } else {
+        chats::persistence::apply_deleted_chats(txn, &payload.deleted_chats).await?;
     }
 
     Ok(())
@@ -1099,7 +1107,8 @@ mod tests {
     use crate::{
         clients::block_contact::{
             BlockedContact,
-            pending::{BlockedState, entries_to_broadcast, store_outgoing_entry},
+            pending::BlockedState,
+            persistence::{staged_entries, store_outgoing_entry},
         },
         db::access::DbAccess,
     };
@@ -1270,7 +1279,7 @@ mod tests {
 
             assert!(!BlockedContact::check_blocked(&mut *txn, &contested).await?);
             assert_eq!(
-                entries_to_broadcast(&mut *txn).await?,
+                staged_entries(&mut *txn).await?,
                 vec![
                     blocked_entry(&contested, 10, "Alice"),
                     blocked_entry(&untouched, 20, "Bob")

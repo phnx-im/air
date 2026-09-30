@@ -389,7 +389,7 @@ pub enum PeerUserIdError {
     InvalidDomain(#[from] FqdnError),
 }
 
-mod group_id_as_bytes {
+pub(super) mod group_id_as_bytes {
     use mls_assist::openmls::group::GroupId;
     use serde::{Deserialize, Deserializer, Serializer};
     use serde_bytes::ByteBuf;

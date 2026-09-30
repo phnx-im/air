@@ -13,3 +13,5 @@ application:
   version_expirations:
     - older_than: "0.21.0"
       expires_on: "2026-09-17"
+    - older_than: "0.22.0"
+      expires_on: "2026-10-01"

@@ -1,8 +1,35 @@
 #include "flutter_window.h"
 
+#include <flutter_windows.h>
+
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "window_placement.h"
+
+namespace {
+
+// Minimum size of the Flutter view in logical pixels. The width stays above
+// Breakpoint.smallMaxWidth in Dart, so the smallest window still gets the
+// two-pane layout at an interface scale of 1.
+constexpr int kMinContentWidth = 768;
+constexpr int kMinContentHeight = 512;
+
+// Windows expects the minimum size in physical pixels and including the
+// window frame, so we scale it for the current monitor and add the frame.
+void SetMinTrackSize(HWND window, MINMAXINFO* info) {
+  UINT dpi = FlutterDesktopGetDpiForMonitor(
+      MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST));
+  RECT frame = {0, 0, MulDiv(kMinContentWidth, dpi, 96),
+                MulDiv(kMinContentHeight, dpi, 96)};
+  AdjustWindowRectExForDpi(
+      &frame, static_cast<DWORD>(GetWindowLongPtr(window, GWL_STYLE)), FALSE,
+      static_cast<DWORD>(GetWindowLongPtr(window, GWL_EXSTYLE)), dpi);
+  info->ptMinTrackSize.x = frame.right - frame.left;
+  info->ptMinTrackSize.y = frame.bottom - frame.top;
+}
+
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -14,6 +41,7 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
 
+  show_command_ = RestoreWindowPlacement(GetHandle());
   RECT frame = GetClientArea();
 
   // The size here must match the window dimensions to avoid unnecessary surface
@@ -28,7 +56,7 @@ bool FlutterWindow::OnCreate() {
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
-    this->Show();
+    ShowWindow(GetHandle(), show_command_);
   });
 
   // Flutter can complete the first frame before the "show window" callback is
@@ -51,6 +79,10 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  if (message == WM_CLOSE || (message == WM_ENDSESSION && wparam)) {
+    SaveWindowPlacement(hwnd);
+  }
+
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
@@ -65,6 +97,9 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;
+    case WM_GETMINMAXINFO:
+      SetMinTrackSize(hwnd, reinterpret_cast<MINMAXINFO*>(lparam));
+      return 0;
   }
 
   return Win32Window::MessageHandler(hwnd, message, wparam, lparam);
