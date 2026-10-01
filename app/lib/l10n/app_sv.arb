@@ -252,7 +252,7 @@
   "messageBubble_read": "Läst",
   "chatList_newContact": "Ny Air-kontakt",
   "chatList_newGroup": "Ny gruppchatt",
-  "chatList_emptyMessage": "Lägg till din första Air-kontakt för att komma igång",
+  "chatList_noChats": "Använd Skriv-knappen för att lägga till din första kontakt och börja chatta.",
   "chatList_draft": "Utkast",
   "chatList_you": "Du",
   "chatList_imageEmoji": "🖼️",

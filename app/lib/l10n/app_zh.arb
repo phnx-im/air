@@ -241,7 +241,7 @@
   "messageBubble_read": "已读",
   "chatList_newContact": "新 Air 联系人",
   "chatList_newGroup": "新群聊",
-  "chatList_emptyMessage": "添加你的第一个 Air 联系人以开始使用",
+  "chatList_noChats": "使用“发消息”按钮添加你的第一个联系人，开始聊天。",
   "chatList_draft": "草稿",
   "chatList_you": "我",
   "chatList_imageEmoji": "🖼️",

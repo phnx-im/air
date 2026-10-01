@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE own_client_info SET self_group_id = ?, self_group_signing_key = ?\n            WHERE self_group_id IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "2ce2dac54a70897e4f53b41f628aca0001eec721805c6ae81a69783eef749068"
+}

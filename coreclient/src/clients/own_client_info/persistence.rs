@@ -142,20 +142,23 @@ impl OwnClientInfo {
         Ok(())
     }
 
-    pub(crate) async fn set_self_group(
+    /// Assigns the self group unless this client already has one. Returns
+    /// whether it was assigned.
+    pub(crate) async fn claim_self_group(
         mut write: impl WriteConnection,
         self_group_id: &GroupId,
         self_group_signing_key: &SelfGroupSigningKey,
-    ) -> sqlx::Result<()> {
+    ) -> sqlx::Result<bool> {
         let self_group_id = GroupIdRefWrapper::from(self_group_id);
-        query!(
-            "UPDATE own_client_info SET self_group_id = ?, self_group_signing_key = ?",
+        let result = query!(
+            "UPDATE own_client_info SET self_group_id = ?, self_group_signing_key = ?
+            WHERE self_group_id IS NULL",
             self_group_id,
             self_group_signing_key,
         )
         .execute(write.as_mut())
         .await?;
-        Ok(())
+        Ok(result.rows_affected() == 1)
     }
 
     pub(crate) async fn load_max_devices(mut read: impl ReadConnection) -> sqlx::Result<u32> {
@@ -298,6 +301,37 @@ mod tests {
         OwnClientInfo::backfill_client_id(pool.write().await?).await?;
         let loaded = OwnClientInfo::load(pool.read().await?).await?;
         assert_eq!(loaded.client_id, client_id);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn only_the_first_self_group_claim_wins(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let client_id = Uuid::new_v4();
+        OwnClientInfo {
+            qs_user_id: QsUserId::random(),
+            qs_client_id: QsClientId::random(&mut rand::rng()),
+            user_id: UserId::new(Uuid::new_v4(), "localhost".parse().unwrap()),
+            client_id,
+            self_group_id: None,
+            self_group_signing_key: None,
+        }
+        .store(pool.write().await?)
+        .await?;
+
+        let first = GroupId::random(&RustCrypto::default());
+        let second = GroupId::random(&RustCrypto::default());
+        let signing_key = SelfGroupSigningKey::generate(client_id)?;
+
+        assert!(OwnClientInfo::claim_self_group(pool.write().await?, &first, &signing_key).await?);
+        assert!(
+            !OwnClientInfo::claim_self_group(pool.write().await?, &second, &signing_key).await?
+        );
+        assert_eq!(
+            OwnClientInfo::load_self_group_id(pool.read().await?).await?,
+            Some(first)
+        );
 
         Ok(())
     }
