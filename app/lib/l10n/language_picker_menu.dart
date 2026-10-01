@@ -18,7 +18,7 @@ typedef LanguagePickerChildBuilder = Widget Function(
   VoidCallback onTap,
 );
 
-class LanguagePickerMenu extends StatefulWidget {
+class LanguagePickerMenu extends StatelessWidget {
   const LanguagePickerMenu({
     super.key,
     required this.onLocaleSelected,
@@ -27,14 +27,6 @@ class LanguagePickerMenu extends StatefulWidget {
 
   final Future<void> Function(Locale locale) onLocaleSelected;
   final LanguagePickerChildBuilder childBuilder;
-
-  @override
-  State<LanguagePickerMenu> createState() => _LanguagePickerMenuState();
-}
-
-class _LanguagePickerMenuState extends State<LanguagePickerMenu> {
-  /// The trigger the menu hangs off, whatever the host builds for it.
-  final GlobalKey _anchorKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
@@ -57,35 +49,33 @@ class _LanguagePickerMenuState extends State<LanguagePickerMenu> {
       orElse: () => languageOptions.first,
     );
 
-    return KeyedSubtree(
-      key: _anchorKey,
-      child: widget.childBuilder(
-        context,
+    return Builder(
+      builder: (anchorContext) => childBuilder(
+        anchorContext,
         currentOption,
-        () => _open(context, languageOptions, resolvedLocale),
+        () => _open(anchorContext, languageOptions, resolvedLocale),
       ),
     );
   }
 
   void _open(
-    BuildContext context,
+    BuildContext anchorContext,
     List<LanguageOption> options,
     Locale resolvedLocale,
   ) {
-    final render = _anchorKey.currentContext?.findRenderObject();
+    final render = anchorContext.findRenderObject();
     if (render is! RenderBox || !render.hasSize) return;
 
     unawaited(
       showOverlayMenu(
-        context: context,
+        context: anchorContext,
         anchor: render.localToGlobal(Offset.zero) & render.size,
         items: [
           for (final option in options)
             MenuItem(
               label: option.label,
               selected: option.locale == resolvedLocale,
-              onPressed: () =>
-                  unawaited(widget.onLocaleSelected(option.locale)),
+              onPressed: () => unawaited(onLocaleSelected(option.locale)),
             ),
         ],
       ),

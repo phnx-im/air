@@ -52,6 +52,10 @@
   "@userSettingsScreen_readReceiptsDescription": {
     "description": "Explains that the read receipts toggle applies in both directions."
   },
+  "userSettingsScreen_languageSettingsDescription": "Translations may contain mistakes.",
+  "@userSettingsScreen_languageSettingsDescription": {
+    "description": "Help text under the language picker in settings. Warns that the app's translations may contain errors."
+  },
 
   "userSettingsScreen_displayNameLabel": "Display name",
   "@userSettingsScreen_displayNameLabel": {

@@ -12,6 +12,7 @@
   "userSettingsScreen_limitAnimatedImagesLoopsDescription": "Якщо ввімкнено, GIF під час перегляду повторюються 3 рази, після чого їх можна відтворити вручну.",
   "userSettingsScreen_readReceipts": "Звіти про прочитання",
   "userSettingsScreen_readReceiptsDescription": "Якщо ввімкнено, інші бачитимуть, чи ви прочитали їхні повідомлення, а ви бачитимете, чи вони прочитали ваші.",
+  "userSettingsScreen_languageSettingsDescription": "Переклади можуть містити помилки.",
   "userSettingsScreen_displayNameLabel": "Відображуване ім’я",
   "userSettingsScreen_usernamesSection": "Імена користувача",
   "userSettingsScreen_helpSection": "Довідка",
