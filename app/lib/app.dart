@@ -26,7 +26,9 @@ import 'package:air/share/pending_share.dart';
 import 'package:air/util/interface_scale.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/util/time/app_clock.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
@@ -64,6 +66,10 @@ class _AppState extends State<App> {
     notificationContext: NotificationContextBase(
       notificationService: DartNotificationServiceExtension.create(),
     ),
+    // Navigation state is restored only on Android.
+    restoration: defaultTargetPlatform == TargetPlatform.android
+        ? NavigationRestoration(ServicesBinding.instance.restorationManager)
+        : null,
   );
   final UserSettingsCubit _userSettingsCubit = UserSettingsCubit();
   final AppLocaleCubit _appLocaleCubit = AppLocaleCubit();
@@ -184,7 +190,6 @@ class _AppState extends State<App> {
                 final locale = localeFromTag(userLocaleCode) ?? appLocale;
 
                 return MaterialApp.router(
-                  restorationScopeId: 'root',
                   scrollBehavior: const AppScrollBehavior(),
                   scaffoldMessengerKey: scaffoldMessengerKey,
                   onGenerateTitle: (context) =>
@@ -201,29 +206,25 @@ class _AppState extends State<App> {
                   theme: lightTheme,
                   darkTheme: darkTheme,
                   routerConfig: _appRouter,
-                  builder: (context, router) => NavigationRestorationScope(
-                    navigationCubit: _navigationCubit,
-                    child: UserSessionScope(
-                      appStateStream: _lifecycleHandler.appStateStream,
-                      child: BlocListener<NavigationCubit, NavigationState>(
-                        // Drop the keyboard focus whenever we navigate, e.g. leaving
-                        // a chat's message composer to open the contact/chat
-                        // details. Otherwise the composer's FocusNode keeps focus
-                        // while sitting under the pushed screens, and on iOS the
-                        // keyboard reappears when a pageless route on top (like the
-                        // safety code screen) is popped, because Flutter restores
-                        // focus to it.
-                        //
-                        // Only touch devices have a software keyboard, and on
-                        // desktop we want the composer to keep its focus, so this
-                        // is scoped to non-desktop. The listener already only fires
-                        // when the navigation state actually changes.
-                        listenWhen: (previous, current) =>
-                            !DeviceType.isDesktop,
-                        listener: (context, state) =>
-                            FocusManager.instance.primaryFocus?.unfocus(),
-                        child: RootScaffold(child: router!),
-                      ),
+                  builder: (context, router) => UserSessionScope(
+                    appStateStream: _lifecycleHandler.appStateStream,
+                    child: BlocListener<NavigationCubit, NavigationState>(
+                      // Drop the keyboard focus whenever we navigate, e.g. leaving
+                      // a chat's message composer to open the contact/chat
+                      // details. Otherwise the composer's FocusNode keeps focus
+                      // while sitting under the pushed screens, and on iOS the
+                      // keyboard reappears when a pageless route on top (like the
+                      // safety code screen) is popped, because Flutter restores
+                      // focus to it.
+                      //
+                      // Only touch devices have a software keyboard, and on
+                      // desktop we want the composer to keep its focus, so this
+                      // is scoped to non-desktop. The listener already only fires
+                      // when the navigation state actually changes.
+                      listenWhen: (previous, current) => !DeviceType.isDesktop,
+                      listener: (context, state) =>
+                          FocusManager.instance.primaryFocus?.unfocus(),
+                      child: RootScaffold(child: router!),
                     ),
                   ),
                 );
