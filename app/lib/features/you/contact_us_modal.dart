@@ -94,8 +94,9 @@ class _EmailForm extends HookWidget {
         debugLogsUrl.value = await context.read<UserCubit>().uploadLogs();
       } catch (e) {
         _log.severe("Failed to upload logs: $e", e);
-        showErrorBannerStandalone(
+        showSnackBarStandalone(
           (loc) => loc.contactUsScreen_errorUploadingLogs,
+          tone: .danger,
         );
         debugLogsUrl.value = null;
       } finally {

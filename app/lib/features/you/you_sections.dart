@@ -523,8 +523,8 @@ class HelpSection extends HookWidget {
             // what a run of taps is doing.
             if (onVersionTap()) return;
             showSnackBarStandalone(
-              (loc) =>
-                  SnackBar(content: Text(loc.settingsScreen_copiedToClipboard)),
+              (loc) => loc.settingsScreen_copiedToClipboard,
+              tone: .success,
             );
           },
           child: Row(

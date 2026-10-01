@@ -402,7 +402,6 @@
   "contactRequestDialog_confirm": "Aceitar",
   "contactRequestDialog_error_fatal": "Não foi possível aceitar o pedido de contacto",
   "contactRequestDialog_error_incompatibleClient": "Não foi possível aceitar o pedido de contacto. Atualiza o Air para a versão mais recente e tenta de novo.",
-  "errorBanner_ok": "OK",
   "errorDialog_title": "Algo correu mal",
   "errorDialog_confirm": "Entendido",
   "memberSelectionList_client_not_supported": "Este contacto tem uma versão antiga da aplicação que precisa de ser atualizada.",

@@ -2016,11 +2016,6 @@
     "description": "Error shown when a contact request cannot be accepted because this app version is too old."
   },
 
-  "errorBanner_ok": "OK",
-  "@errorBanner_ok": {
-    "description": "Button that dismisses the error banner at the top of the screen."
-  },
-
   "errorDialog_title": "Something went wrong",
   "@errorDialog_title": {
     "description": "Default title of the modal dialog that reports a failed action."

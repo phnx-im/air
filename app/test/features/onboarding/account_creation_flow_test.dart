@@ -4,6 +4,7 @@
 
 import 'dart:async';
 
+import 'package:air/app.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
@@ -12,6 +13,7 @@ import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -94,9 +96,10 @@ void main() {
       when(() => registrationCubit.submitInvitationCode())
           .thenAnswer((_) async => null);
       when(() => registrationCubit.signUp()).thenAnswer((_) async => null);
+      scaffoldMessengerKey.currentState?.clearSnackBars();
     });
 
-    Widget buildSubject() => MultiBlocProvider(
+    Widget buildSubject({bool scaffold = false}) => MultiBlocProvider(
       providers: [
         BlocProvider<RegistrationCubit>.value(value: registrationCubit),
         BlocProvider<NavigationCubit>.value(value: navigationCubit),
@@ -106,8 +109,12 @@ void main() {
       child: Builder(
         builder: (context) => MaterialApp(
           debugShowCheckedModeBanner: false,
+          scaffoldMessengerKey: scaffoldMessengerKey,
           theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
+          builder: scaffold
+              ? (context, child) => RootScaffold(child: child!)
+              : null,
           home: const AccountCreationFlow(),
         ),
       ),
@@ -163,6 +170,38 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets(
+      'a rejected code at sign up returns to the code with a snackbar',
+      (tester) async {
+        when(
+          () => registrationCubit.signUp(),
+        ).thenAnswer((_) async => const SignUpError(code: .challengeRejected));
+        when(() => registrationCubit.state).thenReturn(
+          const RegistrationState(
+            invitationCode: _validCode,
+            displayName: 'Ellie',
+            registrationInfo: _codeGatedRegistration,
+          ),
+        );
+
+        await tester.pumpWidget(buildSubject(scaffold: true));
+        await tester.pumpAndSettle();
+        await submit(tester, 'Join Air');
+        expect(find.text('Create your profile'), findsOneWidget);
+
+        await submit(tester, 'Create');
+
+        expect(find.text('Enter invite code'), findsOneWidget);
+        expect(
+          find.text('Invalid invite code. Check your code, then try again.'),
+          findsOneWidget,
+        );
+
+        scaffoldMessengerKey.currentState?.removeCurrentSnackBar();
+        await tester.pumpAndSettle();
+      },
+    );
 
     testWidgets('a short code never reaches the server', (tester) async {
       when(() => registrationCubit.state).thenReturn(

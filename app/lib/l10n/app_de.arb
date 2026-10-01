@@ -404,7 +404,6 @@
   "contactRequestDialog_confirm": "Annehmen",
   "contactRequestDialog_error_fatal": "Kontaktanfrage konnte nicht angenommen werden",
   "contactRequestDialog_error_incompatibleClient": "Kontaktanfrage konnte nicht angenommen werden. Aktualisiere Air auf die neueste Version und versuche es dann erneut.",
-  "errorBanner_ok": "OK",
   "errorDialog_title": "Etwas ist schiefgelaufen",
   "errorDialog_confirm": "Okay",
   "memberSelectionList_client_not_supported": "Dieser Kontakt hat eine veraltete App, die aktualisiert werden muss.",

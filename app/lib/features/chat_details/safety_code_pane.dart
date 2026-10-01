@@ -108,9 +108,8 @@ class _SafetyCode extends HookWidget {
                 ClipboardData(text: safetyCode.data!.textRepresentation),
               );
               showSnackBarStandalone(
-                (loc) => SnackBar(
-                  content: Text(loc.safetyCodeScreen_copiedToClipboard),
-                ),
+                (loc) => loc.safetyCodeScreen_copiedToClipboard,
+                tone: .success,
               );
             }
           : null,

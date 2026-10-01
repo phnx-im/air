@@ -403,7 +403,6 @@
   "contactRequestDialog_confirm": "Accepter",
   "contactRequestDialog_error_fatal": "Impossible d'accepter la demande de contact",
   "contactRequestDialog_error_incompatibleClient": "Impossible d'accepter la demande de contact. Mettez Air à jour vers la dernière version, puis réessayez.",
-  "errorBanner_ok": "OK",
   "errorDialog_title": "Un problème est survenu",
   "errorDialog_confirm": "Okay",
   "memberSelectionList_client_not_supported": "Ce contact a une application obsolète qui doit être mise à jour.",
