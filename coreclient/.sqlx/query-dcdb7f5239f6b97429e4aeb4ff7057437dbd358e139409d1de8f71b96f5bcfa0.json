@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM as_user_handles_queue WHERE message_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "dcdb7f5239f6b97429e4aeb4ff7057437dbd358e139409d1de8f71b96f5bcfa0"
+}

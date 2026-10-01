@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM\n                encrypted_group\n            WHERE\n                group_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "317da4cf888b6a389a44a103b973e82ba25d6b017c50332788a9a71333b1b893"
+}

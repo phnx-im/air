@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO as_token_nonce (operation_type, nonce, status) VALUES ($1, $2, 'reserved') ON CONFLICT DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int2",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "79e5fab276e51dbca973a176ac0e96e139e124a004fa595ed2f64714e05c54cc"
+}

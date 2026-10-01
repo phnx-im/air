@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE qs_client_record\n                    SET encrypted_push_token = NULL\n                    WHERE client_id = $1\n                        AND encrypted_push_token = $2\n                        AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Record"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "13e5b1dce5813b1e414bb09d02c021a96f25f6010373bb6efaf6a6e949292c91"
+}

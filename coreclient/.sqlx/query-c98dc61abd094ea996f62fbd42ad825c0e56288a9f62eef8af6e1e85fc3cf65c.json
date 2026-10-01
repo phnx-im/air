@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT key_package, is_last_resort, is_apq\n                FROM qs_staged_key_package\n                WHERE batch_id = $1\n                ORDER BY id ASC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key_package",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "qs_staged_key_package",
+            "name": "key_package"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "is_last_resort",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "qs_staged_key_package",
+            "name": "is_last_resort"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "is_apq",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "qs_staged_key_package",
+            "name": "is_apq"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c98dc61abd094ea996f62fbd42ad825c0e56288a9f62eef8af6e1e85fc3cf65c"
+}

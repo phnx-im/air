@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO\n                encrypted_group\n                (group_id, ciphertext, last_used, deleted_queues)\n            VALUES\n                ($1, $2, $3, $4)\n            ON CONFLICT (group_id) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Timestamptz",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ca93c7aadc5e2a235e101eb55bfa620e9f84713df1bd8296f6fbad3ab1dd0411"
+}

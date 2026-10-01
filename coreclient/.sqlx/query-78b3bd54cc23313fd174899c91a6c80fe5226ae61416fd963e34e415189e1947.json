@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM as_client_record WHERE user_uuid = $1 AND user_domain = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "78b3bd54cc23313fd174899c91a6c80fe5226ae61416fd963e34e415189e1947"
+}

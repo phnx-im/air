@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n          WITH ins AS (\n              INSERT INTO ds_collision_tag (group_id, epoch, tag)\n              SELECT $1, $2, unnest($3::bigint[])\n              ON CONFLICT (group_id, epoch, tag) DO NOTHING\n              RETURNING tag\n          )\n          SELECT u.tag AS \"tag!\"\n          FROM unnest($3::bigint[]) AS u(tag)\n          EXCEPT\n          SELECT tag FROM ins\n          ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tag!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8",
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "ce06f988ac643c86e6f6de3c199561ff29db8e7704c5ea9d50f84e60c0cbd600"
+}

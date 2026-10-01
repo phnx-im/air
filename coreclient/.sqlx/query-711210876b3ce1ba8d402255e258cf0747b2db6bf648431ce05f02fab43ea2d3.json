@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO as_batched_key (token_key_id, operation_type, voprf_server)\n            VALUES ($1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int2",
+        "Int2",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "711210876b3ce1ba8d402255e258cf0747b2db6bf648431ce05f02fab43ea2d3"
+}

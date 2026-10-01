@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM admission_session\n            WHERE session_id = $1 AND challenge_hash = $2 AND expires_at > now()\n            RETURNING endpoint_bucket, platform",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "endpoint_bucket",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "admission_session",
+            "name": "endpoint_bucket"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "platform",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "admission_session",
+            "name": "platform"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "ab915991a34a34a8619993e9c19badd34cf62cbcd89230b27e0e46a693c6ac42"
+}

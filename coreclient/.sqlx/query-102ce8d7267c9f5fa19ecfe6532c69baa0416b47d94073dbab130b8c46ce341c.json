@@ -1,0 +1,42 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT decryption_key as \"dk: _\" FROM qs_decryption_key",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "dk: _",
+        "type_info": {
+          "Custom": {
+            "name": "decryption_key_data",
+            "kind": {
+              "Composite": [
+                [
+                  "encryption_key",
+                  "Bytea"
+                ],
+                [
+                  "decryption_key",
+                  "Bytea"
+                ]
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "qs_decryption_key",
+            "name": "decryption_key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "102ce8d7267c9f5fa19ecfe6532c69baa0416b47d94073dbab130b8c46ce341c"
+}

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM as_batched_key WHERE operation_type = $1 AND created_at < now() - make_interval(days => $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int2",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "968ac291fb4edfd9f55e43ef520a1c2b3d509400d6448c8b75cf5fc7334469b5"
+}

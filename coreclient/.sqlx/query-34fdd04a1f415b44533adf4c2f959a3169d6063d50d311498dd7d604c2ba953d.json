@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO as_token_allowance (\n                    user_uuid,\n                    user_domain,\n                    operation_type,\n                    remaining,\n                    valid_until\n                ) VALUES($1, $2, $3, $4, $5)\n                ON CONFLICT DO NOTHING\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int2",
+        "Int2",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "34fdd04a1f415b44533adf4c2f959a3169d6063d50d311498dd7d604c2ba953d"
+}

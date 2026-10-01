@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO qs_decryption_key (decryption_key) VALUES ($1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "decryption_key_data",
+            "kind": {
+              "Composite": [
+                [
+                  "encryption_key",
+                  "Bytea"
+                ],
+                [
+                  "decryption_key",
+                  "Bytea"
+                ]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6732281c4fef63a996cda238b4f78515fee78d4cb18b89caea1b242402f5c014"
+}

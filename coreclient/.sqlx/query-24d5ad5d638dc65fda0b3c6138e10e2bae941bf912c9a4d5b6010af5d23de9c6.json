@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM registration_attempt\n            WHERE created_at < now() - ($1::BIGINT * INTERVAL '1 second')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "24d5ad5d638dc65fda0b3c6138e10e2bae941bf912c9a4d5b6010af5d23de9c6"
+}

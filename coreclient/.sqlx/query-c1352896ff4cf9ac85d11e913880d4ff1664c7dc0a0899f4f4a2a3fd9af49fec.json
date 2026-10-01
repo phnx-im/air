@@ -1,0 +1,81 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE as_user_record\n                SET encrypted_user_profile = $1, staged_user_profile = $2\n                WHERE user_uuid = $3 AND user_domain = $4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "indexed_ciphertext",
+            "kind": {
+              "Composite": [
+                [
+                  "ciphertext",
+                  {
+                    "Custom": {
+                      "name": "aead_ciphertext",
+                      "kind": {
+                        "Composite": [
+                          [
+                            "ciphertext",
+                            "Bytea"
+                          ],
+                          [
+                            "nonce",
+                            "Bytea"
+                          ]
+                        ]
+                      }
+                    }
+                  }
+                ],
+                [
+                  "key_index",
+                  "Bytea"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "indexed_ciphertext",
+            "kind": {
+              "Composite": [
+                [
+                  "ciphertext",
+                  {
+                    "Custom": {
+                      "name": "aead_ciphertext",
+                      "kind": {
+                        "Composite": [
+                          [
+                            "ciphertext",
+                            "Bytea"
+                          ],
+                          [
+                            "nonce",
+                            "Bytea"
+                          ]
+                        ]
+                      }
+                    }
+                  }
+                ],
+                [
+                  "key_index",
+                  "Bytea"
+                ]
+              ]
+            }
+          }
+        },
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c1352896ff4cf9ac85d11e913880d4ff1664c7dc0a0899f4f4a2a3fd9af49fec"
+}

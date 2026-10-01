@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO key_package (user_id, key_package, is_last_resort)\n            SELECT $1, key_package, is_last_resort\n            FROM qs_staged_key_package\n            WHERE batch_id = $2 AND is_apq = false\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5001cdf42231980a5b5382d7b54edf26f1fe9e9741b3fdc8c4184d0253693203"
+}
