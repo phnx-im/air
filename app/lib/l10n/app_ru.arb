@@ -380,7 +380,7 @@
   "appOutdatedScreen_description": "Откройте App Store на iOS или Google Play на Android и обновите Air.",
   "appOutdatedScreen_action": "Обновить",
   "updateReminder_title": "Обновите Air",
-  "updateReminder_body": "Доступна новая версия приложения. Обновите Air не позднее {date}, чтобы продолжить им пользоваться.",
+  "updateReminder_body": "Доступна новая версия приложения. Обновите Air сейчас, чтобы продолжить им пользоваться.",
   "contactRequestDialog_title": "Запрос на контакт",
   "contactRequestDialog_avatarHint": "Нажмите, чтобы показать фото",
   "contactRequestDialog_cancel": "Позже",

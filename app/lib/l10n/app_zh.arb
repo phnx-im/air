@@ -380,7 +380,7 @@
   "appOutdatedScreen_description": "在 iOS 上打开 App Store，或在 Android 上打开 Google Play，然后更新 Air。",
   "appOutdatedScreen_action": "更新",
   "updateReminder_title": "更新 Air",
-  "updateReminder_body": "有新版本可用。请在 {date} 之前更新，以继续使用 Air。",
+  "updateReminder_body": "有新版本可用。请立即更新，以继续使用 Air。",
   "contactRequestDialog_title": "联系请求",
   "contactRequestDialog_avatarHint": "点击显示对方的头像",
   "contactRequestDialog_cancel": "稍后",

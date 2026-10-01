@@ -395,7 +395,7 @@
   "appOutdatedScreen_description": "Öppna App Store på iOS eller Google Play på Android och uppdatera Air.",
   "appOutdatedScreen_action": "Uppdatera",
   "updateReminder_title": "Uppdatera Air",
-  "updateReminder_body": "En ny version av appen finns tillgänglig. Uppdatera senast {date} för att fortsätta använda Air.",
+  "updateReminder_body": "En ny version av appen finns tillgänglig. Uppdatera nu för att fortsätta använda Air.",
   "contactRequestDialog_title": "Kontaktförfrågan",
   "contactRequestDialog_avatarHint": "Tryck för att visa bilden",
   "contactRequestDialog_cancel": "Senare",

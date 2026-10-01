@@ -380,7 +380,7 @@
   "appOutdatedScreen_description": "Відкрийте App Store на iOS або Google Play на Android і оновіть Air.",
   "appOutdatedScreen_action": "Оновити",
   "updateReminder_title": "Оновіть Air",
-  "updateReminder_body": "Доступна нова версія застосунку. Оновіть Air не пізніше {date}, щоб і далі ним користуватися.",
+  "updateReminder_body": "Доступна нова версія застосунку. Оновіть Air зараз, щоб і далі ним користуватися.",
   "contactRequestDialog_title": "Запит на контакт",
   "contactRequestDialog_avatarHint": "Натисніть, щоб показати фото",
   "contactRequestDialog_cancel": "Пізніше",

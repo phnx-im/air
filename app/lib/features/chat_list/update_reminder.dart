@@ -10,7 +10,6 @@ import 'package:air/ds/patterns/reminder_banner/reminder_banner_tokens.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/platform/app_store.dart';
-import 'package:air/util/time/time_labels.dart';
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 
@@ -24,7 +23,6 @@ class UpdateReminder extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final base = ReminderBannerTokens.defaults(SemanticPalette.of(context));
     final row = ChatListItemTokens.current;
-    final date = TimeFormats.of(context).monthDayYear(expiresAt.toLocal());
 
     return ReminderBanner(
       // Line up the icon with the avatar below and the text with the chat titles.
@@ -38,7 +36,7 @@ class UpdateReminder extends StatelessWidget {
       ),
       type: .refreshCw,
       title: loc.updateReminder_title,
-      body: loc.updateReminder_body(date),
+      body: loc.updateReminder_body,
       onTap: DeviceType.isPhone ? openAppStore : null,
       onDismiss: () => context
           .read<UserSettingsCubit>()
