@@ -18,12 +18,15 @@ import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/platform/notification_permissions.dart';
 import 'package:air/util/image_providers.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/util/username_input_formatter.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
 
 /// Exact length of an invitation code.
@@ -276,6 +279,10 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
         text: loc.invitationCodeScreen_subheader,
         onLongPress: _revealServerField,
       ),
+      if (DeviceType.isPhone) ...[
+        const SizedBox(height: S.s12),
+        const _NotificationsHint(),
+      ],
       const SizedBox(height: S.s32),
       AppTextInput(
         tokens: AppTextInputTokens.current,
@@ -669,6 +676,46 @@ class _Copy extends StatelessWidget {
     return GestureDetector(
       onLongPress: onLongPress,
       child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
+    );
+  }
+}
+
+/// Points at missing notification permission as another reason for the invite
+/// code step, with a link to the system notification settings.
+class _NotificationsHint extends HookWidget {
+  const _NotificationsHint();
+
+  @override
+  Widget build(BuildContext context) {
+    final linkTap = useMemoized(
+      () => TapGestureRecognizer()..onTap = openNotificationSettings,
+    );
+    useEffect(() => linkTap.dispose, [linkTap]);
+
+    final loc = AppLocalizations.of(context);
+    final style = Theme.of(context).textTheme.bodyMedium;
+
+    final linkText = loc.invitationCodeScreen_notificationsLinkText;
+    final hint = loc.invitationCodeScreen_notificationsHint(linkText);
+    final linkStart = hint.indexOf(linkText);
+
+    if (linkStart == -1) {
+      return Text(hint, style: style);
+    }
+
+    return Text.rich(
+      TextSpan(
+        style: style,
+        children: [
+          TextSpan(text: hint.substring(0, linkStart)),
+          TextSpan(
+            text: linkText,
+            style: TextStyle(color: SemanticPalette.of(context).function.link),
+            recognizer: linkTap,
+          ),
+          TextSpan(text: hint.substring(linkStart + linkText.length)),
+        ],
+      ),
     );
   }
 }
