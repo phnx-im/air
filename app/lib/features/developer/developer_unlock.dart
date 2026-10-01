@@ -7,7 +7,6 @@ import 'dart:async';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
-import 'package:flutter/material.dart' show SnackBar;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -53,11 +52,9 @@ bool Function() useDeveloperUnlock() {
     final remaining = _unlockTaps - count;
     if (count >= _announceFrom) {
       showSnackBarStandalone(
-        (_) => SnackBar(
-          content: Text(
+        (loc) =>
             "$remaining ${remaining == 1 ? "tap" : "taps"} to developer mode",
-          ),
-        ),
+        tone: .success,
       );
     }
     return count > 1;

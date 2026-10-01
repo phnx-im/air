@@ -228,7 +228,6 @@ class _SingleDevice extends StatelessWidget {
   }
 
   void _unlinkDevice(BuildContext context, String name) {
-    final loc = AppLocalizations.of(context);
     final cubit = context.read<LinkedDevicesCubit>();
     showDialog(
       context: context,
@@ -237,13 +236,11 @@ class _SingleDevice extends StatelessWidget {
           try {
             await cubit.unlinkDevice(clientId: device.clientId);
           } catch (_) {
-            if (!context.mounted) {
-              return;
-            }
-            _showErrorDialog(
+            if (!context.mounted) return;
+            showErrorDialog(
               context,
-              title: loc.linkedDevicesScreen_unlinkError_title,
-              message: loc.linkedDevicesScreen_unlinkError(name),
+              title: (loc) => loc.linkedDevicesScreen_unlinkError_title,
+              message: (loc) => loc.linkedDevicesScreen_unlinkError(name),
             );
           }
         },
@@ -252,7 +249,6 @@ class _SingleDevice extends StatelessWidget {
   }
 
   void _editDeviceName(BuildContext context, String currentName) {
-    final loc = AppLocalizations.of(context);
     final cubit = context.read<LinkedDevicesCubit>();
     final navigator = Navigator.of(context);
     showDialog(
@@ -264,35 +260,16 @@ class _SingleDevice extends StatelessWidget {
           try {
             await cubit.renameDevice(clientId: device.clientId, name: value);
           } catch (_) {
-            if (!context.mounted) {
-              return;
-            }
-            _showErrorDialog(
+            if (!context.mounted) return;
+            showErrorDialog(
               context,
-              title: loc.linkedDevicesScreen_renameError_title,
+              title: (loc) => loc.linkedDevicesScreen_renameError_title,
               // The old name: the rename did not take effect.
-              message: loc.linkedDevicesScreen_renameError(currentName),
+              message: (loc) =>
+                  loc.linkedDevicesScreen_renameError(currentName),
             );
           }
         },
-      ),
-    );
-  }
-
-  /// Reports a failed device action, with only a dismiss button: there is
-  /// nothing to confirm, the action simply did not happen.
-  void _showErrorDialog(
-    BuildContext context, {
-    required String title,
-    required String message,
-  }) {
-    showDialog(
-      context: context,
-      builder: (_) => ConfirmDialog(
-        title: title,
-        message: message,
-        confirm: AppLocalizations.of(context)
-            .linkedDevicesScreen_errorDialog_confirm,
       ),
     );
   }

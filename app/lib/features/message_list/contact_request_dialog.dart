@@ -117,14 +117,18 @@ class ContactRequestDialog extends HookWidget {
       if (error != null) {
         Logger.detached("ContactRequestDialog")
             .severe("Failed to request resync: $error");
-        showErrorBannerStandalone(
+        showSnackBarStandalone(
           (loc) => loc.contactRequestDialog_error_incompatibleClient,
+          tone: .danger,
         );
       }
     } catch (e, stackTrace) {
       Logger.detached("ContactRequestDialog")
           .severe("Failed to accept contact request: $e", e, stackTrace);
-      showErrorBannerStandalone((loc) => loc.contactRequestDialog_error_fatal);
+      showSnackBarStandalone(
+        (loc) => loc.contactRequestDialog_error_fatal,
+        tone: .danger,
+      );
     } finally {
       isAccepting.value = false;
     }
