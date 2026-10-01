@@ -140,10 +140,9 @@ class UpdateRequiredView extends StatelessWidget {
     final loc = AppLocalizations.of(context);
 
     final description = switch (platform) {
-      .iOS => loc.appOutdatedScreen_descriptionIos,
-      .android || .fuchsia => loc.appOutdatedScreen_descriptionAndroid,
-      .macOS => loc.appOutdatedScreen_descriptionMacos,
-      .windows => loc.appOutdatedScreen_descriptionWindows,
+      .iOS || .macOS => loc.appOutdatedScreen_descriptionAppStore,
+      .android || .fuchsia => loc.appOutdatedScreen_descriptionGooglePlay,
+      .windows => loc.appOutdatedScreen_descriptionMicrosoftStore,
       .linux => loc.appOutdatedScreen_descriptionLinux,
     };
     // Only a store has an update to send us to.

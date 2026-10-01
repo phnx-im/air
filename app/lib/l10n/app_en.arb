@@ -1977,25 +1977,21 @@
   "@appOutdatedScreen_message": {
     "description": "Headline telling the user an update is needed to carry on."
   },
-  "appOutdatedScreen_descriptionIos": "On iOS, open the App Store and update Air.",
-  "@appOutdatedScreen_descriptionIos": {
-    "description": "Update instruction on the update required screen when running on iOS. App Store is a product name."
+  "appOutdatedScreen_descriptionAppStore": "Open the App Store and update Air.",
+  "@appOutdatedScreen_descriptionAppStore": {
+    "description": "Update instruction on the update required screen on iOS and macOS. App Store is a product name."
   },
-  "appOutdatedScreen_descriptionAndroid": "On Android, open Google Play and update Air.",
-  "@appOutdatedScreen_descriptionAndroid": {
-    "description": "Update instruction on the update required screen when running on Android. Google Play is a product name."
+  "appOutdatedScreen_descriptionGooglePlay": "Open Google Play and update Air.",
+  "@appOutdatedScreen_descriptionGooglePlay": {
+    "description": "Update instruction on the update required screen on Android. Google Play is a product name."
   },
-  "appOutdatedScreen_descriptionMacos": "On macOS, open TestFlight and update Air.",
-  "@appOutdatedScreen_descriptionMacos": {
-    "description": "Update instruction on the update required screen when running on macOS. TestFlight is a product name."
+  "appOutdatedScreen_descriptionMicrosoftStore": "Open the Microsoft Store and update Air.",
+  "@appOutdatedScreen_descriptionMicrosoftStore": {
+    "description": "Update instruction on the update required screen on Windows. Microsoft Store is a product name."
   },
-  "appOutdatedScreen_descriptionWindows": "On Windows, update Air using your preferred method.",
-  "@appOutdatedScreen_descriptionWindows": {
-    "description": "Update instruction on the update required screen when running on Windows. Air may be installed from the Microsoft Store or by download, so no specific source is named."
-  },
-  "appOutdatedScreen_descriptionLinux": "On Linux, update Air using your preferred method.",
+  "appOutdatedScreen_descriptionLinux": "Update Air using your preferred method.",
   "@appOutdatedScreen_descriptionLinux": {
-    "description": "Update instruction on the update required screen when running on Linux. Air may be installed through any package manager or by hand, so no specific tool is named."
+    "description": "Update instruction on the update required screen on Linux. Air may be installed through any package manager or by hand, so no specific tool is named."
   },
   "appOutdatedScreen_action": "Update",
   "@appOutdatedScreen_action": {
