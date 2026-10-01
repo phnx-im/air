@@ -5,11 +5,12 @@
 import 'dart:async';
 
 import 'package:air/core/core.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/nux/nux_scaffold_tokens.dart';
 import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat/share_target_publisher.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/features/onboarding/update_required_screen.dart';
+import 'package:air/features/onboarding/update_required_view.dart';
 import 'package:air/features/user/unlinked_device_listener.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_session_cubit.dart';
@@ -94,7 +95,15 @@ class UserSessionScope extends StatelessWidget {
                     ),
                   ],
                   child: UnlinkedDeviceHandler(
-                    child: UpdateRequiredScreen(child: child),
+                    child: BlocSelector<UserCubit, UiUser, bool>(
+                      selector: (user) =>
+                          user.versionStatus is VersionStatus_Unsupported,
+                      builder: (context, unsupported) => unsupported
+                          ? UpdateRequiredView(
+                              showUpdateButton: DeviceType.isPhone,
+                            )
+                          : child,
+                    ),
                   ),
                 ),
               ),

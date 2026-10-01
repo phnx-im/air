@@ -21,6 +21,7 @@ import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:air/features/chat/chat_list_item_cubit.dart';
 import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat/mute_chat_sheet.dart';
+import 'package:air/features/chat_list/update_reminder.dart';
 import 'package:air/features/message_list/display_message_tile.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/avatar.dart';
@@ -79,11 +80,28 @@ class ChatListContent extends HookWidget {
           ]
         : orderedChatIds;
 
+    final appExpiresAt = context.select(
+      (UserCubit cubit) => switch (cubit.state.versionStatus) {
+        VersionStatus_ExpiresAt(field0: final expiresAt) => expiresAt,
+        _ => null,
+      },
+    );
+    final dismissedFor = context.select(
+      (UserSettingsCubit cubit) => cubit.state.dismissedVersionExpiry,
+    );
+    final showUpdateReminder =
+        !shareMode &&
+        appExpiresAt != null &&
+        !(dismissedFor?.isAtSameMomentAs(appExpiresAt) ?? false);
+
     final list = ChatList(
       tokens: ChatListTokens.current,
       backgroundColor: PanelSurface.colorOf(context),
       header: header,
       headerHeight: headerHeight,
+      topBanner: showUpdateReminder
+          ? UpdateReminder(expiresAt: appExpiresAt)
+          : null,
       itemCount: chatIds.length,
       itemBuilder: (context, index) {
         final chatId = chatIds[index];

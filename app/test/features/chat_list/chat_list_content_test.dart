@@ -8,6 +8,7 @@ import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat_list/chat_list_content.dart';
 import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -391,6 +392,7 @@ void main() {
 
     Widget buildSubject({
       required List<UiChatDetails> chats,
+      bool shareMode = false,
     }) => RepositoryProvider<ChatsRepository>.value(
       value: FakeChatsRepository(chats),
       child: MultiBlocProvider(
@@ -407,7 +409,7 @@ void main() {
                 debugShowCheckedModeBanner: false,
                 theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: const Scaffold(body: ChatListContent()),
+                home: Scaffold(body: ChatListContent(shareMode: shareMode)),
               );
             },
           ),
@@ -441,6 +443,85 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/chat_list_content.png'),
       );
+    });
+
+    group('update reminder', () {
+      final expiresAt = DateTime.utc(2026, 8, 1, 12);
+      final reminderTitle = find.text('Update Air');
+
+      setUp(() {
+        when(() => userCubit.state).thenReturn(
+          MockUiUser(id: 1, versionStatus: VersionStatus.expiresAt(expiresAt)),
+        );
+        when(
+          () => userSettingsCubit.setDismissedVersionExpiry(
+            value: any(named: 'value'),
+          ),
+        ).thenAnswer((_) async {});
+      });
+
+      testWidgets('is hidden when the version is supported', (tester) async {
+        when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
+
+        await tester.pumpWidget(buildSubject(chats: chats));
+
+        expect(reminderTitle, findsNothing);
+      });
+
+      testWidgets('is shown when the version expires and dismisses', (
+        tester,
+      ) async {
+        await tester.pumpWidget(buildSubject(chats: chats));
+
+        expect(reminderTitle, findsOneWidget);
+
+        await tester.tap(
+          find.byWidgetPredicate(
+            (widget) => widget is AppIcon && widget.type == AppIconType.x,
+          ),
+        );
+        await tester.pump();
+
+        verify(
+          () => userSettingsCubit.setDismissedVersionExpiry(value: expiresAt),
+        ).called(1);
+      });
+
+      testWidgets('is hidden when dismissed for the announced expiry', (
+        tester,
+      ) async {
+        when(() => userSettingsCubit.state).thenReturn(
+          UserSettings(
+            experimentalFeatures: false,
+            dismissedVersionExpiry: expiresAt,
+          ),
+        );
+
+        await tester.pumpWidget(buildSubject(chats: chats));
+
+        expect(reminderTitle, findsNothing);
+      });
+
+      testWidgets('is shown when dismissed for an earlier expiry', (
+        tester,
+      ) async {
+        when(() => userSettingsCubit.state).thenReturn(
+          UserSettings(
+            experimentalFeatures: false,
+            dismissedVersionExpiry: expiresAt.subtract(const Duration(days: 7)),
+          ),
+        );
+
+        await tester.pumpWidget(buildSubject(chats: chats));
+
+        expect(reminderTitle, findsOneWidget);
+      });
+
+      testWidgets('is hidden in share mode', (tester) async {
+        await tester.pumpWidget(buildSubject(chats: chats, shareMode: true));
+
+        expect(reminderTitle, findsNothing);
+      });
     });
 
     // The draft chat, whose preview is the draft whatever navigation does.
