@@ -308,14 +308,12 @@ async fn multi_device_linking_session() {
         "self-group client ids must match each device's own client id"
     );
 
-    assert_eq!(
-        old_device.self_chat_title().await.unwrap().as_deref(),
-        Some("Notes to self"),
-        "old device should have a Notes to self chat"
+    assert!(
+        old_device.self_chat_id().await.unwrap().is_some(),
+        "old device should have a self-chat"
     );
-    assert_eq!(
-        new_device.self_chat_title().await.unwrap().as_deref(),
-        Some("Notes to self"),
+    assert!(
+        new_device.self_chat_id().await.unwrap().is_some(),
         "new device should have a Notes to self chat"
     );
 

@@ -39,7 +39,7 @@ use own_client_info::OwnClientInfo;
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, query};
 use store::ClientRecord;
-use tokio::sync::Notify;
+use tokio::sync::{Mutex, Notify};
 use tokio::task::spawn_blocking;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::DropGuard;
@@ -53,7 +53,7 @@ use crate::{
     clients::event_loop::{EventLoop, EventLoopSender},
     contacts::{TargetedMessageContact, UsernameContact},
     db::access::{DbAccess, WriteDbTransaction},
-    groups::Group,
+    groups::{Group, self_group::SelfGroupNotJoinedYet},
     job::{Job, JobContext, JobContextDb, JobError},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
     outbound_service::{OutboundService, resync::Resync},
@@ -144,6 +144,7 @@ pub(crate) struct CoreUserInner {
     outbound_service: OutboundService,
     event_loop_sender: EventLoopSender,
     event_loop_cancel: DropGuard,
+    pub(crate) self_group_creation: Mutex<()>,
 }
 
 impl CoreUserInner {
@@ -249,6 +250,7 @@ impl CoreUser {
         let self_user =
             final_state.into_self_user(client_db, client_record_id, api_clients, global_lock);
         self_user.publish_own_device_entry(Utc::now()).await;
+        self_user.spawn_ensure_self_group();
 
         Ok(self_user)
     }
@@ -304,8 +306,33 @@ impl CoreUser {
         let self_user =
             final_state.into_self_user(client_db, client_record_id, api_clients, global_lock);
         self_user.publish_own_device_entry(client_created_at).await;
+        self_user.spawn_ensure_self_group();
 
         Ok(self_user)
+    }
+
+    /// Not awaited, so an offline start doesn't wait for the DS.
+    fn spawn_ensure_self_group(&self) {
+        let self_user = self.clone();
+        let cancel = self.inner.event_loop_cancel.token().clone();
+        tokio::spawn(async move {
+            let result = tokio::select! {
+                result = Box::pin(self_user.ensure_self_group()) => result,
+                _ = cancel.cancelled() => {
+                    debug!("user closed, skipping the self group creation");
+                    return;
+                }
+            };
+            match result {
+                Ok(_) => {}
+                Err(error) if error.is::<SelfGroupNotJoinedYet>() => {
+                    debug!("self group not joined yet, skipping its creation");
+                }
+                Err(error) => {
+                    error!(%error, "failed to ensure the self group, retrying on next start");
+                }
+            }
+        });
     }
 
     /// Publishes this device's linked-devices entry.

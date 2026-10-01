@@ -241,7 +241,7 @@
   "messageBubble_read": "Прочитано",
   "chatList_newContact": "Новий контакт Air",
   "chatList_newGroup": "Нова група",
-  "chatList_emptyMessage": "Додайте перший контакт Air, щоб почати спілкування",
+  "chatList_noChats": "Натисніть кнопку «Написати», щоб додати перший контакт і почати спілкування.",
   "chatList_draft": "Чернетка",
   "chatList_you": "Ви",
   "chatList_imageEmoji": "🖼️",
