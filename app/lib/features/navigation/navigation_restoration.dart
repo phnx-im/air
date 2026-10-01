@@ -91,7 +91,7 @@ HomeNavigationState? _decodeHome(Object? value) {
     orElse: () => HomeTab.chats,
   );
   final chatId = switch (value['chatId']) {
-    final String s => UuidValue.fromString(s),
+    final String s => _parseUuid(s),
     _ => null,
   };
   return HomeNavigationState(
@@ -99,4 +99,12 @@ HomeNavigationState? _decodeHome(Object? value) {
     chatId: chatId != null ? ChatId(uuid: chatId) : null,
     chatOpen: value['chatOpen'] == true,
   );
+}
+
+UuidValue? _parseUuid(String s) {
+  try {
+    return UuidValue.withFormatValidation(s);
+  } on FormatException {
+    return null;
+  }
 }

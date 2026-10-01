@@ -87,6 +87,17 @@ void main() {
     return manager.kill();
   }
 
+  /// Restarts on data whose saved home is the raw [value].
+  Future<NavigationRestoration> restoreRaw(Object value) async {
+    final manager = _FakeRestorationManager()..deliver(null);
+    final root = await manager.rootBucket;
+    root!
+        .claimChild(NavigationRestoration.bucketId, debugOwner: null)
+        .write(NavigationRestoration.lastHomeKey, value);
+    final (restoration, _) = await start(manager.kill());
+    return restoration;
+  }
+
   group('NavigationRestoration', () {
     test(
       'restores the tab and the open chat of the previous process',
@@ -200,28 +211,38 @@ void main() {
     });
 
     test('ignores saved data it cannot read', () async {
-      final manager = _FakeRestorationManager()..deliver(null);
-      final root = await manager.rootBucket;
-      root!
-          .claimChild(NavigationRestoration.bucketId, debugOwner: null)
-          .write(NavigationRestoration.lastHomeKey, 'x');
-
-      final (restoration, _) = await start(manager.kill());
+      final restoration = await restoreRaw('x');
 
       expect(restoration.takeRestoredHome(), isNull);
     });
 
     test('falls back to the chats tab for an unknown tab', () async {
-      final manager = _FakeRestorationManager()..deliver(null);
-      final root = await manager.rootBucket;
-      root!.claimChild(NavigationRestoration.bucketId, debugOwner: null).write(
-        NavigationRestoration.lastHomeKey,
-        {'tab': 'gone', 'chatOpen': false},
-      );
-
-      final (restoration, _) = await start(manager.kill());
+      final restoration = await restoreRaw({'tab': 'gone', 'chatOpen': false});
 
       expect(restoration.takeRestoredHome(), const HomeNavigationState());
+    });
+
+    test('drops a malformed chat id', () async {
+      final restoration = await restoreRaw({
+        'tab': 'chats',
+        'chatId': 'not-a-uuid',
+        'chatOpen': true,
+      });
+
+      expect(
+        restoration.takeRestoredHome(),
+        const HomeNavigationState(chatOpen: true),
+      );
+    });
+
+    test('ignores fields of the wrong type', () async {
+      final restoration = await restoreRaw({
+        'tab': 'profile',
+        'chatId': 42,
+        'chatOpen': 'yes',
+      });
+
+      expect(restoration.takeRestoredHome(), _savedHome);
     });
   });
 
