@@ -241,6 +241,7 @@
   "systemMessage_deviceUnlinked": "Du hast das Gerät {device} von deinem Konto getrennt. {tapToView}",
   "systemMessage_deviceUnlinkedUnknown": "Du hast ein Gerät von deinem Konto getrennt. {tapToView}",
   "systemMessage_devicesTapToView": "Tippe, um deine Geräte anzuzeigen.",
+  "systemMessage_selfChatCreated": "Nutze diesen Chat für deine persönlichen Notizen. Nachrichten werden auf allen verknüpften Geräten deines Kontos synchronisiert.",
   "timestamp_now": "Jetzt",
   "timestamp_minutesAgo": "{count}m",
   "date_today": "Heute",

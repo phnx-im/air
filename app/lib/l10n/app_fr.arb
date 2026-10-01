@@ -241,6 +241,7 @@
   "systemMessage_deviceUnlinked": "Vous avez dissocié l'appareil {device} de votre compte. {tapToView}",
   "systemMessage_deviceUnlinkedUnknown": "Vous avez dissocié un appareil de votre compte. {tapToView}",
   "systemMessage_devicesTapToView": "Voir vos appareils.",
+  "systemMessage_selfChatCreated": "Utilisez cette discussion comme bloc-notes personnel. Les messages sont synchronisés sur tous les appareils associés à votre compte.",
   "timestamp_now": "Maintenant",
   "timestamp_minutesAgo": "{count} min",
   "date_today": "Aujourd’hui",

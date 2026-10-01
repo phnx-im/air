@@ -241,6 +241,7 @@
   "systemMessage_deviceUnlinked": "Du avlänkade enheten {device} från ditt konto. {tapToView}",
   "systemMessage_deviceUnlinkedUnknown": "Du avlänkade en enhet från ditt konto. {tapToView}",
   "systemMessage_devicesTapToView": "Tryck för att se dina enheter.",
+  "systemMessage_selfChatCreated": "Använd den här chatten som ditt personliga anteckningsblock. Meddelanden synkroniseras mellan alla länkade enheter på ditt konto.",
   "timestamp_now": "Nu",
   "timestamp_minutesAgo": "{count}m",
   "date_today": "Idag",

@@ -11693,6 +11693,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sender: dco_decode_box_autoadd_ui_user_id(raw[1]),
           chatName: dco_decode_String(raw[2]),
         );
+      case 16:
+        return UiSystemMessage_SelfChatCreated();
       default:
         throw Exception("unreachable");
     }
@@ -15859,6 +15861,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sender: var_sender,
           chatName: var_chatName,
         );
+      case 16:
+        return UiSystemMessage_SelfChatCreated();
       default:
         throw UnimplementedError('');
     }
@@ -20088,6 +20092,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(15, serializer);
         sse_encode_box_autoadd_ui_user_id(sender, serializer);
         sse_encode_String(chatName, serializer);
+      case UiSystemMessage_SelfChatCreated():
+        sse_encode_i_32(16, serializer);
     }
   }
 

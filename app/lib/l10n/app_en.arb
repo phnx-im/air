@@ -1238,6 +1238,11 @@
     "description": "Call-to-action rendered as its own tappable, emphasized run at the point the surrounding sentence places it. Tapping it opens the devices section of settings."
   },
 
+  "systemMessage_selfChatCreated": "Use this chat as your personal notepad. Messages are synced across all of your account's linked devices.",
+  "@systemMessage_selfChatCreated": {
+    "description": "First system message in the self-chat (see selfChatTitle), posted when that chat is created on a device. Explains that the chat is a private notepad whose messages appear on all of the user's linked devices."
+  },
+
   "timestamp_now": "Now",
   "@timestamp_now": {
     "description": "Timestamp for a message sent moments ago. Kept short to fit next to the message."
