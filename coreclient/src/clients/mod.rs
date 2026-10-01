@@ -9,11 +9,8 @@ use std::{
 };
 
 pub use airapiclient::as_api::AsListenUsernameResponder;
-use airapiclient::{
-    ApiClient, ApiClientInitError,
-    as_api::AsRequestError,
-    qs_api::{QsListenResponder, QsRequestError},
-};
+pub use airapiclient::qs_api::QsListenResponder;
+use airapiclient::{ApiClient, ApiClientInitError, as_api::AsRequestError, qs_api::QsRequestError};
 use aircommon::{
     credentials::{UserCredential, UserCredentialCsr, UserCredentialPayload, keys::UserSigningKey},
     crypto::{
@@ -82,6 +79,7 @@ use crate::{
 use self::{api_clients::ApiClients, create_user::InitialUserState, store::UserCreationState};
 
 pub use message::MarkChatAsRead;
+pub use sibling_client_state::SiblingClientStates;
 
 pub(crate) mod add_contact;
 pub(crate) mod api_clients;
@@ -107,6 +105,7 @@ pub mod registration;
 mod remove_users;
 pub(crate) mod safety_code;
 pub(crate) mod self_group_outbox;
+mod sibling_client_state;
 pub mod store;
 pub mod targeted_message;
 #[cfg(any(feature = "test_utils", test))]

@@ -8,7 +8,7 @@ use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, Chat, ChatId, ChatMessage, ChatNotificationEntry, ChatType, UserProfile,
     clients::{
-        CoreUser,
+        CoreUser, SiblingClientStates,
         process::process_qs::{NewChat, ReactionNotification},
     },
 };
@@ -40,11 +40,15 @@ impl User {
     ///   retractions), and chats whose only new messages we caused ourselves
     ///   from a sibling client, rebuild silently.
     /// - Alerting wins when a chat appears in both
+    /// - Chats suppressed by a sibling client never alert.
+    ///   Their new entries are marked as notified, which also clears their
+    ///   posted notifications.
     pub(crate) async fn message_and_reaction_notifications(
         &self,
         messages: &[ChatMessage],
         reactions: &[ReactionNotification],
         changed_chats: &[ChatId],
+        siblings: Option<&SiblingClientStates>,
     ) -> ChatNotificationsBatch {
         // Load all chats at one to avoid multiple lookups in db
         let mut chats: HashMap<ChatId, (Chat, AlertMode)> = HashMap::new();
@@ -56,6 +60,17 @@ impl User {
             .map(|message| message.chat_id())
             .chain(reactions.iter().map(|reaction| reaction.chat_id))
         {
+            if siblings.is_some_and(|siblings| siblings.suppresses(chat_id)) {
+                if let Entry::Vacant(entry) = chats.entry(chat_id)
+                    && let Some(chat) = self.user.chat(&chat_id).await
+                {
+                    if let Err(error) = self.user.mark_chat_notified(chat_id).await {
+                        error!(%error, "Failed to mark chat as notified");
+                    }
+                    entry.insert((chat, AlertMode::Silent));
+                }
+                continue;
+            }
             if let Entry::Vacant(entry) = chats.entry(chat_id)
                 && let Some(chat) = self.user.chat(&chat_id).await
                 && !chat.is_muted()

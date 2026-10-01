@@ -48,7 +48,7 @@ use tokio::sync::mpsc;
 use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::ApiClient;
 
@@ -464,6 +464,7 @@ impl QsListenResponder {
 
     /// Replaces the client state that the QS relays to sibling clients.
     pub async fn report_client_state(&self, encrypted_blob: Vec<u8>) {
+        warn!("reporting encrypted client state");
         let _ignore_closed_tx = self
             .tx
             .send(ListenRequest {
