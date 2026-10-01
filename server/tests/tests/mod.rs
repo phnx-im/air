@@ -4,6 +4,7 @@
 
 mod attachment;
 mod connection;
+mod contact_requests;
 mod group;
 mod group_bootstrap;
 mod jobs;

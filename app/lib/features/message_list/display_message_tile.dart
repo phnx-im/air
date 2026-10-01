@@ -264,6 +264,26 @@ TextSpan buildSystemMessageText(
     UiSystemMessage_NewDirectConnectionChat(:final field0) => TextSpan(
       text: loc.systemMessage_newDirectConnectionChat(nameOf(field0)),
     ),
+    UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest(
+      :final sender,
+      :final username,
+    ) =>
+      TextSpan(
+        text: loc.systemMessage_receivedAdditionalUsernameConnectionRequest(
+          nameOf(sender),
+          username.plaintext,
+        ),
+      ),
+    UiSystemMessage_ReceivedAdditionalDirectConnectionRequest(
+      :final sender,
+      :final chatName,
+    ) =>
+      TextSpan(
+        text: loc.systemMessage_receivedAdditionalDirectConnectionRequest(
+          nameOf(sender),
+          chatName,
+        ),
+      ),
     UiSystemMessage_Onboarded() => TextSpan(text: loc.systemMessage_onboarded),
     UiSystemMessage_DeviceLinked(:final field0) => switch (deviceNameOf(
       field0,

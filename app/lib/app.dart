@@ -24,6 +24,7 @@ import 'package:air/platform/method_channel.dart';
 import 'package:air/platform/notifications.dart';
 import 'package:air/share/pending_share.dart';
 import 'package:air/util/interface_scale.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -221,7 +222,7 @@ class _AppState extends State<App> {
                             !DeviceType.isDesktop,
                         listener: (context, state) =>
                             FocusManager.instance.primaryFocus?.unfocus(),
-                        child: router!,
+                        child: RootScaffold(child: router!),
                       ),
                     ),
                   ),

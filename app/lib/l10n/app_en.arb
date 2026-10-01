@@ -52,6 +52,10 @@
   "@userSettingsScreen_readReceiptsDescription": {
     "description": "Explains that the read receipts toggle applies in both directions."
   },
+  "userSettingsScreen_languageSettingsDescription": "Translations may contain mistakes.",
+  "@userSettingsScreen_languageSettingsDescription": {
+    "description": "Help text under the language picker in settings. Warns that the app's translations may contain errors."
+  },
 
   "userSettingsScreen_displayNameLabel": "Display name",
   "@userSettingsScreen_displayNameLabel": {
@@ -426,9 +430,22 @@
   "@invitationCodeScreen_header": {
     "description": "Header of the step asking for an invite code during sign up."
   },
-  "invitationCodeScreen_subheader": "Air is currently invitation-only. Enter your code to join. If you don't have one, ask someone who’s already on Air.",
+  "invitationCodeScreen_subheader": "To keep Air running smoothly, we limit how many accounts can be created within a short timespan. Wait until later today and try again to sign up without an invite code.",
   "@invitationCodeScreen_subheader": {
-    "description": "Explains that Air is invitation-only and where to get a code."
+    "description": "Explains that sign up is rate limited, so an invite code is required for now, and that trying again later works without one."
+  },
+  "invitationCodeScreen_notificationsHint": "If you didn't allow push notifications for Air, that could also be why you're seeing this screen. To allow push notifications, {settingsLink}.",
+  "@invitationCodeScreen_notificationsHint": {
+    "description": "Second paragraph under the invite code explanation, shown on mobile only. Suggests that missing push notification permission can also lead to this screen. The placeholder is replaced by the link text that opens the notification settings and must appear verbatim.",
+    "placeholders": {
+      "settingsLink": {
+        "type": "String"
+      }
+    }
+  },
+  "invitationCodeScreen_notificationsLinkText": "tap here",
+  "@invitationCodeScreen_notificationsLinkText": {
+    "description": "Link text inside the push notifications sentence on the invite code step. Opens the system notification settings for Air. Must match the wording used inside that sentence so the link can be located in the rendered string."
   },
   "invitationCodeScreen_inputLabel": "Invite code (required)",
   "@invitationCodeScreen_inputLabel": {
@@ -792,10 +809,6 @@
       }
     }
   },
-  "linkedDevicesScreen_errorDialog_confirm": "Okay",
-  "@linkedDevicesScreen_errorDialog_confirm": {
-    "description": "Button that acknowledges and closes a device error dialog."
-  },
   "linkedDevicesScreen_deviceCount": "{count, plural, =0 {No devices linked.} one {{count} device linked.} other {{count} devices linked.}}",
   "@linkedDevicesScreen_deviceCount": {
     "description": "Count of linked devices under the device list. Provide the plural forms your language needs. The zero case is worded without a number.",
@@ -1124,6 +1137,30 @@
       }
     }
   },
+  "systemMessage_receivedAdditionalUsernameConnectionRequest": "{displayName} also sent you a contact request through your username {username}.",
+  "@systemMessage_receivedAdditionalUsernameConnectionRequest": {
+    "description": "System message in the chat of a pending contact request, when the same person sends another request through another of the user's usernames. It joins the request that is already there.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      },
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "systemMessage_receivedAdditionalDirectConnectionRequest": "{displayName} also sent you a contact request through the group chat {groupName}.",
+  "@systemMessage_receivedAdditionalDirectConnectionRequest": {
+    "description": "System message in the chat of a pending contact request, when the same person sends another request through a group both people are in. It joins the request that is already there. {groupName} is the title of that group.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      },
+      "groupName": {
+        "type": "String"
+      }
+    }
+  },
 
   "systemMessage_userChangedPicture": "{user} changed the group picture",
   "@systemMessage_userChangedPicture": {
@@ -1252,9 +1289,9 @@
   "@chatList_newGroup": {
     "description": "Menu item in the chat list header that starts creating a group chat."
   },
-  "chatList_emptyMessage": "Add your first Air contact to get started",
-  "@chatList_emptyMessage": {
-    "description": "Empty state of the chat list, shown before the user has any contacts."
+  "chatList_noChats": "Use the compose button to add your first contact and start chatting.",
+  "@chatList_noChats": {
+    "description": "Initial state of the chat list, shown before the user has any contacts."
   },
 
   "chatList_draft": "Draft",
@@ -1927,9 +1964,9 @@
   "@deleteAccountScreen_confirmButtonText": {
     "description": "Confirming button of the delete account dialog."
   },
-  "deleteAccountScreen_deleteAccountError": "Something went wrong on our end. Wait a moment, then try again.",
+  "deleteAccountScreen_deleteAccountError": "Wait a moment, then try again.",
   "@deleteAccountScreen_deleteAccountError": {
-    "description": "Error shown when deleting the account fails on the server."
+    "description": "Body of the error dialog shown when deleting the account fails on the server. The dialog title already says something went wrong."
   },
 
   "appOutdatedScreen_title": "Software update required",
@@ -1983,9 +2020,13 @@
     "description": "Error shown when a contact request cannot be accepted because this app version is too old."
   },
 
-  "errorBanner_ok": "OK",
-  "@errorBanner_ok": {
-    "description": "Button that dismisses the error banner at the top of the screen."
+  "errorDialog_title": "Something went wrong",
+  "@errorDialog_title": {
+    "description": "Default title of the modal dialog that reports a failed action."
+  },
+  "errorDialog_confirm": "Okay",
+  "@errorDialog_confirm": {
+    "description": "Button that acknowledges and closes an error dialog."
   },
 
   "memberSelectionList_client_not_supported": "This contact has an outdated app which needs to be updated.",

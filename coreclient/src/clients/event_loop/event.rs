@@ -11,7 +11,7 @@ use aircommon::identifiers::Username;
 use airprotos::{auth_service::v1::UsernameQueueMessage, queue_service::v1::ListenResponse};
 
 use crate::{
-    ChatId,
+    StoredRequest,
     clients::{
         event_loop::{
             responder,
@@ -32,7 +32,7 @@ pub(super) enum RemoteQueueEvent {
     Username {
         username: Username,
         message: UsernameQueueMessage,
-        responder: Responder<ChatId, Infallible>,
+        responder: Responder<Option<StoredRequest>, Infallible>,
     },
 }
 
@@ -53,7 +53,7 @@ impl RemoteQueueEvent {
     pub(super) fn username_queue_message(
         username: Username,
         message: UsernameQueueMessage,
-    ) -> (Self, Response<ChatId, Infallible>) {
+    ) -> (Self, Response<Option<StoredRequest>, Infallible>) {
         let (responder, response) = responder();
         let message = Self::Username {
             username,

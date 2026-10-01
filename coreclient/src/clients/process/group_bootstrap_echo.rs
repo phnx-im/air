@@ -22,8 +22,8 @@ use mimi_room_policy::RoleIndex;
 use tracing::debug;
 
 use crate::{
-    Chat, ChatMessage, ChatStatus, Contact, PartialContact, SystemMessage, TargetedMessageContact,
-    chats::PendingConnectionInfo,
+    Chat, ChatMessage, ChatStatus, Contact, SystemMessage, TargetedMessageContact,
+    chats::{PendingConnectionRequest, connection_requests},
     clients::CoreUser,
     contacts::UsernameContact,
     db::access::WriteDbTransaction,
@@ -254,24 +254,27 @@ impl CoreUser {
 
                 // A connection offer that arrived as a targeted message
                 // reaches every sibling, so this client may already hold the
-                // pending chat the acting client just replaced. The handle of
-                // a username offer is only in that pending state.
-                let pending = PendingConnectionInfo::load(&mut *txn, chat.id()).await?;
-                let user_handle = pending.and_then(|pending| pending.handle);
-                let partial_contact =
-                    match UsernameContact::load_by_chat_id(&mut *txn, chat.id()).await? {
-                        Some(contact) => Some(PartialContact::Username(contact)),
-                        None => TargetedMessageContact::load(&mut *txn, user_id)
-                            .await?
-                            .map(PartialContact::TargetedMessage),
-                    };
-                if let Some(partial_contact) = partial_contact {
-                    partial_contact.delete(&mut *txn).await?;
+                // pending requests the acting client settled. They are shown
+                // in another chat if this device knows a newer request. The
+                // username an offer went to is only in that pending state.
+                let request_id = chat.id();
+                let accepted = PendingConnectionRequest::load(&mut *txn, request_id).await?;
+                let user_handle = accepted.and_then(|request| request.username);
+                let host = PendingConnectionRequest::chat_of_sender(&mut *txn, user_id).await?;
+                if let Some(host) = host {
+                    connection_requests::settle_accepted(txn, host).await?;
                 }
-                PendingConnectionInfo::delete(&mut *txn, chat.id()).await?;
 
                 chat.store(&mut *txn).await?;
                 Chat::update_status(&mut *txn, chat.id(), &ChatStatus::Active).await?;
+                if let Some(host) = host
+                    && host != chat.id()
+                    && let Some(host_chat) = Chat::load(&mut *txn, &host).await?
+                {
+                    ChatMessage::move_to_chat(&mut *txn, host, chat.id()).await?;
+                    Group::delete_from_db(txn, host_chat.group_id()).await?;
+                    Chat::delete(&mut *txn, host).await?;
+                }
                 ChatMessage::new_system_message(
                     chat.id(),
                     ds_timestamp,

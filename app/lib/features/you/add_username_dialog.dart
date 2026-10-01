@@ -9,12 +9,16 @@ import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/util/username_input_formatter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 import 'package:air/features/user/user_cubit.dart';
+
+final _log = Logger("AddUsernameDialog");
 
 class AddUsernameDialog extends HookWidget {
   const AddUsernameDialog({super.key, this.inProgress});
@@ -141,7 +145,18 @@ class AddUsernameDialog extends HookWidget {
     final userCubit = context.read<UserCubit>();
 
     setSubmitting(true);
-    if (!await userCubit.addUsername(username)) {
+    final bool added;
+    try {
+      added = await userCubit.addUsername(username);
+    } catch (e) {
+      _log.severe("Failed to add username: $e", e);
+      showSnackBarStandalone(
+        (loc) => loc.usernameOnboarding_error,
+        tone: .danger,
+      );
+      return;
+    }
+    if (!added) {
       usernameExists.value = true;
       setSubmitting(false);
       validate();
