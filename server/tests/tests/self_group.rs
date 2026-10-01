@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircoreclient::clients::{CoreUser, process::process_qs::ProcessedQsMessages};
+use aircoreclient::{
+    ChatId,
+    clients::{CoreUser, process::process_qs::ProcessedQsMessages},
+};
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::Utc;
 
@@ -554,6 +557,66 @@ async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> an
             .any(|message| message.chat_id() == chat_id),
         "device B should receive Bob's message"
     );
+
+    Ok(())
+}
+
+/// Fetches and processes a device's queue without asserting on errors.
+async fn process_queue(device: &CoreUser) -> anyhow::Result<ProcessedQsMessages> {
+    let messages = device.qs_fetch_messages().await?;
+    Ok(device.fully_process_qs_messages(messages).await)
+}
+
+fn joined(processed: &ProcessedQsMessages, chat_id: ChatId) -> bool {
+    processed
+        .new_chats
+        .iter()
+        .any(|new_chat| new_chat.chat_id == chat_id)
+}
+
+/// Runs a full key package upload cycle on `device`, including the echo.
+async fn upload_key_packages(device: &CoreUser) -> anyhow::Result<()> {
+    device
+        .outbound_service()
+        .schedule_key_package_upload(Utc::now())
+        .await?;
+    device.outbound_service().run_once().await;
+    drain_queue(device).await?;
+    assert!(
+        device.self_group_pending_operation_info().await?.is_none(),
+        "upload cycle should have completed"
+    );
+    Ok(())
+}
+
+/// APQ batches carry a single last-resort key package, which the QS serves to
+/// every adder. The uploader keeps its bundle, but the sibling's derived
+/// material must survive the first join as well.
+#[tokio::test(flavor = "multi_thread")]
+async fn multi_device_sibling_reuses_derived_last_resort_key_package() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let (device_b, _tmp) = link_new_device(&setup, &alice).await;
+    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    drain_queue(&device_b).await?;
+
+    // Device A publishes, device B derives the batch.
+    upload_key_packages(setup.get_user(&alice).user()).await?;
+    drain_queue(&device_b).await?;
+
+    for round in 0..3 {
+        let chat_id = setup.create_group_with_profile_component(&bob, true).await;
+        setup.invite_to_group(chat_id, &bob, vec![&alice]).await;
+        let processed = process_queue(&device_b).await?;
+        assert!(
+            joined(&processed, chat_id),
+            "device B should join APQ group {round} from the last-resort key package: {:?}",
+            processed.errors
+        );
+    }
 
     Ok(())
 }
