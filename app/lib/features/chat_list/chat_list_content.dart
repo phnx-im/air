@@ -485,7 +485,7 @@ MessageDeliveryStatus? _deliveryStatus(
   UiMessageStatus.hidden || UiMessageStatus.deleted => null,
 };
 
-class _LastMessage extends StatelessWidget {
+class _LastMessage extends HookWidget {
   const _LastMessage({required this.chat, required this.ownClientId});
 
   final UiChatDetails chat;
@@ -499,6 +499,12 @@ class _LastMessage extends StatelessWidget {
     final italicStyle = previewStyle.copyWith(fontStyle: .italic);
 
     final lastMessage = chat.lastMessage;
+    final lastSystemMessage = switch (lastMessage?.message) {
+      UiMessage_Display(field0: UiEventMessage_System(field0: final message)) =>
+        message,
+      _ => null,
+    };
+    final groupChatTitle = useRequestGroupChatTitle(lastSystemMessage);
     final draftMessage = chat.draft?.message.trim();
     final lastSender = switch (lastMessage?.message) {
       UiMessage_Content(field0: final content) => content.sender,
@@ -575,12 +581,12 @@ class _LastMessage extends StatelessWidget {
         : switch (lastMessage?.message) {
             UiMessage_Content(field0: final content) =>
               content.content.plaintextPreview(loc),
-            UiMessage_Display(field0: final eventMessage) =>
-              switch (eventMessage) {
-                UiEventMessage_System(field0: final systemMessage) =>
-                  buildSystemMessageText(context, systemMessage).toPlainText(),
-                _ => null,
-              },
+            UiMessage_Display() when lastSystemMessage != null =>
+              buildSystemMessageText(
+                context,
+                lastSystemMessage,
+                groupChatTitle: groupChatTitle,
+              ).toPlainText(),
             _ => null,
           };
 

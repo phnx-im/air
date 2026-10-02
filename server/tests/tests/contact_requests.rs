@@ -27,7 +27,7 @@ async fn system_messages(device: &CoreUser, chat_id: ChatId) -> Vec<SystemMessag
 }
 
 /// The chats of pending contact requests from `sender`.
-async fn pending_chats_from(device: &CoreUser, sender: &UserId) -> Vec<ChatId> {
+pub(crate) async fn pending_chats_from(device: &CoreUser, sender: &UserId) -> Vec<ChatId> {
     let mut chats = Vec::new();
     for chat_id in device.ordered_chat_ids().await.unwrap() {
         let chat = device.chat(&chat_id).await.unwrap();
@@ -39,7 +39,7 @@ async fn pending_chats_from(device: &CoreUser, sender: &UserId) -> Vec<ChatId> {
 }
 
 /// A username of `user_id` besides the one the harness registers.
-async fn add_second_username(setup: &TestBackend, user_id: &UserId) -> UsernameRecord {
+pub(crate) async fn add_second_username(setup: &TestBackend, user_id: &UserId) -> UsernameRecord {
     let user = setup.get_user(user_id).user().clone();
     user.outbound_service().run_once().await;
     let suffix: String = user_id

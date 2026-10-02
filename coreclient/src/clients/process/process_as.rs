@@ -4,8 +4,8 @@
 
 use aircommon::{
     credentials::UserCredential,
-    crypto::{hpke::HpkeDecryptable, indexed_aead::keys::UserProfileKey},
-    identifiers::{QualifiedGroupId, Username},
+    crypto::hpke::HpkeDecryptable,
+    identifiers::Username,
     messages::{
         client_as::{ConnectionOfferHash, ConnectionOfferMessage},
         connection_package::ConnectionPackageHash,
@@ -13,10 +13,9 @@ use aircommon::{
     time::TimeStamp,
 };
 use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
-use anyhow::{Context, Result, anyhow, bail, ensure};
+use anyhow::{Context, Result, anyhow, bail};
 use chrono::Utc;
-use tls_codec::DeserializeBytes;
-use tracing::{error, warn};
+use tracing::error;
 
 use crate::{
     chats::connection_requests::{self, IncomingRequest, IncomingRequestSource, StoredRequest},
@@ -29,8 +28,8 @@ use crate::{
         },
     },
     db::access::WriteConnection,
-    groups::ProfileInfo,
-    job::{Job, JobContext, JobContextDb},
+    groups::client_auth_info::StorableUserCredential,
+    job::{JobContext, JobContextDb},
     usernames::connection_packages::ConnectionPackageRecord,
 };
 
@@ -151,12 +150,19 @@ impl CoreUser {
                     now: Utc::now(),
                     qs_client_id: &self.inner.qs_client_id,
                 };
-                Self::process_connection_offer(&mut context, connection_info_source).await
+                let stored =
+                    Self::process_connection_offer(&mut context, connection_info_source).await?;
+                if stored.is_some() {
+                    // Hands the request to the siblings.
+                    self.outbound_service().notify_pending_chat_operations();
+                }
+                Ok(stored)
             }
         }
     }
 
-    /// Stores an incoming connection request as pending.
+    /// Stores an incoming connection request as pending. A request via a
+    /// username is also parked for the siblings.
     ///
     /// Returns where it was stored, or `None` if the request is known already.
     pub(crate) async fn process_connection_offer(
@@ -197,69 +203,8 @@ impl CoreUser {
             return Ok(None);
         }
 
-        // Immediately fetch the user profile. This might fail if the user updated their
-        // profile in the meantime => fallback to fetching group info.
-        let sender_profile_key = UserProfileKey::from_base_secret(
-            connection_info
-                .friendship_package
-                .user_profile_base_secret
-                .clone(),
-            sender_user_credential.user_id(),
-        )?;
-
-        let fetch_profile_job =
-            CoreUser::fetch_user_profile_job((sender_user_credential.clone(), sender_profile_key));
-
-        if let Err(error) = fetch_profile_job.execute(context).await {
-            warn!(%error, "Failed to fetch user profile; falling back to fetching group info");
-
-            // Fetch external commit info
-            let qgid = QualifiedGroupId::tls_deserialize_exact_bytes(
-                connection_info.connection_group_id.as_slice(),
-            )?;
-            let eci = context
-                .api_clients
-                .get(qgid.owning_domain())?
-                .ds_connection_group_info(
-                    connection_info.connection_group_id.clone(),
-                    &connection_info.connection_group_ear_key,
-                )
-                .await?;
-            let encrypted_user_profile_key = if !eci.indexed_encrypted_user_profile_keys.is_empty()
-            {
-                ensure!(
-                    eci.indexed_encrypted_user_profile_keys.len() == 1,
-                    "Unjoined connection group must have exactly one user profile key"
-                );
-                eci.indexed_encrypted_user_profile_keys
-                    .values()
-                    .next()
-                    .expect("logic error: len == 1")
-            } else {
-                ensure!(
-                    eci.encrypted_user_profile_keys.len() == 1,
-                    "Unjoined connection group must have exactly one user profile key"
-                );
-                &eci.encrypted_user_profile_keys[0]
-            };
-
-            // Decrypt user profile key
-            let user_profile_key = UserProfileKey::decrypt(
-                &connection_info.connection_group_identity_link_wrapper_key,
-                encrypted_user_profile_key,
-                sender_user_credential.user_id(),
-            )?;
-
-            // Fetch and store user profile (it also creates a new contact)
-            let profile_info = ProfileInfo {
-                user_credential: sender_user_credential.clone(),
-                user_profile_key,
-            };
-
-            CoreUser::fetch_user_profile_job(profile_info)
-                .execute(context)
-                .await?;
-        }
+        CoreUser::fetch_request_sender_profile(context, &connection_info, &sender_user_credential)
+            .await?;
 
         let sender = sender_user_credential.user_id().clone();
         context
@@ -267,6 +212,9 @@ impl CoreUser {
             .write()
             .await?
             .with_transaction(async |txn| {
+                // Only this device got a username offer from the AS queue. A
+                // targeted message reaches every sibling on its own.
+                let forward = username_connection_info.is_some();
                 let source = match username_connection_info {
                     Some(UsernameConnectionInfo {
                         connection_offer_hash,
@@ -283,22 +231,31 @@ impl CoreUser {
                         let origin_chat = Chat::load(&mut *txn, &origin_chat_id)
                             .await?
                             .context("no origin chat")?;
-                        let crate::ChatType::Group(attributes) = origin_chat.chat_type else {
+                        let crate::ChatType::Group(_) = origin_chat.chat_type else {
                             bail!("Non-group chat as targeted message origin");
                         };
                         IncomingRequestSource::Group {
-                            origin_chat_id,
-                            chat_name: attributes.title,
+                            origin_group_id: origin_chat.group_id,
                         }
                     }
                 };
+                // Forwarding and provisioning hand the verified credential of
+                // the sender to the siblings.
+                StorableUserCredential::new(sender_user_credential.clone())
+                    .store(&mut *txn)
+                    .await?;
                 let request = IncomingRequest {
                     connection_info,
                     sender,
                     source,
                     received_at: message_timestamp,
                 };
-                Ok(Some(request.store(txn).await?))
+                let stored = request.store(txn).await?;
+                if forward {
+                    connection_requests::park_received(txn, request_id, &sender_user_credential)
+                        .await?;
+                }
+                Ok(Some(stored))
             })
             .await
     }

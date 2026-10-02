@@ -82,7 +82,7 @@ use super::{Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyho
 #[derive(Default)]
 pub struct QsMessageOutcome {
     new_chat: Option<NewChat>,
-    new_connection: Option<ChatId>,
+    new_connections: Vec<ChatId>,
     new_messages: Vec<ChatMessage>,
     reaction_notifications: Vec<ReactionNotification>,
     changed_chats: Vec<ChatId>,
@@ -104,7 +104,7 @@ impl QsMessageOutcome {
 
     fn new_connection(stored: StoredRequest) -> QsMessageOutcome {
         Self {
-            new_connection: Some(stored.chat_id),
+            new_connections: vec![stored.chat_id],
             removed_chats: stored.moved_from.into_iter().collect(),
             ..Self::empty()
         }
@@ -145,7 +145,7 @@ pub struct ProcessedQsMessages {
     // messages is such a change.
     pub chats_with_changed_notifications: Vec<ChatId>,
     /// Chats whose notifications are stale, because a newer contact request
-    /// moved them.
+    /// moved them, here or on another device of the user.
     pub removed_chats: Vec<ChatId>,
 }
 
@@ -176,7 +176,7 @@ impl ProcessedQsMessages {
         &mut self,
         QsMessageOutcome {
             new_chat,
-            new_connection,
+            new_connections,
             new_messages,
             reaction_notifications,
             changed_chats,
@@ -184,7 +184,7 @@ impl ProcessedQsMessages {
         }: QsMessageOutcome,
     ) {
         self.new_chats.extend(new_chat);
-        self.new_connections.extend(new_connection);
+        self.new_connections.extend(new_connections);
         self.new_messages.extend(new_messages);
         self.reaction_notifications.extend(reaction_notifications);
         self.chats_with_changed_notifications.extend(changed_chats);
@@ -627,7 +627,7 @@ impl CoreUser {
         result: ProcessMessageResult,
     ) -> Result<Option<ProcessMessageProcessed>> {
         match result {
-            ProcessMessageResult::Processed(processed) => Ok(Some(processed)),
+            ProcessMessageResult::Processed(processed) => Ok(Some(*processed)),
             ProcessMessageResult::Ignored => Ok(None),
             ProcessMessageResult::ResyncRequired(reason) => {
                 let group_id = group.group_id().clone();
@@ -840,6 +840,7 @@ impl CoreUser {
             processed_message,
             we_were_removed,
             profile_infos,
+            connection_request_effects,
         } = processed_message;
 
         let sender = processed_message.sender().clone();
@@ -1009,11 +1010,11 @@ impl CoreUser {
             Self::schedule_fetch_user_profile(&mut *txn, profile_info).await?;
         }
 
-        Ok(QsMessageOutcome::messages(
-            messages,
-            reaction_notifications,
-            changed_chats,
-        ))
+        let mut outcome =
+            QsMessageOutcome::messages(messages, reaction_notifications, changed_chats);
+        outcome.new_connections = connection_request_effects.new_requests;
+        outcome.removed_chats = connection_request_effects.stale_chats;
+        Ok(outcome)
     }
 
     /// Returns a message if it should be stored, otherwise an empty vec.

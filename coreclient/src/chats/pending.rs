@@ -33,6 +33,7 @@ use crate::{
     db::access::WriteConnection,
     groups::{ConnectionGroupJoin, Group, self_group::SelfGroup},
     key_stores::indexed_keys::StorableIndexedKey,
+    utils::persistence::GroupIdWrapper,
 };
 
 /// A pending incoming connection request.
@@ -51,8 +52,9 @@ pub(crate) struct PendingConnectionRequest {
     pub(crate) username: Option<Username>,
     pub(crate) connection_offer_hash: Option<ConnectionOfferHash>,
     pub(crate) connection_package_hash: Option<ConnectionPackageHash>,
-    /// The group chat a request via a group went through, if it still exists.
-    pub(crate) origin_chat_id: Option<ChatId>,
+    /// The group a request via a group went through. Its group chat may be
+    /// gone.
+    pub(crate) origin_group_id: Option<GroupIdWrapper>,
 }
 
 impl PendingConnectionRequest {
@@ -97,7 +99,7 @@ impl CoreUser {
             username,
             connection_offer_hash,
             connection_package_hash,
-            origin_chat_id: _,
+            origin_group_id: _,
         } = request;
 
         // Prepare group
@@ -377,7 +379,7 @@ mod persistence {
                     username AS "username: _",
                     connection_offer_hash AS "connection_offer_hash: _",
                     connection_package_hash AS "connection_package_hash: _",
-                    origin_chat_id AS "origin_chat_id: ChatId"
+                    origin_group_id AS "origin_group_id: GroupIdWrapper"
                 FROM pending_connection_request
                 WHERE request_id = ?"#,
                 request_id,
@@ -402,11 +404,34 @@ mod persistence {
                     username AS "username: _",
                     connection_offer_hash AS "connection_offer_hash: _",
                     connection_package_hash AS "connection_package_hash: _",
-                    origin_chat_id AS "origin_chat_id: ChatId"
+                    origin_group_id AS "origin_group_id: GroupIdWrapper"
                 FROM pending_connection_request
                 WHERE chat_id = ?
                 ORDER BY received_at DESC, request_id DESC"#,
                 chat_id,
+            )
+            .fetch_all(connection.as_mut())
+            .await
+        }
+
+        /// Every pending request, sorted by request id.
+        pub(crate) async fn load_all(
+            mut connection: impl ReadConnection,
+        ) -> sqlx::Result<Vec<Self>> {
+            query_as!(
+                PendingConnectionRequest,
+                r#"SELECT
+                    request_id AS "request_id: ChatId",
+                    chat_id AS "chat_id: ChatId",
+                    created_at AS "created_at: TimeStamp",
+                    received_at AS "received_at: TimeStamp",
+                    connection_info AS "connection_info: ConnectionInfo",
+                    username AS "username: _",
+                    connection_offer_hash AS "connection_offer_hash: _",
+                    connection_package_hash AS "connection_package_hash: _",
+                    origin_group_id AS "origin_group_id: GroupIdWrapper"
+                FROM pending_connection_request
+                ORDER BY request_id"#,
             )
             .fetch_all(connection.as_mut())
             .await
@@ -436,6 +461,10 @@ mod persistence {
         }
 
         pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
+            let origin_group_id = self
+                .origin_group_id
+                .as_ref()
+                .map(|GroupIdWrapper(group_id)| group_id.as_slice());
             query!(
                 "INSERT INTO pending_connection_request (
                     request_id,
@@ -446,7 +475,7 @@ mod persistence {
                     username,
                     connection_offer_hash,
                     connection_package_hash,
-                    origin_chat_id
+                    origin_group_id
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (request_id) DO UPDATE SET
@@ -457,7 +486,7 @@ mod persistence {
                     username = excluded.username,
                     connection_offer_hash = excluded.connection_offer_hash,
                     connection_package_hash = excluded.connection_package_hash,
-                    origin_chat_id = excluded.origin_chat_id",
+                    origin_group_id = excluded.origin_group_id",
                 self.request_id,
                 self.chat_id,
                 self.created_at,
@@ -466,7 +495,7 @@ mod persistence {
                 self.username,
                 self.connection_offer_hash,
                 self.connection_package_hash,
-                self.origin_chat_id,
+                origin_group_id,
             )
             .execute(connection.as_mut())
             .await?;
@@ -549,13 +578,16 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        ChatMessage, TargetedMessageContact, contacts::UsernameContact, db::access::DbAccess,
+        ChatAttributes, ChatMessage, TargetedMessageContact, contacts::UsernameContact,
+        db::access::DbAccess,
     };
 
     use super::*;
 
     /// The migration that replaced `pending_connection_info`.
     const PENDING_CONNECTION_REQUEST_MIGRATION: i64 = 20260929120000;
+    /// The migration that replaced `origin_chat_id`.
+    const ORIGIN_GROUP_MIGRATION: i64 = 20261001120000;
 
     fn at(seconds: i64) -> TimeStamp {
         DateTime::<Utc>::from_timestamp(1_767_225_600 + seconds, 0)
@@ -706,6 +738,72 @@ mod tests {
             .fetch_all(txn.as_mut())
             .await?;
             assert_eq!(remaining, vec![outgoing]);
+            Ok(())
+        })
+        .await
+    }
+
+    /// Stores a pending request the way clients did before the migration that
+    /// replaced `origin_chat_id`.
+    async fn store_request_with_origin_chat(
+        txn: &mut crate::db::access::WriteDbTransaction<'_>,
+        origin_chat_id: Option<ChatId>,
+    ) -> anyhow::Result<ChatId> {
+        let group_id = group_id();
+        let sender = UserId::random("example.com".parse()?);
+        let chat = Chat::new_pending_connection_chat(group_id.clone(), sender);
+        chat.store(&mut *txn).await?;
+        sqlx::query(
+            "INSERT INTO pending_connection_request (
+                request_id, chat_id, created_at, received_at, connection_info, origin_chat_id
+            ) VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(chat.id())
+        .bind(chat.id())
+        .bind(at(0))
+        .bind(at(0))
+        .bind(&connection_info(group_id)?)
+        .bind(origin_chat_id)
+        .execute(txn.as_mut())
+        .await?;
+        Ok(chat.id())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn the_migration_takes_the_group_id_from_the_origin_chat() -> anyhow::Result<()> {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await?;
+        migrate_until(&pool, ORIGIN_GROUP_MIGRATION).await?;
+        let db = DbAccess::for_tests(pool.clone());
+
+        let (group, via_group, without_origin) = db
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                let group = Chat::new_group_chat(
+                    group_id(),
+                    ChatAttributes::new("Design Team".to_owned(), None),
+                );
+                group.store(&mut *txn).await?;
+                let via_group = store_request_with_origin_chat(txn, Some(group.id())).await?;
+                let without_origin = store_request_with_origin_chat(txn, None).await?;
+                Ok((group, via_group, without_origin))
+            })
+            .await?;
+
+        sqlx::migrate!().run(&pool).await?;
+
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let request = PendingConnectionRequest::load(&mut *txn, via_group)
+                .await?
+                .unwrap();
+            let origin_group_id = request.origin_group_id.map(GroupId::from);
+            assert_eq!(origin_group_id.as_ref(), Some(group.group_id()));
+
+            let request = PendingConnectionRequest::load(&mut *txn, without_origin)
+                .await?
+                .unwrap();
+            assert!(request.origin_group_id.is_none());
             Ok(())
         })
         .await
