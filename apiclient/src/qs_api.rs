@@ -48,7 +48,7 @@ use tokio::sync::mpsc;
 use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 
 use crate::ApiClient;
 

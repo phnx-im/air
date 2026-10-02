@@ -307,8 +307,6 @@ mod tests {
         assert_eq!(updated.blob.unwrap().encrypted_blob, b"state");
         assert_no_change(&mut a_rx);
 
-        // A late listener gets the current states, aged since they were
-        // received.
         std::thread::sleep(Duration::from_millis(10));
         let states = clients.states(b);
         assert_eq!(states.len(), 1);
