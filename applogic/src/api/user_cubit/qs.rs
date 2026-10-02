@@ -182,11 +182,10 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
             ListenResponse {
                 event: Some(listen_response::Event::SiblingClientState(state)),
             } => {
-                if let Some(states) = &mut self.sibling_client_states {
-                    if let Err(error) = states.try_apply(state) {
+                if let Some(states) = &mut self.sibling_client_states
+                    && let Err(error) = states.try_apply(state) {
                         error!(%error, "failed to apply sibling client state");
                     }
-                }
                 return true;
             }
             event => event,

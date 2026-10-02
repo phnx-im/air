@@ -61,11 +61,10 @@ impl User {
                     // Arrives before any message, so it is known when building the
                     // notifications below.
                     Some(listen_response::Event::SiblingClientState(state)) => {
-                        if let Some(states) = &mut sibling_client_states {
-                            if let Err(error) = states.try_apply(state) {
+                        if let Some(states) = &mut sibling_client_states
+                            && let Err(error) = states.try_apply(state) {
                                 error!(%error, "failed to apply sibling client state");
                             }
-                        }
                     }
                     Some(listen_response::Event::Payload(_))
                     | Some(listen_response::Event::VersionStatus(_))
