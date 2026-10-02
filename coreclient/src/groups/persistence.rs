@@ -31,7 +31,11 @@ use crate::{
     utils::persistence::{GroupIdRefWrapper, GroupIdWrapper},
 };
 
-use super::{Group, diff::StagedGroupDiff, openmls_provider::AirOpenMlsProvider};
+use super::{
+    Group,
+    diff::StagedGroupDiff,
+    openmls_provider::{AirOpenMlsProvider, storage_provider::purge_group_state},
+};
 
 struct SqlGroup {
     group_id: GroupIdWrapper,
@@ -485,10 +489,7 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
     ) -> sqlx::Result<()> {
-        if let Some(mut group) = Group::load(&mut *txn, group_id).await? {
-            let provider = AirOpenMlsProvider::new(txn.as_mut());
-            group.mls_group.delete(provider.storage())?;
-        };
+        delete_mls_group(txn, group_id).await?;
         let group_id = GroupIdRefWrapper::from(group_id);
         let pq_group_id: Option<GroupIdWrapper> = query_scalar!(
             r#"SELECT group_id AS "group_id: _" FROM pq_group WHERE t_group_id = ?"#,
@@ -498,10 +499,7 @@ impl Group {
         .await?
         .flatten();
         if let Some(pq_group_id) = pq_group_id {
-            let provider = AirOpenMlsProvider::new(txn.as_mut());
-            if let Some(mut pq_mls_group) = MlsGroup::load(provider.storage(), &pq_group_id.0)? {
-                pq_mls_group.delete(provider.storage())?;
-            }
+            delete_mls_group(txn, &pq_group_id.0).await?;
         };
         // This will also cascade delete the pq_group
         query!(r#"DELETE FROM "group" WHERE group_id = ?"#, group_id)
@@ -689,6 +687,24 @@ impl Group {
     }
 }
 
+/// Falls back to purging the stored state without decoding it, so a group
+/// whose state no longer decodes can still be deleted.
+async fn delete_mls_group(
+    txn: &mut WriteDbTransaction<'_>,
+    group_id: &GroupId,
+) -> sqlx::Result<()> {
+    let provider = AirOpenMlsProvider::new(txn.as_mut());
+    match MlsGroup::load(provider.storage(), group_id) {
+        Ok(Some(mut mls_group)) => mls_group.delete(provider.storage()),
+        Ok(None) => Ok(()),
+        Err(error @ (sqlx::Error::ColumnDecode { .. } | sqlx::Error::Decode(_))) => {
+            warn!(?group_id, %error, "MLS group state does not decode, purging it");
+            purge_group_state(txn.as_mut(), group_id).await
+        }
+        Err(error) => Err(error),
+    }
+}
+
 struct SqlGroupRef {
     group_id: GroupIdWrapper,
     pq_group_id: Option<GroupIdWrapper>,
@@ -801,5 +817,66 @@ impl Group {
         .fetch_optional(connection.as_mut())
         .await?;
         Ok(pending_commit_failed.unwrap_or_default())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::{
+        credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
+        crypto::aead::keys::IdentityLinkWrapperKey,
+        identifiers::{QualifiedGroupId, UserId},
+    };
+    use airprotos::client::group::GroupData;
+    use uuid::Uuid;
+
+    use crate::{
+        db::access::DbAccess, groups::NewGroupContext, utils::persistence::open_db_in_memory,
+    };
+
+    use super::*;
+
+    fn random_group_id() -> GroupId {
+        GroupId::from(QualifiedGroupId::new(
+            Uuid::new_v4(),
+            "example.com".parse().unwrap(),
+        ))
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn delete_group_with_undecodable_mls_state() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+
+        let signer = LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(Uuid::new_v4())?);
+        let (group, _params) = Group::create_apq_group(
+            &mut txn,
+            &signer,
+            UserId::random("example.com".parse()?),
+            IdentityLinkWrapperKey::random()?,
+            random_group_id(),
+            random_group_id(),
+            NewGroupContext::SelfGroup(GroupData::empty()),
+            None,
+        )?;
+        group.store(&mut txn).await?;
+
+        sqlx::query(
+            "UPDATE group_data SET group_data = X'00' WHERE data_type = 'join_group_config'",
+        )
+        .execute(txn.as_mut())
+        .await?;
+
+        let pq_group_id = group.pq_group_id().expect("APQ group without PQ group");
+        Group::delete_from_db(&mut txn, group.group_id()).await?;
+
+        assert!(Group::load(&mut txn, group.group_id()).await?.is_none());
+        let provider = AirOpenMlsProvider::new(txn.as_mut());
+        for group_id in [group.group_id(), &pq_group_id] {
+            assert!(MlsGroup::load(provider.storage(), group_id)?.is_none());
+        }
+
+        Ok(())
     }
 }
