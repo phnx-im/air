@@ -7,7 +7,7 @@ name: Promote Linux packages to stable
 # Shares the release queue, so a promotion never runs while a release run
 # rewrites the repositories.
 concurrency:
-  group: app-release
+  group: app-release-linux
   queue: max
 
 on:

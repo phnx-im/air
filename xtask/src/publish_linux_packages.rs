@@ -53,15 +53,6 @@ pub(crate) enum Track {
 }
 
 impl Track {
-    fn name(self) -> &'static str {
-        match self {
-            Self::Nightly => "nightly",
-            Self::Beta => "beta",
-            Self::Stable => "stable",
-            Self::Unstable => "unstable",
-        }
-    }
-
     // Pool dir relative to the deb root. Legacy layout uses "pool/main".
     fn deb_pool_dir(self) -> String {
         match self {
@@ -80,10 +71,10 @@ impl Track {
     }
 
     // Repo dir relative to the rpm root. Legacy layout uses "main".
-    fn rpm_dir(self) -> &'static str {
+    fn rpm_dir(self) -> String {
         match self {
-            Self::Unstable => "main",
-            _ => self.name(),
+            Self::Unstable => "main".to_owned(),
+            _ => self.to_string(),
         }
     }
 
@@ -106,7 +97,8 @@ impl Track {
 
 impl fmt::Display for Track {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.name())
+        let value = self.to_possible_value().expect("no skipped Track variants");
+        f.write_str(value.get_name())
     }
 }
 
@@ -315,11 +307,7 @@ pub(crate) fn promote(args: PromoteArgs) -> Result<()> {
     println!("Promote\t: {PACKAGE_NAME} {version} from {from} to {to}");
 
     let promote_dir = cfg.workdir("promote");
-    if promote_dir.exists() {
-        fs::remove_dir_all(&promote_dir)
-            .with_context(|| format!("Failed to remove {promote_dir}"))?;
-    }
-    fs::create_dir_all(&promote_dir)?;
+    recreate_dir(&promote_dir)?;
 
     // Download and build everything first, so a missing file or a failed
     // build leaves `to` untouched.
@@ -552,6 +540,13 @@ fn prune_repodata(repodata: &Utf8Path) -> Result<()> {
     Ok(())
 }
 
+fn recreate_dir(dir: &Utf8Path) -> Result<()> {
+    if dir.exists() {
+        fs::remove_dir_all(dir).with_context(|| format!("Failed to remove {dir}"))?;
+    }
+    fs::create_dir_all(dir).with_context(|| format!("Failed to create {dir}"))
+}
+
 fn stage_file(file: &Utf8Path, dir: &Utf8Path) -> Result<Utf8PathBuf> {
     let name = file.file_name().context("package file has no filename")?;
     let staged = dir.join(name);
@@ -570,11 +565,14 @@ fn build_deb(
     let pool_rel = track.deb_pool_dir();
     let pool_dir = deb_root.join(&pool_rel);
     let key_dir = deb_root.join("keys");
-    fs::create_dir_all(&pool_dir)?;
+    let dists_track_local = deb_root.join("dists").join(track.to_string());
+    // Recreated so leftovers of an earlier run don't outlive the --delete
+    // sync below.
+    recreate_dir(&pool_dir)?;
+    recreate_dir(&dists_track_local)?;
     fs::create_dir_all(&key_dir)?;
 
     let s3_deb = cfg.s3_path("deb");
-    let dists_track_local = deb_root.join("dists").join(track.name());
 
     // Hydrate this track's pool and dists from S3 so the regenerated Packages
     // and Release files describe everything that was there before, plus the
@@ -647,7 +645,7 @@ fn build_deb(
     println!("Running apt-ftparchive release...");
     let release_dir = dists_track_local.clone();
     let release_dir_str = release_dir.as_str();
-    let suite = track.name();
+    let suite = track.to_string();
     let origin = track.deb_origin();
     let archs_opt = format!(
         "APT::FTPArchive::Release::Architectures={}",
@@ -794,10 +792,7 @@ fn build_rpm(
     let rpm_root = cfg.workdir("rpm");
     // Recreated so no stale .repo file of another track gets uploaded.
     let key_dir = rpm_root.join("keys");
-    if key_dir.exists() {
-        fs::remove_dir_all(&key_dir).with_context(|| format!("Failed to remove {key_dir}"))?;
-    }
-    fs::create_dir_all(&key_dir)?;
+    recreate_dir(&key_dir)?;
 
     let s3_rpm = cfg.s3_path("rpm");
     let repo_url = cfg.repo_url(PkgType::Rpm);
@@ -811,8 +806,10 @@ fn build_rpm(
 
     for (arch, files) in &by_arch {
         println!("Publishing arch {arch}...");
-        let repo_dir = rpm_root.join(track_dir).join(arch);
-        fs::create_dir_all(&repo_dir)?;
+        let repo_dir = rpm_root.join(&track_dir).join(arch);
+        // Recreated so leftovers of an earlier run don't outlive the --delete
+        // sync.
+        recreate_dir(&repo_dir)?;
         let s3_arch = format!("{s3_rpm}/{track_dir}/{arch}");
 
         // Hydrate the track/arch dir (existing .rpms + repodata/) so
