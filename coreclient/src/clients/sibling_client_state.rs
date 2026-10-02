@@ -20,7 +20,7 @@ use aircommon::{
 };
 use airprotos::queue_service::v1::{self, sibling_client_state};
 use anyhow::Context;
-use tracing::warn;
+use tracing::{debug, warn};
 
 use crate::{ChatId, clients::CoreUser};
 
@@ -56,7 +56,7 @@ impl SiblingClientStates {
                             Suppression::None
                         }
                     };
-                warn!(?suppression, "applying sibling client update");
+                debug!(?suppression, "applying sibling client update");
                 (client_id, updated.epoch, suppression)
             }
             Some(sibling_client_state::Change::Removed(removed)) => {
@@ -64,7 +64,7 @@ impl SiblingClientStates {
                     warn!("sibling client state without client id");
                     return;
                 };
-                warn!(?client_id, "remove sibling client");
+                debug!(?client_id, "removing sibling client state");
                 (client_id, removed.epoch, Suppression::None)
             }
             None => return,
