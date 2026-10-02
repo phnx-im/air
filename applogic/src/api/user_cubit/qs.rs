@@ -50,7 +50,7 @@ fn suppression(app_state: AppState, policy: NotificationPolicy) -> NotificationS
 ///
 /// The state is also reported when nothing is suppressed, so that the QS cannot
 /// tell the cases apart.
-async fn report_client_state(
+async fn report_client_state_task(
     core_user: CoreUser,
     responder: QsListenResponder,
     mut app_state: watch::Receiver<AppState>,
@@ -183,7 +183,9 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
                 event: Some(listen_response::Event::SiblingClientState(state)),
             } => {
                 if let Some(states) = &mut self.sibling_client_states {
-                    states.apply(state);
+                    if let Err(error) = states.try_apply(state) {
+                        error!(%error, "failed to apply sibling client state");
+                    }
                 }
                 return true;
             }
@@ -296,7 +298,7 @@ impl QueueContext {
         if let Some(previous) = self.stop_client_state.replace(stop.clone()) {
             previous.cancel();
         }
-        spawn_from_sync(stop.run_until_cancelled_owned(report_client_state(
+        spawn_from_sync(stop.run_until_cancelled_owned(report_client_state_task(
             self.cubit_context.core_user.clone(),
             responder,
             self.cubit_context.app_state.clone(),

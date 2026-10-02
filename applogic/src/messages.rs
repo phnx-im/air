@@ -62,7 +62,9 @@ impl User {
                     // notifications below.
                     Some(listen_response::Event::SiblingClientState(state)) => {
                         if let Some(states) = &mut sibling_client_states {
-                            states.apply(state);
+                            if let Err(error) = states.try_apply(state) {
+                                error!(%error, "failed to apply sibling client state");
+                            }
                         }
                     }
                     Some(listen_response::Event::Payload(_))

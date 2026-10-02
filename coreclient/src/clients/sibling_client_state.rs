@@ -20,7 +20,7 @@ use aircommon::{
 };
 use airprotos::queue_service::v1::{self, sibling_client_state};
 use anyhow::Context;
-use tracing::{debug, warn};
+use tracing::debug;
 
 use crate::{ChatId, clients::CoreUser};
 
@@ -28,7 +28,13 @@ use crate::{ChatId, clients::CoreUser};
 pub struct SiblingClientStates {
     key: ClientStateKey,
     /// Last epoch and suppression per sibling
-    states: HashMap<QsClientId, (u64, NotificationSuppression)>,
+    states: HashMap<QsClientId, SiblingClientState>,
+}
+
+#[derive(Debug)]
+struct SiblingClientState {
+    last_epoch: u64,
+    suppression: NotificationSuppression,
 }
 
 impl SiblingClientStates {
@@ -40,52 +46,58 @@ impl SiblingClientStates {
     }
 
     /// Records a change of a sibling client state received from the QS.
-    pub fn apply(&mut self, state: v1::SiblingClientState) {
-        let (client_id, epoch, suppression) = match state.change {
+    pub fn try_apply(&mut self, state: v1::SiblingClientState) -> anyhow::Result<()> {
+        let (client_id, epoch, encrypted_blob) = match state.change {
             Some(sibling_client_state::Change::Updated(updated)) => {
                 let Some(client_id) = updated.client_id.and_then(|id| id.try_into().ok()) else {
-                    warn!("sibling client state without client id");
-                    return;
+                    anyhow::bail!("sibling client state without client id");
                 };
-                let blob = updated.blob.unwrap_or_default().encrypted_blob;
-                let suppression =
-                    match ClientState::decrypt_from_bytes(&self.key, &client_id, &blob) {
-                        Ok(state) => state.suppression(),
-                        Err(error) => {
-                            warn!(%error, "failed to decrypt sibling client state");
-                            NotificationSuppression::None
-                        }
-                    };
-                debug!(?suppression, "applying sibling client update");
-                (client_id, updated.epoch, suppression)
+                let encrypted_blob = updated.blob.unwrap_or_default().encrypted_blob;
+                (client_id, updated.epoch, Some(encrypted_blob))
             }
             Some(sibling_client_state::Change::Removed(removed)) => {
                 let Some(client_id) = removed.client_id.and_then(|id| id.try_into().ok()) else {
-                    warn!("sibling client state without client id");
-                    return;
+                    anyhow::bail!("sibling client state without client id");
                 };
                 debug!(?client_id, "removing sibling client state");
-                (client_id, removed.epoch, NotificationSuppression::None)
+                (client_id, removed.epoch, None)
             }
-            None => return,
+            None => return Ok(()),
         };
 
         // The initial states of a session can race with live changes.
         if self
             .states
             .get(&client_id)
-            .is_some_and(|(last_epoch, _)| *last_epoch >= epoch)
+            .is_some_and(|SiblingClientState { last_epoch, .. }| *last_epoch >= epoch)
         {
-            return;
+            return Ok(());
         }
-        self.states.insert(client_id, (epoch, suppression));
+
+        let suppression = encrypted_blob
+            .map(|blob| ClientState::decrypt_from_bytes(&self.key, &client_id, &blob))
+            .transpose()
+            .context("failed to decrypt sibling client state")?
+            .map_or(NotificationSuppression::None, |state| state.suppression());
+
+        debug!(?suppression, "applying sibling client update");
+
+        self.states.insert(
+            client_id,
+            SiblingClientState {
+                last_epoch: epoch,
+                suppression,
+            },
+        );
+
+        Ok(())
     }
 
     /// Whether a sibling suppresses notifications of `chat_id`.
     pub fn suppresses(&self, chat_id: ChatId) -> bool {
         self.states
             .values()
-            .any(|(_, suppression)| match suppression {
+            .any(|SiblingClientState { suppression, .. }| match suppression {
                 NotificationSuppression::None | NotificationSuppression::Unknown => false,
                 NotificationSuppression::Chat(id) => *id == chat_id.uuid(),
                 NotificationSuppression::All => true,
@@ -171,30 +183,38 @@ mod tests {
         let other_chat = ChatId::new(Uuid::new_v4());
         let mut states = SiblingClientStates::new(key.clone());
 
-        states.apply(updated(
-            &key,
-            a,
-            1,
-            NotificationSuppression::Chat(chat.uuid()),
-        ));
-        states.apply(updated(
-            &key,
-            b,
-            1,
-            NotificationSuppression::Chat(chat.uuid()),
-        ));
+        states
+            .try_apply(updated(
+                &key,
+                a,
+                1,
+                NotificationSuppression::Chat(chat.uuid()),
+            ))
+            .unwrap();
+        states
+            .try_apply(updated(
+                &key,
+                b,
+                1,
+                NotificationSuppression::Chat(chat.uuid()),
+            ))
+            .unwrap();
         assert!(states.suppresses(chat));
         assert!(!states.suppresses(other_chat));
 
         // One sibling moving away keeps the chat suppressed.
-        states.apply(updated(&key, a, 2, NotificationSuppression::None));
+        states
+            .try_apply(updated(&key, a, 2, NotificationSuppression::None))
+            .unwrap();
         assert!(states.suppresses(chat));
 
-        states.apply(updated(&key, a, 3, NotificationSuppression::All));
+        states
+            .try_apply(updated(&key, a, 3, NotificationSuppression::All))
+            .unwrap();
         assert!(states.suppresses(other_chat));
 
-        states.apply(removed(a, 4));
-        states.apply(removed(b, 2));
+        states.try_apply(removed(a, 4)).unwrap();
+        states.try_apply(removed(b, 2)).unwrap();
         assert!(!states.suppresses(chat));
     }
 
@@ -205,17 +225,23 @@ mod tests {
         let chat = ChatId::new(Uuid::new_v4());
         let mut states = SiblingClientStates::new(key.clone());
 
-        states.apply(updated(
-            &key,
-            a,
-            2,
-            NotificationSuppression::Chat(chat.uuid()),
-        ));
-        states.apply(updated(&key, a, 1, NotificationSuppression::None));
+        states
+            .try_apply(updated(
+                &key,
+                a,
+                2,
+                NotificationSuppression::Chat(chat.uuid()),
+            ))
+            .unwrap();
+        states
+            .try_apply(updated(&key, a, 1, NotificationSuppression::None))
+            .unwrap();
         assert!(states.suppresses(chat));
 
-        states.apply(removed(a, 3));
-        states.apply(updated(&key, a, 2, NotificationSuppression::All));
+        states.try_apply(removed(a, 3)).unwrap();
+        states
+            .try_apply(updated(&key, a, 2, NotificationSuppression::All))
+            .unwrap();
         assert!(!states.suppresses(chat));
     }
 }
