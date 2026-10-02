@@ -9,7 +9,7 @@ use std::{
 
 use anyhow::{Context, Result, bail, ensure};
 use camino::{Utf8Path, Utf8PathBuf};
-use clap::Args;
+use clap::{Args, ValueEnum};
 use xshell::{Shell, cmd};
 
 // APT requires a component in the path/Release file. Hardcoded to "main"
@@ -36,13 +36,82 @@ impl fmt::Display for PkgType {
     }
 }
 
-#[derive(Args, Debug)]
-pub(crate) struct PublishArgs {
-    /// Package files (.deb or .rpm, all of one type) to publish. May span
-    /// several architectures.
-    #[arg(required = true, num_args = 1..)]
-    package_files: Vec<Utf8PathBuf>,
+// Name of the package in the repositories, as set in the nFPM config.
+const PACKAGE_NAME: &str = "air";
 
+// Architectures every release is built for.
+const DEB_ARCHS: [&str; 2] = ["amd64", "arm64"];
+const RPM_ARCHS: [&str; 2] = ["x86_64", "aarch64"];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub(crate) enum Track {
+    Nightly,
+    Beta,
+    Stable,
+    /// Legacy layout, a transitional mirror of nightly.
+    Unstable,
+}
+
+impl Track {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Nightly => "nightly",
+            Self::Beta => "beta",
+            Self::Stable => "stable",
+            Self::Unstable => "unstable",
+        }
+    }
+
+    // Pool dir relative to the deb root. Legacy layout uses "pool/main".
+    fn deb_pool_dir(self) -> String {
+        match self {
+            Self::Unstable => format!("pool/{APT_COMPONENT}"),
+            _ => format!("pool/{self}/{APT_COMPONENT}"),
+        }
+    }
+
+    // Origin and Label of the Release file. Legacy layout keeps its original
+    // value, apt rejects a change.
+    fn deb_origin(self) -> &'static str {
+        match self {
+            Self::Unstable => "Custom",
+            _ => "Air",
+        }
+    }
+
+    // Repo dir relative to the rpm root. Legacy layout uses "main".
+    fn rpm_dir(self) -> &'static str {
+        match self {
+            Self::Unstable => "main",
+            _ => self.name(),
+        }
+    }
+
+    // Section and file name of the .repo file. Legacy layout has none.
+    fn rpm_repo_id(self) -> Option<String> {
+        match self {
+            Self::Unstable => None,
+            Self::Stable => Some(PACKAGE_NAME.to_owned()),
+            _ => Some(format!("{PACKAGE_NAME}-{self}")),
+        }
+    }
+
+    fn rpm_repo_name(self) -> String {
+        match self {
+            Self::Stable => "Air".to_owned(),
+            _ => format!("Air ({self})"),
+        }
+    }
+}
+
+impl fmt::Display for Track {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
+#[derive(Args, Debug)]
+pub(crate) struct RepoArgs {
     /// S3 bucket to operate on.
     #[arg(short = 'b', long = "s3-bucket", env = "S3_BUCKET")]
     s3_bucket: String,
@@ -50,11 +119,6 @@ pub(crate) struct PublishArgs {
     /// Optional key prefix (e.g. "releases").
     #[arg(short = 'p', long = "prefix", env = "S3_PREFIX")]
     prefix: Option<String>,
-
-    /// Release track / APT suite name (e.g. "testing", "stable").
-    /// Falls back to $TRACK; defaults to "testing".
-    #[arg(long, default_value = "unstable", env = "TRACK")]
-    track: String,
 
     /// GPG key fingerprint/email to sign with.
     #[arg(short = 'k', long = "gpg-key-id", env = "GPG_KEY_ID")]
@@ -69,20 +133,50 @@ pub(crate) struct PublishArgs {
     #[arg(long = "repository-base-url", env = "REPOSITORY_BASE_URL")]
     repository_base_url: String,
 
-    /// Pass --dryrun to aws commands.
+    /// Build and sign the repository locally, but skip all uploads.
     #[arg(long, action = clap::ArgAction::SetTrue)]
     dry_run: bool,
 }
 
-struct Config {
+#[derive(Args, Debug)]
+pub(crate) struct PublishArgs {
+    /// Package files (.deb or .rpm, all of one type) to publish. May span
+    /// several architectures.
+    #[arg(required = true, num_args = 1..)]
     package_files: Vec<Utf8PathBuf>,
-    pkg_type: PkgType,
+
+    /// Release track to publish to.
+    #[arg(long, value_enum, default_value_t = Track::Nightly, env = "TRACK")]
+    track: Track,
+
+    #[command(flatten)]
+    repo: RepoArgs,
+}
+
+#[derive(Args, Debug)]
+pub(crate) struct PromoteArgs {
+    /// Track to take the packages from.
+    #[arg(long, value_enum)]
+    from: Track,
+
+    /// Track to publish the packages to.
+    #[arg(long, value_enum)]
+    to: Track,
+
+    /// Package version to promote (e.g. "0.23.0-1490").
+    #[arg(long)]
+    version: String,
+
+    #[command(flatten)]
+    repo: RepoArgs,
+}
+
+struct Config {
     bucket: String,
     prefix: Option<String>,
-    track: String,
     gpg_key_id: String,
     s3_endpoint: Option<String>,
-    repo_url: String,
+    repository_base_url: String,
     dry_run: bool,
     workdir: Utf8PathBuf,
 }
@@ -109,48 +203,164 @@ impl Config {
     fn workdir(&self, path: impl AsRef<Utf8Path>) -> Utf8PathBuf {
         self.workdir.join(path)
     }
+
+    fn sync(&self, shell: &Shell, upload: &Upload, delete: bool) -> Result<()> {
+        let Upload {
+            local,
+            remote,
+            cache_control,
+            exclude,
+            ..
+        } = upload;
+        let aws_args = self.aws_args();
+        let mut opts = Vec::new();
+        if delete {
+            opts.push("--delete");
+        }
+        if let Some(exclude) = exclude {
+            opts.extend(["--exclude", exclude]);
+        }
+        let cmd = cmd!(
+            shell,
+            "aws {aws_args...} s3 sync --quiet {local} {remote} {opts...} --cache-control {cache_control} --acl public-read"
+        );
+        if self.dry_run {
+            println!("Dry-run, skipping: {cmd}");
+        } else {
+            cmd.run()?;
+        }
+        Ok(())
+    }
+
+    // Packages go up before any index, and pruned packages are removed only
+    // after no index refers to them anymore.
+    fn upload(&self, shell: &Shell, uploads: &Uploads) -> Result<()> {
+        println!("Uploading packages (immutable, long TTL)...");
+        for upload in &uploads.packages {
+            self.sync(shell, upload, false)?;
+        }
+        println!("Uploading indexes and keys (short TTL)...");
+        for upload in &uploads.metadata {
+            self.sync(shell, upload, upload.delete)?;
+        }
+        println!("Removing pruned packages...");
+        for upload in &uploads.packages {
+            self.sync(shell, upload, upload.delete)?;
+        }
+        Ok(())
+    }
+
+    fn repo_url(&self, pkg_type: PkgType) -> String {
+        format!("{}/{pkg_type}", self.repository_base_url)
+    }
 }
+
+// A local dir that is synced to S3.
+struct Upload {
+    local: Utf8PathBuf,
+    remote: String,
+    cache_control: &'static str,
+    exclude: Option<&'static str>,
+    // Removes remote files that are missing locally.
+    delete: bool,
+}
+
+#[derive(Default)]
+struct Uploads {
+    packages: Vec<Upload>,
+    metadata: Vec<Upload>,
+}
+
+const PACKAGES_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
+const INDEX_CACHE_CONTROL: &str = "public, max-age=300";
+const KEY_CACHE_CONTROL: &str = "public, max-age=86400";
 
 pub(crate) fn run(args: PublishArgs) -> Result<()> {
     let shell = Shell::new()?;
 
-    let cfg = build_config(&shell, args)?;
+    let (package_files, pkg_type) = check_package_files(&args.package_files)?;
+    let cfg = setup(&shell, args.repo)?;
 
-    // Some S3-compatible providers (Upcloud, some MinIO versions, ...) reject
-    // the newer flow checksums AWS CLI v2 sends by default. "when_required"
-    // only emits checksums when the server asks for them.
-    if cfg.s3_endpoint.is_some() {
-        for key in [
-            "AWS_REQUEST_CHECKSUM_CALCULATION",
-            "AWS_RESPONSE_CHECKSUM_VALIDATION",
-        ] {
-            if shell.var(key).is_err() {
-                shell.set_var(key, "when_required");
-            }
-        }
-    }
-
-    for file in &cfg.package_files {
+    for file in &package_files {
         println!("Package\t: {}", file.file_name().unwrap_or(file.as_str()));
     }
-    println!("URL\t: {}", cfg.repo_url);
-    println!("Workdir\t: {}", cfg.workdir);
-    println!("GPG key\t: {}", cfg.gpg_key_id);
+    println!("Track\t: {}", args.track);
 
-    if cfg.dry_run {
-        eprintln!("Dry-run mode: no changes will be made.");
+    let mut uploads = Uploads::default();
+    match pkg_type {
+        PkgType::Deb => build_deb(&shell, &cfg, args.track, &package_files, &mut uploads)?,
+        PkgType::Rpm => build_rpm(&shell, &cfg, args.track, &package_files, true, &mut uploads)?,
     }
-
-    match cfg.pkg_type {
-        PkgType::Deb => publish_deb(&shell, &cfg),
-        PkgType::Rpm => publish_rpm(&shell, &cfg),
-    }
+    cfg.upload(&shell, &uploads)
 }
 
-fn build_config(shell: &Shell, args: PublishArgs) -> Result<Config> {
-    let mut package_files = Vec::with_capacity(args.package_files.len());
+pub(crate) fn promote(args: PromoteArgs) -> Result<()> {
+    let PromoteArgs {
+        from,
+        to,
+        version,
+        repo,
+    } = args;
+    ensure!(from != to, "--from and --to must differ, both are {from}");
+    ensure!(
+        !version.is_empty()
+            && version
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || ".+~-".contains(c)),
+        "Invalid version: {version:?}"
+    );
+
+    let shell = Shell::new()?;
+    let cfg = setup(&shell, repo)?;
+    println!("Promote\t: {PACKAGE_NAME} {version} from {from} to {to}");
+
+    let promote_dir = cfg.workdir("promote");
+    if promote_dir.exists() {
+        fs::remove_dir_all(&promote_dir)
+            .with_context(|| format!("Failed to remove {promote_dir}"))?;
+    }
+    fs::create_dir_all(&promote_dir)?;
+
+    // Download and build everything first, so a missing file or a failed
+    // build leaves `to` untouched.
+    let download = |remote: String, name: String| -> Result<Utf8PathBuf> {
+        let src = cfg.s3_path(&remote);
+        let dst = promote_dir.join(name);
+        println!("Downloading {src}...");
+        let aws_args = cfg.aws_args();
+        cmd!(shell, "aws {aws_args...} s3 cp --quiet {src} {dst}")
+            .run()
+            .with_context(|| {
+                format!(
+                    "Failed to download {src} (version {version} must exist in {from} for all arches)"
+                )
+            })?;
+        Ok(dst)
+    };
+    let mut debs = Vec::new();
+    for arch in DEB_ARCHS {
+        let name = format!("{PACKAGE_NAME}_{version}_{arch}.deb");
+        let remote = format!("deb/{}/{name}", from.deb_pool_dir());
+        debs.push(download(remote, name)?);
+    }
+    let mut rpms = Vec::new();
+    for arch in RPM_ARCHS {
+        let name = format!("{PACKAGE_NAME}-{version}.{arch}.rpm");
+        let remote = format!("rpm/{}/{arch}/{name}", from.rpm_dir());
+        rpms.push(download(remote, name)?);
+    }
+
+    let mut uploads = Uploads::default();
+    build_deb(&shell, &cfg, to, &debs, &mut uploads)?;
+    // Already signed in `from`, re-signing would change the bytes.
+    build_rpm(&shell, &cfg, to, &rpms, false, &mut uploads)?;
+    cfg.upload(&shell, &uploads)
+}
+
+fn check_package_files(files: &[Utf8PathBuf]) -> Result<(Vec<Utf8PathBuf>, PkgType)> {
+    let mut package_files = Vec::with_capacity(files.len());
     let mut pkg_type = None;
-    for file in &args.package_files {
+    for file in files {
         ensure!(file.exists(), "File not found: {file}");
         let file = file.canonicalize_utf8()?;
         let file_type = match file.extension() {
@@ -165,25 +375,48 @@ fn build_config(shell: &Shell, args: PublishArgs) -> Result<Config> {
         package_files.push(file);
     }
     let pkg_type = pkg_type.context("No package files given")?;
+    Ok((package_files, pkg_type))
+}
+
+fn setup(shell: &Shell, args: RepoArgs) -> Result<Config> {
+    // Some S3-compatible providers (Upcloud, some MinIO versions, ...) reject
+    // the newer flow checksums AWS CLI v2 sends by default. "when_required"
+    // only emits checksums when the server asks for them.
+    if args.s3_endpoint.is_some() {
+        for key in [
+            "AWS_REQUEST_CHECKSUM_CALCULATION",
+            "AWS_RESPONSE_CHECKSUM_VALIDATION",
+        ] {
+            if shell.var(key).is_err() {
+                shell.set_var(key, "when_required");
+            }
+        }
+    }
 
     // Trim trailing slash so client-setup snippets don't end up with "//".
-    let repository_base_url = args.repository_base_url.trim_end_matches('/');
+    let repository_base_url = args.repository_base_url.trim_end_matches('/').to_owned();
 
     let workdir = Utf8PathBuf::from(cmd!(shell, "git rev-parse --show-toplevel").read()?)
         .join("app/linux/package-builds");
 
-    Ok(Config {
-        package_files,
-        pkg_type,
+    let cfg = Config {
         bucket: args.s3_bucket,
         prefix: args.prefix,
-        track: args.track,
         gpg_key_id: args.gpg_key_id,
         s3_endpoint: args.s3_endpoint,
-        repo_url: format!("{repository_base_url}/{pkg_type}"),
+        repository_base_url,
         dry_run: args.dry_run,
         workdir,
-    })
+    };
+
+    println!("URL\t: {}", cfg.repository_base_url);
+    println!("Workdir\t: {}", cfg.workdir);
+    println!("GPG key\t: {}", cfg.gpg_key_id);
+    if cfg.dry_run {
+        eprintln!("Dry-run mode: the repository is built locally but not uploaded.");
+    }
+
+    Ok(cfg)
 }
 
 fn write_text(path: &Utf8Path, mut content: String) -> Result<()> {
@@ -326,31 +559,36 @@ fn stage_file(file: &Utf8Path, dir: &Utf8Path) -> Result<Utf8PathBuf> {
     Ok(staged)
 }
 
-fn publish_deb(shell: &Shell, cfg: &Config) -> Result<()> {
+fn build_deb(
+    shell: &Shell,
+    cfg: &Config,
+    track: Track,
+    files: &[Utf8PathBuf],
+    uploads: &mut Uploads,
+) -> Result<()> {
     let deb_root = cfg.workdir("deb");
-    let pool_dir = deb_root.join("pool").join(APT_COMPONENT);
+    let pool_rel = track.deb_pool_dir();
+    let pool_dir = deb_root.join(&pool_rel);
     let key_dir = deb_root.join("keys");
     fs::create_dir_all(&pool_dir)?;
     fs::create_dir_all(&key_dir)?;
 
     let s3_deb = cfg.s3_path("deb");
-    let pool_local = deb_root.join("pool");
-    let dists_local = deb_root.join("dists");
-    let dists_track_local = dists_local.join(&cfg.track);
+    let dists_track_local = deb_root.join("dists").join(track.name());
 
-    // Hydrate pool/ and dists/${TRACK}/ from S3 so the regenerated Packages
+    // Hydrate this track's pool and dists from S3 so the regenerated Packages
     // and Release files describe everything that was there before, plus the
-    // new package.
-    let pool_remote = format!("{s3_deb}/pool");
+    // new package. Other tracks are never touched.
+    let pool_remote = format!("{s3_deb}/{pool_rel}");
     println!("Syncing existing pool from {pool_remote}...");
     let aws_args = cfg.aws_args();
     cmd!(
         shell,
-        "aws {aws_args...} s3 sync --quiet {pool_remote} {pool_local}"
+        "aws {aws_args...} s3 sync --quiet {pool_remote} {pool_dir}"
     )
     .run()?;
 
-    let dists_remote_track = format!("{s3_deb}/dists/{}", cfg.track);
+    let dists_remote_track = format!("{s3_deb}/dists/{track}");
     println!("Syncing existing dists from {dists_remote_track}...");
     let aws_args = cfg.aws_args();
     cmd!(
@@ -362,7 +600,7 @@ fn publish_deb(shell: &Shell, cfg: &Config) -> Result<()> {
     prune_deb_pool(shell, &pool_dir, KEEP_VERSIONS)?;
 
     println!("Staging packages into pool...");
-    for file in &cfg.package_files {
+    for file in files {
         stage_file(file, &pool_dir)?;
     }
 
@@ -386,9 +624,8 @@ fn publish_deb(shell: &Shell, cfg: &Config) -> Result<()> {
     write_text(&key_dir.join("gpg-key.asc"), armored)?;
 
     println!("Running apt-ftparchive packages...");
-    // cd into deb_root so apt-ftparchive embeds "pool/main/..." (relative to
-    // dists/) in the Filename: field, matching the URL clients construct.
-    let pool_rel = format!("pool/{APT_COMPONENT}");
+    // cd into deb_root so apt-ftparchive embeds the pool path relative to the
+    // deb root in the Filename: field, matching the URL clients construct.
     for arch in &archs {
         let dists_dir = dists_track_local
             .join(APT_COMPONENT)
@@ -410,7 +647,8 @@ fn publish_deb(shell: &Shell, cfg: &Config) -> Result<()> {
     println!("Running apt-ftparchive release...");
     let release_dir = dists_track_local.clone();
     let release_dir_str = release_dir.as_str();
-    let track = &cfg.track;
+    let suite = track.name();
+    let origin = track.deb_origin();
     let archs_opt = format!(
         "APT::FTPArchive::Release::Architectures={}",
         archs.join(" ")
@@ -418,10 +656,10 @@ fn publish_deb(shell: &Shell, cfg: &Config) -> Result<()> {
     let release_output = cmd!(
         shell,
         "apt-ftparchive
-         -o APT::FTPArchive::Release::Origin=Custom
-         -o APT::FTPArchive::Release::Label=Custom
-         -o APT::FTPArchive::Release::Suite={track}
-         -o APT::FTPArchive::Release::Codename={track}
+         -o APT::FTPArchive::Release::Origin={origin}
+         -o APT::FTPArchive::Release::Label={origin}
+         -o APT::FTPArchive::Release::Suite={suite}
+         -o APT::FTPArchive::Release::Codename={suite}
          -o APT::FTPArchive::Release::Components={APT_COMPONENT}
          -o {archs_opt}
          -o APT::FTPArchive::Release::MD5=false
@@ -446,39 +684,39 @@ fn publish_deb(shell: &Shell, cfg: &Config) -> Result<()> {
         "gpg --batch --yes --default-key {gpg_key_id} --armor --clearsign --output {inrelease} {release_path}"
     ).run()?;
 
-    println!("Uploading pool (immutable, long TTL)...");
-    let aws_args = cfg.aws_args();
-    cmd!(
-        shell,
-        "aws {aws_args...} s3 sync --quiet {pool_local} {pool_remote} --delete --cache-control 'public, max-age=31536000' --acl public-read"
-    ).run()?;
+    // Only this track's pool and dists, a sync of all of them with --delete
+    // would wipe the other tracks, which were never hydrated.
+    uploads.packages.push(Upload {
+        local: pool_dir,
+        remote: pool_remote,
+        cache_control: PACKAGES_CACHE_CONTROL,
+        exclude: None,
+        delete: true,
+    });
+    uploads.metadata.push(Upload {
+        local: dists_track_local,
+        remote: dists_remote_track,
+        cache_control: INDEX_CACHE_CONTROL,
+        exclude: None,
+        delete: true,
+    });
+    uploads.metadata.push(Upload {
+        local: key_dir,
+        remote: s3_deb.clone(),
+        cache_control: KEY_CACHE_CONTROL,
+        exclude: None,
+        delete: false,
+    });
 
-    // Only this track's dists, a sync of all dists with --delete would wipe
-    // the other tracks, which were never hydrated.
-    println!("Uploading dists (index files, short TTL)...");
-    let aws_args = cfg.aws_args();
-    cmd!(
-        shell,
-        "aws {aws_args...} s3 sync --delete --quiet {dists_track_local} {dists_remote_track} --cache-control 'public, max-age=300' --acl public-read"
-    ).run()?;
-
-    println!("Uploading public GPG key...");
-    let aws_args = cfg.aws_args();
-    cmd!(
-        shell,
-        "aws {aws_args...} s3 sync --quiet {key_dir} {s3_deb} --cache-control 'public, max-age=86400' --acl public-read"
-    ).run()?;
-
-    let repo_url = &cfg.repo_url;
-    let track = &cfg.track;
+    let repo_url = cfg.repo_url(PkgType::Deb);
     println!(
         r#"
-DEB repository published to {s3_deb}
+DEB repository for {s3_deb} (suite {suite})
 
 Client setup:
   curl -fsSL {repo_url}/gpg-key.asc \
     | sudo gpg --dearmor -o /usr/share/keyrings/air-keyring.gpg
-  echo "deb [signed-by=/usr/share/keyrings/air-keyring.gpg] {repo_url} {track} {APT_COMPONENT}" \
+  echo "deb [signed-by=/usr/share/keyrings/air-keyring.gpg] {repo_url} {suite} {APT_COMPONENT}" \
     | sudo tee /etc/apt/sources.list.d/air.list
   sudo apt update"#
     );
@@ -526,11 +764,20 @@ impl Drop for RpmMacrosGuard {
     }
 }
 
-fn publish_rpm(shell: &Shell, cfg: &Config) -> Result<()> {
+// Without `sign` the packages are staged as is, e.g. already signed ones
+// that are promoted between tracks.
+fn build_rpm(
+    shell: &Shell,
+    cfg: &Config,
+    track: Track,
+    files: &[Utf8PathBuf],
+    sign: bool,
+    uploads: &mut Uploads,
+) -> Result<()> {
     // Group the files by rpm arch.
     let queryformat = "%{ARCH}";
     let mut by_arch: BTreeMap<String, Vec<&Utf8Path>> = BTreeMap::new();
-    for file in &cfg.package_files {
+    for file in files {
         let pkg = file.as_str();
         let arch = cmd!(shell, "rpm -qp --queryformat {queryformat} {pkg}")
             .quiet()
@@ -545,10 +792,16 @@ fn publish_rpm(shell: &Shell, cfg: &Config) -> Result<()> {
     println!();
 
     let rpm_root = cfg.workdir("rpm");
+    // Recreated so no stale .repo file of another track gets uploaded.
     let key_dir = rpm_root.join("keys");
+    if key_dir.exists() {
+        fs::remove_dir_all(&key_dir).with_context(|| format!("Failed to remove {key_dir}"))?;
+    }
     fs::create_dir_all(&key_dir)?;
 
     let s3_rpm = cfg.s3_path("rpm");
+    let repo_url = cfg.repo_url(PkgType::Rpm);
+    let track_dir = track.rpm_dir();
 
     let home_str = env::var("HOME").context("HOME is not set")?;
     let home = Utf8PathBuf::from(home_str);
@@ -558,11 +811,11 @@ fn publish_rpm(shell: &Shell, cfg: &Config) -> Result<()> {
 
     for (arch, files) in &by_arch {
         println!("Publishing arch {arch}...");
-        let repo_dir = rpm_root.join(APT_COMPONENT).join(arch);
+        let repo_dir = rpm_root.join(track_dir).join(arch);
         fs::create_dir_all(&repo_dir)?;
-        let s3_arch = format!("{s3_rpm}/{APT_COMPONENT}/{arch}");
+        let s3_arch = format!("{s3_rpm}/{track_dir}/{arch}");
 
-        // Hydrate the component/arch dir (existing .rpms + repodata/) so
+        // Hydrate the track/arch dir (existing .rpms + repodata/) so
         // createrepo_c --update can incrementally extend the previous metadata.
         println!("Syncing existing repo from {s3_arch}...");
         let aws_args = cfg.aws_args();
@@ -574,13 +827,18 @@ fn publish_rpm(shell: &Shell, cfg: &Config) -> Result<()> {
 
         prune_rpm_packages(shell, &repo_dir, KEEP_VERSIONS)?;
 
-        println!("Staging and signing .rpm with GPG key: {gpg_key_id}");
-        {
+        if sign {
+            println!("Staging and signing .rpm with GPG key: {gpg_key_id}");
             let _guard = RpmMacrosGuard::install(macros_path.clone(), &macros_content)?;
             for file in files {
                 let staged = stage_file(file, &repo_dir)?;
                 let staged_str = staged.as_str();
                 cmd!(shell, "rpm --addsign {staged_str}").run()?;
+            }
+        } else {
+            println!("Staging already signed .rpm...");
+            for file in files {
+                stage_file(file, &repo_dir)?;
             }
         }
 
@@ -597,23 +855,22 @@ fn publish_rpm(shell: &Shell, cfg: &Config) -> Result<()> {
             "gpg --batch --yes --default-key {gpg_key_id} --armor --detach-sign --output {repomd_asc} {repomd}"
         ).run()?;
 
-        println!("Uploading .rpm packages (immutable, long TTL)...");
-        let aws_args = cfg.aws_args();
-        cmd!(
-            shell,
-            "aws {aws_args...} s3 sync --quiet {repo_dir} {s3_arch} --delete --exclude repodata/* --cache-control 'public, max-age=31536000, immutable' --acl public-read"
-        ).run()?;
-
         // createrepo_c replaces the metadata files, --delete drops the old
         // ones on S3.
-        println!("Uploading repodata (short TTL)...");
-        let local_repodata = repo_dir.join("repodata");
-        let s3_repodata = format!("{s3_arch}/repodata");
-        let aws_args = cfg.aws_args();
-        cmd!(
-            shell,
-            "aws {aws_args...} s3 sync --quiet --delete {local_repodata} {s3_repodata} --cache-control 'public, max-age=300' --acl public-read"
-        ).run()?;
+        uploads.metadata.push(Upload {
+            local: repo_dir.join("repodata"),
+            remote: format!("{s3_arch}/repodata"),
+            cache_control: INDEX_CACHE_CONTROL,
+            exclude: None,
+            delete: true,
+        });
+        uploads.packages.push(Upload {
+            local: repo_dir,
+            remote: s3_arch,
+            cache_control: PACKAGES_CACHE_CONTROL,
+            exclude: Some("repodata/*"),
+            delete: true,
+        });
     }
 
     let armored = cmd!(shell, "gpg --batch --yes --export --armor {gpg_key_id}").read()?;
@@ -622,33 +879,40 @@ fn publish_rpm(shell: &Shell, cfg: &Config) -> Result<()> {
     // Generate a .repo file so clients can install via
     // `dnf config-manager addrepo --from-repofile <url>`. dnf expands
     // $basearch itself.
-    let repo_file = key_dir.join("air.repo");
-    let repo_contents = format!(
-        r#"[air]
-name=Air Messenger builds
-baseurl={url}/{APT_COMPONENT}/$basearch
+    let repo_id = track.rpm_repo_id();
+    if let Some(repo_id) = &repo_id {
+        let repo_file = key_dir.join(format!("{repo_id}.repo"));
+        let repo_contents = format!(
+            r#"[{repo_id}]
+name={name}
+baseurl={repo_url}/{track_dir}/$basearch
 enabled=1
 gpgcheck=1
 repo_gpgcheck=1
-gpgkey={url}/gpg-key.asc
-        "#,
-        url = cfg.repo_url
-    );
-    fs::write(&repo_file, repo_contents).with_context(|| format!("Failed to write {repo_file}"))?;
+gpgkey={repo_url}/gpg-key.asc
+"#,
+            name = track.rpm_repo_name(),
+        );
+        fs::write(&repo_file, repo_contents)
+            .with_context(|| format!("Failed to write {repo_file}"))?;
+    }
 
-    println!("Uploading GPG key and .repo descriptor...");
-    let aws_args = cfg.aws_args();
-    cmd!(
-        shell,
-        "aws {aws_args...} s3 sync --quiet {key_dir} {s3_rpm} --cache-control 'public, max-age=86400' --acl public-read"
-    ).run()?;
+    uploads.metadata.push(Upload {
+        local: key_dir,
+        remote: s3_rpm.clone(),
+        cache_control: KEY_CACHE_CONTROL,
+        exclude: None,
+        delete: false,
+    });
 
-    println!("RPM repository published to {s3_rpm}");
+    println!("RPM repository for {s3_rpm}/{track_dir}");
 
-    println!(
-        "Client setup: sudo dnf config-manager addrepo --from-repofile {}/air.repo",
-        cfg.repo_url
-    );
+    match repo_id {
+        Some(repo_id) => println!(
+            "Client setup: sudo dnf config-manager addrepo --from-repofile {repo_url}/{repo_id}.repo"
+        ),
+        None => println!("Legacy layout, no .repo file: baseurl={repo_url}/{track_dir}/$basearch"),
+    }
 
     Ok(())
 }
