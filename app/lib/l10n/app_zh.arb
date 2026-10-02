@@ -230,6 +230,7 @@
   "systemMessage_deviceUnlinked": "你已取消设备 {device} 与你账号的关联。{tapToView}",
   "systemMessage_deviceUnlinkedUnknown": "你已取消一台设备与你账号的关联。{tapToView}",
   "systemMessage_devicesTapToView": "点击查看你的设备。",
+  "systemMessage_selfChatCreated": "把这个聊天当作你的个人记事本。消息会在你账号的所有已关联设备之间同步。",
   "timestamp_now": "刚刚",
   "timestamp_minutesAgo": "{count} 分钟前",
   "date_today": "今天",

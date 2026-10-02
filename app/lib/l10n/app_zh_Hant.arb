@@ -230,6 +230,7 @@
   "systemMessage_deviceUnlinked": "你已取消裝置 {device} 與你帳號的連結。{tapToView}",
   "systemMessage_deviceUnlinkedUnknown": "你已取消一部裝置與你帳號的連結。{tapToView}",
   "systemMessage_devicesTapToView": "點一下查看你的裝置。",
+  "systemMessage_selfChatCreated": "把這個聊天當作你的個人記事本。訊息會在你帳號的所有已連結裝置之間同步。",
   "timestamp_now": "剛剛",
   "timestamp_minutesAgo": "{count} 分鐘前",
   "date_today": "今天",

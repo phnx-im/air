@@ -14,6 +14,7 @@ use aircommon::{
         client_ds::{AadMessage, AadPayload, GroupOperationParamsAad},
         client_ds_out::ApqGroupOperationParamsOut,
     },
+    time::TimeStamp,
 };
 use airprotos::client::{
     group::GroupData,
@@ -33,7 +34,7 @@ use tracing::{debug, warn};
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatId,
+    Chat, ChatId, ChatMessage, SystemMessage,
     chats::ChatAttributes,
     clients::{CoreUser, own_client_info::OwnClientInfo},
     db::access::{ReadConnection, ReadTransaction, WriteConnection, WriteDbTransaction},
@@ -407,6 +408,12 @@ impl CoreUser {
             },
         );
         chat.store(&mut connection).await?;
+        let system_message = ChatMessage::new_system_message(
+            chat.id(),
+            TimeStamp::now(),
+            SystemMessage::SelfChatCreated,
+        );
+        system_message.store(&mut connection).await?;
         debug!("Created the missing self chat");
 
         Ok(chat.id())

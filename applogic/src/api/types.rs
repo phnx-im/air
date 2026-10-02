@@ -592,6 +592,7 @@ pub enum UiSystemMessage {
         sender: UiUserId,
         chat_name: String,
     },
+    SelfChatCreated,
 }
 
 impl From<SystemMessage> for UiSystemMessage {
@@ -658,6 +659,7 @@ impl From<SystemMessage> for UiSystemMessage {
                     chat_name,
                 }
             }
+            SystemMessage::SelfChatCreated => UiSystemMessage::SelfChatCreated,
         }
     }
 }

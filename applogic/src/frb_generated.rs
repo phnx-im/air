@@ -13208,6 +13208,9 @@ impl SseDecode for crate::api::types::UiSystemMessage {
                 let mut var_chatName = <String>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::ReceivedAdditionalDirectConnectionRequest{sender: var_sender, chat_name: var_chatName};
             }
+            16 => {
+                return crate::api::types::UiSystemMessage::SelfChatCreated;
+            }
             _ => {
                 unimplemented!("");
             }
@@ -16476,6 +16479,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
                 chat_name.into_into_dart().into_dart(),
             ]
             .into_dart(),
+            crate::api::types::UiSystemMessage::SelfChatCreated => [16.into_dart()].into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -19758,6 +19762,9 @@ impl SseEncode for crate::api::types::UiSystemMessage {
                 <i32>::sse_encode(15, serializer);
                 <crate::api::types::UiUserId>::sse_encode(sender, serializer);
                 <String>::sse_encode(chat_name, serializer);
+            }
+            crate::api::types::UiSystemMessage::SelfChatCreated => {
+                <i32>::sse_encode(16, serializer);
             }
             _ => {
                 unimplemented!("");
