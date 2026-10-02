@@ -86,7 +86,7 @@ impl SiblingClientStates {
         self.states
             .values()
             .any(|(_, suppression)| match suppression {
-                Suppression::None => false,
+                Suppression::None | Suppression::Unknown => false,
                 Suppression::Chat(id) => *id == chat_id.uuid(),
                 Suppression::All => true,
             })
@@ -142,7 +142,6 @@ mod tests {
                 SiblingClientStateUpdated {
                     client_id: Some(client_id.into()),
                     epoch,
-                    age_ms: 0,
                     blob: Some(SiblingClientStateEncryptedBlob { encrypted_blob }),
                 },
             )),

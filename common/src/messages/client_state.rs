@@ -4,12 +4,15 @@
 
 //! State a client relays to its sibling clients through the QS.
 
-use tls_codec::{DeserializeBytes, Serialize as _};
+use airmacros::{
+    DeserializeTaggedMap, DeserializeTaggedUnion, SerializeTaggedMap, SerializeTaggedUnion,
+};
 use uuid::Uuid;
 
 use crate::{
+    codec::PersistenceCodec,
     crypto::{
-        aead::{AeadDecryptable, AeadEncryptable, keys::ClientStateKey},
+        aead::{PaddedAeadDecryptable, PaddedAeadEncryptable, keys::ClientStateKey},
         errors::{DecryptionError, EncryptionError},
     },
     identifiers::QsClientId,
@@ -18,54 +21,43 @@ use crate::{
 use super::*;
 
 /// Notifications a client suppresses because the user is looking at it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, SerializeTaggedUnion, DeserializeTaggedUnion,
+)]
 pub enum Suppression {
+    #[default]
+    #[tag(1)]
     None,
+    #[tag(2)]
     Chat(Uuid),
+    #[tag(3)]
     All,
+    /// Sent by a newer client, treated as [`Suppression::None`].
+    #[unknown]
+    Unknown,
 }
 
-const SUPPRESS_NONE: u8 = 0;
-const SUPPRESS_CHAT: u8 = 1;
-const SUPPRESS_ALL: u8 = 2;
-
-/// Encoding of a [`Suppression`].
-///
-/// The chat id is the nil UUID unless a chat is suppressed, so that the length
-/// of the ciphertext does not reveal the kind of suppression.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TlsSize, TlsSerialize, TlsDeserializeBytes)]
+/// The padding hides which kind of [`Suppression`] a client reports.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct ClientState {
-    suppression: u8,
-    chat_id: [u8; 16],
+    #[tag(1)]
+    suppression: Suppression,
 }
 
 #[derive(Debug)]
 pub struct EncryptedClientStateCtype;
 pub type EncryptedClientState = Ciphertext<EncryptedClientStateCtype>;
 
-impl AeadEncryptable<ClientStateKey, EncryptedClientStateCtype> for ClientState {}
-impl AeadDecryptable<ClientStateKey, EncryptedClientStateCtype> for ClientState {}
+impl PaddedAeadEncryptable<ClientStateKey, EncryptedClientStateCtype> for ClientState {}
+impl PaddedAeadDecryptable<ClientStateKey, EncryptedClientStateCtype> for ClientState {}
 
 impl ClientState {
     pub fn new(suppression: Suppression) -> Self {
-        let (suppression, chat_id) = match suppression {
-            Suppression::None => (SUPPRESS_NONE, Uuid::nil()),
-            Suppression::Chat(chat_id) => (SUPPRESS_CHAT, chat_id),
-            Suppression::All => (SUPPRESS_ALL, Uuid::nil()),
-        };
-        Self {
-            suppression,
-            chat_id: chat_id.into_bytes(),
-        }
+        Self { suppression }
     }
 
-    /// Unknown kinds decode as [`Suppression::None`].
     pub fn suppression(&self) -> Suppression {
-        match self.suppression {
-            SUPPRESS_CHAT => Suppression::Chat(Uuid::from_bytes(self.chat_id)),
-            SUPPRESS_ALL => Suppression::All,
-            _ => Suppression::None,
-        }
+        self.suppression
     }
 
     /// Encrypts the state of the client `sender`.
@@ -74,10 +66,8 @@ impl ClientState {
         key: &ClientStateKey,
         sender: &QsClientId,
     ) -> Result<Vec<u8>, EncryptionError> {
-        let ciphertext: AeadCiphertext = self.encrypt_with_aad(key, sender)?.into();
-        ciphertext
-            .tls_serialize_detached()
-            .map_err(|_| EncryptionError::SerializationError)
+        let ciphertext = self.encrypt_padded_with_aad(key, sender)?;
+        PersistenceCodec::to_vec(&ciphertext).map_err(|_| EncryptionError::SerializationError)
     }
 
     /// Decrypts the state of the client `sender`.
@@ -86,9 +76,9 @@ impl ClientState {
         sender: &QsClientId,
         bytes: &[u8],
     ) -> Result<Self, DecryptionError> {
-        let ciphertext = AeadCiphertext::tls_deserialize_exact_bytes(bytes)
+        let ciphertext: EncryptedClientState = PersistenceCodec::from_slice(bytes)
             .map_err(|_| DecryptionError::DeserializationError)?;
-        Self::decrypt_with_aad(key, &ciphertext.into(), sender)
+        Self::decrypt_padded_with_aad(key, &ciphertext, sender)
     }
 }
 
