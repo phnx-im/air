@@ -94,6 +94,12 @@ class ChatListContent extends HookWidget {
         appExpiresAt != null &&
         !(dismissedFor?.isAtSameMomentAs(appExpiresAt) ?? false);
 
+    // Every user has the self chat, so on its own it still means no chats.
+    final onlyChatId = chatIds.singleOrNull;
+    final onlySelfChat =
+        onlyChatId != null &&
+        (repository.getChat(onlyChatId)?.isSelfChat ?? false);
+
     final list = ChatList(
       tokens: ChatListTokens.current,
       backgroundColor: PanelSurface.colorOf(context),
@@ -102,8 +108,14 @@ class ChatListContent extends HookWidget {
       topBanner: showUpdateReminder
           ? UpdateReminder(expiresAt: appExpiresAt)
           : null,
-      itemCount: chatIds.length,
+      itemCount: chatIds.length + (onlySelfChat ? 1 : 0),
       itemBuilder: (context, index) {
+        if (index == chatIds.length) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: S.s24),
+            child: _NoChats(shareMode: shareMode),
+          );
+        }
         final chatId = chatIds[index];
         final isLast = index == chatIds.length - 1;
         return BlocProvider(
@@ -150,7 +162,7 @@ class _NoChats extends StatelessWidget {
       alignment: AlignmentDirectional.center,
       padding: const EdgeInsets.symmetric(horizontal: S.s16),
       child: Text(
-        shareMode ? loc.shareScreen_noChats : loc.chatList_emptyMessage,
+        shareMode ? loc.shareScreen_noChats : loc.chatList_noChats,
         style: TextStyle(color: SemanticPalette.of(context).text.secondary),
       ),
     );

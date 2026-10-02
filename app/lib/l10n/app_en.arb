@@ -1238,6 +1238,11 @@
     "description": "Call-to-action rendered as its own tappable, emphasized run at the point the surrounding sentence places it. Tapping it opens the devices section of settings."
   },
 
+  "systemMessage_selfChatCreated": "Use this chat as your personal notepad. Messages are synced across all of your account's linked devices.",
+  "@systemMessage_selfChatCreated": {
+    "description": "First system message in the self-chat (see selfChatTitle), posted when that chat is created on a device. Explains that the chat is a private notepad whose messages appear on all of the user's linked devices."
+  },
+
   "timestamp_now": "Now",
   "@timestamp_now": {
     "description": "Timestamp for a message sent moments ago. Kept short to fit next to the message."
@@ -1289,9 +1294,9 @@
   "@chatList_newGroup": {
     "description": "Menu item in the chat list header that starts creating a group chat."
   },
-  "chatList_emptyMessage": "Add your first Air contact to get started",
-  "@chatList_emptyMessage": {
-    "description": "Empty state of the chat list, shown before the user has any contacts."
+  "chatList_noChats": "Use the compose button to add your first contact and start chatting.",
+  "@chatList_noChats": {
+    "description": "Initial state of the chat list, shown before the user has any contacts."
   },
 
   "chatList_draft": "Draft",
