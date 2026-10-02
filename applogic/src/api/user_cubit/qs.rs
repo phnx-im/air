@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use aircommon::messages::client_state::Suppression;
+use aircommon::messages::client_state::NotificationSuppression;
 use aircoreclient::clients::{
     CoreUser, ListenResponse, QsListenResponder, SiblingClientStates, listen_response,
     process::{process_qs::ProcessedQsMessages, qs_stream::QsProcessEventResult},
@@ -36,13 +36,13 @@ pub(super) struct QueueContext {
 }
 
 /// The notifications this client suppresses because the user is looking at it.
-fn suppression(app_state: AppState, policy: NotificationPolicy) -> Suppression {
+fn suppression(app_state: AppState, policy: NotificationPolicy) -> NotificationSuppression {
     match (app_state, policy) {
         (AppState::Foreground, NotificationPolicy::SuppressChat { chat_id }) => {
-            Suppression::Chat(chat_id.uuid())
+            NotificationSuppression::Chat(chat_id.uuid())
         }
-        (AppState::Foreground, NotificationPolicy::SuppressAll) => Suppression::All,
-        _ => Suppression::None,
+        (AppState::Foreground, NotificationPolicy::SuppressAll) => NotificationSuppression::All,
+        _ => NotificationSuppression::None,
     }
 }
 

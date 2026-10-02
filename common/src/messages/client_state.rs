@@ -24,7 +24,7 @@ use super::*;
 #[derive(
     Debug, Default, Clone, Copy, PartialEq, Eq, SerializeTaggedUnion, DeserializeTaggedUnion,
 )]
-pub enum Suppression {
+pub enum NotificationSuppression {
     #[default]
     #[tag(1)]
     None,
@@ -41,7 +41,7 @@ pub enum Suppression {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct ClientState {
     #[tag(1)]
-    suppression: Suppression,
+    suppression: NotificationSuppression,
 }
 
 #[derive(Debug)]
@@ -52,11 +52,11 @@ impl PaddedAeadEncryptable<ClientStateKey, EncryptedClientStateCtype> for Client
 impl PaddedAeadDecryptable<ClientStateKey, EncryptedClientStateCtype> for ClientState {}
 
 impl ClientState {
-    pub fn new(suppression: Suppression) -> Self {
+    pub fn new(suppression: NotificationSuppression) -> Self {
         Self { suppression }
     }
 
-    pub fn suppression(&self) -> Suppression {
+    pub fn suppression(&self) -> NotificationSuppression {
         self.suppression
     }
 
@@ -99,9 +99,9 @@ mod tests {
         let sender = QsClientId::random(&mut rand::rng());
 
         for suppression in [
-            Suppression::None,
-            Suppression::Chat(Uuid::new_v4()),
-            Suppression::All,
+            NotificationSuppression::None,
+            NotificationSuppression::Chat(Uuid::new_v4()),
+            NotificationSuppression::All,
         ] {
             let bytes = ClientState::new(suppression)
                 .encrypt_to_bytes(&key, &sender)
@@ -118,9 +118,9 @@ mod tests {
         let sender = QsClientId::random(&mut rand::rng());
 
         let lengths: Vec<_> = [
-            Suppression::None,
-            Suppression::Chat(Uuid::new_v4()),
-            Suppression::All,
+            NotificationSuppression::None,
+            NotificationSuppression::Chat(Uuid::new_v4()),
+            NotificationSuppression::All,
         ]
         .map(|suppression| {
             ClientState::new(suppression)
@@ -137,7 +137,7 @@ mod tests {
         let signing_key = QsUserSigningKey::generate().unwrap();
         let key = key(&signing_key);
         let sender = QsClientId::random(&mut rand::rng());
-        let bytes = ClientState::new(Suppression::All)
+        let bytes = ClientState::new(NotificationSuppression::All)
             .encrypt_to_bytes(&key, &sender)
             .unwrap();
 

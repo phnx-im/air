@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use aircommon::{
     crypto::{aead::keys::ClientStateKey, kdf::KdfDerivable},
     identifiers::QsClientId,
-    messages::client_state::{ClientState, Suppression},
+    messages::client_state::{ClientState, NotificationSuppression},
 };
 use airprotos::queue_service::v1::{self, sibling_client_state};
 use anyhow::Context;
@@ -28,7 +28,7 @@ use crate::{ChatId, clients::CoreUser};
 pub struct SiblingClientStates {
     key: ClientStateKey,
     /// Last epoch and suppression per sibling
-    states: HashMap<QsClientId, (u64, Suppression)>,
+    states: HashMap<QsClientId, (u64, NotificationSuppression)>,
 }
 
 impl SiblingClientStates {
@@ -53,7 +53,7 @@ impl SiblingClientStates {
                         Ok(state) => state.suppression(),
                         Err(error) => {
                             warn!(%error, "failed to decrypt sibling client state");
-                            Suppression::None
+                            NotificationSuppression::None
                         }
                     };
                 debug!(?suppression, "applying sibling client update");
@@ -65,7 +65,7 @@ impl SiblingClientStates {
                     return;
                 };
                 debug!(?client_id, "removing sibling client state");
-                (client_id, removed.epoch, Suppression::None)
+                (client_id, removed.epoch, NotificationSuppression::None)
             }
             None => return,
         };
@@ -86,9 +86,9 @@ impl SiblingClientStates {
         self.states
             .values()
             .any(|(_, suppression)| match suppression {
-                Suppression::None | Suppression::Unknown => false,
-                Suppression::Chat(id) => *id == chat_id.uuid(),
-                Suppression::All => true,
+                NotificationSuppression::None | NotificationSuppression::Unknown => false,
+                NotificationSuppression::Chat(id) => *id == chat_id.uuid(),
+                NotificationSuppression::All => true,
             })
     }
 }
@@ -101,7 +101,10 @@ impl CoreUser {
 
     /// Encrypts the state of this client with the notifications it suppresses,
     /// for relaying it to the siblings.
-    pub fn encrypt_client_state(&self, suppression: Suppression) -> anyhow::Result<Vec<u8>> {
+    pub fn encrypt_client_state(
+        &self,
+        suppression: NotificationSuppression,
+    ) -> anyhow::Result<Vec<u8>> {
         ClientState::new(suppression)
             .encrypt_to_bytes(&self.client_state_key()?, &self.inner.qs_client_id)
             .context("failed to encrypt client state")
@@ -132,7 +135,7 @@ mod tests {
         key: &ClientStateKey,
         client_id: QsClientId,
         epoch: u64,
-        suppression: Suppression,
+        suppression: NotificationSuppression,
     ) -> v1::SiblingClientState {
         let encrypted_blob = ClientState::new(suppression)
             .encrypt_to_bytes(key, &client_id)
@@ -168,16 +171,26 @@ mod tests {
         let other_chat = ChatId::new(Uuid::new_v4());
         let mut states = SiblingClientStates::new(key.clone());
 
-        states.apply(updated(&key, a, 1, Suppression::Chat(chat.uuid())));
-        states.apply(updated(&key, b, 1, Suppression::Chat(chat.uuid())));
+        states.apply(updated(
+            &key,
+            a,
+            1,
+            NotificationSuppression::Chat(chat.uuid()),
+        ));
+        states.apply(updated(
+            &key,
+            b,
+            1,
+            NotificationSuppression::Chat(chat.uuid()),
+        ));
         assert!(states.suppresses(chat));
         assert!(!states.suppresses(other_chat));
 
         // One sibling moving away keeps the chat suppressed.
-        states.apply(updated(&key, a, 2, Suppression::None));
+        states.apply(updated(&key, a, 2, NotificationSuppression::None));
         assert!(states.suppresses(chat));
 
-        states.apply(updated(&key, a, 3, Suppression::All));
+        states.apply(updated(&key, a, 3, NotificationSuppression::All));
         assert!(states.suppresses(other_chat));
 
         states.apply(removed(a, 4));
@@ -192,12 +205,17 @@ mod tests {
         let chat = ChatId::new(Uuid::new_v4());
         let mut states = SiblingClientStates::new(key.clone());
 
-        states.apply(updated(&key, a, 2, Suppression::Chat(chat.uuid())));
-        states.apply(updated(&key, a, 1, Suppression::None));
+        states.apply(updated(
+            &key,
+            a,
+            2,
+            NotificationSuppression::Chat(chat.uuid()),
+        ));
+        states.apply(updated(&key, a, 1, NotificationSuppression::None));
         assert!(states.suppresses(chat));
 
         states.apply(removed(a, 3));
-        states.apply(updated(&key, a, 2, Suppression::All));
+        states.apply(updated(&key, a, 2, NotificationSuppression::All));
         assert!(!states.suppresses(chat));
     }
 }
