@@ -38,7 +38,10 @@ use crate::{
     chats::ChatAttributes,
     clients::{CoreUser, own_client_info::OwnClientInfo},
     db::access::{ReadConnection, ReadTransaction, WriteConnection, WriteDbTransaction},
-    groups::{Group, NewGroupContext, VerifiedGroup, openmls_provider::AirOpenMlsProvider},
+    groups::{
+        Group, NewGroupContext, VerifiedGroup, openmls_provider::AirOpenMlsProvider,
+        self_group_message_key,
+    },
     key_stores::{
         HeterogeneousVcKeyPackageBatch,
         indexed_keys::StorableIndexedKey,
@@ -417,6 +420,29 @@ impl CoreUser {
         debug!("Created the missing self chat");
 
         Ok(chat.id())
+    }
+
+    /// Resets the self group and its chat from the local database only.
+    pub async fn danger_reset_self_group(&self) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| -> sqlx::Result<()> {
+                let Some(group_id) = OwnClientInfo::load_self_group_id(&mut *txn).await? else {
+                    return Ok(());
+                };
+                if let Some(chat_id) = ChatId::load_from_group_id(&mut *txn, &group_id).await? {
+                    Chat::delete(&mut *txn, chat_id).await?;
+                }
+                Group::delete_from_db(&mut *txn, &group_id).await?;
+                self_group_message_key::persistence::delete(&mut *txn, &group_id).await?;
+                OwnClientInfo::clear_self_group(txn).await?;
+                Ok(())
+            })
+            .await?;
+
+        Box::pin(self.ensure_self_group())
+            .await
+            .context("self group erased, but recreating it failed")?;
+        Ok(())
     }
 }
 
