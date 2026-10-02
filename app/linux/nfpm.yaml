@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 name: "air"
-arch: "amd64"
+arch: "${PKG_ARCH}"
 platform: "linux"
 version: 0.23.0
 release: "${RELEASE}"
@@ -17,7 +17,7 @@ license: "AGPL-3.0-or-later"
 overrides:
   rpm:
     contents:
-      - src: ../build/linux/x64/${APP_FLAVOR}/release/bundle/air
+      - src: ../build/linux/${LINUX_ARCH}/${APP_FLAVOR}/release/bundle/air
         expand: true
         dst: /usr/lib64/air/air
         file_info:
@@ -25,11 +25,11 @@ overrides:
       - src: /usr/lib64/air/air
         dst: /usr/bin/air
         type: symlink
-      - src: ../build/linux/x64/${APP_FLAVOR}/release/bundle/data
+      - src: ../build/linux/${LINUX_ARCH}/${APP_FLAVOR}/release/bundle/data
         expand: true
         dst: /usr/lib64/air/data
         type: tree
-      - src: ../build/linux/x64/${APP_FLAVOR}/release/bundle/lib
+      - src: ../build/linux/${LINUX_ARCH}/${APP_FLAVOR}/release/bundle/lib
         expand: true
         dst: /usr/lib64/air/lib
         type: tree
@@ -45,21 +45,21 @@ overrides:
       - gtk3 >= 3.24.51
   deb:
     contents:
-      - src: ../build/linux/x64/${APP_FLAVOR}/release/bundle/air
+      - src: ../build/linux/${LINUX_ARCH}/${APP_FLAVOR}/release/bundle/air
         expand: true
-        dst: /usr/lib/x86_64-linux-gnu/air/air
+        dst: /usr/lib/air/air
         file_info:
           mode: 0755
-      - src: /usr/lib/x86_64-linux-gnu/air/air
+      - src: /usr/lib/air/air
         dst: /usr/bin/air
         type: symlink
-      - src: ../build/linux/x64/${APP_FLAVOR}/release/bundle/data
+      - src: ../build/linux/${LINUX_ARCH}/${APP_FLAVOR}/release/bundle/data
         expand: true
-        dst: /usr/lib/x86_64-linux-gnu/air/data
+        dst: /usr/lib/air/data
         type: tree
-      - src: ../build/linux/x64/${APP_FLAVOR}/release/bundle/lib
+      - src: ../build/linux/${LINUX_ARCH}/${APP_FLAVOR}/release/bundle/lib
         expand: true
-        dst: /usr/lib/x86_64-linux-gnu/air/lib
+        dst: /usr/lib/air/lib
         type: tree
       - src: ./ms.air.desktop
         dst: /usr/share/applications/ms.air.desktop
