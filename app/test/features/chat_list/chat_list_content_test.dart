@@ -390,9 +390,10 @@ void main() {
     });
 
     Widget buildSubject({
-      required List<UiChatDetails> chats,
+      List<UiChatDetails> chats = const [],
+      FakeChatsRepository? repository,
     }) => RepositoryProvider<ChatsRepository>.value(
-      value: FakeChatsRepository(chats),
+      value: repository ?? FakeChatsRepository(chats),
       child: MultiBlocProvider(
         providers: [
           BlocProvider<NavigationCubit>.value(value: navigationCubit),
@@ -517,6 +518,33 @@ void main() {
 
       expect(find.textContaining('Some draft message'), findsOne);
       expect(find.textContaining('reacted'), findsNothing);
+    });
+
+    testWidgets('names the group chat of a request once it syncs', (
+      tester,
+    ) async {
+      final repository = FakeChatsRepository([requestChat(99.chatId())]);
+      sizeView(tester, const Size(400, 120));
+      await tester.pumpWidget(buildSubject(repository: repository));
+      // Takes the replayed order, so only the group chat can rebuild the row.
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Bob sent you a contact request through a mutual group chat.',
+        ),
+        findsOne,
+      );
+
+      repository.upsert(groupChat(99.chatId(), 'Book Club'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Bob sent you a contact request through the group chat Book Club.',
+        ),
+        findsOne,
+      );
     });
 
     Future<void> pumpAttachmentChat(
@@ -659,6 +687,48 @@ UiChatDetails reactedChat({
   lastReaction: reaction,
   draft: draft,
   mutedUntil: null,
+  pendingCommitFailed: false,
+  resyncFailed: false,
+);
+
+/// A group chat titled [title], with no messages.
+UiChatDetails groupChat(ChatId id, String title) => UiChatDetails(
+  id: id,
+  status: const UiChatStatus.active(),
+  chatType: UiChatType_Group(UiChatAttributes(title: title, picture: null)),
+  lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+  unreadMessages: 0,
+  isApq: false,
+  isSelfChat: false,
+  pendingCommitFailed: false,
+  resyncFailed: false,
+);
+
+/// The chat of Bob's pending contact request through the group chat
+/// [groupChatId].
+UiChatDetails requestChat(ChatId groupChatId) => UiChatDetails(
+  id: 9.chatId(),
+  status: const UiChatStatus.active(),
+  isApq: false,
+  isSelfChat: false,
+  chatType: UiChatType_PendingConnection(userProfiles[1]),
+  unreadMessages: 0,
+  lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+  lastMessage: UiChatMessage(
+    id: 9.messageId(),
+    chatId: 9.chatId(),
+    timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
+    message: UiMessage_Display(
+      UiEventMessage_System(
+        UiSystemMessage.receivedDirectConnectionRequest(
+          sender: userProfiles[1].userId,
+          groupChat: UiRequestGroupChat.chat(groupChatId),
+        ),
+      ),
+    ),
+    status: UiMessageStatus.sent,
+    reactions: [],
+  ),
   pendingCommitFailed: false,
   resyncFailed: false,
 );

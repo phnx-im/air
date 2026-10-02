@@ -18,8 +18,9 @@ import 'package:provider/provider.dart';
 sealed class ContactRequestSource {
   const ContactRequestSource();
 
+  /// [originChatTitle] is null when the group chat is not on this device.
   const factory ContactRequestSource.targetedMessage({
-    required String originChatTitle,
+    required String? originChatTitle,
   }) = _TargetedMessageContactRequest;
 
   const factory ContactRequestSource.username({required UiUsername username}) =
@@ -29,7 +30,7 @@ sealed class ContactRequestSource {
 class _TargetedMessageContactRequest extends ContactRequestSource {
   const _TargetedMessageContactRequest({required this.originChatTitle});
 
-  final String originChatTitle;
+  final String? originChatTitle;
 }
 
 class _UsernameContactRequest extends ContactRequestSource {
@@ -60,10 +61,14 @@ class ContactRequestDialog extends HookWidget {
     final isAccepting = useState(false);
 
     final subtitle = switch (source) {
-      _TargetedMessageContactRequest(:final originChatTitle) =>
+      _TargetedMessageContactRequest(:final String originChatTitle) =>
         loc.systemMessage_receivedDirectConnectionRequest(
           senderProfile.displayName,
           originChatTitle,
+        ),
+      _TargetedMessageContactRequest(originChatTitle: null) =>
+        loc.systemMessage_receivedDirectConnectionRequestUnknownGroup(
+          senderProfile.displayName,
         ),
       _UsernameContactRequest(:final username) =>
         loc.systemMessage_receivedHandleConnectionRequest(

@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::credentials::keys::SelfGroupSigningKey;
-use airprotos::client::self_group::{BlockedContactsUpdate, SelfGroupMessage, SettingsUpdate};
+use airprotos::client::self_group::{
+    BlockedContactsUpdate, ConnectionRequestsUpdate, SelfGroupMessage, SettingsUpdate,
+};
 use anyhow::Context as _;
 use openmls::group::GroupId;
 use tokio_util::sync::CancellationToken;
@@ -11,7 +13,7 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
-    chats,
+    chats::{self, connection_requests},
     clients::{
         block_contact,
         own_client_info::OwnClientInfo,
@@ -164,6 +166,13 @@ async fn drain_outbox(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<Vec<Se
     if !contacts.is_empty() {
         messages.push(SelfGroupMessage::BlockedContactsUpdate(
             BlockedContactsUpdate { contacts },
+        ));
+    }
+
+    let requests = connection_requests::staged_entries(&mut *txn).await?;
+    if !requests.is_empty() {
+        messages.push(SelfGroupMessage::ConnectionRequestsUpdate(
+            ConnectionRequestsUpdate { requests },
         ));
     }
 

@@ -5,6 +5,7 @@
 use std::{convert::Infallible, ops::ControlFlow, time::Duration};
 
 use chrono::{DateTime, Utc};
+use serde::de::DeserializeOwned;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 use uuid::Uuid;
@@ -13,7 +14,10 @@ use crate::{
     job::{
         Job, JobError,
         operation::{Operation, OperationData},
-        profile::{FetchGroupProfileOperation, FetchUserProfileOperation},
+        profile::{
+            FetchGroupProfileOperation, FetchRequestSenderProfileOperation,
+            FetchUserProfileOperation,
+        },
     },
     outbound_service::OutboundServiceContext,
 };
@@ -47,13 +51,33 @@ impl OutboundServiceContext {
     async fn try_fetch_profiles(self) -> anyhow::Result<()> {
         let task_id = Uuid::new_v4();
         let now = Utc::now();
+        self.fetch_queued_profiles::<FetchUserProfileOperation>(task_id, now)
+            .await?;
+        self.fetch_queued_profiles::<FetchRequestSenderProfileOperation>(task_id, now)
+            .await?;
+        self.fetch_queued_profiles::<FetchGroupProfileOperation>(task_id, now)
+            .await?;
+        Ok(())
+    }
 
-        // fetch user profiles
+    /// Runs the queued profile fetches of one kind, until the queue is empty or
+    /// a fetch is rescheduled.
+    async fn fetch_queued_profiles<T>(
+        &self,
+        task_id: Uuid,
+        now: DateTime<Utc>,
+    ) -> anyhow::Result<()>
+    where
+        T: OperationData
+            + Job<Output = (), DomainError = Infallible>
+            + DeserializeOwned
+            + Unpin
+            + Send
+            + 'static,
+    {
         while let Some(op) = self
             .db
-            .with_write_transaction(async |txn| {
-                Operation::<FetchUserProfileOperation>::dequeue(txn, task_id, now).await
-            })
+            .with_write_transaction(async |txn| Operation::<T>::dequeue(txn, task_id, now).await)
             .await?
         {
             match self.fetch_profile(op, now).await? {
@@ -61,21 +85,6 @@ impl OutboundServiceContext {
                 ControlFlow::Break(_) => break,
             }
         }
-
-        // fetch group profiles
-        while let Some(op) = self
-            .db
-            .with_write_transaction(async |txn| {
-                Operation::<FetchGroupProfileOperation>::dequeue(txn, task_id, now).await
-            })
-            .await?
-        {
-            match self.fetch_profile(op, now).await? {
-                ControlFlow::Continue(_) => (),
-                ControlFlow::Break(_) => break,
-            }
-        }
-
         Ok(())
     }
 

@@ -1,0 +1,49 @@
+---
+source: protos/src/client/self_group.rs
+expression: diag
+---
+a1                                              # map(1)
+   01                                           #   unsigned(1)
+   82                                           #   array(2)
+      a1                                        #     map(1)
+         01                                     #       unsigned(1)
+         a6                                     #       map(6)
+            01                                  #         unsigned(1)
+            48                                  #         bytes(8)
+               1111111111111111                 #           "\x11\x11\x11\x11\x11\x11\x11\x11"
+            02                                  #         unsigned(2)
+            48                                  #         bytes(8)
+               1212121212121212                 #           "\x12\x12\x12\x12\x12\x12\x12\x12"
+            03                                  #         unsigned(3)
+            a1                                  #         map(1)
+               01                               #           unsigned(1)
+               65                               #           text(5)
+                  616c696365                    #             "alice"
+            04                                  #         unsigned(4)
+            58 20                               #         bytes(32)
+               13131313131313131313131313131313 #           "\x13\x13\x13\x13\x13\x13\x13\x13\x13\x13\x13\x13\x13\x13\x13\x13"
+               13131313131313131313131313131313 #           "\x13\x13\x13\x13\x13\x13\x13\x13\x13\x13\x13\x13\x13\x13\x13\x13"
+            05                                  #         unsigned(5)
+            58 20                               #         bytes(32)
+               14141414141414141414141414141414 #           "\x14\x14\x14\x14\x14\x14\x14\x14\x14\x14\x14\x14\x14\x14\x14\x14"
+               14141414141414141414141414141414 #           "\x14\x14\x14\x14\x14\x14\x14\x14\x14\x14\x14\x14\x14\x14\x14\x14"
+            06                                  #         unsigned(6)
+            1b 0000019b76daa87b                 #         unsigned(1,767,225,600,123)
+      a1                                        #     map(1)
+         01                                     #       unsigned(1)
+         a4                                     #       map(4)
+            01                                  #         unsigned(1)
+            48                                  #         bytes(8)
+               1515151515151515                 #           "\x15\x15\x15\x15\x15\x15\x15\x15"
+            02                                  #         unsigned(2)
+            48                                  #         bytes(8)
+               1616161616161616                 #           "\x16\x16\x16\x16\x16\x16\x16\x16"
+            03                                  #         unsigned(3)
+            a1                                  #         map(1)
+               02                               #           unsigned(2)
+               a1                               #           map(1)
+                  01                            #             unsigned(1)
+                  48                            #             bytes(8)
+                     1717171717171717           #               "\x17\x17\x17\x17\x17\x17\x17\x17"
+            06                                  #         unsigned(6)
+            1b 0000019b76daa9c8                 #         unsigned(1,767,225,600,456)
