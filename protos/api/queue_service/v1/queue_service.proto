@@ -362,8 +362,7 @@ message SiblingClientStateUpdated {
   // Server-assigned, increasing per client ID as long as its session lives.
   uint64 epoch = 2;
   // How old this update is. Clients should decide whether an old state is worth discard.
-  uint32 age_ms = 3;
-  SiblingClientStateEncryptedBlob blob = 4;
+  SiblingClientStateEncryptedBlob blob = 3;
 }
 
 // The sibling stopped listening or was deleted

@@ -5,7 +5,10 @@
 use aircommon::messages::QueueMessage;
 use aircoreclient::{
     ChatId, StoredRequest,
-    clients::{ListenQueueError, listen_response, process::process_qs::ProcessedQsMessages},
+    clients::{
+        ListenQueueError, SiblingClientStates, listen_response,
+        process::process_qs::ProcessedQsMessages,
+    },
 };
 use anyhow::Result;
 use tokio_stream::StreamExt;
@@ -32,8 +35,17 @@ impl User {
     }
 
     /// Fetch and process QS messages
-    async fn fetch_and_process_qs_messages(&self) -> Result<ProcessedQsMessages, ListenQueueError> {
+    ///
+    /// Also returns the sibling client states received meanwhile.
+    async fn fetch_and_process_qs_messages(
+        &self,
+    ) -> Result<(ProcessedQsMessages, Option<SiblingClientStates>), ListenQueueError> {
         let (mut stream, responder) = self.user.listen_queue().await?;
+        let mut sibling_client_states = self
+            .user
+            .sibling_client_states()
+            .inspect_err(|error| error!(%error, "failed to track sibling client states"))
+            .ok();
 
         let mut messages: Vec<QueueMessage> = Vec::new();
         let drained = loop {
@@ -46,9 +58,17 @@ impl User {
                             messages.push(queue_message);
                         }
                     }
+                    // Arrives before any message, so it is known when building the
+                    // notifications below.
+                    Some(listen_response::Event::SiblingClientState(state)) => {
+                        if let Some(states) = &mut sibling_client_states
+                            && let Err(error) = states.try_apply(state)
+                        {
+                            error!(%error, "failed to apply sibling client state");
+                        }
+                    }
                     Some(listen_response::Event::Payload(_))
                     | Some(listen_response::Event::VersionStatus(_))
-                    | Some(listen_response::Event::SiblingClientState(_))
                     | None => {}
                 },
                 // Terminal status => stream is over, acks cannot be confirmed
@@ -86,7 +106,7 @@ impl User {
 
         self.user.outbound_service().run_once().await;
 
-        Ok(processed_messages)
+        Ok((processed_messages, sibling_client_states))
     }
 
     /// Fetch and process both QS and AS messages
@@ -99,16 +119,19 @@ impl User {
 
         // Fetch QS messages
         debug!("fetch QS messages");
-        let ProcessedQsMessages {
-            new_chats,
-            new_messages,
-            errors: _,
-            processed: _,
-            mut new_connections,
-            reaction_notifications,
-            chats_with_changed_notifications,
-            removed_chats,
-        } = Box::pin(self.fetch_and_process_qs_messages())
+        let (
+            ProcessedQsMessages {
+                new_chats,
+                new_messages,
+                errors: _,
+                processed: _,
+                mut new_connections,
+                reaction_notifications,
+                chats_with_changed_notifications,
+                removed_chats,
+            },
+            sibling_client_states,
+        ) = Box::pin(self.fetch_and_process_qs_messages())
             .await
             .map_err(|error| {
                 if error.is_unsupported_version() {
@@ -127,6 +150,7 @@ impl User {
                 &new_messages,
                 &reaction_notifications,
                 &chats_with_changed_notifications,
+                sibling_client_states.as_ref(),
             )
             .await;
         notifications.extend(additions);

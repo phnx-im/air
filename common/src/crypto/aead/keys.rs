@@ -11,7 +11,7 @@ use crate::crypto::{
     indexed_aead::keys::{Key, RandomlyGeneratable},
     kdf::{
         KdfDerivable,
-        keys::{RatchetSecret, SelfGroupExporterSecret, VcApplicationSecret},
+        keys::{RatchetSecret, SelfGroupExporterSecret, SiblingSecret, VcApplicationSecret},
     },
 };
 
@@ -155,4 +155,19 @@ impl AeadKey for GroupBootstrapKey {}
 
 impl KdfDerivable<VcApplicationSecret, Vec<u8>, AEAD_KEY_SIZE> for GroupBootstrapKey {
     const LABEL: &'static str = "group bootstrap key";
+}
+
+// Client state key
+
+/// Key that encrypts the state a client relays to its sibling clients through
+/// the QS.
+#[derive(Debug)]
+pub struct ClientStateKeyType;
+
+pub type ClientStateKey = Key<ClientStateKeyType>;
+
+impl AeadKey for ClientStateKey {}
+
+impl KdfDerivable<SiblingSecret, Vec<u8>, AEAD_KEY_SIZE> for ClientStateKey {
+    const LABEL: &'static str = "client state key";
 }
