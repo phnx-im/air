@@ -215,8 +215,8 @@ pub(crate) struct ConnectionRequestEffects {
     pub(crate) stale_chats: Vec<ChatId>,
 }
 
-/// Parks a stored incoming request for the next self-group commit, so the
-/// siblings store it too.
+/// Parks a stored request via a username for the next self-group commit, so
+/// the siblings store it too.
 pub(crate) async fn park_received(
     txn: &mut WriteDbTransaction<'_>,
     request_id: ChatId,
@@ -289,6 +289,8 @@ pub(crate) async fn complete_sent_entries(
 }
 
 /// Applies the entries of a sibling's accepted connection-requests update.
+/// Siblings only forward requests via a username, so an entry via a group is
+/// skipped.
 pub(crate) async fn apply_connection_requests_update(
     txn: &mut WriteDbTransaction<'_>,
     entries: &[ConnectionRequestEntry],
@@ -300,12 +302,17 @@ pub(crate) async fn apply_connection_requests_update(
             continue;
         };
         match entry {
-            ConnectionRequestEntry::Received(received) => {
-                if let Some(stored) = store_received(txn, received).await? {
-                    effects.new_requests.push(stored.chat_id);
-                    effects.stale_chats.extend(stored.moved_from);
+            ConnectionRequestEntry::Received(received) => match &received.source {
+                ConnectionRequestSource::Group(_) => {
+                    warn!(%request_id, "Skipping a forwarded request via a group");
                 }
-            }
+                ConnectionRequestSource::Username(_) | ConnectionRequestSource::Unknown => {
+                    if let Some(stored) = store_received(txn, received).await? {
+                        effects.new_requests.push(stored.chat_id);
+                        effects.stale_chats.extend(stored.moved_from);
+                    }
+                }
+            },
             ConnectionRequestEntry::Unknown => {}
         }
         self_group_outbox::remove(
@@ -316,6 +323,24 @@ pub(crate) async fn apply_connection_requests_update(
         .await?;
     }
     Ok(effects)
+}
+
+/// Stores the pending requests of a provisioning package.
+pub(crate) async fn store_provisioned_requests(
+    txn: &mut WriteDbTransaction<'_>,
+    entries: &[ConnectionRequestEntry],
+) -> anyhow::Result<()> {
+    for entry in entries {
+        match entry {
+            ConnectionRequestEntry::Received(received) => {
+                store_received(txn, received).await?;
+            }
+            ConnectionRequestEntry::Unknown => {
+                debug!("Skipping a provisioned connection request this client cannot read");
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Every pending incoming request, for the provisioning package.
@@ -1117,7 +1142,7 @@ mod tests {
             // chats yet.
             Chat::delete(&mut *txn, stored.chat_id).await?;
             Chat::delete(&mut *txn, group.id()).await?;
-            apply_connection_requests_update(txn, &snapshot).await?;
+            store_provisioned_requests(txn, &snapshot).await?;
 
             let pending = PendingConnectionRequest::load(&mut *txn, stored.chat_id)
                 .await?
@@ -1141,6 +1166,28 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn a_forwarded_request_via_a_group_is_skipped() -> anyhow::Result<()> {
+        let db = linked_device().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let credential = sender_with_credential(txn).await?;
+            let (group, stored) = receive_via_group(txn, credential.user_id()).await?;
+            let snapshot = pending_requests_snapshot(&mut txn.begin_read().await?).await?;
+            Chat::delete(&mut *txn, stored.chat_id).await?;
+            Chat::delete(&mut *txn, group.id()).await?;
+
+            let effects = apply_connection_requests_update(txn, &snapshot).await?;
+            assert!(effects.new_requests.is_empty());
+            assert!(
+                PendingConnectionRequest::load(&mut *txn, stored.chat_id)
+                    .await?
+                    .is_none()
+            );
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn a_group_request_without_its_group_id_is_skipped() -> anyhow::Result<()> {
         let db = linked_device().await?;
         db.with_write_transaction(async |txn| -> anyhow::Result<()> {
@@ -1157,8 +1204,7 @@ mod tests {
             Chat::delete(&mut *txn, stored.chat_id).await?;
             Chat::delete(&mut *txn, group.id()).await?;
 
-            let effects = apply_connection_requests_update(txn, &[without_group_id]).await?;
-            assert!(effects.new_requests.is_empty());
+            store_provisioned_requests(txn, &[without_group_id]).await?;
             assert!(
                 PendingConnectionRequest::load(&mut *txn, stored.chat_id)
                     .await?

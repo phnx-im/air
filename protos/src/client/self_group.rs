@@ -479,6 +479,9 @@ pub struct DeletedChat {
 
 /// Update to a connection request. This is a diff and not a snapshot.
 ///
+/// Only carries requests via a username. A request via a group chat reaches
+/// every device of the user on its own.
+///
 /// ## CDDL Definition
 ///
 /// ```cddl
@@ -511,7 +514,8 @@ pub enum ConnectionRequestEntry {
     Unknown,
 }
 
-/// An incoming connection request that was forwarded by a sibling device.
+/// A pending incoming connection request, as a sibling forwards it or as the
+/// provisioning device hands it to a new device.
 ///
 /// ## CDDL Definition
 ///
@@ -557,6 +561,7 @@ pub struct ConnectionRequestReceived {
 pub enum ConnectionRequestSource {
     #[tag(1)]
     Username(String),
+    /// Only handed to a new device, never forwarded.
     #[tag(2)]
     Group(ConnectionRequestGroup),
     /// A source this client does not understand, or none at all. The entry is
