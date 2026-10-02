@@ -5,6 +5,7 @@
 use std::{cell::RefCell, collections::BTreeSet, future::Future};
 
 use aircommon::{codec::PersistenceCodec, time::TimeStamp};
+use openmls::components::vc_derivation_info::EpochId;
 use openmls_traits::storage::{
     CURRENT_VERSION, Entity, Key, StorageProvider,
     traits::{
@@ -1863,6 +1864,37 @@ impl<'a, VcDerivationEpochLogEntry: Entity<CURRENT_VERSION>>
         .await?;
         Ok(())
     }
+}
+
+/// Deletes the stored MLS state of a group without decoding it. Covers the
+/// same rows as `MlsGroup::delete`, for state that no longer decodes.
+pub(crate) async fn purge_group_state<GroupId: traits::GroupId<CURRENT_VERSION>>(
+    connection: &mut SqliteConnection,
+    group_id: &GroupId,
+) -> sqlx::Result<()> {
+    sqlx::query!(
+        "DELETE FROM group_data WHERE group_id = ?1",
+        KeyRefWrapper(group_id)
+    )
+    .execute(&mut *connection)
+    .await?;
+    sqlx::query!(
+        "DELETE FROM epoch_key_pairs WHERE group_id = ?1",
+        KeyRefWrapper(group_id)
+    )
+    .execute(&mut *connection)
+    .await?;
+    let storable = StorableGroupIdRef(group_id);
+    storable.delete_all_proposals(&mut *connection).await?;
+    storable.delete_leaf_nodes(&mut *connection).await?;
+    storable
+        .delete_all_vc_emulation_bindings(&mut *connection)
+        .await?;
+    storable
+        .delete_vc_derivation_epoch_log(&mut *connection)
+        .await?;
+    sweep_unreferenced_vc_derivation_epoch_states::<EpochId>(connection).await?;
+    Ok(())
 }
 
 /// Implements the sweep of
