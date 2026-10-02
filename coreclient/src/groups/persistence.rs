@@ -489,20 +489,26 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
     ) -> sqlx::Result<()> {
-        delete_mls_group(txn, group_id).await?;
-        let group_id = GroupIdRefWrapper::from(group_id);
-        let pq_group_id: Option<GroupIdWrapper> = query_scalar!(
-            r#"SELECT group_id AS "group_id: _" FROM pq_group WHERE t_group_id = ?"#,
-            group_id
+        let group_id_ref = GroupIdRefWrapper::from(group_id);
+        // Skips the OpenMLS storage, which blocks.
+        let Some(pq_group_id): Option<Option<GroupIdWrapper>> = query_scalar!(
+            r#"SELECT pq.group_id AS "pq_group_id?: _"
+            FROM "group" g
+            LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id
+            WHERE g.group_id = ?"#,
+            group_id_ref
         )
         .fetch_optional(txn.as_mut())
         .await?
-        .flatten();
+        else {
+            return Ok(());
+        };
+        delete_mls_group(txn, group_id).await?;
         if let Some(pq_group_id) = pq_group_id {
             delete_mls_group(txn, &pq_group_id.0).await?;
         };
         // This will also cascade delete the pq_group
-        query!(r#"DELETE FROM "group" WHERE group_id = ?"#, group_id)
+        query!(r#"DELETE FROM "group" WHERE group_id = ?"#, group_id_ref)
             .execute(txn.as_mut())
             .await?;
         Ok(())
