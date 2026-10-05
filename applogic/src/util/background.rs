@@ -14,7 +14,7 @@ use uuid::Uuid;
 use super::{FibonacciBackoff, spawn_from_sync};
 
 /// Timeout after a stream stop is not considered as error
-const DEFAULT_REGULAR_STOP_TIMEOUT: Duration = Duration::from_secs(30 * 60 * 60); // 30 minutes
+const DEFAULT_REGULAR_STOP_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// A task that runs in the background and handles events from a stream.
 ///
@@ -32,6 +32,9 @@ pub(crate) struct BackgroundStreamTask<C, Event> {
     context: C,
     cancel: CancellationToken,
     /// Timeout after a stream stop is not considered as an error
+    ///
+    /// Only then the backoff is reset, so that a stream which keeps stopping
+    /// right after it started backs off further.
     regular_stop_timeout: Duration,
     backoff: FibonacciBackoff,
     state: State<Event>,
@@ -113,7 +116,6 @@ where
                             task_id = %self.task_id,
                             "background stream started"
                         );
-                        self.backoff.reset();
                         State::Running {
                             stream: Box::pin(stream),
                             started_at,
@@ -153,7 +155,6 @@ where
                         );
                         if self.context.handle_event(event).await {
                             // Continue processing
-                            self.backoff.reset();
                             State::Running { stream, started_at }
                         } else {
                             self.context.on_stream_end().await;
@@ -675,7 +676,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn background_stream_task_backoff_resets() {
+    async fn background_stream_task_backoff_not_reset_by_short_lived_stream() {
         init_test_tracing();
 
         let (context, _app_state_tx, create_stream_tx) = TestContext::new();
@@ -715,7 +716,21 @@ mod test {
         step_with_timeout(&mut task).await;
         assert_state!(task.state, State::Running { .. });
         assert_eq!(ack.await.unwrap(), 1);
-        assert_eq!(task.backoff.next_backoff(), Duration::from_secs(1));
+
+        drop(event_tx); // close stream
+
+        step_with_timeout(&mut task).await;
+        assert_state!(task.state, State::Stopped { .. });
+
+        step_with_timeout(&mut task).await;
+        assert_state!(
+            task.state,
+            State::Backoff {
+                error: None,
+                timeout
+            }
+            if timeout == Duration::from_secs(2)
+        );
     }
 
     #[tokio::test]
