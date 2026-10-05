@@ -13,8 +13,8 @@ use uuid::Uuid;
 
 use super::{FibonacciBackoff, spawn_from_sync};
 
-/// Timeout after a stream stop is not considered as error
-const DEFAULT_REGULAR_STOP_TIMEOUT: Duration = Duration::from_secs(60);
+/// Uptime after which a stream counts as healthy and backoff is reset.
+const DEFAULT_HEALTHY_UPTIME: Duration = Duration::from_secs(60);
 
 /// A task that runs in the background and handles events from a stream.
 ///
@@ -31,11 +31,7 @@ pub(crate) struct BackgroundStreamTask<C, Event> {
     name: Arc<str>,
     context: C,
     cancel: CancellationToken,
-    /// Timeout after a stream stop is not considered as an error
-    ///
-    /// Only then the backoff is reset, so that a stream which keeps stopping
-    /// right after it started backs off further.
-    regular_stop_timeout: Duration,
+    healthy_uptime: Duration,
     backoff: FibonacciBackoff,
     state: State<Event>,
     _marker: PhantomData<Event>,
@@ -56,7 +52,7 @@ where
             context,
             cancel,
             state: State::Initial,
-            regular_stop_timeout: DEFAULT_REGULAR_STOP_TIMEOUT,
+            healthy_uptime: DEFAULT_HEALTHY_UPTIME,
             backoff: FibonacciBackoff::new(),
             _marker: PhantomData,
         }
@@ -64,7 +60,7 @@ where
 
     #[cfg(test)]
     fn with_regular_stop_timeout(mut self, value: Duration) -> Self {
-        self.regular_stop_timeout = value;
+        self.healthy_uptime = value;
         self
     }
 
@@ -178,7 +174,7 @@ where
             }
 
             State::Stopped { started_at } => {
-                if started_at.elapsed() >= self.regular_stop_timeout {
+                if started_at.elapsed() >= self.healthy_uptime {
                     // reset backoff after a regular stop timeout
                     self.backoff.reset();
                     State::Initial
