@@ -168,7 +168,8 @@ jobs:
   # Offline source build, as on Flathub. Only release runs build it, a cold
   # build takes over an hour. Independent of the deb/rpm jobs.
   linux-flatpak-build:
-    if: inputs.upload
+    # TEMP: builds on PRS to test the CI setup
+    # if: inputs.upload
 
     strategy:
       matrix:
@@ -227,7 +228,8 @@ jobs:
       # contain the commit. Only main saves, like the sccache cache in
       # setup-buildenv.
       - name: Cache flatpak-builder state
-        if: github.ref == 'refs/heads/main'
+        # TEMP: builds on PRS to test the CI setup
+        # if: github.ref == 'refs/heads/main'
         uses: actions/cache@v5
         with:
           path: |
@@ -239,7 +241,8 @@ jobs:
             flatpak-builder-${{ matrix.arch }}-
 
       - name: Restore flatpak-builder state
-        if: github.ref != 'refs/heads/main'
+        # TEMP: builds on PRS to test the CI setup
+        # if: github.ref != 'refs/heads/main'
         uses: actions/cache/restore@v5
         with:
           path: |
