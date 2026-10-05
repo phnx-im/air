@@ -1982,9 +1982,21 @@
   "@appOutdatedScreen_message": {
     "description": "Headline telling the user an update is needed to carry on."
   },
-  "appOutdatedScreen_description": "Open the App Store on iOS or Google Play on Android, then update Air.",
-  "@appOutdatedScreen_description": {
-    "description": "Names the store to update from on each mobile platform. App Store and Google Play are product names."
+  "appOutdatedScreen_descriptionAppStore": "Open the App Store and update Air.",
+  "@appOutdatedScreen_descriptionAppStore": {
+    "description": "Update instruction on the update required screen on iOS and macOS. App Store is a product name."
+  },
+  "appOutdatedScreen_descriptionGooglePlay": "Open Google Play and update Air.",
+  "@appOutdatedScreen_descriptionGooglePlay": {
+    "description": "Update instruction on the update required screen on Android. Google Play is a product name."
+  },
+  "appOutdatedScreen_descriptionMicrosoftStore": "Open the Microsoft Store and update Air.",
+  "@appOutdatedScreen_descriptionMicrosoftStore": {
+    "description": "Update instruction on the update required screen on Windows. Microsoft Store is a product name."
+  },
+  "appOutdatedScreen_descriptionLinux": "Update Air using your preferred method.",
+  "@appOutdatedScreen_descriptionLinux": {
+    "description": "Update instruction on the update required screen on Linux. Air may be installed through any package manager or by hand, so no specific tool is named."
   },
   "appOutdatedScreen_action": "Update",
   "@appOutdatedScreen_action": {

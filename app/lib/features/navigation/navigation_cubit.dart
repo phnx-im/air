@@ -5,6 +5,7 @@
 import 'dart:async';
 
 import 'package:air/core/core.dart';
+import 'package:air/features/navigation/navigation_restoration.dart';
 import 'package:air/features/navigation/navigation_state.dart';
 import 'package:air/share/pending_share.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -17,11 +18,13 @@ export 'package:air/features/navigation/navigation_state.dart';
 /// Rust holds no navigation state: it only needs the [NotificationPolicy]
 /// this pushes across on every change.
 class NavigationCubit extends Cubit<NavigationState> {
-  NavigationCubit({required this.notificationContext})
+  NavigationCubit({required this.notificationContext, this._restoration})
     : super(const NavigationState.intro());
 
   /// The bridge the notification policy is pushed through.
   final NotificationContextBase notificationContext;
+
+  final NavigationRestoration? _restoration;
 
   /// Flagged when a shared payload has been handed over to e.g. the message
   /// composer.
@@ -34,6 +37,8 @@ class NavigationCubit extends Cubit<NavigationState> {
     super.onChange(change);
     notificationContext.setPolicy(policy: change.nextState.notificationPolicy);
 
+    _restoration?.persist(change.nextState);
+
     // A share's extracted files live until they're taken.
     final dropped = change.currentState.pendingShare;
     if (!_shareHandedOver &&
@@ -41,6 +46,26 @@ class NavigationCubit extends Cubit<NavigationState> {
         dropped != change.nextState.pendingShare) {
       unawaited(dropped.deleteFiles());
     }
+  }
+
+  /// Returns and clears the restored home state, so a later re-login doesn't
+  /// reapply a stale restore.
+  HomeNavigationState? takeRestoredHome() => _restoration?.takeRestoredHome();
+
+  /// Applies a restored home state, mirroring [openChat]'s side effect when
+  /// it restores an open chat.
+  Future<void> applyRestoredHome(HomeNavigationState home) async {
+    emit(NavigationState.home(home: home));
+    final chatId = home.chatId;
+    if (home.chatOpen && chatId != null) {
+      await notificationContext.chatOpened(chatId: chatId);
+    }
+  }
+
+  @override
+  Future<void> close() {
+    _restoration?.dispose();
+    return super.close();
   }
 
   // Navigation actions

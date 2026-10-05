@@ -13,14 +13,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 class UpdateRequiredView extends StatelessWidget {
-  const UpdateRequiredView({super.key, required this.showUpdateButton});
+  const UpdateRequiredView({super.key, required this.platform});
 
-  final bool showUpdateButton;
+  /// Picks the update instruction and whether to offer the Update button.
+  final TargetPlatform platform;
 
   @override
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
+
+    final description = switch (platform) {
+      .iOS || .macOS => loc.appOutdatedScreen_descriptionAppStore,
+      .android || .fuchsia => loc.appOutdatedScreen_descriptionGooglePlay,
+      .windows => loc.appOutdatedScreen_descriptionMicrosoftStore,
+      .linux => loc.appOutdatedScreen_descriptionLinux,
+    };
+    // Only a store has an update to send us to.
+    final showUpdateButton = platform == .iOS || platform == .android;
 
     return NuxScaffold(
       tokens: NuxScaffoldTokens.of(context),
@@ -50,13 +60,11 @@ class UpdateRequiredView extends StatelessWidget {
           const SizedBox(height: S.s16),
 
           Text(
-            loc.appOutdatedScreen_description,
+            description,
             style: typeScale.body.regular.style(color: palette.text.secondary),
             textAlign: .center,
           ),
 
-          // Only a store has an update to send us to, so a desktop build
-          // shows no button.
           if (showUpdateButton) ...[
             const SizedBox(height: S.s24),
             Button(
