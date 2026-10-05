@@ -37,20 +37,10 @@ impl User {
     /// Fetch and process QS messages
     ///
     /// Also returns the sibling client states received meanwhile.
-    ///
-    /// Does nothing if a foreground listener is active, which processes the
-    /// queue instead.
     async fn fetch_and_process_qs_messages(
         &self,
     ) -> Result<(ProcessedQsMessages, Option<SiblingClientStates>), ListenQueueError> {
-        let (mut stream, responder) = match self.user.listen_queue_in_background().await {
-            Ok(listen) => listen,
-            Err(error) if error.is_eviction_denied() => {
-                debug!("foreground listener is active, skipping QS fetch");
-                return Ok(Default::default());
-            }
-            Err(error) => return Err(error),
-        };
+        let (mut stream, responder) = self.user.listen_queue_in_background().await?;
         let mut sibling_client_states = self
             .user
             .sibling_client_states()
