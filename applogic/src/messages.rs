@@ -40,7 +40,7 @@ impl User {
     async fn fetch_and_process_qs_messages(
         &self,
     ) -> Result<(ProcessedQsMessages, Option<SiblingClientStates>), ListenQueueError> {
-        let (mut stream, responder) = self.user.listen_queue().await?;
+        let (mut stream, responder) = self.user.listen_queue_in_background().await?;
         let mut sibling_client_states = self
             .user
             .sibling_client_states()

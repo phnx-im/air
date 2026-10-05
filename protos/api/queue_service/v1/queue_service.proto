@@ -326,6 +326,7 @@ message InitListenPayload {
   QsClientId client_id = 2;
   // Sequence number to start listening from (inclusive)
   uint64 sequence_number_start = 3;
+  bool is_background = 4;
 }
 
 message AckListenRequest {

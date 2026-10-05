@@ -23,7 +23,7 @@ use aircommon::{
 use aircoreclient::{
     ChatId, DisplayName, EventMessage, Message, SystemMessage, UserProfile,
     clients::{
-        CoreUser, ListenResponse, MarkChatAsRead, listen_response,
+        CoreUser, ListenQueueError, ListenResponse, MarkChatAsRead, listen_response,
         process::process_qs::ProcessedQsMessages, registration::RegistrationError,
     },
     outbound_service::{APQ_KEY_PACKAGES, KEY_PACKAGES},
@@ -1465,7 +1465,9 @@ async fn unsupported_client_version() {
     let client_id = QsClientId::random(&mut rand::rng());
     let signing_key = QsClientSigningKey::generate().unwrap();
     // Signing key does not have to be valid, because the client version is checked first.
-    let res = client.qs_listen_queue(client_id, 0, &signing_key).await;
+    let res = client
+        .qs_listen_queue(client_id, 0, false, &signing_key)
+        .await;
     match res {
         Err(QsRequestError::Tonic(status)) => status,
         Err(error) => panic!("Unexpected error type: {error:?}"),
@@ -1653,6 +1655,76 @@ async fn listen_stream_eviction() {
             .await
             .is_err(),
         "second stream is still open"
+    );
+}
+
+async fn assert_queue_stream_evicted(
+    stream: &mut (impl Stream<Item = Result<ListenResponse, tonic::Status>> + Unpin),
+) {
+    let status = timeout(Duration::from_millis(100), stream.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(status.code(), Code::Aborted, "stream is evicted");
+    assert!(
+        timeout(Duration::from_millis(100), stream.next())
+            .await
+            .unwrap()
+            .is_none(),
+        "stream is closed"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Background listen stream eviction", skip_all)]
+async fn background_listen_stream_eviction() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice_user = setup.get_user(&alice).user.clone();
+
+    // A background stream evicts another background stream
+    let (mut stream_a, _responder_a) = alice_user.listen_queue_in_background().await.unwrap();
+    skip_version_status(&mut stream_a).await;
+    assert_matches!(
+        stream_a.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
+        }))
+    );
+
+    let (mut stream_b, _responder_b) = alice_user.listen_queue_in_background().await.unwrap();
+    skip_version_status(&mut stream_b).await;
+    assert_matches!(
+        stream_b.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
+        }))
+    );
+    assert_queue_stream_evicted(&mut stream_a).await;
+
+    // A foreground stream evicts a background stream
+    let (mut stream_c, _responder_c) = alice_user.listen_queue().await.unwrap();
+    skip_version_status(&mut stream_c).await;
+    assert_matches!(
+        stream_c.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
+        }))
+    );
+    assert_queue_stream_evicted(&mut stream_b).await;
+
+    // A background stream does not evict a foreground stream
+    let res = alice_user.listen_queue_in_background().await;
+    let Err(ListenQueueError::Qs(QsRequestError::Tonic(status))) = res else {
+        panic!("expected eviction to be denied, got {:?}", res.map(|_| ()));
+    };
+    assert_eq!(status.code(), Code::AlreadyExists);
+    assert!(
+        timeout(Duration::from_millis(100), stream_c.next())
+            .await
+            .is_err(),
+        "foreground stream is still open"
     );
 }
 
