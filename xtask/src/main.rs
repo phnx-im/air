@@ -43,6 +43,9 @@ enum Commands {
     /// Sign and publish a .deb or .rpm to an S3-hosted package repository.
     #[command(name = "publish-packages")]
     PublishLinuxPackages(publish_linux_packages::PublishArgs),
+    /// Copy a published package version from one release track to another.
+    #[command(name = "promote-packages")]
+    PromoteLinuxPackages(publish_linux_packages::PromoteArgs),
     /// Parse an emoji-data `emoji_pretty.json` and generate a Dart file of
     /// emojis grouped by category.
     #[command(name = "generate-emoji")]
@@ -60,6 +63,7 @@ fn main() -> anyhow::Result<()> {
         Commands::PruneUnusedL10n(args) => prune_unused_l10n::run(args),
         Commands::ValidateL10n(args) => validate_l10n::run(args),
         Commands::PublishLinuxPackages(args) => publish_linux_packages::run(args),
+        Commands::PromoteLinuxPackages(args) => publish_linux_packages::promote(args),
         Commands::GenerateEmoji(args) => generate_emoji::run(args),
         Commands::GenerateLicenses(args) => generate_licenses::run(args),
     }
