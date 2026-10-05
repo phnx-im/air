@@ -22,7 +22,13 @@ use crate::{
 };
 
 /// Number of retries of a rate limited request
-const RATE_LIMIT_RETRIES: usize = 3;
+///
+/// The iOS notification service extension has about 30s per push for the QS and
+/// the AS fetch together.
+#[cfg(target_os = "ios")]
+const RATE_LIMIT_RETRIES: usize = 4;
+#[cfg(not(target_os = "ios"))]
+const RATE_LIMIT_RETRIES: usize = 6;
 
 /// Runs `f`, and retries it after a backoff while it is rate limited.
 async fn retry_rate_limited<T, E>(
@@ -268,16 +274,17 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn rate_limited_requests_give_up_after_the_backoff() {
-        let (result, attempts, elapsed) = run(&[
-            TestError::RateLimited,
-            TestError::RateLimited,
-            TestError::RateLimited,
-            TestError::RateLimited,
-        ])
-        .await;
+        let errors: Vec<_> = (0..=RATE_LIMIT_RETRIES)
+            .map(|_| TestError::RateLimited)
+            .collect();
+        let (result, attempts, elapsed) = run(&errors).await;
         assert_eq!(result, Err(TestError::RateLimited));
-        assert_eq!(attempts, 4);
-        assert_eq!(elapsed, Duration::from_secs(6));
+        assert_eq!(attempts, RATE_LIMIT_RETRIES + 1);
+        let mut backoff = FibonacciBackoff::new();
+        let backoffs: Duration = (0..RATE_LIMIT_RETRIES)
+            .map(|_| backoff.next_backoff())
+            .sum();
+        assert_eq!(elapsed, backoffs);
     }
 
     #[tokio::test(start_paused = true)]
