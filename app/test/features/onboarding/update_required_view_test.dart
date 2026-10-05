@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/features/onboarding/update_required_screen.dart';
+import 'package:air/features/onboarding/update_required_view.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,7 +29,7 @@ void main() {
         await tester.pumpWidget(buildSubject(defaultTargetPlatform));
         await expectLater(
           find.byType(MaterialApp),
-          matchesGoldenFile('goldens/update_required_screen.png'),
+          matchesGoldenFile('goldens/update_required_view.png'),
         );
       },
       variant: const TargetPlatformVariant({
@@ -51,7 +51,7 @@ void main() {
         await expectLater(
           find.byType(MaterialApp),
           matchesGoldenFile(
-            'goldens/update_required_screen_${platform.name.toLowerCase()}.png',
+            'goldens/update_required_view_${platform.name.toLowerCase()}.png',
           ),
         );
       }, variant: desktopPlatform);
