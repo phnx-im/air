@@ -107,7 +107,7 @@ impl From<QueueError> for Status {
             }
             QueueError::PayloadReceiverClosed => Self::internal(msg),
             QueueError::ClientNotFound => Self::not_found(msg),
-            QueueError::EvictionDenied => Self::already_exists("foreground"),
+            QueueError::EvictionDenied => Self::already_exists(msg),
         }
     }
 }

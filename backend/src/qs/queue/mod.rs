@@ -85,6 +85,11 @@ impl ListenerContext {
             user_clients,
         }
     }
+
+    /// A background listener does not replace an active foreground one.
+    fn blocks_background(&self) -> bool {
+        matches!(self, Self { is_background: false, cancel, .. } if !cancel.is_cancelled())
+    }
 }
 
 impl Drop for ListenerContext {
@@ -125,6 +130,15 @@ impl Queues {
         ),
         QueueError,
     > {
+        if is_background
+            && self
+                .listeners
+                .get(&client_id)
+                .is_some_and(|context| context.blocks_background())
+        {
+            return Err(QueueError::EvictionDenied);
+        }
+
         let notifications = self.pg_listener_task_handle.subscribe(client_id).await?;
         let (payload_tx, payload_rx) = mpsc::channel(1024);
 
@@ -264,15 +278,9 @@ impl Queues {
         // Holding the entry keeps the session in line with the listener when
         // the same client listens concurrently.
         let entry = self.listeners.entry(client_id);
-        // A background listener does not replace an active foreground one.
         if is_background
             && let Entry::Occupied(entry) = &entry
-            && let ListenerContext {
-                is_background: false,
-                cancel: existing_cancel,
-                ..
-            } = entry.get()
-            && !existing_cancel.is_cancelled()
+            && entry.get().blocks_background()
         {
             return None;
         }

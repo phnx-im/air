@@ -23,7 +23,7 @@ use aircommon::{
 use aircoreclient::{
     ChatId, DisplayName, EventMessage, Message, SystemMessage, UserProfile,
     clients::{
-        CoreUser, ListenQueueError, ListenResponse, MarkChatAsRead, listen_response,
+        CoreUser, ListenResponse, MarkChatAsRead, listen_response,
         process::process_qs::ProcessedQsMessages, registration::RegistrationError,
     },
     outbound_service::{APQ_KEY_PACKAGES, KEY_PACKAGES},
