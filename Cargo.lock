@@ -8827,17 +8827,23 @@ version = "0.23.0"
 dependencies = [
  "anyhow",
  "askama",
+ "base64",
  "camino",
  "cargo_metadata",
  "chrono",
  "clap",
  "config",
+ "digest-io",
+ "hex",
  "ignore",
  "regex",
  "semver",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
+ "toml 1.1.4+spec-1.1.0",
  "xshell",
+ "yaml-rust2",
 ]
 
 [[package]]

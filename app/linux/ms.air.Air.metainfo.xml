@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>ms.air.Air</id>
+  <name>Air</name>
+  <summary>Secure messaging for everyone</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-or-later</project_license>
+  <developer id="ms.air">
+    <name>Phoenix R&amp;D GmbH</name>
+  </developer>
+  <url type="homepage">https://air.ms</url>
+  <url type="bugtracker">https://github.com/phnx-im/air/issues</url>
+  <url type="help">https://help.air.ms/</url>
+  <url type="vcs-browser">https://github.com/phnx-im/air</url>
+  <launchable type="desktop-id">ms.air.Air.desktop</launchable>
+  <description>
+    <p>
+      Free, easy to use, and always private. Chat in groups with friends,
+      family, and even your co-workers.
+    </p>
+    <ul>
+      <li>All messages (including photos, videos, and documents) are end-to-end encrypted.</li>
+      <li>No phone number or email. Air is private.</li>
+      <li>Open-source and based on open standards including MLS.</li>
+    </ul>
+  </description>
+  <content_rating type="oars-1.1">
+    <content_attribute id="social-chat">intense</content_attribute>
+  </content_rating>
+  <releases>
+    <release version="0.23.0" date="2026-09-22"/>
+  </releases>
+  <branding>
+    <color type="primary" scheme_preference="light">#FCFBF5</color>
+    <color type="primary" scheme_preference="dark">#100F0F</color>
+  </branding>
+</component>

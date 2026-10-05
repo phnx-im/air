@@ -1,0 +1,95 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+{# Template of the Flatpak manifest (askama). `cargo xtask flatpak-sources`
+   fills it in and writes it with the generated sources to target/flatpak/. -#}
+id: '{{ app_id }}'
+runtime: org.freedesktop.Platform
+runtime-version: '26.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.llvm22
+command: air
+{%- if flavor == Flavor::Staging %}
+# Exported files must carry the app ID, flatpak-builder renames them and
+# fixes Icon= and the metainfo id.
+rename-desktop-file: ms.air.Air.desktop
+rename-icon: ms.air.Air
+rename-appdata-file: ms.air.Air.metainfo.xml
+{%- endif %}
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --talk-name=org.freedesktop.Notifications
+modules:
+  # Toolchains go to /var/lib, which persists between modules but is not
+  # exported.
+  - generated/rustup.json
+  - generated/flutter-sdk.json
+  - name: air
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/llvm22/bin:/var/lib/flutter/bin:/run/build/air/home/.cargo/bin
+      prepend-ld-library-path: /usr/lib/sdk/llvm22/lib
+      env:
+        # The build hook drops RUSTUP_HOME and CARGO_HOME, rustup and cargo
+        # find their homes via HOME.
+        HOME: /run/build/air/home
+        PUB_CACHE: /run/build/air/pub-cache
+        # Selects the application ID in app/linux/CMakeLists.txt.
+        APP_FLAVOR: '{{ flavor }}'
+        SQLX_OFFLINE: 'true'
+        SCCACHE_DIR: /run/ccache/sccache
+    build-commands:
+      # Files of earlier modules are read-only, settings.toml needs a copy.
+      - mkdir -p $HOME/.cargo $HOME/.rustup
+      - ln -sfn /var/lib/rustup/toolchains /var/lib/rustup/update-hashes $HOME/.rustup/
+      - cp /var/lib/rustup/settings.toml $HOME/.rustup/
+      - ln -sfn /var/lib/cargo/bin $HOME/.cargo/bin
+      - cp cargo-config.toml $HOME/.cargo/config.toml
+      # sccache needs the persistent dir of flatpak-builder --ccache.
+      - |
+        if [ -d /run/ccache ]; then
+          printf '\n[build]\nrustc-wrapper = "/var/lib/cargo/bin/sccache"\n' >> $HOME/.cargo/config.toml
+        fi
+      # applogic/rust-toolchain.toml lists components and targets that are not
+      # installed. A directory override wins, so rustup does not sync online.
+      - rustup override set {{ rust_channel }} --path /run/build/air/src/applogic
+      - flutter config --no-analytics --enable-native-assets
+      - cd src/app && flutter pub get --offline --enforce-lockfile
+      - |
+        set -e
+        cd src/app
+        flutter build linux --release --flavor {{ flavor }} --no-pub --build-number={{ build_number }}
+        if [ -d /run/ccache ]; then sccache --show-stats; fi
+      - |
+        set -e
+        arch=x64
+        if [ "$FLATPAK_ARCH" = aarch64 ]; then arch=arm64; fi
+        install -d /app/lib/air /app/bin
+        cp -a src/app/build/linux/$arch/{{ flavor }}/release/bundle/. /app/lib/air/
+        ln -s ../lib/air/air /app/bin/air
+        install -Dm644 -t /app/share/applications src/app/linux/ms.air.Air.desktop
+        install -Dm644 -t /app/share/icons/hicolor/scalable/apps src/app/linux/ms.air.Air.svg
+        install -Dm644 -t /app/share/icons/hicolor/256x256/apps src/app/linux/ms.air.Air.png
+        install -Dm644 -t /app/share/metainfo src/app/linux/ms.air.Air.metainfo.xml
+        # D-Bus services need an absolute Exec and the app ID as Name.
+        sed -e 's|^Exec=.*|Exec=/app/bin/air --gapplication-service|' -e "s|^Name=.*|Name=$FLATPAK_ID|" \
+          src/app/linux/ms.air.Air.service > air.service
+        install -Dm644 air.service /app/share/dbus-1/services/$FLATPAK_ID.service
+    sources:
+      - generated/air-sources.json
+      - generated/pubspec-sources.json
+      - generated/cargo-sources.json
+      # The build hook forwards only these variables to cargo.
+      - type: inline
+        dest: src/app/.dart_tool
+        dest-filename: air_hook_config.json
+        contents: >-
+          {"cargo_env": {"AIR_BUILD_NUMBER": "{{ build_number }}",
+          "AIR_REFRESH_BUILD_METADATA": "{{ commit }}",
+          "SCCACHE_DIR": "/run/ccache/sccache", "SCCACHE_CACHE_SIZE": "4G"}}
