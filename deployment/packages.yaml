@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+apiVersion: v1
+kind: Service
+metadata:
+  name: packages-origin
+spec:
+  type: ExternalName
+  externalName: builds.t2ucg.upcloudobjects.com
+  ports:
+  - port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: packages
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/upstream-vhost: "builds.t2ucg.upcloudobjects.com"
+    nginx.ingress.kubernetes.io/proxy-ssl-server-name: "on"
+    nginx.ingress.kubernetes.io/proxy-ssl-name: "builds.t2ucg.upcloudobjects.com"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - packages.air.ms
+  rules:
+  - host: packages.air.ms
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: packages-origin
+            port:
+              number: 443
