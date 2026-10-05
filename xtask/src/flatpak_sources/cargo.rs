@@ -263,13 +263,20 @@ fn git_crates(
     }
     println!("Vendoring crates to normalize the git crates...");
     let manifest = root.join("Cargo.toml");
+    // The log is parsed below, so no color codes (CI sets CARGO_TERM_COLOR).
     let output = cmd!(
         shell,
-        "cargo vendor --locked --versioned-dirs --manifest-path {manifest} {vendor_dir}"
+        "cargo vendor --color never --locked --versioned-dirs --manifest-path {manifest} {vendor_dir}"
     )
     .quiet()
+    .ignore_status()
     .output()?;
     let log = String::from_utf8_lossy(&output.stderr);
+    ensure!(
+        output.status.success(),
+        "cargo vendor failed with {}:\n{log}",
+        output.status
+    );
 
     let mut crates = Vec::new();
     for package in git_packages {
