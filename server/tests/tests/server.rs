@@ -1491,6 +1491,24 @@ async fn skip_version_status(
     );
 }
 
+async fn assert_queue_stream_evicted(
+    stream: &mut (impl Stream<Item = Result<ListenResponse, tonic::Status>> + Unpin),
+) {
+    let status = timeout(Duration::from_millis(100), stream.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    assert_eq!(status.code(), Code::Aborted, "stream is evicted");
+    assert!(
+        timeout(Duration::from_millis(100), stream.next())
+            .await
+            .unwrap()
+            .is_none(),
+        "stream is closed"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Version status on listen queue", skip_all)]
 async fn listen_queue_version_status() {
@@ -1633,46 +1651,12 @@ async fn listen_stream_eviction() {
         }))
     );
 
-    let status = timeout(Duration::from_millis(100), stream_a.next())
-        .await
-        .unwrap()
-        .unwrap()
-        .unwrap_err();
-    assert_eq!(
-        status.code(),
-        tonic::Code::Aborted,
-        "first stream is evicted"
-    );
-    assert!(
-        timeout(Duration::from_millis(100), stream_a.next())
-            .await
-            .unwrap()
-            .is_none(),
-        "first stream is closed"
-    );
+    assert_queue_stream_evicted(&mut stream_a).await;
     assert!(
         timeout(Duration::from_millis(100), stream_b.next())
             .await
             .is_err(),
         "second stream is still open"
-    );
-}
-
-async fn assert_queue_stream_evicted(
-    stream: &mut (impl Stream<Item = Result<ListenResponse, tonic::Status>> + Unpin),
-) {
-    let status = timeout(Duration::from_millis(100), stream.next())
-        .await
-        .unwrap()
-        .unwrap()
-        .unwrap_err();
-    assert_eq!(status.code(), Code::Aborted, "stream is evicted");
-    assert!(
-        timeout(Duration::from_millis(100), stream.next())
-            .await
-            .unwrap()
-            .is_none(),
-        "stream is closed"
     );
 }
 
@@ -1715,16 +1699,38 @@ async fn background_listen_stream_eviction() {
     assert_queue_stream_evicted(&mut stream_b).await;
 
     // A background stream does not evict a foreground stream
-    let res = alice_user.listen_queue_in_background().await;
-    let Err(ListenQueueError::Qs(QsRequestError::Tonic(status))) = res else {
-        panic!("expected eviction to be denied, got {:?}", res.map(|_| ()));
-    };
-    assert_eq!(status.code(), Code::AlreadyExists);
+    assert!(
+        alice_user
+            .listen_queue_in_background()
+            .await
+            .is_err_and(|error| error.is_eviction_denied()),
+        "background stream is denied"
+    );
     assert!(
         timeout(Duration::from_millis(100), stream_c.next())
             .await
             .is_err(),
         "foreground stream is still open"
+    );
+
+    // A background stream is accepted once the foreground stream has ended
+    drop((stream_c, _responder_c));
+    let (mut stream_d, _responder_d) = timeout(Duration::from_secs(5), async {
+        loop {
+            match alice_user.listen_queue_in_background().await {
+                Err(error) if error.is_eviction_denied() => sleep(Duration::from_millis(10)).await,
+                res => break res.unwrap(),
+            }
+        }
+    })
+    .await
+    .expect("background stream is still denied");
+    skip_version_status(&mut stream_d).await;
+    assert_matches!(
+        stream_d.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
+        }))
     );
 }
 
