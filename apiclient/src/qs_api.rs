@@ -84,6 +84,11 @@ impl QsRequestError {
             _ => false,
         }
     }
+
+    /// Returns true if the error means the client exceeded some quota or limit.
+    pub fn is_resource_exhausted(&self) -> bool {
+        matches!(self, Self::Tonic(status) if status.code() == tonic::Code::ResourceExhausted)
+    }
 }
 
 impl ApiClient {

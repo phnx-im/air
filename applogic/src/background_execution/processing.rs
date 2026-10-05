@@ -9,7 +9,7 @@ use std::panic::{self, AssertUnwindSafe};
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use tokio::runtime::Builder;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -189,6 +189,12 @@ async fn retrieve_messages(path: String) -> anyhow::Result<NotificationBatch> {
                         conversation: None,
                     }];
                     (notifications, Vec::new())
+                }
+                // Retried with a backoff already. Not an error, so that the task is not retried and
+                // adds to the load. The messages stay queued for the next fetch.
+                FetchAndProcessAllMessagesError::RateLimited => {
+                    warn!("Rate limited while fetching messages");
+                    (Vec::new(), Vec::new())
                 }
                 FetchAndProcessAllMessagesError::Fatal(error) => {
                     return Err(error.context("fatal error while fetching messages"));

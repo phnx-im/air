@@ -1023,6 +1023,10 @@ impl ListenQueueError {
             _ => false,
         }
     }
+
+    pub fn is_resource_exhausted(&self) -> bool {
+        matches!(self, Self::Qs(error) if error.is_resource_exhausted())
+    }
 }
 
 /// Error which can occur when listening to a username.
@@ -1041,4 +1045,11 @@ impl ListenUsernameError {
             _ => false,
         }
     }
+}
+
+/// Returns true if `error` means the AS rate limited a request.
+pub fn is_resource_exhausted_error(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<AsRequestError>()
+        .is_some_and(AsRequestError::is_resource_exhausted)
 }
