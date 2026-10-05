@@ -1049,6 +1049,13 @@ impl ListenQueueError {
             _ => false,
         }
     }
+
+    pub fn is_eviction_denied(&self) -> bool {
+        match self {
+            Self::Qs(error) => error.is_eviction_denied(),
+            _ => false,
+        }
+    }
 }
 
 /// Error which can occur when listening to a username.

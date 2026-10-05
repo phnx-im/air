@@ -826,8 +826,15 @@ impl CoreUser {
     ///
     /// Unlike [`CoreUser::qs_fetch_messages`], this ACKs the processed messages
     /// via the responder, so it is safe to use outside of integration tests.
+    ///
+    /// Does not evict an active foreground listener, which then processes the
+    /// queue instead.
     async fn drain_and_process_qs_queue(&self) -> anyhow::Result<ProcessedQsMessages> {
-        let (mut stream, responder) = self.listen_queue().await?;
+        let (mut stream, responder) = match self.listen_queue_in_background().await {
+            Ok(listen) => listen,
+            Err(error) if error.is_eviction_denied() => return Ok(Default::default()),
+            Err(error) => return Err(error.into()),
+        };
         let mut messages: Vec<QueueMessage> = Vec::new();
 
         let drained = loop {

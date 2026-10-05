@@ -269,10 +269,10 @@ impl Queues {
             && let Entry::Occupied(entry) = &entry
             && let ListenerContext {
                 is_background: false,
-                cancel,
+                cancel: existing_cancel,
                 ..
             } = entry.get()
-            && !cancel.is_cancelled()
+            && !existing_cancel.is_cancelled()
         {
             return None;
         }

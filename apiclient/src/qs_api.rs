@@ -84,6 +84,11 @@ impl QsRequestError {
             _ => false,
         }
     }
+
+    /// A background listen was refused, because a foreground one is active.
+    pub fn is_eviction_denied(&self) -> bool {
+        matches!(self, Self::Tonic(status) if status.code() == tonic::Code::AlreadyExists)
+    }
 }
 
 impl ApiClient {
