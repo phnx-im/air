@@ -868,6 +868,10 @@ impl CoreUser {
         self.inner.key_store.signing_key.credential().user_id()
     }
 
+    pub fn qs_client_id(&self) -> QsClientId {
+        self.inner.qs_client_id
+    }
+
     pub(crate) async fn store_new_messages(
         txn: &mut WriteDbTransaction<'_>,
         chat_id: ChatId,

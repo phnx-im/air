@@ -14,6 +14,7 @@ use anyhow::ensure;
 use chrono::{DateTime, Utc};
 use flutter_rust_bridge::frb;
 use qs::QueueContext;
+pub(crate) use qs::app_listens_to_qs;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};

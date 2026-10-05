@@ -71,10 +71,6 @@ impl CoreUser {
         self.inner.qs_user_id
     }
 
-    pub fn qs_client_id(&self) -> aircommon::identifiers::QsClientId {
-        self.inner.qs_client_id
-    }
-
     pub async fn self_group(&self) -> anyhow::Result<Option<SelfGroup>> {
         Ok(SelfGroup::load(self.db().read().await?).await?)
     }

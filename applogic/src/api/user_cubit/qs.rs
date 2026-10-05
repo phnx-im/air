@@ -2,9 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, hash_map::Entry},
+    sync::{Arc, LazyLock},
+};
 
-use aircommon::messages::client_state::NotificationSuppression;
+use aircommon::{identifiers::QsClientId, messages::client_state::NotificationSuppression};
 use aircoreclient::clients::{
     CoreUser, ListenResponse, QsListenResponder, SiblingClientStates, listen_response,
     process::{process_qs::ProcessedQsMessages, qs_stream::QsProcessEventResult},
@@ -12,6 +15,7 @@ use aircoreclient::clients::{
 use airprotos::queue_service;
 use chrono::{DateTime, Utc};
 use flutter_rust_bridge::frb;
+use parking_lot::Mutex;
 use tokio::sync::watch;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
@@ -25,10 +29,47 @@ use crate::{
 
 use super::{AppState, CubitContext, UiUser};
 
+/// Number of live QS listen streams of the app in this process, per client
+///
+/// On Android, the push processing runs in the same process as the app.
+static APP_QS_LISTENERS: LazyLock<Mutex<HashMap<QsClientId, usize>>> =
+    LazyLock::new(Default::default);
+
+/// Whether the app listens to the QS queue of `client_id` in this process.
+pub(crate) fn app_listens_to_qs(client_id: QsClientId) -> bool {
+    APP_QS_LISTENERS.lock().contains_key(&client_id)
+}
+
+/// Counts as a live QS listen stream of the app until dropped.
+#[derive(Debug)]
+struct AppQsListener {
+    client_id: QsClientId,
+}
+
+impl AppQsListener {
+    fn new(client_id: QsClientId) -> Self {
+        *APP_QS_LISTENERS.lock().entry(client_id).or_default() += 1;
+        Self { client_id }
+    }
+}
+
+impl Drop for AppQsListener {
+    fn drop(&mut self) {
+        if let Entry::Occupied(mut entry) = APP_QS_LISTENERS.lock().entry(self.client_id) {
+            *entry.get_mut() -= 1;
+            if *entry.get() == 0 {
+                entry.remove();
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 #[frb(ignore)]
 pub(super) struct QueueContext {
     cubit_context: CubitContext,
+    /// Present while the current stream is live
+    listener: Option<AppQsListener>,
     /// Stops publishing the client state over the current stream
     stop_client_state: Option<CancellationToken>,
     /// Sibling client states received over the current stream
@@ -155,6 +196,9 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
             Err(error) => return Err(error.into()),
         };
         self.sibling_client_states = Some(self.cubit_context.core_user.sibling_client_states()?);
+        self.listener = Some(AppQsListener::new(
+            self.cubit_context.core_user.qs_client_id(),
+        ));
         self.spawn_report_client_state(responder.clone());
         self.cubit_context
             .core_user
@@ -255,6 +299,7 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
     }
 
     async fn on_stream_end(&mut self) {
+        self.listener = None;
         if let Some(stop) = self.stop_client_state.take() {
             stop.cancel();
         }
@@ -288,6 +333,7 @@ impl QueueContext {
     pub(super) fn new(cubit_context: CubitContext) -> Self {
         Self {
             cubit_context,
+            listener: None,
             stop_client_state: None,
             sibling_client_states: None,
         }

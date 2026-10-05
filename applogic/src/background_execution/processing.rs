@@ -13,7 +13,7 @@ use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::{
-    api::user::User,
+    api::{user::User, user_cubit::app_listens_to_qs},
     background_execution::{IncomingNotificationContent, IncomingNotificationDismissal, stack},
     logging::{LogKind, init_logger},
     messages::FetchAndProcessAllMessagesError,
@@ -163,6 +163,16 @@ async fn retrieve_messages(path: String) -> anyhow::Result<NotificationBatch> {
         .await
         .context("Failed to load user")?
         .context("User not found: the database contained no user data")?;
+
+    // The app receives the messages itself, and a second listener would evict its stream.
+    if app_listens_to_qs(user.user.qs_client_id()) {
+        info!("App is listening to the queue, skipping fetching messages");
+        return Ok(NotificationBatch {
+            badge_count: user.global_unread_messages_count().await,
+            removals: Vec::new(),
+            additions: Vec::new(),
+        });
+    }
 
     // capture store notification in below store calls
     let pending_store_notifications = user.user.pending_db_notifications();
