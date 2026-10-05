@@ -118,6 +118,7 @@ use crate::{
 };
 
 use openmls::{
+    component::ComponentData,
     components::vc_derivation_info::{GenerationId, VC_COMPONENT_ID},
     group::{
         CreateCommitError, ExportSecretError, ExternalCommitBuilder, GroupContext, GroupEpoch,
@@ -419,10 +420,17 @@ impl Group {
         Ok((mls_group, &mut pq.mls_group))
     }
 
+    /// Whether either leg holds a proposal that has not been committed yet.
+    pub(crate) fn has_pending_proposals(&self) -> bool {
+        self.mls_group.pending_proposals().next().is_some()
+            || self
+                .pq
+                .as_ref()
+                .is_some_and(|pq| pq.mls_group.pending_proposals().next().is_some())
+    }
+
     /// Errors if this group (or its PQ counterpart, for APQ groups) has a
-    /// pending commit. Used by clean loaders to refuse to hand out a
-    /// `Group` whose MLS state has an in-flight commit, since further
-    /// staging on top of one is a logic error.
+    /// pending commit.
     pub(crate) fn ensure_clean(&self) -> Result<()> {
         ensure!(
             self.mls_group.pending_commit().is_none(),
@@ -2152,23 +2160,7 @@ impl Group {
         }))
         .tls_serialize_detached()?;
 
-        // Update group profile if needed.
-        let (component, extensions) = if let Some(group_data) = new_group_data {
-            if self.mls_group.extensions().has_group_profile_component() {
-                // If the group profile component exists, then update it.
-                (Some(group_data.into_component()), None)
-            } else {
-                // Otherwise, update the group context extension.
-                let bytes = group_data.encode()?;
-                let group_data_extension =
-                    Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, UnknownExtension(bytes));
-                let mut extensions = self.mls_group().extensions().clone();
-                extensions.add_or_replace(group_data_extension)?;
-                (None, Some(extensions))
-            }
-        } else {
-            (None, None)
-        };
+        let (component_data, extensions) = self.group_data_update(new_group_data)?;
 
         let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
         let leaf_node_parameters = Self::update_leaf_node_extensions(
@@ -2198,9 +2190,6 @@ impl Group {
                 builder = builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?;
             }
 
-            let component_data = component
-                .map(|component| component.to_component_data())
-                .transpose()?;
             if let Some(component_data) = &component_data {
                 builder = builder.add_proposal(Proposal::AppDataUpdate(Box::new(
                     AppDataUpdateProposal::update(
@@ -2237,6 +2226,29 @@ impl Group {
         })
     }
 
+    /// If the group has a group profile component, `new_group_data` goes there.
+    /// Otherwise it goes into the group context extension.
+    fn group_data_update(
+        &self,
+        new_group_data: Option<GroupData>,
+    ) -> Result<(Option<ComponentData>, Option<Extensions<GroupContext>>)> {
+        let Some(group_data) = new_group_data else {
+            return Ok((None, None));
+        };
+        if self.mls_group.extensions().has_group_profile_component() {
+            let component_data = group_data.into_component().to_component_data()?;
+            Ok((Some(component_data), None))
+        } else {
+            let bytes = group_data.encode()?;
+            let mut extensions = self.mls_group().extensions().clone();
+            extensions.add_or_replace(Extension::Unknown(
+                GROUP_DATA_EXTENSION_TYPE,
+                UnknownExtension(bytes),
+            ))?;
+            Ok((None, Some(extensions)))
+        }
+    }
+
     /// APQ self-update on both the T and PQ groups.
     ///
     /// Produces a single combined commit via apqmls that forces a self-update of the key material
@@ -2246,6 +2258,7 @@ impl Group {
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         signer: &LeafSigningKey,
+        new_group_data: Option<GroupData>,
         derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<ApqGroupOperationParamsOut> {
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
@@ -2253,6 +2266,8 @@ impl Group {
         }))
         .tls_serialize_detached()?;
         self.mls_group.set_aad(aad);
+
+        let (component_data, group_context_extensions) = self.group_data_update(new_group_data)?;
 
         let t_own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
         let t_leaf_node_parameters = Self::update_leaf_node_extensions(
@@ -2282,6 +2297,12 @@ impl Group {
                 .create_group_info(true);
         if let Some(group_id) = vc_group_id {
             builder = builder.vc_emulation(group_id);
+        }
+        if let Some(extensions) = group_context_extensions {
+            builder = builder.propose_t_group_context_extensions(extensions);
+        }
+        if let Some(component_data) = component_data {
+            builder = builder.update_t_app_data(component_data);
         }
         let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
 

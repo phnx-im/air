@@ -42,7 +42,7 @@ use aircommon::{
     },
     mls_group_config::QS_CLIENT_REFERENCE_EXTENSION_TYPE,
     time::TimeStamp,
-    utils::removed_clients,
+    utils::{removed_client, removed_clients},
 };
 use tls_codec::DeserializeBytes;
 use tracing::{error, warn};
@@ -126,14 +126,20 @@ impl DsGroupState {
             return Err(GroupOperationError::InvalidMessage);
         }
 
+        // A member that proposed its own removal relies on the next committer
+        // to carry the proposal, so a commit must not leave one behind.
+        self.ensure_self_removes_committed(staged_commit)?;
+
         // A traditional commit on an APQ group can only be a PARTIAL
-        // self-update. Membership changes must go through the APQ endpoint so
-        // that both legs stay in sync. External commits are caught by the
-        // remove proposal they must carry.
+        // self-update. Membership changes (including self-removes) must go
+        // through the APQ endpoint so that both legs stay in sync. External
+        // commits are caught by the remove proposal they must carry.
         if pq_group_state.is_none()
             && self.is_apq()
             && (staged_commit.add_proposals().next().is_some()
-                || staged_commit.remove_proposals().next().is_some())
+                || staged_commit
+                    .queued_proposals()
+                    .any(|proposal| removed_client(proposal).is_some()))
         {
             warn!("Traditional membership change on an APQ group");
             return Err(GroupOperationError::ApqMembershipChange);
@@ -461,6 +467,8 @@ impl DsGroupState {
                 warn!("PQ commit would toggle the self-group flag");
                 return Err(GroupOperationError::InvalidMessage);
             }
+            // See the T leg. Self-removes need to be committed on both legs.
+            pq_group_state.ensure_self_removes_committed(pq_staged_commit)?;
             let pq_sender_index = match processed_assisted_message
                 .processed_message
                 .pq_message

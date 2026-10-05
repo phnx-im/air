@@ -3,14 +3,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use openmls::{
+    component::ComponentData,
     group::{
         CommitBuilder as MlsGroupCommitBuilder, CommitBuilderStageError, CommitMessageBundle,
         CreateCommitError as OpenMlsCreateCommitError, GroupEpoch, GroupId, Initial, MlsGroup,
         QueuedProposal,
     },
     prelude::{
-        InvalidExtensionError, LeafNodeIndex, LeafNodeParameters, PreSharedKeyProposal, Proposal,
-        ProposalType,
+        AppDataUpdateProposal, Extensions, GroupContext, InvalidExtensionError, LeafNodeIndex,
+        LeafNodeParameters, PreSharedKeyProposal, Proposal, ProposalType,
     },
     storage::OpenMlsProvider,
 };
@@ -118,6 +119,8 @@ struct ConfigValues {
     create_group_info: bool,
     vc_emulation_group_id: Option<GroupId>,
     derivation_epoch: bool,
+    t_group_context_extensions: Option<Extensions<GroupContext>>,
+    t_app_data_updates: Vec<ComponentData>,
 }
 
 impl ConfigValues {
@@ -221,6 +224,22 @@ impl<'a> CommitBuilder<'a> {
             return self;
         }
         self.values.t_proposals.push(t_proposal);
+        self
+    }
+
+    /// Proposes the given group context extensions on the classical leg.
+    pub fn propose_t_group_context_extensions(
+        mut self,
+        extensions: Extensions<GroupContext>,
+    ) -> Self {
+        self.values.t_group_context_extensions = Some(extensions);
+        self
+    }
+
+    /// Sets the given app data component on the classical leg, together with
+    /// the `AppDataUpdate` proposal announcing it.
+    pub fn update_t_app_data(mut self, component_data: ComponentData) -> Self {
+        self.values.t_app_data_updates.push(component_data);
         self
     }
 
@@ -360,12 +379,29 @@ impl<'a> CommitBuilder<'a> {
             .t_group
             .commit_builder()
             .pipe(|b| self.values.apply::<true>(b));
+        // The group context extensions live on the classical leg only.
+        let t_builder = match self.values.t_group_context_extensions.take() {
+            Some(extensions) => t_builder.propose_group_context_extensions(extensions)?,
+            None => t_builder,
+        };
         let t_builder = match &self.values.vc_emulation_group_id {
             Some(group_id) => {
                 t_builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?
             }
             None => t_builder,
         };
+        let t_builder =
+            self.values
+                .t_app_data_updates
+                .iter()
+                .fold(t_builder, |builder, component_data| {
+                    builder.add_proposal(Proposal::AppDataUpdate(Box::new(
+                        AppDataUpdateProposal::update(
+                            component_data.id(),
+                            component_data.data().to_vec(),
+                        ),
+                    )))
+                });
         let mut t_builder = t_builder
             .add_proposal(psk_proposal)
             .add_proposal(Proposal::AppDataUpdate(Box::new(app_data_update_proposal)))
@@ -373,6 +409,9 @@ impl<'a> CommitBuilder<'a> {
             .create_group_info(self.values.create_group_info);
         let mut updater = t_builder.app_data_dictionary_updater();
         updater.set(apq_info_component_data);
+        for component_data in self.values.t_app_data_updates.drain(..) {
+            updater.set(component_data);
+        }
         let changes = updater.changes();
         t_builder.with_app_data_dictionary_updates(changes);
         let t_result = t_builder

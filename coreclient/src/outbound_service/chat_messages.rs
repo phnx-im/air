@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use mimi_content::MessageStatus;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::db::access::WriteDbTransaction;
@@ -43,6 +43,9 @@ enum RunControl {
 enum CommitOutcome {
     Committed,
     ChatBlocked,
+    /// The DS rejected the commit for missing proposals we have not
+    /// processed yet.
+    Stale,
 }
 
 impl OutboundService {
@@ -282,6 +285,9 @@ impl OutboundServiceContext {
                 CommitOutcome::Committed => (),
                 // Nothing left to send in a blocked chat.
                 CommitOutcome::ChatBlocked => return Ok(SendOutcome::Sent),
+                // Like a collision: the message stays queued and a later run
+                // retries it, once the missing proposals have been processed.
+                CommitOutcome::Stale => return Ok(SendOutcome::Collided),
             }
         }
 
@@ -415,6 +421,10 @@ impl OutboundServiceContext {
             Err(JobError::NotFound) => Err(OutboundServiceError::fatal(anyhow!(
                 "Chat not found while committing pending proposals"
             ))),
+            Err(JobError::Stale(error)) => {
+                info!(%error, ?chat_id, "Commit of pending proposals is stale");
+                Ok(CommitOutcome::Stale)
+            }
             Err(error @ (JobError::Domain(_) | JobError::Fatal(_))) => {
                 Err(OutboundServiceError::fatal(error))
             }
