@@ -121,6 +121,12 @@ impl DbNames {
 }
 
 impl SpawnedApp {
+    pub(crate) fn qs_database_url(&self) -> String {
+        let mut db_settings = self.db_settings.clone();
+        db_settings.name = self.db_names.qs.to_string();
+        db_settings.connection_string()
+    }
+
     async fn cleanup(&mut self) {
         // Drop test databases
         for db_name in [self.db_names.as_, self.db_names.ds, self.db_names.qs] {

@@ -15,7 +15,7 @@
 //!    `Extensions<GroupContext>`. Holds the third layer next to unrelated things: the QS client
 //!    reference in leaves, required capabilities and group data extension in the group context.
 
-use aircommon::codec;
+use aircommon::{codec, time::TimeStamp};
 use mls_assist::components::ComponentsList;
 use openmls::{
     component::{ComponentId, ComponentType},
@@ -63,6 +63,8 @@ pub struct GroupAppData {
     ///
     /// Missing for legacy groups where the group profile is stored in a group context extension.
     pub profile: Option<GroupProfileComponent>,
+    /// When the group was deleted, if it was.
+    pub deleted: Option<TimeStamp>,
 }
 
 impl ClientAppData {
@@ -134,9 +136,10 @@ impl ClientAppData {
             dict,
             &AirComponent {
                 features: self.features.clone(),
-                // In a leaf node or a key package, this flag has no meaning
-                // => it must be false.
+                // In a leaf node or a key package, these fields have no meaning
+                // => they must be unset.
                 is_self_group: false,
+                deleted: None,
             },
         );
     }
@@ -198,6 +201,7 @@ impl GroupAppData {
             is_self_group: component.is_self_group,
             safe_aad_components,
             profile,
+            deleted: component.deleted,
         })
     }
 
@@ -226,6 +230,7 @@ impl GroupAppData {
             &AirComponent {
                 features: AirFeatures::default_leaf_or_key_package_features(),
                 is_self_group: self.is_self_group,
+                deleted: self.deleted,
             },
         );
         Ok(dict)
@@ -239,6 +244,11 @@ impl GroupAppData {
 
     pub fn is_self_group_context(extensions: &Extensions<GroupContext>) -> bool {
         Self::from_group_context(extensions).is_some_and(|data| data.is_self_group)
+    }
+
+    /// The Air component of the group context, as stored.
+    pub fn air_component(extensions: &Extensions<GroupContext>) -> Option<AirComponent> {
+        air_component(extensions.app_data_dictionary()?.dictionary())
     }
 
     pub fn group_profile(extensions: &Extensions<GroupContext>) -> Option<GroupProfileComponent> {
@@ -435,6 +445,7 @@ mod test {
                     is_self_group,
                     safe_aad_components: None,
                     profile: None,
+                    deleted: None,
                 }
                 .to_extension()
                 .unwrap(),
@@ -460,11 +471,19 @@ mod test {
                 is_self_group: true,
                 safe_aad_components: Some(vec![0x8042]),
                 profile: Some(test_profile()),
+                deleted: None,
             },
             GroupAppData {
                 is_self_group: false,
                 safe_aad_components: None,
                 profile: None,
+                deleted: None,
+            },
+            GroupAppData {
+                is_self_group: true,
+                safe_aad_components: None,
+                profile: None,
+                deleted: Some(TimeStamp::now()),
             },
         ] {
             let extensions = Extensions::from_vec(vec![data.to_extension().unwrap()]).unwrap();
@@ -486,6 +505,7 @@ mod test {
                 is_self_group: false,
                 safe_aad_components: None,
                 profile: Some(test_profile()),
+                deleted: None,
             }
             .to_extension()
             .unwrap(),
@@ -498,6 +518,7 @@ mod test {
                 is_self_group: false,
                 safe_aad_components: None,
                 profile: None,
+                deleted: None,
             }
             .to_extension()
             .unwrap(),
@@ -514,6 +535,7 @@ mod test {
             is_self_group: false,
             safe_aad_components: None,
             profile: Some(test_profile()),
+            deleted: None,
         }
         .to_dictionary()
         .unwrap();
@@ -534,6 +556,7 @@ mod test {
                 is_self_group: false,
                 safe_aad_components: Some(vec![REQUIRED_SAFE_AAD_COMPONENT_ID]),
                 profile: None,
+                deleted: None,
             }
             .to_extension()
             .unwrap(),
@@ -568,6 +591,7 @@ mod test {
                 is_self_group: false,
                 safe_aad_components: None,
                 profile: None,
+                deleted: None,
             }
             .to_extension()
             .unwrap(),

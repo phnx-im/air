@@ -12,7 +12,7 @@ use std::fmt;
 // Re-export for FRB-reasons
 pub(crate) use aircommon::identifiers::{Username, UsernameValidationError};
 pub(crate) use aircoreclient::{AddUsernameContactError, ChatId, MessageId};
-pub(crate) use airprotos::client::component::{AirComponent, AirFeatures};
+pub(crate) use airprotos::client::component::AirFeatures;
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
@@ -844,14 +844,6 @@ impl From<Username> for UiUsername {
             plaintext: username.into_plaintext(),
         }
     }
-}
-
-#[frb(unignore)]
-#[frb(mirror(AirComponent))]
-#[frb(dart_metadata = ("freezed"))]
-struct _AirComponent {
-    pub features: AirFeatures,
-    pub is_self_group: bool,
 }
 
 #[frb(unignore)]

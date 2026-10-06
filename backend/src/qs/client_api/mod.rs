@@ -4,4 +4,5 @@
 
 pub(crate) mod client_records;
 pub(crate) mod key_packages;
+pub(crate) mod queues;
 pub(crate) mod user_records;

@@ -6,6 +6,7 @@ use apqmls::{
     ApqMlsGroup, authentication::ApqSigner, extension::PqtMode, messages::ApqMlsMessageIn,
 };
 use openmls::{
+    component::ComponentData,
     group::{GroupId, MlsGroup, MlsGroupJoinConfig},
     prelude::{
         Capabilities, Credential, Extension, ExtensionType, Extensions, LeafNodeIndex,
@@ -272,6 +273,64 @@ fn update_without_leaf_extensions_keeps_leaf_extensions() {
         // The marker extension set by the previous update must survive
         assert_eq!(marker(&alice_group.t_group), Some(b"t".as_slice()));
         assert_eq!(marker(alice_group.pq_group()), Some(b"pq".as_slice()));
+    }
+}
+
+#[test]
+fn update_with_t_app_data_update() {
+    const COMPONENT_ID: u16 = 0x8100;
+
+    for ciphersuite in TEST_MODE {
+        let JoinedGroup {
+            alice,
+            bob,
+            mut alice_group,
+            mut bob_group,
+        } = join_group_helper(ciphersuite);
+
+        let commit_bundle = alice_group
+            .commit_builder()
+            .force_self_update(true)
+            .add_t_app_data_update(ComponentData::from_parts(
+                COMPONENT_ID,
+                b"data".to_vec().into(),
+            ))
+            .finalize(&alice.provider, &alice.signer, |_| true, |_| true)
+            .unwrap();
+        alice_group.merge_pending_commit(&alice.provider).unwrap();
+
+        let message_in = ApqMlsMessageIn::try_from(commit_bundle.commit).unwrap();
+        let processed_message = bob_group
+            .process_message(
+                &bob.provider,
+                message_in.into_protocol_message().unwrap(),
+                compare_credentials,
+            )
+            .unwrap();
+        bob_group
+            .merge_staged_commit(
+                &bob.provider,
+                processed_message.into_staged_commit().unwrap(),
+            )
+            .unwrap();
+
+        assert_groups_eq(&mut alice_group, &mut bob_group);
+        for group in [&alice_group, &bob_group] {
+            let dictionary = group
+                .t_group
+                .extensions()
+                .app_data_dictionary()
+                .unwrap()
+                .dictionary();
+            assert_eq!(dictionary.get(&COMPONENT_ID), Some(b"data".as_slice()));
+            let pq_dictionary = group
+                .pq_group()
+                .extensions()
+                .app_data_dictionary()
+                .unwrap()
+                .dictionary();
+            assert_eq!(pq_dictionary.get(&COMPONENT_ID), None);
+        }
     }
 }
 

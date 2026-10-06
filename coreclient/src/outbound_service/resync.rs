@@ -11,6 +11,7 @@ use aircommon::{
     messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
     time::TimeStamp,
 };
+use airprotos::client::app_data::GroupAppData;
 use anyhow::{Context, Result, anyhow, bail};
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use chrono::{DateTime, TimeDelta, Utc};
@@ -28,7 +29,7 @@ use crate::{
         CoreUser,
         api_clients::ApiClients,
         multi_device::{ConnectionContact, HigherLevelGroup},
-        own_client_info::OwnClientInfo,
+        own_client_info::{OwnClientInfo, UnlinkReason},
     },
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
@@ -47,6 +48,11 @@ use crate::{
 
 /// DS rejections before a queued resync is given up on.
 const MAX_RESYNC_ATTEMPTS: u32 = 5;
+
+/// The self group is marked as deleted.
+#[derive(Debug, thiserror::Error)]
+#[error("the self group is deleted")]
+struct SelfGroupDeleted;
 
 /// Why a group is being resynced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -321,6 +327,22 @@ impl OutboundServiceContext {
             // We are not a member anymore, which was already handled inside.
             Ok(None) => return Ok(()),
             Err(OutboundServiceError::Fatal(error)) => {
+                if error.is::<SelfGroupDeleted>() {
+                    error!("Self group is deleted; the account was deleted by another device");
+                    self.db
+                        .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                            OwnClientInfo::mark_account_unlinked(
+                                &mut *txn,
+                                UnlinkReason::AccountDeleted,
+                            )
+                            .await?;
+                            Resync::remove(&mut *txn, &group_id).await?;
+                            Ok(())
+                        })
+                        .await?;
+                    return Ok(());
+                }
+
                 if is_ds_not_found_error(&error) {
                     error!(%error, "Group not found on DS during resync; tearing down group");
                     self.db
@@ -668,6 +690,14 @@ impl Resync {
                 None,
             ))
             .await??;
+
+            // The self-group was deleted. Aborting resync.
+            if group.is_self_group()
+                && GroupAppData::from_group_context(group.mls_group().extensions())
+                    .is_some_and(|data| data.deleted.is_some())
+            {
+                bail!(SelfGroupDeleted);
+            }
             (
                 group,
                 ResyncCommit::PQ(Box::new(bundle)),

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (\n                    SELECT 1 FROM qs_user_record u\n                    WHERE u.user_id = $1\n                        AND u.deleted_at IS NOT NULL\n                        AND NOT EXISTS (\n                            SELECT 1 FROM qs_client_record c\n                            WHERE c.user_id = u.user_id AND c.deleted_at IS NULL\n                        )\n                ) AS \"is_drained!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "is_drained!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "df5285c468000d421415ad11bfa7b574090cc78c7bafda6ac69a95c6265038c0"
+}

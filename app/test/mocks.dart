@@ -37,7 +37,7 @@ class MockUsersCubit extends MockCubit<UsersState> implements UsersCubit {}
 class MockUiUser implements UiUser {
   MockUiUser({
     required int id,
-    this.accountUnlinked = false,
+    this.unlinkReason,
     this.usernames = const [],
     this.versionStatus = const VersionStatus.supported(),
     this.maxDevices = 0,
@@ -61,7 +61,7 @@ class MockUiUser implements UiUser {
   final VersionStatus versionStatus;
 
   @override
-  final bool accountUnlinked;
+  final UiUnlinkReason? unlinkReason;
 
   @override
   final int maxDevices;

@@ -19,9 +19,9 @@ import 'types.dart';
 import 'user.dart';
 part 'user_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `core_user`, `emit_stored_notifications`, `new`, `notification_service`, `reload_account_unlinked`, `show_notifications`, `spawn_emit_stored_notifications`, `spawn_load`
+// These functions are ignored because they are not marked as `pub`: `core_user`, `emit_stored_notifications`, `new`, `notification_service`, `reload_unlink_reason`, `show_notifications`, `spawn_emit_stored_notifications`, `spawn_load`, `spawn_reload_unlink_reason`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CubitContext`, `UiUserInner`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `drop`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `drop`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
 
 class intArray12 extends NonGrowableListView<int> {
   static const arraySize = 12;
@@ -37,9 +37,10 @@ class intArray12 extends NonGrowableListView<int> {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UiUser>>
 abstract class UiUser implements RustOpaqueInterface {
-  bool get accountUnlinked;
-
   int get maxDevices;
+
+  /// Why this device must reset itself, if it must.
+  UiUnlinkReason? get unlinkReason;
 
   UiUserId get userId;
 
@@ -131,6 +132,15 @@ abstract class UserCubitBase implements RustOpaqueInterface {
 }
 
 enum AppState { mobileBackground, desktopBackground, foreground }
+
+/// Why this device must reset itself.
+enum UiUnlinkReason {
+  /// Another device of this user removed this one from the self group.
+  unlinked,
+
+  /// Another device of this user deleted the account.
+  accountDeleted,
+}
 
 @freezed
 sealed class VersionStatus with _$VersionStatus {

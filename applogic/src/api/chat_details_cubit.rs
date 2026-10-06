@@ -8,15 +8,15 @@ use std::{collections::HashMap, path::PathBuf, time::Duration};
 
 use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
 pub use aircoreclient::{
-    AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
-    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqGroupDebugInfo,
-    RequiredDebugCapabilities, ResyncDebugInfo,
+    AcceptContactRequestError, AirComponentDebugInfo, AppDataDebugInfo, DebugCapabilities,
+    EncryptedGroupTitleDebugInfo, ExternalGroupProfileDebugInfo, GroupDataDebugInfo,
+    GroupDebugInfo, PqGroupDebugInfo, RequiredDebugCapabilities, ResyncDebugInfo,
 };
 use aircoreclient::{
     AttachmentId, AttachmentProgress, AttachmentStatus, Chat, ChatId, ChatMessage, MarkChatAsRead,
     MessageId, ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
 };
-use airprotos::client::component::AirComponent;
+use airprotos::client::component::AirFeatures;
 use anyhow::{Context as _, bail};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
@@ -1035,7 +1035,13 @@ pub struct _RequiredDebugCapabilities {
 #[frb(mirror(AppDataDebugInfo))]
 pub struct _AppDataDebugInfo {
     pub components: Vec<String>,
-    pub air_component: Option<AirComponent>,
+    pub air_component: Option<AirComponentDebugInfo>,
+}
+
+#[frb(mirror(AirComponentDebugInfo))]
+pub struct _AirComponentDebugInfo {
+    pub features: AirFeatures,
+    pub is_self_group: bool,
 }
 
 #[frb(mirror(DebugCapabilities))]
