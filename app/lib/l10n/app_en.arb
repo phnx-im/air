@@ -2020,14 +2020,13 @@
   "@appOutdatedScreen_action": {
     "description": "Button that opens the store so the user can update."
   },
-  "versionExpiryBanner_message": "Update Air by {date} to keep using it",
-  "@versionExpiryBanner_message": {
-    "description": "Banner above the app content when the server announced the date on which this app version stops working. The date is already formatted for the locale.",
-    "placeholders": {
-      "date": {
-        "type": "String"
-      }
-    }
+  "updateReminder_title": "Update Air",
+  "@updateReminder_title": {
+    "description": "Title of the reminder card at the top of the chat list when the server announced the date on which this app version stops working."
+  },
+  "updateReminder_body": "A new app version is available. Update now to keep using Air.",
+  "@updateReminder_body": {
+    "description": "Body of the update reminder card."
   },
 
   "contactRequestDialog_title": "Contact request",
