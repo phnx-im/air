@@ -81,7 +81,10 @@ class _UnlinkedDeviceHandlerState extends State<UnlinkedDeviceHandler> {
       case UiUnlinkReason.unlinked:
         break;
       case UiUnlinkReason.accountDeleted:
-        showErrorBannerStandalone((loc) => loc.unlinkedDevice_accountDeleted);
+        showSnackBarStandalone(
+          (loc) => loc.unlinkedDevice_accountDeleted,
+          tone: .danger,
+        );
     }
   }
 }
