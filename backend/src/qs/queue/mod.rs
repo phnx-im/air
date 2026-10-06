@@ -53,6 +53,7 @@ pub(crate) struct Queues {
 struct ListenerContext {
     client_id: QsClientId,
     session_id: SessionId,
+    is_background: bool,
     cancel: CancellationToken,
     payload_tx: mpsc::Sender<ListenResponse>,
     /// Clients of the same user, kept alive while one of them listens
@@ -63,6 +64,7 @@ impl ListenerContext {
     fn new(
         client_id: QsClientId,
         session_id: SessionId,
+        is_background: bool,
         cancel: CancellationToken,
         client_version: Option<&Version>,
         payload_tx: mpsc::Sender<ListenResponse>,
@@ -77,10 +79,16 @@ impl ListenerContext {
         Self {
             client_id,
             session_id,
+            is_background,
             cancel,
             payload_tx,
             user_clients,
         }
+    }
+
+    /// A background listener does not replace an active foreground one.
+    fn blocks_background(&self) -> bool {
+        matches!(self, Self { is_background: false, cancel, .. } if !cancel.is_cancelled())
     }
 }
 
@@ -104,6 +112,9 @@ impl Queues {
 
     /// Starts a listen session of `client_id`, replacing a previous one.
     ///
+    /// A background session does not replace an active foreground one and fails
+    /// with [`QueueError::EvictionDenied`].
+    ///
     /// Returns the session, ended when dropped, and its events.
     pub(crate) async fn listen(
         &self,
@@ -111,6 +122,7 @@ impl Queues {
         client_id: QsClientId,
         client_version: Option<Version>,
         sequence_number_start: u64,
+        is_background: bool,
     ) -> Result<
         (
             ClientSession,
@@ -118,11 +130,27 @@ impl Queues {
         ),
         QueueError,
     > {
+        if is_background
+            && self
+                .listeners
+                .get(&client_id)
+                .is_some_and(|context| context.blocks_background())
+        {
+            return Err(QueueError::EvictionDenied);
+        }
+
         let notifications = self.pg_listener_task_handle.subscribe(client_id).await?;
         let (payload_tx, payload_rx) = mpsc::channel(1024);
 
-        let (session, cancel) =
-            self.track_listener(user_id, client_id, client_version.as_ref(), payload_tx);
+        let Some((session, cancel)) = self.track_listener(
+            user_id,
+            client_id,
+            client_version.as_ref(),
+            is_background,
+            payload_tx,
+        ) else {
+            return Err(QueueError::EvictionDenied);
+        };
         let context = QueueStreamContext {
             pool: self.pool.clone(),
             notifications,
@@ -230,14 +258,16 @@ impl Queues {
 
     /// Registers the listener of `client_id`, replacing a previous one.
     ///
-    /// Returns the new session and the cancellation token of the listener.
+    /// Returns the new session and the cancellation token of the listener, or
+    /// `None` if a background listener would replace an active foreground one.
     fn track_listener(
         &self,
         user_id: QsUserId,
         client_id: QsClientId,
         client_version: Option<&Version>,
+        is_background: bool,
         payload_tx: mpsc::Sender<ListenResponse>,
-    ) -> (ClientSession, CancellationToken) {
+    ) -> Option<(ClientSession, CancellationToken)> {
         // FIXME(gabriel): Cleanup in a different place (not on new connections)
         self.user_clients
             .retain(|_, user_clients| user_clients.strong_count() > 0);
@@ -248,10 +278,17 @@ impl Queues {
         // Holding the entry keeps the session in line with the listener when
         // the same client listens concurrently.
         let entry = self.listeners.entry(client_id);
+        if is_background
+            && let Entry::Occupied(entry) = &entry
+            && entry.get().blocks_background()
+        {
+            return None;
+        }
         let session = user_clients.clone().join(client_id, payload_tx.clone());
         let context = ListenerContext::new(
             client_id,
             session.session_id,
+            is_background,
             cancel.clone(),
             client_version,
             payload_tx,
@@ -266,7 +303,7 @@ impl Queues {
             }
         };
 
-        (session, cancel)
+        Some((session, cancel))
     }
 
     /// Returns the clients of `user_id`, creating them if no listener holds

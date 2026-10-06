@@ -332,6 +332,7 @@ impl WithQsClientId for InitListenRequest {
             client_metadata,
             client_id,
             sequence_number_start,
+            is_background: false,
         }
     }
 }

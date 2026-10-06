@@ -75,6 +75,8 @@ pub(super) enum QueueError {
     PayloadReceiverClosed,
     /// Client not found
     ClientNotFound,
+    /// Client cannot evict the current one
+    EvictionDenied,
 }
 
 impl From<sqlx::Error> for QueueError {
@@ -105,6 +107,7 @@ impl From<QueueError> for Status {
             }
             QueueError::PayloadReceiverClosed => Self::internal(msg),
             QueueError::ClientNotFound => Self::not_found(msg),
+            QueueError::EvictionDenied => Self::already_exists(msg),
         }
     }
 }

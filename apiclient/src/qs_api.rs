@@ -84,6 +84,11 @@ impl QsRequestError {
             _ => false,
         }
     }
+
+    /// A background listen was refused, because a foreground one is active.
+    pub fn is_eviction_denied(&self) -> bool {
+        matches!(self, Self::Tonic(status) if status.code() == tonic::Code::AlreadyExists)
+    }
 }
 
 impl ApiClient {
@@ -375,6 +380,7 @@ impl ApiClient {
         &self,
         client_id: QsClientId,
         sequence_number_start: u64,
+        is_background: bool,
         signing_key: &QsClientSigningKey,
     ) -> Result<
         (
@@ -387,6 +393,7 @@ impl ApiClient {
             client_metadata: Some(self.metadata().clone()),
             client_id: Some(client_id.into()),
             sequence_number_start,
+            is_background,
         };
         let init_request = init_payload.sign(signing_key)?;
         let init_request = ListenRequest {

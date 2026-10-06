@@ -502,6 +502,7 @@ impl QueueService for GrpcQs {
                 client_metadata: _,
                 client_id,
                 sequence_number_start,
+                is_background,
             },
             user_id,
         ) = self
@@ -528,6 +529,7 @@ impl QueueService for GrpcQs {
                 client_id,
                 verified_client_version.version,
                 sequence_number_start,
+                is_background,
             )
             .await?;
         let events = queue_messages.map(|message| match message {

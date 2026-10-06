@@ -723,8 +723,33 @@ impl CoreUser {
             })
     }
 
+    pub async fn listen_queue_in_background(
+        &self,
+    ) -> Result<
+        (
+            impl Stream<Item = Result<ListenResponse, Status>> + use<>,
+            QsListenResponder,
+        ),
+        ListenQueueError,
+    > {
+        self.listen_queue_inner(true).await
+    }
+
     pub async fn listen_queue(
         &self,
+    ) -> Result<
+        (
+            impl Stream<Item = Result<ListenResponse, Status>> + use<>,
+            QsListenResponder,
+        ),
+        ListenQueueError,
+    > {
+        self.listen_queue_inner(false).await
+    }
+
+    async fn listen_queue_inner(
+        &self,
+        is_background: bool,
     ) -> Result<
         (
             impl Stream<Item = Result<ListenResponse, Status>> + use<>,
@@ -744,6 +769,7 @@ impl CoreUser {
             .qs_listen_queue(
                 self.inner.qs_client_id,
                 sequence_number_start,
+                is_background,
                 client_signing_key,
             )
             .await?;
@@ -1020,6 +1046,13 @@ impl ListenQueueError {
     pub fn is_unsupported_version(&self) -> bool {
         match self {
             Self::Qs(error) => error.is_unsupported_version(),
+            _ => false,
+        }
+    }
+
+    pub fn is_eviction_denied(&self) -> bool {
+        match self {
+            Self::Qs(error) => error.is_eviction_denied(),
             _ => false,
         }
     }
