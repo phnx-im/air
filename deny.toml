@@ -68,9 +68,10 @@ unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = [
-    "https://github.com/RustCrypto/RSA",
     # includes an unreleased patch of ml-dsa
     "https://github.com/RustCrypto/signatures",
+    # unreleased hpke-rs and libcrux-ecdsa, same revision as openmls patches to
+    "https://github.com/celabshq/libcrux",
     "https://github.com/openmls/openmls",
 ]
 
