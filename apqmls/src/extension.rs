@@ -20,11 +20,8 @@ use crate::{
     key_package::ensure_ciphersuite_support,
 };
 
-/// The component ID of the APQMLS component.
-///
-/// The value is not yet finalized in the draft
-/// <https://datatracker.ietf.org/doc/html/draft-ietf-mls-combiner#name-key-schedule>.
-pub const APQMLS_COMPONENT_ID: ComponentId = 0x8001;
+/// The component ID of the APQMLS component (`apq_mls_info`).
+pub const APQMLS_COMPONENT_ID: ComponentId = 0x0006;
 
 /// The mode of an [`ApqMlsGroup`], which determines whether only confidentiality or both
 /// confidentiality and authentication is PQ secure.
