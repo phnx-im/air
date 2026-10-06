@@ -87,7 +87,7 @@
   "introScreen_termsLinkText": "Умови використання",
   "introScreen_termsText": "Створюючи обліковий запис, ви приймаєте наші {termsOfUseLink}.",
   "invitationCodeScreen_header": "Введіть код запрошення",
-  "invitationCodeScreen_subheader": "Наразі до Air можна приєднатися лише за запрошенням. Введіть свій код, щоб приєднатися. Якщо у вас немає коду, його можна отримати в будь-якого користувача Air.",
+  "invitationCodeScreen_subheader": "Щоб Air працював стабільно, ми обмежуємо кількість облікових записів, які можна створити за короткий час. Спробуйте знову зареєструватися без коду запрошення пізніше.",
   "invitationCodeScreen_notificationsHint": "Можливо, ви бачите цей екран ще й тому, що не дозволили Air надсилати push-сповіщення. Щоб дозволити push-сповіщення, {settingsLink}.",
   "invitationCodeScreen_notificationsLinkText": "натисніть тут",
   "invitationCodeScreen_inputLabel": "Код запрошення (обов’язково)",
