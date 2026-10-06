@@ -87,7 +87,7 @@
   "introScreen_termsLinkText": "Условия использования",
   "introScreen_termsText": "Создавая аккаунт, вы принимаете наши {termsOfUseLink}.",
   "invitationCodeScreen_header": "Введите код приглашения",
-  "invitationCodeScreen_subheader": "Сейчас в Air можно попасть только по приглашению. Введите свой код, чтобы присоединиться. Если у вас нет кода, его можно получить у любого пользователя Air.",
+  "invitationCodeScreen_subheader": "Чтобы Air работал стабильно, мы ограничиваем количество аккаунтов, которые можно создать за короткое время. Попробуйте снова зарегистрироваться без кода приглашения позже.",
   "invitationCodeScreen_notificationsHint": "Возможно, вы видите этот экран ещё и потому, что не разрешили Air отправлять push-уведомления. Чтобы разрешить push-уведомления, {settingsLink}.",
   "invitationCodeScreen_notificationsLinkText": "нажмите здесь",
   "invitationCodeScreen_inputLabel": "Код приглашения (обязательно)",
