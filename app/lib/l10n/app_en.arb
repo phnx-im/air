@@ -365,11 +365,11 @@
     "description": "Confirming button of the add contact dialog, which sends a contact request."
   },
 
-  "changeGroupTitleDialog_title": "Change group title",
+  "changeGroupTitleDialog_title": "Change group name",
   "@changeGroupTitleDialog_title": {
     "description": "Title of the dialog for renaming a group."
   },
-  "changeGroupTitleDialog_content": "Choose a title for the group.",
+  "changeGroupTitleDialog_content": "Choose a name for the group.",
   "@changeGroupTitleDialog_content": {
     "description": "Body of the rename group dialog, above the name field."
   },

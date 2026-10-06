@@ -76,8 +76,8 @@
   "addContactDialog_content": "{displayName} de la discussion de groupe \"{groupTitle}\" n'est pas un contact Air. Pour discuter, envoyez-lui une demande de contact.",
   "addContactDialog_cancel": "Annuler",
   "addContactDialog_confirm": "Envoyer",
-  "changeGroupTitleDialog_title": "Modifier le titre du groupe",
-  "changeGroupTitleDialog_content": "Choisissez un titre pour le groupe.",
+  "changeGroupTitleDialog_title": "Modifier le nom du groupe",
+  "changeGroupTitleDialog_content": "Choisissez un nom pour le groupe.",
   "changeGroupTitleDialog_cancel": "Annuler",
   "changeGroupTitleDialog_confirm": "Enregistrer",
 
