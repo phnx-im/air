@@ -165,11 +165,10 @@ jobs:
             TRACK=unstable cargo xtask publish-packages -- app/linux/${{ matrix.glob }}
           fi
 
-  # Offline source build, as on Flathub. Only release runs build it, a cold
-  # build takes over an hour. Independent of the deb/rpm jobs.
+  # Offline source build, as on Flathub. Only release runs build it (about
+  # 15 min cold, 12 min warm). Independent of the deb/rpm jobs.
   linux-flatpak-build:
-    # TEMP: builds on PRS to test the CI setup
-    # if: inputs.upload
+    if: inputs.upload
 
     strategy:
       matrix:
@@ -228,8 +227,7 @@ jobs:
       # contain the commit. Only main saves, like the sccache cache in
       # setup-buildenv.
       - name: Cache flatpak-builder state
-        # TEMP: builds on PRS to test the CI setup
-        # if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main'
         uses: actions/cache@v5
         with:
           path: |
@@ -241,8 +239,7 @@ jobs:
             flatpak-builder-${{ matrix.arch }}-
 
       - name: Restore flatpak-builder state
-        # TEMP: builds on PRS to test the CI setup
-        # if: github.ref != 'refs/heads/main'
+        if: github.ref != 'refs/heads/main'
         uses: actions/cache/restore@v5
         with:
           path: |
