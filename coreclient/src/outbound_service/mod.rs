@@ -333,13 +333,22 @@ impl OutboundServiceContext {
                 info!("Network appears unavailable, terminating outbound service run");
                 return;
             }
+            Err(OutboundServiceRunError::RateLimited) => {
+                info!("Rate limited, terminating outbound service run");
+                return;
+            }
             Err(OutboundServiceRunError::Fatal(error)) => {
                 error!(%error, "Failed to retry pending chat operations");
             }
             Ok(_) => (),
         }
-        if let Err(error) = self.send_queued_receipts(&run_token).await {
-            error!(%error, "Failed to send queued receipts");
+        match self.send_queued_receipts(&run_token).await {
+            Err(OutboundServiceRunError::RateLimited) => {
+                info!("Rate limited, terminating outbound service run");
+                return;
+            }
+            Err(error) => error!(%error, "Failed to send queued receipts"),
+            Ok(()) => (),
         }
         if let Err(error) = self.send_redeemed_tokens(&run_token).await {
             error!(%error, "Failed to send redeemed privacy pass tokens");
@@ -355,8 +364,13 @@ impl OutboundServiceContext {
         if let Err(error) = self.send_queued_messages(&run_token).await {
             error!(%error, "Failed to send queued messages");
         }
-        if let Err(error) = self.send_queued_reactions(&run_token).await {
-            error!(%error, "Failed to send queued reactions");
+        match self.send_queued_reactions(&run_token).await {
+            Err(OutboundServiceRunError::RateLimited) => {
+                info!("Rate limited, terminating outbound service run");
+                return;
+            }
+            Err(error) => error!(%error, "Failed to send queued reactions"),
+            Ok(()) => (),
         }
         if let Err(error) = self.send_pending_push_token_updates(&run_token).await {
             error!(%error, "Failed to send push token update");

@@ -7,7 +7,7 @@ use std::{convert::Infallible, ops::ControlFlow, time::Duration};
 use chrono::{DateTime, Utc};
 use serde::de::DeserializeOwned;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::{
@@ -124,6 +124,18 @@ impl OutboundServiceContext {
                     op.delete(self.db.write().await?).await?;
                     return Ok(ControlFlow::Continue(()));
                 }
+            }
+            Err(JobError::RateLimited { retry_after }) => {
+                // Never give up, the server did not process the request.
+                info!(
+                    ?operation_id,
+                    ?retry_after,
+                    "Rate limited while fetching profile"
+                );
+                let retry_after = retry_after.unwrap_or_default().max(RETRY_AFTER);
+                op.reschedule(self.db.write().await?, now + retry_after)
+                    .await?;
+                return Ok(ControlFlow::Break(()));
             }
             Err(
                 error @ (JobError::Blocked

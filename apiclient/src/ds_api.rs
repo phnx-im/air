@@ -57,7 +57,10 @@ use mls_assist::{
 use tonic::Code;
 use tracing::error;
 
-use crate::ApiClient;
+use crate::{
+    ApiClient,
+    as_api::{is_rate_limited_status, retry_after},
+};
 
 /// How long we wait for the DS to answer a send request.
 ///
@@ -150,6 +153,19 @@ impl DsRequestError {
                 )
             }
             Self::LibraryError | Self::Tls(_) | Self::UnexpectedResponse => false,
+        }
+    }
+
+    /// Returns true if the request was rate limited and was not processed.
+    pub fn is_rate_limited(&self) -> bool {
+        matches!(self, Self::Tonic(status) if is_rate_limited_status(status))
+    }
+
+    /// How long the server asked to wait before retrying, if it said so.
+    pub fn retry_after(&self) -> Option<Duration> {
+        match self {
+            Self::Tonic(status) => retry_after(status),
+            _ => None,
         }
     }
 

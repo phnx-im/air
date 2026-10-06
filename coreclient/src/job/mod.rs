@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::time::Duration;
+
 use airapiclient::{ApiClientInitError, as_api::AsRequestError, ds_api::DsRequestError};
 use aircommon::{codec, identifiers::QsClientId};
 use chrono::{DateTime, Utc};
@@ -149,6 +151,12 @@ pub(crate) enum JobError<E> {
     Domain(E),
     #[error("Network error")]
     NetworkError,
+    /// The server rate limited the request and did not process it.
+    #[error("Rate limited, retry after {retry_after:?}")]
+    RateLimited {
+        /// The wait time the server asked for, if any.
+        retry_after: Option<Duration>,
+    },
     #[error("Blocked")]
     Blocked,
     #[error("Not found")]
@@ -205,7 +213,12 @@ pub(crate) trait Job: Send {
 
 impl<E> From<AsRequestError> for JobError<E> {
     fn from(error: AsRequestError) -> Self {
-        if error.is_network_error() {
+        if error.is_rate_limited() {
+            info!(?error, "Job failed due to rate limiting");
+            Self::RateLimited {
+                retry_after: error.retry_after(),
+            }
+        } else if error.is_network_error() {
             info!(?error, "Job failed due to network error");
             Self::NetworkError
         } else {
@@ -216,7 +229,12 @@ impl<E> From<AsRequestError> for JobError<E> {
 
 impl<E> From<DsRequestError> for JobError<E> {
     fn from(error: DsRequestError) -> Self {
-        if error.is_not_found() {
+        if error.is_rate_limited() {
+            info!(?error, "Job failed due to rate limiting");
+            Self::RateLimited {
+                retry_after: error.retry_after(),
+            }
+        } else if error.is_not_found() {
             Self::NotFound
         } else if error.is_network_error() {
             info!(?error, "Job failed due to network error");
@@ -229,7 +247,11 @@ impl<E> From<DsRequestError> for JobError<E> {
 
 impl<E> From<reqwest::Error> for JobError<E> {
     fn from(error: reqwest::Error) -> Self {
-        if error.is_connect() || error.is_timeout() {
+        if error.status() == Some(reqwest::StatusCode::TOO_MANY_REQUESTS) {
+            // The response headers are not kept by reqwest's error
+            info!(?error, "Job failed due to rate limiting");
+            Self::RateLimited { retry_after: None }
+        } else if error.is_connect() || error.is_timeout() {
             info!(?error, "Job failed due to network error");
             Self::NetworkError
         } else {
@@ -260,5 +282,61 @@ impl<E> From<codec::Error> for JobError<E> {
 impl<E> From<tls_codec::Error> for JobError<E> {
     fn from(err: tls_codec::Error) -> Self {
         JobError::Fatal(anyhow::Error::new(err))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{assert_matches, convert::Infallible};
+
+    use airprotos::common::v1::{
+        DeviceLimitReachedDetail, StatusDetails, StatusDetailsCode, status_details,
+    };
+    use tonic::{Code, Status};
+
+    use super::*;
+
+    fn rate_limited() -> Status {
+        let mut status = Status::resource_exhausted("Too Many Requests! Wait for 3s");
+        status
+            .metadata_mut()
+            .insert("retry-after", "3".parse().unwrap());
+        status
+    }
+
+    #[test]
+    fn rate_limited_requests_map_to_rate_limited() {
+        let error: JobError<Infallible> = AsRequestError::Tonic(rate_limited()).into();
+        assert_matches!(
+            error,
+            JobError::RateLimited {
+                retry_after: Some(retry_after)
+            } if retry_after == Duration::from_secs(3)
+        );
+
+        let error: JobError<Infallible> = DsRequestError::Tonic(rate_limited()).into();
+        assert_matches!(
+            error,
+            JobError::RateLimited {
+                retry_after: Some(retry_after)
+            } if retry_after == Duration::from_secs(3)
+        );
+
+        let status = Status::resource_exhausted("Too Many Requests!");
+        let error: JobError<Infallible> = DsRequestError::Tonic(status).into();
+        assert_matches!(error, JobError::RateLimited { retry_after: None });
+    }
+
+    #[test]
+    fn resource_exhausted_with_details_is_not_rate_limited() {
+        let status = StatusDetails {
+            code: StatusDetailsCode::DeviceLimitReached.into(),
+            detail: Some(status_details::Detail::DeviceLimitReached(
+                DeviceLimitReachedDetail { max_devices: 2 },
+            )),
+        }
+        .to_status(Code::ResourceExhausted, "max devices exceeded");
+        let error: JobError<Infallible> = DsRequestError::Tonic(status).into();
+        assert_matches!(error, JobError::Fatal(_));
     }
 }

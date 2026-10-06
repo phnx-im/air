@@ -282,8 +282,8 @@ impl Job for PendingChatOperation {
         context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         match self.execute_internal(context).await {
-            // Update retry_due at on network errors
-            Err(JobError::NetworkError) => {
+            // Update retry_due at on network errors and rate limiting
+            Err(error @ (JobError::NetworkError | JobError::RateLimited { .. })) => {
                 #[cfg(not(any(test, feature = "test_utils")))]
                 let retry_due = context.now + RETRY_INTERVAL;
                 #[cfg(any(test, feature = "test_utils"))]
@@ -294,9 +294,10 @@ impl Job for PendingChatOperation {
                 info!(
                     ?group_id,
                     next_retry = ?retry_due,
+                    %error,
                     "Failed to execute PendingChatOperation, will retry later"
                 );
-                Err(JobError::NetworkError)
+                Err(error)
             }
             Err(JobError::NotFound) => {
                 let group_id = self.group.group_id().clone();
@@ -561,7 +562,10 @@ impl PendingChatOperation {
         let ds_timestamp = match res {
             Ok(ds_timestamp) => ds_timestamp,
             Err(error) => {
-                self.number_of_attempts += 1;
+                // A rate limited request was not processed by the DS
+                if !error.is_rate_limited() {
+                    self.number_of_attempts += 1;
+                }
                 if !is_leave {
                     let job_error = self.handle_error(context.db.write().await?, error).await?;
                     return Err(job_error);
@@ -724,6 +728,11 @@ impl PendingChatOperation {
             self.mark_as_waiting_for_queue_response(&mut connection)
                 .await?;
             Err(JobError::Blocked)
+        } else if error.is_rate_limited() {
+            // Retry later without giving up, the DS did not process the request.
+            Ok(JobError::RateLimited {
+                retry_after: error.retry_after(),
+            })
         } else if error.is_network_error() && self.number_of_attempts < MAX_RETRIES {
             // If we get a network error (which means we don't know whether the request has been
             // processed by the DS), we want to try again until we've either succeeded or reached a

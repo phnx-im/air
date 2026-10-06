@@ -6,7 +6,7 @@ use aircommon::identifiers::MimiId;
 use anyhow::Context;
 use mimi_content::MimiContent;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::{
@@ -14,7 +14,10 @@ use crate::{
     chats::reactions::Reaction,
     db::access::{WriteConnection, WriteDbTransaction},
     job::pending_chat_operation::PendingChatOperation,
-    outbound_service::resync::Resync,
+    outbound_service::{
+        error::{OutboundServiceRunError, is_ds_rate_limited_error},
+        resync::Resync,
+    },
 };
 
 use super::{OutboundService, OutboundServiceContext, SendOutcome, reaction_queue::ReactionQueue};
@@ -44,7 +47,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_queued_reactions(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), OutboundServiceRunError> {
         // Used to identify locked reactions by this task
         let task_id = Uuid::new_v4();
         loop {
@@ -108,6 +111,14 @@ impl OutboundServiceContext {
                     // Leave the reaction in the queue so a later run retries it
                     // at a fresh generation. It stays locked by this task until then.
                     debug!(?chat_id, "Reaction collided, re-enqueuing for a later run");
+                }
+                // Keeps the reaction queued, every further request would be rate limited as well
+                Err(error) if is_ds_rate_limited_error(&error) => {
+                    info!(
+                        ?chat_id,
+                        "Rate limited while sending reaction; will retry later"
+                    );
+                    return Err(OutboundServiceRunError::RateLimited);
                 }
                 Err(error) => {
                     error!(%error, ?chat_id, "Failed to send reaction; dropping and rolling back");

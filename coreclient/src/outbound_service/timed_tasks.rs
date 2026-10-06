@@ -655,9 +655,12 @@ impl OutboundServiceContext {
         };
         match self.execute_job(job).await {
             Ok(_messages) => Ok(SelfUpdateOutcome::Updated),
-            // A network error is likely something transient that would affect
-            // all chats, so we retry the whole task with backoff.
-            Err(error @ JobError::NetworkError) => Err(OutboundServiceError::recoverable(error)),
+            // A network error or rate limiting is likely something transient
+            // that would affect all chats, so we retry the whole task with
+            // backoff.
+            Err(error @ (JobError::NetworkError | JobError::RateLimited { .. })) => {
+                Err(OutboundServiceError::recoverable(error))
+            }
             // The operation is no longer applicable to this chat, so we skip
             // it.
             Err(JobError::NotFound | JobError::Blocked) => Ok(SelfUpdateOutcome::Skipped),

@@ -411,6 +411,9 @@ impl OutboundServiceContext {
             Err(JobError::NetworkError) => Err(OutboundServiceError::recoverable(anyhow!(
                 "Network error while committing pending proposals"
             ))),
+            Err(JobError::RateLimited { .. }) => Err(OutboundServiceError::recoverable(anyhow!(
+                "Rate limited while committing pending proposals"
+            ))),
             // The job already cleaned up the local state.
             Err(JobError::NotFound) => Err(OutboundServiceError::fatal(anyhow!(
                 "Chat not found while committing pending proposals"

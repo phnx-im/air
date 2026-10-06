@@ -17,7 +17,7 @@ use mimi_content::{
 };
 use openmls::group::GroupEpoch;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::{
@@ -27,7 +27,10 @@ use crate::{
     groups::{Group, handle_group_not_found_on_ds, openmls_provider::AirOpenMlsProvider},
     job::pending_chat_operation::PendingChatOperation,
     outbound_service::{
-        error::{OutboundServiceError, classify_ds_error},
+        error::{
+            OutboundServiceError, OutboundServiceRunError, classify_ds_error,
+            is_ds_rate_limited_error,
+        },
         resync::Resync,
     },
 };
@@ -75,7 +78,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_queued_receipts(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), OutboundServiceRunError> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
         loop {
@@ -123,6 +126,16 @@ impl OutboundServiceContext {
                         error!(%error, ?chat_id, "Failed to send receipt; dropping");
                         ReceiptQueue::remove(self.db.write().await?, task_id).await?;
                         continue;
+                    }
+                    // Every further request would be rate limited as well
+                    Err(OutboundServiceError::Recoverable(error))
+                        if is_ds_rate_limited_error(&error) =>
+                    {
+                        info!(
+                            ?chat_id,
+                            "Rate limited while sending receipt; will retry later"
+                        );
+                        return Err(OutboundServiceRunError::RateLimited);
                     }
                     Err(OutboundServiceError::Recoverable(error)) => {
                         error!(%error, "Failed to send receipt; will retry later");

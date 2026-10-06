@@ -4,7 +4,7 @@
 
 //! Client API for the authentication service (AS)
 
-use std::convert::identity;
+use std::{convert::identity, time::Duration};
 
 use aircommon::{
     LibraryError,
@@ -28,7 +28,6 @@ use aircommon::{
         push_token::{PushToken, PushTokenOperator},
     },
     registration::{ChallengeKind, NewAdmissionSession, RegistrationChallenge, RegistrationInfo},
-    time::Duration,
 };
 use airprotos::{
     auth_service::v1::{
@@ -124,6 +123,31 @@ impl AsRequestError {
             false
         }
     }
+
+    /// Returns true if the request was rate limited and was not processed.
+    pub fn is_rate_limited(&self) -> bool {
+        matches!(self, Self::Tonic(status) if is_rate_limited_status(status))
+    }
+
+    /// How long the server asked to wait before retrying, if it said so.
+    pub fn retry_after(&self) -> Option<Duration> {
+        match self {
+            Self::Tonic(status) => retry_after(status),
+            _ => None,
+        }
+    }
+}
+
+/// Whether the status is a rate limit rejection, i.e. resource exhausted
+/// without any status details.
+pub(crate) fn is_rate_limited_status(status: &Status) -> bool {
+    status.code() == Code::ResourceExhausted && status.details().is_empty()
+}
+
+/// The `retry-after` metadata of a status in whole seconds.
+pub(crate) fn retry_after(status: &Status) -> Option<Duration> {
+    let secs = status.metadata().get("retry-after")?.to_str().ok()?;
+    secs.trim().parse().ok().map(Duration::from_secs)
 }
 
 /// What the server did with a registration.
@@ -251,7 +275,7 @@ impl ApiClient {
                     AsRequestError::UnexpectedResponse
                 })?
                 .into(),
-            lifetime: Duration::seconds(response.lifetime_seconds.into()),
+            lifetime: aircommon::time::Duration::seconds(response.lifetime_seconds.into()),
         })
     }
 
