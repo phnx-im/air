@@ -400,6 +400,7 @@ mod tests {
             key_package_ref: test_ref(index),
             cipher_suite,
             key_package_index: index,
+            extensions: Extensions::<KeyPackage>::default(),
         }
     }
 
