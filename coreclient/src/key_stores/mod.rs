@@ -384,7 +384,7 @@ impl HeterogeneousVcKeyPackageBatch {
 
 #[cfg(test)]
 mod tests {
-    use openmls::prelude::Ciphersuite;
+    use openmls::prelude::{Ciphersuite, Extensions};
     use openmls_rust_crypto::OpenMlsRustCrypto;
     use openmls_traits::OpenMlsProvider as _;
 
