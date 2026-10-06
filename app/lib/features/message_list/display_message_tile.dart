@@ -175,8 +175,10 @@ TextSpan buildSystemMessageText(
   EmphasizedValue user(UiUserId id) =>
       EmphasizedValue(nameOf(id), recognizer: recognizerFor?.call(id));
 
-  EmphasizedValue tapToViewDevices() => EmphasizedValue(
-    loc.systemMessage_devicesTapToView,
+  EmphasizedValue viewDevicesAction() => EmphasizedValue(
+    DeviceType.isDesktop
+        ? loc.systemMessage_viewDevicesAction_desktop
+        : loc.systemMessage_viewDevicesAction,
     recognizer: devicesTap?.call(),
   );
 
@@ -290,12 +292,12 @@ TextSpan buildSystemMessageText(
     )) {
       final String deviceName => emphasizedText(
         (marks) => loc.systemMessage_deviceLinked(marks[0], marks[1]),
-        [EmphasizedValue(deviceName), tapToViewDevices()],
+        [EmphasizedValue(deviceName), viewDevicesAction()],
         nameStyle,
       ),
       null => emphasizedText(
         (marks) => loc.systemMessage_deviceLinkedUnknown(marks[0]),
-        [tapToViewDevices()],
+        [viewDevicesAction()],
         nameStyle,
       ),
     },
@@ -304,12 +306,12 @@ TextSpan buildSystemMessageText(
     )) {
       final String deviceName => emphasizedText(
         (marks) => loc.systemMessage_deviceUnlinked(marks[0], marks[1]),
-        [EmphasizedValue(deviceName), tapToViewDevices()],
+        [EmphasizedValue(deviceName), viewDevicesAction()],
         nameStyle,
       ),
       null => emphasizedText(
         (marks) => loc.systemMessage_deviceUnlinkedUnknown(marks[0]),
-        [tapToViewDevices()],
+        [viewDevicesAction()],
         nameStyle,
       ),
     },

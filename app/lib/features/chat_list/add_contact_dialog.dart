@@ -177,7 +177,9 @@ class _Description extends StatelessWidget {
     final (text, color) = switch ((errorMessage, hasUsernameHash)) {
       (final errorMessage?, _) => (errorMessage, palette.function.danger),
       (null, true) => (
-        loc.newConnectionDialog_handleExists(username),
+        DeviceType.isDesktop
+            ? loc.newConnectionDialog_handleExists_desktop(username)
+            : loc.newConnectionDialog_handleExists(username),
         palette.function.success.primary,
       ),
       (null, false) => (
