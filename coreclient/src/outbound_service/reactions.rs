@@ -6,7 +6,7 @@ use aircommon::identifiers::MimiId;
 use anyhow::Context;
 use mimi_content::MimiContent;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
@@ -14,10 +14,7 @@ use crate::{
     chats::reactions::Reaction,
     db::access::{WriteConnection, WriteDbTransaction},
     job::pending_chat_operation::PendingChatOperation,
-    outbound_service::{
-        error::{OutboundServiceRunError, is_ds_rate_limited_error},
-        resync::Resync,
-    },
+    outbound_service::{error::OutboundServiceRunError, resync::Resync},
 };
 
 use super::{OutboundService, OutboundServiceContext, SendOutcome, reaction_queue::ReactionQueue};
@@ -113,14 +110,17 @@ impl OutboundServiceContext {
                     debug!(?chat_id, "Reaction collided, re-enqueuing for a later run");
                 }
                 // Keeps the reaction queued, every further request would be rate limited as well
-                Err(error) if is_ds_rate_limited_error(&error) => {
-                    info!(
+                error @ Err(
+                    OutboundServiceRunError::NetworkError
+                    | OutboundServiceRunError::RateLimited { .. },
+                ) => {
+                    debug!(
                         ?chat_id,
                         "Rate limited while sending reaction; will retry later"
                     );
-                    return Err(OutboundServiceRunError::RateLimited);
+                    return error.map(|_| ());
                 }
-                Err(error) => {
+                Err(OutboundServiceRunError::Fatal(error)) => {
                     error!(%error, ?chat_id, "Failed to send reaction; dropping and rolling back");
                     self.rollback_failed_reaction(&dequeued).await?;
                 }
@@ -131,7 +131,7 @@ impl OutboundServiceContext {
     async fn send_reaction_message(
         &self,
         dequeued: &super::reaction_queue::DequeuedReaction,
-    ) -> anyhow::Result<SendOutcome> {
+    ) -> Result<SendOutcome, OutboundServiceRunError> {
         // load chat
         let chat = self
             .db

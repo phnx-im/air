@@ -4,7 +4,7 @@
 
 //! Client API for the delivery service (DS)
 
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, error::Error as _, io, time::Duration};
 
 use aircommon::{
     LibraryError,
@@ -146,11 +146,11 @@ impl DsRequestError {
         match self {
             Self::Timeout(_) => true,
             Self::Tonic(status) => {
-                // TODO: Also handle unknown errors here but downcast them to io::Error
-                matches!(
-                    status.code(),
-                    Code::Unavailable | Code::DeadlineExceeded | Code::Unknown
-                )
+                matches!(status.code(), Code::Unavailable | Code::DeadlineExceeded)
+                    || status.code() == Code::Unknown
+                        && status
+                            .source()
+                            .is_some_and(|error| error.downcast_ref::<io::Error>().is_some())
             }
             Self::LibraryError | Self::Tls(_) | Self::UnexpectedResponse => false,
         }

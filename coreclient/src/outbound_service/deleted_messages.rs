@@ -12,7 +12,10 @@ use airprotos::client::self_group::{
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
-use crate::{chats::messages::persistence, db::access::WriteDbTransaction};
+use crate::{
+    chats::messages::persistence, db::access::WriteDbTransaction,
+    outbound_service::OutboundServiceRunError,
+};
 
 use super::{OutboundService, OutboundServiceContext, SendOutcome, self_chat::SelfChatReadiness};
 
@@ -37,7 +40,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_deleted_messages(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), OutboundServiceRunError> {
         let staged = persistence::staged_deletions(self.db.read().await?).await?;
         if staged.is_empty() {
             return Ok(());

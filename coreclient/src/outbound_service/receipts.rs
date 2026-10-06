@@ -325,7 +325,7 @@ impl OutboundServiceContext {
         &self,
         chat: &Chat,
         content: MimiContent,
-    ) -> anyhow::Result<SendOutcome> {
+    ) -> Result<SendOutcome, OutboundServiceRunError> {
         let (group_state_ear_key, params, signer) =
             self.new_mls_message(chat, content, None).await?;
         let epoch = params.epoch;
@@ -344,7 +344,6 @@ impl OutboundServiceContext {
                         handle_group_not_found_on_ds(txn, chat.group_id()).await
                     })
                     .await?;
-                return Err(ds_error.into());
             }
             if !ds_error.process_tag_collisions(&sent_tags).is_empty() {
                 return Ok(SendOutcome::Collided);

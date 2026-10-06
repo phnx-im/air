@@ -2,7 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::time::Duration;
+
 use airapiclient::ds_api::DsRequestError;
+use tracing::error;
+
+use crate::outbound_service::WorkAborted;
 
 /// Classifies a DS API error as fatal or recoverable.
 ///
@@ -53,7 +58,7 @@ pub(super) enum OutboundServiceRunError {
     #[error("Network error, skipping remaining outbound service tasks for this run")]
     NetworkError,
     #[error("Rate limited, skipping remaining outbound service tasks for this run")]
-    RateLimited,
+    RateLimited { retry_after: Option<Duration> },
     #[error("Fatal error: {0}")]
     Fatal(anyhow::Error),
 }
@@ -67,6 +72,41 @@ impl From<anyhow::Error> for OutboundServiceRunError {
 impl From<sqlx::Error> for OutboundServiceRunError {
     fn from(error: sqlx::Error) -> Self {
         Self::Fatal(error.into())
+    }
+}
+
+impl From<DsRequestError> for OutboundServiceRunError {
+    fn from(error: DsRequestError) -> Self {
+        if error.is_rate_limited() {
+            Self::RateLimited {
+                retry_after: error.retry_after(),
+            }
+        } else if error.is_network_error() {
+            Self::NetworkError
+        } else {
+            Self::Fatal(error.into())
+        }
+    }
+}
+
+pub(super) trait RunResultExt {
+    /// Logs fatal errors and continues, aborts the run otherwise.
+    fn or_abort(self, task: &str) -> Result<(), WorkAborted>;
+}
+
+impl RunResultExt for Result<(), OutboundServiceRunError> {
+    fn or_abort(self, task: &'static str) -> Result<(), WorkAborted> {
+        match self {
+            Ok(()) => Ok(()),
+            Err(OutboundServiceRunError::Fatal(error)) => {
+                error!(%error, task, "Outbound service task failed");
+                Ok(())
+            }
+            Err(OutboundServiceRunError::NetworkError) => Err(WorkAborted::Interrupted),
+            Err(OutboundServiceRunError::RateLimited { retry_after }) => {
+                Err(WorkAborted::BackOff { retry_after })
+            }
+        }
     }
 }
 

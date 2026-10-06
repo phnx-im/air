@@ -15,7 +15,10 @@ use aircommon::{
 };
 use chrono::Utc;
 use pin_project::pin_project;
-use tokio::{sync::watch, time};
+use tokio::{
+    sync::watch,
+    time::{self, Instant},
+};
 use tokio_util::sync::{CancellationToken, WaitForCancellationFutureOwned};
 use tracing::{debug, error, info};
 
@@ -24,7 +27,10 @@ use crate::{
     db::access::DbAccess,
     job::{Job, JobContext, JobContextDb, JobError},
     key_stores::MemoryUserKeyStore,
-    outbound_service::error::OutboundServiceRunError,
+    outbound_service::{
+        error::{OutboundServiceRunError, RunResultExt},
+        fibonacci_backoff::FibonacciBackoff,
+    },
     utils::global_lock::GlobalLock,
 };
 
@@ -35,6 +41,7 @@ pub(crate) mod chat_message_queue;
 mod chat_messages;
 mod deleted_messages;
 mod error;
+mod fibonacci_backoff;
 mod key_packages;
 mod profile;
 mod push_tokens;
@@ -83,12 +90,20 @@ impl<C: OutboundServiceWork> Clone for OutboundService<C> {
 }
 
 pub trait OutboundServiceWork: Clone + Send + 'static {
-    fn work(&self, run_token: CancellationToken) -> impl Future<Output = ()> + Send;
+    fn work(
+        &self,
+        run_token: CancellationToken,
+    ) -> impl Future<Output = Result<(), WorkAborted>> + Send;
+}
+
+pub(crate) enum WorkAborted {
+    Interrupted,
+    BackOff { retry_after: Option<Duration> },
 }
 
 impl OutboundServiceWork for OutboundServiceContext {
-    async fn work(&self, run_token: CancellationToken) {
-        Box::pin(OutboundServiceContext::work(self, run_token)).await;
+    async fn work(&self, run_token: CancellationToken) -> Result<(), WorkAborted> {
+        Box::pin(OutboundServiceContext::work(self, run_token)).await
     }
 }
 
@@ -229,6 +244,9 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
         );
         ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
 
+        let mut backoff_until: Option<Instant> = None;
+        let mut backoff = FibonacciBackoff::new();
+
         loop {
             let (run_token, from_notification) = tokio::select! {
                 changed = run_token_rx.changed() => {
@@ -238,18 +256,34 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
                     let run_token = run_token_rx.borrow_and_update().clone();
                     debug!(?run_token, "incoming work notification");
                     if run_token.is_cancelled() {
+                        debug!("background work was cancelled");
+                        run_token.mark_as_done();
+                        continue;
+                    }
+                    if backoff_until.is_some() {
+                        debug!("background work is backed-off");
                         run_token.mark_as_done();
                         continue;
                     }
                     (run_token, true)
                 }
-                _ = ticker.tick() => {
+                _ = ticker.tick(), if backoff_until.is_none() => {
                     let run_token = run_token_rx.borrow().clone();
                     if run_token.is_cancelled() {
                         continue;
                     }
                     debug!("periodic wake");
                     (run_token, false)
+                }
+                _ = tokio::time::sleep_until(backoff_until.unwrap_or_else(Instant::now)), if backoff_until.is_some() => {
+                    backoff_until = None;
+                    debug!("ready to run after backoff");
+                    let run_token = run_token_rx.borrow().clone();
+                    if run_token.is_cancelled() {
+                        debug!("cancelled during backoff");
+                        continue;
+                    }
+                    (run_token, true)
                 }
             };
 
@@ -279,7 +313,16 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
                     }
                 };
                 debug!("starting doing work in background task");
-                self.context.work(run_token.cancel.clone()).await;
+                match self.context.work(run_token.cancel.clone()).await {
+                    WorkAborted::Done => {
+                        backoff.reset();
+                    }
+                    WorkAborted::Interrupted => {}
+                    WorkAborted::BackOff { retry_after } => {
+                        let delay = backoff.next_backoff().max(retry_after.unwrap_or_default());
+                        backoff_until = Some(Instant::now() + delay);
+                    }
+                }
                 debug!("finished work in background task");
             }
 
@@ -321,57 +364,46 @@ impl OutboundServiceContext {
         Ok(value)
     }
 
-    async fn work(&self, run_token: CancellationToken) {
+    async fn work(&self, run_token: CancellationToken) -> Result<(), WorkAborted> {
         // Profiles are fetched concurrently to other tasks.
         let fetch_profiles = self.spawn_fetch_profiles(&run_token);
 
-        if let Err(error) = self.perform_queued_resyncs(&run_token).await {
-            error!(%error, "Failed to perform queued resyncs");
-        }
-        match Box::pin(self.send_pending_chat_operations(&run_token)).await {
-            Err(OutboundServiceRunError::NetworkError) => {
-                info!("Network appears unavailable, terminating outbound service run");
-                return;
+        // TODO: this one should also have OutboundServiceRunError
+        match self.perform_queued_resyncs(&run_token).await {
+            Err(error) => {
+                error!(%error, "Failed to perform queued resyncs");
             }
-            Err(OutboundServiceRunError::RateLimited) => {
-                info!("Rate limited, terminating outbound service run");
-                return;
-            }
-            Err(OutboundServiceRunError::Fatal(error)) => {
-                error!(%error, "Failed to retry pending chat operations");
-            }
-            Ok(_) => (),
+            _ => (),
         }
-        match self.send_queued_receipts(&run_token).await {
-            Err(OutboundServiceRunError::RateLimited) => {
-                info!("Rate limited, terminating outbound service run");
-                return;
-            }
-            Err(error) => error!(%error, "Failed to send queued receipts"),
-            Ok(()) => (),
-        }
-        if let Err(error) = self.send_redeemed_tokens(&run_token).await {
-            error!(%error, "Failed to send redeemed privacy pass tokens");
-        }
-        if let Err(error) = self.send_deleted_messages(&run_token).await {
-            error!(%error, "Failed to send deleted messages");
-        }
+        Box::pin(self.send_pending_chat_operations(&run_token))
+            .await
+            .or_abort("pending chat operations")?;
+
+        self.send_queued_receipts(&run_token)
+            .await
+            .or_abort("queued receipts")?;
+
+        self.send_redeemed_tokens(&run_token)
+            .await
+            .or_abort("send redeemed tokens")?;
+
+        self.send_deleted_messages(&run_token)
+            .await
+            .or_abort("send deleted messages")?;
+
         if let Err(error) =
             attachment_recovery::recover_interrupted_attachment_uploads(&self.db).await
         {
             error!(%error, "Failed to recover interrupted attachment uploads");
         }
+
         if let Err(error) = self.send_queued_messages(&run_token).await {
             error!(%error, "Failed to send queued messages");
         }
-        match self.send_queued_reactions(&run_token).await {
-            Err(OutboundServiceRunError::RateLimited) => {
-                info!("Rate limited, terminating outbound service run");
-                return;
-            }
-            Err(error) => error!(%error, "Failed to send queued reactions"),
-            Ok(()) => (),
-        }
+        self.send_queued_reactions(&run_token)
+            .await
+            .or_abort("queued reactions")?;
+
         if let Err(error) = self.send_pending_push_token_updates(&run_token).await {
             error!(%error, "Failed to send push token update");
         }
@@ -380,6 +412,8 @@ impl OutboundServiceContext {
         }
 
         fetch_profiles.await;
+
+        Ok(())
     }
 
     fn signing_key(&self) -> &UserSigningKey {
@@ -419,6 +453,7 @@ impl OutboundServiceContext {
 struct RunToken {
     cancel: CancellationToken,
     done: CancellationToken,
+    // option<duration>
 }
 
 impl RunToken {

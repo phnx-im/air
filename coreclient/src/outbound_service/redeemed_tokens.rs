@@ -11,7 +11,7 @@ use chrono::Utc;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
-use crate::privacy_pass;
+use crate::{outbound_service::OutboundServiceRunError, privacy_pass};
 
 use super::{OutboundServiceContext, SendOutcome, self_chat::SelfChatReadiness};
 
@@ -24,7 +24,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_redeemed_tokens(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), OutboundServiceRunError> {
         let redeemed =
             privacy_pass::redeemed_tokens_to_broadcast(self.db.read().await?, Utc::now()).await?;
         if redeemed.is_empty() {
