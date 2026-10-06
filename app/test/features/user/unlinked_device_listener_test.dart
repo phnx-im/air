@@ -113,6 +113,6 @@ void main() {
   testWidgets('shows no notice after being unlinked', (tester) async {
     await pumpInApp(tester, UiUnlinkReason.unlinked);
 
-    expect(find.byType(MaterialBanner), findsNothing);
+    expect(find.byType(SnackBar), findsNothing);
   });
 }
