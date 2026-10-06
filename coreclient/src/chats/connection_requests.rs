@@ -32,8 +32,8 @@ use tracing::{debug, warn};
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatId, ChatMessage, ChatType, SystemMessage,
-    chats::{PendingConnectionRequest, messages::TimestampedMessage},
+    Chat, ChatId, ChatMessage, ChatStatus, ChatType, Contact, SystemMessage,
+    chats::{PendingConnectionRequest, messages::TimestampedMessage, persistence},
     clients::{
         CoreUser,
         block_contact::BlockedContact,
@@ -203,6 +203,33 @@ pub(crate) async fn is_known(
         .await?
         .is_some()
         || Chat::load(txn, &request_id).await?.is_some())
+}
+
+/// Returns true if `sender` is a contact with a live connection chat.
+pub(crate) async fn is_connected_contact(
+    mut txn: impl ReadTransaction,
+    sender: &UserId,
+) -> sqlx::Result<bool> {
+    let Some(contact) = Contact::load(&mut txn, sender).await? else {
+        return Ok(false);
+    };
+    let Some(chat) = Chat::load(txn, &contact.chat_id).await? else {
+        return Ok(false);
+    };
+    Ok(match chat.status() {
+        ChatStatus::Active | ChatStatus::Pending => true,
+        ChatStatus::Inactive(_) | ChatStatus::Blocked => false,
+    })
+}
+
+/// Returns true if a request is known already or its sender is a connected
+/// contact, so there is nothing to store.
+pub(crate) async fn is_settled(
+    mut txn: impl ReadTransaction,
+    request_id: ChatId,
+    sender: &UserId,
+) -> sqlx::Result<bool> {
+    Ok(is_known(&mut txn, request_id).await? || is_connected_contact(txn, sender).await?)
 }
 
 /// Helper struct for notifications, to track the effect of connection requests.
@@ -408,8 +435,8 @@ fn received_entry(
     }))
 }
 
-/// Stores a request from  a sibling, unless it is known already or from a
-/// blocked sender.
+/// Stores a request from a sibling, unless there is nothing to add: it is
+/// known, its deletion is parked, or its sender is blocked or connected.
 async fn store_received(
     txn: &mut WriteDbTransaction<'_>,
     received: &ConnectionRequestReceived,
@@ -418,7 +445,9 @@ async fn store_received(
         return Ok(None);
     };
     let request_id = request.request_id()?;
-    if is_known(&mut *txn, request_id).await?
+    let group_id = &request.connection_info.connection_group_id;
+    if is_settled(&mut *txn, request_id, &request.sender).await?
+        || persistence::is_deletion_staged(&mut *txn, group_id).await?
         || BlockedContact::check_blocked(&mut *txn, &request.sender).await?
     {
         return Ok(None);
@@ -977,6 +1006,122 @@ mod tests {
 
             assert!(effects.new_requests.is_empty());
             assert!(Chat::load(&mut *txn, &stored.chat_id).await?.is_none());
+            Ok(())
+        })
+        .await
+    }
+
+    /// Makes `user_id` a contact whose connection chat is in `status`.
+    async fn connect(
+        txn: &mut WriteDbTransaction<'_>,
+        user_id: &UserId,
+        status: ChatStatus,
+    ) -> anyhow::Result<()> {
+        let chat = Chat::new_onboarding_connection_chat(group_id(), user_id.clone());
+        chat.store(&mut *txn).await?;
+        Chat::update_status(&mut *txn, chat.id(), &status).await?;
+        Contact {
+            user_id: user_id.clone(),
+            wai_ear_key: WelcomeAttributionInfoEarKey::random()?,
+            friendship_token: FriendshipToken::random()?,
+            chat_id: chat.id(),
+            supported_features: None,
+        }
+        .upsert(&mut *txn)
+        .await?;
+        Ok(())
+    }
+
+    /// The sibling accepted a newer request of the sender before this one
+    /// reached it.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_forwarded_request_from_a_connected_contact_is_dropped() -> anyhow::Result<()> {
+        let db = linked_device().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let credential = sender_with_credential(txn).await?;
+            let (stored, sent) = receive_and_park(txn, &credential, at(0)).await?;
+            Chat::delete(&mut *txn, stored.chat_id).await?;
+            connect(txn, credential.user_id(), ChatStatus::Active).await?;
+
+            let effects = apply_connection_requests_update(txn, &sent).await?;
+
+            assert!(effects.new_requests.is_empty());
+            assert!(Chat::load(&mut *txn, &stored.chat_id).await?.is_none());
+            assert!(
+                PendingConnectionRequest::chat_of_sender(&mut *txn, credential.user_id())
+                    .await?
+                    .is_none()
+            );
+            Ok(())
+        })
+        .await
+    }
+
+    /// A linked device holds the contact while it onboards into the sender's
+    /// connection, before that chat turns active.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_forwarded_request_from_an_onboarding_contact_is_dropped() -> anyhow::Result<()> {
+        let db = linked_device().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let credential = sender_with_credential(txn).await?;
+            let (stored, sent) = receive_and_park(txn, &credential, at(0)).await?;
+            Chat::delete(&mut *txn, stored.chat_id).await?;
+            connect(txn, credential.user_id(), ChatStatus::Pending).await?;
+
+            let effects = apply_connection_requests_update(txn, &sent).await?;
+
+            assert!(effects.new_requests.is_empty());
+            assert!(
+                PendingConnectionRequest::chat_of_sender(&mut *txn, credential.user_id())
+                    .await?
+                    .is_none()
+            );
+            Ok(())
+        })
+        .await
+    }
+
+    /// Contacts outlive their connection chat, so a request from one whose
+    /// chat ended is a new request.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_forwarded_request_from_a_former_contact_is_stored() -> anyhow::Result<()> {
+        let db = linked_device().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let credential = sender_with_credential(txn).await?;
+            let (stored, sent) = receive_and_park(txn, &credential, at(0)).await?;
+            Chat::delete(&mut *txn, stored.chat_id).await?;
+            connect(txn, credential.user_id(), ChatStatus::inactive(Vec::new())).await?;
+
+            let effects = apply_connection_requests_update(txn, &sent).await?;
+
+            assert_eq!(effects.new_requests, vec![stored.chat_id]);
+            assert_eq!(
+                PendingConnectionRequest::chat_of_sender(&mut *txn, credential.user_id()).await?,
+                Some(stored.chat_id)
+            );
+            Ok(())
+        })
+        .await
+    }
+
+    /// This device erased the request, and its deletion has not reached the
+    /// siblings yet when one of them forwards the request.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_forwarded_request_is_dropped_while_its_deletion_is_parked() -> anyhow::Result<()> {
+        let db = linked_device().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let credential = sender_with_credential(txn).await?;
+            let (stored, sent) = receive_and_park(txn, &credential, at(0)).await?;
+            let request = PendingConnectionRequest::load(&mut *txn, stored.chat_id)
+                .await?
+                .unwrap();
+            persistence::store_outgoing_deletion(&mut *txn, request.group_id()).await?;
+            Chat::delete(&mut *txn, stored.chat_id).await?;
+
+            let effects = apply_connection_requests_update(txn, &sent).await?;
+
+            assert!(effects.new_requests.is_empty());
+            assert!(!is_known(&mut *txn, stored.chat_id).await?);
             Ok(())
         })
         .await

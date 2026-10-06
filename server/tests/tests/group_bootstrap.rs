@@ -63,6 +63,17 @@ pub(crate) async fn add_username(setup: &mut TestBackend, user_id: &UserId) -> U
 /// Drains the username queue of `record` and returns the pending chat the
 /// connection offer in it created.
 pub(crate) async fn receive_connection_offer(user: &CoreUser, record: &UsernameRecord) -> ChatId {
+    drain_username_queue(user, record)
+        .await
+        .expect("the connection offer should have created a pending chat")
+}
+
+/// Drains the username queue of `record` and returns the pending chat a
+/// connection offer in it created, if any.
+pub(crate) async fn drain_username_queue(
+    user: &CoreUser,
+    record: &UsernameRecord,
+) -> Option<ChatId> {
     let (mut stream, responder) = user.listen_username(record).await.unwrap();
     let mut chat_id = None;
     while let Some(Some(message)) = timeout(Duration::from_millis(500), stream.next())
@@ -78,7 +89,7 @@ pub(crate) async fn receive_connection_offer(user: &CoreUser, record: &UsernameR
             .or(chat_id);
         responder.ack(message_id.into()).await;
     }
-    chat_id.expect("the connection offer should have created a pending chat")
+    chat_id
 }
 
 /// Asserts that both devices sit on the same epoch and share the virtual

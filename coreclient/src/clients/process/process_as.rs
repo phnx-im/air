@@ -194,24 +194,30 @@ impl CoreUser {
         // a duplicate offer is recognized. It may be shown in the chat of a
         // newer request of the same sender.
         let request_id = ChatId::try_from(&connection_info.connection_group_id)?;
-        let is_known = {
+        let sender = sender_user_credential.user_id().clone();
+        let is_settled = {
             let mut connection = context.db.read().await?;
             let txn = connection.begin().await?;
-            connection_requests::is_known(txn, request_id).await?
+            connection_requests::is_settled(txn, request_id, &sender).await?
         };
-        if is_known {
+        if is_settled {
             return Ok(None);
         }
 
         CoreUser::fetch_request_sender_profile(context, &connection_info, &sender_user_credential)
             .await?;
 
-        let sender = sender_user_credential.user_id().clone();
         context
             .db
             .write()
             .await?
             .with_transaction(async |txn| {
+                // The profile fetch held no database lock, so an accept on
+                // this device or a sibling's echo may have settled the sender
+                // meanwhile.
+                if connection_requests::is_settled(&mut *txn, request_id, &sender).await? {
+                    return Ok(None);
+                }
                 // Only this device got a username offer from the AS queue. A
                 // targeted message reaches every sibling on its own.
                 let forward = username_connection_info.is_some();

@@ -62,6 +62,18 @@ pub(crate) async fn store_outgoing_deletion(
     Ok(())
 }
 
+/// Returns true while the deletion of the chat with `group_id` is parked.
+pub(crate) async fn is_deletion_staged(
+    connection: impl ReadConnection,
+    group_id: &GroupId,
+) -> sqlx::Result<bool> {
+    Ok(
+        self_group_outbox::load(connection, OutboxKind::DeletedChat, group_id.as_slice())
+            .await?
+            .is_some(),
+    )
+}
+
 pub(crate) async fn staged_deletions(
     connection: impl ReadConnection,
 ) -> anyhow::Result<Vec<DeletedChat>> {
