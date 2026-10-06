@@ -895,9 +895,16 @@ List<MessageAction> _messageActions(
       ),
       isDestructive: true,
       insertSeparatorBefore: !isDeleted,
-      onSelected: () => (isSender && isSent && !isDeleted)
-          ? _showDeleteMessageDialog(context: context, messageId: messageId)
-          : _showDeleteForMeDialog(context: context, messageId: messageId),
+      onSelected: () {
+        // In Notes to self, deleting for me already removes it everywhere.
+        final isSelfChat =
+            context.read<ChatDetailsCubit>().state.chat?.isSelfChat ?? false;
+        if (isSender && isSent && !isDeleted && !isSelfChat) {
+          _showDeleteMessageDialog(context: context, messageId: messageId);
+        } else {
+          _showDeleteForMeDialog(context: context, messageId: messageId);
+        }
+      },
     ),
     if (attachments.isNotEmpty && !Platform.isIOS)
       MessageAction(
