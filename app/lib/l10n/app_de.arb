@@ -76,8 +76,8 @@
   "addContactDialog_content": "{displayName} aus dem Gruppenchat \"{groupTitle}\" ist kein Air-Kontakt. Sende eine Kontaktanfrage, um zu chatten.",
   "addContactDialog_cancel": "Abbrechen",
   "addContactDialog_confirm": "Senden",
-  "changeGroupTitleDialog_title": "Gruppentitel ändern",
-  "changeGroupTitleDialog_content": "Wähle einen Titel für die Gruppe.",
+  "changeGroupTitleDialog_title": "Gruppenname ändern",
+  "changeGroupTitleDialog_content": "Wähle einen Namen für die Gruppe.",
   "changeGroupTitleDialog_cancel": "Abbrechen",
   "changeGroupTitleDialog_confirm": "Speichern",
 
