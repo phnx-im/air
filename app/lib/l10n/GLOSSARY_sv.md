@@ -88,6 +88,7 @@ Svensk ortografi gäller, inte engelsk. Svenska använder färre versaler än en
 | **Inställningar** | Appens konfigurationsalternativ | Skärmen heter "Profil och inställningar" |
 | **Profil** | Användarens personliga information och inställningar | |
 | **Säkerhetskod** | Kod som två kontakter jämför för att verifiera sin chatt | Rad på kontaktens profil och en egen vy |
+| **Totalsträckskryptering** | Kryptering där bara avsändare och mottagare kan läsa meddelandena | Engelska "end-to-end encryption". Adjektivet är "totalsträckskrypterad". Inte "end-to-end-kryptering" eller "ände-till-ände-kryptering" |
 | **Inbjudningskod** | Kod som behövs för att gå med i Air | Alltid "inbjudningskod" |
 | **Länkade enheter** | De andra enheterna som är inloggade på kontot | Avsnitt i inställningarna |
 | **Server** | Värden där ett konto ligger | Väljs vid registrering och vid länkning |
