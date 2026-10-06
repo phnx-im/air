@@ -10,6 +10,7 @@ import 'package:air/ds/material/scroll_behavior.dart';
 import 'package:air/ds/material/theme_data.dart';
 import 'package:air/features/navigation/app_router.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/features/navigation/navigation_restoration.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_session_scope.dart';
@@ -23,8 +24,11 @@ import 'package:air/platform/method_channel.dart';
 import 'package:air/platform/notifications.dart';
 import 'package:air/share/pending_share.dart';
 import 'package:air/util/interface_scale.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/util/time/app_clock.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
@@ -62,6 +66,10 @@ class _AppState extends State<App> {
     notificationContext: NotificationContextBase(
       notificationService: DartNotificationServiceExtension.create(),
     ),
+    // Navigation state is restored only on Android.
+    restoration: defaultTargetPlatform == TargetPlatform.android
+        ? NavigationRestoration(ServicesBinding.instance.restorationManager)
+        : null,
   );
   final UserSettingsCubit _userSettingsCubit = UserSettingsCubit();
   final AppLocaleCubit _appLocaleCubit = AppLocaleCubit();
@@ -216,7 +224,7 @@ class _AppState extends State<App> {
                       listenWhen: (previous, current) => !DeviceType.isDesktop,
                       listener: (context, state) =>
                           FocusManager.instance.primaryFocus?.unfocus(),
-                      child: router!,
+                      child: RootScaffold(child: router!),
                     ),
                   ),
                 );

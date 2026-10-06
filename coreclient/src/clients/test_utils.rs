@@ -79,18 +79,6 @@ impl CoreUser {
         Ok(SelfGroup::load(self.db().read().await?).await?)
     }
 
-    pub async fn self_chat_title(&self) -> anyhow::Result<Option<String>> {
-        let Some(group) = self.self_group().await? else {
-            return Ok(None);
-        };
-        let chat_id = crate::ChatId::try_from(group.group_id())?;
-        let chat = self
-            .db()
-            .with_read_transaction(async |txn| crate::Chat::load(txn, &chat_id).await)
-            .await?;
-        Ok(chat.and_then(|chat| chat.attributes().map(|attrs| attrs.title().to_owned())))
-    }
-
     pub async fn self_group_member_count(&self) -> anyhow::Result<Option<usize>> {
         let mut read = self.db().read().await?;
         let Some(group_id) = OwnClientInfo::load(&mut read).await?.self_group_id else {

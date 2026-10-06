@@ -52,6 +52,10 @@
   "@userSettingsScreen_readReceiptsDescription": {
     "description": "Explains that the read receipts toggle applies in both directions."
   },
+  "userSettingsScreen_languageSettingsDescription": "Translations may contain mistakes.",
+  "@userSettingsScreen_languageSettingsDescription": {
+    "description": "Help text under the language picker in settings. Warns that the app's translations may contain errors."
+  },
 
   "userSettingsScreen_displayNameLabel": "Display name",
   "@userSettingsScreen_displayNameLabel": {
@@ -426,9 +430,22 @@
   "@invitationCodeScreen_header": {
     "description": "Header of the step asking for an invite code during sign up."
   },
-  "invitationCodeScreen_subheader": "Air is currently invitation-only. Enter your code to join. If you don't have one, ask someone who’s already on Air.",
+  "invitationCodeScreen_subheader": "To keep Air running smoothly, we limit how many accounts can be created within a short timespan. Wait until later today and try again to sign up without an invite code.",
   "@invitationCodeScreen_subheader": {
-    "description": "Explains that Air is invitation-only and where to get a code."
+    "description": "Explains that sign up is rate limited, so an invite code is required for now, and that trying again later works without one."
+  },
+  "invitationCodeScreen_notificationsHint": "If you didn't allow push notifications for Air, that could also be why you're seeing this screen. To allow push notifications, {settingsLink}.",
+  "@invitationCodeScreen_notificationsHint": {
+    "description": "Second paragraph under the invite code explanation, shown on mobile only. Suggests that missing push notification permission can also lead to this screen. The placeholder is replaced by the link text that opens the notification settings and must appear verbatim.",
+    "placeholders": {
+      "settingsLink": {
+        "type": "String"
+      }
+    }
+  },
+  "invitationCodeScreen_notificationsLinkText": "tap here",
+  "@invitationCodeScreen_notificationsLinkText": {
+    "description": "Link text inside the push notifications sentence on the invite code step. Opens the system notification settings for Air. Must match the wording used inside that sentence so the link can be located in the rendered string."
   },
   "invitationCodeScreen_inputLabel": "Invite code (required)",
   "@invitationCodeScreen_inputLabel": {
@@ -791,10 +808,6 @@
         "type": "String"
       }
     }
-  },
-  "linkedDevicesScreen_errorDialog_confirm": "Okay",
-  "@linkedDevicesScreen_errorDialog_confirm": {
-    "description": "Button that acknowledges and closes a device error dialog."
   },
   "linkedDevicesScreen_deviceCount": "{count, plural, =0 {No devices linked.} one {{count} device linked.} other {{count} devices linked.}}",
   "@linkedDevicesScreen_deviceCount": {
@@ -1225,6 +1238,11 @@
     "description": "Call-to-action rendered as its own tappable, emphasized run at the point the surrounding sentence places it. Tapping it opens the devices section of settings."
   },
 
+  "systemMessage_selfChatCreated": "Use this chat as your personal notepad. Messages are synced across all of your account's linked devices.",
+  "@systemMessage_selfChatCreated": {
+    "description": "First system message in the self-chat (see selfChatTitle), posted when that chat is created on a device. Explains that the chat is a private notepad whose messages appear on all of the user's linked devices."
+  },
+
   "timestamp_now": "Now",
   "@timestamp_now": {
     "description": "Timestamp for a message sent moments ago. Kept short to fit next to the message."
@@ -1276,9 +1294,9 @@
   "@chatList_newGroup": {
     "description": "Menu item in the chat list header that starts creating a group chat."
   },
-  "chatList_emptyMessage": "Add your first Air contact to get started",
-  "@chatList_emptyMessage": {
-    "description": "Empty state of the chat list, shown before the user has any contacts."
+  "chatList_noChats": "Use the compose button to add your first contact and start chatting.",
+  "@chatList_noChats": {
+    "description": "Initial state of the chat list, shown before the user has any contacts."
   },
 
   "chatList_draft": "Draft",
@@ -1951,9 +1969,9 @@
   "@deleteAccountScreen_confirmButtonText": {
     "description": "Confirming button of the delete account dialog."
   },
-  "deleteAccountScreen_deleteAccountError": "Something went wrong on our end. Wait a moment, then try again.",
+  "deleteAccountScreen_deleteAccountError": "Wait a moment, then try again.",
   "@deleteAccountScreen_deleteAccountError": {
-    "description": "Error shown when deleting the account fails on the server."
+    "description": "Body of the error dialog shown when deleting the account fails on the server. The dialog title already says something went wrong."
   },
 
   "appOutdatedScreen_title": "Software update required",
@@ -1964,22 +1982,33 @@
   "@appOutdatedScreen_message": {
     "description": "Headline telling the user an update is needed to carry on."
   },
-  "appOutdatedScreen_description": "Open the App Store on iOS or Google Play on Android, then update Air.",
-  "@appOutdatedScreen_description": {
-    "description": "Names the store to update from on each mobile platform. App Store and Google Play are product names."
+  "appOutdatedScreen_descriptionAppStore": "Open the App Store and update Air.",
+  "@appOutdatedScreen_descriptionAppStore": {
+    "description": "Update instruction on the update required screen on iOS and macOS. App Store is a product name."
+  },
+  "appOutdatedScreen_descriptionGooglePlay": "Open Google Play and update Air.",
+  "@appOutdatedScreen_descriptionGooglePlay": {
+    "description": "Update instruction on the update required screen on Android. Google Play is a product name."
+  },
+  "appOutdatedScreen_descriptionMicrosoftStore": "Open the Microsoft Store and update Air.",
+  "@appOutdatedScreen_descriptionMicrosoftStore": {
+    "description": "Update instruction on the update required screen on Windows. Microsoft Store is a product name."
+  },
+  "appOutdatedScreen_descriptionLinux": "Update Air using your preferred method.",
+  "@appOutdatedScreen_descriptionLinux": {
+    "description": "Update instruction on the update required screen on Linux. Air may be installed through any package manager or by hand, so no specific tool is named."
   },
   "appOutdatedScreen_action": "Update",
   "@appOutdatedScreen_action": {
     "description": "Button that opens the store so the user can update."
   },
-  "versionExpiryBanner_message": "Update Air by {date} to keep using it",
-  "@versionExpiryBanner_message": {
-    "description": "Banner above the app content when the server announced the date on which this app version stops working. The date is already formatted for the locale.",
-    "placeholders": {
-      "date": {
-        "type": "String"
-      }
-    }
+  "updateReminder_title": "Update Air",
+  "@updateReminder_title": {
+    "description": "Title of the reminder card at the top of the chat list when the server announced the date on which this app version stops working."
+  },
+  "updateReminder_body": "A new app version is available. Update now to keep using Air.",
+  "@updateReminder_body": {
+    "description": "Body of the update reminder card."
   },
 
   "contactRequestDialog_title": "Contact request",
@@ -2007,9 +2036,13 @@
     "description": "Error shown when a contact request cannot be accepted because this app version is too old."
   },
 
-  "errorBanner_ok": "OK",
-  "@errorBanner_ok": {
-    "description": "Button that dismisses the error banner at the top of the screen."
+  "errorDialog_title": "Something went wrong",
+  "@errorDialog_title": {
+    "description": "Default title of the modal dialog that reports a failed action."
+  },
+  "errorDialog_confirm": "Okay",
+  "@errorDialog_confirm": {
+    "description": "Button that acknowledges and closes an error dialog."
   },
 
   "memberSelectionList_client_not_supported": "This contact has an outdated app which needs to be updated.",

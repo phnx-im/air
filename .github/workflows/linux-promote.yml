@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: Promote Linux packages to stable
+
+# Shares the release queue, so a promotion never runs while a release run
+# rewrites the repositories.
+concurrency:
+  group: app-release-linux
+  queue: max
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Beta package version to promote, as <version>-<build number> (e.g. 0.23.0-1490)"
+        required: true
+        type: string
+
+jobs:
+  linux-promote:
+    environment: linux-packages
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup package publishing
+        uses: ./.github/actions/setup-linux-publish
+        with:
+          apt-packages: apt-utils createrepo-c dnf dnf-plugins-core rpm
+          gpg-key-id: ${{ vars.GPG_KEY_ID }}
+          gpg-signing-key: ${{ secrets.GPG_SIGNING_KEY }}
+          gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Promote packages
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          GPG_KEY_ID: ${{ vars.GPG_KEY_ID }}
+          REPOSITORY_BASE_URL: ${{ vars.REPOSITORY_BASE_URL }}
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
+          S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
+          VERSION: ${{ inputs.version }}
+        run: cargo xtask promote-packages --from beta --to stable --version "$VERSION"

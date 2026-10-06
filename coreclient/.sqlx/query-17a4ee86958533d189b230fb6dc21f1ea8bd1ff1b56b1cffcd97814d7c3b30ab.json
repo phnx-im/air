@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM self_group_message_key WHERE group_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "17a4ee86958533d189b230fb6dc21f1ea8bd1ff1b56b1cffcd97814d7c3b30ab"
+}

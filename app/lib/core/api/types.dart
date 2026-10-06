@@ -505,6 +505,8 @@ sealed class UiSystemMessage with _$UiSystemMessage {
     required UiUserId sender,
     required String chatName,
   }) = UiSystemMessage_ReceivedAdditionalDirectConnectionRequest;
+  const factory UiSystemMessage.selfChatCreated() =
+      UiSystemMessage_SelfChatCreated;
 }
 
 /// UI representation of an [`UserId`]

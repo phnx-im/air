@@ -229,10 +229,16 @@ build platform:
 
 app_flavor := env("APP_FLAVOR", "staging")
 
+# Flutter's name for the Linux target arch (x64 or arm64).
+linux_arch := env("LINUX_ARCH", "x64")
+pkg_arch := if linux_arch == "x64" { "amd64" } else { linux_arch }
+
 # Package the Linux build as an rpm.
 [linux]
 [working-directory: 'app/linux']
 [env('APP_FLAVOR', app_flavor)]
+[env('LINUX_ARCH', linux_arch)]
+[env('PKG_ARCH', pkg_arch)]
 build-rpm:
     nfpm package -p rpm
 
@@ -240,6 +246,8 @@ build-rpm:
 [linux]
 [working-directory: 'app/linux']
 [env('APP_FLAVOR', app_flavor)]
+[env('LINUX_ARCH', linux_arch)]
+[env('PKG_ARCH', pkg_arch)]
 build-deb:
     nfpm package -p deb
 

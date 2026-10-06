@@ -374,6 +374,21 @@ impl CoreUser {
             own_profile,
         })
     }
+
+    /// Advances the chat notification watermark over everything a notification
+    /// would show, so that it is never shown.
+    pub async fn mark_chat_notified(&self, chat_id: ChatId) -> Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| {
+                let rebuild_set =
+                    Chat::load_notification_rebuild_set(&mut *txn, chat_id, self.user_id()).await?;
+                if let Some(newest) = rebuild_set.entries.last() {
+                    Chat::set_notified_until(txn, chat_id, newest.timestamp()).await?;
+                }
+                Ok(())
+            })
+            .await
+    }
 }
 
 pub struct ChatNotificationRebuild {

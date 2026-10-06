@@ -64,7 +64,6 @@ use crate::{
         DecryptedProfileInfos, Group, JoinSigners, VerifiedGroup,
         client_auth_info::StorableUserCredential,
         process::{ProcessMessageProcessed, ProcessMessageResult},
-        self_group::SELF_CHAT_TITLE,
     },
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
@@ -474,27 +473,19 @@ impl CoreUser {
         ))
         .await?;
 
-        if own_client_info.self_group_id.as_ref() == Some(group.group_id()) {
+        let group_id = group.group_id();
+        if own_client_info.self_group_id.as_ref() == Some(group_id) {
             debug!("joined self group as a linked device");
-            let title = group
-                .group_data()?
-                .and_then(|group_data| {
-                    let (title, _profile) =
-                        group_data.into_parts(group.identity_link_wrapper_key());
-                    title
-                })
-                .unwrap_or_else(|| SELF_CHAT_TITLE.to_owned());
-            let attributes = ChatAttributes {
-                title,
-                picture: None,
+            let self_chat_id = match ChatId::load_from_group_id(&mut *txn, group_id).await? {
+                Some(chat_id) => chat_id,
+                None => self.create_self_chat(&mut *txn, group_id.clone()).await?,
             };
-            let chat = Chat::new_group_chat(group.group_id().clone(), attributes);
-            chat.store(&mut *txn).await?;
-
+            // The self chat's system message is not news, so it is not
+            // reported where it could raise a notification.
             return Ok(QsMessageOutcome::new_chat(
-                chat.id(),
+                self_chat_id,
                 sender_user_id,
-                vec![],
+                Vec::new(),
             ));
         }
 
@@ -1863,7 +1854,10 @@ mod tests {
                     None,
                 )?;
                 group.store(&mut *txn).await?;
-                OwnClientInfo::set_self_group(&mut *txn, group.group_id(), &signing_key).await?;
+                assert!(
+                    OwnClientInfo::claim_self_group(&mut *txn, group.group_id(), &signing_key)
+                        .await?
+                );
 
                 let mut self_group = SelfGroup::load(&mut *txn).await?.context("no self-group")?;
                 // Creating the self group registers its initial derivation epoch.

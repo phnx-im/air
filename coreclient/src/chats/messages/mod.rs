@@ -643,6 +643,8 @@ pub enum SystemMessage {
         sender: UserId,
         chat_name: String,
     },
+    /// When the self-chat is created for the first time.
+    SelfChatCreated,
 }
 
 impl EventMessage {
@@ -705,7 +707,8 @@ impl SystemMessage {
             | SystemMessage::DeviceLinked(_)
             | SystemMessage::DeviceUnlinked(_)
             | SystemMessage::ReceivedAdditionalUsernameConnectionRequest { .. }
-            | SystemMessage::ReceivedAdditionalDirectConnectionRequest { .. } => None,
+            | SystemMessage::ReceivedAdditionalDirectConnectionRequest { .. }
+            | SystemMessage::SelfChatCreated => None,
         }
     }
 
@@ -823,6 +826,9 @@ impl SystemMessage {
                     None => "A device was unlinked".into(),
                 }
             }
+            SystemMessage::SelfChatCreated => "Use this chat as your personal notepad. Messages \
+                are synced across all of your account's linked devices."
+                .into(),
         }
     }
 }

@@ -25,7 +25,15 @@ env:
 
 jobs:
   linux-build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.runner }}
     outputs:
       build-number: ${{ steps.setup-buildenv.outputs.build-number }}
 
@@ -43,6 +51,7 @@ jobs:
         uses: ./.github/actions/setup-buildenv
         with:
           sccache: true
+          cache-key: linux-build-${{ matrix.arch }}
 
       - name: Build app
         working-directory: app
@@ -51,23 +60,23 @@ jobs:
       - name: Upload app bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: linux-x64-app
-          path: app/build/linux/x64/${{ env.APP_FLAVOR }}/release/bundle
+          name: linux-${{ matrix.arch }}-app
+          path: app/build/linux/${{ matrix.arch }}/${{ env.APP_FLAVOR }}/release/bundle
           if-no-files-found: error
 
   # Packaging runs on every PR so a broken nfpm config surfaces before the
   # merge, while signing and publishing stay gated on `upload`.
   linux-package:
     needs: linux-build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     strategy:
       matrix:
-        include:
-          - format: rpm
-            glob: "air-*.rpm"
-          - format: deb
-            glob: "air_*.deb"
+        format: [rpm, deb]
+        arch: [x64, arm64]
+
+    env:
+      LINUX_ARCH: ${{ matrix.arch }}
 
     steps:
       - name: Checkout repository
@@ -76,8 +85,8 @@ jobs:
       - name: Download app bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: linux-x64-app
-          path: app/build/linux/x64/${{ env.APP_FLAVOR }}/release/bundle
+          name: linux-${{ matrix.arch }}-app
+          path: app/build/linux/${{ matrix.arch }}/${{ env.APP_FLAVOR }}/release/bundle
 
       - name: Install just
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
@@ -93,8 +102,8 @@ jobs:
       - name: Upload packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: linux-package-${{ matrix.format }}
-          path: app/linux/${{ matrix.glob }}
+          name: linux-package-${{ matrix.format }}-${{ matrix.arch }}
+          path: app/linux/${{ matrix.format == 'rpm' && 'air-*.rpm' || 'air_*.deb' }}
           if-no-files-found: error
 
   linux-publish:
@@ -102,7 +111,7 @@ jobs:
     environment: linux-packages
 
     needs: linux-package
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     strategy:
       matrix:
@@ -120,44 +129,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # All arches of one format go into a single publish run, since parallel
+      # runs would overwrite each other's repository index.
       - name: Download packages
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: linux-package-${{ matrix.format }}
+          pattern: linux-package-${{ matrix.format }}-*
+          merge-multiple: true
           path: app/linux
 
-      - name: Install awscli
-        uses: unfor19/install-aws-cli-action@e8b481e524a99f37fbd39fdc1dcb3341ab091367 # v1.0.7
-
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y gpg ${{ matrix.extra_apt_dependencies }}
-
-      - name: Import GPG key and unlock it in the agent
-        env:
-          GPG_KEY_ID: ${{ vars.GPG_KEY_ID }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
-        run: |
-          mkdir -p ~/.gnupg
-          chmod 700 ~/.gnupg
-          cat >> ~/.gnupg/gpg-agent.conf <<'EOF'
-          allow-loopback-pinentry
-          allow-preset-passphrase
-          default-cache-ttl 7200
-          max-cache-ttl 7200
-          EOF
-          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
-          gpg-connect-agent reloadagent /bye
-          echo "$GPG_SIGNING_KEY" | gpg --batch --import
-
-          # Preload the passphrase into gpg-agent so subsequent signing calls
-          # (including gpg invocations spawned by rpm --addsign) don't prompt.
-          preset_bin="$(gpgconf --list-dirs libexecdir)/gpg-preset-passphrase"
-          while IFS= read -r keygrip; do
-            [ -n "$keygrip" ] || continue
-            "$preset_bin" --preset --passphrase "$GPG_PASSPHRASE" "$keygrip"
-          done < <(gpg --batch --with-colons --with-keygrip --list-secret-keys "$GPG_KEY_ID" \
-            | awk -F: '/^grp:/ {print $10}')
+      - name: Setup package publishing
+        uses: ./.github/actions/setup-linux-publish
+        with:
+          apt-packages: ${{ matrix.extra_apt_dependencies }}
+          gpg-key-id: ${{ vars.GPG_KEY_ID }}
+          gpg-signing-key: ${{ secrets.GPG_SIGNING_KEY }}
+          gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
       - name: Upload packages
         env:
@@ -167,5 +154,13 @@ jobs:
           REPOSITORY_BASE_URL: ${{ vars.REPOSITORY_BASE_URL }}
           S3_BUCKET: ${{ vars.S3_BUCKET }}
           S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
+          # Release branches feed beta, everything else (main) nightly. Stable
+          # is only reached by promotion, see linux-promote.yml.
+          TRACK: ${{ startsWith(github.ref, 'refs/heads/release/') && 'beta' || 'nightly' }}
         run: |
           cargo xtask publish-packages -- app/linux/${{ matrix.glob }}
+          # Transition: mirror nightly into the legacy layout (deb suite
+          # unstable, rpm/main) that existing installs point at.
+          if [[ "$TRACK" == nightly ]]; then
+            TRACK=unstable cargo xtask publish-packages -- app/linux/${{ matrix.glob }}
+          fi

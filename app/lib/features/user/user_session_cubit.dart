@@ -87,7 +87,12 @@ class UserSessionCubit extends Cubit<UserSessionState> {
 
     final navigationState = _navigationCubit.state;
     if (navigationState is! HomeState && !navigationState.isCreatingAccount) {
-      _navigationCubit.openHome();
+      final restoredHome = _navigationCubit.takeRestoredHome();
+      if (restoredHome != null) {
+        await _navigationCubit.applyRestoredHome(restoredHome);
+      } else {
+        _navigationCubit.openHome();
+      }
     }
     unawaited(_coreClient.refreshPushToken());
   }

@@ -313,5 +313,8 @@ TextSpan buildSystemMessageText(
         nameStyle,
       ),
     },
+    UiSystemMessage_SelfChatCreated() => TextSpan(
+      text: loc.systemMessage_selfChatCreated,
+    ),
   };
 }

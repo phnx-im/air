@@ -21,6 +21,7 @@ class ChatList extends StatefulWidget {
     required this.backgroundColor,
     required this.header,
     required this.headerHeight,
+    this.topBanner,
     required this.itemCount,
     required this.itemBuilder,
     this.cacheExtent,
@@ -39,6 +40,10 @@ class ChatList extends StatefulWidget {
 
   /// What the first row clears, before [ChatListTokens.headerClearance].
   final double headerHeight;
+
+  /// If non-null, scrolls as the first row, inset by
+  /// [ChatListTokens.topBannerPadding].
+  final Widget? topBanner;
 
   final int itemCount;
   final NullableIndexedWidgetBuilder itemBuilder;
@@ -107,6 +112,7 @@ class _ChatListState extends State<ChatList> {
   @override
   Widget build(BuildContext context) {
     final tokens = widget.tokens;
+    final banner = widget.topBanner;
 
     return FadedScrollFrame(
       backgroundColor: widget.backgroundColor,
@@ -134,8 +140,17 @@ class _ChatListState extends State<ChatList> {
           child: ListView.builder(
             controller: _controller,
             padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
-            itemCount: widget.itemCount,
-            itemBuilder: widget.itemBuilder,
+            itemCount: widget.itemCount + (banner != null ? 1 : 0),
+            itemBuilder: (context, index) {
+              if (banner == null) return widget.itemBuilder(context, index);
+              if (index == 0) {
+                return Padding(
+                  padding: ChatListTokens.topBannerPadding,
+                  child: banner,
+                );
+              }
+              return widget.itemBuilder(context, index - 1);
+            },
             scrollCacheExtent: widget.cacheExtent,
           ),
         ),

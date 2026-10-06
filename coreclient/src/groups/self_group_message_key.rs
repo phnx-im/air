@@ -362,7 +362,7 @@ impl SelfGroupPayload {
     }
 }
 
-mod persistence {
+pub(super) mod persistence {
     use aircommon::crypto::aead::keys::SelfGroupMessageKey;
     use openmls::group::GroupId;
     use sqlx::query;
@@ -416,6 +416,20 @@ mod persistence {
             group_id,
             epoch,
             key,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        Ok(())
+    }
+
+    pub(crate) async fn delete(
+        mut connection: impl WriteConnection,
+        group_id: &GroupId,
+    ) -> sqlx::Result<()> {
+        let group_id = GroupIdRefWrapper::from(group_id);
+        query!(
+            "DELETE FROM self_group_message_key WHERE group_id = ?",
+            group_id,
         )
         .execute(connection.as_mut())
         .await?;
