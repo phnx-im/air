@@ -6,8 +6,9 @@ use aircommon::{
     crypto::signatures::{keys::QsUserSigningKey, signable::Signable},
     identifiers::QsUserId,
 };
-use airprotos::relay_service::v1::{
-    LinkClientRequest, LinkClientRequestPayload, LinkingSessionId, RelayFrame,
+use airprotos::relay_service::{
+    mdl::{MDL_PROTOCOL_VERSION, MdlMessage, ProvisionRequest},
+    v1::{LinkClientRequest, LinkClientRequestPayload, RelayFrame, RendezvousId},
 };
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -43,6 +44,13 @@ impl ApiClient {
     ) -> Result<(mpsc::Sender<RelayFrame>, tonic::Streaming<RelayFrame>), RsRequestError> {
         // don't buffer frames: we expect the peer to consume what we send before we move forward
         let (tx, rx) = mpsc::channel::<RelayFrame>(1);
+
+        let provision_request = MdlMessage::ProvisionRequest(ProvisionRequest {
+            version: MDL_PROTOCOL_VERSION,
+        })
+        .into_frame()?;
+        tx.send(provision_request).await?;
+
         let request = tonic::Request::new(ReceiverStream::new(rx));
 
         let response: tonic::Response<tonic::Streaming<RelayFrame>> = self
@@ -57,7 +65,7 @@ impl ApiClient {
         &self,
         qs_user_id: QsUserId,
         qs_user_signing_key: &QsUserSigningKey,
-        linking_session_id: LinkingSessionId,
+        rendezvous_id: RendezvousId,
     ) -> Result<(mpsc::Sender<RelayFrame>, tonic::Streaming<RelayFrame>), RsRequestError> {
         // don't buffer frames: we expect the peer to consume what we send before we move forward
         let (tx, rx) = mpsc::channel::<RelayFrame>(1);
@@ -65,7 +73,7 @@ impl ApiClient {
         let payload = LinkClientRequestPayload {
             client_metadata: Some(self.metadata()),
             sender: Some(qs_user_id.into()),
-            session_id: Some(linking_session_id),
+            rendezvous_id: Some(rendezvous_id),
         };
 
         let link_client_request: LinkClientRequest = payload.sign(qs_user_signing_key)?;

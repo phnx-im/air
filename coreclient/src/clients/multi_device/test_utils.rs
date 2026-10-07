@@ -71,13 +71,13 @@ impl CoreUser {
             anyhow::Ok(Self::new_linked_ephemeral(domain, server_url, session_tx).await??)
         };
         let link = async {
-            let session_id = match session_rx
+            let code = match session_rx
                 .recv()
                 .await
-                .context("provisioning ended before reporting a session id")?
+                .context("provisioning ended before reporting a linking code")?
             {
-                MultiDeviceProvisionStep::SessionId(session_id) => session_id,
-                MultiDeviceProvisionStep::Linking => bail!("linking step before the session id"),
+                MultiDeviceProvisionStep::Code(code) => code,
+                MultiDeviceProvisionStep::Linking => bail!("linking step before the code"),
             };
             let (confirmation_tx, confirmation_rx) = oneshot::channel();
             confirmation_tx
@@ -85,7 +85,7 @@ impl CoreUser {
                 .expect("the receiver is alive");
             // The sender ignores a dropped receiver.
             let (connected_tx, _) = oneshot::channel();
-            self.multi_device_link_client(session_id, connected_tx, confirmation_rx)
+            self.multi_device_link_client(code, connected_tx, confirmation_rx)
                 .await??;
             // The new device still reports a `Linking` step, which fails if the
             // receiver is dropped before it is done.

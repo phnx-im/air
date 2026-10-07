@@ -36,10 +36,7 @@ use aircoreclient::{
         store::ClientRecord,
     },
 };
-use airprotos::{
-    queue_service::v1::{SiblingClientState, sibling_client_state},
-    relay_service::v1::LinkingSessionId,
-};
+use airprotos::queue_service::v1::{SiblingClientState, sibling_client_state};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use mimi_content::MimiContent;
 use tempfile::TempDir;
@@ -103,19 +100,20 @@ fn ignore_connected() -> tokio::sync::oneshot::Sender<()> {
     tokio::sync::oneshot::channel().0
 }
 
-/// Receives the session ID from the first provisioning step. The receiver must
-/// stay alive afterwards: the new device later sends a `Linking` step, and
-/// dropping the receiver would make that send fail and abort provisioning.
-async fn recv_session_id(
+/// Receives the linking code from the first provisioning step. The receiver
+/// must stay alive afterwards: the new device later sends a `Linking` step,
+/// and dropping the receiver would make that send fail and abort
+/// provisioning.
+async fn recv_linking_code(
     rx: &mut tokio::sync::mpsc::Receiver<MultiDeviceProvisionStep>,
-) -> LinkingSessionId {
+) -> String {
     match rx
         .recv()
         .await
-        .expect("provision channel closed before session id")
+        .expect("provision channel closed before the linking code")
     {
-        MultiDeviceProvisionStep::SessionId(session_id) => session_id,
-        MultiDeviceProvisionStep::Linking => panic!("unexpected Linking step before session id"),
+        MultiDeviceProvisionStep::Code(code) => code,
+        MultiDeviceProvisionStep::Linking => panic!("unexpected Linking step before the code"),
     }
 }
 
@@ -169,7 +167,7 @@ async fn assert_link_rejected_at_limit(
             .await
         }
     });
-    let session_id = recv_session_id(&mut session_rx).await;
+    let session_id = recv_linking_code(&mut session_rx).await;
 
     let linked = user
         .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
