@@ -48,12 +48,18 @@ pub(crate) enum OutboundServiceError {
 }
 
 impl OutboundServiceError {
+    /// Reports this error as fatal or rate limited if the anyhow
+    /// chain contains a rate limited error anywhere.
     pub(crate) fn fatal(error: impl Into<anyhow::Error>) -> Self {
-        Self::Fatal(error.into())
+        let error = error.into();
+        transient_request_error(&error).unwrap_or_else(|| Self::Fatal(error))
     }
 
+    /// Reports this error as recoverable or rate limited if the anyhow
+    /// chain contains a rate limited error anywhere.
     pub(crate) fn recoverable(error: impl Into<anyhow::Error>) -> Self {
-        Self::Recoverable(error.into())
+        let error = error.into();
+        transient_request_error(&error).unwrap_or_else(|| Self::Recoverable(error))
     }
 }
 
@@ -61,22 +67,41 @@ impl OutboundServiceError {
 /// the error chain. Everything else is recoverable.
 impl From<anyhow::Error> for OutboundServiceError {
     fn from(error: anyhow::Error) -> Self {
-        match rate_limited(&error) {
-            Some(retry_after) => Self::RateLimited { retry_after },
-            None => Self::Recoverable(error),
-        }
+        Self::recoverable(error)
     }
 }
 
-/// The `retry_after` of a rate limited request error in `error`, if any.
-fn rate_limited(error: &anyhow::Error) -> Option<Option<Duration>> {
+/// The `retry_after` of a rate limited or network request error in `error`.
+/// TODO(gabriel): remove this abomination by making sure we bubble up this correctly from all callsites.
+#[allow(clippy::question_mark)]
+fn transient_request_error(error: &anyhow::Error) -> Option<OutboundServiceError> {
     error.chain().find_map(|error| {
-        if let Some(error) = error.downcast_ref::<AsRequestError>() {
-            error.is_rate_limited().then(|| error.retry_after())
-        } else if let Some(error) = error.downcast_ref::<DsRequestError>() {
-            error.is_rate_limited().then(|| error.retry_after())
-        } else if let Some(error) = error.downcast_ref::<QsRequestError>() {
-            error.is_rate_limited().then(|| error.retry_after())
+        let (is_rate_limited, is_network_error, retry_after) =
+            if let Some(error) = error.downcast_ref::<AsRequestError>() {
+                (
+                    error.is_rate_limited(),
+                    error.is_network_error(),
+                    error.retry_after(),
+                )
+            } else if let Some(error) = error.downcast_ref::<DsRequestError>() {
+                (
+                    error.is_rate_limited(),
+                    error.is_network_error(),
+                    error.retry_after(),
+                )
+            } else if let Some(error) = error.downcast_ref::<QsRequestError>() {
+                (
+                    error.is_rate_limited(),
+                    error.is_network_error(),
+                    error.retry_after(),
+                )
+            } else {
+                return None;
+            };
+        if is_rate_limited {
+            Some(OutboundServiceError::RateLimited { retry_after })
+        } else if is_network_error {
+            Some(OutboundServiceError::NetworkError)
         } else {
             None
         }
