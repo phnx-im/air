@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE operation SET\n                    scheduled_at = ?,\n                    retries = ?\n                WHERE operation_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "a1e96012b53c1e6dfe9c6b6730063583cc22367d0f16a2b110b420b76f942f93"
+}
