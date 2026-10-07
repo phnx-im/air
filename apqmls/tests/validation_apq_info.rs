@@ -192,8 +192,8 @@ fn validate_group_context_pair(
 ) -> Result<ApqInfo, ApqValidationError> {
     let fixture = Fixture::new();
     validate_apq_group_contexts(
-        &fixture.t_group(t_info).export_group_context(),
-        &fixture.pq_group(pq_info).export_group_context(),
+        fixture.t_group(t_info).export_group_context(),
+        fixture.pq_group(pq_info).export_group_context(),
     )
 }
 
