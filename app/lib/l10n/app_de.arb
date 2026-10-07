@@ -89,7 +89,12 @@
 
   "introScreen_linkExisting": "Mit einem bestehenden Konto verknüpfen",
   "introScreen_signUp": "Konto erstellen",
-  "introScreen_dataNotTransferred": "Deine Chats wurden nicht auf dieses Gerät übertragen. Air nimmt sie nie in Backups oder Geräteübertragungen auf. Um dein Konto hier zu nutzen, verknüpfe dieses Gerät von einem Gerät aus, auf dem du Air noch nutzt.",
+  "introScreen_newPhone_title": "Du nutzt ein neues Handy?",
+  "introScreen_newPhone_body": "Aus Sicherheitsgründen werden Air-Konten nicht automatisch auf neue Geräte übertragen. So nutzt du dein Konto:",
+  "introScreen_newPhone_step1": "Öffne Air auf deinem alten Gerät, gehe zu Du > Geräte und tippe dann auf Gerät verknüpfen.",
+  "introScreen_newPhone_step1Desktop": "Öffne Air auf deinem alten Gerät, gehe zu Du > Geräte und klicke dann auf Gerät verknüpfen.",
+  "introScreen_newPhone_step2": "Tippe auf diesem Gerät auf Mit einem bestehenden Konto verknüpfen und folge dann den Anweisungen auf der nächsten Seite.",
+  "introScreen_newPhone_step2Desktop": "Klicke auf diesem Gerät auf Mit einem bestehenden Konto verknüpfen und folge dann den Anweisungen auf der nächsten Seite.",
   "introScreen_termsLinkText": "Nutzungsbedingungen",
   "introScreen_termsText": "Mit deiner Registrierung stimmst du unseren {termsOfUseLink} zu.",
   "invitationCodeScreen_header": "Einladungscode eingeben",

@@ -89,7 +89,12 @@
 
   "introScreen_linkExisting": "Associer à un compte existant",
   "introScreen_signUp": "Créer un compte",
-  "introScreen_dataNotTransferred": "Vos discussions n'ont pas été transférées sur cet appareil. Air ne les inclut jamais dans les sauvegardes ni dans les transferts entre téléphones. Pour utiliser votre compte ici, associez cet appareil depuis un appareil sur lequel vous utilisez encore Air.",
+  "introScreen_newPhone_title": "Vous utilisez un nouveau téléphone ?",
+  "introScreen_newPhone_body": "Pour votre sécurité, les comptes Air ne sont pas transférés automatiquement vers de nouveaux appareils. Pour utiliser votre compte, procédez comme suit :",
+  "introScreen_newPhone_step1": "Ouvrez Air sur votre ancien appareil, accédez à Profil > Appareils, puis appuyez sur Associer un appareil.",
+  "introScreen_newPhone_step1Desktop": "Ouvrez Air sur votre ancien appareil, accédez à Profil > Appareils, puis cliquez sur Associer un appareil.",
+  "introScreen_newPhone_step2": "Sur cet appareil, appuyez sur Associer à un compte existant, puis suivez les instructions de la page suivante.",
+  "introScreen_newPhone_step2Desktop": "Sur cet appareil, cliquez sur Associer à un compte existant, puis suivez les instructions de la page suivante.",
   "introScreen_termsLinkText": "Conditions d'utilisation",
   "introScreen_termsText": "En vous inscrivant, vous acceptez nos {termsOfUseLink}.",
   "invitationCodeScreen_header": "Saisissez le code d'invitation",

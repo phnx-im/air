@@ -89,7 +89,12 @@
 
   "introScreen_linkExisting": "Vincular a uma conta existente",
   "introScreen_signUp": "Criar conta",
-  "introScreen_dataNotTransferred": "Seus chats não foram transferidos para este dispositivo. O Air nunca os inclui em backups nem em transferências entre celulares. Para usar sua conta aqui, vincule este dispositivo a partir de um em que você ainda usa o Air.",
+  "introScreen_newPhone_title": "Está usando um celular novo?",
+  "introScreen_newPhone_body": "Para sua segurança, as contas do Air não são transferidas automaticamente para novos dispositivos. Para usar sua conta, faça o seguinte:",
+  "introScreen_newPhone_step1": "Abra o Air no seu dispositivo antigo, acesse Você > Dispositivos e toque em Vincular um dispositivo.",
+  "introScreen_newPhone_step1Desktop": "Abra o Air no seu dispositivo antigo, acesse Você > Dispositivos e clique em Vincular um dispositivo.",
+  "introScreen_newPhone_step2": "Neste dispositivo, toque em Vincular a uma conta existente e siga as instruções na próxima página.",
+  "introScreen_newPhone_step2Desktop": "Neste dispositivo, clique em Vincular a uma conta existente e siga as instruções na próxima página.",
   "introScreen_termsLinkText": "Termos de Uso",
   "introScreen_termsText": "Ao criar uma conta, você aceita nossos {termsOfUseLink}.",
   "invitationCodeScreen_header": "Digite o código de convite",

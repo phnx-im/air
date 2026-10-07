@@ -412,9 +412,29 @@
   "@introScreen_signUp": {
     "description": "Start screen button for creating a new account."
   },
-  "introScreen_dataNotTransferred": "Your chats were not transferred to this device. Air never includes them in backups or phone transfers. To use your account here, link this device from one where you still use Air.",
-  "@introScreen_dataNotTransferred": {
-    "description": "Notice on the start screen of an iPhone or iPad that was set up from a backup or another phone. Air's data is never part of backups or transfers, so the account has to be linked from a device that still has it."
+  "introScreen_newPhone_title": "Using a new phone?",
+  "@introScreen_newPhone_title": {
+    "description": "Heading of the notice on the start screen of an iPhone or iPad that was set up from a backup or another phone."
+  },
+  "introScreen_newPhone_body": "For your security, Air accounts don't automatically move to new devices. To use your account, do this:",
+  "@introScreen_newPhone_body": {
+    "description": "Intro line under the heading of the new-phone notice on the start screen. Introduces the numbered steps below it."
+  },
+  "introScreen_newPhone_step1": "Open Air on your old device, go to You > Devices, then tap Link a device.",
+  "@introScreen_newPhone_step1": {
+    "description": "First numbered step of the new-phone notice, done on the old device. The navigation names must match this locale's labels for the You tab (homeTab_profile), the Devices row (userSettingsScreen_devices) and the Link a device button (linkedDevicesScreen_linkDevice)."
+  },
+  "introScreen_newPhone_step1Desktop": "Open Air on your old device, go to You > Devices, then click Link a device.",
+  "@introScreen_newPhone_step1Desktop": {
+    "description": "Desktop variant of introScreen_newPhone_step1 that says click instead of tap. The same label rules apply."
+  },
+  "introScreen_newPhone_step2": "On this device, tap Link to an existing account, then follow the instructions on the next page.",
+  "@introScreen_newPhone_step2": {
+    "description": "Second numbered step of the new-phone notice, done on the new device. The quoted button name must match this locale's introScreen_linkExisting label."
+  },
+  "introScreen_newPhone_step2Desktop": "On this device, click Link to an existing account, then follow the instructions on the next page.",
+  "@introScreen_newPhone_step2Desktop": {
+    "description": "Desktop variant of introScreen_newPhone_step2 that says click instead of tap. The quoted button name must match this locale's introScreen_linkExisting label."
   },
   "introScreen_termsLinkText": "Terms of Use",
   "@introScreen_termsLinkText": {

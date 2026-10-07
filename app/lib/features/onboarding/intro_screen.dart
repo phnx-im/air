@@ -88,6 +88,7 @@ class IntroScreen extends HookWidget {
     // A window gives the picker a top row inside the safe zone. A phone floats
     // it over the corner, leaving the mark centered in the full height.
     final isPhone = DeviceType.isPhone;
+    final isDesktop = DeviceType.isDesktop;
     const picker = _LanguagePicker();
 
     return NuxScaffold(
@@ -114,11 +115,33 @@ class IntroScreen extends HookWidget {
               children: [
                 if (dataLeftBehind) ...[
                   Text(
-                    loc.introScreen_dataNotTransferred,
+                    loc.introScreen_newPhone_title,
+                    style: typeScale.body.m.style(
+                      weight: Weight.emphasized,
+                      color: palette.text.primary,
+                    ),
+                    textAlign: .center,
+                  ),
+                  const SizedBox(height: S.s8),
+                  Text(
+                    loc.introScreen_newPhone_body,
                     style: typeScale.body.s.style(
                       color: palette.text.secondary,
                     ),
-                    textAlign: .center,
+                  ),
+                  const SizedBox(height: S.s8),
+                  _NumberedStep(
+                    1,
+                    isDesktop
+                        ? loc.introScreen_newPhone_step1Desktop
+                        : loc.introScreen_newPhone_step1,
+                  ),
+                  const SizedBox(height: S.s4),
+                  _NumberedStep(
+                    2,
+                    isDesktop
+                        ? loc.introScreen_newPhone_step2Desktop
+                        : loc.introScreen_newPhone_step2,
                   ),
                   const SizedBox(height: S.s16),
                 ],
@@ -289,6 +312,29 @@ class _ServerTextField extends HookWidget {
           onFieldSubmitted();
         }
       },
+    );
+  }
+}
+
+class _NumberedStep extends StatelessWidget {
+  const _NumberedStep(this.index, this.text);
+
+  final int index;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = SemanticPalette.of(context);
+    final style = typeScale.body.s.style(color: palette.text.secondary);
+
+    return Row(
+      spacing: S.s8,
+      crossAxisAlignment: .baseline,
+      textBaseline: .alphabetic,
+      children: [
+        Text("$index.", style: style),
+        Expanded(child: Text(text, style: style)),
+      ],
     );
   }
 }

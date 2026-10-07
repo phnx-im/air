@@ -89,7 +89,12 @@
 
   "introScreen_linkExisting": "Associar a uma conta existente",
   "introScreen_signUp": "Criar conta",
-  "introScreen_dataNotTransferred": "Os teus chats não foram transferidos para este dispositivo. O Air nunca os inclui em cópias de segurança nem em transferências entre telemóveis. Para usares a tua conta aqui, associa este dispositivo a partir de um em que ainda uses o Air.",
+  "introScreen_newPhone_title": "Estás a usar um telemóvel novo?",
+  "introScreen_newPhone_body": "Para a tua segurança, as contas do Air não são transferidas automaticamente para novos dispositivos. Para usares a tua conta, faz o seguinte:",
+  "introScreen_newPhone_step1": "Abre o Air no teu dispositivo antigo, vai a Tu > Dispositivos e toca em Associar um dispositivo.",
+  "introScreen_newPhone_step1Desktop": "Abre o Air no teu dispositivo antigo, vai a Tu > Dispositivos e clica em Associar um dispositivo.",
+  "introScreen_newPhone_step2": "Neste dispositivo, toca em Associar a uma conta existente e segue as instruções na página seguinte.",
+  "introScreen_newPhone_step2Desktop": "Neste dispositivo, clica em Associar a uma conta existente e segue as instruções na página seguinte.",
   "introScreen_termsLinkText": "Termos de Utilização",
   "introScreen_termsText": "Ao criares uma conta, aceitas os nossos {termsOfUseLink}.",
   "invitationCodeScreen_header": "Introduz o código de convite",

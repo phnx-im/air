@@ -112,5 +112,26 @@ void main() {
         matchesGoldenFile('goldens/intro_screen_desktop.png'),
       );
     }, variant: desktopPlatform);
+
+    testWidgets('renders the transfer notice on desktop', (tester) async {
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      binding.platformDispatcher.views.first.physicalSize = const Size(
+        3840,
+        2160,
+      );
+      addTearDown(() {
+        binding.platformDispatcher.views.first.resetPhysicalSize();
+      });
+
+      await tester.pumpWidget(buildSubject(accountMarker: true));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile(
+          'goldens/intro_screen_data_not_transferred_desktop.png',
+        ),
+      );
+    }, variant: desktopPlatform);
   });
 }
