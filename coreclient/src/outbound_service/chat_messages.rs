@@ -18,7 +18,7 @@ use crate::groups::{Group, handle_group_not_found_on_ds};
 use crate::job::JobError;
 use crate::job::chat_operation::{ChatOperation, DerivationEpoch};
 use crate::job::pending_chat_operation::PendingChatOperation;
-use crate::outbound_service::error::OutboundServiceRunError;
+use crate::outbound_service::error::OutboundServiceError;
 use crate::outbound_service::resync::Resync;
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, Message, MessageId,
@@ -121,7 +121,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_queued_messages(
         &self,
         run_token: &CancellationToken,
-    ) -> Result<(), OutboundServiceRunError> {
+    ) -> Result<(), OutboundServiceError> {
         // Used to identify locked messages by this task
         let task_id = Uuid::new_v4();
         loop {
@@ -169,7 +169,7 @@ impl OutboundServiceContext {
         run_token: &CancellationToken,
         chat_id: ChatId,
         message_id: MessageId,
-    ) -> Result<RunControl, OutboundServiceRunError> {
+    ) -> Result<RunControl, OutboundServiceError> {
         let mut attempt = 0;
         loop {
             attempt += 1;
@@ -194,7 +194,7 @@ impl OutboundServiceContext {
                     );
                     return Ok(RunControl::NextMessage);
                 }
-                Err(OutboundServiceRunError::Fatal(error)) => {
+                Err(OutboundServiceError::Fatal(error)) => {
                     error!(%error, ?message_id, "Failed to send chat message; marking it as failed");
                     self.db
                         .with_write_transaction(async |txn| -> anyhow::Result<_> {
@@ -207,7 +207,7 @@ impl OutboundServiceContext {
                     return Ok(RunControl::NextMessage);
                 }
                 // Abort the whole run if we get rate limited
-                Err(error @ OutboundServiceRunError::RateLimited { .. }) => return Err(error),
+                Err(error @ OutboundServiceError::RateLimited { .. }) => return Err(error),
                 Err(error) => error,
             };
 
@@ -232,7 +232,7 @@ impl OutboundServiceContext {
     async fn send_chat_message(
         &self,
         message_id: MessageId,
-    ) -> Result<SendOutcome, OutboundServiceRunError> {
+    ) -> Result<SendOutcome, OutboundServiceError> {
         debug!(?message_id, "sending message");
 
         // load chat and message
@@ -275,7 +275,7 @@ impl OutboundServiceContext {
                 Ok(Some((chat, message, has_pending_proposals)))
             })
             .await
-            .map_err(OutboundServiceRunError::fatal)?
+            .map_err(OutboundServiceError::fatal)?
         else {
             return Ok(SendOutcome::Sent);
         };
@@ -289,7 +289,7 @@ impl OutboundServiceContext {
         }
 
         let Message::Content(content) = message.message() else {
-            return Err(OutboundServiceRunError::Fatal(anyhow!(
+            return Err(OutboundServiceError::Fatal(anyhow!(
                 "Messages scheduled for sending is not a content message."
             )));
         };
@@ -297,13 +297,13 @@ impl OutboundServiceContext {
         let api_client = self
             .api_clients
             .get(&chat.owner_domain())
-            .map_err(OutboundServiceRunError::fatal)?;
+            .map_err(OutboundServiceError::fatal)?;
 
         // load group and create MLS message
         let (group_state_ear_key, params, signer) = self
             .new_mls_message(&chat, content.content().clone(), None)
             .await
-            .map_err(OutboundServiceRunError::fatal)?;
+            .map_err(OutboundServiceError::fatal)?;
         let epoch = params.epoch;
         let sent_tags = params.collision_tags.clone();
         let generation = params.generation;
@@ -321,8 +321,8 @@ impl OutboundServiceContext {
                             handle_group_not_found_on_ds(txn, chat.group_id()).await
                         })
                         .await
-                        .map_err(OutboundServiceRunError::fatal)?;
-                    return Err(OutboundServiceRunError::fatal(ds_error));
+                        .map_err(OutboundServiceError::fatal)?;
+                    return Err(OutboundServiceError::fatal(ds_error));
                 }
 
                 // A collision here means a competing sibling client already sent
@@ -336,7 +336,7 @@ impl OutboundServiceContext {
                 if ds_error.is_rate_limited() || ds_error.is_network_error() {
                     return Err(ds_error.into());
                 }
-                return Err(OutboundServiceRunError::fatal(
+                return Err(OutboundServiceError::fatal(
                     anyhow::Error::from(ds_error).context("DS rejected message"),
                 ));
             }
@@ -392,7 +392,7 @@ impl OutboundServiceContext {
                 Ok(())
             })
             .await
-            .map_err(OutboundServiceRunError::fatal)?;
+            .map_err(OutboundServiceError::fatal)?;
 
         Ok(SendOutcome::Sent)
     }
@@ -404,23 +404,23 @@ impl OutboundServiceContext {
     async fn commit_pending_proposals(
         &self,
         chat_id: ChatId,
-    ) -> Result<CommitOutcome, OutboundServiceRunError> {
+    ) -> Result<CommitOutcome, OutboundServiceError> {
         match self
             .execute_job(ChatOperation::update(chat_id, None, DerivationEpoch::Keep))
             .await
         {
             Ok(_) => Ok(CommitOutcome::Committed),
             Err(JobError::Blocked) => Ok(CommitOutcome::ChatBlocked),
-            Err(JobError::NetworkError) => Err(OutboundServiceRunError::NetworkError),
+            Err(JobError::NetworkError) => Err(OutboundServiceError::NetworkError),
             Err(JobError::RateLimited { retry_after }) => {
-                Err(OutboundServiceRunError::RateLimited { retry_after })
+                Err(OutboundServiceError::RateLimited { retry_after })
             }
             // The job already cleaned up the local state.
-            Err(JobError::NotFound) => Err(OutboundServiceRunError::Fatal(anyhow!(
+            Err(JobError::NotFound) => Err(OutboundServiceError::Fatal(anyhow!(
                 "Chat not found while committing pending proposals"
             ))),
             Err(error @ (JobError::Domain(_) | JobError::Fatal(_))) => {
-                Err(OutboundServiceRunError::Fatal(error.into()))
+                Err(OutboundServiceError::Fatal(error.into()))
             }
         }
     }

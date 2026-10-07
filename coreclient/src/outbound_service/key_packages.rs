@@ -24,12 +24,12 @@ use crate::{
         key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
     },
     outbound_service::{
-        APQ_KEY_PACKAGES, KEY_PACKAGES, OutboundServiceContext, error::OutboundServiceRunError,
+        APQ_KEY_PACKAGES, KEY_PACKAGES, OutboundServiceContext, error::OutboundServiceError,
     },
 };
 
 impl OutboundServiceContext {
-    pub(super) async fn upload_key_packages(&self) -> Result<Duration, OutboundServiceRunError> {
+    pub(super) async fn upload_key_packages(&self) -> Result<Duration, OutboundServiceError> {
         match SelfGroup::load(self.db.read().await?)
             .await?
             .filter(SelfGroup::has_linked_devices)
@@ -47,7 +47,7 @@ impl OutboundServiceContext {
     async fn upload_via_publish(
         &self,
         batch: KeyPackageBatch,
-    ) -> Result<Duration, OutboundServiceRunError> {
+    ) -> Result<Duration, OutboundServiceError> {
         info!(
             plain = batch.plain.len(),
             apq = batch.apq.len(),
@@ -57,7 +57,7 @@ impl OutboundServiceContext {
         let api_client = self
             .api_clients
             .default_client()
-            .map_err(OutboundServiceRunError::recoverable)?;
+            .map_err(OutboundServiceError::recoverable)?;
 
         let key_package_refs = batch.references()?;
 
@@ -114,7 +114,7 @@ impl OutboundServiceContext {
     async fn upload_via_self_group(
         &self,
         mut self_group: SelfGroup,
-    ) -> Result<Duration, OutboundServiceRunError> {
+    ) -> Result<Duration, OutboundServiceError> {
         // Generate key packages
         let Some(generated) = self
             .db
@@ -188,7 +188,7 @@ impl OutboundServiceContext {
         let api_client = self
             .api_clients
             .default_client()
-            .map_err(OutboundServiceRunError::recoverable)?;
+            .map_err(OutboundServiceError::recoverable)?;
         let batch_id = KeyPackageBatchId {
             epoch_id,
             leaf_index,

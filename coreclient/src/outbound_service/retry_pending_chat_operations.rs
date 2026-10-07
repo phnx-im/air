@@ -22,7 +22,7 @@ use crate::{
     db::access::WriteDbTransaction,
     groups::{Group, VerifiedGroup},
     job::{JobError, pending_chat_operation::PendingChatOperation},
-    outbound_service::{OutboundServiceContext, error::OutboundServiceRunError},
+    outbound_service::{OutboundServiceContext, error::OutboundServiceError},
     privacy_pass,
 };
 
@@ -30,7 +30,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_pending_chat_operations(
         &self,
         run_token: &CancellationToken,
-    ) -> Result<(), OutboundServiceRunError> {
+    ) -> Result<(), OutboundServiceError> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
         loop {
@@ -69,10 +69,10 @@ impl OutboundServiceContext {
             match self.execute_job(pending_chat_operation).await {
                 Err(JobError::NetworkError) => {
                     // If we're getting a network error, error out of the loop and wait for the next run.
-                    return Err(OutboundServiceRunError::NetworkError);
+                    return Err(OutboundServiceError::NetworkError);
                 }
                 Err(JobError::RateLimited { retry_after }) => {
-                    return Err(OutboundServiceRunError::RateLimited { retry_after });
+                    return Err(OutboundServiceError::RateLimited { retry_after });
                 }
                 Err(error @ (JobError::Fatal(_) | JobError::Domain(_))) => {
                     error!(%error, ?group_id, "Failed to execute pending chat operation");

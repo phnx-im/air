@@ -26,7 +26,7 @@ use crate::{
     db::access::WriteDbTransaction,
     groups::{Group, handle_group_not_found_on_ds, openmls_provider::AirOpenMlsProvider},
     job::pending_chat_operation::PendingChatOperation,
-    outbound_service::{error::OutboundServiceRunError, resync::Resync},
+    outbound_service::{error::OutboundServiceError, resync::Resync},
 };
 
 use super::{OutboundService, OutboundServiceContext, SendOutcome, receipt_queue::ReceiptQueue};
@@ -72,7 +72,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_queued_receipts(
         &self,
         run_token: &CancellationToken,
-    ) -> Result<(), OutboundServiceRunError> {
+    ) -> Result<(), OutboundServiceError> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
         loop {
@@ -116,12 +116,12 @@ impl OutboundServiceContext {
                             .await?;
                         continue;
                     }
-                    Err(OutboundServiceRunError::Fatal(error)) => {
+                    Err(OutboundServiceError::Fatal(error)) => {
                         error!(%error, ?chat_id, "Failed to send receipt; dropping");
                         ReceiptQueue::remove(self.db.write().await?, task_id).await?;
                         continue;
                     }
-                    Err(OutboundServiceRunError::Recoverable(error)) => {
+                    Err(OutboundServiceError::Recoverable(error)) => {
                         error!(%error, "Failed to send receipt; will retry later");
                         // Don't unlock the receipts now; they will be unlocked after a threshold.
                         continue;
@@ -146,7 +146,7 @@ impl OutboundServiceContext {
         &self,
         chat_id: ChatId,
         unsent_receipt: UnsentReceipt,
-    ) -> Result<ReceiptSendOutcome, OutboundServiceRunError> {
+    ) -> Result<ReceiptSendOutcome, OutboundServiceError> {
         debug!(%chat_id, ?unsent_receipt, "sending receipt");
 
         // load chat
@@ -155,7 +155,7 @@ impl OutboundServiceContext {
             .with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))
-            .map_err(OutboundServiceRunError::fatal)?;
+            .map_err(OutboundServiceError::fatal)?;
         if let ChatStatus::Blocked = chat.status() {
             return Ok(ReceiptSendOutcome::Sent);
         }
@@ -168,7 +168,7 @@ impl OutboundServiceContext {
                 Some(unsent_receipt.report.clone()),
             )
             .await
-            .map_err(OutboundServiceRunError::fatal)?;
+            .map_err(OutboundServiceError::fatal)?;
         let epoch = params.epoch;
         let sent_tags = params.collision_tags.clone();
         let generation = params.generation;
@@ -177,7 +177,7 @@ impl OutboundServiceContext {
         if let Err(ds_error) = self
             .api_clients
             .get(&chat.owner_domain())
-            .map_err(OutboundServiceRunError::fatal)?
+            .map_err(OutboundServiceError::fatal)?
             .ds_send_message(params, &signer, &group_state_ear_key)
             .await
         {
@@ -187,7 +187,7 @@ impl OutboundServiceContext {
                         handle_group_not_found_on_ds(txn, chat.group_id()).await
                     })
                     .await
-                    .map_err(OutboundServiceRunError::fatal)?;
+                    .map_err(OutboundServiceError::fatal)?;
                 return Err(ds_error.into());
             }
 
@@ -195,7 +195,7 @@ impl OutboundServiceContext {
             if collisions.is_empty() {
                 // The DS will never accept this receipt
                 if ds_error.is_invalid_argument() {
-                    return Err(OutboundServiceRunError::fatal(ds_error));
+                    return Err(OutboundServiceError::fatal(ds_error));
                 }
                 return Err(ds_error.into());
             }
@@ -243,7 +243,7 @@ impl OutboundServiceContext {
     async fn store_receipt_report(
         &self,
         report: MessageStatusReport,
-    ) -> Result<(), OutboundServiceRunError> {
+    ) -> Result<(), OutboundServiceError> {
         self.db
             .with_write_transaction(async |txn| {
                 StatusRecord::borrowed(self.user_id(), report, TimeStamp::now())
@@ -251,7 +251,7 @@ impl OutboundServiceContext {
                     .await
             })
             .await
-            .map_err(OutboundServiceRunError::fatal)
+            .map_err(OutboundServiceError::fatal)
     }
 
     /// Creates a new MLS message for the given chat and returns the signer used.
@@ -312,11 +312,11 @@ impl OutboundServiceContext {
         &self,
         chat: &Chat,
         content: MimiContent,
-    ) -> Result<SendOutcome, OutboundServiceRunError> {
+    ) -> Result<SendOutcome, OutboundServiceError> {
         let (group_state_ear_key, params, signer) = self
             .new_mls_message(chat, content, None)
             .await
-            .map_err(OutboundServiceRunError::fatal)?;
+            .map_err(OutboundServiceError::fatal)?;
         let epoch = params.epoch;
         let sent_tags = params.collision_tags.clone();
         let generation = params.generation;
@@ -324,7 +324,7 @@ impl OutboundServiceContext {
         if let Err(ds_error) = self
             .api_clients
             .get(&chat.owner_domain())
-            .map_err(OutboundServiceRunError::fatal)?
+            .map_err(OutboundServiceError::fatal)?
             .ds_send_message(params, &signer, &group_state_ear_key)
             .await
         {
@@ -334,7 +334,7 @@ impl OutboundServiceContext {
                         handle_group_not_found_on_ds(txn, chat.group_id()).await
                     })
                     .await
-                    .map_err(OutboundServiceRunError::fatal)?;
+                    .map_err(OutboundServiceError::fatal)?;
                 return Err(ds_error.into());
             }
             if !ds_error.process_tag_collisions(&sent_tags).is_empty() {
@@ -342,7 +342,7 @@ impl OutboundServiceContext {
             }
             // The DS will never accept this message
             if ds_error.is_invalid_argument() {
-                return Err(OutboundServiceRunError::fatal(ds_error));
+                return Err(OutboundServiceError::fatal(ds_error));
             }
             return Err(ds_error.into());
         }

@@ -14,7 +14,7 @@ use tracing::{debug, error, info};
 
 use crate::{
     chats::messages::persistence, db::access::WriteDbTransaction,
-    outbound_service::error::OutboundServiceRunError,
+    outbound_service::error::OutboundServiceError,
 };
 
 use super::{OutboundService, OutboundServiceContext, SendOutcome, self_chat::SelfChatReadiness};
@@ -40,7 +40,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_deleted_messages(
         &self,
         run_token: &CancellationToken,
-    ) -> Result<(), OutboundServiceRunError> {
+    ) -> Result<(), OutboundServiceError> {
         let staged = persistence::staged_deletions(self.db.read().await?).await?;
         if staged.is_empty() {
             return Ok(());
@@ -69,7 +69,7 @@ impl OutboundServiceContext {
             .to_mimi_content();
             let result = match content {
                 Ok(content) => self.send_application_message(&chat, content).await,
-                Err(error) => Err(OutboundServiceRunError::fatal(error)),
+                Err(error) => Err(OutboundServiceError::fatal(error)),
             };
             match result {
                 Ok(SendOutcome::Sent) => {
@@ -83,7 +83,7 @@ impl OutboundServiceContext {
                     debug!("deleted messages collided with a sibling, retrying later");
                     return Ok(());
                 }
-                Err(OutboundServiceRunError::Fatal(error)) => {
+                Err(OutboundServiceError::Fatal(error)) => {
                     error!(
                         %error,
                         count = batch.len(),

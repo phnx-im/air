@@ -31,7 +31,7 @@ use crate::{
     },
 };
 
-use super::{OutboundServiceContext, error::OutboundServiceRunError, resync::Resync};
+use super::{OutboundServiceContext, error::OutboundServiceError, resync::Resync};
 
 /// A sentinel value for a one-shot task which already ran.
 pub(crate) const PARKED_AT: DateTime<Utc> = DateTime::from_naive_utc_and_offset(
@@ -240,7 +240,7 @@ impl OutboundServiceContext {
     pub(super) async fn execute_timed_tasks(
         &self,
         run_token: &CancellationToken,
-    ) -> Result<(), OutboundServiceRunError> {
+    ) -> Result<(), OutboundServiceError> {
         self.ensure_timed_tasks_exist().await?;
 
         let mut timed_task_context = TimedTaskContext {
@@ -273,8 +273,8 @@ impl OutboundServiceContext {
                 Ok(interval) => interval,
                 // Leave the task due so it is the first one retried in the next run
                 Err(
-                    error @ (OutboundServiceRunError::NetworkError
-                    | OutboundServiceRunError::RateLimited { .. }),
+                    error @ (OutboundServiceError::NetworkError
+                    | OutboundServiceError::RateLimited { .. }),
                 ) => return Err(error),
                 Err(error) => {
                     error!(%error, "Failed to execute timed task");
@@ -343,7 +343,7 @@ impl OutboundServiceContext {
         run_token: &CancellationToken,
         op: &mut Operation<TimedTask>,
         context: &mut TimedTaskContext,
-    ) -> Result<Option<Duration>, OutboundServiceRunError> {
+    ) -> Result<Option<Duration>, OutboundServiceError> {
         debug!(kind = ?op.data.kind, "handling task");
 
         match &op.data.kind {
@@ -491,7 +491,7 @@ impl OutboundServiceContext {
     async fn self_update(
         &self,
         run_token: &CancellationToken,
-    ) -> Result<Duration, OutboundServiceRunError> {
+    ) -> Result<Duration, OutboundServiceError> {
         const PARTIAL_UPDATE_INTERVAL: Duration = Duration::minutes(5);
         const BATCH_SIZE: usize = 5;
 
@@ -521,7 +521,7 @@ impl OutboundServiceContext {
             match self.self_update_in_chat(chat_id).await {
                 Ok(SelfUpdateOutcome::Updated) => num_updated += 1,
                 Ok(SelfUpdateOutcome::Skipped) => (),
-                Err(OutboundServiceRunError::Fatal(error)) => {
+                Err(OutboundServiceError::Fatal(error)) => {
                     num_failed += 1;
                     warn!(?chat_id, %error, "Skipping self-update in chat due to unexpected error");
                 }
@@ -547,7 +547,7 @@ impl OutboundServiceContext {
     async fn self_update_in_chat(
         &self,
         chat_id: ChatId,
-    ) -> Result<SelfUpdateOutcome, OutboundServiceRunError> {
+    ) -> Result<SelfUpdateOutcome, OutboundServiceError> {
         debug!(?chat_id, "Self-update in chat");
 
         let (mut group, pq_due) = {
@@ -565,7 +565,7 @@ impl OutboundServiceContext {
                     );
                     return Ok(SelfUpdateOutcome::Skipped);
                 }
-                Err(error) => return Err(OutboundServiceRunError::fatal(error)),
+                Err(error) => return Err(OutboundServiceError::fatal(error)),
             };
 
             if group.mls_group().pending_commit().is_some()
@@ -599,7 +599,7 @@ impl OutboundServiceContext {
             match PendingChatOperation::is_pending_for_chat(&mut read_txn, chat_id).await {
                 Ok(true) => return Ok(SelfUpdateOutcome::Skipped),
                 Ok(false) => (),
-                Err(error) => return Err(OutboundServiceRunError::fatal(error)),
+                Err(error) => return Err(OutboundServiceError::fatal(error)),
             }
 
             // A commit on a desynced group would only be rejected.
@@ -613,7 +613,7 @@ impl OutboundServiceContext {
                     return Ok(SelfUpdateOutcome::Skipped);
                 }
                 Ok(None) => (),
-                Err(error) => return Err(OutboundServiceRunError::fatal(error)),
+                Err(error) => return Err(OutboundServiceError::fatal(error)),
             }
 
             (group, pq_due)
@@ -661,15 +661,15 @@ impl OutboundServiceContext {
             // A network error or rate limiting is likely something transient
             // that would affect all chats, so we retry the whole task with
             // backoff.
-            Err(JobError::NetworkError) => Err(OutboundServiceRunError::NetworkError),
+            Err(JobError::NetworkError) => Err(OutboundServiceError::NetworkError),
             Err(JobError::RateLimited { retry_after }) => {
-                Err(OutboundServiceRunError::RateLimited { retry_after })
+                Err(OutboundServiceError::RateLimited { retry_after })
             }
             // The operation is no longer applicable to this chat, so we skip
             // it.
             Err(JobError::NotFound | JobError::Blocked) => Ok(SelfUpdateOutcome::Skipped),
             Err(error @ (JobError::Domain(_) | JobError::Fatal(_))) => {
-                Err(OutboundServiceRunError::fatal(error))
+                Err(OutboundServiceError::fatal(error))
             }
         }
     }

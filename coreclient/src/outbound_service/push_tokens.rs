@@ -10,7 +10,7 @@ use aircommon::{
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 
-use crate::{clients::push_token_state, outbound_service::error::OutboundServiceRunError};
+use crate::{clients::push_token_state, outbound_service::error::OutboundServiceError};
 
 use super::OutboundServiceContext;
 
@@ -19,7 +19,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_pending_push_token_updates(
         &self,
         run_token: &CancellationToken,
-    ) -> Result<(), OutboundServiceRunError> {
+    ) -> Result<(), OutboundServiceError> {
         if run_token.is_cancelled() {
             return Ok(());
         }
@@ -35,7 +35,7 @@ impl OutboundServiceContext {
             Err(error) => {
                 error!(%error, "Invalid push token state; dropping");
                 push_token_state::clear_pending(self.db.write().await?).await?;
-                return Err(OutboundServiceRunError::Fatal(error));
+                return Err(OutboundServiceError::Fatal(error));
             }
         };
 
@@ -43,15 +43,15 @@ impl OutboundServiceContext {
             Ok(()) => {
                 push_token_state::clear_pending(self.db.write().await?).await?;
             }
-            Err(OutboundServiceRunError::Fatal(error)) => {
+            Err(OutboundServiceError::Fatal(error)) => {
                 error!(%error, "Failed to update push token; dropping");
                 push_token_state::clear_pending(self.db.write().await?).await?;
-                return Err(OutboundServiceRunError::Fatal(error));
+                return Err(OutboundServiceError::Fatal(error));
             }
             // Keep the update pending, it is due again in the next run
             Err(
-                error @ (OutboundServiceRunError::NetworkError
-                | OutboundServiceRunError::RateLimited { .. }),
+                error @ (OutboundServiceError::NetworkError
+                | OutboundServiceError::RateLimited { .. }),
             ) => return Err(error),
             Err(error) => {
                 error!(%error, "Failed to update push token; will retry later");
@@ -66,7 +66,7 @@ impl OutboundServiceContext {
     async fn update_push_token_on_qs(
         &self,
         push_token: Option<PushToken>,
-    ) -> Result<(), OutboundServiceRunError> {
+    ) -> Result<(), OutboundServiceError> {
         match &push_token {
             Some(_) => debug!("Updating push token on QS"),
             None => debug!("Clearing push token on QS"),
@@ -79,14 +79,14 @@ impl OutboundServiceContext {
             Some(push_token) => Some(
                 push_token
                     .encrypt(&self.key_store.push_token_ear_key)
-                    .map_err(OutboundServiceRunError::fatal)?,
+                    .map_err(OutboundServiceError::fatal)?,
             ),
             None => None,
         };
 
         self.api_clients
             .default_client()
-            .map_err(OutboundServiceRunError::fatal)?
+            .map_err(OutboundServiceError::fatal)?
             .qs_update_client(
                 self.qs_client_id,
                 queue_encryption_key.clone(),

@@ -11,7 +11,7 @@ use chrono::Utc;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
-use crate::{outbound_service::error::OutboundServiceRunError, privacy_pass};
+use crate::{outbound_service::error::OutboundServiceError, privacy_pass};
 
 use super::{OutboundServiceContext, SendOutcome, self_chat::SelfChatReadiness};
 
@@ -24,7 +24,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_redeemed_tokens(
         &self,
         run_token: &CancellationToken,
-    ) -> Result<(), OutboundServiceRunError> {
+    ) -> Result<(), OutboundServiceError> {
         let redeemed =
             privacy_pass::redeemed_tokens_to_broadcast(self.db.read().await?, Utc::now()).await?;
         if redeemed.is_empty() {
@@ -51,7 +51,7 @@ impl OutboundServiceContext {
             let content = SelfGroupAppMessage::RedeemedTokens(message.clone()).to_mimi_content();
             let result = match content {
                 Ok(content) => self.send_application_message(&chat, content).await,
-                Err(error) => Err(OutboundServiceRunError::fatal(error)),
+                Err(error) => Err(OutboundServiceError::fatal(error)),
             };
             match result {
                 Ok(SendOutcome::Sent) => {
@@ -67,7 +67,7 @@ impl OutboundServiceContext {
                     debug!("redeemed privacy pass tokens collided with a sibling, retrying later");
                     return Ok(());
                 }
-                Err(OutboundServiceRunError::Fatal(error)) => {
+                Err(OutboundServiceError::Fatal(error)) => {
                     error!(
                         %error,
                         operation_type = %message.operation_type,

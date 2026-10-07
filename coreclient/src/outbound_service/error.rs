@@ -36,7 +36,7 @@ pub(crate) fn is_ds_rejection_error(error: &anyhow::Error) -> bool {
 /// recoverable one keeps it for a later run. Either way the run continues with
 /// the next item or task. Network errors and rate limiting abort the run.
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum OutboundServiceRunError {
+pub(crate) enum OutboundServiceError {
     #[error("Network error")]
     NetworkError,
     #[error("Rate limited, retry after {retry_after:?}")]
@@ -47,7 +47,7 @@ pub(crate) enum OutboundServiceRunError {
     Fatal(anyhow::Error),
 }
 
-impl OutboundServiceRunError {
+impl OutboundServiceError {
     pub(crate) fn fatal(error: impl Into<anyhow::Error>) -> Self {
         Self::Fatal(error.into())
     }
@@ -59,7 +59,7 @@ impl OutboundServiceRunError {
 
 /// A rate limit is never specific to an item, so it is recognized anywhere in
 /// the error chain. Everything else is recoverable.
-impl From<anyhow::Error> for OutboundServiceRunError {
+impl From<anyhow::Error> for OutboundServiceError {
     fn from(error: anyhow::Error) -> Self {
         match rate_limited(&error) {
             Some(retry_after) => Self::RateLimited { retry_after },
@@ -83,7 +83,7 @@ fn rate_limited(error: &anyhow::Error) -> Option<Option<Duration>> {
     })
 }
 
-impl From<sqlx::Error> for OutboundServiceRunError {
+impl From<sqlx::Error> for OutboundServiceError {
     fn from(error: sqlx::Error) -> Self {
         Self::Recoverable(error.into())
     }
@@ -91,7 +91,7 @@ impl From<sqlx::Error> for OutboundServiceRunError {
 
 /// Permanent server errors (e.g. group not found) are fatal, other rejections
 /// are recoverable.
-impl From<DsRequestError> for OutboundServiceRunError {
+impl From<DsRequestError> for OutboundServiceError {
     fn from(error: DsRequestError) -> Self {
         if error.is_rate_limited() {
             Self::RateLimited {
@@ -109,7 +109,7 @@ impl From<DsRequestError> for OutboundServiceRunError {
 
 /// Protocol and validation errors are fatal, other server errors are
 /// recoverable.
-impl From<QsRequestError> for OutboundServiceRunError {
+impl From<QsRequestError> for OutboundServiceError {
     fn from(error: QsRequestError) -> Self {
         if error.is_rate_limited() {
             Self::RateLimited {
@@ -127,7 +127,7 @@ impl From<QsRequestError> for OutboundServiceRunError {
 
 /// A job that is blocked or whose target is gone will not succeed on retry,
 /// so these are fatal like domain errors.
-impl<E> From<JobError<E>> for OutboundServiceRunError
+impl<E> From<JobError<E>> for OutboundServiceError
 where
     E: std::error::Error + Send + Sync + 'static,
 {
@@ -149,24 +149,22 @@ pub(super) trait RunResultExt {
     fn or_abort(self, task: &'static str) -> Result<(), WorkAborted>;
 }
 
-impl RunResultExt for Result<(), OutboundServiceRunError> {
+impl RunResultExt for Result<(), OutboundServiceError> {
     fn or_abort(self, task: &'static str) -> Result<(), WorkAborted> {
         match self {
             Ok(()) => Ok(()),
-            Err(
-                OutboundServiceRunError::Fatal(error) | OutboundServiceRunError::Recoverable(error),
-            ) => {
+            Err(OutboundServiceError::Fatal(error) | OutboundServiceError::Recoverable(error)) => {
                 error!(%error, task, "Outbound service task failed");
                 Ok(())
             }
-            Err(OutboundServiceRunError::NetworkError) => {
+            Err(OutboundServiceError::NetworkError) => {
                 info!(
                     task,
                     "Network appears unavailable, aborting outbound service run"
                 );
                 Err(WorkAborted::Interrupted)
             }
-            Err(OutboundServiceRunError::RateLimited { retry_after }) => {
+            Err(OutboundServiceError::RateLimited { retry_after }) => {
                 info!(
                     task,
                     ?retry_after,
@@ -193,20 +191,20 @@ mod tests {
     fn ds_errors_are_classified() {
         let error = DsRequestError::Tonic(Status::resource_exhausted("Too Many Requests!"));
         assert_matches!(
-            OutboundServiceRunError::from(error),
-            OutboundServiceRunError::RateLimited { retry_after: None }
+            OutboundServiceError::from(error),
+            OutboundServiceError::RateLimited { retry_after: None }
         );
 
         let error = DsRequestError::Tonic(Status::unavailable("server stopped"));
         assert_matches!(
-            OutboundServiceRunError::from(error),
-            OutboundServiceRunError::NetworkError
+            OutboundServiceError::from(error),
+            OutboundServiceError::NetworkError
         );
 
         let error = DsRequestError::Tonic(Status::not_found("group not found"));
         assert_matches!(
-            OutboundServiceRunError::from(error),
-            OutboundServiceRunError::Fatal(_)
+            OutboundServiceError::from(error),
+            OutboundServiceError::Fatal(_)
         );
 
         let error = DsRequestError::Tonic(
@@ -219,8 +217,8 @@ mod tests {
             .to_status(Code::ResourceExhausted, "max devices exceeded"),
         );
         assert_matches!(
-            OutboundServiceRunError::from(error),
-            OutboundServiceRunError::Recoverable(_)
+            OutboundServiceError::from(error),
+            OutboundServiceError::Recoverable(_)
         );
     }
 
@@ -228,26 +226,26 @@ mod tests {
     fn qs_errors_are_classified() {
         let error = QsRequestError::Tonic(Status::resource_exhausted("Too Many Requests!"));
         assert_matches!(
-            OutboundServiceRunError::from(error),
-            OutboundServiceRunError::RateLimited { retry_after: None }
+            OutboundServiceError::from(error),
+            OutboundServiceError::RateLimited { retry_after: None }
         );
 
         let error = QsRequestError::Tonic(Status::unavailable("server stopped"));
         assert_matches!(
-            OutboundServiceRunError::from(error),
-            OutboundServiceRunError::NetworkError
+            OutboundServiceError::from(error),
+            OutboundServiceError::NetworkError
         );
 
         let error = QsRequestError::UnexpectedResponse;
         assert_matches!(
-            OutboundServiceRunError::from(error),
-            OutboundServiceRunError::Fatal(_)
+            OutboundServiceError::from(error),
+            OutboundServiceError::Fatal(_)
         );
 
         let error = QsRequestError::Tonic(Status::internal("boom"));
         assert_matches!(
-            OutboundServiceRunError::from(error),
-            OutboundServiceRunError::Recoverable(_)
+            OutboundServiceError::from(error),
+            OutboundServiceError::Recoverable(_)
         );
     }
 
@@ -259,15 +257,15 @@ mod tests {
             .insert("retry-after", "3".parse().unwrap());
         let error = anyhow::Error::from(AsRequestError::Tonic(status)).context("refreshing");
         assert_matches!(
-            OutboundServiceRunError::from(error),
-            OutboundServiceRunError::RateLimited { retry_after: Some(retry_after) }
+            OutboundServiceError::from(error),
+            OutboundServiceError::RateLimited { retry_after: Some(retry_after) }
                 if retry_after == Duration::from_secs(3)
         );
 
         let error = anyhow::Error::from(QsRequestError::Tonic(Status::internal("boom")));
         assert_matches!(
-            OutboundServiceRunError::from(error),
-            OutboundServiceRunError::Recoverable(_)
+            OutboundServiceError::from(error),
+            OutboundServiceError::Recoverable(_)
         );
     }
 }

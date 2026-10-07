@@ -39,7 +39,7 @@ use crate::{
     outbound_service::{
         OutboundServiceContext,
         error::{
-            OutboundServiceRunError, is_ds_not_found_error, is_ds_rejection_error,
+            OutboundServiceError, is_ds_not_found_error, is_ds_rejection_error,
             is_ds_wrong_epoch_error,
         },
     },
@@ -254,7 +254,7 @@ impl OutboundServiceContext {
     pub(super) async fn perform_queued_resyncs(
         &self,
         run_token: &CancellationToken,
-    ) -> Result<(), OutboundServiceRunError> {
+    ) -> Result<(), OutboundServiceError> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
         loop {
@@ -287,7 +287,7 @@ impl OutboundServiceContext {
         &self,
         resync: Resync,
         now: DateTime<Utc>,
-    ) -> Result<(), OutboundServiceRunError> {
+    ) -> Result<(), OutboundServiceError> {
         info!("Performing resync");
 
         let group_id = resync.group_id.clone();
@@ -326,13 +326,13 @@ impl OutboundServiceContext {
             Ok(None) => return Ok(()),
             // Leave the entry untouched and retry in a later run
             Err(
-                error @ (OutboundServiceRunError::NetworkError
-                | OutboundServiceRunError::RateLimited { .. }),
+                error @ (OutboundServiceError::NetworkError
+                | OutboundServiceError::RateLimited { .. }),
             ) => {
                 warn!(%error, "Resync failed; retrying later");
                 return Err(error);
             }
-            Err(OutboundServiceRunError::Fatal(error)) => {
+            Err(OutboundServiceError::Fatal(error)) => {
                 if is_ds_not_found_error(&error) {
                     error!(%error, "Group not found on DS during resync; tearing down group");
                     self.db
@@ -347,7 +347,7 @@ impl OutboundServiceContext {
                 Resync::mark_failed(self.db.write().await?, &group_id, &error.to_string()).await?;
                 return Ok(());
             }
-            Err(OutboundServiceRunError::Recoverable(error)) => {
+            Err(OutboundServiceError::Recoverable(error)) => {
                 match retry_decision(&error, attempts) {
                     RetryDecision::Retry => {
                         warn!(%error, "Resync failed; retrying later");
@@ -442,15 +442,15 @@ impl Resync {
         api_clients: &ApiClients,
         signer: &LeafSigningKey,
         own_user_id: &UserId,
-    ) -> Result<Option<(ChatId, DecryptedProfileInfos)>, OutboundServiceRunError> {
+    ) -> Result<Option<(ChatId, DecryptedProfileInfos)>, OutboundServiceError> {
         let shares_vc_leaf = self.shares_vc_leaf;
         if shares_vc_leaf
             && SelfGroup::load(&mut connection)
                 .await
-                .map_err(OutboundServiceRunError::recoverable)?
+                .map_err(OutboundServiceError::recoverable)?
                 .is_none()
         {
-            return Err(OutboundServiceRunError::recoverable(anyhow!(
+            return Err(OutboundServiceError::recoverable(anyhow!(
                 "self group not joined yet; deferring onboarding of group {:?}",
                 self.group_id
             )));
@@ -471,7 +471,7 @@ impl Resync {
                     handle_group_not_found_on_ds(txn, &self.group_id).await
                 })
                 .await
-                .map_err(OutboundServiceRunError::recoverable)?;
+                .map_err(OutboundServiceError::recoverable)?;
             return Ok(None);
         };
         let connection_contact = self.connection_contact.take();
@@ -480,7 +480,7 @@ impl Resync {
         let mut txn = connection
             .begin()
             .await
-            .map_err(OutboundServiceRunError::recoverable)?;
+            .map_err(OutboundServiceError::recoverable)?;
         let (group, commit, member_profile_infos, members_diff) = Box::pin(self.create_commit(
             &mut txn,
             api_clients,
@@ -489,7 +489,7 @@ impl Resync {
             external_commit_info,
         ))
         .await
-        .map_err(OutboundServiceRunError::fatal)?;
+        .map_err(OutboundServiceError::fatal)?;
 
         let (chat_id, chat_created) = match existing_chat_id {
             Some(chat_id) => (chat_id, false),
@@ -497,11 +497,11 @@ impl Resync {
                 if let Some(connection_contact) = connection_contact {
                     Self::create_connection_chat(&mut txn, &group, connection_contact)
                         .await
-                        .map_err(OutboundServiceRunError::fatal)?
+                        .map_err(OutboundServiceError::fatal)?
                 } else {
                     Self::create_group_chat(&mut txn, &group, own_user_id, ds_timestamp)
                         .await
-                        .map_err(OutboundServiceRunError::fatal)?
+                        .map_err(OutboundServiceError::fatal)?
                 },
                 true,
             ),
@@ -509,7 +509,7 @@ impl Resync {
 
         txn.commit()
             .await
-            .map_err(OutboundServiceRunError::recoverable)?;
+            .map_err(OutboundServiceError::recoverable)?;
 
         Self::send_commit(api_clients, signer, &group, commit, original_leaf_index).await?;
 
@@ -615,15 +615,15 @@ impl Resync {
     async fn fetch_group_info(
         &self,
         api_clients: &ApiClients,
-    ) -> Result<ExternalCommitInfoIn, OutboundServiceRunError> {
+    ) -> Result<ExternalCommitInfoIn, OutboundServiceError> {
         let qgid: QualifiedGroupId = self
             .group_id
             .clone()
             .try_into()
-            .map_err(OutboundServiceRunError::fatal)?;
+            .map_err(OutboundServiceError::fatal)?;
         let api_client = api_clients
             .get(qgid.owning_domain())
-            .map_err(OutboundServiceRunError::fatal)?;
+            .map_err(OutboundServiceError::fatal)?;
         api_client
             .ds_external_commit_info(
                 self.group_id.clone(),
@@ -631,7 +631,7 @@ impl Resync {
                 &self.group_state_ear_key,
             )
             .await
-            .map_err(OutboundServiceRunError::from)
+            .map_err(OutboundServiceError::from)
     }
 
     async fn create_commit(
@@ -724,14 +724,14 @@ impl Resync {
         group: &Group,
         commit: ResyncCommit,
         original_leaf_index: LeafNodeIndex,
-    ) -> Result<(), OutboundServiceRunError> {
+    ) -> Result<(), OutboundServiceError> {
         let qgid: QualifiedGroupId = group
             .group_id()
             .try_into()
-            .map_err(OutboundServiceRunError::fatal)?;
+            .map_err(OutboundServiceError::fatal)?;
         let api_client = api_clients
             .get(qgid.owning_domain())
-            .map_err(OutboundServiceRunError::fatal)?;
+            .map_err(OutboundServiceError::fatal)?;
 
         match commit {
             ResyncCommit::T(commit) => {

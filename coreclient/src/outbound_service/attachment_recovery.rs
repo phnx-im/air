@@ -27,7 +27,7 @@ use crate::{
         persistence::{AttachmentStatus, UnqueuedAttachmentMessage},
     },
     db::access::DbAccess,
-    outbound_service::{chat_message_queue::ChatMessageQueue, error::OutboundServiceRunError},
+    outbound_service::{chat_message_queue::ChatMessageQueue, error::OutboundServiceError},
 };
 
 /// How long an attachment may stay in [`AttachmentStatus::Uploading`] before it
@@ -44,7 +44,7 @@ const UPLOAD_STALE_AFTER: Duration = Duration::from_secs(30 * 60);
 /// database at the same time.
 pub(super) async fn recover_interrupted_attachment_uploads(
     db: &DbAccess,
-) -> Result<(), OutboundServiceRunError> {
+) -> Result<(), OutboundServiceError> {
     let stale_before = Utc::now() - UPLOAD_STALE_AFTER;
     db.with_write_transaction(async |txn| -> anyhow::Result<()> {
         let uploaded = AttachmentRecord::load_unqueued_uploaded_messages(&mut *txn).await?;
