@@ -48,12 +48,8 @@ impl OutboundServiceContext {
             if run_token.is_cancelled() {
                 return Ok(());
             }
-            let content = SelfGroupAppMessage::RedeemedTokens(message.clone()).to_mimi_content();
-            let result = match content {
-                Ok(content) => self.send_application_message(&chat, content).await,
-                Err(error) => Err(OutboundServiceError::fatal(error)),
-            };
-            match result {
+            let app_message = SelfGroupAppMessage::RedeemedTokens(message.clone());
+            match self.send_self_group_message(&chat, app_message).await {
                 Ok(SendOutcome::Sent) => {
                     info!(
                         operation_type = %message.operation_type,
