@@ -26,17 +26,15 @@ const FIBONACCI: [Duration; 16] = [
 const BACKOFFS_LEN: usize = 9;
 const BACKOFFS_EXTENDED_LEN: usize = FIBONACCI.len();
 
+#[derive(Debug, Default)]
 pub struct FibonacciBackoff {
     current_idx: usize,
     is_extended: bool,
 }
 
 impl FibonacciBackoff {
-    pub(crate) fn new() -> Self {
-        FibonacciBackoff {
-            current_idx: 0,
-            is_extended: false,
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 
     #[allow(
@@ -51,8 +49,8 @@ impl FibonacciBackoff {
     }
 
     #[must_use]
-    pub(crate) fn next_backoff(&mut self) -> Duration {
-        let backoff = FIBONACCI[self.current_idx];
+    pub fn next_backoff(&mut self) -> Duration {
+        let backoff: Duration = FIBONACCI[self.current_idx];
         if self.current_idx + 1 < self.len() {
             self.current_idx += 1;
         }
@@ -67,7 +65,7 @@ impl FibonacciBackoff {
         }
     }
 
-    pub(crate) fn reset(&mut self) {
+    pub fn reset(&mut self) {
         self.current_idx = 0;
         self.is_extended = false;
     }

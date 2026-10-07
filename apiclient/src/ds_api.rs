@@ -4,7 +4,7 @@
 
 //! Client API for the delivery service (DS)
 
-use std::{collections::HashMap, error::Error as _, io, time::Duration};
+use std::{collections::HashMap, error::Error as _, io, iter, time::Duration};
 
 use aircommon::{
     LibraryError,
@@ -148,9 +148,8 @@ impl DsRequestError {
             Self::Tonic(status) => {
                 matches!(status.code(), Code::Unavailable | Code::DeadlineExceeded)
                     || status.code() == Code::Unknown
-                        && status
-                            .source()
-                            .is_some_and(|error| error.downcast_ref::<io::Error>().is_some())
+                        && iter::successors(status.source(), |&error| error.source())
+                            .any(|error| error.is::<io::Error>())
             }
             Self::LibraryError | Self::Tls(_) | Self::UnexpectedResponse => false,
         }
@@ -175,6 +174,10 @@ impl DsRequestError {
         } else {
             false
         }
+    }
+
+    pub fn is_invalid_argument(&self) -> bool {
+        matches!(self, Self::Tonic(status) if status.code() == Code::InvalidArgument)
     }
 
     pub fn device_limit_reached(&self) -> Option<DeviceLimitReachedDetail> {
@@ -1182,5 +1185,20 @@ mod tests {
             "a send we stopped waiting for may still have reached the DS"
         );
         assert!(!error.is_not_found());
+    }
+
+    #[test]
+    fn unknown_status_with_nested_io_error_is_a_network_error() {
+        #[derive(Debug, thiserror::Error)]
+        #[error("transport error")]
+        struct Transport(#[source] io::Error);
+
+        let transport = Transport(io::Error::from(io::ErrorKind::ConnectionReset));
+        let status = tonic::Status::from_error(Box::new(transport));
+        assert_eq!(status.code(), Code::Unknown);
+        assert!(DsRequestError::Tonic(status).is_network_error());
+
+        let status = tonic::Status::unknown("server error");
+        assert!(!DsRequestError::Tonic(status).is_network_error());
     }
 }

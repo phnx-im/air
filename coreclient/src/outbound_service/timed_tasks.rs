@@ -31,11 +31,7 @@ use crate::{
     },
 };
 
-use super::{
-    OutboundServiceContext,
-    error::{OutboundServiceError, OutboundServiceRunError},
-    resync::Resync,
-};
+use super::{OutboundServiceContext, error::OutboundServiceRunError, resync::Resync};
 
 /// A sentinel value for a one-shot task which already ran.
 pub(crate) const PARKED_AT: DateTime<Utc> = DateTime::from_naive_utc_and_offset(
@@ -275,6 +271,11 @@ impl OutboundServiceContext {
 
             let interval = match res {
                 Ok(interval) => interval,
+                // Leave the task due so it is the first one retried in the next run
+                Err(
+                    error @ (OutboundServiceRunError::NetworkError
+                    | OutboundServiceRunError::RateLimited { .. }),
+                ) => return Err(error),
                 Err(error) => {
                     error!(%error, "Failed to execute timed task");
                     Some(op.data.kind.default_retry_interval())
@@ -342,17 +343,19 @@ impl OutboundServiceContext {
         run_token: &CancellationToken,
         op: &mut Operation<TimedTask>,
         context: &mut TimedTaskContext,
-    ) -> anyhow::Result<Option<Duration>> {
+    ) -> Result<Option<Duration>, OutboundServiceRunError> {
         debug!(kind = ?op.data.kind, "handling task");
 
         match &op.data.kind {
-            TimedTaskKind::KeyPackageUpload => Box::pin(self.upload_key_packages()).await.map(Some),
-            TimedTaskKind::UsernameRefresh => self.refresh_usernames().await.map(Some),
+            TimedTaskKind::KeyPackageUpload => {
+                Ok(Some(Box::pin(self.upload_key_packages()).await?))
+            }
+            TimedTaskKind::UsernameRefresh => Ok(Some(self.refresh_usernames().await?)),
             TimedTaskKind::SelfUpdate => self.self_update(run_token).await.map(Some),
-            TimedTaskKind::TokenReplenishment { operation_type } => self
-                .replenish_tokens(*operation_type, &mut context.loaded_credentials)
-                .await
-                .map(Some),
+            TimedTaskKind::TokenReplenishment { operation_type } => Ok(Some(
+                self.replenish_tokens(*operation_type, &mut context.loaded_credentials)
+                    .await?,
+            )),
             TimedTaskKind::SignedConnectionPackageUpload { pending_usernames } => {
                 let pending_usernames = pending_usernames.clone();
                 self.upload_signed_connection_packages(op, pending_usernames)
@@ -485,7 +488,10 @@ impl OutboundServiceContext {
         })
     }
 
-    async fn self_update(&self, run_token: &CancellationToken) -> anyhow::Result<Duration> {
+    async fn self_update(
+        &self,
+        run_token: &CancellationToken,
+    ) -> Result<Duration, OutboundServiceRunError> {
         const PARTIAL_UPDATE_INTERVAL: Duration = Duration::minutes(5);
         const BATCH_SIZE: usize = 5;
 
@@ -515,11 +521,11 @@ impl OutboundServiceContext {
             match self.self_update_in_chat(chat_id).await {
                 Ok(SelfUpdateOutcome::Updated) => num_updated += 1,
                 Ok(SelfUpdateOutcome::Skipped) => (),
-                Err(OutboundServiceError::Fatal(error)) => {
+                Err(OutboundServiceRunError::Fatal(error)) => {
                     num_failed += 1;
                     warn!(?chat_id, %error, "Skipping self-update in chat due to unexpected error");
                 }
-                Err(OutboundServiceError::Recoverable(error)) => return Err(error),
+                Err(error) => return Err(error),
             }
         }
 
@@ -534,26 +540,19 @@ impl OutboundServiceContext {
     /// Performs the self-update in a single chat.
     ///
     /// Failures that only concern this chat are reported as
-    /// [`OutboundServiceError::Fatal`], so that the batch can continue with the
-    /// next chat. [`OutboundServiceError::Recoverable`] is reserved for failures
-    /// that affect every chat, e.g. an unreachable database or network, where
-    /// retrying the whole task is the only useful thing to do.
+    /// [`OutboundServiceRunError::Fatal`], so that the batch can continue with
+    /// the next chat. All other errors are reserved for failures that affect
+    /// every chat, e.g. an unreachable database or network, where retrying the
+    /// whole task is the only useful thing to do.
     async fn self_update_in_chat(
         &self,
         chat_id: ChatId,
-    ) -> Result<SelfUpdateOutcome, OutboundServiceError> {
+    ) -> Result<SelfUpdateOutcome, OutboundServiceRunError> {
         debug!(?chat_id, "Self-update in chat");
 
         let (mut group, pq_due) = {
-            let mut read = self
-                .db
-                .read()
-                .await
-                .map_err(OutboundServiceError::recoverable)?;
-            let mut read_txn = read
-                .begin()
-                .await
-                .map_err(OutboundServiceError::recoverable)?;
+            let mut read = self.db.read().await?;
+            let mut read_txn = read.begin().await?;
 
             // Loading can fail for a single chat, e.g. when its persisted group state can no
             // longer be decoded. Such a chat must not hold up the rest of the batch.
@@ -566,7 +565,7 @@ impl OutboundServiceContext {
                     );
                     return Ok(SelfUpdateOutcome::Skipped);
                 }
-                Err(error) => return Err(OutboundServiceError::fatal(error)),
+                Err(error) => return Err(OutboundServiceRunError::fatal(error)),
             };
 
             if group.mls_group().pending_commit().is_some()
@@ -600,7 +599,7 @@ impl OutboundServiceContext {
             match PendingChatOperation::is_pending_for_chat(&mut read_txn, chat_id).await {
                 Ok(true) => return Ok(SelfUpdateOutcome::Skipped),
                 Ok(false) => (),
-                Err(error) => return Err(OutboundServiceError::fatal(error)),
+                Err(error) => return Err(OutboundServiceRunError::fatal(error)),
             }
 
             // A commit on a desynced group would only be rejected.
@@ -614,7 +613,7 @@ impl OutboundServiceContext {
                     return Ok(SelfUpdateOutcome::Skipped);
                 }
                 Ok(None) => (),
-                Err(error) => return Err(OutboundServiceError::fatal(error)),
+                Err(error) => return Err(OutboundServiceRunError::fatal(error)),
             }
 
             (group, pq_due)
@@ -662,14 +661,15 @@ impl OutboundServiceContext {
             // A network error or rate limiting is likely something transient
             // that would affect all chats, so we retry the whole task with
             // backoff.
-            Err(error @ (JobError::NetworkError | JobError::RateLimited { .. })) => {
-                Err(OutboundServiceError::recoverable(error))
+            Err(JobError::NetworkError) => Err(OutboundServiceRunError::NetworkError),
+            Err(JobError::RateLimited { retry_after }) => {
+                Err(OutboundServiceRunError::RateLimited { retry_after })
             }
             // The operation is no longer applicable to this chat, so we skip
             // it.
             Err(JobError::NotFound | JobError::Blocked) => Ok(SelfUpdateOutcome::Skipped),
             Err(error @ (JobError::Domain(_) | JobError::Fatal(_))) => {
-                Err(OutboundServiceError::fatal(error))
+                Err(OutboundServiceRunError::fatal(error))
             }
         }
     }
@@ -746,6 +746,9 @@ impl OutboundServiceContext {
                     if error.is_not_found() {
                         // The username does not exist on the server anymore
                         warn!(username, %error, "Username not found; skipping upload");
+                    } else if error.is_rate_limited() {
+                        // Further uploads would be rate limited as well
+                        return Err(error.into());
                     } else {
                         error!(username, %error, "Failed to upload signed connection packages");
                         failed += 1;

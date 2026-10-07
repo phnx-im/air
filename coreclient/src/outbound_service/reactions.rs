@@ -109,16 +109,17 @@ impl OutboundServiceContext {
                     // at a fresh generation. It stays locked by this task until then.
                     debug!(?chat_id, "Reaction collided, re-enqueuing for a later run");
                 }
-                // Keeps the reaction queued, every further request would be rate limited as well
-                error @ Err(
-                    OutboundServiceRunError::NetworkError
-                    | OutboundServiceRunError::RateLimited { .. },
+                // Keeps the reaction queued, every further request would fail as well
+                Err(
+                    error @ (OutboundServiceRunError::NetworkError
+                    | OutboundServiceRunError::RateLimited { .. }),
                 ) => {
-                    debug!(
-                        ?chat_id,
-                        "Rate limited while sending reaction; will retry later"
-                    );
-                    return error.map(|_| ());
+                    debug!(%error, ?chat_id, "Failed to send reaction; will retry later");
+                    return Err(error);
+                }
+                Err(OutboundServiceRunError::Recoverable(error)) => {
+                    // Leave the reaction in the queue so a later run retries it
+                    error!(%error, ?chat_id, "Failed to send reaction; will retry later");
                 }
                 Err(OutboundServiceRunError::Fatal(error)) => {
                     error!(%error, ?chat_id, "Failed to send reaction; dropping and rolling back");
@@ -137,13 +138,15 @@ impl OutboundServiceContext {
             .db
             .with_read_transaction(async |txn| Chat::load(txn, &dequeued.chat_id).await)
             .await?
-            .with_context(|| format!("Can't find chat with id {}", dequeued.chat_id))?;
+            .with_context(|| format!("Can't find chat with id {}", dequeued.chat_id))
+            .map_err(OutboundServiceRunError::fatal)?;
         if let ChatStatus::Blocked = chat.status() {
             return Ok(SendOutcome::Sent);
         }
 
         let content = MimiContent::deserialize(&dequeued.content)
-            .context("Failed to deserialize queued reaction content")?;
+            .context("Failed to deserialize queued reaction content")
+            .map_err(OutboundServiceRunError::fatal)?;
         self.send_application_message(&chat, content).await
     }
 

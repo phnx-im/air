@@ -27,9 +27,7 @@ use crate::{
         persistence::{AttachmentStatus, UnqueuedAttachmentMessage},
     },
     db::access::DbAccess,
-    outbound_service::{
-        chat_message_queue::ChatMessageQueue, error::OutboundServiceRunError,
-    },
+    outbound_service::{chat_message_queue::ChatMessageQueue, error::OutboundServiceRunError},
 };
 
 /// How long an attachment may stay in [`AttachmentStatus::Uploading`] before it

@@ -12,6 +12,7 @@ use std::{
 use aircommon::{
     credentials::keys::{LeafSigningKey, UserSigningKey},
     identifiers::{QsClientId, UserId},
+    utils::FibonacciBackoff,
 };
 use chrono::Utc;
 use pin_project::pin_project;
@@ -27,10 +28,7 @@ use crate::{
     db::access::DbAccess,
     job::{Job, JobContext, JobContextDb, JobError},
     key_stores::MemoryUserKeyStore,
-    outbound_service::{
-        error::{OutboundServiceRunError, RunResultExt},
-        fibonacci_backoff::FibonacciBackoff,
-    },
+    outbound_service::error::RunResultExt,
     utils::global_lock::GlobalLock,
 };
 
@@ -41,7 +39,6 @@ pub(crate) mod chat_message_queue;
 mod chat_messages;
 mod deleted_messages;
 mod error;
-mod fibonacci_backoff;
 mod key_packages;
 mod profile;
 mod push_tokens;
@@ -96,8 +93,13 @@ pub trait OutboundServiceWork: Clone + Send + 'static {
     ) -> impl Future<Output = Result<(), WorkAborted>> + Send;
 }
 
+/// Why a run stopped before all tasks were done.
+#[derive(Debug)]
 pub enum WorkAborted {
+    /// The network is unavailable. The next run happens as usual.
     Interrupted,
+    /// The server rate limited us. No run happens until the backoff passed,
+    /// which is at least `retry_after`.
     BackOff { retry_after: Option<Duration> },
 }
 
@@ -451,7 +453,6 @@ impl OutboundServiceContext {
 struct RunToken {
     cancel: CancellationToken,
     done: CancellationToken,
-    // option<duration>
 }
 
 impl RunToken {
@@ -556,7 +557,7 @@ mod test {
     }
 
     impl OutboundServiceWork for DelayedCounterContext {
-        async fn work(&self, run_token: CancellationToken) {
+        async fn work(&self, run_token: CancellationToken) -> Result<(), WorkAborted> {
             debug!("starting work in delayed counter");
             sleep(Duration::from_millis(50)).await;
             if !run_token.is_cancelled() {
@@ -565,6 +566,7 @@ mod test {
             } else {
                 debug!("work cancelled");
             }
+            Ok(())
         }
     }
 
@@ -781,7 +783,7 @@ mod test {
         }
 
         impl OutboundServiceWork for MultiCounterContext {
-            async fn work(&self, run_token: CancellationToken) {
+            async fn work(&self, run_token: CancellationToken) -> Result<(), WorkAborted> {
                 sleep(Duration::from_millis(30)).await;
                 if !run_token.is_cancelled() {
                     self.counter.fetch_add(1, Ordering::SeqCst);
@@ -794,6 +796,7 @@ mod test {
                 if !run_token.is_cancelled() {
                     self.counter.fetch_add(1, Ordering::SeqCst);
                 }
+                Ok(())
             }
         }
 
@@ -819,10 +822,11 @@ mod test {
     }
 
     impl OutboundServiceWork for BlockingWork {
-        async fn work(&self, _run_token: CancellationToken) {
+        async fn work(&self, _run_token: CancellationToken) -> Result<(), WorkAborted> {
             self.started.notify_waiters();
             // Wait until the test explicitly releases the gate.
             self.gate.notified().await;
+            Ok(())
         }
     }
 

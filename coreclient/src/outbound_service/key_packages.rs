@@ -23,11 +23,13 @@ use crate::{
         HeterogeneousVcKeyPackageBatch, MemoryUserKeyStore, VcKeyPackageBatchConfig,
         key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
     },
-    outbound_service::{APQ_KEY_PACKAGES, KEY_PACKAGES, OutboundServiceContext},
+    outbound_service::{
+        APQ_KEY_PACKAGES, KEY_PACKAGES, OutboundServiceContext, error::OutboundServiceRunError,
+    },
 };
 
 impl OutboundServiceContext {
-    pub(super) async fn upload_key_packages(&self) -> anyhow::Result<Duration> {
+    pub(super) async fn upload_key_packages(&self) -> Result<Duration, OutboundServiceRunError> {
         match SelfGroup::load(self.db.read().await?)
             .await?
             .filter(SelfGroup::has_linked_devices)
@@ -42,14 +44,20 @@ impl OutboundServiceContext {
         }
     }
 
-    async fn upload_via_publish(&self, batch: KeyPackageBatch) -> anyhow::Result<Duration> {
+    async fn upload_via_publish(
+        &self,
+        batch: KeyPackageBatch,
+    ) -> Result<Duration, OutboundServiceRunError> {
         info!(
             plain = batch.plain.len(),
             apq = batch.apq.len(),
             "Uploading key packages via publish"
         );
 
-        let api_client = self.api_clients.default_client()?;
+        let api_client = self
+            .api_clients
+            .default_client()
+            .map_err(OutboundServiceRunError::recoverable)?;
 
         let key_package_refs = batch.references()?;
 
@@ -103,7 +111,10 @@ impl OutboundServiceContext {
         Ok(Duration::weeks(1))
     }
 
-    async fn upload_via_self_group(&self, mut self_group: SelfGroup) -> anyhow::Result<Duration> {
+    async fn upload_via_self_group(
+        &self,
+        mut self_group: SelfGroup,
+    ) -> Result<Duration, OutboundServiceRunError> {
         // Generate key packages
         let Some(generated) = self
             .db
@@ -174,7 +185,10 @@ impl OutboundServiceContext {
             "Uploading key packages via self-group"
         );
 
-        let api_client = self.api_clients.default_client()?;
+        let api_client = self
+            .api_clients
+            .default_client()
+            .map_err(OutboundServiceRunError::recoverable)?;
         let batch_id = KeyPackageBatchId {
             epoch_id,
             leaf_index,

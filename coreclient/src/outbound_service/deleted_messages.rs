@@ -9,13 +9,12 @@ use aircommon::identifiers::MimiId;
 use airprotos::client::self_group::{
     DeletedMessages, MAX_DELETED_MESSAGES_PER_MESSAGE, SelfGroupAppMessage,
 };
-use anyhow::Context;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use crate::{
     chats::messages::persistence, db::access::WriteDbTransaction,
-    outbound_service::OutboundServiceRunError,
+    outbound_service::error::OutboundServiceRunError,
 };
 
 use super::{OutboundService, OutboundServiceContext, SendOutcome, self_chat::SelfChatReadiness};
@@ -37,7 +36,7 @@ impl OutboundServiceContext {
     /// Sends the parked deletions to the siblings, in batches.
     ///
     /// A batch stays parked until the DS accepts it, unless there are no linked
-    /// devices.
+    /// devices or the batch failed fatally.
     pub(super) async fn send_deleted_messages(
         &self,
         run_token: &CancellationToken,
@@ -67,20 +66,32 @@ impl OutboundServiceContext {
             let content = SelfGroupAppMessage::DeletedMessages(DeletedMessages {
                 mimi_ids: batch.to_vec(),
             })
-            .to_mimi_content()
-            .context("failed to build MIMI content")?;
-            match self.send_application_message(&chat, content).await? {
-                SendOutcome::Sent => {
+            .to_mimi_content();
+            let result = match content {
+                Ok(content) => self.send_application_message(&chat, content).await,
+                Err(error) => Err(OutboundServiceRunError::fatal(error)),
+            };
+            match result {
+                Ok(SendOutcome::Sent) => {
                     info!(
                         count = batch.len(),
                         "told the siblings about deleted messages"
                     );
                     self.remove_staged_deletions(batch).await?;
                 }
-                SendOutcome::Collided => {
+                Ok(SendOutcome::Collided) => {
                     debug!("deleted messages collided with a sibling, retrying later");
                     return Ok(());
                 }
+                Err(OutboundServiceRunError::Fatal(error)) => {
+                    error!(
+                        %error,
+                        count = batch.len(),
+                        "Failed to tell the siblings about deleted messages; dropping"
+                    );
+                    self.remove_staged_deletions(batch).await?;
+                }
+                Err(error) => return Err(error),
             }
         }
         Ok(())

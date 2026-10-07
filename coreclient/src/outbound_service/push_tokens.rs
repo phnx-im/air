@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airapiclient::qs_api::QsRequestError;
 use aircommon::{
     crypto::aead::AeadEncryptable,
     messages::push_token::PushToken,
@@ -11,10 +10,7 @@ use aircommon::{
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 
-use crate::{
-    clients::push_token_state,
-    outbound_service::error::{OutboundServiceError, OutboundServiceRunError},
-};
+use crate::{clients::push_token_state, outbound_service::error::OutboundServiceRunError};
 
 use super::OutboundServiceContext;
 
@@ -39,7 +35,7 @@ impl OutboundServiceContext {
             Err(error) => {
                 error!(%error, "Invalid push token state; dropping");
                 push_token_state::clear_pending(self.db.write().await?).await?;
-                return Err(error.into());
+                return Err(OutboundServiceRunError::Fatal(error));
             }
         };
 
@@ -47,12 +43,17 @@ impl OutboundServiceContext {
             Ok(()) => {
                 push_token_state::clear_pending(self.db.write().await?).await?;
             }
-            Err(OutboundServiceError::Fatal(error)) => {
+            Err(OutboundServiceRunError::Fatal(error)) => {
                 error!(%error, "Failed to update push token; dropping");
                 push_token_state::clear_pending(self.db.write().await?).await?;
-                return Err(error.into());
+                return Err(OutboundServiceRunError::Fatal(error));
             }
-            Err(OutboundServiceError::Recoverable(error)) => {
+            // Keep the update pending, it is due again in the next run
+            Err(
+                error @ (OutboundServiceRunError::NetworkError
+                | OutboundServiceRunError::RateLimited { .. }),
+            ) => return Err(error),
+            Err(error) => {
                 error!(%error, "Failed to update push token; will retry later");
                 let retry_at = next_retry_at(now);
                 push_token_state::schedule_retry(self.db.write().await?, retry_at).await?;
@@ -65,7 +66,7 @@ impl OutboundServiceContext {
     async fn update_push_token_on_qs(
         &self,
         push_token: Option<PushToken>,
-    ) -> Result<(), OutboundServiceError> {
+    ) -> Result<(), OutboundServiceRunError> {
         match &push_token {
             Some(_) => debug!("Updating push token on QS"),
             None => debug!("Clearing push token on QS"),
@@ -78,22 +79,21 @@ impl OutboundServiceContext {
             Some(push_token) => Some(
                 push_token
                     .encrypt(&self.key_store.push_token_ear_key)
-                    .map_err(OutboundServiceError::fatal)?,
+                    .map_err(OutboundServiceRunError::fatal)?,
             ),
             None => None,
         };
 
         self.api_clients
             .default_client()
-            .map_err(OutboundServiceError::fatal)?
+            .map_err(OutboundServiceRunError::fatal)?
             .qs_update_client(
                 self.qs_client_id,
                 queue_encryption_key.clone(),
                 encrypted_push_token,
                 &signing_key,
             )
-            .await
-            .map_err(classify_qs_error)?;
+            .await?;
         Ok(())
     }
 }
@@ -103,19 +103,4 @@ fn next_retry_at(now: TimeStamp) -> TimeStamp {
     TimeStamp::from(
         *now.as_ref() + Duration::seconds(push_token_state::PUSH_TOKEN_PENDING_MAX_FUTURE_SECS),
     )
-}
-
-/// Treats protocol/validation errors as fatal and transport errors as recoverable.
-fn classify_qs_error(error: QsRequestError) -> OutboundServiceError {
-    if error.is_unsupported_version() {
-        return OutboundServiceError::fatal(error);
-    }
-
-    match error {
-        QsRequestError::LibraryError
-        | QsRequestError::MissingField(_)
-        | QsRequestError::UnexpectedResponse
-        | QsRequestError::Tls(_) => OutboundServiceError::fatal(error),
-        QsRequestError::Tonic(_) => OutboundServiceError::recoverable(error),
-    }
 }

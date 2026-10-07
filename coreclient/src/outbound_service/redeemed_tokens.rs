@@ -7,12 +7,11 @@
 //! redemption and sending out the broadcast for decorrelation reasons.
 
 use airprotos::client::self_group::{RedeemedTokens, SelfGroupAppMessage};
-use anyhow::Context;
 use chrono::Utc;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
-use crate::{outbound_service::OutboundServiceRunError, privacy_pass};
+use crate::{outbound_service::error::OutboundServiceRunError, privacy_pass};
 
 use super::{OutboundServiceContext, SendOutcome, self_chat::SelfChatReadiness};
 
@@ -21,7 +20,7 @@ impl OutboundServiceContext {
     /// one message per batch.
     ///
     /// The rows are not deleted until the DS accepts the message, unless there
-    /// are no linked devices.
+    /// are no linked devices or the message failed fatally.
     pub(super) async fn send_redeemed_tokens(
         &self,
         run_token: &CancellationToken,
@@ -49,11 +48,13 @@ impl OutboundServiceContext {
             if run_token.is_cancelled() {
                 return Ok(());
             }
-            let content = SelfGroupAppMessage::RedeemedTokens(message.clone())
-                .to_mimi_content()
-                .context("failed to build self-group message")?;
-            match self.send_application_message(&chat, content).await? {
-                SendOutcome::Sent => {
+            let content = SelfGroupAppMessage::RedeemedTokens(message.clone()).to_mimi_content();
+            let result = match content {
+                Ok(content) => self.send_application_message(&chat, content).await,
+                Err(error) => Err(OutboundServiceRunError::fatal(error)),
+            };
+            match result {
+                Ok(SendOutcome::Sent) => {
                     info!(
                         operation_type = %message.operation_type,
                         allowance_epoch = message.allowance_epoch,
@@ -62,10 +63,20 @@ impl OutboundServiceContext {
                     );
                     self.retire_redeemed(std::slice::from_ref(message)).await?;
                 }
-                SendOutcome::Collided => {
+                Ok(SendOutcome::Collided) => {
                     debug!("redeemed privacy pass tokens collided with a sibling, retrying later");
                     return Ok(());
                 }
+                Err(OutboundServiceRunError::Fatal(error)) => {
+                    error!(
+                        %error,
+                        operation_type = %message.operation_type,
+                        allowance_epoch = message.allowance_epoch,
+                        "Failed to tell the siblings about redeemed privacy pass tokens; dropping"
+                    );
+                    self.retire_redeemed(std::slice::from_ref(message)).await?;
+                }
+                Err(error) => return Err(error),
             }
         }
         Ok(())
