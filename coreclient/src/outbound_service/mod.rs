@@ -20,7 +20,7 @@ use tokio::{
     time::{self, Instant},
 };
 use tokio_util::sync::{CancellationToken, WaitForCancellationFutureOwned};
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 use crate::{
     clients::api_clients::ApiClients,
@@ -96,7 +96,7 @@ pub trait OutboundServiceWork: Clone + Send + 'static {
     ) -> impl Future<Output = Result<(), WorkAborted>> + Send;
 }
 
-pub(crate) enum WorkAborted {
+pub enum WorkAborted {
     Interrupted,
     BackOff { retry_after: Option<Duration> },
 }
@@ -136,7 +136,8 @@ impl OutboundService<OutboundServiceContext> {
     pub async fn send_queued_messages_once(&self) -> anyhow::Result<()> {
         self.context
             .send_queued_messages(&CancellationToken::new())
-            .await
+            .await?;
+        Ok(())
     }
 }
 
@@ -314,11 +315,11 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
                 };
                 debug!("starting doing work in background task");
                 match self.context.work(run_token.cancel.clone()).await {
-                    WorkAborted::Done => {
+                    Ok(()) => {
                         backoff.reset();
                     }
-                    WorkAborted::Interrupted => {}
-                    WorkAborted::BackOff { retry_after } => {
+                    Err(WorkAborted::Interrupted) => {}
+                    Err(WorkAborted::BackOff { retry_after }) => {
                         let delay = backoff.next_backoff().max(retry_after.unwrap_or_default());
                         backoff_until = Some(Instant::now() + delay);
                     }
@@ -368,13 +369,10 @@ impl OutboundServiceContext {
         // Profiles are fetched concurrently to other tasks.
         let fetch_profiles = self.spawn_fetch_profiles(&run_token);
 
-        // TODO: this one should also have OutboundServiceRunError
-        match self.perform_queued_resyncs(&run_token).await {
-            Err(error) => {
-                error!(%error, "Failed to perform queued resyncs");
-            }
-            _ => (),
-        }
+        self.perform_queued_resyncs(&run_token)
+            .await
+            .or_abort("queued resyncs")?;
+
         Box::pin(self.send_pending_chat_operations(&run_token))
             .await
             .or_abort("pending chat operations")?;
@@ -391,25 +389,25 @@ impl OutboundServiceContext {
             .await
             .or_abort("send deleted messages")?;
 
-        if let Err(error) =
-            attachment_recovery::recover_interrupted_attachment_uploads(&self.db).await
-        {
-            error!(%error, "Failed to recover interrupted attachment uploads");
-        }
+        attachment_recovery::recover_interrupted_attachment_uploads(&self.db)
+            .await
+            .or_abort("recover interrupted attachment uploads")?;
 
-        if let Err(error) = self.send_queued_messages(&run_token).await {
-            error!(%error, "Failed to send queued messages");
-        }
+        self.send_queued_messages(&run_token)
+            .await
+            .or_abort("queued messages")?;
+
         self.send_queued_reactions(&run_token)
             .await
             .or_abort("queued reactions")?;
 
-        if let Err(error) = self.send_pending_push_token_updates(&run_token).await {
-            error!(%error, "Failed to send push token update");
-        }
-        if let Err(error) = Box::pin(self.execute_timed_tasks(&run_token)).await {
-            error!(%error, "Failed to execute timed tasks");
-        }
+        self.send_pending_push_token_updates(&run_token)
+            .await
+            .or_abort("push token updates")?;
+
+        Box::pin(self.execute_timed_tasks(&run_token))
+            .await
+            .or_abort("timed tasks")?;
 
         fetch_profiles.await;
 

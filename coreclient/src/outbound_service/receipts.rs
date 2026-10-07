@@ -17,7 +17,7 @@ use mimi_content::{
 };
 use openmls::group::GroupEpoch;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
@@ -26,13 +26,7 @@ use crate::{
     db::access::WriteDbTransaction,
     groups::{Group, handle_group_not_found_on_ds, openmls_provider::AirOpenMlsProvider},
     job::pending_chat_operation::PendingChatOperation,
-    outbound_service::{
-        error::{
-            OutboundServiceError, OutboundServiceRunError, classify_ds_error,
-            is_ds_rate_limited_error,
-        },
-        resync::Resync,
-    },
+    outbound_service::{error::OutboundServiceRunError, resync::Resync},
 };
 
 use super::{OutboundService, OutboundServiceContext, SendOutcome, receipt_queue::ReceiptQueue};
@@ -122,26 +116,12 @@ impl OutboundServiceContext {
                             .await?;
                         continue;
                     }
-                    Err(OutboundServiceError::Fatal(error)) => {
+                    Err(OutboundServiceRunError::Fatal(error)) => {
                         error!(%error, ?chat_id, "Failed to send receipt; dropping");
                         ReceiptQueue::remove(self.db.write().await?, task_id).await?;
                         continue;
                     }
-                    // Every further request would be rate limited as well
-                    Err(OutboundServiceError::Recoverable(error))
-                        if is_ds_rate_limited_error(&error) =>
-                    {
-                        info!(
-                            ?chat_id,
-                            "Rate limited while sending receipt; will retry later"
-                        );
-                        return Err(OutboundServiceRunError::RateLimited);
-                    }
-                    Err(OutboundServiceError::Recoverable(error)) => {
-                        error!(%error, "Failed to send receipt; will retry later");
-                        // Don't unlock the receipts now; they will be unlocked after a threshold.
-                        continue;
-                    }
+                    Err(error) => return Err(error),
                 },
                 Ok(None) => {
                     // Nothing to send => Remove from the queue
@@ -161,17 +141,15 @@ impl OutboundServiceContext {
         &self,
         chat_id: ChatId,
         unsent_receipt: UnsentReceipt,
-    ) -> Result<ReceiptSendOutcome, OutboundServiceError> {
+    ) -> Result<ReceiptSendOutcome, OutboundServiceRunError> {
         debug!(%chat_id, ?unsent_receipt, "sending receipt");
 
         // load chat
         let chat = self
             .db
             .with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
-            .await
-            .map_err(OutboundServiceError::recoverable)?
-            .with_context(|| format!("Can't find chat with id {chat_id}"))
-            .map_err(OutboundServiceError::fatal)?;
+            .await?
+            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
         if let ChatStatus::Blocked = chat.status() {
             return Ok(ReceiptSendOutcome::Sent);
         }
@@ -183,8 +161,7 @@ impl OutboundServiceContext {
                 unsent_receipt.content,
                 Some(unsent_receipt.report.clone()),
             )
-            .await
-            .map_err(OutboundServiceError::fatal)?;
+            .await?;
         let epoch = params.epoch;
         let sent_tags = params.collision_tags.clone();
         let generation = params.generation;
@@ -193,7 +170,7 @@ impl OutboundServiceContext {
         if let Err(ds_error) = self
             .api_clients
             .get(&chat.owner_domain())
-            .map_err(OutboundServiceError::fatal)?
+            .context("failed to get API client")?
             .ds_send_message(params, &signer, &group_state_ear_key)
             .await
         {
@@ -202,15 +179,13 @@ impl OutboundServiceContext {
                     .with_write_transaction(async |txn| {
                         handle_group_not_found_on_ds(txn, chat.group_id()).await
                     })
-                    .await
-                    .map_err(OutboundServiceError::fatal)?;
-                return Err(classify_ds_error(ds_error));
+                    .await?;
             }
 
             let collisions = ds_error.process_tag_collisions(&sent_tags);
             if collisions.is_empty() {
-                // Not a collision we can recover from; propagate the error.
-                return Err(classify_ds_error(ds_error));
+                // Not a collision, general error
+                return Err(ds_error.into());
             }
 
             // The DS rejects the whole message on any collision.
@@ -256,7 +231,7 @@ impl OutboundServiceContext {
     async fn store_receipt_report(
         &self,
         report: MessageStatusReport,
-    ) -> Result<(), OutboundServiceError> {
+    ) -> Result<(), OutboundServiceRunError> {
         self.db
             .with_write_transaction(async |txn| {
                 StatusRecord::borrowed(self.user_id(), report, TimeStamp::now())
@@ -264,7 +239,7 @@ impl OutboundServiceContext {
                     .await
             })
             .await
-            .map_err(OutboundServiceError::fatal)
+            .map_err(Into::into)
     }
 
     /// Creates a new MLS message for the given chat and returns the signer used.
@@ -334,7 +309,8 @@ impl OutboundServiceContext {
 
         if let Err(ds_error) = self
             .api_clients
-            .get(&chat.owner_domain())?
+            .get(&chat.owner_domain())
+            .context("getting API client")?
             .ds_send_message(params, &signer, &group_state_ear_key)
             .await
         {

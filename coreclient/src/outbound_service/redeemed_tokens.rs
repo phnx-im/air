@@ -7,6 +7,7 @@
 //! redemption and sending out the broadcast for decorrelation reasons.
 
 use airprotos::client::self_group::{RedeemedTokens, SelfGroupAppMessage};
+use anyhow::Context;
 use chrono::Utc;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
@@ -48,7 +49,9 @@ impl OutboundServiceContext {
             if run_token.is_cancelled() {
                 return Ok(());
             }
-            let content = SelfGroupAppMessage::RedeemedTokens(message.clone()).to_mimi_content()?;
+            let content = SelfGroupAppMessage::RedeemedTokens(message.clone())
+                .to_mimi_content()
+                .context("failed to build self-group message")?;
             match self.send_application_message(&chat, content).await? {
                 SendOutcome::Sent => {
                     info!(

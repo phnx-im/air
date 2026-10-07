@@ -27,13 +27,6 @@ pub(crate) fn is_ds_not_found_error(error: &anyhow::Error) -> bool {
         .is_some_and(DsRequestError::is_not_found)
 }
 
-/// Whether the DS rate limited a request.
-pub(crate) fn is_ds_rate_limited_error(error: &anyhow::Error) -> bool {
-    error
-        .downcast_ref::<DsRequestError>()
-        .is_some_and(DsRequestError::is_rate_limited)
-}
-
 /// Whether the DS rejected a commit because the group moved on in the meantime.
 pub(crate) fn is_ds_wrong_epoch_error(error: &anyhow::Error) -> bool {
     error
@@ -91,7 +84,7 @@ impl From<DsRequestError> for OutboundServiceRunError {
 
 pub(super) trait RunResultExt {
     /// Logs fatal errors and continues, aborts the run otherwise.
-    fn or_abort(self, task: &str) -> Result<(), WorkAborted>;
+    fn or_abort(self, task: &'static str) -> Result<(), WorkAborted>;
 }
 
 impl RunResultExt for Result<(), OutboundServiceRunError> {

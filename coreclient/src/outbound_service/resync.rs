@@ -39,8 +39,8 @@ use crate::{
     outbound_service::{
         OutboundServiceContext,
         error::{
-            OutboundServiceError, classify_ds_error, is_ds_not_found_error, is_ds_rejection_error,
-            is_ds_wrong_epoch_error,
+            OutboundServiceError, OutboundServiceRunError, classify_ds_error,
+            is_ds_not_found_error, is_ds_rejection_error, is_ds_wrong_epoch_error,
         },
     },
 };
@@ -254,7 +254,7 @@ impl OutboundServiceContext {
     pub(super) async fn perform_queued_resyncs(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), OutboundServiceRunError> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
         loop {

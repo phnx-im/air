@@ -11,7 +11,10 @@ use aircommon::{
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 
-use crate::{clients::push_token_state, outbound_service::error::OutboundServiceError};
+use crate::{
+    clients::push_token_state,
+    outbound_service::error::{OutboundServiceError, OutboundServiceRunError},
+};
 
 use super::OutboundServiceContext;
 
@@ -20,7 +23,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_pending_push_token_updates(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), OutboundServiceRunError> {
         if run_token.is_cancelled() {
             return Ok(());
         }
@@ -36,7 +39,7 @@ impl OutboundServiceContext {
             Err(error) => {
                 error!(%error, "Invalid push token state; dropping");
                 push_token_state::clear_pending(self.db.write().await?).await?;
-                return Err(error);
+                return Err(error.into());
             }
         };
 
@@ -47,7 +50,7 @@ impl OutboundServiceContext {
             Err(OutboundServiceError::Fatal(error)) => {
                 error!(%error, "Failed to update push token; dropping");
                 push_token_state::clear_pending(self.db.write().await?).await?;
-                return Err(error);
+                return Err(error.into());
             }
             Err(OutboundServiceError::Recoverable(error)) => {
                 error!(%error, "Failed to update push token; will retry later");

@@ -31,7 +31,11 @@ use crate::{
     },
 };
 
-use super::{OutboundServiceContext, error::OutboundServiceError, resync::Resync};
+use super::{
+    OutboundServiceContext,
+    error::{OutboundServiceError, OutboundServiceRunError},
+    resync::Resync,
+};
 
 /// A sentinel value for a one-shot task which already ran.
 pub(crate) const PARKED_AT: DateTime<Utc> = DateTime::from_naive_utc_and_offset(
@@ -240,7 +244,7 @@ impl OutboundServiceContext {
     pub(super) async fn execute_timed_tasks(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), OutboundServiceRunError> {
         self.ensure_timed_tasks_exist().await?;
 
         let mut timed_task_context = TimedTaskContext {

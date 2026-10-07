@@ -18,7 +18,7 @@ use crate::groups::{Group, handle_group_not_found_on_ds};
 use crate::job::JobError;
 use crate::job::chat_operation::{ChatOperation, DerivationEpoch};
 use crate::job::pending_chat_operation::PendingChatOperation;
-use crate::outbound_service::error::OutboundServiceError;
+use crate::outbound_service::error::{OutboundServiceError, OutboundServiceRunError};
 use crate::outbound_service::resync::Resync;
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, Message, MessageId,
@@ -121,7 +121,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_queued_messages(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), OutboundServiceRunError> {
         // Used to identify locked messages by this task
         let task_id = Uuid::new_v4();
         loop {

@@ -9,6 +9,7 @@ use aircommon::identifiers::MimiId;
 use airprotos::client::self_group::{
     DeletedMessages, MAX_DELETED_MESSAGES_PER_MESSAGE, SelfGroupAppMessage,
 };
+use anyhow::Context;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
@@ -66,7 +67,8 @@ impl OutboundServiceContext {
             let content = SelfGroupAppMessage::DeletedMessages(DeletedMessages {
                 mimi_ids: batch.to_vec(),
             })
-            .to_mimi_content()?;
+            .to_mimi_content()
+            .context("failed to build MIMI content")?;
             match self.send_application_message(&chat, content).await? {
                 SendOutcome::Sent => {
                     info!(
