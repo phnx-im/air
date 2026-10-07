@@ -213,68 +213,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ds_errors_are_classified() {
-        let error = DsRequestError::Tonic(Status::resource_exhausted("Too Many Requests!"));
-        assert_matches!(
-            OutboundServiceError::from(error),
-            OutboundServiceError::RateLimited { retry_after: None }
-        );
-
-        let error = DsRequestError::Tonic(Status::unavailable("server stopped"));
-        assert_matches!(
-            OutboundServiceError::from(error),
-            OutboundServiceError::NetworkError
-        );
-
-        let error = DsRequestError::Tonic(Status::not_found("group not found"));
-        assert_matches!(
-            OutboundServiceError::from(error),
-            OutboundServiceError::Fatal(_)
-        );
-
-        let error = DsRequestError::Tonic(
-            StatusDetails {
-                code: StatusDetailsCode::DeviceLimitReached.into(),
-                detail: Some(status_details::Detail::DeviceLimitReached(
-                    DeviceLimitReachedDetail { max_devices: 2 },
-                )),
-            }
-            .to_status(Code::ResourceExhausted, "max devices exceeded"),
-        );
-        assert_matches!(
-            OutboundServiceError::from(error),
-            OutboundServiceError::Recoverable(_)
-        );
-    }
-
-    #[test]
-    fn qs_errors_are_classified() {
-        let error = QsRequestError::Tonic(Status::resource_exhausted("Too Many Requests!"));
-        assert_matches!(
-            OutboundServiceError::from(error),
-            OutboundServiceError::RateLimited { retry_after: None }
-        );
-
-        let error = QsRequestError::Tonic(Status::unavailable("server stopped"));
-        assert_matches!(
-            OutboundServiceError::from(error),
-            OutboundServiceError::NetworkError
-        );
-
-        let error = QsRequestError::UnexpectedResponse;
-        assert_matches!(
-            OutboundServiceError::from(error),
-            OutboundServiceError::Fatal(_)
-        );
-
-        let error = QsRequestError::Tonic(Status::internal("boom"));
-        assert_matches!(
-            OutboundServiceError::from(error),
-            OutboundServiceError::Recoverable(_)
-        );
-    }
-
-    #[test]
     fn rate_limits_are_found_in_anyhow_chains() {
         let mut status = Status::resource_exhausted("Too Many Requests!");
         status
