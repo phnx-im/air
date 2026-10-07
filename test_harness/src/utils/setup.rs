@@ -202,9 +202,12 @@ enum ServerUrl {
     Local(SocketAddr),
 }
 
+pub use airbackend::settings::RelaySettings;
+
 #[derive(Debug)]
 pub struct TestBackendParams {
     pub rate_limits: Option<RateLimitsSettings>,
+    pub relay: RelaySettings,
     pub version_policy: VersionPolicy,
     pub registration: RegistrationSettings,
     pub unredeemable_code: Option<String>,
@@ -229,6 +232,7 @@ impl Default for TestBackendParams {
     fn default() -> Self {
         Self {
             rate_limits: None,
+            relay: RelaySettings::default(),
             version_policy: Default::default(),
             registration: RegistrationSettings {
                 policy: RegistrationPolicy::Open,
