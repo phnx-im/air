@@ -20,7 +20,7 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use apqmls::{
     ApqMlsGroupMut,
     messages::ApqProtocolMessage,
-    processing::{ApqProcessMessageError, ApqProcessedMessage, resolve_app_data_commit},
+    processing::{ApqProcessMessageError, ApqProcessedMessage, resolve_partial_commit},
 };
 use mimi_room_policy::RoleIndex;
 use openmls::{
@@ -172,7 +172,7 @@ impl Group {
             match self.mls_group.process_message(&provider, message) {
                 Ok(processed_message) => {
                     // Processes app data updates in the message, if any.
-                    resolve_app_data_commit(&self.mls_group, &provider, processed_message)?
+                    resolve_partial_commit(&self.mls_group, &provider, processed_message)?
                 }
                 Err(ProcessMessageError::<sqlx::Error>::ValidationError(
                     ValidationError::WrongEpoch,
