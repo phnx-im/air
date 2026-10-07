@@ -102,6 +102,13 @@ impl QsMessageOutcome {
         }
     }
 
+    pub(super) fn stale_chats(chat_ids: impl IntoIterator<Item = ChatId>) -> QsMessageOutcome {
+        Self {
+            removed_chats: chat_ids.into_iter().collect(),
+            ..Self::empty()
+        }
+    }
+
     fn new_connection(stored: StoredRequest) -> QsMessageOutcome {
         Self {
             new_connections: vec![stored.chat_id],
@@ -145,7 +152,8 @@ pub struct ProcessedQsMessages {
     // messages is such a change.
     pub chats_with_changed_notifications: Vec<ChatId>,
     /// Chats whose notifications are stale, because a newer contact request
-    /// moved them, here or on another device of the user.
+    /// moved them, here or on another device of the user, or because another
+    /// device of the user accepted their requests.
     pub removed_chats: Vec<ChatId>,
 }
 
