@@ -220,8 +220,9 @@ impl Job for FetchUserProfileOperation {
         let user_id = user_credential.user_id();
 
         // Phase 1: Check if the profile in the DB is up to date.
-        let existing_user_profile =
-            ExistingUserProfile::load(context.db.read().await?, user_id).await?;
+        let existing_user_profile = ExistingUserProfile::load(context.db.read().await?, user_id)
+            .await
+            .map_err(JobError::fatal)?;
         if existing_user_profile.matches_index(user_profile_key.index()) {
             return Ok(());
         }

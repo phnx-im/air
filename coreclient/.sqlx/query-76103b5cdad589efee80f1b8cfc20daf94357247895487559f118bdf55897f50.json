@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE operation SET scheduled_at = ? WHERE operation_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "76103b5cdad589efee80f1b8cfc20daf94357247895487559f118bdf55897f50"
+}

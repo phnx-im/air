@@ -22,7 +22,6 @@ use crate::{
     outbound_service::OutboundServiceContext,
 };
 
-const NUM_RETRIES: usize = 5;
 const RETRY_AFTER: Duration = Duration::from_secs(5);
 
 impl OutboundServiceContext {
@@ -106,34 +105,21 @@ impl OutboundServiceContext {
                 debug!(?operation_id, "fetched profile");
                 op.delete(self.db.write().await?).await?;
             }
-            Err(JobError::NetworkError) => {
-                debug!(
-                    ?operation_id,
-                    "Failed to fetch profile due to network error"
-                );
-                if op.retries + 1 < NUM_RETRIES {
-                    op.reschedule(self.db.write().await?, now + RETRY_AFTER)
-                        .await?;
-                    return Ok(ControlFlow::Break(()));
-                } else {
-                    let retries = op.retries;
-                    error!(
-                        ?operation_id,
-                        retries, "Reached max number of retries; giving up"
-                    );
-                    op.delete(self.db.write().await?).await?;
-                    return Ok(ControlFlow::Continue(()));
-                }
-            }
-            Err(JobError::RateLimited { retry_after }) => {
-                // Never give up, the server did not process the request.
-                info!(
-                    ?operation_id,
-                    ?retry_after,
-                    "Rate limited while fetching profile"
-                );
-                let retry_after = retry_after.unwrap_or_default().max(RETRY_AFTER);
-                op.reschedule(self.db.write().await?, now + retry_after)
+            // Never give up, fetching the profile is safe to repeat and these
+            // failures are not specific to it
+            Err(
+                error @ (JobError::NetworkError
+                | JobError::RateLimited { .. }
+                | JobError::Recoverable(_)),
+            ) => {
+                let retry_after = match &error {
+                    JobError::RateLimited {
+                        retry_after: Some(retry_after),
+                    } => (*retry_after).max(RETRY_AFTER),
+                    _ => RETRY_AFTER,
+                };
+                info!(?operation_id, %error, ?retry_after, "Failed to fetch profile; retrying later");
+                op.postpone(self.db.write().await?, now + retry_after)
                     .await?;
                 return Ok(ControlFlow::Break(()));
             }

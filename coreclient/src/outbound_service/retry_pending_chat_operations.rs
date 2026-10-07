@@ -67,13 +67,6 @@ impl OutboundServiceContext {
             // The job manages its own retry count and deletion upon success.
             // We're just executing it here.
             match self.execute_job(pending_chat_operation).await {
-                Err(JobError::NetworkError) => {
-                    // If we're getting a network error, error out of the loop and wait for the next run.
-                    return Err(OutboundServiceError::NetworkError);
-                }
-                Err(JobError::RateLimited { retry_after }) => {
-                    return Err(OutboundServiceError::RateLimited { retry_after });
-                }
                 Err(error @ (JobError::Fatal(_) | JobError::Domain(_))) => {
                     error!(%error, ?group_id, "Failed to execute pending chat operation");
                     // This job has a fatal error. Continue with the next one.
@@ -82,6 +75,7 @@ impl OutboundServiceContext {
                 Err(JobError::Blocked | JobError::NotFound) => {
                     continue;
                 }
+                Err(error) => return Err(error.into()),
                 Ok(_) => (),
             }
         }

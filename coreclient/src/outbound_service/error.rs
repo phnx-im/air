@@ -4,7 +4,10 @@
 
 use std::time::Duration;
 
-use airapiclient::{as_api::AsRequestError, ds_api::DsRequestError, qs_api::QsRequestError};
+use airapiclient::{
+    ApiClientInitError, ClassifyRequestError, RequestErrorKind, as_api::AsRequestError,
+    ds_api::DsRequestError, qs_api::QsRequestError,
+};
 use tracing::{error, info};
 
 use crate::{job::JobError, outbound_service::WorkAborted};
@@ -27,7 +30,7 @@ pub(crate) fn is_ds_rejection_error(error: &anyhow::Error) -> bool {
     // Anything which is not a network error
     error
         .downcast_ref::<DsRequestError>()
-        .is_some_and(|error| !error.is_network_error())
+        .is_some_and(|error| !matches!(error.kind(), RequestErrorKind::Network))
 }
 
 /// Errors that occur while running the outbound service.
@@ -48,62 +51,70 @@ pub(crate) enum OutboundServiceError {
 }
 
 impl OutboundServiceError {
-    /// Reports this error as fatal or rate limited if the anyhow
-    /// chain contains a rate limited error anywhere.
+    /// Reports this error as fatal, unless the anyhow chain contains a rate
+    /// limited or network request error. Neither is specific to the item, so
+    /// they are reported as such instead of dropping the item.
     pub(crate) fn fatal(error: impl Into<anyhow::Error>) -> Self {
         let error = error.into();
         transient_request_error(&error).unwrap_or_else(|| Self::Fatal(error))
     }
 
-    /// Reports this error as recoverable or rate limited if the anyhow
-    /// chain contains a rate limited error anywhere.
+    /// Reports this error as recoverable, unless the anyhow chain contains a
+    /// rate limited request error.
     pub(crate) fn recoverable(error: impl Into<anyhow::Error>) -> Self {
         let error = error.into();
-        transient_request_error(&error).unwrap_or_else(|| Self::Recoverable(error))
+        match transient_request_error(&error) {
+            Some(rate_limited @ Self::RateLimited { .. }) => rate_limited,
+            _ => Self::Recoverable(error),
+        }
     }
 }
 
-/// A rate limit is never specific to an item, so it is recognized anywhere in
-/// the error chain. Everything else is recoverable.
+/// See [`OutboundServiceError::recoverable`].
+// TODO: remove me
 impl From<anyhow::Error> for OutboundServiceError {
     fn from(error: anyhow::Error) -> Self {
         Self::recoverable(error)
     }
 }
 
-/// The `retry_after` of a rate limited or network request error in `error`.
-/// TODO(gabriel): remove this abomination by making sure we bubble up this correctly from all callsites.
-#[allow(clippy::question_mark)]
+impl From<ApiClientInitError> for OutboundServiceError {
+    fn from(error: ApiClientInitError) -> Self {
+        // Building a client does not touch the network, so these are configuration
+        // errors only.
+        Self::fatal(error)
+    }
+}
+
+/// The first rate limited or network request error in the chain of `error`,
+/// as [`OutboundServiceError::RateLimited`] or
+/// [`OutboundServiceError::NetworkError`].
+///
+/// TODO(gabriel): remove this abomination by making sure we bubble up this
+/// correctly from all callsites.
 fn transient_request_error(error: &anyhow::Error) -> Option<OutboundServiceError> {
     error.chain().find_map(|error| {
-        let (is_rate_limited, is_network_error, retry_after) =
-            if let Some(error) = error.downcast_ref::<AsRequestError>() {
-                (
-                    error.is_rate_limited(),
-                    error.is_network_error(),
-                    error.retry_after(),
-                )
-            } else if let Some(error) = error.downcast_ref::<DsRequestError>() {
-                (
-                    error.is_rate_limited(),
-                    error.is_network_error(),
-                    error.retry_after(),
-                )
-            } else if let Some(error) = error.downcast_ref::<QsRequestError>() {
-                (
-                    error.is_rate_limited(),
-                    error.is_network_error(),
-                    error.retry_after(),
-                )
-            } else {
-                return None;
-            };
-        if is_rate_limited {
-            Some(OutboundServiceError::RateLimited { retry_after })
-        } else if is_network_error {
-            Some(OutboundServiceError::NetworkError)
-        } else {
-            None
+        let kind = error
+            .downcast_ref::<AsRequestError>()
+            .map(ClassifyRequestError::kind)
+            .or_else(|| {
+                error
+                    .downcast_ref::<DsRequestError>()
+                    .map(ClassifyRequestError::kind)
+            })
+            .or_else(|| {
+                error
+                    .downcast_ref::<QsRequestError>()
+                    .map(ClassifyRequestError::kind)
+            })?;
+        match kind {
+            RequestErrorKind::RateLimited { retry_after } => {
+                Some(OutboundServiceError::RateLimited { retry_after })
+            }
+            RequestErrorKind::Network => Some(OutboundServiceError::NetworkError),
+            RequestErrorKind::NotFound
+            | RequestErrorKind::Rejected
+            | RequestErrorKind::ServerError => None,
         }
     })
 }
@@ -114,38 +125,37 @@ impl From<sqlx::Error> for OutboundServiceError {
     }
 }
 
-/// Permanent server errors (e.g. group not found) are fatal, other rejections
-/// are recoverable.
 impl From<DsRequestError> for OutboundServiceError {
     fn from(error: DsRequestError) -> Self {
-        if error.is_rate_limited() {
-            Self::RateLimited {
-                retry_after: error.retry_after(),
-            }
-        } else if error.is_network_error() {
-            Self::NetworkError
-        } else if error.is_not_found() {
-            Self::Fatal(error.into())
-        } else {
-            Self::Recoverable(error.into())
+        // The queue resolves a wrong epoch, so a later attempt may succeed
+        if error.is_wrong_epoch() {
+            return Self::Recoverable(error.into());
         }
+        Self::from_request_error(error)
     }
 }
 
-/// Protocol and validation errors are fatal, other server errors are
-/// recoverable.
 impl From<QsRequestError> for OutboundServiceError {
     fn from(error: QsRequestError) -> Self {
-        if error.is_rate_limited() {
-            Self::RateLimited {
-                retry_after: error.retry_after(),
-            }
-        } else if error.is_network_error() {
-            Self::NetworkError
-        } else if error.is_unsupported_version() || !matches!(error, QsRequestError::Tonic(_)) {
-            Self::Fatal(error.into())
-        } else {
-            Self::Recoverable(error.into())
+        // Retrying with the same client version will not help
+        if error.is_unsupported_version() {
+            return Self::Fatal(error.into());
+        }
+        Self::from_request_error(error)
+    }
+}
+
+impl OutboundServiceError {
+    /// Server errors are recoverable, everything the server refused for good
+    /// is fatal.
+    fn from_request_error(
+        error: impl ClassifyRequestError + std::error::Error + Send + Sync + 'static,
+    ) -> Self {
+        match error.kind() {
+            RequestErrorKind::RateLimited { retry_after } => Self::RateLimited { retry_after },
+            RequestErrorKind::Network => Self::NetworkError,
+            RequestErrorKind::ServerError => Self::Recoverable(error.into()),
+            RequestErrorKind::NotFound | RequestErrorKind::Rejected => Self::Fatal(error.into()),
         }
     }
 }
@@ -160,6 +170,7 @@ where
         match error {
             JobError::NetworkError => Self::NetworkError,
             JobError::RateLimited { retry_after } => Self::RateLimited { retry_after },
+            JobError::Recoverable(error) => Self::Recoverable(error),
             JobError::Fatal(error) => Self::Fatal(error),
             error @ (JobError::Domain(_) | JobError::Blocked | JobError::NotFound) => {
                 Self::Fatal(error.into())
@@ -205,10 +216,7 @@ impl RunResultExt for Result<(), OutboundServiceError> {
 mod tests {
     use std::assert_matches;
 
-    use airprotos::common::v1::{
-        DeviceLimitReachedDetail, StatusDetails, StatusDetailsCode, status_details,
-    };
-    use tonic::{Code, Status};
+    use tonic::Status;
 
     use super::*;
 
@@ -229,6 +237,26 @@ mod tests {
         assert_matches!(
             OutboundServiceError::from(error),
             OutboundServiceError::Recoverable(_)
+        );
+    }
+
+    #[test]
+    fn only_fatal_reports_network_errors_from_anyhow_chains() {
+        let network = || {
+            anyhow::Error::from(AsRequestError::Tonic(Status::unavailable("down")))
+                .context("verifying credentials")
+        };
+        assert_matches!(
+            OutboundServiceError::fatal(network()),
+            OutboundServiceError::NetworkError
+        );
+        assert_matches!(
+            OutboundServiceError::recoverable(network()),
+            OutboundServiceError::Recoverable(_)
+        );
+        assert_matches!(
+            OutboundServiceError::fatal(anyhow::anyhow!("invalid group state")),
+            OutboundServiceError::Fatal(_)
         );
     }
 }

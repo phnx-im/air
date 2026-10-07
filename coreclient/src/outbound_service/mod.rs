@@ -369,25 +369,37 @@ impl OutboundServiceContext {
 
     async fn work(&self, run_token: CancellationToken) -> Result<(), WorkAborted> {
         // Profiles are fetched concurrently to other tasks.
-        let fetch_profiles = self.spawn_fetch_profiles(&run_token);
+        let profiles_token = run_token.child_token();
+        let fetch_profiles = self.spawn_fetch_profiles(&profiles_token);
 
+        let result = self.run_tasks(&run_token).await;
+        if result.is_err() {
+            // Further requests would fail as well
+            profiles_token.cancel();
+        }
+        // Hold the global lock until the fetch is done
+        fetch_profiles.await;
+        result
+    }
+
+    async fn run_tasks(&self, run_token: &CancellationToken) -> Result<(), WorkAborted> {
         self.perform_queued_resyncs(&run_token)
             .await
             .or_abort("queued resyncs")?;
 
-        Box::pin(self.send_pending_chat_operations(&run_token))
+        Box::pin(self.send_pending_chat_operations(run_token))
             .await
             .or_abort("pending chat operations")?;
 
-        self.send_queued_receipts(&run_token)
+        self.send_queued_receipts(run_token)
             .await
             .or_abort("queued receipts")?;
 
-        self.send_redeemed_tokens(&run_token)
+        self.send_redeemed_tokens(run_token)
             .await
             .or_abort("send redeemed tokens")?;
 
-        self.send_deleted_messages(&run_token)
+        self.send_deleted_messages(run_token)
             .await
             .or_abort("send deleted messages")?;
 
@@ -395,23 +407,21 @@ impl OutboundServiceContext {
             .await
             .or_abort("recover interrupted attachment uploads")?;
 
-        self.send_queued_messages(&run_token)
+        self.send_queued_messages(run_token)
             .await
             .or_abort("queued messages")?;
 
-        self.send_queued_reactions(&run_token)
+        self.send_queued_reactions(run_token)
             .await
             .or_abort("queued reactions")?;
 
-        self.send_pending_push_token_updates(&run_token)
+        self.send_pending_push_token_updates(run_token)
             .await
             .or_abort("push token updates")?;
 
-        Box::pin(self.execute_timed_tasks(&run_token))
+        Box::pin(self.execute_timed_tasks(run_token))
             .await
             .or_abort("timed tasks")?;
-
-        fetch_profiles.await;
 
         Ok(())
     }

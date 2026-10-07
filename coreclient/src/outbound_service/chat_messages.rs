@@ -4,6 +4,7 @@
 
 use std::time::Duration;
 
+use airapiclient::{ClassifyRequestError, RequestErrorKind};
 use anyhow::Context;
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
@@ -333,7 +334,10 @@ impl OutboundServiceContext {
                     return Ok(SendOutcome::Collided);
                 }
 
-                if ds_error.is_rate_limited() || ds_error.is_network_error() {
+                if matches!(
+                    ds_error.kind(),
+                    RequestErrorKind::RateLimited { .. } | RequestErrorKind::Network
+                ) {
                     return Err(ds_error.into());
                 }
                 return Err(OutboundServiceError::fatal(
@@ -411,17 +415,7 @@ impl OutboundServiceContext {
         {
             Ok(_) => Ok(CommitOutcome::Committed),
             Err(JobError::Blocked) => Ok(CommitOutcome::ChatBlocked),
-            Err(JobError::NetworkError) => Err(OutboundServiceError::NetworkError),
-            Err(JobError::RateLimited { retry_after }) => {
-                Err(OutboundServiceError::RateLimited { retry_after })
-            }
-            // The job already cleaned up the local state.
-            Err(JobError::NotFound) => Err(OutboundServiceError::Fatal(anyhow!(
-                "Chat not found while committing pending proposals"
-            ))),
-            Err(error @ (JobError::Domain(_) | JobError::Fatal(_))) => {
-                Err(OutboundServiceError::Fatal(error.into()))
-            }
+            Err(error) => Err(error.into()),
         }
     }
 }

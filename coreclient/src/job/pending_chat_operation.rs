@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airapiclient::ds_api::DsRequestError;
+use airapiclient::{ClassifyRequestError, RequestErrorKind, ds_api::DsRequestError};
 use aircommon::{
     credentials::{
         RoomPolicyIdentity, UserCredential,
@@ -563,7 +563,7 @@ impl PendingChatOperation {
             Ok(ds_timestamp) => ds_timestamp,
             Err(error) => {
                 // A rate limited request was not processed by the DS
-                if !error.is_rate_limited() {
+                if !matches!(error.kind(), RequestErrorKind::RateLimited { .. }) {
                     self.number_of_attempts += 1;
                 }
                 if !is_leave {
@@ -728,12 +728,12 @@ impl PendingChatOperation {
             self.mark_as_waiting_for_queue_response(&mut connection)
                 .await?;
             Err(JobError::Blocked)
-        } else if error.is_rate_limited() {
+        } else if let RequestErrorKind::RateLimited { retry_after } = error.kind() {
             // Retry later without giving up, the DS did not process the request.
-            Ok(JobError::RateLimited {
-                retry_after: error.retry_after(),
-            })
-        } else if error.is_network_error() && self.number_of_attempts < MAX_RETRIES {
+            Ok(JobError::RateLimited { retry_after })
+        } else if matches!(error.kind(), RequestErrorKind::Network)
+            && self.number_of_attempts < MAX_RETRIES
+        {
             // If we get a network error (which means we don't know whether the request has been
             // processed by the DS), we want to try again until we've either succeeded or reached a
             // max number of retries.

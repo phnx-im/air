@@ -365,6 +365,24 @@ mod persistence {
             .await?;
             Ok(())
         }
+
+        /// Set the retry due at without counting a retry, for failures the
+        /// server did not process (e.g. rate limiting)
+        pub(crate) async fn postpone(
+            &mut self,
+            mut connection: impl WriteConnection,
+            schedule_at: DateTime<Utc>,
+        ) -> sqlx::Result<()> {
+            self.scheduled_at = schedule_at;
+            query!(
+                "UPDATE operation SET scheduled_at = ? WHERE operation_id = ?",
+                self.scheduled_at,
+                self.operation_id.0,
+            )
+            .execute(connection.as_mut())
+            .await?;
+            Ok(())
+        }
     }
 
     impl Type<Sqlite> for OperationKind {

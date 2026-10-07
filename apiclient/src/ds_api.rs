@@ -4,7 +4,7 @@
 
 //! Client API for the delivery service (DS)
 
-use std::{collections::HashMap, error::Error as _, io, iter, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
 use aircommon::{
     LibraryError,
@@ -57,10 +57,7 @@ use mls_assist::{
 use tonic::Code;
 use tracing::error;
 
-use crate::{
-    ApiClient,
-    as_api::{is_rate_limited_status, retry_after},
-};
+use crate::{ApiClient, ClassifyRequestError, RequestErrorKind, classify_status};
 
 /// How long we wait for the DS to answer a send request.
 ///
@@ -90,6 +87,19 @@ pub enum DsRequestError {
 impl From<LibraryError> for DsRequestError {
     fn from(_: LibraryError) -> Self {
         Self::LibraryError
+    }
+}
+
+impl ClassifyRequestError for DsRequestError {
+    fn kind(&self) -> RequestErrorKind {
+        match self {
+            Self::Tonic(status) => classify_status(status),
+            // We stopped waiting, the DS may still have received the request
+            Self::Timeout(_) => RequestErrorKind::Network,
+            Self::LibraryError | Self::Tls(_) | Self::UnexpectedResponse => {
+                RequestErrorKind::Rejected
+            }
+        }
     }
 }
 
@@ -137,34 +147,6 @@ impl DsRequestError {
             true
         } else {
             false
-        }
-    }
-
-    /// Returns true if the error is likely due to a network issue and we can't
-    /// be sure whether the server received the request.
-    pub fn is_network_error(&self) -> bool {
-        match self {
-            Self::Timeout(_) => true,
-            Self::Tonic(status) => {
-                matches!(status.code(), Code::Unavailable | Code::DeadlineExceeded)
-                    || status.code() == Code::Unknown
-                        && iter::successors(status.source(), |&error| error.source())
-                            .any(|error| error.is::<io::Error>())
-            }
-            Self::LibraryError | Self::Tls(_) | Self::UnexpectedResponse => false,
-        }
-    }
-
-    /// Returns true if the request was rate limited and was not processed.
-    pub fn is_rate_limited(&self) -> bool {
-        matches!(self, Self::Tonic(status) if is_rate_limited_status(status))
-    }
-
-    /// How long the server asked to wait before retrying, if it said so.
-    pub fn retry_after(&self) -> Option<Duration> {
-        match self {
-            Self::Tonic(status) => retry_after(status),
-            _ => None,
         }
     }
 
@@ -1177,11 +1159,14 @@ fn extract_encrypted_user_profile_keys(
 mod tests {
     use super::*;
 
+    use std::{assert_matches, io};
+
     #[test]
     fn timeout_is_classified_as_a_network_error() {
         let error = DsRequestError::Timeout(SEND_TIMEOUT);
-        assert!(
-            error.is_network_error(),
+        assert_matches!(
+            error.kind(),
+            RequestErrorKind::Network,
             "a send we stopped waiting for may still have reached the DS"
         );
         assert!(!error.is_not_found());
@@ -1196,9 +1181,15 @@ mod tests {
         let transport = Transport(io::Error::from(io::ErrorKind::ConnectionReset));
         let status = tonic::Status::from_error(Box::new(transport));
         assert_eq!(status.code(), Code::Unknown);
-        assert!(DsRequestError::Tonic(status).is_network_error());
+        assert_matches!(
+            DsRequestError::Tonic(status).kind(),
+            RequestErrorKind::Network
+        );
 
         let status = tonic::Status::unknown("server error");
-        assert!(!DsRequestError::Tonic(status).is_network_error());
+        assert_matches!(
+            DsRequestError::Tonic(status).kind(),
+            RequestErrorKind::ServerError
+        );
     }
 }

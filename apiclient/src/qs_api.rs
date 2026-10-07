@@ -47,13 +47,10 @@ use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
 use tokio_util::sync::CancellationToken;
-use tonic::{Code, Status};
+use tonic::Status;
 use tracing::{debug, error};
 
-use crate::{
-    ApiClient,
-    as_api::{is_rate_limited_status, retry_after},
-};
+use crate::{ApiClient, ClassifyRequestError, RequestErrorKind, classify_status};
 
 #[derive(Error, Debug)]
 pub enum QsRequestError {
@@ -75,6 +72,18 @@ impl From<LibraryError> for QsRequestError {
     }
 }
 
+impl ClassifyRequestError for QsRequestError {
+    fn kind(&self) -> RequestErrorKind {
+        match self {
+            Self::Tonic(status) => classify_status(status),
+            Self::LibraryError
+            | Self::Tls(_)
+            | Self::UnexpectedResponse
+            | Self::MissingField(_) => RequestErrorKind::Rejected,
+        }
+    }
+}
+
 impl QsRequestError {
     pub fn is_unsupported_version(&self) -> bool {
         match self {
@@ -85,28 +94,6 @@ impl QsRequestError {
                         .unwrap_or(false)
             }
             _ => false,
-        }
-    }
-
-    /// Returns true if the error is likely due to a network issue and we can't
-    /// be sure whether the server received the request.
-    pub fn is_network_error(&self) -> bool {
-        matches!(
-            self,
-            Self::Tonic(status) if matches!(status.code(), Code::Unavailable | Code::DeadlineExceeded)
-        )
-    }
-
-    /// Returns true if the request was rate limited and was not processed.
-    pub fn is_rate_limited(&self) -> bool {
-        matches!(self, Self::Tonic(status) if is_rate_limited_status(status))
-    }
-
-    /// How long the server asked to wait before retrying, if it said so.
-    pub fn retry_after(&self) -> Option<std::time::Duration> {
-        match self {
-            Self::Tonic(status) => retry_after(status),
-            _ => None,
         }
     }
 }

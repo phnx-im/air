@@ -4,7 +4,10 @@
 
 use std::time::Duration;
 
-use airapiclient::{ApiClientInitError, as_api::AsRequestError, ds_api::DsRequestError};
+use airapiclient::{
+    ApiClientInitError, ClassifyRequestError, RequestErrorKind, as_api::AsRequestError,
+    ds_api::DsRequestError,
+};
 use aircommon::{codec, identifiers::QsClientId};
 use chrono::{DateTime, Utc};
 use sqlx::SqliteConnection;
@@ -161,8 +164,10 @@ pub(crate) enum JobError<E> {
     Blocked,
     #[error("Not found")]
     NotFound,
+    #[error("Recoverable error: {0}")]
+    Recoverable(#[from] anyhow::Error),
     #[error(transparent)]
-    Fatal(#[from] anyhow::Error),
+    Fatal(anyhow::Error),
 }
 
 impl<E> JobError<E> {
@@ -213,34 +218,32 @@ pub(crate) trait Job: Send {
 
 impl<E> From<AsRequestError> for JobError<E> {
     fn from(error: AsRequestError) -> Self {
-        if error.is_rate_limited() {
-            info!(?error, "Job failed due to rate limiting");
-            Self::RateLimited {
-                retry_after: error.retry_after(),
-            }
-        } else if error.is_network_error() {
-            info!(?error, "Job failed due to network error");
-            Self::NetworkError
-        } else {
-            Self::Fatal(error.into())
-        }
+        Self::from_request_error(error)
     }
 }
 
 impl<E> From<DsRequestError> for JobError<E> {
     fn from(error: DsRequestError) -> Self {
-        if error.is_rate_limited() {
-            info!(?error, "Job failed due to rate limiting");
-            Self::RateLimited {
-                retry_after: error.retry_after(),
+        Self::from_request_error(error)
+    }
+}
+
+impl<E> JobError<E> {
+    fn from_request_error(
+        error: impl ClassifyRequestError + std::error::Error + Send + Sync + 'static,
+    ) -> Self {
+        match error.kind() {
+            RequestErrorKind::RateLimited { retry_after } => {
+                info!(?error, "Job failed due to rate limiting");
+                Self::RateLimited { retry_after }
             }
-        } else if error.is_not_found() {
-            Self::NotFound
-        } else if error.is_network_error() {
-            info!(?error, "Job failed due to network error");
-            Self::NetworkError
-        } else {
-            Self::Fatal(error.into())
+            RequestErrorKind::Network => {
+                info!(?error, "Job failed due to network error");
+                Self::NetworkError
+            }
+            RequestErrorKind::NotFound => Self::NotFound,
+            RequestErrorKind::ServerError => Self::Recoverable(error.into()),
+            RequestErrorKind::Rejected => Self::Fatal(error.into()),
         }
     }
 }

@@ -4,7 +4,7 @@
 
 //! Client API for the authentication service (AS)
 
-use std::{convert::identity, time::Duration};
+use std::convert::identity;
 
 use aircommon::{
     LibraryError,
@@ -28,6 +28,7 @@ use aircommon::{
         push_token::{PushToken, PushTokenOperator},
     },
     registration::{ChallengeKind, NewAdmissionSession, RegistrationChallenge, RegistrationInfo},
+    time::Duration,
 };
 use airprotos::{
     auth_service::v1::{
@@ -55,7 +56,7 @@ use tonic::{Code, Request, Status};
 use tracing::error;
 use uuid::Uuid;
 
-use crate::ApiClient;
+use crate::{ApiClient, ClassifyRequestError, RequestErrorKind, classify_status};
 
 /// Errors that can occur when sending requests to the AS.
 #[derive(Error, Debug)]
@@ -66,6 +67,15 @@ pub enum AsRequestError {
     UnexpectedResponse,
     #[error(transparent)]
     Tonic(#[from] tonic::Status),
+}
+
+impl ClassifyRequestError for AsRequestError {
+    fn kind(&self) -> RequestErrorKind {
+        match self {
+            Self::Tonic(status) => classify_status(status),
+            Self::LibraryError | Self::UnexpectedResponse => RequestErrorKind::Rejected,
+        }
+    }
 }
 
 impl AsRequestError {
@@ -104,17 +114,6 @@ impl AsRequestError {
         }
     }
 
-    /// Returns true if the error is likely due to a network issue and we can't
-    /// be sure whether the server received the request.
-    pub fn is_network_error(&self) -> bool {
-        if let Self::Tonic(status) = self {
-            // TODO: Also handle unknown errors here but downcast them to io::Error
-            matches!(status.code(), Code::Unavailable | Code::DeadlineExceeded)
-        } else {
-            false
-        }
-    }
-
     /// Returns true if the error means the user exceeded some quota or limit.
     pub fn is_resource_exhausted(&self) -> bool {
         if let Self::Tonic(status) = self {
@@ -123,31 +122,6 @@ impl AsRequestError {
             false
         }
     }
-
-    /// Returns true if the request was rate limited and was not processed.
-    pub fn is_rate_limited(&self) -> bool {
-        matches!(self, Self::Tonic(status) if is_rate_limited_status(status))
-    }
-
-    /// How long the server asked to wait before retrying, if it said so.
-    pub fn retry_after(&self) -> Option<Duration> {
-        match self {
-            Self::Tonic(status) => retry_after(status),
-            _ => None,
-        }
-    }
-}
-
-/// Whether the status is a rate limit rejection, i.e. resource exhausted
-/// without any status details.
-pub(crate) fn is_rate_limited_status(status: &Status) -> bool {
-    status.code() == Code::ResourceExhausted && status.details().is_empty()
-}
-
-/// The `retry-after` metadata of a status in whole seconds.
-pub(crate) fn retry_after(status: &Status) -> Option<Duration> {
-    let secs = status.metadata().get("retry-after")?.to_str().ok()?;
-    secs.trim().parse().ok().map(Duration::from_secs)
 }
 
 /// What the server did with a registration.
@@ -275,7 +249,7 @@ impl ApiClient {
                     AsRequestError::UnexpectedResponse
                 })?
                 .into(),
-            lifetime: aircommon::time::Duration::seconds(response.lifetime_seconds.into()),
+            lifetime: Duration::seconds(response.lifetime_seconds.into()),
         })
     }
 

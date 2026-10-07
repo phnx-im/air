@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use airapiclient::{ClassifyRequestError, RequestErrorKind};
 use aircommon::{
     identifiers::{USERNAME_REFRESH_THRESHOLD, UsernameHash},
     messages::connection_package::ConnectionPackageHash,
@@ -540,7 +541,7 @@ impl OutboundServiceContext {
     /// Performs the self-update in a single chat.
     ///
     /// Failures that only concern this chat are reported as
-    /// [`OutboundServiceRunError::Fatal`], so that the batch can continue with
+    /// [`OutboundServiceError::Fatal`], so that the batch can continue with
     /// the next chat. All other errors are reserved for failures that affect
     /// every chat, e.g. an unreachable database or network, where retrying the
     /// whole task is the only useful thing to do.
@@ -658,19 +659,9 @@ impl OutboundServiceContext {
         };
         match self.execute_job(job).await {
             Ok(_messages) => Ok(SelfUpdateOutcome::Updated),
-            // A network error or rate limiting is likely something transient
-            // that would affect all chats, so we retry the whole task with
-            // backoff.
-            Err(JobError::NetworkError) => Err(OutboundServiceError::NetworkError),
-            Err(JobError::RateLimited { retry_after }) => {
-                Err(OutboundServiceError::RateLimited { retry_after })
-            }
-            // The operation is no longer applicable to this chat, so we skip
-            // it.
+            // The operation is no longer applicable to this chat, so we skip it.
             Err(JobError::NotFound | JobError::Blocked) => Ok(SelfUpdateOutcome::Skipped),
-            Err(error @ (JobError::Domain(_) | JobError::Fatal(_))) => {
-                Err(OutboundServiceError::fatal(error))
-            }
+            Err(error) => Err(error.into()),
         }
     }
 
@@ -746,7 +737,7 @@ impl OutboundServiceContext {
                     if error.is_not_found() {
                         // The username does not exist on the server anymore
                         warn!(username, %error, "Username not found; skipping upload");
-                    } else if error.is_rate_limited() {
+                    } else if matches!(error.kind(), RequestErrorKind::RateLimited { .. }) {
                         // Further uploads would be rate limited as well
                         return Err(error.into());
                     } else {

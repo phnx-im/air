@@ -54,10 +54,7 @@ impl OutboundServiceContext {
             "Uploading key packages via publish"
         );
 
-        let api_client = self
-            .api_clients
-            .default_client()
-            .map_err(OutboundServiceError::recoverable)?;
+        let api_client = self.api_clients.default_client()?;
 
         let key_package_refs = batch.references()?;
 
@@ -188,7 +185,7 @@ impl OutboundServiceContext {
         let api_client = self
             .api_clients
             .default_client()
-            .map_err(OutboundServiceError::recoverable)?;
+            .map_err(OutboundServiceError::fatal)?;
         let batch_id = KeyPackageBatchId {
             epoch_id,
             leaf_index,
