@@ -7,7 +7,7 @@ use std::{convert::Infallible, ops::ControlFlow, time::Duration};
 use chrono::{DateTime, Utc};
 use serde::de::DeserializeOwned;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
+use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -118,7 +118,7 @@ impl OutboundServiceContext {
                     } => (*retry_after).max(RETRY_AFTER),
                     _ => RETRY_AFTER,
                 };
-                info!(?operation_id, %error, ?retry_after, "Failed to fetch profile; retrying later");
+                warn!(?operation_id, %error, ?retry_after, "Failed to fetch profile; retrying later");
                 op.postpone(self.db.write().await?, now + retry_after)
                     .await?;
                 return Ok(ControlFlow::Break(()));

@@ -216,7 +216,7 @@ pub(crate) fn classify_status(status: &Status) -> RequestErrorKind {
                 Some(_) | None => RequestErrorKind::ServerError,
             }
         }
-        Code::Unavailable | Code::DeadlineExceeded => RequestErrorKind::Network,
+        Code::Unavailable | Code::DeadlineExceeded | Code::Cancelled => RequestErrorKind::Network,
         // tonic reports transport failures it cannot map to a code as unknown
         Code::Unknown
             if iter::successors(status.source(), |&error| error.source())
@@ -225,14 +225,11 @@ pub(crate) fn classify_status(status: &Status) -> RequestErrorKind {
             RequestErrorKind::Network
         }
         Code::NotFound => RequestErrorKind::NotFound,
-        Code::Internal
-        | Code::Unknown
-        | Code::Aborted
-        | Code::Cancelled
-        | Code::DataLoss => RequestErrorKind::ServerError,
+        Code::Internal | Code::Unknown | Code::Aborted | Code::DataLoss => {
+            RequestErrorKind::ServerError
+        }
         Code::Ok
         | Code::InvalidArgument
-        // | Code::ResourceExhausted
         | Code::AlreadyExists
         | Code::PermissionDenied
         | Code::OutOfRange

@@ -12,7 +12,7 @@ use aircommon::{codec, identifiers::QsClientId};
 use chrono::{DateTime, Utc};
 use sqlx::SqliteConnection;
 use thiserror::Error;
-use tracing::{info, warn};
+use tracing::warn;
 
 use crate::{
     clients::api_clients::ApiClients,
@@ -165,9 +165,9 @@ pub(crate) enum JobError<E> {
     #[error("Not found")]
     NotFound,
     #[error("Recoverable error: {0}")]
-    Recoverable(#[from] anyhow::Error),
+    Recoverable(anyhow::Error),
     #[error(transparent)]
-    Fatal(anyhow::Error),
+    Fatal(#[from] anyhow::Error),
 }
 
 impl<E> JobError<E> {
@@ -234,11 +234,11 @@ impl<E> JobError<E> {
     ) -> Self {
         match error.kind() {
             RequestErrorKind::RateLimited { retry_after } => {
-                info!(?error, "Job failed due to rate limiting");
+                warn!(?error, "Job failed due to rate limiting");
                 Self::RateLimited { retry_after }
             }
             RequestErrorKind::Network => {
-                info!(?error, "Job failed due to network error");
+                warn!(?error, "Job failed due to network error");
                 Self::NetworkError
             }
             RequestErrorKind::NotFound => Self::NotFound,
@@ -253,7 +253,7 @@ impl<E> From<reqwest::Error> for JobError<E> {
         match error.status() {
             Some(reqwest::StatusCode::TOO_MANY_REQUESTS) => {
                 // The response headers are not kept by reqwest's error
-                info!(?error, "Job failed due to rate limiting");
+                warn!(?error, "Job failed due to rate limiting");
                 Self::RateLimited { retry_after: None }
             }
             Some(status) if status.is_server_error() => Self::Recoverable(error.into()),

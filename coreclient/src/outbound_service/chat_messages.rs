@@ -209,6 +209,11 @@ impl OutboundServiceContext {
                 }
                 // Abort the whole run if we get rate limited
                 Err(error @ OutboundServiceError::RateLimited { .. }) => return Err(error),
+                Err(OutboundServiceError::Recoverable(error)) => {
+                    // Leave the message in the queue so a later run retries it
+                    warn!(%error, ?message_id, "Failed to send chat message; retrying in a later run");
+                    return Ok(RunControl::NextMessage);
+                }
                 Err(error) => error,
             };
 

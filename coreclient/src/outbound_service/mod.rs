@@ -383,7 +383,7 @@ impl OutboundServiceContext {
     }
 
     async fn run_tasks(&self, run_token: &CancellationToken) -> Result<(), WorkAborted> {
-        self.perform_queued_resyncs(&run_token)
+        self.perform_queued_resyncs(run_token)
             .await
             .or_abort("queued resyncs")?;
 

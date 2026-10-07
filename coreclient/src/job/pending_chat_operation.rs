@@ -282,8 +282,12 @@ impl Job for PendingChatOperation {
         context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         match self.execute_internal(context).await {
-            // Update retry_due at on network errors and rate limiting
-            Err(error @ (JobError::NetworkError | JobError::RateLimited { .. })) => {
+            // Update retry_due at on errors a later attempt may get past
+            Err(
+                error @ (JobError::NetworkError
+                | JobError::RateLimited { .. }
+                | JobError::Recoverable(_)),
+            ) => {
                 #[cfg(not(any(test, feature = "test_utils")))]
                 let retry_due = context.now + RETRY_INTERVAL;
                 #[cfg(any(test, feature = "test_utils"))]

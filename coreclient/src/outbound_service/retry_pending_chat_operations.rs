@@ -9,7 +9,7 @@ use airprotos::client::self_group::{
 use anyhow::Context as _;
 use openmls::group::GroupId;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -73,6 +73,11 @@ impl OutboundServiceContext {
                     continue;
                 }
                 Err(JobError::Blocked | JobError::NotFound) => {
+                    continue;
+                }
+                Err(JobError::Recoverable(error)) => {
+                    // The job set its retry due at. Continue with the next one.
+                    warn!(%error, ?group_id, "Failed to execute pending chat operation; retrying later");
                     continue;
                 }
                 Err(error) => return Err(error.into()),

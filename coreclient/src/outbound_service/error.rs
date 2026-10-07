@@ -70,8 +70,6 @@ impl OutboundServiceError {
     }
 }
 
-/// See [`OutboundServiceError::recoverable`].
-// TODO: remove me
 impl From<anyhow::Error> for OutboundServiceError {
     fn from(error: anyhow::Error) -> Self {
         Self::recoverable(error)
@@ -137,10 +135,6 @@ impl From<DsRequestError> for OutboundServiceError {
 
 impl From<QsRequestError> for OutboundServiceError {
     fn from(error: QsRequestError) -> Self {
-        // Retrying with the same client version will not help
-        if error.is_unsupported_version() {
-            return Self::Fatal(error.into());
-        }
         Self::from_request_error(error)
     }
 }
@@ -160,8 +154,6 @@ impl OutboundServiceError {
     }
 }
 
-/// A job that is blocked or whose target is gone will not succeed on retry,
-/// so these are fatal like domain errors.
 impl<E> From<JobError<E>> for OutboundServiceError
 where
     E: std::error::Error + Send + Sync + 'static,
