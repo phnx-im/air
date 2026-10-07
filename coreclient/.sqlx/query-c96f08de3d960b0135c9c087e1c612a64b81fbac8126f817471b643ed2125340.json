@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO operation (\n                    operation_id,\n                    kind,\n                    data,\n                    created_at,\n                    scheduled_at\n                )\n                VALUES (?, ?, ?, ?, ?)\n                ON CONFLICT (operation_id) DO NOTHING\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "c96f08de3d960b0135c9c087e1c612a64b81fbac8126f817471b643ed2125340"
+}

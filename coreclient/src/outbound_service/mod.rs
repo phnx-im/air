@@ -540,6 +540,7 @@ impl Future for WaitForDoneFuture {
 #[cfg(test)]
 mod test {
     use std::{
+        collections::VecDeque,
         sync::{
             Arc,
             atomic::{AtomicUsize, Ordering},
@@ -823,6 +824,134 @@ mod test {
         assert_eq!(9, context.counter.load(Ordering::SeqCst));
 
         assert!(service.run_token_tx.subscribe().borrow().is_cancelled());
+    }
+
+    /// Returns the scripted outcomes run by run, then succeeds, and records
+    /// when each run started.
+    #[derive(Clone, Default)]
+    struct ScriptedContext {
+        outcomes: Arc<std::sync::Mutex<VecDeque<Result<(), WorkAborted>>>>,
+        runs: Arc<std::sync::Mutex<Vec<Instant>>>,
+    }
+
+    impl ScriptedContext {
+        fn new(outcomes: impl IntoIterator<Item = Result<(), WorkAborted>>) -> Self {
+            Self {
+                outcomes: Arc::new(std::sync::Mutex::new(outcomes.into_iter().collect())),
+                runs: Default::default(),
+            }
+        }
+
+        fn runs(&self) -> Vec<Instant> {
+            self.runs.lock().unwrap().clone()
+        }
+
+        async fn wait_for_runs(&self, count: usize) -> Vec<Instant> {
+            timeout(Duration::from_secs(10), async {
+                while self.runs.lock().unwrap().len() < count {
+                    sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .expect("runs did not happen in time");
+            self.runs()
+        }
+    }
+
+    impl OutboundServiceWork for ScriptedContext {
+        async fn work(&self, _run_token: CancellationToken) -> Result<(), WorkAborted> {
+            self.runs.lock().unwrap().push(Instant::now());
+            self.outcomes.lock().unwrap().pop_front().unwrap_or(Ok(()))
+        }
+    }
+
+    fn rate_limited(retry_after: Option<Duration>) -> Result<(), WorkAborted> {
+        Err(WorkAborted::BackOff { retry_after })
+    }
+
+    #[tokio::test]
+    async fn rate_limited_run_backs_off() {
+        init_test_tracing();
+
+        let context = ScriptedContext::new([rate_limited(None)]);
+        let service = OutboundService::build(context.clone(), global_lock(), TEST_WAKE_INTERVAL);
+
+        service.start().await;
+        assert_eq!(context.runs().len(), 1);
+
+        // Neither notifications nor periodic wakes run work during the backoff
+        timeout(Duration::from_millis(500), service.notify_work())
+            .await
+            .expect("a notification during the backoff must be marked as done");
+        sleep(Duration::from_millis(500)).await;
+        assert_eq!(context.runs().len(), 1);
+
+        let runs = context.wait_for_runs(2).await;
+        assert!(runs[1] - runs[0] >= Duration::from_secs(1));
+    }
+
+    #[tokio::test]
+    async fn backoff_waits_at_least_retry_after() {
+        init_test_tracing();
+
+        let retry_after = Duration::from_millis(1500);
+        let context = ScriptedContext::new([rate_limited(Some(retry_after))]);
+        let service = OutboundService::with_context(context.clone(), global_lock());
+
+        service.start().await;
+
+        let runs = context.wait_for_runs(2).await;
+        assert!(runs[1] - runs[0] >= retry_after);
+    }
+
+    #[tokio::test]
+    async fn successful_run_resets_backoff() {
+        init_test_tracing();
+
+        let context = ScriptedContext::new([rate_limited(None), Ok(()), rate_limited(None)]);
+        let service = OutboundService::with_context(context.clone(), global_lock());
+
+        service.start().await;
+        context.wait_for_runs(2).await;
+
+        service.notify_work().await;
+        let runs = context.wait_for_runs(4).await;
+
+        // Without the reset, the second backoff would be 2s
+        let backoff = runs[3] - runs[2];
+        assert!(backoff >= Duration::from_secs(1));
+        assert!(backoff < Duration::from_secs(2), "backoff was {backoff:?}");
+    }
+
+    #[tokio::test]
+    async fn network_error_does_not_back_off() {
+        init_test_tracing();
+
+        let context = ScriptedContext::new([Err(WorkAborted::Interrupted)]);
+        let service = OutboundService::with_context(context.clone(), global_lock());
+
+        service.start().await;
+        timeout(Duration::from_millis(500), service.notify_work())
+            .await
+            .expect("the run after a network error must not wait");
+
+        assert_eq!(context.runs().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn stop_during_backoff_skips_the_next_run() {
+        init_test_tracing();
+
+        let context = ScriptedContext::new([rate_limited(None)]);
+        let service = OutboundService::with_context(context.clone(), global_lock());
+
+        service.start().await;
+        timeout(Duration::from_millis(500), service.stop())
+            .await
+            .expect("stop must not wait for the backoff");
+
+        sleep(Duration::from_millis(1500)).await;
+        assert_eq!(context.runs().len(), 1);
     }
 
     #[derive(Clone)]

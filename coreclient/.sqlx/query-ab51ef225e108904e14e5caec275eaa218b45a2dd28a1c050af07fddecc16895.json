@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n                UPDATE operation\n                SET locked_by = ?2\n                WHERE operation_id = ?1\n                RETURNING\n                    data AS \"data: _\",\n                    created_at AS \"created_at: _\",\n                    scheduled_at AS \"scheduled_at: _\",\n                    retries AS \"retries: _\"\n                ",
+  "query": "\n                UPDATE operation\n                SET locked_by = ?2\n                WHERE operation_id = ?1\n                RETURNING\n                    data AS \"data: _\",\n                    created_at AS \"created_at: _\",\n                    scheduled_at AS \"scheduled_at: _\"\n                ",
   "describe": {
     "columns": [
       {
@@ -35,17 +35,6 @@
             "name": "scheduled_at"
           }
         }
-      },
-      {
-        "name": "retries: _",
-        "ordinal": 3,
-        "type_info": "Integer",
-        "origin": {
-          "Table": {
-            "table": "operation",
-            "name": "retries"
-          }
-        }
       }
     ],
     "parameters": {
@@ -54,9 +43,8 @@
     "nullable": [
       false,
       false,
-      false,
       false
     ]
   },
-  "hash": "8101296f8b01b01d0b4b4a9f12e004a75286ce2241b6605b219f6187b41e024c"
+  "hash": "ab51ef225e108904e14e5caec275eaa218b45a2dd28a1c050af07fddecc16895"
 }

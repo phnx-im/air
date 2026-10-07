@@ -119,7 +119,7 @@ impl OutboundServiceContext {
                     _ => RETRY_AFTER,
                 };
                 warn!(?operation_id, %error, ?retry_after, "Failed to fetch profile; retrying later");
-                op.postpone(self.db.write().await?, now + retry_after)
+                op.reschedule(self.db.write().await?, now + retry_after)
                     .await?;
                 return Ok(ControlFlow::Break(()));
             }

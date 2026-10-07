@@ -53,7 +53,6 @@ pub(crate) struct Operation<T> {
     pub(crate) data: T,
     pub(crate) created_at: DateTime<Utc>,
     pub(crate) scheduled_at: DateTime<Utc>,
-    pub(crate) retries: usize,
 }
 
 /// Warning: Do not reorder the variants. The order is used for operation id generation.
@@ -73,7 +72,6 @@ impl<T: OperationData> Operation<T> {
             data,
             created_at: now,
             scheduled_at: now,
-            retries: 0,
         }
     }
 
@@ -89,7 +87,6 @@ impl<T: OperationData> Operation<T> {
             data: (),
             created_at: self.created_at,
             scheduled_at: self.scheduled_at,
-            retries: self.retries,
         };
         (op, self.data)
     }
@@ -143,30 +140,26 @@ mod persistence {
         {
             let kind = T::kind();
             let data = BlobEncoded(&self.data);
-            let retries = self.retries as i64;
             query!(
                 "INSERT INTO operation (
                     operation_id,
                     kind,
                     data,
                     created_at,
-                    scheduled_at,
-                    retries
+                    scheduled_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT (operation_id) DO UPDATE SET
                     kind = excluded.kind,
                     data = excluded.data,
                     created_at = excluded.created_at,
-                    scheduled_at = excluded.scheduled_at,
-                    retries = excluded.retries
+                    scheduled_at = excluded.scheduled_at
                 ",
                 self.operation_id.0,
                 kind,
                 data,
                 self.created_at,
                 self.scheduled_at,
-                retries,
             )
             .execute(connection.as_mut())
             .await?;
@@ -183,17 +176,15 @@ mod persistence {
         {
             let kind = T::kind();
             let data = BlobEncoded(&self.data);
-            let retries = self.retries as i64;
             query!(
                 "INSERT INTO operation (
                     operation_id,
                     kind,
                     data,
                     created_at,
-                    scheduled_at,
-                    retries
+                    scheduled_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT (operation_id) DO NOTHING
                 ",
                 self.operation_id.0,
@@ -201,7 +192,6 @@ mod persistence {
                 data,
                 self.created_at,
                 self.scheduled_at,
-                retries,
             )
             .execute(connection.as_mut())
             .await?;
@@ -258,7 +248,6 @@ mod persistence {
                 data: Vec<u8>,
                 created_at: DateTime<Utc>,
                 scheduled_at: DateTime<Utc>,
-                retries: u16,
             }
 
             let op_data = query_as!(
@@ -270,8 +259,7 @@ mod persistence {
                 RETURNING
                     data AS "data: _",
                     created_at AS "created_at: _",
-                    scheduled_at AS "scheduled_at: _",
-                    retries AS "retries: _"
+                    scheduled_at AS "scheduled_at: _"
                 "#,
                 operation_id,
                 task_id,
@@ -286,7 +274,6 @@ mod persistence {
                 data,
                 created_at,
                 scheduled_at,
-                retries,
             } = op_data;
 
             let data: T = match PersistenceCodec::from_slice(&data) {
@@ -309,7 +296,6 @@ mod persistence {
                 data,
                 created_at,
                 scheduled_at,
-                retries: retries.into(),
             }))
         }
 
@@ -343,32 +329,8 @@ mod persistence {
             Ok(())
         }
 
-        /// Increase the number of retries and set the retry due at
+        /// Set when the operation is due next
         pub(crate) async fn reschedule(
-            &mut self,
-            mut connection: impl WriteConnection,
-            schedule_at: DateTime<Utc>,
-        ) -> sqlx::Result<()> {
-            self.scheduled_at = schedule_at;
-            self.retries += 1;
-            let retries = self.retries as i64;
-            query!(
-                "UPDATE operation SET
-                    scheduled_at = ?,
-                    retries = ?
-                WHERE operation_id = ?",
-                self.scheduled_at,
-                retries,
-                self.operation_id.0,
-            )
-            .execute(connection.as_mut())
-            .await?;
-            Ok(())
-        }
-
-        /// Set the retry due at without counting a retry, for failures the
-        /// server did not process (e.g. rate limiting)
-        pub(crate) async fn postpone(
             &mut self,
             mut connection: impl WriteConnection,
             schedule_at: DateTime<Utc>,
@@ -489,7 +451,6 @@ mod tests {
         assert_eq!(loaded.operation_id, op.operation_id);
         assert_eq!(loaded.data.payload, "after");
         assert_eq!(loaded.scheduled_at, op.scheduled_at);
-        assert_eq!(loaded.retries, 0);
     }
 
     #[sqlx::test]
@@ -512,7 +473,6 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        assert_eq!(op.retries, 1);
         assert_eq!(op.scheduled_at, retry_time);
     }
 
@@ -526,8 +486,7 @@ mod tests {
             payload: "stable_id".to_string(),
         };
         let op1 = Operation::new(data.clone());
-        let mut op2 = Operation::new(data);
-        op2.retries = 5;
+        let op2 = Operation::new(data).schedule_at(Utc::now() - chrono::Duration::minutes(1));
 
         // Inserting the same ID twice (due to "INSERT OR REPLACE")
         op1.enqueue(&mut txn).await.unwrap();
@@ -538,7 +497,7 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        assert_eq!(op.retries, 5);
+        assert_eq!(op.scheduled_at, op2.scheduled_at);
     }
 
     #[sqlx::test]
