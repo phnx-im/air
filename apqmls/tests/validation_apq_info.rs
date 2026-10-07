@@ -2,13 +2,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::assert_matches;
+
 use apqmls::{
     ApqCiphersuite, ApqMlsGroup,
     authentication::{ApqCredentialWithKey, ApqSignatureKeyPair, ApqSigner},
     extension::{APQMLS_COMPONENT_ID, ApqInfo, PqtMode},
     validation::{
-        ApqValidationError, Session, validate_apq_group_info, validate_apq_session,
-        validate_apq_session_at_construction,
+        ApqValidationError, Session, validate_apq_group_contexts, validate_apq_group_info,
+        validate_apq_session, validate_apq_session_at_construction,
     },
 };
 use openmls::{
@@ -179,6 +181,19 @@ fn validate_group_info_pair(
     validate_apq_group_info(
         &group_info(&t_group, &fixture.provider, fixture.signer.t_signer()),
         &group_info(&pq_group, &fixture.provider, fixture.signer.pq_signer()),
+    )
+}
+
+/// Runs the validation over the group contexts of a pair of groups carrying the
+/// given APQInfo.
+fn validate_group_context_pair(
+    t_info: Option<&ApqInfo>,
+    pq_info: Option<&ApqInfo>,
+) -> Result<ApqInfo, ApqValidationError> {
+    let fixture = Fixture::new();
+    validate_apq_group_contexts(
+        &fixture.t_group(t_info).export_group_context(),
+        &fixture.pq_group(pq_info).export_group_context(),
     )
 }
 
@@ -414,4 +429,36 @@ fn an_external_joiner_checks_the_apq_info_epochs() {
         validate_group_info_pair(Some(&info), Some(&info)),
         Err(ApqValidationError::EpochMismatch(Session::Pq))
     ));
+}
+
+#[test]
+fn group_contexts_with_a_valid_apq_info_are_accepted() {
+    let info = valid_info();
+    assert_eq!(
+        validate_group_context_pair(Some(&info), Some(&info)).unwrap(),
+        info
+    );
+}
+
+#[test]
+fn group_contexts_with_an_invalid_apq_info_are_rejected() {
+    let info = valid_info();
+    assert_matches!(
+        validate_group_context_pair(None, Some(&info)),
+        Err(ApqValidationError::MissingApqInfo(Session::T))
+    );
+
+    let mut other = valid_info();
+    other.pq_epoch = GroupEpoch::from(1);
+    assert_matches!(
+        validate_group_context_pair(Some(&info), Some(&other)),
+        Err(ApqValidationError::ApqInfoMismatch)
+    );
+
+    let mut info = valid_info();
+    info.mode = PqtMode::ConfOnly;
+    assert_matches!(
+        validate_group_context_pair(Some(&info), Some(&info)),
+        Err(ApqValidationError::ModeMismatch { .. })
+    );
 }
