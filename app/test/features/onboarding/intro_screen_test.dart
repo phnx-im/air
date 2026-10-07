@@ -28,7 +28,7 @@ void main() {
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     });
 
-    Widget buildSubject() => MultiBlocProvider(
+    Widget buildSubject({bool accountMarker = false}) => MultiBlocProvider(
       providers: [
         BlocProvider<UserSessionCubit>.value(value: userSessionCubit),
         BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
@@ -39,7 +39,7 @@ void main() {
           debugShowCheckedModeBanner: false,
           theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: const IntroScreen(),
+          home: IntroScreen(checkAccountMarker: () async => accountMarker),
         ),
       ),
     );
@@ -81,6 +81,16 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/intro_screen.png'),
+      );
+    });
+
+    testWidgets('renders the transfer notice on phone', (tester) async {
+      await tester.pumpWidget(buildSubject(accountMarker: true));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/intro_screen_data_not_transferred.png'),
       );
     });
 

@@ -412,6 +412,10 @@
   "@introScreen_signUp": {
     "description": "Start screen button for creating a new account."
   },
+  "introScreen_dataNotTransferred": "Your chats were not transferred to this device. Air never includes them in backups or phone transfers. To use your account here, link this device from one where you still use Air.",
+  "@introScreen_dataNotTransferred": {
+    "description": "Notice on the start screen of an iPhone or iPad that was set up from a backup or another phone. Air's data is never part of backups or transfers, so the account has to be linked from a device that still has it."
+  },
   "introScreen_termsLinkText": "Terms of Use",
   "@introScreen_termsLinkText": {
     "description": "Link text inside the terms sentence on the start screen. Must match the wording used inside that sentence so the link can be located in the rendered string."

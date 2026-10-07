@@ -84,6 +84,7 @@
   "introScreen_serverHint": "ДОМЕННОЕ ИМЯ",
   "introScreen_linkExisting": "Привязать к существующему аккаунту",
   "introScreen_signUp": "Создать аккаунт",
+  "introScreen_dataNotTransferred": "Ваши чаты не были перенесены на это устройство. Air никогда не включает их в резервные копии и не переносит при смене телефона. Чтобы пользоваться аккаунтом здесь, привяжите это устройство с другого, на котором вы всё ещё пользуетесь Air.",
   "introScreen_termsLinkText": "Условия использования",
   "introScreen_termsText": "Создавая аккаунт, вы принимаете наши {termsOfUseLink}.",
   "invitationCodeScreen_header": "Введите код приглашения",

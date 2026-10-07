@@ -84,6 +84,7 @@
   "introScreen_serverHint": "網域名稱",
   "introScreen_linkExisting": "連結至現有帳號",
   "introScreen_signUp": "建立帳號",
+  "introScreen_dataNotTransferred": "你的聊天沒有轉移到這部裝置。Air 從不將聊天納入備份或手機轉移。要在這裡使用你的帳號，請從仍在使用 Air 的裝置連結這部裝置。",
   "introScreen_termsLinkText": "使用條款",
   "introScreen_termsText": "建立帳號即表示你同意我們的{termsOfUseLink}。",
   "invitationCodeScreen_header": "輸入邀請碼",

@@ -84,6 +84,7 @@
   "introScreen_serverHint": "ДОМЕННЕ ІМ’Я",
   "introScreen_linkExisting": "Прив’язати до наявного облікового запису",
   "introScreen_signUp": "Створити обліковий запис",
+  "introScreen_dataNotTransferred": "Ваші чати не було перенесено на цей пристрій. Air ніколи не додає їх до резервних копій і не переносить під час зміни телефона. Щоб користуватися обліковим записом тут, прив’яжіть цей пристрій з іншого, на якому ви досі користуєтеся Air.",
   "introScreen_termsLinkText": "Умови використання",
   "introScreen_termsText": "Створюючи обліковий запис, ви приймаєте наші {termsOfUseLink}.",
   "invitationCodeScreen_header": "Введіть код запрошення",

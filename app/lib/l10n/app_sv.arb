@@ -89,6 +89,7 @@
 
   "introScreen_linkExisting": "Länka till ett befintligt konto",
   "introScreen_signUp": "Skapa konto",
+  "introScreen_dataNotTransferred": "Dina chattar fördes inte över till den här enheten. Air tar aldrig med dem i säkerhetskopior eller vid flytt mellan telefoner. Om du vill använda ditt konto här länkar du den här enheten från en enhet där du fortfarande använder Air.",
   "introScreen_termsLinkText": "Användarvillkor",
   "introScreen_termsText": "Genom att registrera dig godkänner du våra {termsOfUseLink}.",
   "invitationCodeScreen_header": "Ange inbjudningskod",

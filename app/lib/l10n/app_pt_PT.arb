@@ -89,6 +89,7 @@
 
   "introScreen_linkExisting": "Associar a uma conta existente",
   "introScreen_signUp": "Criar conta",
+  "introScreen_dataNotTransferred": "Os teus chats não foram transferidos para este dispositivo. O Air nunca os inclui em cópias de segurança nem em transferências entre telemóveis. Para usares a tua conta aqui, associa este dispositivo a partir de um em que ainda uses o Air.",
   "introScreen_termsLinkText": "Termos de Utilização",
   "introScreen_termsText": "Ao criares uma conta, aceitas os nossos {termsOfUseLink}.",
   "invitationCodeScreen_header": "Introduz o código de convite",

@@ -84,6 +84,7 @@
   "introScreen_serverHint": "域名",
   "introScreen_linkExisting": "关联到现有账号",
   "introScreen_signUp": "创建账号",
+  "introScreen_dataNotTransferred": "你的聊天没有转移到这台设备。Air 从不将聊天纳入备份或手机迁移。要在这里使用你的账号，请从仍在使用 Air 的设备关联这台设备。",
   "introScreen_termsLinkText": "使用条款",
   "introScreen_termsText": "创建账号即表示你同意我们的{termsOfUseLink}。",
   "invitationCodeScreen_header": "输入邀请码",

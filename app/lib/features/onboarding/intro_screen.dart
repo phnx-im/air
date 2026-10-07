@@ -20,13 +20,16 @@ import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
+import 'package:air/platform/account_marker.dart';
 import 'package:air/platform/notification_permissions.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class IntroScreen extends HookWidget {
-  const IntroScreen({super.key});
+  const IntroScreen({super.key, this.checkAccountMarker = hasAccountMarker});
+
+  final Future<bool> Function() checkAccountMarker;
 
   /// The mark takes more room where there is more of it to take.
   static const double _logoWidthPhone = 104;
@@ -52,6 +55,9 @@ class IntroScreen extends HookWidget {
     );
 
     final onLogoTap = useDeveloperUnlock();
+
+    final dataLeftBehind =
+        useFuture(useMemoized(checkAccountMarker)).data ?? false;
 
     openLinking() async {
       await requestNotificationPermission();
@@ -106,6 +112,16 @@ class IntroScreen extends HookWidget {
               mainAxisSize: .min,
               crossAxisAlignment: .stretch,
               children: [
+                if (dataLeftBehind) ...[
+                  Text(
+                    loc.introScreen_dataNotTransferred,
+                    style: typeScale.body.s.style(
+                      color: palette.text.secondary,
+                    ),
+                    textAlign: .center,
+                  ),
+                  const SizedBox(height: S.s16),
+                ],
                 const _TermsOfUseText(),
                 const SizedBox(height: S.s16),
                 if (serverFieldVisible.value) ...[
