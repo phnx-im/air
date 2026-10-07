@@ -22,10 +22,9 @@ use mimi_room_policy::RoleIndex;
 use tracing::debug;
 
 use crate::{
-    Chat, ChatMessage, ChatStatus, Contact, SystemMessage, TargetedMessageContact,
+    Chat, ChatMessage, ChatStatus, Contact, SystemMessage,
     chats::{PendingConnectionRequest, connection_requests},
     clients::CoreUser,
-    contacts::UsernameContact,
     db::access::WriteDbTransaction,
     groups::{
         Group,
@@ -106,7 +105,7 @@ impl CoreUser {
             }
         };
 
-        match &contents.connection {
+        match contents.connection {
             None => {
                 self.install_bootstrapped_group_chat(txn, &group, ds_timestamp)
                     .await?
@@ -157,63 +156,13 @@ impl CoreUser {
         &self,
         txn: &mut WriteDbTransaction<'_>,
         group: &mut Group,
-        connection: &BootstrapConnection,
+        connection: BootstrapConnection,
         ds_timestamp: TimeStamp,
     ) -> Result<()> {
         match connection {
-            BootstrapConnection::HandleInitiator {
-                username,
-                friendship_package_ear_key,
-                connection_offer_hash,
-            } => {
+            BootstrapConnection::Initiator(request) => {
                 ensure_only_member(group, self.user_id())?;
-
-                let chat = Chat::new_handle_chat(group.group_id().clone(), username.clone());
-                chat.store(&mut *txn).await?;
-                ChatMessage::new_system_message(
-                    chat.id(),
-                    ds_timestamp,
-                    SystemMessage::NewHandleConnectionChat(username.clone()),
-                )
-                .store(&mut *txn)
-                .await?;
-
-                UsernameContact::new(
-                    username.clone(),
-                    chat.id(),
-                    friendship_package_ear_key.clone(),
-                    *connection_offer_hash,
-                )
-                .upsert(&mut *txn)
-                .await?;
-                // The peer's external commit will reference this PSK.
-                group.store_connection_offer_psk(&mut *txn, *connection_offer_hash)?;
-            }
-
-            BootstrapConnection::TargetedInitiator {
-                user_id,
-                friendship_package_ear_key,
-            } => {
-                ensure_only_member(group, self.user_id())?;
-
-                let chat =
-                    Chat::new_targeted_message_chat(group.group_id().clone(), user_id.clone());
-                chat.store(&mut *txn).await?;
-                ChatMessage::new_system_message(
-                    chat.id(),
-                    ds_timestamp,
-                    SystemMessage::NewDirectConnectionChat(user_id.clone()),
-                )
-                .store(&mut *txn)
-                .await?;
-
-                TargetedMessageContact::new(
-                    user_id.clone(),
-                    chat.id(),
-                    friendship_package_ear_key.clone(),
-                )
-                .upsert(&mut *txn)
-                .await?;
+                request.store(txn, group, ds_timestamp).await?;
             }
 
             BootstrapConnection::Accept {
@@ -225,15 +174,15 @@ impl CoreUser {
                 ensure!(
                     members.len() == 2
                         && members.contains(self.user_id())
-                        && members.contains(user_id),
+                        && members.contains(&user_id),
                     "connection group has unexpected members: {members:?}"
                 );
 
                 let user_profile_key = UserProfileKey::from_base_secret(
                     friendship_package.user_profile_base_secret.clone(),
-                    user_id,
+                    &user_id,
                 )?;
-                let credential = StorableUserCredential::load_by_user_id(&mut *txn, user_id)
+                let credential = StorableUserCredential::load_by_user_id(&mut *txn, &user_id)
                     .await?
                     .with_context(|| format!("no verified credential for {user_id:?}"))?;
                 Self::schedule_fetch_user_profile(&mut *txn, (credential.into(), user_profile_key))
@@ -244,7 +193,7 @@ impl CoreUser {
                 // Patch only one that does not, it would fail the member check
                 // on the next commit.
                 if group.room_state_role(self.user_id())?.is_none() {
-                    group.room_state_change_role(user_id, self.user_id(), RoleIndex::Regular)?;
+                    group.room_state_change_role(&user_id, self.user_id(), RoleIndex::Regular)?;
                     let now = TimeStamp::now();
                     group.store_update(&mut *txn, Some(now), Some(now)).await?;
                 }
@@ -260,7 +209,7 @@ impl CoreUser {
                 let request_id = chat.id();
                 let accepted = PendingConnectionRequest::load(&mut *txn, request_id).await?;
                 let user_handle = accepted.and_then(|request| request.username);
-                let host = PendingConnectionRequest::chat_of_sender(&mut *txn, user_id).await?;
+                let host = PendingConnectionRequest::chat_of_sender(&mut *txn, &user_id).await?;
                 if let Some(host) = host {
                     connection_requests::settle_accepted(txn, host).await?;
                 }
@@ -297,7 +246,7 @@ impl CoreUser {
                 .await?;
 
                 if let Some(hash) = connection_offer_hash {
-                    Group::delete_connection_offer_psk(txn, *hash)?;
+                    Group::delete_connection_offer_psk(txn, hash)?;
                 }
             }
         }

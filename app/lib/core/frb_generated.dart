@@ -11750,6 +11750,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 16:
         return UiSystemMessage_SelfChatCreated();
+      case 17:
+        return UiSystemMessage_SentDirectConnectionRequest(
+          recipient: dco_decode_box_autoadd_ui_user_id(raw[1]),
+          originChatId: dco_decode_box_autoadd_chat_id(raw[2]),
+        );
       default:
         throw Exception("unreachable");
     }
@@ -15949,6 +15954,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 16:
         return UiSystemMessage_SelfChatCreated();
+      case 17:
+        var var_recipient = sse_decode_box_autoadd_ui_user_id(deserializer);
+        var var_originChatId = sse_decode_box_autoadd_chat_id(deserializer);
+        return UiSystemMessage_SentDirectConnectionRequest(
+          recipient: var_recipient,
+          originChatId: var_originChatId,
+        );
       default:
         throw UnimplementedError('');
     }
@@ -20205,6 +20217,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_box_autoadd_ui_request_group_chat(groupChat, serializer);
       case UiSystemMessage_SelfChatCreated():
         sse_encode_i_32(16, serializer);
+      case UiSystemMessage_SentDirectConnectionRequest(
+        recipient: final recipient,
+        originChatId: final originChatId,
+      ):
+        sse_encode_i_32(17, serializer);
+        sse_encode_box_autoadd_ui_user_id(recipient, serializer);
+        sse_encode_box_autoadd_chat_id(originChatId, serializer);
     }
   }
 

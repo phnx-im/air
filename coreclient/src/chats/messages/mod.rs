@@ -622,7 +622,8 @@ pub enum SystemMessage {
     },
     /// We requested a connection with another user through a username.
     NewHandleConnectionChat(Username),
-    /// We requested a connection with another user through a group.
+    /// We requested a connection with another user through a group chat
+    /// that was not recorded. See [`Self::SentGroupConnectionRequest`].
     NewDirectConnectionChat(UserId),
     CreateGroup(UserId),
     /// We got onboarded into a group after linking.
@@ -659,6 +660,12 @@ pub enum SystemMessage {
     /// [`Self::ReceivedGroupConnectionRequest`].
     ReceivedAdditionalGroupConnectionRequest {
         sender: UserId,
+        origin_chat_id: ChatId,
+    },
+    /// We requested a connection with another user through a group chat. See
+    /// [`Self::ReceivedGroupConnectionRequest`].
+    SentGroupConnectionRequest {
+        recipient: UserId,
         origin_chat_id: ChatId,
     },
 }
@@ -732,7 +739,8 @@ impl SystemMessage {
             | SystemMessage::ReceivedAdditionalDirectConnectionRequest { .. }
             | SystemMessage::SelfChatCreated
             | SystemMessage::ReceivedGroupConnectionRequest { .. }
-            | SystemMessage::ReceivedAdditionalGroupConnectionRequest { .. } => None,
+            | SystemMessage::ReceivedAdditionalGroupConnectionRequest { .. }
+            | SystemMessage::SentGroupConnectionRequest { .. } => None,
         }
     }
 
@@ -844,6 +852,14 @@ impl SystemMessage {
                 let display_name = core_user.user_profile(sender).await.display_name;
                 let origin = group_chat_reference(core_user, origin_chat_id).await;
                 format!("{display_name} also sent you a contact request through {origin}.")
+            }
+            SystemMessage::SentGroupConnectionRequest {
+                recipient,
+                origin_chat_id,
+            } => {
+                let display_name = core_user.user_profile(recipient).await.display_name;
+                let origin = group_chat_reference(core_user, origin_chat_id).await;
+                format!("You requested a connection with {display_name} through {origin}")
             }
             SystemMessage::CreateGroup(user_id) => {
                 let user_display_name = core_user.user_profile(user_id).await.display_name;

@@ -577,10 +577,7 @@ mod tests {
     use sqlx::{SqlitePool, migrate::Migrator, sqlite::SqlitePoolOptions};
     use uuid::Uuid;
 
-    use crate::{
-        ChatAttributes, ChatMessage, TargetedMessageContact, contacts::UsernameContact,
-        db::access::DbAccess,
-    };
+    use crate::{ChatAttributes, ChatMessage, contacts::UsernameContact, db::access::DbAccess};
 
     use super::*;
 
@@ -689,12 +686,18 @@ mod tests {
 
                 let group_sender = UserId::random("example.com".parse()?);
                 let via_group = store_legacy_request(txn, &group_sender, None, at(0)).await?;
-                TargetedMessageContact::new(
-                    group_sender,
-                    via_group,
-                    FriendshipPackageEarKey::random()?,
+                // Written by hand, since `origin_group_id` does not exist yet.
+                sqlx::query(
+                    "INSERT INTO targeted_message_contact (
+                        user_uuid, user_domain, chat_id, friendship_package_ear_key, created_at
+                    ) VALUES (?, ?, ?, ?, ?)",
                 )
-                .upsert(&mut *txn)
+                .bind(group_sender.uuid())
+                .bind(group_sender.domain())
+                .bind(via_group)
+                .bind(FriendshipPackageEarKey::random()?)
+                .bind(at(0))
+                .execute(txn.as_mut())
                 .await?;
 
                 // An outgoing request keeps its partial contact.
