@@ -64,6 +64,8 @@ Translations follow their own orthography instead of copying English capitalizat
 | **Link** | To give another device access to your account | Devices, not contacts. Not the same as Connect |
 | **Unlink** | To revoke a linked device's access | |
 | **Report Spam** | To flag a user or message as unwanted/spam | Moderation feature |
+| **Tap** | To select something on a touch screen | Phones and tablets |
+| **Click** | To select something with a mouse or trackpad | Desktop. Strings that say "tap" on phones get a `_desktop` variant that says "click" |
 
 ## File & Data Terms
 
@@ -109,4 +111,5 @@ Translations follow their own orthography instead of copying English capitalizat
 - **Remove** vs **Delete**: the English template picks the verb, remove for people and delete for content. Translations mirror whichever verb the English uses rather than reclassifying the object themselves
 - **Connect** vs **Link**: Connect adds a contact, Link adds a device. Every locale keeps two distinct words for these
 - **Block** and **Unblock** each get exactly one word per locale, including inside dialog body text
+- **Tap** vs **Click**: a `_desktop` key is the desktop version of the key without the suffix. Translate it with your language's word for clicking, which may be the same word as for tapping. A string describing another device, which may be a phone, keeps "tap"
 - Consider cultural context for messaging terminology in your language
