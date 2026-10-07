@@ -12,7 +12,7 @@ use aircommon::{codec, identifiers::QsClientId};
 use chrono::{DateTime, Utc};
 use sqlx::SqliteConnection;
 use thiserror::Error;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::{
     clients::api_clients::ApiClients,
@@ -250,15 +250,24 @@ impl<E> JobError<E> {
 
 impl<E> From<reqwest::Error> for JobError<E> {
     fn from(error: reqwest::Error) -> Self {
-        if error.status() == Some(reqwest::StatusCode::TOO_MANY_REQUESTS) {
-            // The response headers are not kept by reqwest's error
-            info!(?error, "Job failed due to rate limiting");
-            Self::RateLimited { retry_after: None }
-        } else if error.is_connect() || error.is_timeout() {
-            info!(?error, "Job failed due to network error");
-            Self::NetworkError
-        } else {
-            Self::Fatal(error.into())
+        match error.status() {
+            Some(reqwest::StatusCode::TOO_MANY_REQUESTS) => {
+                // The response headers are not kept by reqwest's error
+                info!(?error, "Job failed due to rate limiting");
+                Self::RateLimited { retry_after: None }
+            }
+            Some(status) if status.is_server_error() => Self::Recoverable(error.into()),
+            Some(_) => Self::Fatal(error.into()),
+            // Failed to send the request or to read the response
+            None if error.is_connect()
+                || error.is_timeout()
+                || error.is_request()
+                || error.is_body() =>
+            {
+                warn!(?error, "Job failed due to network error");
+                Self::NetworkError
+            }
+            None => Self::Fatal(error.into()),
         }
     }
 }
