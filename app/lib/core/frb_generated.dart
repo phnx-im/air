@@ -9778,6 +9778,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiRequestGroupChat dco_decode_box_autoadd_ui_request_group_chat(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_ui_request_group_chat(raw);
+  }
+
+  @protected
   UiShareSendError dco_decode_box_autoadd_ui_share_send_error(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_ui_share_send_error(raw);
@@ -11597,6 +11603,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiRequestGroupChat dco_decode_ui_request_group_chat(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return UiRequestGroupChat_Title(dco_decode_String(raw[1]));
+      case 1:
+        return UiRequestGroupChat_Chat(dco_decode_box_autoadd_chat_id(raw[1]));
+      default:
+        throw Exception("unreachable");
+    }
+  }
+
+  @protected
   UiShareSendError dco_decode_ui_share_send_error(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
@@ -11689,7 +11708,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 5:
         return UiSystemMessage_ReceivedDirectConnectionRequest(
           sender: dco_decode_box_autoadd_ui_user_id(raw[1]),
-          chatName: dco_decode_String(raw[2]),
+          groupChat: dco_decode_box_autoadd_ui_request_group_chat(raw[2]),
         );
       case 6:
         return UiSystemMessage_AcceptedConnectionRequest(
@@ -11727,7 +11746,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 15:
         return UiSystemMessage_ReceivedAdditionalDirectConnectionRequest(
           sender: dco_decode_box_autoadd_ui_user_id(raw[1]),
-          chatName: dco_decode_String(raw[2]),
+          groupChat: dco_decode_box_autoadd_ui_request_group_chat(raw[2]),
         );
       case 16:
         return UiSystemMessage_SelfChatCreated();
@@ -13354,6 +13373,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_ui_mimi_content(deserializer));
+  }
+
+  @protected
+  UiRequestGroupChat sse_decode_box_autoadd_ui_request_group_chat(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_ui_request_group_chat(deserializer));
   }
 
   @protected
@@ -15745,6 +15772,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiRequestGroupChat sse_decode_ui_request_group_chat(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        var var_field0 = sse_decode_String(deserializer);
+        return UiRequestGroupChat_Title(var_field0);
+      case 1:
+        var var_field0 = sse_decode_box_autoadd_chat_id(deserializer);
+        return UiRequestGroupChat_Chat(var_field0);
+      default:
+        throw UnimplementedError('');
+    }
+  }
+
+  @protected
   UiShareSendError sse_decode_ui_share_send_error(
     SseDeserializer deserializer,
   ) {
@@ -15847,10 +15893,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 5:
         var var_sender = sse_decode_box_autoadd_ui_user_id(deserializer);
-        var var_chatName = sse_decode_String(deserializer);
+        var var_groupChat = sse_decode_box_autoadd_ui_request_group_chat(
+          deserializer,
+        );
         return UiSystemMessage_ReceivedDirectConnectionRequest(
           sender: var_sender,
-          chatName: var_chatName,
+          groupChat: var_groupChat,
         );
       case 6:
         var var_sender = sse_decode_box_autoadd_ui_user_id(deserializer);
@@ -15892,10 +15940,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         );
       case 15:
         var var_sender = sse_decode_box_autoadd_ui_user_id(deserializer);
-        var var_chatName = sse_decode_String(deserializer);
+        var var_groupChat = sse_decode_box_autoadd_ui_request_group_chat(
+          deserializer,
+        );
         return UiSystemMessage_ReceivedAdditionalDirectConnectionRequest(
           sender: var_sender,
-          chatName: var_chatName,
+          groupChat: var_groupChat,
         );
       case 16:
         return UiSystemMessage_SelfChatCreated();
@@ -17844,6 +17894,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_ui_mimi_content(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_ui_request_group_chat(
+    UiRequestGroupChat self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_ui_request_group_chat(self, serializer);
   }
 
   @protected
@@ -19979,6 +20038,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_ui_request_group_chat(
+    UiRequestGroupChat self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case UiRequestGroupChat_Title(field0: final field0):
+        sse_encode_i_32(0, serializer);
+        sse_encode_String(field0, serializer);
+      case UiRequestGroupChat_Chat(field0: final field0):
+        sse_encode_i_32(1, serializer);
+        sse_encode_box_autoadd_chat_id(field0, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_ui_share_send_error(
     UiShareSendError self,
     SseSerializer serializer,
@@ -20078,11 +20153,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_box_autoadd_ui_username(username, serializer);
       case UiSystemMessage_ReceivedDirectConnectionRequest(
         sender: final sender,
-        chatName: final chatName,
+        groupChat: final groupChat,
       ):
         sse_encode_i_32(5, serializer);
         sse_encode_box_autoadd_ui_user_id(sender, serializer);
-        sse_encode_String(chatName, serializer);
+        sse_encode_box_autoadd_ui_request_group_chat(groupChat, serializer);
       case UiSystemMessage_AcceptedConnectionRequest(
         sender: final sender,
         username: final username,
@@ -20123,11 +20198,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_box_autoadd_ui_username(username, serializer);
       case UiSystemMessage_ReceivedAdditionalDirectConnectionRequest(
         sender: final sender,
-        chatName: final chatName,
+        groupChat: final groupChat,
       ):
         sse_encode_i_32(15, serializer);
         sse_encode_box_autoadd_ui_user_id(sender, serializer);
-        sse_encode_String(chatName, serializer);
+        sse_encode_box_autoadd_ui_request_group_chat(groupChat, serializer);
       case UiSystemMessage_SelfChatCreated():
         sse_encode_i_32(16, serializer);
     }

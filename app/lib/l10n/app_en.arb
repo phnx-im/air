@@ -1137,6 +1137,15 @@
       }
     }
   },
+  "systemMessage_receivedDirectConnectionRequestUnknownGroup": "{displayName} sent you a contact request through a mutual group chat.",
+  "@systemMessage_receivedDirectConnectionRequestUnknownGroup": {
+    "description": "Same as systemMessage_receivedDirectConnectionRequest, for when the group chat is not on this device, because it was deleted or has not synced yet. Also the subtitle of the contact request card.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
   "systemMessage_receivedAdditionalUsernameConnectionRequest": "{displayName} also sent you a contact request through your username {username}.",
   "@systemMessage_receivedAdditionalUsernameConnectionRequest": {
     "description": "System message in the chat of a pending contact request, when the same person sends another request through another of the user's usernames. It joins the request that is already there.",
@@ -1157,6 +1166,15 @@
         "type": "String"
       },
       "groupName": {
+        "type": "String"
+      }
+    }
+  },
+  "systemMessage_receivedAdditionalDirectConnectionRequestUnknownGroup": "{displayName} also sent you a contact request through a mutual group chat.",
+  "@systemMessage_receivedAdditionalDirectConnectionRequestUnknownGroup": {
+    "description": "Same as systemMessage_receivedAdditionalDirectConnectionRequest, for when the group chat is not on this device, because it was deleted or has not synced yet.",
+    "placeholders": {
+      "displayName": {
         "type": "String"
       }
     }

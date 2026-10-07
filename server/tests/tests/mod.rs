@@ -10,6 +10,7 @@ mod group_bootstrap;
 mod jobs;
 mod message;
 mod multi_device;
+mod multi_device_requests;
 mod process;
 mod self_group;
 mod server;

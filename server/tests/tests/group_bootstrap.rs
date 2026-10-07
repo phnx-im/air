@@ -26,7 +26,10 @@ use super::multi_device::{
 ///
 /// Returns the original device and the new one. The [`TempDir`] holds the new
 /// device's database and must stay alive as long as it is used.
-async fn link_sibling(setup: &TestBackend, user_id: &UserId) -> (CoreUser, CoreUser, TempDir) {
+pub(crate) async fn link_sibling(
+    setup: &TestBackend,
+    user_id: &UserId,
+) -> (CoreUser, CoreUser, TempDir) {
     let (device_b, tmp) = link_new_device(setup, user_id).await;
     // Onboarding into the pre-existing groups runs in the background.
     device_b.outbound_service().run_once().await;
@@ -60,6 +63,17 @@ pub(crate) async fn add_username(setup: &mut TestBackend, user_id: &UserId) -> U
 /// Drains the username queue of `record` and returns the pending chat the
 /// connection offer in it created.
 pub(crate) async fn receive_connection_offer(user: &CoreUser, record: &UsernameRecord) -> ChatId {
+    drain_username_queue(user, record)
+        .await
+        .expect("the connection offer should have created a pending chat")
+}
+
+/// Drains the username queue of `record` and returns the pending chat a
+/// connection offer in it created, if any.
+pub(crate) async fn drain_username_queue(
+    user: &CoreUser,
+    record: &UsernameRecord,
+) -> Option<ChatId> {
     let (mut stream, responder) = user.listen_username(record).await.unwrap();
     let mut chat_id = None;
     while let Some(Some(message)) = timeout(Duration::from_millis(500), stream.next())
@@ -75,7 +89,7 @@ pub(crate) async fn receive_connection_offer(user: &CoreUser, record: &UsernameR
             .or(chat_id);
         responder.ack(message_id.into()).await;
     }
-    chat_id.expect("the connection offer should have created a pending chat")
+    chat_id
 }
 
 /// Asserts that both devices sit on the same epoch and share the virtual
