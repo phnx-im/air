@@ -4,7 +4,6 @@
 
 use std::time::Duration;
 
-use airapiclient::{ClassifyRequestError, RequestErrorKind};
 use anyhow::Context;
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
@@ -339,15 +338,7 @@ impl OutboundServiceContext {
                     return Ok(SendOutcome::Collided);
                 }
 
-                if matches!(
-                    ds_error.kind(),
-                    RequestErrorKind::RateLimited { .. } | RequestErrorKind::Network
-                ) {
-                    return Err(ds_error.into());
-                }
-                return Err(OutboundServiceError::fatal(
-                    anyhow::Error::from(ds_error).context("DS rejected message"),
-                ));
+                return Err(ds_error.into());
             }
         };
 

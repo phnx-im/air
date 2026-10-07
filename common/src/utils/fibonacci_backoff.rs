@@ -50,7 +50,7 @@ impl FibonacciBackoff {
 
     #[must_use]
     pub fn next_backoff(&mut self) -> Duration {
-        let backoff: Duration = FIBONACCI[self.current_idx];
+        let backoff = FIBONACCI[self.current_idx];
         if self.current_idx + 1 < self.len() {
             self.current_idx += 1;
         }

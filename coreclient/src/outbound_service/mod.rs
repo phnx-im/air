@@ -883,7 +883,7 @@ mod test {
         timeout(Duration::from_millis(500), service.notify_work())
             .await
             .expect("a notification during the backoff must be marked as done");
-        sleep(Duration::from_millis(500)).await;
+        sleep(Duration::from_millis(300)).await;
         assert_eq!(context.runs().len(), 1);
 
         let runs = context.wait_for_runs(2).await;
