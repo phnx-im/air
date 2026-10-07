@@ -3212,6 +3212,42 @@ async fn multi_device_rendezvous_id_is_not_reused() {
     second_task.abort();
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test link attempts are rate limited per user", skip_all)]
+async fn multi_device_link_attempts_are_rate_limited() {
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        relay: RelaySettings {
+            peruser: 1,
+            ..RelaySettings::default()
+        },
+        ..Default::default()
+    })
+    .await;
+    let alice = setup.add_user().await;
+    let alice = setup.get_user(&alice).user();
+
+    // Every attempt the relay verifies counts, whether or not its session
+    // exists, so a code for a session that was never opened is enough.
+    let code = "99999999";
+    let first = alice
+        .multi_device_link_client(code.to_owned(), ignore_connected(), auto_confirm())
+        .await;
+    assert!(matches!(
+        first,
+        Ok(Err(MultiDeviceLinkClientError::SessionNotFound))
+    ));
+
+    let error = alice
+        .multi_device_link_client(code.to_owned(), ignore_connected(), auto_confirm())
+        .await
+        .expect_err("the second attempt must be rate limited")
+        .to_string();
+    assert!(
+        error.contains("Too many requests"),
+        "expected a rate-limit error, got {error}"
+    );
+}
+
 /// Returns the next sibling client state change, skipping other events.
 async fn next_sibling_client_state(
     stream: &mut (impl Stream<Item = Result<ListenResponse, tonic::Status>> + Unpin),
