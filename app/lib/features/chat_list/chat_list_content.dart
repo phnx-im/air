@@ -538,7 +538,12 @@ class _LastMessage extends HookWidget {
     // === Hidden messages ===
     final isHidden = lastMessage?.status == UiMessageStatus.hidden;
     if (isHidden) {
-      return Text(loc.textMessage_hiddenPlaceholder, style: italicStyle);
+      return Text(
+        DeviceType.isDesktop
+            ? loc.textMessage_hiddenPlaceholder_desktop
+            : loc.textMessage_hiddenPlaceholder,
+        style: italicStyle,
+      );
     }
 
     // === Deleted messages ===

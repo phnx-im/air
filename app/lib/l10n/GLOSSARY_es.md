@@ -76,6 +76,8 @@ Los avisos de evento se narran en pretérito indefinido, también cuando el suje
 | **Vincular** | Dar acceso a la cuenta a otro dispositivo | Se aplica a dispositivos, no a contactos. No es lo mismo que conectar |
 | **Desvincular** | Retirar el acceso de un dispositivo vinculado | |
 | **Reportar spam** | Marcar a una persona o un mensaje como spam | Función de moderación |
+| **Tocar** | Inglés "tap" | Móviles y tabletas. "Toca" |
+| **Hacer clic** | Inglés "click" | Escritorio, en las claves `_desktop`. "Haz clic", no "pulsa" ni "cliquea" |
 
 ## Archivos y datos
 
