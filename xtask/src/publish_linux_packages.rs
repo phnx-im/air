@@ -12,6 +12,8 @@ use camino::{Utf8Path, Utf8PathBuf};
 use clap::{Args, ValueEnum};
 use xshell::{Shell, cmd};
 
+use crate::publish_flatpak;
+
 // APT requires a component in the path/Release file. Hardcoded to "main"
 // single-component repos are standard for small projects.
 const APT_COMPONENT: &str = "main";
@@ -19,7 +21,7 @@ const APT_COMPONENT: &str = "main";
 // Keep only the N most recent versions of each package per architecture so the
 // pool doesn't grow unbounded across releases. Files are removed from the local
 // working tree; the subsequent `aws s3 sync --delete` propagates removals.
-const KEEP_VERSIONS: usize = 10;
+pub(crate) const KEEP_VERSIONS: usize = 10;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PkgType {
@@ -159,22 +161,26 @@ pub(crate) struct PromoteArgs {
     #[arg(long)]
     version: String,
 
+    /// Leave the Flatpak repository untouched.
+    #[arg(long)]
+    skip_flatpak: bool,
+
     #[command(flatten)]
     repo: RepoArgs,
 }
 
-struct Config {
+pub(crate) struct Config {
     bucket: String,
     prefix: Option<String>,
-    gpg_key_id: String,
+    pub(crate) gpg_key_id: String,
     s3_endpoint: Option<String>,
-    repository_base_url: String,
+    pub(crate) repository_base_url: String,
     dry_run: bool,
     workdir: Utf8PathBuf,
 }
 
 impl Config {
-    fn s3_path(&self, suffix: &str) -> String {
+    pub(crate) fn s3_path(&self, suffix: &str) -> String {
         if let Some(prefix) = self.prefix.as_deref() {
             let prefix = prefix.trim_end_matches('/');
             format!("s3://{}/{prefix}/{suffix}", self.bucket)
@@ -183,7 +189,7 @@ impl Config {
         }
     }
 
-    fn aws_args(&self) -> Vec<&str> {
+    pub(crate) fn aws_args(&self) -> Vec<&str> {
         let mut args = Vec::new();
         if let Some(endpoint) = self.s3_endpoint.as_deref() {
             args.push("--endpoint-url");
@@ -192,7 +198,7 @@ impl Config {
         args
     }
 
-    fn workdir(&self, path: impl AsRef<Utf8Path>) -> Utf8PathBuf {
+    pub(crate) fn workdir(&self, path: impl AsRef<Utf8Path>) -> Utf8PathBuf {
         self.workdir.join(path)
     }
 
@@ -209,7 +215,7 @@ impl Config {
         if delete {
             opts.push("--delete");
         }
-        if let Some(exclude) = exclude {
+        for exclude in *exclude {
             opts.extend(["--exclude", exclude]);
         }
         let cmd = cmd!(
@@ -226,7 +232,7 @@ impl Config {
 
     // Packages go up before any index, and pruned packages are removed only
     // after no index refers to them anymore.
-    fn upload(&self, shell: &Shell, uploads: &Uploads) -> Result<()> {
+    pub(crate) fn upload(&self, shell: &Shell, uploads: &Uploads) -> Result<()> {
         println!("Uploading packages (immutable, long TTL)...");
         for upload in &uploads.packages {
             self.sync(shell, upload, false)?;
@@ -248,24 +254,24 @@ impl Config {
 }
 
 // A local dir that is synced to S3.
-struct Upload {
-    local: Utf8PathBuf,
-    remote: String,
-    cache_control: &'static str,
-    exclude: Option<&'static str>,
+pub(crate) struct Upload {
+    pub(crate) local: Utf8PathBuf,
+    pub(crate) remote: String,
+    pub(crate) cache_control: &'static str,
+    pub(crate) exclude: &'static [&'static str],
     // Removes remote files that are missing locally.
-    delete: bool,
+    pub(crate) delete: bool,
 }
 
 #[derive(Default)]
-struct Uploads {
-    packages: Vec<Upload>,
-    metadata: Vec<Upload>,
+pub(crate) struct Uploads {
+    pub(crate) packages: Vec<Upload>,
+    pub(crate) metadata: Vec<Upload>,
 }
 
-const PACKAGES_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
-const INDEX_CACHE_CONTROL: &str = "public, max-age=300";
-const KEY_CACHE_CONTROL: &str = "public, max-age=86400";
+pub(crate) const PACKAGES_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
+pub(crate) const INDEX_CACHE_CONTROL: &str = "public, max-age=300";
+pub(crate) const KEY_CACHE_CONTROL: &str = "public, max-age=86400";
 
 pub(crate) fn run(args: PublishArgs) -> Result<()> {
     let shell = Shell::new()?;
@@ -291,6 +297,7 @@ pub(crate) fn promote(args: PromoteArgs) -> Result<()> {
         from,
         to,
         version,
+        skip_flatpak,
         repo,
     } = args;
     ensure!(from != to, "--from and --to must differ, both are {from}");
@@ -342,6 +349,9 @@ pub(crate) fn promote(args: PromoteArgs) -> Result<()> {
     build_deb(&shell, &cfg, to, &debs, &mut uploads)?;
     // Already signed in `from`, re-signing would change the bytes.
     build_rpm(&shell, &cfg, to, &rpms, false, &mut uploads)?;
+    if !skip_flatpak {
+        publish_flatpak::promote(&shell, &cfg, from, to, &version, &mut uploads)?;
+    }
     cfg.upload(&shell, &uploads)
 }
 
@@ -366,7 +376,7 @@ fn check_package_files(files: &[Utf8PathBuf]) -> Result<(Vec<Utf8PathBuf>, PkgTy
     Ok((package_files, pkg_type))
 }
 
-fn setup(shell: &Shell, args: RepoArgs) -> Result<Config> {
+pub(crate) fn setup(shell: &Shell, args: RepoArgs) -> Result<Config> {
     // Some S3-compatible providers (Upcloud, some MinIO versions, ...) reject
     // the newer flow checksums AWS CLI v2 sends by default. "when_required"
     // only emits checksums when the server asks for them.
@@ -407,7 +417,7 @@ fn setup(shell: &Shell, args: RepoArgs) -> Result<Config> {
     Ok(cfg)
 }
 
-fn write_text(path: &Utf8Path, mut content: String) -> Result<()> {
+pub(crate) fn write_text(path: &Utf8Path, mut content: String) -> Result<()> {
     if !content.ends_with('\n') {
         content.push('\n');
     }
@@ -540,7 +550,7 @@ fn prune_repodata(repodata: &Utf8Path) -> Result<()> {
     Ok(())
 }
 
-fn recreate_dir(dir: &Utf8Path) -> Result<()> {
+pub(crate) fn recreate_dir(dir: &Utf8Path) -> Result<()> {
     if dir.exists() {
         fs::remove_dir_all(dir).with_context(|| format!("Failed to remove {dir}"))?;
     }
@@ -688,21 +698,21 @@ fn build_deb(
         local: pool_dir,
         remote: pool_remote,
         cache_control: PACKAGES_CACHE_CONTROL,
-        exclude: None,
+        exclude: &[],
         delete: true,
     });
     uploads.metadata.push(Upload {
         local: dists_track_local,
         remote: dists_remote_track,
         cache_control: INDEX_CACHE_CONTROL,
-        exclude: None,
+        exclude: &[],
         delete: true,
     });
     uploads.metadata.push(Upload {
         local: key_dir,
         remote: s3_deb.clone(),
         cache_control: KEY_CACHE_CONTROL,
-        exclude: None,
+        exclude: &[],
         delete: false,
     });
 
@@ -858,14 +868,14 @@ fn build_rpm(
             local: repo_dir.join("repodata"),
             remote: format!("{s3_arch}/repodata"),
             cache_control: INDEX_CACHE_CONTROL,
-            exclude: None,
+            exclude: &[],
             delete: true,
         });
         uploads.packages.push(Upload {
             local: repo_dir,
             remote: s3_arch,
             cache_control: PACKAGES_CACHE_CONTROL,
-            exclude: Some("repodata/*"),
+            exclude: &["repodata/*"],
             delete: true,
         });
     }
@@ -898,7 +908,7 @@ gpgkey={repo_url}/gpg-key.asc
         local: key_dir,
         remote: s3_rpm.clone(),
         cache_control: KEY_CACHE_CONTROL,
-        exclude: None,
+        exclude: &[],
         delete: false,
     });
 

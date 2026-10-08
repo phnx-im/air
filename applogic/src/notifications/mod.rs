@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::collections::{HashMap, HashSet, hash_map::Entry};
+#[cfg(target_os = "linux")]
+use std::sync::Arc;
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
@@ -14,10 +16,15 @@ use aircoreclient::{
 };
 use mimi_content::{Disposition, MimiContent, NestedPart, content_container::PartSemantics};
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "linux")]
+use tokio::sync::OnceCell;
 use tracing::error;
 use uuid::Uuid;
 
 use crate::api::{notifications::DartNotificationService, user::User};
+
+#[cfg(target_os = "linux")]
+mod linux;
 
 /// Alert mode of a chat
 enum AlertMode {
@@ -632,7 +639,8 @@ pub(crate) struct NotificationService {
     #[cfg(any(target_os = "ios", target_os = "android", target_os = "macos"))]
     dart_service: DartNotificationService,
     #[cfg(target_os = "linux")]
-    zbus_connection: Option<zbus::blocking::Connection>,
+    // Linux notifications are lazily initialized to keep service init synchronous.
+    linux: Arc<OnceCell<Option<linux::LinuxNotifier>>>,
 }
 
 impl NotificationService {
@@ -642,9 +650,7 @@ impl NotificationService {
             #[cfg(any(target_os = "ios", target_os = "android", target_os = "macos"))]
             dart_service,
             #[cfg(target_os = "linux")]
-            zbus_connection: zbus::blocking::Connection::session()
-                .inspect_err(|error| error!(%error, "failed to connect to D-Bus"))
-                .ok(),
+            linux: Default::default(),
         }
     }
 
@@ -662,61 +668,11 @@ impl NotificationService {
             }
         }
         #[cfg(target_os = "linux")]
-        if let Err(error) = self.send_xdg_portal_notification(notification) {
+        if let Some(notifier) = self.linux.get_or_init(linux::LinuxNotifier::new).await
+            && let Err(error) = notifier.show(notification).await
+        {
             error!(%error, "Failed to send desktop notification");
         }
-    }
-
-    // Version 4.x of `notify-rust` does not set the `sender-pid` hint, which is required for GNOME 46+ compatibility.
-    // Doing it manually also lets us enable notifications grouping per chat.
-    //
-    // The future is to use the XDG Portal API instead, but it is only supported (= not buggy) on GNOME 46+
-    // and does not support notifications grouping. It also currently has sparse support on
-    // other Desktop Environments.
-    #[cfg(target_os = "linux")]
-    pub(crate) fn send_xdg_portal_notification(
-        &self,
-        NotificationContent {
-            chat_id,
-            title,
-            body,
-            ..
-        }: NotificationContent,
-    ) -> anyhow::Result<()> {
-        use std::collections::HashMap;
-
-        use zbus::{blocking::Proxy, zvariant::Value};
-
-        let Some(zbus_connection) = self.zbus_connection.as_ref() else {
-            return Ok(());
-        };
-        let proxy = Proxy::new(
-            zbus_connection,
-            "org.freedesktop.Notifications",
-            "/org/freedesktop/Notifications",
-            "org.freedesktop.Notifications",
-        )?;
-
-        let mut hints: HashMap<&str, Value> = HashMap::new();
-        // for GNOME 46+ compatibility
-        hints.insert("sender-pid", std::process::id().into());
-        hints.insert("x-gnome-stack-group", format!("air-chat-{chat_id}").into());
-
-        proxy.call_method(
-            "Notify",
-            &(
-                "Air",              // app_name
-                0u32,               // replaces_id
-                "ms.air",           // icon
-                title,              // summary
-                body,               // body
-                Vec::<&str>::new(), // actions
-                hints,
-                -1i32, // timeout (-1 = default)
-            ),
-        )?;
-
-        Ok(())
     }
 
     /// Cancels all notifications belonging to the given chats.

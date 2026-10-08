@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 name: Setup Linux package publishing
-description: Installs the repository tools and unlocks the signing key for cargo xtask publish-packages / promote-packages
+description: Installs the repository tools and unlocks the signing key for cargo xtask publish-packages / publish-flatpak / promote-packages
 inputs:
   apt-packages:
     description: "Space separated list of extra apt packages (repository tools)"
