@@ -30,7 +30,7 @@ mod metadata;
 pub mod qs_api;
 pub mod rs_api;
 
-/// The interval at which the server sends keep-alive messages in a bidirectional stream.
+/// Interval after which the client sends a keep-alive on an idle listen stream.
 pub(crate) const LISTEN_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(30);
 
 /// Waits for the server to close the response stream after the request stream was half-closed.
