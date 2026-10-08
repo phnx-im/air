@@ -505,14 +505,14 @@ pub struct ConnectionRequestsUpdate {
 /// ```cddl
 /// ConnectionRequestEntry = {
 ///   1: ConnectionRequestReceived //
-///   4: ConnectionRequestUnavailable
+///   3: ConnectionRequestUnavailable
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedUnion, DeserializeTaggedUnion)]
 pub enum ConnectionRequestEntry {
     #[tag(1)]
     Received(ConnectionRequestReceived),
-    #[tag(4)]
+    #[tag(3)]
     Unavailable(ConnectionRequestUnavailable),
     /// A state this client does not understand. The entry is ignored on
     /// receive.
