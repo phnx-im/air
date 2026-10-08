@@ -701,13 +701,14 @@ impl NotificationService {
         // for GNOME 46+ compatibility
         hints.insert("sender-pid", std::process::id().into());
         hints.insert("x-gnome-stack-group", format!("air-chat-{chat_id}").into());
+        hints.insert("desktop-entry", "ms.air.Air".into());
 
         proxy.call_method(
             "Notify",
             &(
                 "Air",              // app_name
                 0u32,               // replaces_id
-                "ms.air",           // icon
+                "ms.air.Air",       // icon
                 title,              // summary
                 body,               // body
                 Vec::<&str>::new(), // actions
