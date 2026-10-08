@@ -139,6 +139,48 @@ pub(crate) enum GroupOperationError {
     MaxDevicesExceeded { max_devices: u32 },
 }
 
+/// The DS's classification of an [`ApqProcessPublicMessageError`].
+enum ApqPublicErrorKind {
+    InvalidMessage,
+    WrongEpoch,
+    ProcessingError,
+}
+
+fn apq_public_error_kind(error: &ApqProcessPublicMessageError) -> ApqPublicErrorKind {
+    match error {
+        ApqProcessPublicMessageError::Processing(PublicProcessMessageError::ValidationError(
+            ValidationError::WrongEpoch,
+        )) => ApqPublicErrorKind::WrongEpoch,
+        ApqProcessPublicMessageError::Processing(PublicProcessMessageError::ValidationError(
+            ValidationError::LibraryError(_),
+        ))
+        | ApqProcessPublicMessageError::AppDataUpdate(_) => ApqPublicErrorKind::ProcessingError,
+        ApqProcessPublicMessageError::Processing(_)
+        | ApqProcessPublicMessageError::Validation(_)
+        | ApqProcessPublicMessageError::ApqInfoUpdate(_) => ApqPublicErrorKind::InvalidMessage,
+    }
+}
+
+impl From<ApqPublicErrorKind> for GroupOperationError {
+    fn from(kind: ApqPublicErrorKind) -> Self {
+        match kind {
+            ApqPublicErrorKind::InvalidMessage => Self::InvalidMessage,
+            ApqPublicErrorKind::WrongEpoch => Self::WrongEpoch,
+            ApqPublicErrorKind::ProcessingError => Self::ProcessingError,
+        }
+    }
+}
+
+impl From<ApqPublicErrorKind> for ClientSelfRemovalError {
+    fn from(kind: ApqPublicErrorKind) -> Self {
+        match kind {
+            ApqPublicErrorKind::InvalidMessage => Self::InvalidMessage,
+            ApqPublicErrorKind::WrongEpoch => Self::WrongEpoch,
+            ApqPublicErrorKind::ProcessingError => Self::ProcessingError,
+        }
+    }
+}
+
 impl From<ProcessAssistedMessageError> for GroupOperationError {
     fn from(error: ProcessAssistedMessageError) -> Self {
         match error {
@@ -153,8 +195,9 @@ impl From<ProcessAssistedMessageError> for GroupOperationError {
                 },
                 _ => Self::ProcessingError,
             },
-            ProcessAssistedMessageError::AppDataUpdate(_) => Self::ProcessingError,
-            ProcessAssistedMessageError::ApqInfoUpdate(_) => Self::InvalidMessage,
+            ProcessAssistedMessageError::ApqProcessMessage(error) => {
+                apq_public_error_kind(&error).into()
+            }
         }
     }
 }
@@ -165,20 +208,9 @@ impl From<ProcessApqAssistedMessageError> for GroupOperationError {
             ProcessApqAssistedMessageError::InvalidAssistedMessage
             | ProcessApqAssistedMessageError::GroupInfoValidation(_) => Self::InvalidMessage,
             ProcessApqAssistedMessageError::LibraryError(_) => Self::ProcessingError,
-            ProcessApqAssistedMessageError::ProcessMessageError(error) => match error {
-                ApqProcessPublicMessageError::Validation(_) => Self::InvalidMessage,
-                ApqProcessPublicMessageError::Processing(error) => match error {
-                    PublicProcessMessageError::ValidationError(ValidationError::WrongEpoch) => {
-                        Self::WrongEpoch
-                    }
-                    PublicProcessMessageError::ValidationError(ValidationError::LibraryError(
-                        _,
-                    )) => Self::ProcessingError,
-                    _ => Self::InvalidMessage,
-                },
-                ApqProcessPublicMessageError::AppDataUpdate(_) => Self::ProcessingError,
-                ApqProcessPublicMessageError::ApqInfoUpdate(_) => Self::InvalidMessage,
-            },
+            ProcessApqAssistedMessageError::ProcessMessageError(error) => {
+                apq_public_error_kind(&error).into()
+            }
         }
     }
 }
@@ -272,8 +304,9 @@ impl From<ProcessAssistedMessageError> for ClientSelfRemovalError {
                 },
                 _ => Self::ProcessingError,
             },
-            ProcessAssistedMessageError::AppDataUpdate(_) => Self::ProcessingError,
-            ProcessAssistedMessageError::ApqInfoUpdate(_) => Self::InvalidMessage,
+            ProcessAssistedMessageError::ApqProcessMessage(error) => {
+                apq_public_error_kind(&error).into()
+            }
         }
     }
 }

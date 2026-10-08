@@ -166,8 +166,14 @@ pub enum ApqInfoUpdateError {
     MalformedUpdate(tls_codec::Error),
     #[error("The APQInfo in the group context is malformed: {0}")]
     MalformedApqInfo(tls_codec::Error),
-    #[error("An epoch-only APQInfo update requires an existing APQInfo.")]
+    #[error("An APQInfo update requires an existing APQInfo.")]
     NoApqInfo,
+    #[error("The APQInfo must not be removed.")]
+    ApqInfoRemoval,
+    #[error("An APQInfo update must not change any field other than the epochs.")]
+    ImmutableFieldModified,
+    #[error("An APQInfo update requires a commit on both legs.")]
+    UnpairedUpdate,
     #[error("Failed to serialize the updated APQInfo: {0}")]
     Serialization(tls_codec::Error),
     #[error("The commit carries more than one full APQInfo update.")]
@@ -178,8 +184,6 @@ pub enum ApqInfoUpdateError {
     MixedUpdates,
     #[error("The commit updates only one of the two APQInfo epochs.")]
     IncompleteEpochUpdate,
-    #[error("The commit both removes and updates the APQInfo.")]
-    RemovalWithUpdate,
 }
 
 /// The APQInfo updates carried by a single commit.
@@ -194,11 +198,6 @@ pub(super) struct ApqInfoUpdates {
 }
 
 impl ApqInfoUpdates {
-    /// Whether the commit carries no APQInfo update at all.
-    pub(super) fn is_empty(&self) -> bool {
-        self.full.is_none() && self.t_epoch.is_none() && self.pq_epoch.is_none()
-    }
-
     /// Records one update, rejecting a second one of the same kind.
     pub(super) fn add(&mut self, update: ApqInfoUpdate) -> Result<(), ApqInfoUpdateError> {
         let (slot, error) = match update {

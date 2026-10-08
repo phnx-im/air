@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::assert_matches;
+
 use apqmls::{
     ApqCiphersuite, ApqMlsGroup,
     authentication::{ApqCredentialWithKey, ApqSignatureKeyPair, ApqSigner},
@@ -219,14 +221,14 @@ fn built_group_is_valid() {
 #[test]
 fn missing_apq_info_is_rejected() {
     let info = valid_info();
-    assert!(matches!(
+    assert_matches!(
         validate_pair(None, Some(&info)),
         Err(ApqValidationError::MissingApqInfo(Session::T))
-    ));
-    assert!(matches!(
+    );
+    assert_matches!(
         validate_pair(Some(&info), None),
         Err(ApqValidationError::MissingApqInfo(Session::Pq))
-    ));
+    );
 }
 
 #[test]
@@ -235,64 +237,64 @@ fn mismatched_apq_info_is_rejected() {
     let mut other_info = valid_info();
     other_info.pq_epoch = GroupEpoch::from(1);
 
-    assert!(matches!(
+    assert_matches!(
         validate_pair(Some(&info), Some(&other_info)),
         Err(ApqValidationError::ApqInfoMismatch)
-    ));
+    );
 }
 
 #[test]
 fn foreign_group_id_is_rejected() {
     let mut info = valid_info();
     info.t_session_group_id = GroupId::from_slice(b"other");
-    assert!(matches!(
+    assert_matches!(
         validate_pair(Some(&info), Some(&info)),
         Err(ApqValidationError::GroupIdMismatch(Session::T))
-    ));
+    );
 
     let mut info = valid_info();
     info.pq_session_group_id = GroupId::from_slice(b"other");
-    assert!(matches!(
+    assert_matches!(
         validate_pair(Some(&info), Some(&info)),
         Err(ApqValidationError::GroupIdMismatch(Session::Pq))
-    ));
+    );
 }
 
 #[test]
 fn ciphersuite_not_matching_the_group_is_rejected() {
     let mut info = valid_info();
     info.t_cipher_suite = Ciphersuite::MLS_128_DHKEMP256_AES128GCM_SHA256_P256;
-    assert!(matches!(
+    assert_matches!(
         validate_pair(Some(&info), Some(&info)),
         Err(ApqValidationError::CiphersuiteMismatch(Session::T))
-    ));
+    );
 
     let mut info = valid_info();
     info.pq_cipher_suite = Ciphersuite::MLS_192_MLKEM1024_AES256GCM_SHA384_P384;
-    assert!(matches!(
+    assert_matches!(
         validate_pair(Some(&info), Some(&info)),
         Err(ApqValidationError::CiphersuiteMismatch(Session::Pq))
-    ));
+    );
 }
 
 #[test]
 fn mode_not_matching_the_ciphersuites_is_rejected() {
     let mut info = valid_info();
     info.mode = PqtMode::ConfOnly;
-    assert!(matches!(
+    assert_matches!(
         validate_pair(Some(&info), Some(&info)),
         Err(ApqValidationError::ModeMismatch { .. })
-    ));
+    );
 }
 
 #[test]
 fn a_pq_epoch_that_does_not_match_the_group_is_rejected() {
     let mut info = valid_info();
     info.pq_epoch = GroupEpoch::from(9);
-    assert!(matches!(
+    assert_matches!(
         validate_pair(Some(&info), Some(&info)),
         Err(ApqValidationError::EpochMismatch(Session::Pq))
-    ));
+    );
 
     // The same in the other direction: a PQ group ahead of what APQInfo names.
     let info = valid_info();
@@ -300,20 +302,20 @@ fn a_pq_epoch_that_does_not_match_the_group_is_rejected() {
     let t_group = fixture.t_group(Some(&info));
     let mut pq_group = fixture.pq_group(Some(&info));
     advance(&fixture, &mut pq_group, fixture.signer.pq_signer());
-    assert!(matches!(
+    assert_matches!(
         validate_apq_session(&t_group, &pq_group),
         Err(ApqValidationError::EpochMismatch(Session::Pq))
-    ));
+    );
 }
 
 #[test]
 fn a_t_epoch_ahead_of_the_group_is_rejected() {
     let mut info = valid_info();
     info.t_epoch = GroupEpoch::from(7);
-    assert!(matches!(
+    assert_matches!(
         validate_pair(Some(&info), Some(&info)),
         Err(ApqValidationError::TEpochAhead { .. })
-    ));
+    );
 }
 
 #[test]
@@ -326,10 +328,10 @@ fn a_stale_t_epoch_is_only_rejected_at_construction() {
 
     validate_apq_session(&t_group, &pq_group).unwrap();
 
-    assert!(matches!(
+    assert_matches!(
         validate_apq_session_at_construction(&t_group, &pq_group, |_, _| true),
         Err(ApqValidationError::EpochMismatch(Session::T))
-    ));
+    );
 }
 
 #[test]
@@ -344,48 +346,48 @@ fn an_external_joiner_accepts_a_valid_group_info_pair() {
 #[test]
 fn an_external_joiner_rejects_a_missing_or_mismatched_apq_info() {
     let info = valid_info();
-    assert!(matches!(
+    assert_matches!(
         validate_group_info_pair(None, Some(&info)),
         Err(ApqValidationError::MissingApqInfo(Session::T))
-    ));
-    assert!(matches!(
+    );
+    assert_matches!(
         validate_group_info_pair(Some(&info), None),
         Err(ApqValidationError::MissingApqInfo(Session::Pq))
-    ));
+    );
 
     let mut other = valid_info();
     other.pq_epoch = GroupEpoch::from(1);
-    assert!(matches!(
+    assert_matches!(
         validate_group_info_pair(Some(&info), Some(&other)),
         Err(ApqValidationError::ApqInfoMismatch)
-    ));
+    );
 }
 
 #[test]
 fn an_external_joiner_rejects_group_id_and_ciphersuite_mismatches() {
     let mut info = valid_info();
     info.pq_session_group_id = GroupId::from_slice(b"other");
-    assert!(matches!(
+    assert_matches!(
         validate_group_info_pair(Some(&info), Some(&info)),
         Err(ApqValidationError::GroupIdMismatch(Session::Pq))
-    ));
+    );
 
     let mut info = valid_info();
     info.t_cipher_suite = Ciphersuite::MLS_128_DHKEMP256_AES128GCM_SHA256_P256;
-    assert!(matches!(
+    assert_matches!(
         validate_group_info_pair(Some(&info), Some(&info)),
         Err(ApqValidationError::CiphersuiteMismatch(Session::T))
-    ));
+    );
 }
 
 #[test]
 fn an_external_joiner_rejects_an_invalid_mode_and_ciphersuite_combination() {
     let mut info = valid_info();
     info.mode = PqtMode::ConfOnly;
-    assert!(matches!(
+    assert_matches!(
         validate_group_info_pair(Some(&info), Some(&info)),
         Err(ApqValidationError::ModeMismatch { .. })
-    ));
+    );
 }
 
 #[test]
@@ -403,15 +405,15 @@ fn an_external_joiner_checks_the_apq_info_epochs() {
 
     let mut info = valid_info();
     info.t_epoch = GroupEpoch::from(12);
-    assert!(matches!(
+    assert_matches!(
         validate_group_info_pair(Some(&info), Some(&info)),
         Err(ApqValidationError::TEpochAhead { .. })
-    ));
+    );
 
     let mut info = valid_info();
     info.pq_epoch = GroupEpoch::from(12);
-    assert!(matches!(
+    assert_matches!(
         validate_group_info_pair(Some(&info), Some(&info)),
         Err(ApqValidationError::EpochMismatch(Session::Pq))
-    ));
+    );
 }
