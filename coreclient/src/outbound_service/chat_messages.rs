@@ -221,7 +221,7 @@ impl OutboundServiceContext {
                 Err(OutboundServiceError::Recoverable(error)) => {
                     // Leave the message in the queue so a later run retries it
                     if let RetryDecision::Backoff { attempts, retry_in } =
-                        RetryPolicy::MESSAGES.decide(attempts)
+                        RetryPolicy::MESSAGES.decide(error.cause, attempts)
                     {
                         let retry_at = TimeStamp::from(Utc::now() + retry_in);
                         self.db

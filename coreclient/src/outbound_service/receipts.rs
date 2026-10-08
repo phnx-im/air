@@ -142,7 +142,7 @@ impl OutboundServiceContext {
                         error!(%error, "Failed to send receipt; will retry later");
                         // Don't unlock the receipts now; they will be unlocked after a threshold.
                         if let RetryDecision::Backoff { attempts, retry_in } =
-                            policy.decide(attempts)
+                            policy.decide(error.cause, attempts)
                         {
                             let retry_at = TimeStamp::from(Utc::now() + retry_in);
                             ReceiptQueue::record_failed_attempt(

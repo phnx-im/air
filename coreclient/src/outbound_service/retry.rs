@@ -6,7 +6,7 @@
 
 use chrono::TimeDelta;
 
-use crate::outbound_service::error::OutboundServiceError;
+use crate::{job::recoverable::RecoverableCause, outbound_service::error::OutboundServiceError};
 
 /// How often an item is retried after recoverable errors, and how long to wait
 /// in between.
@@ -22,6 +22,8 @@ pub(crate) struct RetryPolicy {
 /// What to do with an item after a recoverable error.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum RetryDecision {
+    /// Retry in a later run without spending an attempt.
+    Retry,
     /// Spend an attempt and defer the next one.
     Backoff { attempts: u32, retry_in: TimeDelta },
     /// Spend the last attempt and give up.
@@ -60,7 +62,12 @@ impl RetryPolicy {
         max: TimeDelta::hours(1),
     };
 
-    pub(crate) fn decide(&self, attempts: u32) -> RetryDecision {
+    /// A busy database is contention on this device, not a problem of the
+    /// item, so it does not spend an attempt.
+    pub(crate) fn decide(&self, cause: RecoverableCause, attempts: u32) -> RetryDecision {
+        if cause == RecoverableCause::Busy {
+            return RetryDecision::Retry;
+        }
         let attempts = attempts + 1;
         if attempts >= self.max_attempts {
             RetryDecision::GiveUp
@@ -81,7 +88,7 @@ impl RetryPolicy {
     ) -> Result<T, OutboundServiceError> {
         match result {
             Err(OutboundServiceError::Recoverable(error))
-                if self.decide(attempts) == RetryDecision::GiveUp =>
+                if self.decide(error.cause, attempts) == RetryDecision::GiveUp =>
             {
                 Err(OutboundServiceError::Fatal(
                     anyhow::Error::from(error)
@@ -112,14 +119,14 @@ mod tests {
     fn error_spends_an_attempt_with_backoff() {
         let policy = RetryPolicy::RESYNC;
         assert_eq!(
-            policy.decide(0),
+            policy.decide(RecoverableCause::Server, 0),
             RetryDecision::Backoff {
                 attempts: 1,
                 retry_in: TimeDelta::minutes(1),
             }
         );
         assert_eq!(
-            policy.decide(3),
+            policy.decide(RecoverableCause::Server, 3),
             RetryDecision::Backoff {
                 attempts: 4,
                 retry_in: TimeDelta::minutes(8),
@@ -134,7 +141,7 @@ mod tests {
             ..RetryPolicy::MESSAGES
         };
         assert_eq!(
-            policy.decide(8),
+            policy.decide(RecoverableCause::Server, 8),
             RetryDecision::Backoff {
                 attempts: 9,
                 retry_in: policy.max,
@@ -146,8 +153,24 @@ mod tests {
     fn last_error_gives_up() {
         let policy = RetryPolicy::MESSAGES;
         assert_eq!(
-            policy.decide(policy.max_attempts - 1),
+            policy.decide(RecoverableCause::Server, policy.max_attempts - 1),
             RetryDecision::GiveUp
+        );
+    }
+
+    #[test]
+    fn busy_does_not_spend_an_attempt() {
+        let policy = RetryPolicy::MESSAGES;
+        assert_eq!(
+            policy.decide(RecoverableCause::Busy, policy.max_attempts * 10),
+            RetryDecision::Retry
+        );
+        let busy = Err::<(), _>(OutboundServiceError::Recoverable(Recoverable::busy(
+            anyhow!("database is locked"),
+        )));
+        assert_matches!(
+            policy.fatal_when_exhausted(busy, policy.max_attempts * 10),
+            Err(OutboundServiceError::Recoverable(_))
         );
     }
 

@@ -118,7 +118,9 @@ impl OutboundServiceContext {
                 // Keep the batch for a later run, the next batches may still go out
                 Err(OutboundServiceError::Recoverable(error)) => {
                     warn!(%error, count = batch.len(), "Failed to tell the siblings about deleted messages; retrying later");
-                    if let RetryDecision::Backoff { attempts, retry_in } = policy.decide(attempts) {
+                    if let RetryDecision::Backoff { attempts, retry_in } =
+                        policy.decide(error.cause, attempts)
+                    {
                         let retry_at = TimeStamp::from(Utc::now() + retry_in);
                         persistence::defer_deletions(
                             self.db.write().await?,

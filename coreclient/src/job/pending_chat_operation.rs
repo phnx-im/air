@@ -52,6 +52,7 @@ use crate::{
     job::{
         Job, JobContext, JobContextReadConnection, JobError,
         chat_operation::{ChatOperationError, DerivationEpoch},
+        recoverable::RecoverableCause,
     },
     key_stores::{
         indexed_keys::StorableIndexedKey,
@@ -288,8 +289,10 @@ impl Job for PendingChatOperation {
             .execute_internal(context)
             .await
             .map_err(|error| match error {
-                // A recoverable error spends an attempt
-                JobError::Recoverable(recoverable) => {
+                // A recoverable error spends an attempt, unless the database was busy
+                JobError::Recoverable(recoverable)
+                    if recoverable.cause != RecoverableCause::Busy =>
+                {
                     self.number_of_attempts += 1;
                     if self.number_of_attempts >= MAX_RETRIES {
                         JobError::Fatal(recoverable.error.context(format!(

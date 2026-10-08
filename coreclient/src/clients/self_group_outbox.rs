@@ -53,7 +53,7 @@ pub(crate) async fn stage(
     query!(
         "INSERT INTO self_group_outbox (kind, key, payload, previous)
         VALUES (?1, ?2, ?3, ?4)
-        ON CONFLICT (kind, key) DO UPDATE SET payload = excluded.payload",
+        ON CONFLICT (kind, key) DO UPDATE SET payload = excluded.payload, attempts = 0, retry_at = NULL",
         kind,
         key,
         payload,

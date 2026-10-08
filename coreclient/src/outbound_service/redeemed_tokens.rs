@@ -36,7 +36,8 @@ impl OutboundServiceContext {
         if due.is_empty() {
             return Ok(());
         }
-        let redeemed: Vec<RedeemedTokens> = due.iter().map(|(message, _)| message.clone()).collect();
+        let redeemed: Vec<RedeemedTokens> =
+            due.iter().map(|(message, _)| message.clone()).collect();
 
         let chat = match self
             .self_chat_for_app_message()
@@ -99,7 +100,9 @@ impl OutboundServiceContext {
                         allowance_epoch = message.allowance_epoch,
                         "Failed to tell the siblings about redeemed privacy pass tokens; retrying later"
                     );
-                    if let RetryDecision::Backoff { attempts, retry_in } = policy.decide(*attempts) {
+                    if let RetryDecision::Backoff { attempts, retry_in } =
+                        policy.decide(error.cause, *attempts)
+                    {
                         let broadcast_after = Utc::now() + retry_in;
                         self.db
                             .with_write_transaction(async |txn| {
