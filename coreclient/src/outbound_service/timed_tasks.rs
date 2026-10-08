@@ -25,6 +25,7 @@ use crate::{
         chat_operation::{ChatOperation, DerivationEpoch},
         operation::{Operation, OperationData, OperationId, OperationKind},
         pending_chat_operation::PendingChatOperation,
+        recoverable::Recoverable,
     },
     usernames::{
         SignedConnectionPackages, UsernameRecord, connection_packages::ConnectionPackageRecord,
@@ -530,7 +531,10 @@ impl OutboundServiceContext {
             match self.self_update_in_chat(chat_id).await {
                 Ok(SelfUpdateOutcome::Updated) => num_updated += 1,
                 Ok(SelfUpdateOutcome::Skipped) => (),
-                Err(OutboundServiceError::Fatal(error)) => {
+                Err(
+                    OutboundServiceError::Fatal(error)
+                    | OutboundServiceError::Recoverable(Recoverable { error, .. }),
+                ) => {
                     num_failed += 1;
                     warn!(?chat_id, %error, "Skipping self-update in chat due to unexpected error");
                 }

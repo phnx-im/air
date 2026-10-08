@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airapiclient::{ClassifyRequestError, RequestErrorKind};
 use aircommon::{
     credentials::{
         RoomPolicyIdentity, UserCredential,
@@ -585,7 +584,7 @@ impl PendingChatOperation {
             }
         };
 
-        let mut ds_has_confirmed_leave = true;
+        let mut retry_leave = false;
         let ds_timestamp = match res {
             Ok(ds_timestamp) => ds_timestamp,
             Err(error) if !is_leave => {
@@ -612,23 +611,31 @@ impl PendingChatOperation {
                 return Err(error);
             }
             Err(error) => {
-                // A retry checks whether the proposal is still at the group's
-                // epoch. A rate limited request was not processed by the DS.
-                if !matches!(error.kind(), RequestErrorKind::RateLimited { .. }) {
-                    self.number_of_attempts += 1;
-                }
-
                 // The leave action is special in that we want to consider
                 // it successful regardless of any DS errors and
                 // post-process anyway. If the DS returned an error, we'll
                 // try again later, but that's just for the benefit of the
                 // server and the other chat members.
+                let error: JobError<ChatOperationError> = error.into();
+                retry_leave = match error {
+                    // The DS did not process the request
+                    JobError::RateLimited { .. } => true,
+                    // Retrying cannot succeed
+                    JobError::NotFound | JobError::Fatal(_) => false,
+                    // A retry checks whether the proposal is still at the
+                    // group's epoch
+                    _ => {
+                        self.number_of_attempts += 1;
+                        self.number_of_attempts < MAX_RETRIES
+                    }
+                };
                 info!(
                     group_id = ?self.group.group_id(),
+                    %error,
+                    retry_leave,
                     "Leave operation failed due to DS error,
                     proceeding with local post-processing"
                 );
-                ds_has_confirmed_leave = false;
                 TimeStamp::now()
             }
         };
@@ -736,13 +743,13 @@ impl PendingChatOperation {
                 // intent it asserted.
                 self.complete_self_group_intent(txn).await?;
 
-                // Unless this is a leave operation that hasn't been confirmed
-                // by the DS, we can delete the pending operation now.
-                if !is_leave || ds_has_confirmed_leave {
+                // Unless this is a leave operation that is retried, we can
+                // delete the pending operation now.
+                if !retry_leave {
                     Self::delete(txn, self.group.group_id()).await?;
                 } else {
-                    // If it's a leave operation that hasn't been confirmed by
-                    // the DS, we want to set a due date for retrying
+                    // A leave operation that the DS hasn't confirmed yet is
+                    // retried later
                     let retry_due = *now + RETRY_INTERVAL;
                     self.update_retry_due_at(txn, retry_due).await?;
                 }
