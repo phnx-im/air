@@ -339,6 +339,10 @@
   "@deleteContactDialog_delete": {
     "description": "Confirming button of the delete contact dialog. Deletes content, so use the glossary term for deleting."
   },
+  "deleteContactDialog_error": "Failed to delete Air contact. Try again.",
+  "@deleteContactDialog_error": {
+    "description": "Error banner shown when deleting an Air contact fails, for example while offline. The contact and its chat stay."
+  },
 
   "addContactDialog_title": "Add Air contact",
   "@addContactDialog_title": {
@@ -1133,6 +1137,85 @@
         "type": "String"
       }
     }
+  },
+  "systemMessage_connectionRequestUnavailable": "The contact request is no longer available.",
+  "@systemMessage_connectionRequestUnavailable": {
+    "description": "System message in the chat of an incoming contact request that its sender retracted before the user could accept it."
+  },
+  "sentContactRequest_title": "You sent a contact request",
+  "@sentContactRequest_title": {
+    "description": "Headline of the card of a contact request the user sent to a username, while the recipient has not answered."
+  },
+  "sentContactRequest_titleWithName": "You sent {displayName} a contact request",
+  "@sentContactRequest_titleWithName": {
+    "description": "Headline of the card of a contact request the user sent to a member of a group chat, while the recipient has not answered.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "sentContactRequest_toUsername": "to the username {username}",
+  "@sentContactRequest_toUsername": {
+    "description": "Line under the headline of the card of a sent contact request, naming the username it went to. Continues the headline, so it starts in lowercase.",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "sentContactRequest_viaGroup": "via your group {groupName}",
+  "@sentContactRequest_viaGroup": {
+    "description": "Line under the headline of the card of a contact request the user sent to a member of a group, naming that group. Continues the headline, so it starts in lowercase.",
+    "placeholders": {
+      "groupName": {
+        "type": "String"
+      }
+    }
+  },
+  "sentContactRequest_body": "You'll be able to chat once they accept.",
+  "@sentContactRequest_body": {
+    "description": "Line on the card of a sent contact request, explaining that chatting starts once the recipient accepts."
+  },
+  "sentContactRequest_retract": "Retract request",
+  "@sentContactRequest_retract": {
+    "description": "Button on the card of a contact request the user sent and the recipient has not answered yet. Opens a dialog to take the request back."
+  },
+  "sentContactRequest_error_retract": "Failed to retract contact request",
+  "@sentContactRequest_error_retract": {
+    "description": "Error banner shown when retracting a sent contact request fails."
+  },
+  "retractContactRequestDialog_title": "Retract contact request?",
+  "@retractContactRequestDialog_title": {
+    "description": "Title of the dialog that confirms taking back a contact request the user sent."
+  },
+  "retractContactRequestDialog_content": "If you retract your contact request, the receiver will no longer be able to accept it.",
+  "@retractContactRequestDialog_content": {
+    "description": "Body of the dialog that confirms taking back a sent contact request. The recipient is not told about it."
+  },
+  "retractContactRequestDialog_cancel": "Cancel",
+  "@retractContactRequestDialog_cancel": {
+    "description": "Button that dismisses the dialog for retracting a contact request."
+  },
+  "retractContactRequestDialog_confirm": "Retract",
+  "@retractContactRequestDialog_confirm": {
+    "description": "Confirming button of the dialog for retracting a contact request. Destructive style."
+  },
+  "closedContactRequest_delete": "Delete",
+  "@closedContactRequest_delete": {
+    "description": "Button replacing the message composer in the chat of a contact request that ended without a connection, for example because its sender retracted it before the user could accept. Opens a dialog to delete the chat."
+  },
+  "closedContactRequest_deleteDialog_content": "This contact request will be deleted from your chats list.",
+  "@closedContactRequest_deleteDialog_content": {
+    "description": "Body of the dialog confirming that the chat of a contact request that ended without a connection is deleted. Its title is deleteChatDialog_title."
+  },
+  "closedContactRequest_deleteDialog_cancel": "Cancel",
+  "@closedContactRequest_deleteDialog_cancel": {
+    "description": "Button that dismisses the dialog for deleting the chat of an ended contact request."
+  },
+  "closedContactRequest_error_delete": "Failed to delete contact request",
+  "@closedContactRequest_error_delete": {
+    "description": "Error banner shown when deleting the chat of an ended contact request fails."
   },
   "systemMessage_receivedHandleConnectionRequest": "{displayName} sent you a contact request through your username {username}.",
   "@systemMessage_receivedHandleConnectionRequest": {
@@ -1949,6 +2032,10 @@
   "deleteChatDialog_delete": "Delete",
   "@deleteChatDialog_delete": {
     "description": "Confirming button of the delete chat dialog."
+  },
+  "deleteChatDialog_error": "Failed to delete chat. Try again.",
+  "@deleteChatDialog_error": {
+    "description": "Error banner shown when deleting a group chat from its details fails, for example while offline. The chat stays."
   },
 
   "byteUnit_B": "B",

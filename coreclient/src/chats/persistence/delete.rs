@@ -16,22 +16,33 @@ use crate::{
     ChatType,
     chats::{Chat, PendingConnectionRequest},
     clients::self_group_outbox::{self, OutboxKind},
+    contacts::UsernameContact,
     db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
     groups::Group,
 };
 
 /// Erases the chat together with its group.
 pub(crate) async fn erase(txn: &mut WriteDbTransaction<'_>, chat: &Chat) -> anyhow::Result<()> {
-    if let ChatType::PendingConnection(_) = chat.chat_type() {
-        for request in PendingConnectionRequest::load_for_chat(&mut *txn, chat.id()).await? {
-            if let Some(hash) = request.connection_offer_hash
-                && let Err(error) = Group::delete_connection_offer_psk(&mut *txn, hash)
-            {
-                error!(
-                    %error,
-                    "failed to delete connection offer PSK, proceeding with chat deletion."
-                );
+    let mut offer_hashes = Vec::new();
+    match chat.chat_type() {
+        ChatType::PendingConnection(_) => {
+            for request in PendingConnectionRequest::load_for_chat(&mut *txn, chat.id()).await? {
+                offer_hashes.extend(request.connection_offer_hash);
             }
+        }
+        ChatType::HandleConnection(_) => {
+            if let Some(contact) = UsernameContact::load_by_chat_id(&mut *txn, chat.id()).await? {
+                offer_hashes.push(contact.connection_offer_hash);
+            }
+        }
+        ChatType::TargetedMessageConnection(_) | ChatType::Connection(_) | ChatType::Group(_) => {}
+    }
+    for hash in offer_hashes {
+        if let Err(error) = Group::delete_connection_offer_psk(&mut *txn, hash) {
+            error!(
+                %error,
+                "failed to delete connection offer PSK, proceeding with chat deletion."
+            );
         }
     }
 
@@ -120,9 +131,18 @@ pub(crate) async fn apply_deleted_chats(
 
 #[cfg(test)]
 mod tests {
+    use aircommon::{
+        crypto::aead::keys::FriendshipPackageEarKey,
+        identifiers::{QualifiedGroupId, UserId, Username},
+        messages::client_as::ConnectionOfferHash,
+    };
     use sqlx::SqlitePool;
+    use uuid::Uuid;
 
-    use crate::{chats::persistence::tests::test_chat, db::access::DbAccess};
+    use crate::{
+        chats::persistence::tests::test_chat, contacts::TargetedMessageContact,
+        db::access::DbAccess, utils::persistence::open_db_in_memory,
+    };
 
     use super::*;
 
@@ -202,6 +222,91 @@ mod tests {
             apply_deleted_chats(txn, &[deleted]).await?;
 
             assert!(Chat::load(&mut *txn, &chat.id()).await?.is_none());
+            Ok(())
+        })
+        .await
+    }
+
+    /// The group id of a connection request, which its chat id derives from.
+    fn connection_group_id() -> GroupId {
+        QualifiedGroupId::new(Uuid::new_v4(), "example.com".parse().unwrap()).into()
+    }
+
+    /// An outgoing request via `username`, as sending it stores it.
+    async fn send_request_to(
+        txn: &mut WriteDbTransaction<'_>,
+        username: &str,
+    ) -> anyhow::Result<Chat> {
+        let username = Username::new(username.to_owned())?;
+        let chat = Chat::new_handle_chat(connection_group_id(), username.clone());
+        chat.store(&mut *txn).await?;
+        UsernameContact::new(
+            username,
+            chat.id(),
+            FriendshipPackageEarKey::random()?,
+            ConnectionOfferHash::new_for_test(vec![3; 32]),
+        )
+        .upsert(&mut *txn)
+        .await?;
+        Ok(chat)
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn erasing_a_request_to_a_username_keeps_the_other() -> anyhow::Result<()> {
+        let db = DbAccess::for_tests(open_db_in_memory().await?);
+
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            // Siblings that send to the same username at once end up with both.
+            let erased = send_request_to(txn, "joel-07").await?;
+            let kept = send_request_to(txn, "joel-07").await?;
+
+            erase(txn, &erased).await?;
+
+            assert!(
+                UsernameContact::load_by_chat_id(&mut *txn, erased.id())
+                    .await?
+                    .is_none()
+            );
+            assert!(
+                UsernameContact::load_by_chat_id(&mut *txn, kept.id())
+                    .await?
+                    .is_some()
+            );
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn erasing_an_older_request_keeps_a_newer_one_to_the_same_user() -> anyhow::Result<()> {
+        let db = DbAccess::for_tests(open_db_in_memory().await?);
+
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let user_id = UserId::random("example.com".parse()?);
+            let mut chats = Vec::new();
+            for _ in 0..2 {
+                let chat = Chat::new_targeted_message_chat(connection_group_id(), user_id.clone());
+                chat.store(&mut *txn).await?;
+                TargetedMessageContact::new(
+                    user_id.clone(),
+                    chat.id(),
+                    FriendshipPackageEarKey::random()?,
+                    None,
+                )
+                .upsert(&mut *txn)
+                .await?;
+                chats.push(chat);
+            }
+            let [old, new] = chats.as_slice() else {
+                unreachable!()
+            };
+
+            erase(txn, old).await?;
+
+            let contact = TargetedMessageContact::load(&mut *txn, &user_id)
+                .await?
+                .unwrap();
+            assert_eq!(contact.chat_id, new.id());
             Ok(())
         })
         .await

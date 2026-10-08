@@ -82,6 +82,8 @@ abstract class UserCubitBase implements RustOpaqueInterface {
     required String confirmationText,
   });
 
+  /// Deletes the chat on the server and erases it on all of the user's
+  /// devices. Fails without a change if the server cannot be reached.
   Future<void> deleteChat(ChatId chatId);
 
   /// Only delete the local chat data, do not delete the chat on the server or try to leave it.
@@ -110,6 +112,10 @@ abstract class UserCubitBase implements RustOpaqueInterface {
   Future<void> removeUsername({required UiUsername username});
 
   Future<void> reportSpam({required UiUserId spammerId});
+
+  /// Retracts the outgoing contact request of the chat, so its recipient can
+  /// no longer accept it, and erases the chat.
+  Future<void> retractContactRequest(ChatId chatId);
 
   /// Returns the pair of safety codes of the logged-in user and the given user.
   ///

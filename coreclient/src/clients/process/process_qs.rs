@@ -48,7 +48,7 @@ use crate::{
             edit::{MessageEdit, handle_message_edit},
             persistence::apply_deleted_messages,
         },
-        outgoing_requests,
+        outgoing_requests, persistence,
         reactions::Reaction,
     },
     clients::{
@@ -903,6 +903,9 @@ impl CoreUser {
                 }
             }
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
+                // Only our own devices are members of an unconfirmed connection
+                // group, so its deletion is a sibling retracting the request.
+                let retracted = we_were_removed && chat.is_unconfirmed();
                 let sender_user_credential =
                     StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id)
                         .await?
@@ -925,6 +928,12 @@ impl CoreUser {
                     .group_mut()
                     .store_update(&mut *txn, None, None)
                     .await?;
+                if retracted {
+                    if let Some(chat) = Chat::load(&mut *txn, &chat_id).await? {
+                        persistence::erase(txn, &chat).await?;
+                    }
+                    return Ok(QsMessageOutcome::empty());
+                }
                 HandledMessages {
                     new_messages,
                     ..Default::default()

@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/contact_request_card/contact_request_card.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
 import 'package:air/core/core.dart';
@@ -88,6 +89,32 @@ UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
   isApq: _chat.isApq,
   isSelfChat: _chat.isSelfChat,
   mutedUntil: _chat.mutedUntil,
+  pendingCommitFailed: false,
+  resyncFailed: false,
+);
+
+/// System message [id] of the chat [chatId], spaced like [_msg].
+UiChatMessage _systemMsg(int id, ChatId chatId, UiSystemMessage message) =>
+    UiChatMessage(
+      id: id.messageId(),
+      chatId: chatId,
+      timestamp: DateTime.parse('2023-01-01T00:00:00.000Z')
+          .add(Duration(minutes: id * 6)),
+      message: UiMessage_Display(UiEventMessage.system(message)),
+      status: UiMessageStatus.sent,
+      reactions: [],
+    );
+
+/// The chat of a contact request whose sender retracted it before the user
+/// could accept.
+final _unavailableRequest = UiChatDetails(
+  id: 9.chatId(),
+  status: const UiChatStatus.inactive(UiInactiveChat(pastMembers: [])),
+  chatType: UiChatType_PendingConnection(userProfiles[1]),
+  lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+  unreadMessages: 0,
+  isApq: false,
+  isSelfChat: false,
   pendingCommitFailed: false,
   resyncFailed: false,
 );
@@ -486,6 +513,163 @@ void main() {
 
         expect(buttonWith(AppIconType.chevronDown), findsOneWidget);
         expect(dot, findsNothing);
+      });
+    });
+
+    group('sent request', () {
+      final sentRequest = chats[1]; // Handle connection, not yet answered
+
+      setUp(() {
+        when(() => navigationCubit.state).thenReturn(
+          NavigationState.home(
+            home: HomeNavigationState(chatId: sentRequest.id),
+          ),
+        );
+        when(() => chatDetailsCubit.state)
+            .thenReturn(ChatDetailsState(chat: sentRequest, members: const []));
+        when(() => userCubit.retractContactRequest(any()))
+            .thenAnswer((_) async {});
+        messageListCubit.setState([
+          _systemMsg(
+            1,
+            sentRequest.id,
+            const UiSystemMessage.newHandleConnectionChat(
+              UiUsername(plaintext: 'eve_03'),
+            ),
+          ),
+        ]);
+      });
+
+      setUpAll(() => registerFallbackValue(0.chatId()));
+
+      testWidgets('retracts the request from its card once confirmed', (
+        tester,
+      ) async {
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+
+        final retract = find.descendant(
+          of: find.byType(ContactRequestCard),
+          matching: find.text('Retract request'),
+        );
+        expect(retract, findsOneWidget);
+        await tester.tap(retract);
+        await tester.pumpAndSettle();
+        expect(find.text('Retract contact request?'), findsOneWidget);
+        await tester.tap(find.text('Retract'));
+        await tester.pumpAndSettle();
+
+        verify(() => userCubit.retractContactRequest(sentRequest.id)).called(1);
+        verify(() => navigationCubit.closeChat()).called(1);
+      });
+
+      testWidgets('keeps the chat open when the retraction fails', (
+        tester,
+      ) async {
+        when(() => userCubit.retractContactRequest(any()))
+            .thenAnswer((_) async => throw Exception('offline'));
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+
+        await tester.tap(find.text('Retract request'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Retract'));
+        await tester.pumpAndSettle();
+
+        verify(() => userCubit.retractContactRequest(sentRequest.id)).called(1);
+        verifyNever(() => navigationCubit.closeChat());
+      });
+
+      testWidgets('keeps the request when the dialog is cancelled', (
+        tester,
+      ) async {
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+
+        await tester.tap(find.text('Retract request'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+
+        verifyNever(() => userCubit.retractContactRequest(any()));
+        verifyNever(() => navigationCubit.closeChat());
+      });
+    });
+
+    group('closed request', () {
+      final closedRequest = _unavailableRequest;
+
+      setUp(() {
+        when(() => navigationCubit.state).thenReturn(
+          NavigationState.home(
+            home: HomeNavigationState(chatId: closedRequest.id),
+          ),
+        );
+        when(
+          () => chatDetailsCubit.state,
+        ).thenReturn(ChatDetailsState(chat: closedRequest, members: const []));
+        when(() => userCubit.deleteChat(any())).thenAnswer((_) async {});
+        messageListCubit.setState([
+          _systemMsg(
+            1,
+            closedRequest.id,
+            UiSystemMessage.receivedHandleConnectionRequest(
+              sender: userProfiles[1].userId,
+              username: const UiUsername(plaintext: 'eve_03'),
+            ),
+          ),
+          _systemMsg(
+            2,
+            closedRequest.id,
+            const UiSystemMessage.connectionRequestUnavailable(),
+          ),
+        ]);
+      });
+
+      setUpAll(() => registerFallbackValue(0.chatId()));
+
+      testWidgets('offers no answer', (tester) async {
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+
+        expect(find.byType(ContactRequestCard), findsNothing);
+        expect(find.text('Accept'), findsNothing);
+      });
+
+      testWidgets('deletes the chat once confirmed', (tester) async {
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+
+        await tester.tap(find.text('Delete'));
+        await tester.pumpAndSettle();
+        expect(find.text('Delete chat?'), findsOneWidget);
+        expect(
+          find.text(
+            'This contact request will be deleted from your chats list.',
+          ),
+          findsOneWidget,
+        );
+        // The dialog's confirm button sits above the footer's button.
+        await tester.tap(find.text('Delete').last);
+        await tester.pumpAndSettle();
+
+        verify(() => navigationCubit.closeChat()).called(1);
+        verify(() => userCubit.deleteChat(closedRequest.id)).called(1);
+      });
+
+      testWidgets('keeps the chat when the dialog is cancelled', (
+        tester,
+      ) async {
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+
+        await tester.tap(find.text('Delete'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+
+        verifyNever(() => userCubit.deleteChat(any()));
+        verifyNever(() => navigationCubit.closeChat());
       });
     });
 

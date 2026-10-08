@@ -12,6 +12,8 @@
 //! queue. That device forwards the verified request to its siblings through
 //! the self-group. A request from a group chat needs no forwarding, since the
 //! targeted message reaches every device of the user.
+//!
+//! Finding an incoming request unavailable travels through the self-group too.
 
 use aircommon::{
     codec::PersistenceCodec,
@@ -22,7 +24,7 @@ use aircommon::{
 };
 use airprotos::client::self_group::{
     ConnectionRequestEntry, ConnectionRequestGroup, ConnectionRequestReceived,
-    ConnectionRequestSource,
+    ConnectionRequestSource, ConnectionRequestUnavailable,
 };
 use anyhow::Context;
 use chrono::{DateTime, Utc};
@@ -157,16 +159,17 @@ impl IncomingRequest {
         let announcement = TimestampedMessage::system_message(announcement, received_at);
         CoreUser::store_new_messages(txn, chat_id, vec![announcement]).await?;
 
-        let moved_to = rehost(txn, chat_id).await?;
+        let host = rehost(txn, chat_id).await?.unwrap_or(chat_id);
         Ok(StoredRequest {
-            chat_id: moved_to.unwrap_or(chat_id),
-            moved_from: moved_to.map(|_| chat_id),
+            chat_id: host,
+            moved_from: (host != chat_id).then_some(chat_id),
         })
     }
 }
 
 /// Moves a chat of pending requests to the chat of its newest request, if that
-/// is another one. Returns the new chat id.
+/// is another one. Returns the chat that holds the requests then, or `None` if
+/// there are none.
 async fn rehost(
     txn: &mut WriteDbTransaction<'_>,
     chat_id: ChatId,
@@ -176,7 +179,7 @@ async fn rehost(
         return Ok(None);
     };
     if newest.request_id == chat_id {
-        return Ok(None);
+        return Ok(Some(chat_id));
     }
     let old = Chat::load(&mut *txn, &chat_id)
         .await?
@@ -238,7 +241,7 @@ pub(crate) struct ConnectionRequestEffects {
     /// Chats of incoming requests from a sibling.
     pub(crate) new_requests: Vec<ChatId>,
     /// Chats whose notifications are stale, because a newer request moved
-    /// them.
+    /// them or their request turned out to be unavailable.
     pub(crate) stale_chats: Vec<ChatId>,
 }
 
@@ -249,32 +252,48 @@ pub(crate) async fn park_received(
     request_id: ChatId,
     sender_credential: &UserCredential,
 ) -> anyhow::Result<()> {
-    if OwnClientInfo::load_self_group_id(&mut *txn)
-        .await?
-        .is_none()
-    {
-        return Ok(());
-    }
     let Some(request) = PendingConnectionRequest::load(&mut *txn, request_id).await? else {
         return Ok(());
     };
     let Some(received) = received_entry(&request, sender_credential)? else {
         return Ok(());
     };
-    let entry = ConnectionRequestEntry::Received(received);
+    park(txn, request_id, &ConnectionRequestEntry::Received(received)).await?;
+    Ok(())
+}
+
+fn unavailable_entry(request_id: ChatId) -> ConnectionRequestEntry {
+    ConnectionRequestEntry::Unavailable(ConnectionRequestUnavailable {
+        chat_id: request_id.uuid(),
+    })
+}
+
+/// Parks an entry for the next self-group commit. A device that was never
+/// linked parks nothing. Returns whether the entry was parked.
+async fn park(
+    txn: &mut WriteDbTransaction<'_>,
+    request_id: ChatId,
+    entry: &ConnectionRequestEntry,
+) -> anyhow::Result<bool> {
+    if OwnClientInfo::load_self_group_id(&mut *txn)
+        .await?
+        .is_none()
+    {
+        return Ok(false);
+    }
     self_group_outbox::stage(
         &mut *txn,
         OutboxKind::ConnectionRequest,
         request_id.uuid().as_bytes(),
-        &PersistenceCodec::to_vec(&entry)?,
+        &PersistenceCodec::to_vec(entry)?,
         None,
     )
     .await?;
-    Ok(())
+    Ok(true)
 }
 
-/// The parked entries of the requests that are still pending, sorted by
-/// request id for canonical encoding. Drops the other entries.
+/// The parked entries, sorted by request id for canonical encoding. Drops the
+/// received entries of requests that are no longer pending.
 pub(crate) async fn staged_entries(
     txn: &mut WriteDbTransaction<'_>,
 ) -> anyhow::Result<Vec<ConnectionRequestEntry>> {
@@ -282,11 +301,17 @@ pub(crate) async fn staged_entries(
     let mut entries = Vec::with_capacity(staged.len());
     for staged in staged {
         let request_id = ChatId::new(Uuid::from_slice(&staged.key)?);
-        if PendingConnectionRequest::load(&mut *txn, request_id)
-            .await?
-            .is_some()
-        {
-            entries.push(PersistenceCodec::from_slice(&staged.payload)?);
+        let entry: ConnectionRequestEntry = PersistenceCodec::from_slice(&staged.payload)?;
+        let is_current = match &entry {
+            ConnectionRequestEntry::Received(_) => {
+                PendingConnectionRequest::load(&mut *txn, request_id)
+                    .await?
+                    .is_some()
+            }
+            ConnectionRequestEntry::Unavailable(_) | ConnectionRequestEntry::Unknown => true,
+        };
+        if is_current {
+            entries.push(entry);
         } else {
             self_group_outbox::remove(&mut *txn, OutboxKind::ConnectionRequest, &staged.key)
                 .await?;
@@ -316,8 +341,8 @@ pub(crate) async fn complete_sent_entries(
 }
 
 /// Applies the entries of a sibling's accepted connection-requests update.
-/// Siblings only forward requests via a username, so an entry via a group is
-/// skipped.
+/// Siblings only forward requests via a username, so a received entry via a
+/// group is skipped.
 pub(crate) async fn apply_connection_requests_update(
     txn: &mut WriteDbTransaction<'_>,
     entries: &[ConnectionRequestEntry],
@@ -340,6 +365,11 @@ pub(crate) async fn apply_connection_requests_update(
                     }
                 }
             },
+            ConnectionRequestEntry::Unavailable(_) => {
+                if let Some(removed) = remove_unavailable(txn, request_id).await? {
+                    effects.stale_chats.extend(removed.stale_chat());
+                }
+            }
             ConnectionRequestEntry::Unknown => {}
         }
         self_group_outbox::remove(
@@ -362,7 +392,7 @@ pub(crate) async fn store_provisioned_requests(
             ConnectionRequestEntry::Received(received) => {
                 store_received(txn, received).await?;
             }
-            ConnectionRequestEntry::Unknown => {
+            ConnectionRequestEntry::Unavailable(_) | ConnectionRequestEntry::Unknown => {
                 debug!("Skipping a provisioned connection request this client cannot read");
             }
         }
@@ -404,6 +434,9 @@ fn request_id_of(entry: &ConnectionRequestEntry) -> Option<ChatId> {
             let info =
                 ConnectionInfo::tls_deserialize_exact_bytes(&received.connection_info).ok()?;
             ChatId::try_from(&info.connection_group_id).ok()
+        }
+        ConnectionRequestEntry::Unavailable(ConnectionRequestUnavailable { chat_id }) => {
+            Some(ChatId::new(*chat_id))
         }
         ConnectionRequestEntry::Unknown => None,
     }
@@ -518,6 +551,67 @@ fn parse_received(
     Some((request, credential))
 }
 
+/// A request removed from the chat that showed it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RemovedRequest {
+    /// The chat that showed the request.
+    chat_id: ChatId,
+    /// The chat of the sender's remaining requests, if there are any. It is
+    /// another chat if the removed request was the newest.
+    remaining: Option<ChatId>,
+}
+
+impl RemovedRequest {
+    /// The chat whose notification no longer stands for an open request,
+    /// because it was closed or moved away.
+    fn stale_chat(&self) -> Option<ChatId> {
+        (self.remaining != Some(self.chat_id)).then_some(self.chat_id)
+    }
+}
+
+/// Removes a pending request whose connection group is gone, with what
+/// accepting it would have used. If it was the sender's last pending request,
+/// its chat turns into a record of that.
+async fn remove_unavailable(
+    txn: &mut WriteDbTransaction<'_>,
+    request_id: ChatId,
+) -> anyhow::Result<Option<RemovedRequest>> {
+    let Some(request) = PendingConnectionRequest::load(&mut *txn, request_id).await? else {
+        return Ok(None);
+    };
+    let chat_id = request.chat_id;
+    discard_request_state(txn, request).await?;
+    let remaining = rehost(txn, chat_id).await?;
+    if remaining.is_none() {
+        close_unavailable_chat(txn, chat_id).await?;
+    }
+    Ok(Some(RemovedRequest { chat_id, remaining }))
+}
+
+/// Turns the chat of incoming requests that are all gone into a record of
+/// that.
+async fn close_unavailable_chat(
+    txn: &mut WriteDbTransaction<'_>,
+    chat_id: ChatId,
+) -> anyhow::Result<()> {
+    let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
+        return Ok(());
+    };
+    if !matches!(chat.chat_type(), ChatType::PendingConnection(_))
+        || matches!(chat.status(), ChatStatus::Inactive(_))
+    {
+        return Ok(());
+    }
+    Group::delete_from_db(txn, chat.group_id()).await?;
+    Chat::update_status(&mut *txn, chat_id, &ChatStatus::inactive(Vec::new())).await?;
+    let record = TimestampedMessage::system_message(
+        SystemMessage::ConnectionRequestUnavailable,
+        TimeStamp::now(),
+    );
+    CoreUser::store_new_messages(txn, chat_id, vec![record]).await?;
+    Ok(())
+}
+
 /// Clean up the pending requests when the users accepted the connection.
 pub(crate) async fn settle_accepted(
     txn: &mut WriteDbTransaction<'_>,
@@ -586,6 +680,31 @@ pub(crate) async fn delete_consumed_package_key(
         ConnectionPackageRecord::delete(&mut *txn, hash).await?;
     }
     Ok(())
+}
+
+impl CoreUser {
+    /// Records that an incoming request can no longer be accepted, because its
+    /// connection group is gone, and tells the siblings.
+    ///
+    /// Returns the chat of the sender's remaining pending requests, if there
+    /// are any.
+    pub(crate) async fn record_unavailable_request(
+        &self,
+        request_id: ChatId,
+    ) -> anyhow::Result<Option<ChatId>> {
+        let (remaining, parked) = self
+            .db()
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                let removed = remove_unavailable(txn, request_id).await?;
+                let parked = park(txn, request_id, &unavailable_entry(request_id)).await?;
+                Ok((removed.and_then(|removed| removed.remaining), parked))
+            })
+            .await?;
+        if parked {
+            self.outbound_service().notify_pending_chat_operations();
+        }
+        Ok(remaining)
+    }
 }
 
 #[cfg(test)]
@@ -1376,6 +1495,109 @@ mod tests {
                 received.sender_credential,
                 credential.tls_serialize_detached()?
             );
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_unavailable_request_becomes_a_record() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let stored = receive_request_from(txn, &sender()?, "ellie-03", at(0)).await?;
+
+            let removed = remove_unavailable(txn, stored.chat_id).await?.unwrap();
+
+            assert_eq!(removed.remaining, None);
+            assert_eq!(removed.stale_chat(), Some(stored.chat_id));
+            assert!(request_ids(txn, stored.chat_id).await?.is_empty());
+            let chat = Chat::load(&mut *txn, &stored.chat_id).await?.unwrap();
+            assert!(matches!(chat.status(), ChatStatus::Inactive(_)));
+            assert_eq!(
+                system_messages(txn, stored.chat_id).await?.last(),
+                Some(&SystemMessage::ConnectionRequestUnavailable)
+            );
+            assert!(is_known(&mut *txn, stored.chat_id).await?);
+            assert!(remove_unavailable(txn, stored.chat_id).await?.is_none());
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_unavailable_newest_request_hands_the_chat_to_the_next() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let sender = sender()?;
+            let older = receive_request_from(txn, &sender, "ellie-03", at(0)).await?;
+            let newer = receive_request_from(txn, &sender, "ellie-04", at(60)).await?;
+
+            let removed = remove_unavailable(txn, newer.chat_id).await?.unwrap();
+
+            assert_eq!(removed.remaining, Some(older.chat_id));
+            assert_eq!(removed.stale_chat(), Some(newer.chat_id));
+            assert!(Chat::load(&mut *txn, &newer.chat_id).await?.is_none());
+            let chat = Chat::load(&mut *txn, &older.chat_id).await?.unwrap();
+            assert_eq!(chat.status(), &ChatStatus::Active);
+            assert_eq!(request_ids(txn, older.chat_id).await?, vec![older.chat_id]);
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_unavailable_older_request_drops_out_silently() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let sender = sender()?;
+            let older = receive_request_from(txn, &sender, "ellie-03", at(0)).await?;
+            let newer = receive_request_from(txn, &sender, "ellie-04", at(60)).await?;
+            let before = system_messages(txn, newer.chat_id).await?;
+
+            let removed = remove_unavailable(txn, older.chat_id).await?.unwrap();
+
+            assert_eq!(removed.remaining, Some(newer.chat_id));
+            assert_eq!(removed.stale_chat(), None);
+            assert_eq!(request_ids(txn, newer.chat_id).await?, vec![newer.chat_id]);
+            assert_eq!(system_messages(txn, newer.chat_id).await?, before);
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_sibling_finding_a_request_unavailable_removes_it() -> anyhow::Result<()> {
+        let db = linked_device().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let stored = receive_request_from(txn, &sender()?, "ellie-03", at(0)).await?;
+
+            let effects =
+                apply_connection_requests_update(txn, &[unavailable_entry(stored.chat_id)]).await?;
+
+            assert_eq!(effects.stale_chats, vec![stored.chat_id]);
+            assert!(request_ids(txn, stored.chat_id).await?.is_empty());
+            assert_eq!(
+                system_messages(txn, stored.chat_id).await?.last(),
+                Some(&SystemMessage::ConnectionRequestUnavailable)
+            );
+            assert!(staged_entries(txn).await?.is_empty());
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn unavailable_entries_stay_parked_without_a_pending_request() -> anyhow::Result<()> {
+        let db = linked_device().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let unavailable = ChatId::new(Uuid::from_u128(2));
+            assert!(park(txn, unavailable, &unavailable_entry(unavailable)).await?);
+
+            let sent = staged_entries(txn).await?;
+            assert_eq!(sent, vec![unavailable_entry(unavailable)]);
+
+            complete_sent_entries(txn, &sent).await?;
+            assert!(staged_entries(txn).await?.is_empty());
             Ok(())
         })
         .await

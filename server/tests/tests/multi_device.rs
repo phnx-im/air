@@ -2748,7 +2748,7 @@ async fn count_self_removes(user: &CoreUser, chat_id: ChatId, user_id: &UserId) 
 /// also asserts whom the chat remembers. A leave only records the members
 /// once the removal is committed, so the check right after the leave passes
 /// `None`.
-async fn assert_inactive(
+pub(crate) async fn assert_inactive(
     user: &CoreUser,
     chat_id: ChatId,
     past_members: Option<&HashSet<UserId>>,
