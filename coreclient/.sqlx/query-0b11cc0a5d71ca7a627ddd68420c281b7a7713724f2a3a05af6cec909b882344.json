@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT connection_package_hash AS \"connection_package_hash: _\"\n            FROM connection_package\n            WHERE handle = $1\n            ORDER BY connection_package_hash",
+  "describe": {
+    "columns": [
+      {
+        "name": "connection_package_hash: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "connection_package",
+            "name": "connection_package_hash"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0b11cc0a5d71ca7a627ddd68420c281b7a7713724f2a3a05af6cec909b882344"
+}

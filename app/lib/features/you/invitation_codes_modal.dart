@@ -255,7 +255,11 @@ class _InvitationTokenItem extends StatelessWidget {
         child: Row(
           children: [
             Text(
-              AppLocalizations.of(context).invitationCodesScreen_tapToGetCode,
+              DeviceType.isDesktop
+                  ? AppLocalizations.of(context)
+                        .invitationCodesScreen_getCodeHint_desktop
+                  : AppLocalizations.of(context)
+                        .invitationCodesScreen_getCodeHint,
               style: typeScale.body.regular
                   .style(color: palette.text.tertiary)
                   .copyWith(fontStyle: .italic),

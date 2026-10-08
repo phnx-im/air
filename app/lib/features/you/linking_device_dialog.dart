@@ -646,7 +646,9 @@ class _LinkDeviceName extends StatelessWidget {
       tokens: AppTextInputTokens.current,
       controller: textEditingController,
       maxLength: 30,
-      helperText: loc.linkingDeviceScreen_linking_confirm_edit_subtitle,
+      helperText: DeviceType.isDesktop
+          ? loc.linkingDeviceScreen_linking_confirm_edit_subtitle_desktop
+          : loc.linkingDeviceScreen_linking_confirm_edit_subtitle,
     );
   }
 }

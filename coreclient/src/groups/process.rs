@@ -20,7 +20,7 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use apqmls::{
     ApqMlsGroupMut,
     messages::ApqProtocolMessage,
-    processing::{ApqProcessMessageError, ApqProcessedMessage, resolve_app_data_commit},
+    processing::{ApqProcessMessageError, ApqProcessedMessage, resolve_partial_commit},
 };
 use mimi_room_policy::RoleIndex;
 use openmls::{
@@ -37,7 +37,10 @@ use tls_codec::DeserializeBytes as TlsDeserializeBytes;
 use tracing::{debug, error, instrument, warn};
 
 use crate::{
-    chats,
+    chats::{
+        self,
+        connection_requests::{self, ConnectionRequestEffects},
+    },
     clients::{
         api_clients::ApiClients,
         block_contact,
@@ -64,7 +67,7 @@ async fn apply_self_group_payload(
     txn: &mut WriteDbTransaction<'_>,
     payload: &SelfGroupPayload,
     own_echo: bool,
-) -> Result<()> {
+) -> Result<ConnectionRequestEffects> {
     if !payload.updates.is_empty() {
         // Fold the extracted snapshots into one merged snapshot. This can be
         // empty when the update decoded to unknown-only fields sent by a newer
@@ -100,17 +103,27 @@ async fn apply_self_group_payload(
             .await?;
     }
 
+    let effects = if own_echo {
+        connection_requests::complete_sent_entries(txn, &payload.connection_requests).await?;
+        ConnectionRequestEffects::default()
+    } else {
+        connection_requests::apply_connection_requests_update(txn, &payload.connection_requests)
+            .await?
+    };
+
+    // Deletions go last, so a chat a sibling erased stays erased even if this
+    // commit also carries a request for it.
     if own_echo {
         chats::persistence::remove_staged_deletion(txn, &payload.deleted_chats).await?;
     } else {
         chats::persistence::apply_deleted_chats(txn, &payload.deleted_chats).await?;
     }
 
-    Ok(())
+    Ok(effects)
 }
 
 pub(crate) enum ProcessMessageResult {
-    Processed(ProcessMessageProcessed),
+    Processed(Box<ProcessMessageProcessed>),
     /// This message was skipped because we have processed it (or its side-effect) already.
     Ignored,
     /// We got a message that we can't process from our current group state, e.g. because it's too
@@ -123,12 +136,15 @@ pub(crate) struct ProcessMessageProcessed {
     pub(crate) processed_message: ProcessedMessage,
     pub(crate) we_were_removed: bool,
     pub(crate) profile_infos: Vec<(UserCredential, UserProfileKey)>,
+    /// What a sibling's self-group commit did to connection requests.
+    pub(crate) connection_request_effects: ConnectionRequestEffects,
 }
 
 struct PostProcessState {
     sender_index: LeafNodeIndex,
     we_were_removed: bool,
     encrypted_profile_infos: Vec<(UserCredential, EncryptedUserProfileKey)>,
+    connection_request_effects: ConnectionRequestEffects,
 }
 
 struct PostProcessAadResult {
@@ -156,7 +172,7 @@ impl Group {
             match self.mls_group.process_message(&provider, message) {
                 Ok(processed_message) => {
                     // Processes app data updates in the message, if any.
-                    resolve_app_data_commit(&self.mls_group, &provider, processed_message)?
+                    resolve_partial_commit(&self.mls_group, &provider, processed_message)?
                 }
                 Err(ProcessMessageError::<sqlx::Error>::ValidationError(
                     ValidationError::WrongEpoch,
@@ -226,11 +242,14 @@ impl Group {
             }
             ProcessedMessageContent::ApplicationMessage(_) => {
                 debug!("process application message");
-                return Ok(ProcessMessageResult::Processed(ProcessMessageProcessed {
-                    processed_message,
-                    we_were_removed: false,
-                    profile_infos: Vec::new(),
-                }));
+                return Ok(ProcessMessageResult::Processed(Box::new(
+                    ProcessMessageProcessed {
+                        processed_message,
+                        we_were_removed: false,
+                        profile_infos: Vec::new(),
+                        connection_request_effects: ConnectionRequestEffects::default(),
+                    },
+                )));
             }
             ProcessedMessageContent::ProposalMessage(_proposal) => {
                 // Proposals are just returned and can then be added to the
@@ -245,6 +264,7 @@ impl Group {
                     sender_index: *sender_index,
                     we_were_removed: false,
                     encrypted_profile_infos: Vec::new(),
+                    connection_request_effects: ConnectionRequestEffects::default(),
                 }
             }
             ProcessedMessageContent::StagedCommitMessage(_) => {
@@ -263,6 +283,7 @@ impl Group {
                     sender_index: self.mls_group.own_leaf_index(),
                     we_were_removed: false,
                     encrypted_profile_infos: Vec::new(),
+                    connection_request_effects: ConnectionRequestEffects::default(),
                 }
             }
             ProcessedMessageContent::OwnPrivateMessage => {
@@ -300,11 +321,14 @@ impl Group {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(ProcessMessageResult::Processed(ProcessMessageProcessed {
-            processed_message,
-            we_were_removed: post_process_state.we_were_removed,
-            profile_infos,
-        }))
+        Ok(ProcessMessageResult::Processed(Box::new(
+            ProcessMessageProcessed {
+                processed_message,
+                we_were_removed: post_process_state.we_were_removed,
+                profile_infos,
+                connection_request_effects: post_process_state.connection_request_effects,
+            },
+        )))
     }
 
     async fn post_process_staged_commit(
@@ -349,13 +373,15 @@ impl Group {
         // below so the pending setting changes and token seed proposals are
         // reconciled against what this commit carried before the outbound
         // service can re-issue them.
+        let mut connection_request_effects = ConnectionRequestEffects::default();
         if self.is_self_group() {
             let payload = self.extract_self_group_messages(txn, staged_commit).await;
             if !payload.is_empty() {
                 // Own echo: the DS fanned our own commit back while our pending
                 // commit was already gone.
                 let own_echo = sender_index == self.mls_group().own_leaf_index();
-                apply_self_group_payload(txn, &payload, own_echo).await?;
+                connection_request_effects =
+                    apply_self_group_payload(txn, &payload, own_echo).await?;
             }
         }
 
@@ -398,6 +424,7 @@ impl Group {
             sender_index,
             we_were_removed,
             encrypted_profile_infos: aad_result.encrypted_profile_infos,
+            connection_request_effects,
         })
     }
 
