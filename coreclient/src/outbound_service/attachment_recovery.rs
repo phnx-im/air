@@ -86,7 +86,8 @@ pub(super) async fn recover_interrupted_attachment_uploads(
 
         Ok(())
     })
-    .await?;
+    .await
+    .map_err(OutboundServiceError::fatal)?;
     Ok(())
 }
 

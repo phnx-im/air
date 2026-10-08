@@ -56,7 +56,8 @@ impl OutboundServiceContext {
                 .with_write_transaction(async |txn| {
                     PendingChatOperation::dequeue(txn, task_id, now).await
                 })
-                .await?;
+                .await
+                .map_err(OutboundServiceError::fatal)?;
             let Some(pending_chat_operation) = pending_chat_operation else {
                 return Ok(());
             };

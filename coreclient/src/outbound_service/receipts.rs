@@ -81,7 +81,7 @@ impl OutboundServiceContext {
             }
 
             let Some((chat_id, statuses)) =
-                ReceiptQueue::dequeue(self.db.write().await?, task_id).await?
+                ReceiptQueue::dequeue(self.db.write().await?, task_id).await.map_err(OutboundServiceError::fatal)?
             else {
                 return Ok(());
             };

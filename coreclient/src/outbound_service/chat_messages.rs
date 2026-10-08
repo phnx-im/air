@@ -132,7 +132,8 @@ impl OutboundServiceContext {
             let Some((chat_id, message_id)) = self
                 .db
                 .with_write_transaction(async |txn| ChatMessageQueue::dequeue(txn, task_id).await)
-                .await?
+                .await
+                .map_err(OutboundServiceError::fatal)?
             else {
                 return Ok(());
             };
@@ -180,7 +181,8 @@ impl OutboundServiceContext {
                             ChatMessageQueue::remove(txn, message_id).await?;
                             Ok(())
                         })
-                        .await?;
+                        .await
+                        .map_err(OutboundServiceError::fatal)?;
                     return Ok(RunControl::NextMessage);
                 }
                 Ok(SendOutcome::Collided) => {
@@ -203,7 +205,8 @@ impl OutboundServiceContext {
                                 .await?;
                             Ok(())
                         })
-                        .await?;
+                        .await
+                        .map_err(OutboundServiceError::fatal)?;
                     return Ok(RunControl::NextMessage);
                 }
                 // Abort the whole run if we get rate limited
@@ -222,7 +225,8 @@ impl OutboundServiceContext {
                     .with_write_transaction(async |txn| -> anyhow::Result<_> {
                         Ok(ChatMessageQueue::remove_all_and_mark_as_failed(txn).await?)
                     })
-                    .await?;
+                    .await
+                    .map_err(OutboundServiceError::fatal)?;
                 return Ok(RunControl::EndRun);
             }
 

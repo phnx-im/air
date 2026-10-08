@@ -5,8 +5,7 @@
 use std::time::Duration;
 
 use airapiclient::{
-    ApiClientInitError, ClassifyRequestError, RequestErrorKind, as_api::AsRequestError,
-    ds_api::DsRequestError,
+    ApiClientInitError, ClassifyRequestError, as_api::AsRequestError, ds_api::DsRequestError,
 };
 use aircommon::{codec, identifiers::QsClientId};
 use chrono::{DateTime, Utc};
@@ -23,6 +22,7 @@ use crate::{
         },
         notification::DbNotifier,
     },
+    job::recoverable::{Recoverable, RequestFailure},
     key_stores::MemoryUserKeyStore,
 };
 
@@ -32,6 +32,7 @@ pub(crate) mod create_chat;
 pub(crate) mod operation;
 pub(crate) mod pending_chat_operation;
 pub(crate) mod profile;
+pub(crate) mod recoverable;
 
 pub(crate) struct JobContext<'a, 'c> {
     pub api_clients: &'a ApiClients,
@@ -165,7 +166,7 @@ pub(crate) enum JobError<E> {
     #[error("Not found")]
     NotFound,
     #[error("Recoverable error: {0}")]
-    Recoverable(anyhow::Error),
+    Recoverable(Recoverable),
     #[error(transparent)]
     Fatal(#[from] anyhow::Error),
 }
@@ -177,6 +178,12 @@ impl<E> JobError<E> {
 
     pub(crate) fn domain(error: impl Into<E>) -> Self {
         Self::Domain(error.into())
+    }
+}
+
+impl<E> From<Recoverable> for JobError<E> {
+    fn from(error: Recoverable) -> Self {
+        Self::Recoverable(error)
     }
 }
 
@@ -232,18 +239,18 @@ impl<E> JobError<E> {
     fn from_request_error(
         error: impl ClassifyRequestError + std::error::Error + Send + Sync + 'static,
     ) -> Self {
-        match error.kind() {
-            RequestErrorKind::RateLimited { retry_after } => {
+        match RequestFailure::classify(error) {
+            RequestFailure::RateLimited { retry_after, error } => {
                 warn!(?error, "Job failed due to rate limiting");
                 Self::RateLimited { retry_after }
             }
-            RequestErrorKind::Network => {
+            RequestFailure::Network(error) => {
                 warn!(?error, "Job failed due to network error");
                 Self::NetworkError
             }
-            RequestErrorKind::NotFound => Self::NotFound,
-            RequestErrorKind::ServerError => Self::Recoverable(error.into()),
-            RequestErrorKind::Rejected => Self::Fatal(error.into()),
+            RequestFailure::NotFound(_) => Self::NotFound,
+            RequestFailure::Recoverable(recoverable) => Self::Recoverable(recoverable),
+            RequestFailure::Fatal(error) => Self::Fatal(error),
         }
     }
 }
@@ -256,7 +263,7 @@ impl<E> From<reqwest::Error> for JobError<E> {
                 warn!(?error, "Job failed due to rate limiting");
                 Self::RateLimited { retry_after: None }
             }
-            Some(status) if status.is_server_error() => Self::Recoverable(error.into()),
+            Some(status) if status.is_server_error() => Recoverable::server(error).into(),
             Some(_) => Self::Fatal(error.into()),
             // Failed to send the request or to read the response
             None if error.is_connect()

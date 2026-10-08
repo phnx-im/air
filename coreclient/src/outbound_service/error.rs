@@ -10,27 +10,18 @@ use airapiclient::{
 };
 use tracing::{error, info};
 
-use crate::{job::JobError, outbound_service::WorkAborted};
+use crate::{
+    job::{
+        JobError,
+        recoverable::{Recoverable, RequestFailure},
+    },
+    outbound_service::WorkAborted,
+};
 
 pub(crate) fn is_ds_not_found_error(error: &anyhow::Error) -> bool {
     error
         .downcast_ref::<DsRequestError>()
         .is_some_and(DsRequestError::is_not_found)
-}
-
-/// Whether the DS rejected a commit because the group moved on in the meantime.
-pub(crate) fn is_ds_wrong_epoch_error(error: &anyhow::Error) -> bool {
-    error
-        .downcast_ref::<DsRequestError>()
-        .is_some_and(DsRequestError::is_wrong_epoch)
-}
-
-/// Whether the DS answered and refused a request.
-pub(crate) fn is_ds_rejection_error(error: &anyhow::Error) -> bool {
-    // Anything which is not a network error
-    error
-        .downcast_ref::<DsRequestError>()
-        .is_some_and(|error| !matches!(error.kind(), RequestErrorKind::Network))
 }
 
 /// Errors that occur while running the outbound service.
@@ -45,7 +36,7 @@ pub(crate) enum OutboundServiceError {
     #[error("Rate limited, retry after {retry_after:?}")]
     RateLimited { retry_after: Option<Duration> },
     #[error("Recoverable error: {0}")]
-    Recoverable(anyhow::Error),
+    Recoverable(Recoverable),
     #[error("Fatal error: {0}")]
     Fatal(anyhow::Error),
 }
@@ -57,22 +48,6 @@ impl OutboundServiceError {
     pub(crate) fn fatal(error: impl Into<anyhow::Error>) -> Self {
         let error = error.into();
         transient_request_error(&error).unwrap_or_else(|| Self::Fatal(error))
-    }
-
-    /// Reports this error as recoverable, unless the anyhow chain contains a
-    /// rate limited request error.
-    pub(crate) fn recoverable(error: impl Into<anyhow::Error>) -> Self {
-        let error = error.into();
-        match transient_request_error(&error) {
-            Some(rate_limited @ Self::RateLimited { .. }) => rate_limited,
-            _ => Self::Recoverable(error),
-        }
-    }
-}
-
-impl From<anyhow::Error> for OutboundServiceError {
-    fn from(error: anyhow::Error) -> Self {
-        Self::recoverable(error)
     }
 }
 
@@ -118,8 +93,28 @@ fn transient_request_error(error: &anyhow::Error) -> Option<OutboundServiceError
 }
 
 impl From<sqlx::Error> for OutboundServiceError {
+    /// Only lock contention is recoverable, every other database error is
+    /// fatal.
     fn from(error: sqlx::Error) -> Self {
-        Self::Recoverable(error.into())
+        if is_db_busy(&error) {
+            Self::Recoverable(Recoverable::busy(error))
+        } else {
+            Self::Fatal(error.into())
+        }
+    }
+}
+
+fn is_db_busy(error: &sqlx::Error) -> bool {
+    const SQLITE_BUSY: i32 = 5;
+    const SQLITE_LOCKED: i32 = 6;
+    match error {
+        sqlx::Error::PoolTimedOut => true,
+        sqlx::Error::Database(error) => error
+            .code()
+            .and_then(|code| code.parse::<i32>().ok())
+            // Extended result codes keep the primary code in the low byte
+            .is_some_and(|code| matches!(code & 0xff, SQLITE_BUSY | SQLITE_LOCKED)),
+        _ => false,
     }
 }
 
@@ -127,7 +122,7 @@ impl From<DsRequestError> for OutboundServiceError {
     fn from(error: DsRequestError) -> Self {
         // The queue resolves a wrong epoch, so a later attempt may succeed
         if error.is_wrong_epoch() {
-            return Self::Recoverable(error.into());
+            return Self::Recoverable(Recoverable::wrong_epoch(error));
         }
         Self::from_request_error(error)
     }
@@ -140,16 +135,15 @@ impl From<QsRequestError> for OutboundServiceError {
 }
 
 impl OutboundServiceError {
-    /// Server errors are recoverable, everything the server refused for good
-    /// is fatal.
     fn from_request_error(
         error: impl ClassifyRequestError + std::error::Error + Send + Sync + 'static,
     ) -> Self {
-        match error.kind() {
-            RequestErrorKind::RateLimited { retry_after } => Self::RateLimited { retry_after },
-            RequestErrorKind::Network => Self::NetworkError,
-            RequestErrorKind::ServerError => Self::Recoverable(error.into()),
-            RequestErrorKind::NotFound | RequestErrorKind::Rejected => Self::Fatal(error.into()),
+        match RequestFailure::classify(error) {
+            RequestFailure::RateLimited { retry_after, .. } => Self::RateLimited { retry_after },
+            RequestFailure::Network(_) => Self::NetworkError,
+            RequestFailure::Recoverable(recoverable) => Self::Recoverable(recoverable),
+            // Not found keeps the request error, see `is_ds_not_found_error`
+            RequestFailure::NotFound(error) | RequestFailure::Fatal(error) => Self::Fatal(error),
         }
     }
 }
@@ -181,7 +175,11 @@ impl RunResultExt for Result<(), OutboundServiceError> {
     fn or_abort(self, task: &'static str) -> Result<(), WorkAborted> {
         match self {
             Ok(()) => Ok(()),
-            Err(OutboundServiceError::Fatal(error) | OutboundServiceError::Recoverable(error)) => {
+            Err(OutboundServiceError::Fatal(error)) => {
+                error!(%error, task, "Outbound service task failed");
+                Ok(())
+            }
+            Err(OutboundServiceError::Recoverable(error)) => {
                 error!(%error, task, "Outbound service task failed");
                 Ok(())
             }
@@ -211,6 +209,7 @@ mod tests {
     use tonic::Status;
 
     use super::*;
+    use crate::job::recoverable::RecoverableCause;
 
     #[test]
     fn rate_limits_are_found_in_anyhow_chains() {
@@ -220,31 +219,31 @@ mod tests {
             .insert("retry-after", "3".parse().unwrap());
         let error = anyhow::Error::from(AsRequestError::Tonic(status)).context("refreshing");
         assert_matches!(
-            OutboundServiceError::from(error),
+            OutboundServiceError::fatal(error),
             OutboundServiceError::RateLimited { retry_after: Some(retry_after) }
                 if retry_after == Duration::from_secs(3)
-        );
-
-        let error = anyhow::Error::from(QsRequestError::Tonic(Status::internal("boom")));
-        assert_matches!(
-            OutboundServiceError::from(error),
-            OutboundServiceError::Recoverable(_)
         );
     }
 
     #[test]
-    fn only_fatal_reports_network_errors_from_anyhow_chains() {
-        let network = || {
-            anyhow::Error::from(AsRequestError::Tonic(Status::unavailable("down")))
-                .context("verifying credentials")
-        };
+    fn server_errors_are_recoverable() {
+        let error = QsRequestError::Tonic(Status::internal("boom"));
         assert_matches!(
-            OutboundServiceError::fatal(network()),
-            OutboundServiceError::NetworkError
+            OutboundServiceError::from(error),
+            OutboundServiceError::Recoverable(Recoverable {
+                cause: RecoverableCause::Server,
+                ..
+            })
         );
+    }
+
+    #[test]
+    fn network_errors_are_found_in_anyhow_chains() {
+        let error = anyhow::Error::from(AsRequestError::Tonic(Status::unavailable("down")))
+            .context("verifying credentials");
         assert_matches!(
-            OutboundServiceError::recoverable(network()),
-            OutboundServiceError::Recoverable(_)
+            OutboundServiceError::fatal(error),
+            OutboundServiceError::NetworkError
         );
         assert_matches!(
             OutboundServiceError::fatal(anyhow::anyhow!("invalid group state")),
