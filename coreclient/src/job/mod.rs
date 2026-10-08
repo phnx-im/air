@@ -4,9 +4,7 @@
 
 use std::time::Duration;
 
-use airapiclient::{
-    ApiClientInitError, ClassifyRequestError, as_api::AsRequestError, ds_api::DsRequestError,
-};
+use airapiclient::{ApiClientInitError, as_api::AsRequestError, ds_api::DsRequestError};
 use aircommon::{codec, identifiers::QsClientId};
 use chrono::{DateTime, Utc};
 use sqlx::SqliteConnection;
@@ -225,21 +223,19 @@ pub(crate) trait Job: Send {
 
 impl<E> From<AsRequestError> for JobError<E> {
     fn from(error: AsRequestError) -> Self {
-        Self::from_request_error(error)
+        Self::from_request_failure(RequestFailure::classify(error))
     }
 }
 
 impl<E> From<DsRequestError> for JobError<E> {
     fn from(error: DsRequestError) -> Self {
-        Self::from_request_error(error)
+        Self::from_request_failure(RequestFailure::classify_ds(error))
     }
 }
 
 impl<E> JobError<E> {
-    fn from_request_error(
-        error: impl ClassifyRequestError + std::error::Error + Send + Sync + 'static,
-    ) -> Self {
-        match RequestFailure::classify(error) {
+    fn from_request_failure(failure: RequestFailure) -> Self {
+        match failure {
             RequestFailure::RateLimited { retry_after, error } => {
                 warn!(?error, "Job failed due to rate limiting");
                 Self::RateLimited { retry_after }

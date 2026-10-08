@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use airapiclient::{ClassifyRequestError, RequestErrorKind};
+use airapiclient::{ClassifyRequestError, RequestErrorKind, ds_api::DsRequestError};
 
 #[derive(Debug, thiserror::Error)]
 #[error("{cause:?}: {error}")]
@@ -80,5 +80,13 @@ impl RequestFailure {
             RequestErrorKind::ServerError => Self::Recoverable(Recoverable::server(error)),
             RequestErrorKind::Rejected => Self::Fatal(error.into()),
         }
+    }
+
+    /// The queue resolves a wrong epoch, so a later attempt may succeed.
+    pub(crate) fn classify_ds(error: DsRequestError) -> Self {
+        if error.is_wrong_epoch() {
+            return Self::Recoverable(Recoverable::wrong_epoch(error));
+        }
+        Self::classify(error)
     }
 }

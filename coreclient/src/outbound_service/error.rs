@@ -120,25 +120,19 @@ fn is_db_busy(error: &sqlx::Error) -> bool {
 
 impl From<DsRequestError> for OutboundServiceError {
     fn from(error: DsRequestError) -> Self {
-        // The queue resolves a wrong epoch, so a later attempt may succeed
-        if error.is_wrong_epoch() {
-            return Self::Recoverable(Recoverable::wrong_epoch(error));
-        }
-        Self::from_request_error(error)
+        Self::from_request_failure(RequestFailure::classify_ds(error))
     }
 }
 
 impl From<QsRequestError> for OutboundServiceError {
     fn from(error: QsRequestError) -> Self {
-        Self::from_request_error(error)
+        Self::from_request_failure(RequestFailure::classify(error))
     }
 }
 
 impl OutboundServiceError {
-    fn from_request_error(
-        error: impl ClassifyRequestError + std::error::Error + Send + Sync + 'static,
-    ) -> Self {
-        match RequestFailure::classify(error) {
+    fn from_request_failure(failure: RequestFailure) -> Self {
+        match failure {
             RequestFailure::RateLimited { retry_after, .. } => Self::RateLimited { retry_after },
             RequestFailure::Network(_) => Self::NetworkError,
             RequestFailure::Recoverable(recoverable) => Self::Recoverable(recoverable),

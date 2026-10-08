@@ -606,6 +606,7 @@ impl PendingChatOperation {
                     // resolve it.
                     self.mark_as_waiting_for_queue_response(db.write().await?)
                         .await?;
+                    return Err(JobError::Blocked);
                 };
 
                 return Err(error);
