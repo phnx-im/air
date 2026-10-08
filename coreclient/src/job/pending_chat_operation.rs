@@ -285,23 +285,25 @@ impl Job for PendingChatOperation {
         mut self,
         context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
-        let result = match self.execute_internal(context).await {
-            // A server error spends an attempt like a failed request to the DS
-            Err(JobError::Recoverable(Recoverable {
-                error,
-                cause: RecoverableCause::Server,
-            })) => {
-                self.number_of_attempts += 1;
-                Err(if self.number_of_attempts >= MAX_RETRIES {
-                    JobError::Fatal(error.context(format!(
-                        "Job failed after {MAX_RETRIES} attempts due to server errors"
-                    )))
-                } else {
-                    JobError::Recoverable(error)
-                })
-            }
-            result => result,
-        };
+        let result = self
+            .execute_internal(context)
+            .await
+            .map_err(|error| match error {
+                // A server error spends an attempt
+                JobError::Recoverable(recoverable)
+                    if recoverable.cause == RecoverableCause::Server =>
+                {
+                    self.number_of_attempts += 1;
+                    if self.number_of_attempts >= MAX_RETRIES {
+                        JobError::Fatal(recoverable.error.context(format!(
+                            "Job failed after {MAX_RETRIES} attempts due to server errors"
+                        )))
+                    } else {
+                        JobError::Recoverable(recoverable)
+                    }
+                }
+                e => e,
+            });
         match result {
             // Update retry_due at on errors a later attempt may get past
             Err(
