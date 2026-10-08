@@ -7,7 +7,7 @@ name: Promote Linux packages to stable
 # Shares the release queue, so a promotion never runs while a release run
 # rewrites the repositories.
 concurrency:
-  group: app-release-linux
+  group: app-release
   queue: max
 
 on:
@@ -17,6 +17,10 @@ on:
         description: "Beta package version to promote, as <version>-<build number> (e.g. 0.23.0-1490)"
         required: true
         type: string
+      flatpak:
+        description: "Also promote the Flatpak (off while beta has no Flatpak of that version)"
+        default: true
+        type: boolean
 
 jobs:
   linux-promote:
@@ -32,7 +36,7 @@ jobs:
       - name: Setup package publishing
         uses: ./.github/actions/setup-linux-publish
         with:
-          apt-packages: apt-utils createrepo-c dnf dnf-plugins-core rpm
+          apt-packages: apt-utils createrepo-c dnf dnf-plugins-core rpm flatpak ostree
           gpg-key-id: ${{ vars.GPG_KEY_ID }}
           gpg-signing-key: ${{ secrets.GPG_SIGNING_KEY }}
           gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
@@ -46,4 +50,5 @@ jobs:
           S3_BUCKET: ${{ vars.S3_BUCKET }}
           S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
           VERSION: ${{ inputs.version }}
-        run: cargo xtask promote-packages --from beta --to stable --version "$VERSION"
+          SKIP_FLATPAK: ${{ !inputs.flatpak && '--skip-flatpak' || '' }}
+        run: cargo xtask promote-packages --from beta --to stable --version "$VERSION" $SKIP_FLATPAK
