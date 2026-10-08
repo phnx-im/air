@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n            key,\n            attempts AS \"attempts: _\"\n        FROM self_group_outbox\n        WHERE kind = ?1 AND (retry_at IS NULL OR retry_at <= ?2)\n        ORDER BY key",
+  "describe": {
+    "columns": [
+      {
+        "name": "key",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "self_group_outbox",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "name": "attempts: _",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "self_group_outbox",
+            "name": "attempts"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "bdd493503615b6344c61914fdb5f5a7902a50884a4509388daf06537131a0d41"
+}

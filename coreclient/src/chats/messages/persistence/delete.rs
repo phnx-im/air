@@ -9,7 +9,7 @@
 //! The outbound service sends the parked IDs as a [`DeletedMessages`] self-group
 //! application message, and the siblings erase their copy on receipt.
 
-use aircommon::identifiers::MimiId;
+use aircommon::{identifiers::MimiId, time::TimeStamp};
 use airprotos::client::self_group::DeletedMessages;
 use tracing::debug;
 
@@ -57,6 +57,7 @@ pub(crate) async fn store_outgoing_deletion(
     .await
 }
 
+#[cfg(test)]
 pub(crate) async fn staged_deletions(connection: impl ReadConnection) -> sqlx::Result<Vec<MimiId>> {
     Ok(
         self_group_outbox::load_kind(connection, OutboxKind::DeletedMessage)
@@ -65,6 +66,41 @@ pub(crate) async fn staged_deletions(connection: impl ReadConnection) -> sqlx::R
             .filter_map(|entry| MimiId::from_slice(&entry.key).ok())
             .collect(),
     )
+}
+
+/// The parked deletions that are due at `now`, with their failed attempts so
+/// far.
+pub(crate) async fn due_deletions(
+    connection: impl ReadConnection,
+    now: TimeStamp,
+) -> sqlx::Result<Vec<(MimiId, u32)>> {
+    Ok(
+        self_group_outbox::load_due(connection, OutboxKind::DeletedMessage, now)
+            .await?
+            .into_iter()
+            .filter_map(|entry| Some((MimiId::from_slice(&entry.key).ok()?, entry.attempts)))
+            .collect(),
+    )
+}
+
+/// Keeps the parked deletions until `retry_at`.
+pub(crate) async fn defer_deletions(
+    mut connection: impl WriteConnection,
+    mimi_ids: &[MimiId],
+    attempts: u32,
+    retry_at: TimeStamp,
+) -> sqlx::Result<()> {
+    for mimi_id in mimi_ids {
+        self_group_outbox::record_failed_attempt(
+            &mut connection,
+            OutboxKind::DeletedMessage,
+            mimi_id.as_slice(),
+            attempts,
+            retry_at,
+        )
+        .await?;
+    }
+    Ok(())
 }
 
 /// Drops the parked deletions.

@@ -18,6 +18,7 @@ use crate::{
             FetchGroupProfileOperation, FetchRequestSenderProfileOperation,
             FetchUserProfileOperation,
         },
+        recoverable::{Recoverable, RecoverableCause},
     },
     outbound_service::{
         OutboundServiceContext,
@@ -109,7 +110,14 @@ impl OutboundServiceContext {
                 op.delete(self.db.write().await?).await?;
             }
             // Never give up, these failures are not specific to the profile
-            Err(error @ (JobError::NetworkError | JobError::RateLimited { .. })) => {
+            Err(
+                error @ (JobError::NetworkError
+                | JobError::RateLimited { .. }
+                | JobError::Recoverable(Recoverable {
+                    cause: RecoverableCause::Busy,
+                    ..
+                })),
+            ) => {
                 let retry_after = match &error {
                     JobError::RateLimited {
                         retry_after: Some(retry_after),

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE self_group_outbox SET attempts = ?1, retry_at = ?2 WHERE kind = ?3 AND key = ?4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "0819a3949cb5b4d1043b63e3697f582a1557bd1e5bb2c7503c42e44833b41d97"
+}

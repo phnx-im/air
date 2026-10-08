@@ -862,6 +862,43 @@ pub(crate) async fn redeemed_tokens_to_broadcast(
     Ok(group_positions(positions))
 }
 
+/// Like [`redeemed_tokens_to_broadcast`], with the failed attempts to broadcast
+/// each message so far, the most of any of its tokens.
+pub(crate) async fn redeemed_tokens_due(
+    connection: impl ReadConnection,
+    now: DateTime<Utc>,
+) -> sqlx::Result<Vec<(RedeemedTokens, u32)>> {
+    let due = persistence::load_redeemed_due_with_attempts(connection, now).await?;
+    let attempts: BTreeMap<TokenPosition, u32> = due.iter().copied().collect();
+    let messages = group_positions(due.into_iter().map(|(position, _)| position).collect());
+    Ok(messages
+        .into_iter()
+        .map(|message| {
+            let message_attempts = positions_from_wire(&message)
+                .into_iter()
+                .flatten()
+                .filter_map(|position| attempts.get(&position).copied())
+                .max()
+                .unwrap_or_default();
+            (message, message_attempts)
+        })
+        .collect())
+}
+
+/// Defers the pending broadcasts of the positions `redeemed` names to
+/// `broadcast_after`.
+pub(crate) async fn defer_redeemed_broadcasts(
+    txn: &mut WriteDbTransaction<'_>,
+    redeemed: &RedeemedTokens,
+    attempts: u32,
+    broadcast_after: DateTime<Utc>,
+) -> anyhow::Result<()> {
+    for position in positions_from_wire(redeemed).into_iter().flatten() {
+        persistence::defer_redeemed(&mut *txn, &position, attempts, broadcast_after).await?;
+    }
+    Ok(())
+}
+
 /// Retires the pending broadcasts of the positions `redeemed` names, once a
 /// message of ours carried them or there is no sibling to tell.
 pub(crate) async fn retire_redeemed_broadcasts(

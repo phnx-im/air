@@ -30,7 +30,7 @@ pub(crate) enum RetryDecision {
 
 impl RetryPolicy {
     pub(crate) const PROFILE_FETCHES: Self = Self {
-        max_attempts: 7,
+        max_attempts: 14,
         base: TimeDelta::seconds(5),
         max: TimeDelta::hours(24),
     };
@@ -42,6 +42,13 @@ impl RetryPolicy {
     };
 
     pub(crate) const REACTIONS_AND_RECEIPTS: Self = Self {
+        max_attempts: 5,
+        base: TimeDelta::seconds(30),
+        max: TimeDelta::minutes(10),
+    };
+
+    /// Deleted messages and redeemed tokens sent to the siblings.
+    pub(crate) const SELF_GROUP_MESSAGES: Self = Self {
         max_attempts: 5,
         base: TimeDelta::seconds(30),
         max: TimeDelta::minutes(10),

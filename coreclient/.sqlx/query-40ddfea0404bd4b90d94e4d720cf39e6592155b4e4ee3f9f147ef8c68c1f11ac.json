@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n            operation_type,\n            key_fingerprint,\n            allowance_epoch,\n            token_index,\n            broadcast_attempts AS \"broadcast_attempts: _\"\n         FROM privacy_pass_redeemed\n         WHERE broadcast_after IS NOT NULL AND broadcast_after <= ?\n         ORDER BY operation_type, key_fingerprint, allowance_epoch, token_index",
+  "describe": {
+    "columns": [
+      {
+        "name": "operation_type",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_redeemed",
+            "name": "operation_type"
+          }
+        }
+      },
+      {
+        "name": "key_fingerprint",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_redeemed",
+            "name": "key_fingerprint"
+          }
+        }
+      },
+      {
+        "name": "allowance_epoch",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_redeemed",
+            "name": "allowance_epoch"
+          }
+        }
+      },
+      {
+        "name": "token_index",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_redeemed",
+            "name": "token_index"
+          }
+        }
+      },
+      {
+        "name": "broadcast_attempts: _",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_redeemed",
+            "name": "broadcast_attempts"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "40ddfea0404bd4b90d94e4d720cf39e6592155b4e4ee3f9f147ef8c68c1f11ac"
+}

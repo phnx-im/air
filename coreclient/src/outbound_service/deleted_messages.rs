@@ -5,16 +5,21 @@
 //! Tells sibling clients which messages were deleted locally, using a
 //! [`SelfGroupAppMessage`].
 
-use aircommon::identifiers::MimiId;
+use aircommon::{identifiers::MimiId, time::TimeStamp};
 use airprotos::client::self_group::{
     DeletedMessages, MAX_DELETED_MESSAGES_PER_MESSAGE, SelfGroupAppMessage,
 };
+use chrono::Utc;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::{
-    chats::messages::persistence, db::access::WriteDbTransaction,
-    outbound_service::error::OutboundServiceError,
+    chats::messages::persistence,
+    db::access::WriteDbTransaction,
+    outbound_service::{
+        error::OutboundServiceError,
+        retry::{RetryDecision, RetryPolicy},
+    },
 };
 
 use super::{OutboundService, OutboundServiceContext, SendOutcome, self_chat::SelfChatReadiness};
@@ -36,15 +41,16 @@ impl OutboundServiceContext {
     /// Sends the parked deletions to the siblings, in batches.
     ///
     /// A batch stays parked until the DS accepts it, unless there are no linked
-    /// devices or the batch failed fatally.
+    /// devices, the batch failed fatally or its retry budget is used up.
     pub(super) async fn send_deleted_messages(
         &self,
         run_token: &CancellationToken,
     ) -> Result<(), OutboundServiceError> {
-        let staged = persistence::staged_deletions(self.db.read().await?).await?;
-        if staged.is_empty() {
+        let due = persistence::due_deletions(self.db.read().await?, TimeStamp::now()).await?;
+        if due.is_empty() {
             return Ok(());
         }
+        let staged: Vec<MimiId> = due.iter().map(|(mimi_id, _)| *mimi_id).collect();
 
         let chat = match self
             .self_chat_for_app_message()
@@ -65,10 +71,18 @@ impl OutboundServiceContext {
             SelfChatReadiness::Ready(chat) => chat,
         };
 
-        for batch in staged.chunks(MAX_DELETED_MESSAGES_PER_MESSAGE) {
+        let policy = RetryPolicy::SELF_GROUP_MESSAGES;
+        for due_batch in due.chunks(MAX_DELETED_MESSAGES_PER_MESSAGE) {
             if run_token.is_cancelled() {
                 return Ok(());
             }
+            let batch: Vec<MimiId> = due_batch.iter().map(|(mimi_id, _)| *mimi_id).collect();
+            let batch = batch.as_slice();
+            let attempts = due_batch
+                .iter()
+                .map(|(_, attempts)| *attempts)
+                .max()
+                .unwrap_or_default();
             let content = SelfGroupAppMessage::DeletedMessages(DeletedMessages {
                 mimi_ids: batch.to_vec(),
             })
@@ -77,7 +91,7 @@ impl OutboundServiceContext {
                 Ok(content) => self.send_application_message(&chat, content).await,
                 Err(error) => Err(OutboundServiceError::fatal(error)),
             };
-            match result {
+            match policy.fatal_when_exhausted(result, attempts) {
                 Ok(SendOutcome::Sent) => {
                     info!(
                         count = batch.len(),
@@ -100,6 +114,20 @@ impl OutboundServiceContext {
                     self.remove_staged_deletions(batch)
                         .await
                         .map_err(OutboundServiceError::fatal)?;
+                }
+                // Keep the batch for a later run, the next batches may still go out
+                Err(OutboundServiceError::Recoverable(error)) => {
+                    warn!(%error, count = batch.len(), "Failed to tell the siblings about deleted messages; retrying later");
+                    if let RetryDecision::Backoff { attempts, retry_in } = policy.decide(attempts) {
+                        let retry_at = TimeStamp::from(Utc::now() + retry_in);
+                        persistence::defer_deletions(
+                            self.db.write().await?,
+                            batch,
+                            attempts,
+                            retry_at,
+                        )
+                        .await?;
+                    }
                 }
                 Err(error) => return Err(error),
             }

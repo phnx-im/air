@@ -9,9 +9,15 @@
 use airprotos::client::self_group::{RedeemedTokens, SelfGroupAppMessage};
 use chrono::Utc;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
-use crate::{outbound_service::error::OutboundServiceError, privacy_pass};
+use crate::{
+    outbound_service::{
+        error::OutboundServiceError,
+        retry::{RetryDecision, RetryPolicy},
+    },
+    privacy_pass,
+};
 
 use super::{OutboundServiceContext, SendOutcome, self_chat::SelfChatReadiness};
 
@@ -20,16 +26,17 @@ impl OutboundServiceContext {
     /// one message per batch.
     ///
     /// The rows are not deleted until the DS accepts the message, unless there
-    /// are no linked devices or the message failed fatally.
+    /// are no linked devices, the message failed fatally or its retry budget is
+    /// used up.
     pub(super) async fn send_redeemed_tokens(
         &self,
         run_token: &CancellationToken,
     ) -> Result<(), OutboundServiceError> {
-        let redeemed =
-            privacy_pass::redeemed_tokens_to_broadcast(self.db.read().await?, Utc::now()).await?;
-        if redeemed.is_empty() {
+        let due = privacy_pass::redeemed_tokens_due(self.db.read().await?, Utc::now()).await?;
+        if due.is_empty() {
             return Ok(());
         }
+        let redeemed: Vec<RedeemedTokens> = due.iter().map(|(message, _)| message.clone()).collect();
 
         let chat = match self
             .self_chat_for_app_message()
@@ -50,12 +57,14 @@ impl OutboundServiceContext {
             SelfChatReadiness::Ready(chat) => chat,
         };
 
-        for message in &redeemed {
+        let policy = RetryPolicy::SELF_GROUP_MESSAGES;
+        for (message, attempts) in &due {
             if run_token.is_cancelled() {
                 return Ok(());
             }
             let app_message = SelfGroupAppMessage::RedeemedTokens(message.clone());
-            match self.send_self_group_message(&chat, app_message).await {
+            let result = self.send_self_group_message(&chat, app_message).await;
+            match policy.fatal_when_exhausted(result, *attempts) {
                 Ok(SendOutcome::Sent) => {
                     info!(
                         operation_type = %message.operation_type,
@@ -81,6 +90,30 @@ impl OutboundServiceContext {
                     self.retire_redeemed(std::slice::from_ref(message))
                         .await
                         .map_err(OutboundServiceError::fatal)?;
+                }
+                // Keep the message for a later run, the next ones may still go out
+                Err(OutboundServiceError::Recoverable(error)) => {
+                    warn!(
+                        %error,
+                        operation_type = %message.operation_type,
+                        allowance_epoch = message.allowance_epoch,
+                        "Failed to tell the siblings about redeemed privacy pass tokens; retrying later"
+                    );
+                    if let RetryDecision::Backoff { attempts, retry_in } = policy.decide(*attempts) {
+                        let broadcast_after = Utc::now() + retry_in;
+                        self.db
+                            .with_write_transaction(async |txn| {
+                                privacy_pass::defer_redeemed_broadcasts(
+                                    txn,
+                                    message,
+                                    attempts,
+                                    broadcast_after,
+                                )
+                                .await
+                            })
+                            .await
+                            .map_err(OutboundServiceError::fatal)?;
+                    }
                 }
                 Err(error) => return Err(error),
             }

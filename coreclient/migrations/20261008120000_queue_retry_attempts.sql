@@ -22,7 +22,15 @@ ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE receipt_queue
 ADD COLUMN retry_at TEXT;
 
+ALTER TABLE self_group_outbox
+ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE self_group_outbox
+ADD COLUMN retry_at TEXT;
+
+ALTER TABLE privacy_pass_redeemed
+ADD COLUMN broadcast_attempts INTEGER NOT NULL DEFAULT 0;
+
 -- Messages and reactions of a chat are sent in order.
 CREATE INDEX idx_chat_message_queue_chat_id ON chat_message_queue (chat_id, created_at);
-
 CREATE INDEX idx_reaction_queue_chat_id ON reaction_queue (chat_id, created_at);
