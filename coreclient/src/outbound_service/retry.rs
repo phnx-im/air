@@ -6,10 +6,10 @@
 
 use chrono::TimeDelta;
 
-use crate::{job::recoverable::RecoverableCause, outbound_service::error::OutboundServiceError};
+use crate::outbound_service::error::OutboundServiceError;
 
-/// How often an item is retried after server errors, and how long to wait in
-/// between.
+/// How often an item is retried after recoverable errors, and how long to wait
+/// in between.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RetryPolicy {
     /// The attempt that reaches this number gives up.
@@ -22,8 +22,6 @@ pub(crate) struct RetryPolicy {
 /// What to do with an item after a recoverable error.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum RetryDecision {
-    /// Leave the item untouched. The next run picks it up again.
-    Retry,
     /// Spend an attempt and defer the next one.
     Backoff { attempts: u32, retry_in: TimeDelta },
     /// Spend the last attempt and give up.
@@ -31,6 +29,12 @@ pub(crate) enum RetryDecision {
 }
 
 impl RetryPolicy {
+    pub(crate) const PROFILE_FETCHES: Self = Self {
+        max_attempts: 7,
+        base: TimeDelta::seconds(5),
+        max: TimeDelta::hours(24),
+    };
+
     pub(crate) const MESSAGES: Self = Self {
         max_attempts: 4,
         base: TimeDelta::seconds(5),
@@ -49,15 +53,7 @@ impl RetryPolicy {
         max: TimeDelta::hours(1),
     };
 
-    /// Only server errors spend an attempt. The other causes wait for
-    /// something else to catch up, the item itself is fine.
-    pub(crate) fn decide(&self, cause: RecoverableCause, attempts: u32) -> RetryDecision {
-        match cause {
-            RecoverableCause::Server => (),
-            RecoverableCause::WrongEpoch | RecoverableCause::Busy | RecoverableCause::Deferred => {
-                return RetryDecision::Retry;
-            }
-        }
+    pub(crate) fn decide(&self, attempts: u32) -> RetryDecision {
         let attempts = attempts + 1;
         if attempts >= self.max_attempts {
             RetryDecision::GiveUp
@@ -78,7 +74,7 @@ impl RetryPolicy {
     ) -> Result<T, OutboundServiceError> {
         match result {
             Err(OutboundServiceError::Recoverable(error))
-                if self.decide(error.cause, attempts) == RetryDecision::GiveUp =>
+                if self.decide(attempts) == RetryDecision::GiveUp =>
             {
                 Err(OutboundServiceError::Fatal(
                     anyhow::Error::from(error)
@@ -106,28 +102,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn only_server_errors_spend_an_attempt() {
-        for cause in [
-            RecoverableCause::WrongEpoch,
-            RecoverableCause::Busy,
-            RecoverableCause::Deferred,
-        ] {
-            assert_eq!(RetryPolicy::RESYNC.decide(cause, 3), RetryDecision::Retry);
-        }
-    }
-
-    #[test]
-    fn server_error_spends_an_attempt_with_backoff() {
+    fn error_spends_an_attempt_with_backoff() {
         let policy = RetryPolicy::RESYNC;
         assert_eq!(
-            policy.decide(RecoverableCause::Server, 0),
+            policy.decide(0),
             RetryDecision::Backoff {
                 attempts: 1,
                 retry_in: TimeDelta::minutes(1),
             }
         );
         assert_eq!(
-            policy.decide(RecoverableCause::Server, 3),
+            policy.decide(3),
             RetryDecision::Backoff {
                 attempts: 4,
                 retry_in: TimeDelta::minutes(8),
@@ -142,7 +127,7 @@ mod tests {
             ..RetryPolicy::MESSAGES
         };
         assert_eq!(
-            policy.decide(RecoverableCause::Server, 8),
+            policy.decide(8),
             RetryDecision::Backoff {
                 attempts: 9,
                 retry_in: policy.max,
@@ -151,35 +136,30 @@ mod tests {
     }
 
     #[test]
-    fn last_server_error_gives_up() {
+    fn last_error_gives_up() {
         let policy = RetryPolicy::MESSAGES;
         assert_eq!(
-            policy.decide(RecoverableCause::Server, policy.max_attempts - 1),
+            policy.decide(policy.max_attempts - 1),
             RetryDecision::GiveUp
         );
     }
 
     #[test]
-    fn exhausted_budget_turns_server_errors_fatal() {
+    fn exhausted_budget_turns_recoverable_errors_fatal() {
         let policy = RetryPolicy::MESSAGES;
-        let server_error =
-            || Err::<(), _>(OutboundServiceError::Recoverable(Recoverable::server(anyhow!("boom"))));
+        let wrong_epoch = || {
+            Err::<(), _>(OutboundServiceError::Recoverable(Recoverable::wrong_epoch(
+                anyhow!("epoch"),
+            )))
+        };
 
         assert_matches!(
-            policy.fatal_when_exhausted(server_error(), policy.max_attempts - 2),
+            policy.fatal_when_exhausted(wrong_epoch(), policy.max_attempts - 2),
             Err(OutboundServiceError::Recoverable(_))
         );
         assert_matches!(
-            policy.fatal_when_exhausted(server_error(), policy.max_attempts - 1),
+            policy.fatal_when_exhausted(wrong_epoch(), policy.max_attempts - 1),
             Err(OutboundServiceError::Fatal(_))
-        );
-
-        let wrong_epoch = Err::<(), _>(OutboundServiceError::Recoverable(
-            Recoverable::wrong_epoch(anyhow!("epoch")),
-        ));
-        assert_matches!(
-            policy.fatal_when_exhausted(wrong_epoch, policy.max_attempts * 10),
-            Err(OutboundServiceError::Recoverable(_))
         );
     }
 }

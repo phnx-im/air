@@ -52,7 +52,6 @@ use crate::{
     job::{
         Job, JobContext, JobContextReadConnection, JobError,
         chat_operation::{ChatOperationError, DerivationEpoch},
-        recoverable::RecoverableCause,
     },
     key_stores::{
         indexed_keys::StorableIndexedKey,
@@ -289,14 +288,12 @@ impl Job for PendingChatOperation {
             .execute_internal(context)
             .await
             .map_err(|error| match error {
-                // A server error spends an attempt
-                JobError::Recoverable(recoverable)
-                    if recoverable.cause == RecoverableCause::Server =>
-                {
+                // A recoverable error spends an attempt
+                JobError::Recoverable(recoverable) => {
                     self.number_of_attempts += 1;
                     if self.number_of_attempts >= MAX_RETRIES {
                         JobError::Fatal(recoverable.error.context(format!(
-                            "Job failed after {MAX_RETRIES} attempts due to server errors"
+                            "Job failed after {MAX_RETRIES} attempts due to recoverable errors"
                         )))
                     } else {
                         JobError::Recoverable(recoverable)

@@ -198,7 +198,9 @@ mod persistence {
             enqueue(&db, chat_id, 1).await?;
 
             let id = db
-                .with_write_transaction(async |txn| ReactionQueue::dequeue(txn, Uuid::new_v4()).await)
+                .with_write_transaction(async |txn| {
+                    ReactionQueue::dequeue(txn, Uuid::new_v4()).await
+                })
                 .await?
                 .expect("reaction is queued")
                 .id;
@@ -216,7 +218,9 @@ mod persistence {
 
             record(2, TimeDelta::seconds(-1)).await?;
             let dequeued = db
-                .with_write_transaction(async |txn| ReactionQueue::dequeue(txn, Uuid::new_v4()).await)
+                .with_write_transaction(async |txn| {
+                    ReactionQueue::dequeue(txn, Uuid::new_v4()).await
+                })
                 .await?
                 .expect("reaction is due again");
             assert_eq!(dequeued.attempts, 2);

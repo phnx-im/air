@@ -19,7 +19,10 @@ use crate::{
             FetchUserProfileOperation,
         },
     },
-    outbound_service::OutboundServiceContext,
+    outbound_service::{
+        OutboundServiceContext,
+        retry::{RetryDecision, RetryPolicy},
+    },
 };
 
 const RETRY_AFTER: Duration = Duration::from_secs(5);
@@ -105,29 +108,39 @@ impl OutboundServiceContext {
                 debug!(?operation_id, "fetched profile");
                 op.delete(self.db.write().await?).await?;
             }
-            // Never give up, fetching the profile is safe to repeat and these
-            // failures are not specific to it
-            Err(
-                error @ (JobError::NetworkError
-                | JobError::RateLimited { .. }
-                | JobError::Recoverable(_)),
-            ) => {
+            // Never give up, these failures are not specific to the profile
+            Err(error @ (JobError::NetworkError | JobError::RateLimited { .. })) => {
                 let retry_after = match &error {
                     JobError::RateLimited {
                         retry_after: Some(retry_after),
                     } => (*retry_after).max(RETRY_AFTER),
                     _ => RETRY_AFTER,
                 };
-                warn!(
-                    ?operation_id,
-                    attempt = op.retries + 1,
-                    %error,
-                    ?retry_after,
-                    "Failed to fetch profile; retrying later"
-                );
-                op.reschedule(self.db.write().await?, now + retry_after)
+                warn!(?operation_id, %error, ?retry_after, "Failed to fetch profile; retrying later");
+                op.postpone(self.db.write().await?, now + retry_after)
                     .await?;
                 return Ok(ControlFlow::Break(()));
+            }
+            Err(JobError::Recoverable(error)) => {
+                let attempts = u32::try_from(op.retries).unwrap_or(u32::MAX);
+                match RetryPolicy::PROFILE_FETCHES.decide(attempts) {
+                    RetryDecision::Backoff { attempts, retry_in } => {
+                        warn!(
+                            ?operation_id,
+                            attempts,
+                            %error,
+                            ?retry_in,
+                            "Failed to fetch profile; retrying later"
+                        );
+                        op.reschedule(self.db.write().await?, now + retry_in)
+                            .await?;
+                        return Ok(ControlFlow::Break(()));
+                    }
+                    RetryDecision::GiveUp => {
+                        error!(?operation_id, %error, "Failed to fetch profile; giving up");
+                        op.delete(self.db.write().await?).await?;
+                    }
+                }
             }
             Err(
                 error @ (JobError::Blocked

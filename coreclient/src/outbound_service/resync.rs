@@ -345,10 +345,7 @@ impl OutboundServiceContext {
                 return Ok(());
             }
             Err(OutboundServiceError::Recoverable(error)) => {
-                match RetryPolicy::RESYNC.decide(error.cause, attempts) {
-                    RetryDecision::Retry => {
-                        warn!(%error, "Resync failed; retrying later");
-                    }
+                match RetryPolicy::RESYNC.decide(attempts) {
                     RetryDecision::Backoff { attempts, retry_in } => {
                         warn!(%error, ?retry_in, "Resync failed; retrying later");
                         Resync::record_failed_attempt(
