@@ -58,6 +58,8 @@ L'orthographe française s'applique, pas l'anglaise. Le français met moins de m
 | **Associer** | Donner à un autre appareil l'accès au compte | Concerne les appareils, pas les contacts. À ne pas confondre avec "Se connecter" |
 | **Dissocier** | Retirer l'accès à un appareil associé | |
 | **Signaler comme spam** | Marquer un utilisateur ou un message comme indésirable/spam | Fonction de modération |
+| **Appuyer** | Anglais "tap" | Mobiles et tablettes. "Appuyez", "Appuyez sur" devant un objet. Pas "Touchez" |
+| **Cliquer** | Anglais "click" | Ordinateur, dans les clés `_desktop`. "Cliquez" |
 
 ## Termes de Fichiers et Données
 

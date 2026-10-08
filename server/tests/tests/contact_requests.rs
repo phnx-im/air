@@ -11,7 +11,9 @@ use aircoreclient::{
 };
 use airserver_test_harness::utils::setup::TestBackend;
 
-use super::group_bootstrap::{add_username, drain_expecting_success, receive_connection_offer};
+use super::group_bootstrap::{
+    add_username, drain_expecting_success, drain_username_queue, receive_connection_offer,
+};
 
 async fn system_messages(device: &CoreUser, chat_id: ChatId) -> Vec<SystemMessage> {
     device
@@ -27,7 +29,7 @@ async fn system_messages(device: &CoreUser, chat_id: ChatId) -> Vec<SystemMessag
 }
 
 /// The chats of pending contact requests from `sender`.
-async fn pending_chats_from(device: &CoreUser, sender: &UserId) -> Vec<ChatId> {
+pub(crate) async fn pending_chats_from(device: &CoreUser, sender: &UserId) -> Vec<ChatId> {
     let mut chats = Vec::new();
     for chat_id in device.ordered_chat_ids().await.unwrap() {
         let chat = device.chat(&chat_id).await.unwrap();
@@ -39,7 +41,7 @@ async fn pending_chats_from(device: &CoreUser, sender: &UserId) -> Vec<ChatId> {
 }
 
 /// A username of `user_id` besides the one the harness registers.
-async fn add_second_username(setup: &TestBackend, user_id: &UserId) -> UsernameRecord {
+pub(crate) async fn add_second_username(setup: &TestBackend, user_id: &UserId) -> UsernameRecord {
     let user = setup.get_user(user_id).user().clone();
     user.outbound_service().run_once().await;
     let suffix: String = user_id
@@ -114,6 +116,46 @@ async fn requests_of_one_sender_fold_into_the_chat_of_the_newest() {
         "accepting settles the older request too"
     );
     assert_eq!(bob_user.contacts().await.unwrap().len(), 1);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Older offer fetched after accepting", skip_all)]
+async fn an_offer_fetched_after_accepting_a_newer_one_is_dropped() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let first = add_username(&mut setup, &bob).await;
+    let second = add_second_username(&setup, &bob).await;
+
+    let alice_user = setup.get_user(&alice).user().clone();
+    let bob_user = setup.get_user(&bob).user().clone();
+    for record in [&first, &second] {
+        alice_user
+            .add_contact(record.username.clone(), record.hash, setup.apq_groups)
+            .await
+            .unwrap()
+            .unwrap();
+    }
+
+    // The newer offer is accepted while the older one still waits in its
+    // queue.
+    let chat_id = receive_connection_offer(&bob_user, &second).await;
+    bob_user
+        .accept_contact_request(chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+    drain_expecting_success(&alice_user, "alice failed to follow the accept").await;
+
+    assert_eq!(drain_username_queue(&bob_user, &first).await, None);
+    assert!(
+        pending_chats_from(&bob_user, &alice).await.is_empty(),
+        "an offer from a connected contact is stale"
+    );
+    assert_eq!(
+        bob_user.chat(&chat_id).await.unwrap().chat_type(),
+        &ChatType::Connection(alice.clone())
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

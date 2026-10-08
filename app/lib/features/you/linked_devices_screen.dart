@@ -70,7 +70,9 @@ class LinkedDevicesSection extends StatelessWidget {
             const SizedBox(height: S.s8),
           ],
           Text(
-            loc.linkedDevicesScreen_editNameHint,
+            DeviceType.isDesktop
+                ? loc.linkedDevicesScreen_editNameHint_desktop
+                : loc.linkedDevicesScreen_editNameHint,
             style: typeScale.body.xs.style(color: palette.text.quaternary),
           ),
           const SizedBox(height: S.s24),

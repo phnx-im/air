@@ -13086,6 +13086,26 @@ impl SseDecode for crate::api::types::UiReaction {
     }
 }
 
+impl SseDecode for crate::api::types::UiRequestGroupChat {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                let mut var_field0 = <String>::sse_decode(deserializer);
+                return crate::api::types::UiRequestGroupChat::Title(var_field0);
+            }
+            1 => {
+                let mut var_field0 = <crate::api::types::ChatId>::sse_decode(deserializer);
+                return crate::api::types::UiRequestGroupChat::Chat(var_field0);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
 impl SseDecode for crate::api::share_cubit::UiShareSendError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -13208,10 +13228,11 @@ impl SseDecode for crate::api::types::UiSystemMessage {
             }
             5 => {
                 let mut var_sender = <crate::api::types::UiUserId>::sse_decode(deserializer);
-                let mut var_chatName = <String>::sse_decode(deserializer);
+                let mut var_groupChat =
+                    <crate::api::types::UiRequestGroupChat>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::ReceivedDirectConnectionRequest {
                     sender: var_sender,
-                    chat_name: var_chatName,
+                    group_chat: var_groupChat,
                 };
             }
             6 => {
@@ -13262,8 +13283,9 @@ impl SseDecode for crate::api::types::UiSystemMessage {
             }
             15 => {
                 let mut var_sender = <crate::api::types::UiUserId>::sse_decode(deserializer);
-                let mut var_chatName = <String>::sse_decode(deserializer);
-                return crate::api::types::UiSystemMessage::ReceivedAdditionalDirectConnectionRequest{sender: var_sender, chat_name: var_chatName};
+                let mut var_groupChat =
+                    <crate::api::types::UiRequestGroupChat>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::ReceivedAdditionalDirectConnectionRequest{sender: var_sender, group_chat: var_groupChat};
             }
             16 => {
                 return crate::api::types::UiSystemMessage::SelfChatCreated;
@@ -16350,6 +16372,33 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiReaction>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::UiRequestGroupChat {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            crate::api::types::UiRequestGroupChat::Title(field0) => {
+                [0.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::types::UiRequestGroupChat::Chat(field0) => {
+                [1.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::UiRequestGroupChat
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiRequestGroupChat>
+    for crate::api::types::UiRequestGroupChat
+{
+    fn into_into_dart(self) -> crate::api::types::UiRequestGroupChat {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::share_cubit::UiShareSendError {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -16481,11 +16530,11 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
             .into_dart(),
             crate::api::types::UiSystemMessage::ReceivedDirectConnectionRequest {
                 sender,
-                chat_name,
+                group_chat,
             } => [
                 5.into_dart(),
                 sender.into_into_dart().into_dart(),
-                chat_name.into_into_dart().into_dart(),
+                group_chat.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::api::types::UiSystemMessage::AcceptedConnectionRequest { sender, username } => [
@@ -16530,11 +16579,11 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
             .into_dart(),
             crate::api::types::UiSystemMessage::ReceivedAdditionalDirectConnectionRequest {
                 sender,
-                chat_name,
+                group_chat,
             } => [
                 15.into_dart(),
                 sender.into_into_dart().into_dart(),
-                chat_name.into_into_dart().into_dart(),
+                group_chat.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::api::types::UiSystemMessage::SelfChatCreated => [16.into_dart()].into_dart(),
@@ -19655,6 +19704,25 @@ impl SseEncode for crate::api::types::UiReaction {
     }
 }
 
+impl SseEncode for crate::api::types::UiRequestGroupChat {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::api::types::UiRequestGroupChat::Title(field0) => {
+                <i32>::sse_encode(0, serializer);
+                <String>::sse_encode(field0, serializer);
+            }
+            crate::api::types::UiRequestGroupChat::Chat(field0) => {
+                <i32>::sse_encode(1, serializer);
+                <crate::api::types::ChatId>::sse_encode(field0, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
 impl SseEncode for crate::api::share_cubit::UiShareSendError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -19763,11 +19831,11 @@ impl SseEncode for crate::api::types::UiSystemMessage {
             }
             crate::api::types::UiSystemMessage::ReceivedDirectConnectionRequest {
                 sender,
-                chat_name,
+                group_chat,
             } => {
                 <i32>::sse_encode(5, serializer);
                 <crate::api::types::UiUserId>::sse_encode(sender, serializer);
-                <String>::sse_encode(chat_name, serializer);
+                <crate::api::types::UiRequestGroupChat>::sse_encode(group_chat, serializer);
             }
             crate::api::types::UiSystemMessage::AcceptedConnectionRequest { sender, username } => {
                 <i32>::sse_encode(6, serializer);
@@ -19815,11 +19883,11 @@ impl SseEncode for crate::api::types::UiSystemMessage {
             }
             crate::api::types::UiSystemMessage::ReceivedAdditionalDirectConnectionRequest {
                 sender,
-                chat_name,
+                group_chat,
             } => {
                 <i32>::sse_encode(15, serializer);
                 <crate::api::types::UiUserId>::sse_encode(sender, serializer);
-                <String>::sse_encode(chat_name, serializer);
+                <crate::api::types::UiRequestGroupChat>::sse_encode(group_chat, serializer);
             }
             crate::api::types::UiSystemMessage::SelfChatCreated => {
                 <i32>::sse_encode(16, serializer);
