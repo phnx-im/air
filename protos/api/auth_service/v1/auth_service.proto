@@ -627,6 +627,7 @@ message ListenUsernameRequest {
   oneof request {
     InitListenUsernameRequest init = 1;
     AckListenUsernameRequest ack = 2;
+    KeepAliveListenUsernameRequest keep_alive = 3;
   }
 }
 
@@ -647,6 +648,8 @@ message InitListenUsernamePayload {
 message AckListenUsernameRequest {
   common.v1.Uuid message_id = 1;
 }
+
+message KeepAliveListenUsernameRequest {}
 
 message ListenUsernameResponse {
   // Optional message

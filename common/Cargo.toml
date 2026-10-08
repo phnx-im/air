@@ -36,6 +36,7 @@ sha2 = { workspace = true, features = ["zeroize"] }
 sqlx = { workspace = true, features = ["sqlite", "postgres"] }
 thiserror.workspace = true
 tls_codec.workspace = true
+tokio = { workspace = true, features = ["time"] }
 tokio-stream.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
@@ -51,7 +52,7 @@ cbor-diag.workspace = true
 criterion.workspace = true
 insta.workspace = true
 serde_json.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 
 [features]
 test_utils = []

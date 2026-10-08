@@ -23,12 +23,11 @@ use aircommon::{
             AsCredentialsResponseIn, EncryptedUserProfile, GetUserProfileResponse,
             RegisterUserResponseIn, UsernameDeleteResponse,
         },
-        connection_package::ConnectionPackage,
-        connection_package::VersionedConnectionPackageIn,
+        connection_package::{ConnectionPackage, VersionedConnectionPackageIn},
         push_token::{PushToken, PushTokenOperator},
     },
     registration::{ChallengeKind, NewAdmissionSession, RegistrationChallenge, RegistrationInfo},
-    time::Duration,
+    utils::KeepAliveStream,
 };
 use airprotos::{
     auth_service::v1::{
@@ -38,12 +37,13 @@ use airprotos::{
         CreateUsernamePayload, DeleteUserPayload, DeleteUsernamePayload,
         EnqueueConnectionOfferStep, FetchSignedConnectionPackageStep, GetInvitationCodesRequest,
         GetRegistrationInfoRequest, GetUserProfileRequest, InitListenUsernamePayload,
-        InvitationCode, IssueTokenBatchPayload, IssueTokenBatchResponse, ListenUsernameRequest,
-        MergeUserProfilePayload, OperationType, PublishConnectionPackagesPayload, PushPlatform,
-        RefreshUsernamePayload, RegisterUserRequest, RegisterUserResponse, ReportSpamPayload,
-        SignedConnectionPackage, StageUserProfilePayload, UsernameQueueMessage,
-        connect_username_request, connect_username_response, issue_token_batch_response,
-        listen_username_request, register_user_response,
+        InvitationCode, IssueTokenBatchPayload, IssueTokenBatchResponse,
+        KeepAliveListenUsernameRequest, ListenUsernameRequest, MergeUserProfilePayload,
+        OperationType, PublishConnectionPackagesPayload, PushPlatform, RefreshUsernamePayload,
+        RegisterUserRequest, RegisterUserResponse, ReportSpamPayload, SignedConnectionPackage,
+        StageUserProfilePayload, UsernameQueueMessage, connect_username_request,
+        connect_username_response, issue_token_batch_response, listen_username_request,
+        register_user_response,
     },
     client::signed_connection_package::AnyConnectionPackageIn,
     common::v1::{StatusDetails, StatusDetailsCode},
@@ -56,7 +56,7 @@ use tonic::{Code, Request, Status};
 use tracing::error;
 use uuid::Uuid;
 
-use crate::ApiClient;
+use crate::{ApiClient, LISTEN_KEEPALIVE_INTERVAL};
 
 /// Errors that can occur when sending requests to the AS.
 #[derive(Error, Debug)]
@@ -251,7 +251,7 @@ impl ApiClient {
                     AsRequestError::UnexpectedResponse
                 })?
                 .into(),
-            lifetime: Duration::seconds(response.lifetime_seconds.into()),
+            lifetime: aircommon::time::Duration::seconds(response.lifetime_seconds.into()),
         })
     }
 
@@ -531,6 +531,7 @@ impl ApiClient {
         let init_request = init_payload.sign(signing_key)?;
 
         const ACK_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
+
         let (ack_tx, ack_rx) = mpsc::channel::<Uuid>(ACK_CHANNEL_BUFFER_SIZE);
 
         let requests = tokio_stream::once(ListenUsernameRequest {
@@ -545,6 +546,13 @@ impl ApiClient {
                 )),
             }),
         );
+        let requests = KeepAliveStream::new(requests, LISTEN_KEEPALIVE_INTERVAL, || {
+            ListenUsernameRequest {
+                request: Some(listen_username_request::Request::KeepAlive(
+                    KeepAliveListenUsernameRequest {},
+                )),
+            }
+        });
 
         let responses = self
             .as_grpc_client()
