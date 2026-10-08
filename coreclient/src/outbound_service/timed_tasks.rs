@@ -242,7 +242,9 @@ impl OutboundServiceContext {
         &self,
         run_token: &CancellationToken,
     ) -> Result<(), OutboundServiceError> {
-        self.ensure_timed_tasks_exist().await.map_err(OutboundServiceError::fatal)?;
+        self.ensure_timed_tasks_exist()
+            .await
+            .map_err(OutboundServiceError::fatal)?;
 
         let mut timed_task_context = TimedTaskContext {
             loaded_credentials: false,
@@ -351,7 +353,11 @@ impl OutboundServiceContext {
             TimedTaskKind::KeyPackageUpload => {
                 Ok(Some(Box::pin(self.upload_key_packages()).await?))
             }
-            TimedTaskKind::UsernameRefresh => Ok(Some(self.refresh_usernames().await.map_err(OutboundServiceError::fatal)?)),
+            TimedTaskKind::UsernameRefresh => Ok(Some(
+                self.refresh_usernames()
+                    .await
+                    .map_err(OutboundServiceError::fatal)?,
+            )),
             TimedTaskKind::SelfUpdate => self.self_update(run_token).await.map(Some),
             TimedTaskKind::TokenReplenishment { operation_type } => Ok(Some(
                 self.replenish_tokens(*operation_type, &mut context.loaded_credentials)

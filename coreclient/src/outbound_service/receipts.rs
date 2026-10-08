@@ -80,8 +80,9 @@ impl OutboundServiceContext {
                 return Ok(()); // the task is being stopped
             }
 
-            let Some((chat_id, statuses)) =
-                ReceiptQueue::dequeue(self.db.write().await?, task_id).await.map_err(OutboundServiceError::fatal)?
+            let Some((chat_id, statuses)) = ReceiptQueue::dequeue(self.db.write().await?, task_id)
+                .await
+                .map_err(OutboundServiceError::fatal)?
             else {
                 return Ok(());
             };

@@ -124,7 +124,9 @@ impl OutboundServiceContext {
                 }
                 Err(OutboundServiceError::Fatal(error)) => {
                     error!(%error, ?chat_id, "Failed to send reaction; dropping and rolling back");
-                    self.rollback_failed_reaction(&dequeued).await.map_err(OutboundServiceError::fatal)?;
+                    self.rollback_failed_reaction(&dequeued)
+                        .await
+                        .map_err(OutboundServiceError::fatal)?;
                 }
             }
         }

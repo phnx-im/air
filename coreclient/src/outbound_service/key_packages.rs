@@ -38,7 +38,10 @@ impl OutboundServiceContext {
             // the upload mechanism switches once another device is linked.
             Some(group) => self.upload_via_self_group(group).await,
             None => {
-                let batch = self.generate_key_packages().await.map_err(OutboundServiceError::fatal)?; // shared: plain + APQ
+                let batch = self
+                    .generate_key_packages()
+                    .await
+                    .map_err(OutboundServiceError::fatal)?; // shared: plain + APQ
                 self.upload_via_publish(batch).await
             }
         }

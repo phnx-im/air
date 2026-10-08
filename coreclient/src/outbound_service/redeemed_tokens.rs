@@ -31,10 +31,16 @@ impl OutboundServiceContext {
             return Ok(());
         }
 
-        let chat = match self.self_chat_for_app_message().await.map_err(OutboundServiceError::fatal)? {
+        let chat = match self
+            .self_chat_for_app_message()
+            .await
+            .map_err(OutboundServiceError::fatal)?
+        {
             SelfChatReadiness::NoSiblings => {
                 debug!("no sibling to tell about redeemed privacy pass tokens");
-                self.retire_redeemed(&redeemed).await.map_err(OutboundServiceError::fatal)?;
+                self.retire_redeemed(&redeemed)
+                    .await
+                    .map_err(OutboundServiceError::fatal)?;
                 return Ok(());
             }
             SelfChatReadiness::NotReady => {
@@ -57,7 +63,9 @@ impl OutboundServiceContext {
                         count = message.token_indices.len(),
                         "told the siblings about redeemed privacy pass tokens"
                     );
-                    self.retire_redeemed(std::slice::from_ref(message)).await.map_err(OutboundServiceError::fatal)?;
+                    self.retire_redeemed(std::slice::from_ref(message))
+                        .await
+                        .map_err(OutboundServiceError::fatal)?;
                 }
                 Ok(SendOutcome::Collided) => {
                     debug!("redeemed privacy pass tokens collided with a sibling, retrying later");
@@ -70,7 +78,9 @@ impl OutboundServiceContext {
                         allowance_epoch = message.allowance_epoch,
                         "Failed to tell the siblings about redeemed privacy pass tokens; dropping"
                     );
-                    self.retire_redeemed(std::slice::from_ref(message)).await.map_err(OutboundServiceError::fatal)?;
+                    self.retire_redeemed(std::slice::from_ref(message))
+                        .await
+                        .map_err(OutboundServiceError::fatal)?;
                 }
                 Err(error) => return Err(error),
             }

@@ -450,9 +450,7 @@ impl Resync {
         own_user_id: &UserId,
     ) -> Result<Option<(ChatId, DecryptedProfileInfos)>, OutboundServiceError> {
         let shares_vc_leaf = self.shares_vc_leaf;
-        if shares_vc_leaf
-            && SelfGroup::load(&mut connection).await?.is_none()
-        {
+        if shares_vc_leaf && SelfGroup::load(&mut connection).await?.is_none() {
             return Err(OutboundServiceError::Recoverable(Recoverable::deferred(
                 anyhow!(
                     "self group not joined yet; deferring onboarding of group {:?}",

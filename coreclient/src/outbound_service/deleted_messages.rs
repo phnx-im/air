@@ -46,10 +46,16 @@ impl OutboundServiceContext {
             return Ok(());
         }
 
-        let chat = match self.self_chat_for_app_message().await.map_err(OutboundServiceError::fatal)? {
+        let chat = match self
+            .self_chat_for_app_message()
+            .await
+            .map_err(OutboundServiceError::fatal)?
+        {
             SelfChatReadiness::NoSiblings => {
                 debug!("no sibling to tell about deleted messages");
-                self.remove_staged_deletions(&staged).await.map_err(OutboundServiceError::fatal)?;
+                self.remove_staged_deletions(&staged)
+                    .await
+                    .map_err(OutboundServiceError::fatal)?;
                 return Ok(());
             }
             SelfChatReadiness::NotReady => {
@@ -77,7 +83,9 @@ impl OutboundServiceContext {
                         count = batch.len(),
                         "told the siblings about deleted messages"
                     );
-                    self.remove_staged_deletions(batch).await.map_err(OutboundServiceError::fatal)?;
+                    self.remove_staged_deletions(batch)
+                        .await
+                        .map_err(OutboundServiceError::fatal)?;
                 }
                 Ok(SendOutcome::Collided) => {
                     debug!("deleted messages collided with a sibling, retrying later");
@@ -89,7 +97,9 @@ impl OutboundServiceContext {
                         count = batch.len(),
                         "Failed to tell the siblings about deleted messages; dropping"
                     );
-                    self.remove_staged_deletions(batch).await.map_err(OutboundServiceError::fatal)?;
+                    self.remove_staged_deletions(batch)
+                        .await
+                        .map_err(OutboundServiceError::fatal)?;
                 }
                 Err(error) => return Err(error),
             }
