@@ -58,6 +58,8 @@ Es gilt die deutsche Rechtschreibung, nicht die englische. Substantive werden gr
 | **Verknüpfen** | Einem weiteren Gerät Zugriff auf das Konto geben | Betrifft Geräte, nicht Kontakte. Nicht dasselbe wie "Verbinden" |
 | **Verknüpfung aufheben** | Einem verknüpften Gerät den Zugriff entziehen | |
 | **Spam melden** | Einen Benutzer oder eine Nachricht als unerwünscht/Spam markieren | Moderationsfunktion |
+| **Tippen** | Englisch "tap" | Smartphones und Tablets. "Tippe" bzw. "tippen" |
+| **Klicken** | Englisch "click" | Desktop, in `_desktop`-Schlüsseln. "Klicke" bzw. "klicken" |
 
 ## Datei- und Daten-Begriffe
 

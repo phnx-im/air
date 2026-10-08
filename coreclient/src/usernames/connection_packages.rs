@@ -102,6 +102,24 @@ impl ConnectionPackageRecord {
         .await
         .map(Option::flatten)
     }
+
+    /// The hashes of the packages of `username` whose decryption keys are
+    /// stored, sorted.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub(crate) async fn load_hashes_for_username(
+        mut connection: impl ReadConnection,
+        username: &Username,
+    ) -> Result<Vec<ConnectionPackageHash>> {
+        query_scalar!(
+            r#"SELECT connection_package_hash AS "connection_package_hash: _"
+            FROM connection_package
+            WHERE handle = $1
+            ORDER BY connection_package_hash"#,
+            username
+        )
+        .fetch_all(connection.as_mut())
+        .await
+    }
 }
 
 #[cfg(test)]

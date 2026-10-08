@@ -2475,6 +2475,178 @@ as List<UiUserId>,
 }
 
 /// @nodoc
+mixin _$UiRequestGroupChat {
+
+ Object get field0;
+
+
+
+@override
+bool operator ==(Object other) {
+  final _this = this as UiRequestGroupChat;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiRequestGroupChat&&const DeepCollectionEquality().equals(other.field0, _this.field0));
+}
+
+
+@override
+int get hashCode {
+  final _this = this as UiRequestGroupChat;
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.field0));
+}
+
+@override
+String toString() {
+  final _this = this as UiRequestGroupChat;
+  return 'UiRequestGroupChat(field0: ${_this.field0})';
+}
+
+
+}
+
+/// @nodoc
+class $UiRequestGroupChatCopyWith<$Res>  {
+$UiRequestGroupChatCopyWith(UiRequestGroupChat _, $Res Function(UiRequestGroupChat) __);
+}
+
+
+
+/// @nodoc
+
+
+class UiRequestGroupChat_Title extends UiRequestGroupChat {
+  const UiRequestGroupChat_Title(this.field0): super._();
+  
+
+@override final  String field0;
+
+/// Create a copy of UiRequestGroupChat
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiRequestGroupChat_TitleCopyWith<UiRequestGroupChat_Title> get copyWith => _$UiRequestGroupChat_TitleCopyWithImpl<UiRequestGroupChat_Title>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiRequestGroupChat_Title&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
+
+@override
+String toString() {
+    return 'UiRequestGroupChat.title(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiRequestGroupChat_TitleCopyWith<$Res> implements $UiRequestGroupChatCopyWith<$Res> {
+  factory $UiRequestGroupChat_TitleCopyWith(UiRequestGroupChat_Title value, $Res Function(UiRequestGroupChat_Title) _then) = _$UiRequestGroupChat_TitleCopyWithImpl;
+@useResult
+$Res call({
+ String field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiRequestGroupChat_TitleCopyWithImpl<$Res>
+    implements $UiRequestGroupChat_TitleCopyWith<$Res> {
+  _$UiRequestGroupChat_TitleCopyWithImpl(this._self, this._then);
+
+  final UiRequestGroupChat_Title _self;
+  final $Res Function(UiRequestGroupChat_Title) _then;
+
+/// Create a copy of UiRequestGroupChat
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(UiRequestGroupChat_Title(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class UiRequestGroupChat_Chat extends UiRequestGroupChat {
+  const UiRequestGroupChat_Chat(this.field0): super._();
+  
+
+@override final  ChatId field0;
+
+/// Create a copy of UiRequestGroupChat
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiRequestGroupChat_ChatCopyWith<UiRequestGroupChat_Chat> get copyWith => _$UiRequestGroupChat_ChatCopyWithImpl<UiRequestGroupChat_Chat>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiRequestGroupChat_Chat&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
+
+@override
+String toString() {
+    return 'UiRequestGroupChat.chat(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiRequestGroupChat_ChatCopyWith<$Res> implements $UiRequestGroupChatCopyWith<$Res> {
+  factory $UiRequestGroupChat_ChatCopyWith(UiRequestGroupChat_Chat value, $Res Function(UiRequestGroupChat_Chat) _then) = _$UiRequestGroupChat_ChatCopyWithImpl;
+@useResult
+$Res call({
+ ChatId field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiRequestGroupChat_ChatCopyWithImpl<$Res>
+    implements $UiRequestGroupChat_ChatCopyWith<$Res> {
+  _$UiRequestGroupChat_ChatCopyWithImpl(this._self, this._then);
+
+  final UiRequestGroupChat_Chat _self;
+  final $Res Function(UiRequestGroupChat_Chat) _then;
+
+/// Create a copy of UiRequestGroupChat
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(UiRequestGroupChat_Chat(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as ChatId,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$UiSystemMessage {
 
 
@@ -2868,11 +3040,11 @@ $UiUsernameCopyWith<$Res> get username {
 
 
 class UiSystemMessage_ReceivedDirectConnectionRequest extends UiSystemMessage {
-  const UiSystemMessage_ReceivedDirectConnectionRequest({required this.sender, required this.chatName}): super._();
+  const UiSystemMessage_ReceivedDirectConnectionRequest({required this.sender, required this.groupChat}): super._();
   
 
  final  UiUserId sender;
- final  String chatName;
+ final  UiRequestGroupChat groupChat;
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
@@ -2884,18 +3056,18 @@ $UiSystemMessage_ReceivedDirectConnectionRequestCopyWith<UiSystemMessage_Receive
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedDirectConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.chatName, chatName) || other.chatName == chatName));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedDirectConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.groupChat, groupChat) || other.groupChat == groupChat));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,sender,chatName);
+    return Object.hash(runtimeType,sender,groupChat);
 }
 
 @override
 String toString() {
-    return 'UiSystemMessage.receivedDirectConnectionRequest(sender: $sender, chatName: $chatName)';
+    return 'UiSystemMessage.receivedDirectConnectionRequest(sender: $sender, groupChat: $groupChat)';
 }
 
 
@@ -2906,11 +3078,11 @@ abstract mixin class $UiSystemMessage_ReceivedDirectConnectionRequestCopyWith<$R
   factory $UiSystemMessage_ReceivedDirectConnectionRequestCopyWith(UiSystemMessage_ReceivedDirectConnectionRequest value, $Res Function(UiSystemMessage_ReceivedDirectConnectionRequest) _then) = _$UiSystemMessage_ReceivedDirectConnectionRequestCopyWithImpl;
 @useResult
 $Res call({
- UiUserId sender, String chatName
+ UiUserId sender, UiRequestGroupChat groupChat
 });
 
 
-
+$UiRequestGroupChatCopyWith<$Res> get groupChat;
 
 }
 /// @nodoc
@@ -2923,15 +3095,24 @@ class _$UiSystemMessage_ReceivedDirectConnectionRequestCopyWithImpl<$Res>
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? sender = null,Object? chatName = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? sender = null,Object? groupChat = null,}) {
   return _then(UiSystemMessage_ReceivedDirectConnectionRequest(
 sender: null == sender ? _self.sender : sender // ignore: cast_nullable_to_non_nullable
-as UiUserId,chatName: null == chatName ? _self.chatName : chatName // ignore: cast_nullable_to_non_nullable
-as String,
+as UiUserId,groupChat: null == groupChat ? _self.groupChat : groupChat // ignore: cast_nullable_to_non_nullable
+as UiRequestGroupChat,
   ));
 }
 
-
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$UiRequestGroupChatCopyWith<$Res> get groupChat {
+  
+  return $UiRequestGroupChatCopyWith<$Res>(_self.groupChat, (value) {
+    return _then(_self.copyWith(groupChat: value));
+  });
+}
 }
 
 /// @nodoc
@@ -3562,11 +3743,11 @@ $UiUsernameCopyWith<$Res> get username {
 
 
 class UiSystemMessage_ReceivedAdditionalDirectConnectionRequest extends UiSystemMessage {
-  const UiSystemMessage_ReceivedAdditionalDirectConnectionRequest({required this.sender, required this.chatName}): super._();
+  const UiSystemMessage_ReceivedAdditionalDirectConnectionRequest({required this.sender, required this.groupChat}): super._();
   
 
  final  UiUserId sender;
- final  String chatName;
+ final  UiRequestGroupChat groupChat;
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
@@ -3578,18 +3759,18 @@ $UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWith<UiSystemMessa
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedAdditionalDirectConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.chatName, chatName) || other.chatName == chatName));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ReceivedAdditionalDirectConnectionRequest&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.groupChat, groupChat) || other.groupChat == groupChat));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,sender,chatName);
+    return Object.hash(runtimeType,sender,groupChat);
 }
 
 @override
 String toString() {
-    return 'UiSystemMessage.receivedAdditionalDirectConnectionRequest(sender: $sender, chatName: $chatName)';
+    return 'UiSystemMessage.receivedAdditionalDirectConnectionRequest(sender: $sender, groupChat: $groupChat)';
 }
 
 
@@ -3600,11 +3781,11 @@ abstract mixin class $UiSystemMessage_ReceivedAdditionalDirectConnectionRequestC
   factory $UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWith(UiSystemMessage_ReceivedAdditionalDirectConnectionRequest value, $Res Function(UiSystemMessage_ReceivedAdditionalDirectConnectionRequest) _then) = _$UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWithImpl;
 @useResult
 $Res call({
- UiUserId sender, String chatName
+ UiUserId sender, UiRequestGroupChat groupChat
 });
 
 
-
+$UiRequestGroupChatCopyWith<$Res> get groupChat;
 
 }
 /// @nodoc
@@ -3617,15 +3798,24 @@ class _$UiSystemMessage_ReceivedAdditionalDirectConnectionRequestCopyWithImpl<$R
 
 /// Create a copy of UiSystemMessage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? sender = null,Object? chatName = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? sender = null,Object? groupChat = null,}) {
   return _then(UiSystemMessage_ReceivedAdditionalDirectConnectionRequest(
 sender: null == sender ? _self.sender : sender // ignore: cast_nullable_to_non_nullable
-as UiUserId,chatName: null == chatName ? _self.chatName : chatName // ignore: cast_nullable_to_non_nullable
-as String,
+as UiUserId,groupChat: null == groupChat ? _self.groupChat : groupChat // ignore: cast_nullable_to_non_nullable
+as UiRequestGroupChat,
   ));
 }
 
-
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$UiRequestGroupChatCopyWith<$Res> get groupChat {
+  
+  return $UiRequestGroupChatCopyWith<$Res>(_self.groupChat, (value) {
+    return _then(_self.copyWith(groupChat: value));
+  });
+}
 }
 
 /// @nodoc

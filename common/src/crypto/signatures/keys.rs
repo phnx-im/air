@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use zeroize::Zeroize;
+
 use crate::crypto::{
     RawKey,
     kdf::{Kdf, keys::SiblingSecret},
@@ -41,8 +43,10 @@ impl QsUserSigningKey {
     /// All clients of a user share the QS user signing key, while the server
     /// only knows its verifying key.
     pub fn derive_sibling_secret(&self) -> SiblingSecret {
-        let (prk, _) = Kdf::extract(Some(SIBLING_SECRET_SALT), &self.signing_key);
-        SiblingSecret::from_bytes(prk.into())
+        let (mut prk, _) = Kdf::extract(Some(SIBLING_SECRET_SALT), &self.signing_key);
+        let sibling_secret = SiblingSecret::from_bytes(prk.into());
+        prk.as_mut_slice().zeroize();
+        sibling_secret
     }
 }
 

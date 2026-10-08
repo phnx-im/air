@@ -31,6 +31,7 @@ use airprotos::client::group_bootstrap::{
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use openmls::{components::vc_derivation_info::EpochId, prelude::GroupId};
+use zeroize::Zeroizing;
 
 use crate::{
     clients::connection_offer::FriendshipPackage,
@@ -246,12 +247,12 @@ impl TryFrom<ConnectionContext> for BootstrapConnection {
 }
 
 fn bootstrap_key(secret: Vec<u8>) -> Result<GroupBootstrapKey> {
+    let secret = Zeroizing::new(secret);
     let secret: [u8; AEAD_KEY_SIZE] = secret
+        .as_slice()
         .try_into()
         .map_err(|_| anyhow!("unexpected vc application secret length"))?;
     let secret = VcApplicationSecret::from_bytes(secret);
-    // `secret` is zeroized as it is dropped (its inner secret is
-    // `ZeroizeOnDrop`).
     Ok(GroupBootstrapKey::derive(&secret, &Vec::new())?)
 }
 

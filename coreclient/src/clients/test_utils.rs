@@ -6,7 +6,11 @@
 use aircommon::messages::client_ds_out::SendMessageCollisionTag;
 use openmls::group::{GroupEpoch, Member};
 
-use aircommon::{credentials::RoomPolicyIdentity, identifiers::QualifiedGroupId};
+use aircommon::{
+    credentials::RoomPolicyIdentity,
+    identifiers::{QualifiedGroupId, Username},
+    messages::connection_package::ConnectionPackageHash,
+};
 use openmls::prelude::GroupId;
 use uuid::Uuid;
 
@@ -24,6 +28,7 @@ use crate::{
         pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     },
     outbound_service::resync::{Resync, ResyncReason, ResyncStatus},
+    usernames::connection_packages::ConnectionPackageRecord,
 };
 
 use super::*;
@@ -484,5 +489,17 @@ impl CoreUser {
             .await?;
 
         Ok(())
+    }
+
+    /// The hashes of the connection packages of `username` whose decryption
+    /// keys this device holds.
+    pub async fn connection_package_hashes(
+        &self,
+        username: &Username,
+    ) -> anyhow::Result<Vec<ConnectionPackageHash>> {
+        Ok(
+            ConnectionPackageRecord::load_hashes_for_username(self.db().read().await?, username)
+                .await?,
+        )
     }
 }

@@ -253,8 +253,6 @@ async fn connect_users_via_targeted_message() {
     setup
         .invite_to_group(group_chat_id, &alice, vec![&bob, &charlie])
         .await;
-    let alice_user = &setup.get_user(&alice).user;
-    let group_chat = alice_user.chat(&group_chat_id).await.unwrap();
 
     // Bob now connects to Charlie via a targeted message sent through the
     // shared group.
@@ -300,21 +298,20 @@ async fn connect_users_via_targeted_message() {
     // Charlie should have two messages in the new chat
     let charlie_chat_id = result.new_connections.pop().unwrap();
     let messages = charlie_user.messages(charlie_chat_id, 2).await.unwrap();
-    let Message::Event(EventMessage::System(SystemMessage::ReceivedDirectConnectionRequest {
+    let Message::Event(EventMessage::System(SystemMessage::ReceivedGroupConnectionRequest {
         sender,
-        chat_name,
+        origin_chat_id,
     })) = messages[0].message()
     else {
-        panic!("Expected NewDirectConnectionChat system message");
+        panic!("Expected ReceivedGroupConnectionRequest system message");
     };
     assert_eq!(
         *sender, bob,
         "System message should indicate connection from Bob"
     );
     assert_eq!(
-        *chat_name,
-        group_chat.attributes().unwrap().title,
-        "System message should have the correct chat title"
+        *origin_chat_id, group_chat_id,
+        "System message should reference the group chat"
     );
     let Message::Event(EventMessage::System(SystemMessage::AcceptedConnectionRequest {
         contact,

@@ -202,7 +202,7 @@
         },
         {
           "name": "windows-sys",
-          "version": "0.60.2",
+          "version": "0.52.0",
           "repository": "https://github.com/microsoft/windows-rs"
         },
         {
@@ -217,7 +217,7 @@
         },
         {
           "name": "windows-targets",
-          "version": "0.53.5",
+          "version": "0.52.6",
           "repository": "https://github.com/microsoft/windows-rs"
         },
         {
@@ -237,7 +237,7 @@
         },
         {
           "name": "windows_x86_64_gnu",
-          "version": "0.53.1",
+          "version": "0.52.6",
           "repository": "https://github.com/microsoft/windows-rs"
         },
         {
@@ -247,7 +247,7 @@
         },
         {
           "name": "windows_x86_64_msvc",
-          "version": "0.53.1",
+          "version": "0.52.6",
           "repository": "https://github.com/microsoft/windows-rs"
         }
       ]

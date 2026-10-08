@@ -2085,6 +2085,20 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                             {chat_name}"
                     )),
                     SystemMessage::SelfChatCreated => Some("The self-chat was created".to_owned()),
+                    SystemMessage::ReceivedGroupConnectionRequest {
+                        sender,
+                        origin_chat_id,
+                    } => Some(format!(
+                        "User {sender:?} requested a direct connection to your contact \
+                            through the chat {origin_chat_id}"
+                    )),
+                    SystemMessage::ReceivedAdditionalGroupConnectionRequest {
+                        sender,
+                        origin_chat_id,
+                    } => Some(format!(
+                        "User {sender:?} requested another connection through the chat \
+                            {origin_chat_id}"
+                    )),
                 }
             } else {
                 None
