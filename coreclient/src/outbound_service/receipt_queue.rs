@@ -2,9 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::identifiers::MimiId;
 use mimi_content::MessageStatus;
 
-use crate::MessageId;
+use crate::{ChatId, MessageId};
 
 /// A receipt scheduled for sending.
 ///
@@ -26,17 +27,24 @@ impl ReceiptQueue {
     }
 }
 
+/// The receipts of a chat, dequeued and locked together.
+pub(crate) struct DequeuedReceipts {
+    pub(crate) chat_id: ChatId,
+    pub(crate) statuses: Vec<(MimiId, MessageStatus)>,
+    /// Server errors these receipts already ran into, the most of any of them.
+    pub(crate) attempts: u32,
+}
+
 mod persistence {
     use std::time::Duration;
 
-    use aircommon::{identifiers::MimiId, time::TimeStamp};
+    use aircommon::time::TimeStamp;
     use mimi_content::{MessageStatusReport, PerMessageStatus};
     use sqlx::{query, query_as, query_scalar};
-    use tokio_stream::StreamExt;
     use tracing::debug;
     use uuid::Uuid;
 
-    use crate::{ChatId, db::access::WriteConnection};
+    use crate::db::access::WriteConnection;
 
     use super::*;
 
@@ -71,10 +79,11 @@ mod persistence {
             Ok(())
         }
 
+        /// Dequeues the due receipts of the chat with the oldest one.
         pub(crate) async fn dequeue(
             mut connection: impl WriteConnection,
             task_id: Uuid,
-        ) -> anyhow::Result<Option<(ChatId, Vec<(MimiId, MessageStatus)>)>> {
+        ) -> anyhow::Result<Option<DequeuedReceipts>> {
             let mut txn = connection.begin().await?;
 
             let now = TimeStamp::now();
@@ -83,11 +92,13 @@ mod persistence {
             let chat_id = query_scalar!(
                 r#"SELECT chat_id AS "chat_id: _"
                     FROM receipt_queue
-                    WHERE locked_at IS NULL OR locked_at < ?
+                    WHERE (locked_at IS NULL OR locked_at < ?1)
+                        AND (retry_at IS NULL OR retry_at <= ?2)
                     ORDER BY created_at ASC
                     LIMIT 1
                 "#,
                 locked_before,
+                now,
             )
             .fetch_optional(txn.as_mut())
             .await?;
@@ -98,30 +109,63 @@ mod persistence {
             struct Record {
                 mimi_id: MimiId,
                 status: u8,
+                attempts: u32,
             }
 
-            let statuses = query_as!(
+            let records = query_as!(
                 Record,
                 r#"UPDATE receipt_queue
                     SET locked_by = ?1, locked_at = ?2
-                    WHERE chat_id = ?3 AND (locked_at IS NULL OR locked_at < ?4)
+                    WHERE chat_id = ?3
+                        AND (locked_at IS NULL OR locked_at < ?4)
+                        AND (retry_at IS NULL OR retry_at <= ?2)
                 RETURNING
                     mimi_id AS "mimi_id: _",
-                    status AS "status: _"
+                    status AS "status: _",
+                    attempts AS "attempts: _"
                 "#,
                 task_id,
                 now,
                 chat_id,
                 locked_before,
             )
-            .fetch(txn.as_mut())
-            .map(|record| record.map(|record| (record.mimi_id, MessageStatus::from(record.status))))
-            .collect::<Result<Vec<_>, _>>()
+            .fetch_all(txn.as_mut())
             .await?;
 
             txn.commit().await?;
 
-            Ok(Some((chat_id, statuses)))
+            let attempts = records
+                .iter()
+                .map(|record| record.attempts)
+                .max()
+                .unwrap_or_default();
+            let statuses = records
+                .into_iter()
+                .map(|record| (record.mimi_id, MessageStatus::from(record.status)))
+                .collect();
+            Ok(Some(DequeuedReceipts {
+                chat_id,
+                statuses,
+                attempts,
+            }))
+        }
+
+        /// Keeps the receipts locked by `task_id` queued until `retry_at`.
+        pub(crate) async fn record_failed_attempt(
+            mut connection: impl WriteConnection,
+            task_id: Uuid,
+            attempts: u32,
+            retry_at: TimeStamp,
+        ) -> sqlx::Result<()> {
+            query!(
+                "UPDATE receipt_queue SET attempts = ?, retry_at = ? WHERE locked_by = ?",
+                attempts,
+                retry_at,
+                task_id,
+            )
+            .execute(connection.as_mut())
+            .await?;
+            Ok(())
         }
 
         pub(crate) async fn remove(
@@ -181,7 +225,8 @@ mod persistence {
 
 #[cfg(test)]
 mod tests {
-    use aircommon::identifiers::MimiId;
+    use aircommon::{identifiers::MimiId, time::TimeStamp};
+    use chrono::{TimeDelta, Utc};
     use sqlx::SqlitePool;
     use uuid::Uuid;
 
@@ -219,9 +264,10 @@ mod tests {
             .await?;
         receipt.enqueue(db.write().await?, chat_id, &edited).await?;
 
-        let (_, statuses) = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4())
+        let statuses = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4())
             .await?
-            .expect("no receipt queued");
+            .expect("no receipt queued")
+            .statuses;
         assert_eq!(statuses.len(), 2);
         assert!(statuses.contains(&(original, MessageStatus::Delivered)));
         assert!(statuses.contains(&(edited, MessageStatus::Delivered)));
@@ -241,17 +287,19 @@ mod tests {
             .enqueue(db.write().await?, chat_id, &original)
             .await?;
         let in_flight = Uuid::new_v4();
-        let (_, statuses) = ReceiptQueue::dequeue(db.write().await?, in_flight)
+        let statuses = ReceiptQueue::dequeue(db.write().await?, in_flight)
             .await?
-            .expect("no receipt queued");
+            .expect("no receipt queued")
+            .statuses;
         assert_eq!(statuses, vec![(original, MessageStatus::Delivered)]);
 
         receipt.enqueue(db.write().await?, chat_id, &edited).await?;
         ReceiptQueue::remove(db.write().await?, in_flight).await?;
 
-        let (_, statuses) = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4())
+        let statuses = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4())
             .await?
-            .expect("receipt for the edit was removed");
+            .expect("receipt for the edit was removed")
+            .statuses;
         assert_eq!(statuses, vec![(edited, MessageStatus::Delivered)]);
         Ok(())
     }
@@ -297,10 +345,60 @@ mod tests {
 
         ReceiptQueue::remove_superseded(db.write().await?, message_id, &edited).await?;
 
-        let (_, statuses) = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4())
+        let statuses = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4())
             .await?
-            .expect("receipt for the current version was removed");
+            .expect("receipt for the current version was removed")
+            .statuses;
         assert_eq!(statuses, vec![(edited, MessageStatus::Delivered)]);
+        Ok(())
+    }
+
+    /// Lets the locks of all queued receipts expire.
+    async fn expire_locks(db: &DbAccess) -> anyhow::Result<()> {
+        db.with_write_transaction(async |txn| -> anyhow::Result<_> {
+            sqlx::query("UPDATE receipt_queue SET locked_at = NULL")
+                .execute(txn.as_mut())
+                .await?;
+            Ok(())
+        })
+        .await
+    }
+
+    #[sqlx::test]
+    async fn failed_attempt_defers_receipts(pool: SqlitePool) -> anyhow::Result<()> {
+        let db = DbAccess::for_tests(pool);
+        let (chat_id, message_id, original) = stored_message(&db).await?;
+        for status in [MessageStatus::Delivered, MessageStatus::Read] {
+            ReceiptQueue::new(message_id, status)
+                .enqueue(db.write().await?, chat_id, &original)
+                .await?;
+        }
+
+        let task_id = Uuid::new_v4();
+        let dequeued = ReceiptQueue::dequeue(db.write().await?, task_id)
+            .await?
+            .expect("no receipt queued");
+        assert_eq!(dequeued.attempts, 0);
+
+        let later = TimeStamp::from(Utc::now() + TimeDelta::hours(1));
+        ReceiptQueue::record_failed_attempt(db.write().await?, task_id, 1, later).await?;
+        expire_locks(&db).await?;
+        let queued = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4()).await?;
+        assert!(queued.is_none(), "deferred receipts were dequeued");
+
+        let earlier = TimeStamp::from(Utc::now() - TimeDelta::seconds(1));
+        ReceiptQueue::record_failed_attempt(db.write().await?, task_id, 2, earlier).await?;
+        // A receipt queued since then has not failed yet
+        let edited = MimiId::from_slice(&[9; 32])?;
+        ReceiptQueue::new(message_id, MessageStatus::Delivered)
+            .enqueue(db.write().await?, chat_id, &edited)
+            .await?;
+
+        let dequeued = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4())
+            .await?
+            .expect("receipts are due again");
+        assert_eq!(dequeued.statuses.len(), 3);
+        assert_eq!(dequeued.attempts, 2);
         Ok(())
     }
 }

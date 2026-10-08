@@ -108,7 +108,7 @@ mod tests {
             persistence::{AttachmentStatus, test::test_attachment_record_with},
         },
         db::access::DbAccess,
-        outbound_service::chat_message_queue::ChatMessageQueue,
+        outbound_service::chat_message_queue::{ChatMessageQueue, DequeuedMessage},
     };
 
     use super::{UPLOAD_STALE_AFTER, recover_interrupted_attachment_uploads};
@@ -137,7 +137,7 @@ mod tests {
     async fn queued_message_ids(db: &DbAccess) -> anyhow::Result<Vec<MessageId>> {
         let task_id = Uuid::new_v4();
         let mut message_ids = Vec::new();
-        while let Some((_, message_id)) = db
+        while let Some(DequeuedMessage { message_id, .. }) = db
             .with_write_transaction(async |txn| ChatMessageQueue::dequeue(txn, task_id).await)
             .await?
         {

@@ -4,6 +4,7 @@
 
 use std::time::Duration;
 
+use aircommon::time::TimeStamp;
 use anyhow::Context;
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
@@ -20,9 +21,10 @@ use crate::job::chat_operation::{ChatOperation, DerivationEpoch};
 use crate::job::pending_chat_operation::PendingChatOperation;
 use crate::outbound_service::error::OutboundServiceError;
 use crate::outbound_service::resync::Resync;
+use crate::outbound_service::retry::{RetryDecision, RetryPolicy};
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, Message, MessageId,
-    outbound_service::chat_message_queue::ChatMessageQueue,
+    outbound_service::chat_message_queue::{ChatMessageQueue, DequeuedMessage},
 };
 
 use super::{OutboundService, OutboundServiceContext, SendOutcome};
@@ -129,7 +131,7 @@ impl OutboundServiceContext {
                 return Ok(()); // the task is being stopped
             }
 
-            let Some((chat_id, message_id)) = self
+            let Some(dequeued) = self
                 .db
                 .with_write_transaction(async |txn| ChatMessageQueue::dequeue(txn, task_id).await)
                 .await
@@ -137,7 +139,8 @@ impl OutboundServiceContext {
             else {
                 return Ok(());
             };
-            debug!(?message_id, "dequeued messages");
+            let chat_id = dequeued.chat_id;
+            debug!(message_id = ?dequeued.message_id, "dequeued messages");
 
             // If a chat operation is pending, we skip sending chat messages for
             // this chat
@@ -149,10 +152,7 @@ impl OutboundServiceContext {
                 continue;
             }
 
-            match self
-                .send_queued_message(run_token, chat_id, message_id)
-                .await?
-            {
+            match self.send_queued_message(run_token, dequeued).await? {
                 RunControl::NextMessage => continue,
                 RunControl::EndRun => return Ok(()),
             }
@@ -165,16 +165,23 @@ impl OutboundServiceContext {
     /// and dropped from the queue. Once the attempts of a transient failure are
     /// exhausted, we presume the network to be down and fail the whole queue.
     /// When rate limited, the message stays queued and the run is aborted.
+    /// After a server error it stays queued for a later run, until its
+    /// [`RetryPolicy::MESSAGES`] budget is used up.
     async fn send_queued_message(
         &self,
         run_token: &CancellationToken,
-        chat_id: ChatId,
-        message_id: MessageId,
+        DequeuedMessage {
+            chat_id,
+            message_id,
+            attempts,
+        }: DequeuedMessage,
     ) -> Result<RunControl, OutboundServiceError> {
         let mut attempt = 0;
         loop {
             attempt += 1;
-            let error = match self.send_chat_message(message_id).await {
+            let result = RetryPolicy::MESSAGES
+                .fatal_when_exhausted(self.send_chat_message(message_id).await, attempts);
+            let error = match result {
                 Ok(SendOutcome::Sent) => {
                     self.db
                         .with_write_transaction(async |txn| -> anyhow::Result<_> {
@@ -213,6 +220,19 @@ impl OutboundServiceContext {
                 Err(error @ OutboundServiceError::RateLimited { .. }) => return Err(error),
                 Err(OutboundServiceError::Recoverable(error)) => {
                     // Leave the message in the queue so a later run retries it
+                    if let RetryDecision::Backoff { attempts, retry_in } =
+                        RetryPolicy::MESSAGES.decide(error.cause, attempts)
+                    {
+                        let retry_at = TimeStamp::from(Utc::now() + retry_in);
+                        self.db
+                            .with_write_transaction(async |txn| {
+                                ChatMessageQueue::record_failed_attempt(
+                                    txn, message_id, attempts, retry_at,
+                                )
+                                .await
+                            })
+                            .await?;
+                    }
                     warn!(%error, ?message_id, "Failed to send chat message; retrying in a later run");
                     return Ok(RunControl::NextMessage);
                 }

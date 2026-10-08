@@ -12,6 +12,7 @@ use aircommon::{
     time::TimeStamp,
 };
 use anyhow::Context;
+use chrono::Utc;
 use mimi_content::{
     Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPart, PerMessageStatus,
 };
@@ -26,7 +27,12 @@ use crate::{
     db::access::WriteDbTransaction,
     groups::{Group, handle_group_not_found_on_ds, openmls_provider::AirOpenMlsProvider},
     job::pending_chat_operation::PendingChatOperation,
-    outbound_service::{error::OutboundServiceError, resync::Resync},
+    outbound_service::{
+        error::OutboundServiceError,
+        receipt_queue::DequeuedReceipts,
+        resync::Resync,
+        retry::{RetryDecision, RetryPolicy},
+    },
 };
 
 use super::{OutboundService, OutboundServiceContext, SendOutcome, receipt_queue::ReceiptQueue};
@@ -73,14 +79,21 @@ impl OutboundServiceContext {
         &self,
         run_token: &CancellationToken,
     ) -> Result<(), OutboundServiceError> {
-        // Used to identify locked receipts by this task
-        let task_id = Uuid::new_v4();
         loop {
             if run_token.is_cancelled() {
                 return Ok(()); // the task is being stopped
             }
 
-            let Some((chat_id, statuses)) = ReceiptQueue::dequeue(self.db.write().await?, task_id)
+            // Identifies the receipts locked for one chat. Receipts are locked for
+            // a while rather than per run, so a run-wide id would also cover the
+            // receipts of chats kept earlier in the run.
+            let task_id = Uuid::new_v4();
+
+            let Some(DequeuedReceipts {
+                chat_id,
+                statuses,
+                attempts,
+            }) = ReceiptQueue::dequeue(self.db.write().await?, task_id)
                 .await
                 .map_err(OutboundServiceError::fatal)?
             else {
@@ -104,8 +117,11 @@ impl OutboundServiceContext {
 
             debug!(?chat_id, num_statuses = statuses.len(), "dequeued receipt");
 
+            let policy = RetryPolicy::REACTIONS_AND_RECEIPTS;
             match UnsentReceipt::new(statuses.iter().map(|(mimi_id, status)| (mimi_id, *status))) {
-                Ok(Some(receipt)) => match self.send_chat_receipt(chat_id, receipt).await {
+                Ok(Some(receipt)) => match policy
+                    .fatal_when_exhausted(self.send_chat_receipt(chat_id, receipt).await, attempts)
+                {
                     Ok(ReceiptSendOutcome::Sent) => {
                         ReceiptQueue::remove(self.db.write().await?, task_id).await?;
                     }
@@ -125,6 +141,18 @@ impl OutboundServiceContext {
                     Err(OutboundServiceError::Recoverable(error)) => {
                         error!(%error, "Failed to send receipt; will retry later");
                         // Don't unlock the receipts now; they will be unlocked after a threshold.
+                        if let RetryDecision::Backoff { attempts, retry_in } =
+                            policy.decide(error.cause, attempts)
+                        {
+                            let retry_at = TimeStamp::from(Utc::now() + retry_in);
+                            ReceiptQueue::record_failed_attempt(
+                                self.db.write().await?,
+                                task_id,
+                                attempts,
+                                retry_at,
+                            )
+                            .await?;
+                        }
                         continue;
                     }
                     Err(error) => return Err(error),

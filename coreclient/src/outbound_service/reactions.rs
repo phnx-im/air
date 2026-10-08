@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::MimiId;
+use aircommon::{identifiers::MimiId, time::TimeStamp};
 use anyhow::Context;
+use chrono::Utc;
 use mimi_content::MimiContent;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
@@ -14,7 +15,11 @@ use crate::{
     chats::reactions::Reaction,
     db::access::{WriteConnection, WriteDbTransaction},
     job::pending_chat_operation::PendingChatOperation,
-    outbound_service::{error::OutboundServiceError, resync::Resync},
+    outbound_service::{
+        error::OutboundServiceError,
+        resync::Resync,
+        retry::{RetryDecision, RetryPolicy},
+    },
 };
 
 use super::{OutboundService, OutboundServiceContext, SendOutcome, reaction_queue::ReactionQueue};
@@ -97,7 +102,9 @@ impl OutboundServiceContext {
                 continue;
             }
 
-            match self.send_reaction_message(&dequeued).await {
+            let policy = RetryPolicy::REACTIONS_AND_RECEIPTS;
+            let result = self.send_reaction_message(&dequeued).await;
+            match policy.fatal_when_exhausted(result, dequeued.attempts) {
                 Ok(SendOutcome::Sent) => {
                     self.db
                         .with_write_transaction(async |txn| {
@@ -120,6 +127,22 @@ impl OutboundServiceContext {
                 }
                 Err(OutboundServiceError::Recoverable(error)) => {
                     // Leave the reaction in the queue so a later run retries it
+                    if let RetryDecision::Backoff { attempts, retry_in } =
+                        policy.decide(error.cause, dequeued.attempts)
+                    {
+                        let retry_at = TimeStamp::from(Utc::now() + retry_in);
+                        self.db
+                            .with_write_transaction(async |txn| {
+                                ReactionQueue::record_failed_attempt(
+                                    txn,
+                                    dequeued.id,
+                                    attempts,
+                                    retry_at,
+                                )
+                                .await
+                            })
+                            .await?;
+                    }
                     error!(%error, ?chat_id, "Failed to send reaction; will retry later");
                 }
                 Err(OutboundServiceError::Fatal(error)) => {

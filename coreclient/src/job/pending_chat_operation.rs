@@ -52,6 +52,7 @@ use crate::{
     job::{
         Job, JobContext, JobContextReadConnection, JobError,
         chat_operation::{ChatOperationError, DerivationEpoch},
+        recoverable::RecoverableCause,
     },
     key_stores::{
         indexed_keys::StorableIndexedKey,
@@ -67,6 +68,9 @@ use crate::{
 const RETRY_INTERVAL: Duration = Duration::seconds(5);
 #[cfg(any(test, feature = "test_utils"))]
 const RETRY_INTERVAL: Duration = Duration::seconds(1);
+
+/// Failed attempts before a pending operation is given up on.
+const MAX_RETRIES: u32 = 5;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(super) enum OperationType {
@@ -281,7 +285,24 @@ impl Job for PendingChatOperation {
         mut self,
         context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
-        match self.execute_internal(context).await {
+        let result = match self.execute_internal(context).await {
+            // A server error spends an attempt like a failed request to the DS
+            Err(JobError::Recoverable(Recoverable {
+                error,
+                cause: RecoverableCause::Server,
+            })) => {
+                self.number_of_attempts += 1;
+                Err(if self.number_of_attempts >= MAX_RETRIES {
+                    JobError::Fatal(error.context(format!(
+                        "Job failed after {MAX_RETRIES} attempts due to server errors"
+                    )))
+                } else {
+                    JobError::Recoverable(error)
+                })
+            }
+            result => result,
+        };
+        match result {
             // Update retry_due at on errors a later attempt may get past
             Err(
                 error @ (JobError::NetworkError
@@ -717,7 +738,6 @@ impl PendingChatOperation {
         error: DsRequestError,
     ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
         debug!(?error, "DS request failed");
-        const MAX_RETRIES: u32 = 5;
         if let Some(detail) = error.device_limit_reached() {
             Ok(JobError::Domain(ChatOperationError::DeviceLimitReached {
                 max_devices: detail.max_devices,

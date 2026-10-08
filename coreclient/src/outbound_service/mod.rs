@@ -48,6 +48,7 @@ pub(crate) mod receipt_queue;
 mod receipts;
 mod redeemed_tokens;
 pub(crate) mod resync;
+mod retry;
 mod retry_pending_chat_operations;
 mod self_chat;
 pub(crate) mod timed_tasks;

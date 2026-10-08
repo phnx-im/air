@@ -13,7 +13,7 @@ use aircommon::{
 };
 use anyhow::{Context, Result, anyhow, bail};
 use apqmls::commit_builder::ApqCommitMessageBundle;
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Utc};
 use openmls::{
     group::GroupId,
     prelude::{LeafNodeIndex, MlsMessageOut},
@@ -35,19 +35,13 @@ use crate::{
         DecryptedProfileInfos, Group, ProfileInfo, handle_group_not_found_on_ds,
         self_group::SelfGroup,
     },
-    job::{
-        operation::OperationData,
-        profile::FetchUserProfileOperation,
-        recoverable::{Recoverable, RecoverableCause},
-    },
+    job::{operation::OperationData, profile::FetchUserProfileOperation, recoverable::Recoverable},
     outbound_service::{
         OutboundServiceContext,
         error::{OutboundServiceError, is_ds_not_found_error},
+        retry::{RetryDecision, RetryPolicy},
     },
 };
-
-/// Server errors before a queued resync is given up on.
-const MAX_RESYNC_ATTEMPTS: u32 = 5;
 
 /// Why a group is being resynced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -249,7 +243,7 @@ impl CoreUser {
 impl OutboundServiceContext {
     /// Drains the resync queue.
     ///
-    /// Server errors count towards [`MAX_RESYNC_ATTEMPTS`] with backoff, then the entry is marked
+    /// Server errors count towards [`RetryPolicy::RESYNC`] with backoff, then the entry is marked
     /// `failed` until a manual resync or a processed commit clears it. Other errors retry on the
     /// next run.
     pub(super) async fn perform_queued_resyncs(
@@ -351,7 +345,7 @@ impl OutboundServiceContext {
                 return Ok(());
             }
             Err(OutboundServiceError::Recoverable(error)) => {
-                match retry_decision(error.cause, attempts) {
+                match RetryPolicy::RESYNC.decide(error.cause, attempts) {
                     RetryDecision::Retry => {
                         warn!(%error, "Resync failed; retrying later");
                     }
@@ -393,46 +387,6 @@ impl OutboundServiceContext {
 
         Ok(())
     }
-}
-
-/// What to do with a queue entry after a recoverable error.
-#[derive(Debug, PartialEq, Eq)]
-enum RetryDecision {
-    /// Leave the entry untouched. The next run picks it up again.
-    Retry,
-    /// Spend an attempt and defer the next one.
-    Backoff { attempts: u32, retry_in: TimeDelta },
-    /// Spend the last attempt and give up.
-    GiveUp,
-}
-
-fn retry_decision(cause: RecoverableCause, attempts: u32) -> RetryDecision {
-    match cause {
-        RecoverableCause::Server => (),
-        RecoverableCause::WrongEpoch | RecoverableCause::Busy | RecoverableCause::Deferred => {
-            return RetryDecision::Retry;
-        }
-    }
-    let attempts = attempts + 1;
-    if attempts >= MAX_RESYNC_ATTEMPTS {
-        RetryDecision::GiveUp
-    } else {
-        RetryDecision::Backoff {
-            attempts,
-            retry_in: resync_backoff(attempts),
-        }
-    }
-}
-
-/// Backoff 1m -> 2m -> 4m -> 8m, doubling per spent attempt. With
-/// [`MAX_RESYNC_ATTEMPTS`] the entry is given up on after the 8m wait. The
-/// cap only matters if the attempt limit grows.
-fn resync_backoff(attempts: u32) -> TimeDelta {
-    const RESYNC_BACKOFF_BASE: TimeDelta = TimeDelta::seconds(30);
-    const RESYNC_BACKOFF_MAX: TimeDelta = TimeDelta::seconds(60 * 60);
-
-    let factor = 1i32 << attempts.min(16);
-    (RESYNC_BACKOFF_BASE * factor).min(RESYNC_BACKOFF_MAX)
 }
 
 impl Resync {
@@ -1160,59 +1114,11 @@ struct ResyncTCommit {
 mod tests {
     use std::assert_matches;
 
+    use chrono::TimeDelta;
+
     use crate::{ChatAttributes, db::access::DbAccess, utils::persistence::open_db_in_memory};
 
     use super::*;
-
-    #[test]
-    fn deferred_does_not_spend_an_attempt() {
-        assert_eq!(
-            retry_decision(RecoverableCause::Deferred, 3),
-            RetryDecision::Retry
-        );
-    }
-
-    #[test]
-    fn busy_does_not_spend_an_attempt() {
-        assert_eq!(
-            retry_decision(RecoverableCause::Busy, 3),
-            RetryDecision::Retry
-        );
-    }
-
-    #[test]
-    fn wrong_epoch_does_not_spend_an_attempt() {
-        assert_eq!(
-            retry_decision(RecoverableCause::WrongEpoch, 3),
-            RetryDecision::Retry
-        );
-    }
-
-    #[test]
-    fn server_error_spends_an_attempt_with_backoff() {
-        assert_eq!(
-            retry_decision(RecoverableCause::Server, 0),
-            RetryDecision::Backoff {
-                attempts: 1,
-                retry_in: TimeDelta::minutes(1),
-            }
-        );
-        assert_eq!(
-            retry_decision(RecoverableCause::Server, 3),
-            RetryDecision::Backoff {
-                attempts: 4,
-                retry_in: TimeDelta::minutes(8),
-            }
-        );
-    }
-
-    #[test]
-    fn last_server_error_gives_up() {
-        assert_eq!(
-            retry_decision(RecoverableCause::Server, MAX_RESYNC_ATTEMPTS - 1),
-            RetryDecision::GiveUp
-        );
-    }
 
     /// A chat and a matching queue entry. The queue only stores ids and keys,
     /// so no MLS group is needed.
