@@ -90,6 +90,12 @@
 
   "introScreen_linkExisting": "Associar a uma conta existente",
   "introScreen_signUp": "Criar conta",
+  "introScreen_newPhone_title": "Estás a usar um telemóvel novo?",
+  "introScreen_newPhone_body": "Para a tua segurança, as contas do Air não são transferidas automaticamente para novos dispositivos. Para usares a tua conta, faz o seguinte:",
+  "introScreen_newPhone_step1": "Abre o Air no teu dispositivo antigo, vai a Tu > Dispositivos e toca em Associar um dispositivo.",
+  "introScreen_newPhone_step1Desktop": "Abre o Air no teu dispositivo antigo, vai a Tu > Dispositivos e clica em Associar um dispositivo.",
+  "introScreen_newPhone_step2": "Neste dispositivo, toca em Associar a uma conta existente e segue as instruções na página seguinte.",
+  "introScreen_newPhone_step2Desktop": "Neste dispositivo, clica em Associar a uma conta existente e segue as instruções na página seguinte.",
   "introScreen_termsLinkText": "Termos de Utilização",
   "introScreen_termsText": "Ao criares uma conta, aceitas os nossos {termsOfUseLink}.",
   "invitationCodeScreen_header": "Introduz o código de convite",

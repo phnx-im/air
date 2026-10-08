@@ -90,6 +90,12 @@
 
   "introScreen_linkExisting": "Länka till ett befintligt konto",
   "introScreen_signUp": "Skapa konto",
+  "introScreen_newPhone_title": "Använder du en ny telefon?",
+  "introScreen_newPhone_body": "Av säkerhetsskäl flyttas inte Air-konton automatiskt till nya enheter. Gör så här för att använda ditt konto:",
+  "introScreen_newPhone_step1": "Öppna Air på din gamla enhet, gå till Du > Enheter och tryck på Länka en enhet.",
+  "introScreen_newPhone_step1Desktop": "Öppna Air på din gamla enhet, gå till Du > Enheter och klicka på Länka en enhet.",
+  "introScreen_newPhone_step2": "Tryck på Länka till ett befintligt konto på den här enheten och följ sedan instruktionerna på nästa sida.",
+  "introScreen_newPhone_step2Desktop": "Klicka på Länka till ett befintligt konto på den här enheten och följ sedan instruktionerna på nästa sida.",
   "introScreen_termsLinkText": "Användarvillkor",
   "introScreen_termsText": "Genom att registrera dig godkänner du våra {termsOfUseLink}.",
   "invitationCodeScreen_header": "Ange inbjudningskod",
