@@ -160,6 +160,28 @@ hpke-rs-crypto = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f
 hpke-rs-libcrux = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
 hpke-rs-rust-crypto = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
 libcrux-ecdsa = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
+# openmls_libcrux_crypto pulls the other libcrux crates from crates.io at the
+# same versions as the git revision above. Cargo keeps both copies in the
+# lockfile, which `cargo vendor` (used by `cargo xtask flatpak-sources`)
+# rejects as duplicates, so point them all at the git revision.
+core-models = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
+libcrux-aead = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
+libcrux-aes = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
+libcrux-chacha20poly1305 = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
+libcrux-hacl-rs = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
+libcrux-hkdf = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
+libcrux-hmac = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
+libcrux-intrinsics = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
+libcrux-macros = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
+libcrux-platform = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
+libcrux-poly1305 = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
+libcrux-secrets = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
+libcrux-sha2 = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
+libcrux-sha3 = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
+libcrux-traits = { git = "https://github.com/celabshq/libcrux", rev = "2456eda0f13f3992bce6174ab7a721f2c4294c7f" }
+# Likewise openmls_sqlite_storage 0.3.0 pulls openmls_traits 0.6.0 from
+# crates.io next to the git copy.
+openmls_traits = { git = "https://github.com/openmls/openmls", rev = "350ddbe55ed742e4f311db628363ec314ddac6f9" }
 
 # openmls never builds its sqlite storage for us, but its PQ feature names it,
 # so it still lands in our lockfile (rust-lang/cargo#10801). The git version
