@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "UPDATE resync_queue\n                    SET locked_by = ?2\n                    WHERE group_id = ?1\n                RETURNING\n                    chat_id AS \"chat_id: _\",\n                    group_id AS \"group_id: _\",\n                    pq_group_id AS \"pq_group_id: _\",\n                    group_state_ear_key AS \"group_state_ear_key: _\",\n                    identity_link_wrapper_key AS \"identity_link_wrapper_key: _\",\n                    original_leaf_index AS \"original_leaf_index: _\",\n                    shares_vc_leaf AS \"shares_vc_leaf: _\",\n                    connection_contact AS \"connection_contact: _\",\n                    reason AS \"reason: _\",\n                    attempts\n                ",
+  "query": "UPDATE resync_queue\n                    SET locked_by = ?2\n                    WHERE group_id = ?1\n                RETURNING\n                    chat_id AS \"chat_id: _\",\n                    group_id AS \"group_id: _\",\n                    pq_group_id AS \"pq_group_id: _\",\n                    group_state_ear_key AS \"group_state_ear_key: _\",\n                    identity_link_wrapper_key AS \"identity_link_wrapper_key: _\",\n                    original_leaf_index AS \"original_leaf_index: _\",\n                    shares_vc_leaf AS \"shares_vc_leaf: _\",\n                    connection_contact AS \"connection_contact: _\",\n                    outgoing_request AS \"outgoing_request: _\",\n                    accepted_friendship_package AS \"accepted_friendship_package: _\",\n                    reason AS \"reason: _\",\n                    attempts\n                ",
   "describe": {
     "columns": [
       {
@@ -92,8 +92,30 @@
         }
       },
       {
-        "name": "reason: _",
+        "name": "outgoing_request: _",
         "ordinal": 8,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "outgoing_request"
+          }
+        }
+      },
+      {
+        "name": "accepted_friendship_package: _",
+        "ordinal": 9,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "accepted_friendship_package"
+          }
+        }
+      },
+      {
+        "name": "reason: _",
+        "ordinal": 10,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -104,7 +126,7 @@
       },
       {
         "name": "attempts",
-        "ordinal": 9,
+        "ordinal": 11,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -126,9 +148,11 @@
       false,
       false,
       true,
+      true,
+      true,
       false,
       false
     ]
   },
-  "hash": "3838a63a6f159133739ca34720fcc9299ff7136b4aad5cd46dc559e71b9eb5e1"
+  "hash": "56922221a129df56827e864a8ea7e607d0efeadebb56a32d56bf3c749e97b763"
 }

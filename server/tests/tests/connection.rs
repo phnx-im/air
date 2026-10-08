@@ -269,15 +269,18 @@ async fn connect_users_via_targeted_message() {
         .unwrap()
         .pop()
         .unwrap();
-    let Message::Event(EventMessage::System(SystemMessage::NewDirectConnectionChat(user_id))) =
-        chat_message.message()
+    let Message::Event(EventMessage::System(SystemMessage::SentGroupConnectionRequest {
+        recipient,
+        origin_chat_id,
+    })) = chat_message.message()
     else {
-        panic!("Expected NewDirectConnectionChat system message");
+        panic!("Expected SentGroupConnectionRequest system message");
     };
     assert!(
-        *user_id == charlie,
+        *recipient == charlie,
         "System message should indicate connection to Charlie"
     );
+    assert_eq!(*origin_chat_id, group_chat_id);
 
     // Charlie picks up his messages
     let charlie_user = &setup.get_user(&charlie).user;

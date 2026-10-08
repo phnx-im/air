@@ -1144,9 +1144,30 @@
       }
     }
   },
-  "systemMessage_newDirectConnectionChat": "You sent a contact request to {displayName}. They might not be immediately notified about your request.",
+  "systemMessage_newDirectConnectionChat": "You sent a contact request to {displayName}.",
   "@systemMessage_newDirectConnectionChat": {
     "description": "System message opening a chat where the user sent a contact request to a person from a shared group.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "systemMessage_sentDirectConnectionRequest": "You sent a contact request to {displayName} through the group chat {groupName}.",
+  "@systemMessage_sentDirectConnectionRequest": {
+    "description": "System message opening a chat where the user sent a contact request to a person from a shared group, naming that group chat. Replaces systemMessage_newDirectConnectionChat for requests that know their group chat.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      },
+      "groupName": {
+        "type": "String"
+      }
+    }
+  },
+  "systemMessage_sentDirectConnectionRequestUnknownGroup": "You sent a contact request to {displayName} through a mutual group chat.",
+  "@systemMessage_sentDirectConnectionRequestUnknownGroup": {
+    "description": "Same as systemMessage_sentDirectConnectionRequest, for when the group chat is not on this device, because it was deleted or has not synced yet.",
     "placeholders": {
       "displayName": {
         "type": "String"

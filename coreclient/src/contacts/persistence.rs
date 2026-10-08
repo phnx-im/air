@@ -8,6 +8,7 @@ use aircommon::{
     messages::FriendshipToken,
 };
 use chrono::Utc;
+use openmls::group::GroupId;
 use sqlx::{query, query_as};
 use tokio_stream::StreamExt;
 use uuid::Uuid;
@@ -17,6 +18,7 @@ use crate::{
     clients::connection_offer::FriendshipPackage,
     contacts::{PartialContact, PartialContactType, TargetedMessageContact},
     db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
+    utils::persistence::GroupIdWrapper,
 };
 
 use super::UsernameContact;
@@ -217,6 +219,7 @@ struct Record {
     user_domain: Fqdn,
     chat_id: ChatId,
     friendship_package_ear_key: FriendshipPackageEarKey,
+    origin_group_id: Option<GroupIdWrapper>,
 }
 
 impl From<Record> for TargetedMessageContact {
@@ -226,12 +229,14 @@ impl From<Record> for TargetedMessageContact {
             user_domain,
             chat_id,
             friendship_package_ear_key,
+            origin_group_id,
         }: Record,
     ) -> Self {
         Self {
             user_id: UserId::new(user_id, user_domain),
             chat_id,
             friendship_package_ear_key,
+            origin_group_id: origin_group_id.map(GroupId::from),
         }
     }
 }
@@ -241,19 +246,22 @@ impl TargetedMessageContact {
         let created_at = Utc::now();
         let uuid = self.user_id.uuid();
         let domain = self.user_id.domain();
+        let origin_group_id = self.origin_group_id.as_ref().map(GroupId::as_slice);
         query!(
             "INSERT OR REPLACE INTO targeted_message_contact (
                 user_uuid,
                 user_domain,
                 chat_id,
                 friendship_package_ear_key,
-                created_at
-            ) VALUES (?, ?,?, ?, ?)",
+                created_at,
+                origin_group_id
+            ) VALUES (?, ?, ?, ?, ?, ?)",
             uuid,
             domain,
             self.chat_id,
             self.friendship_package_ear_key,
             created_at,
+            origin_group_id,
         )
         .execute(connection.as_mut())
         .await?;
@@ -273,7 +281,8 @@ impl TargetedMessageContact {
                 user_uuid AS "user_id: _",
                 user_domain AS "user_domain: _",
                 chat_id AS "chat_id: _",
-                friendship_package_ear_key AS "friendship_package_ear_key: _"
+                friendship_package_ear_key AS "friendship_package_ear_key: _",
+                origin_group_id AS "origin_group_id: GroupIdWrapper"
             FROM targeted_message_contact
             WHERE user_uuid = ? AND user_domain = ?"#,
             uuid,
@@ -291,7 +300,8 @@ impl TargetedMessageContact {
                 user_uuid AS "user_id: _",
                 user_domain AS "user_domain: _",
                 chat_id AS "chat_id: _",
-                friendship_package_ear_key AS "friendship_package_ear_key: _"
+                friendship_package_ear_key AS "friendship_package_ear_key: _",
+                origin_group_id AS "origin_group_id: GroupIdWrapper"
             FROM targeted_message_contact"#,
         )
         .fetch_all(connection.as_mut())

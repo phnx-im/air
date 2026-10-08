@@ -142,7 +142,7 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
   );
 }
 
-/// The title of the group chat the contact request [message] came through,
+/// The title of the group chat the contact request [message] went through,
 /// kept current as that chat changes. Null when [message] is no such request,
 /// or when the group chat is not on this device, because it was deleted or has
 /// not synced yet.
@@ -152,6 +152,8 @@ String? useRequestGroupChatTitle(UiSystemMessage? message) {
     UiSystemMessage_ReceivedAdditionalDirectConnectionRequest(
       :final groupChat,
     ) => groupChat,
+    UiSystemMessage_SentDirectConnectionRequest(:final originChatId) =>
+      UiRequestGroupChat.chat(originChatId),
     _ => null,
   };
   final chatId = switch (groupChat) {
@@ -311,6 +313,17 @@ TextSpan buildSystemMessageText(
     ),
     UiSystemMessage_NewDirectConnectionChat(:final field0) => TextSpan(
       text: loc.systemMessage_newDirectConnectionChat(nameOf(field0)),
+    ),
+    UiSystemMessage_SentDirectConnectionRequest(:final recipient) => TextSpan(
+      text: switch (groupChatTitle) {
+        final String title => loc.systemMessage_sentDirectConnectionRequest(
+          nameOf(recipient),
+          title,
+        ),
+        null => loc.systemMessage_sentDirectConnectionRequestUnknownGroup(
+          nameOf(recipient),
+        ),
+      },
     ),
     UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest(
       :final sender,

@@ -2099,6 +2099,13 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                         "User {sender:?} requested another connection through the chat \
                             {origin_chat_id}"
                     )),
+                    SystemMessage::SentGroupConnectionRequest {
+                        recipient,
+                        origin_chat_id,
+                    } => Some(format!(
+                        "You requested a connection with {recipient:?} through the chat \
+                            {origin_chat_id}"
+                    )),
                 }
             } else {
                 None

@@ -520,6 +520,12 @@ sealed class UiSystemMessage with _$UiSystemMessage {
   }) = UiSystemMessage_ReceivedAdditionalDirectConnectionRequest;
   const factory UiSystemMessage.selfChatCreated() =
       UiSystemMessage_SelfChatCreated;
+
+  /// The origin chat may be gone, or not on this device yet.
+  const factory UiSystemMessage.sentDirectConnectionRequest({
+    required UiUserId recipient,
+    required ChatId originChatId,
+  }) = UiSystemMessage_SentDirectConnectionRequest;
 }
 
 /// UI representation of an [`UserId`]

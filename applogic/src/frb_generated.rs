@@ -13290,6 +13290,14 @@ impl SseDecode for crate::api::types::UiSystemMessage {
             16 => {
                 return crate::api::types::UiSystemMessage::SelfChatCreated;
             }
+            17 => {
+                let mut var_recipient = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                let mut var_originChatId = <crate::api::types::ChatId>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::SentDirectConnectionRequest {
+                    recipient: var_recipient,
+                    origin_chat_id: var_originChatId,
+                };
+            }
             _ => {
                 unimplemented!("");
             }
@@ -16587,6 +16595,15 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
             ]
             .into_dart(),
             crate::api::types::UiSystemMessage::SelfChatCreated => [16.into_dart()].into_dart(),
+            crate::api::types::UiSystemMessage::SentDirectConnectionRequest {
+                recipient,
+                origin_chat_id,
+            } => [
+                17.into_dart(),
+                recipient.into_into_dart().into_dart(),
+                origin_chat_id.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -19891,6 +19908,14 @@ impl SseEncode for crate::api::types::UiSystemMessage {
             }
             crate::api::types::UiSystemMessage::SelfChatCreated => {
                 <i32>::sse_encode(16, serializer);
+            }
+            crate::api::types::UiSystemMessage::SentDirectConnectionRequest {
+                recipient,
+                origin_chat_id,
+            } => {
+                <i32>::sse_encode(17, serializer);
+                <crate::api::types::UiUserId>::sse_encode(recipient, serializer);
+                <crate::api::types::ChatId>::sse_encode(origin_chat_id, serializer);
             }
             _ => {
                 unimplemented!("");

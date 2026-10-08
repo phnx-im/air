@@ -290,5 +290,47 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets('names the group chat a sent request went through', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildSubject(
+          UiSystemMessage.sentDirectConnectionRequest(
+            recipient: 1.userId(),
+            originChatId: 3.chatId(),
+          ),
+        ),
+      );
+
+      expect(
+        find.text(
+          'You sent a contact request to Alice through the group chat Group.',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('names no group chat of a sent request not on this device', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildSubject(
+          UiSystemMessage.sentDirectConnectionRequest(
+            recipient: 1.userId(),
+            originChatId: 99.chatId(),
+          ),
+        ),
+      );
+
+      expect(
+        find.text(
+          'You sent a contact request to Alice through a mutual group chat.',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
   });
 }

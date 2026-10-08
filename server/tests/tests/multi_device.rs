@@ -2290,38 +2290,6 @@ async fn multi_device_skips_blocked_connection_chats() {
     );
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test unconfirmed connections are not inherited", skip_all)]
-async fn multi_device_skips_unconfirmed_connection_chats() {
-    let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-
-    // Alice requests a connection to bob's username, which bob never accepts.
-    let bob_username = setup
-        .get_user_mut(&bob)
-        .add_username()
-        .await
-        .unwrap()
-        .username;
-    let username_hash = bob_username.calculate_hash().unwrap();
-    let pending_chat_id = setup
-        .get_user(&alice)
-        .user()
-        .add_contact(bob_username, username_hash, setup.apq_groups)
-        .await
-        .unwrap()
-        .unwrap();
-
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
-    new_device.outbound_service().run_once().await;
-
-    assert!(
-        new_device.chat(&pending_chat_id).await.is_none(),
-        "an unconfirmed connection chat should not be conveyed to a linked device"
-    );
-}
-
 async fn one_unread_message_on_both_devices(
     setup: &TestBackend,
     alice: &UserId,

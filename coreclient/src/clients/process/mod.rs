@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::{AsCredentials, Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow};
+use super::{AsCredentials, Chat, ChatId, CoreUser, TimestampedMessage, anyhow};
 
 pub mod group_bootstrap_echo;
 pub mod process_as;

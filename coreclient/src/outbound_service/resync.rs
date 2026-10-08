@@ -8,7 +8,10 @@ use aircommon::{
     credentials::keys::LeafSigningKey,
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::{QualifiedGroupId, UserId},
-    messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
+    messages::{
+        client_as::EncryptedFriendshipPackage, client_ds::AadPayload,
+        client_ds_out::ExternalCommitInfoIn,
+    },
     time::TimeStamp,
 };
 use anyhow::{Context, Result, anyhow, bail};
@@ -24,6 +27,7 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
+    chats::outgoing_requests::{self, OutgoingRequest},
     clients::{
         CoreUser,
         api_clients::ApiClients,
@@ -163,6 +167,12 @@ pub(crate) struct Resync {
     /// The contact to create alongside the chat when this resync onboards into a
     /// connection group.
     pub(crate) connection_contact: Option<ConnectionContact>,
+    /// The request to recreate when this resync onboards into the connection
+    /// group of an unanswered outgoing request.
+    pub(crate) outgoing_request: Option<OutgoingRequest>,
+    /// The friendship package of the recipient's join, if the recipient
+    /// accepted [`Self::outgoing_request`] before this resync onboards.
+    pub(crate) accepted_friendship_package: Option<EncryptedFriendshipPackage>,
     pub(crate) reason: ResyncReason,
     /// How many DS rejections this entry has collected so far.
     pub(crate) attempts: u32,
@@ -179,6 +189,8 @@ impl Resync {
             original_leaf_index: group.own_index(),
             shares_vc_leaf: group.own_leaf_is_virtual_client(),
             connection_contact: None,
+            outgoing_request: None,
+            accepted_friendship_package: None,
             reason,
             attempts: 0,
         }
@@ -222,6 +234,7 @@ impl CoreUser {
                 identity_link_wrapper_key,
                 vc_leaf_index,
                 connection,
+                outgoing_request,
             } = group;
 
             let resync = Resync {
@@ -233,6 +246,8 @@ impl CoreUser {
                 original_leaf_index: LeafNodeIndex::new(vc_leaf_index),
                 shares_vc_leaf: true,
                 connection_contact: connection,
+                outgoing_request,
+                accepted_friendship_package: None,
                 reason: ResyncReason::Onboarding,
                 attempts: 0,
             };
@@ -463,6 +478,8 @@ impl Resync {
             return Ok(None);
         };
         let connection_contact = self.connection_contact.take();
+        let outgoing_request = self.outgoing_request.take();
+        let accepted_friendship_package = self.accepted_friendship_package.take();
         let ds_timestamp = TimeStamp::now();
 
         let mut txn = connection
@@ -486,6 +503,16 @@ impl Resync {
                     Self::create_connection_chat(&mut txn, &group, connection_contact)
                         .await
                         .map_err(OutboundServiceError::fatal)?
+                } else if let Some(outgoing_request) = outgoing_request {
+                    Self::restore_outgoing_request(
+                        &mut txn,
+                        &group,
+                        outgoing_request,
+                        accepted_friendship_package,
+                        ds_timestamp,
+                    )
+                    .await
+                    .map_err(OutboundServiceError::fatal)?
                 } else {
                     Self::create_group_chat(&mut txn, &group, own_user_id, ds_timestamp)
                         .await
@@ -558,6 +585,29 @@ impl Resync {
         .upsert(&mut *txn)
         .await?;
 
+        Ok(chat.id())
+    }
+
+    /// Recreate the chat of an outgoing request for a connection group we just
+    /// onboarded into, confirmed if the recipient accepted it before.
+    async fn restore_outgoing_request(
+        txn: &mut WriteDbTransaction<'_>,
+        group: &Group,
+        request: OutgoingRequest,
+        accepted_friendship_package: Option<EncryptedFriendshipPackage>,
+        ds_timestamp: TimeStamp,
+    ) -> Result<ChatId> {
+        let mut chat = request.store(&mut *txn, group, ds_timestamp).await?;
+        let Some(friendship_package) = accepted_friendship_package else {
+            return Ok(chat.id());
+        };
+
+        let system_message =
+            outgoing_requests::confirm_missed_join(txn, &mut chat, group, &friendship_package)
+                .await?;
+        ChatMessage::new_system_message(chat.id(), ds_timestamp, system_message)
+            .store(&mut *txn)
+            .await?;
         Ok(chat.id())
     }
 
@@ -829,6 +879,9 @@ mod persistence {
             let pq_group_id = self.pq_group_id.as_ref().map(GroupIdRefWrapper::from);
             let original_leaf_index = self.original_leaf_index.u32() as i32;
             let connection_contact = self.connection_contact.as_ref().map(BlobEncoded);
+            let outgoing_request = self.outgoing_request.as_ref().map(BlobEncoded);
+            let accepted_friendship_package =
+                self.accepted_friendship_package.as_ref().map(BlobEncoded);
             query!(
                 "INSERT INTO resync_queue (
                     group_id,
@@ -839,11 +892,13 @@ mod persistence {
                     original_leaf_index,
                     shares_vc_leaf,
                     connection_contact,
+                    outgoing_request,
+                    accepted_friendship_package,
                     status,
                     reason,
                     attempts
                 )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0)
                 ON CONFLICT DO NOTHING",
                 group_id,
                 pq_group_id,
@@ -853,6 +908,8 @@ mod persistence {
                 original_leaf_index,
                 self.shares_vc_leaf,
                 connection_contact,
+                outgoing_request,
+                accepted_friendship_package,
                 ResyncStatus::Pending as _,
                 self.reason as _,
             )
@@ -877,6 +934,9 @@ mod persistence {
             let pq_group_id = self.pq_group_id.as_ref().map(GroupIdRefWrapper::from);
             let original_leaf_index = self.original_leaf_index.u32() as i32;
             let connection_contact = self.connection_contact.as_ref().map(BlobEncoded);
+            let outgoing_request = self.outgoing_request.as_ref().map(BlobEncoded);
+            let accepted_friendship_package =
+                self.accepted_friendship_package.as_ref().map(BlobEncoded);
             query!(
                 "INSERT INTO resync_queue (
                     group_id,
@@ -887,11 +947,13 @@ mod persistence {
                     original_leaf_index,
                     shares_vc_leaf,
                     connection_contact,
+                    outgoing_request,
+                    accepted_friendship_package,
                     status,
                     reason,
                     attempts
                 )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0)
                 ON CONFLICT (group_id) DO UPDATE SET
                     pq_group_id = excluded.pq_group_id,
                     chat_id = excluded.chat_id,
@@ -900,6 +962,8 @@ mod persistence {
                     original_leaf_index = excluded.original_leaf_index,
                     shares_vc_leaf = excluded.shares_vc_leaf,
                     connection_contact = excluded.connection_contact,
+                    outgoing_request = excluded.outgoing_request,
+                    accepted_friendship_package = excluded.accepted_friendship_package,
                     status = excluded.status,
                     attempts = 0,
                     not_before = NULL,
@@ -914,6 +978,8 @@ mod persistence {
                 original_leaf_index,
                 self.shares_vc_leaf,
                 connection_contact,
+                outgoing_request,
+                accepted_friendship_package,
                 ResyncStatus::Pending as _,
                 self.reason as _,
             )
@@ -1000,6 +1066,8 @@ mod persistence {
                 original_leaf_index: i32,
                 shares_vc_leaf: bool,
                 connection_contact: Option<BlobDecoded<ConnectionContact>>,
+                outgoing_request: Option<BlobDecoded<OutgoingRequest>>,
+                accepted_friendship_package: Option<BlobDecoded<EncryptedFriendshipPackage>>,
                 reason: ResyncReason,
                 attempts: i64,
             }
@@ -1037,6 +1105,8 @@ mod persistence {
                     original_leaf_index AS "original_leaf_index: _",
                     shares_vc_leaf AS "shares_vc_leaf: _",
                     connection_contact AS "connection_contact: _",
+                    outgoing_request AS "outgoing_request: _",
+                    accepted_friendship_package AS "accepted_friendship_package: _",
                     reason AS "reason: _",
                     attempts
                 "#,
@@ -1054,6 +1124,10 @@ mod persistence {
                 original_leaf_index: LeafNodeIndex::new(record.original_leaf_index as u32),
                 shares_vc_leaf: record.shares_vc_leaf,
                 connection_contact: record.connection_contact.map(BlobDecoded::into_inner),
+                outgoing_request: record.outgoing_request.map(BlobDecoded::into_inner),
+                accepted_friendship_package: record
+                    .accepted_friendship_package
+                    .map(BlobDecoded::into_inner),
                 reason: record.reason,
                 attempts: record.attempts as u32,
             });
@@ -1075,6 +1149,45 @@ mod persistence {
             )
             .fetch_optional(connection.as_mut())
             .await
+        }
+
+        /// Whether the group has a queue entry that onboards into the connection
+        /// group of an outgoing request.
+        pub(crate) async fn onboards_outgoing_request(
+            mut connection: impl ReadConnection,
+            group_id: &GroupId,
+        ) -> sqlx::Result<bool> {
+            let group_id = group_id.as_slice();
+            query_scalar!(
+                r#"SELECT EXISTS (
+                    SELECT 1 FROM resync_queue
+                    WHERE group_id = ? AND outgoing_request IS NOT NULL
+                ) AS "onboards: bool""#,
+                group_id,
+            )
+            .fetch_one(connection.as_mut())
+            .await
+        }
+
+        /// Records that the recipient accepted the outgoing request the group's
+        /// queue entry onboards into.
+        pub(crate) async fn record_acceptance(
+            mut connection: impl WriteConnection,
+            group_id: &GroupId,
+            friendship_package: &EncryptedFriendshipPackage,
+        ) -> sqlx::Result<()> {
+            let group_id = group_id.as_slice();
+            let friendship_package = BlobEncoded(friendship_package);
+            query!(
+                "UPDATE resync_queue
+                SET accepted_friendship_package = ?2
+                WHERE group_id = ?1",
+                group_id,
+                friendship_package,
+            )
+            .execute(connection.as_mut())
+            .await?;
+            Ok(())
         }
 
         /// Records a spent attempt and when the next one may run.
@@ -1152,6 +1265,7 @@ mod tests {
     use std::{assert_matches, time::Duration};
 
     use airapiclient::ds_api::DsRequestError;
+    use aircommon::crypto::aead::keys::FriendshipPackageEarKey;
     use airprotos::common::v1::{
         StatusDetails, StatusDetailsCode, WrongEpochDetail, status_details::Detail,
     };
@@ -1238,6 +1352,8 @@ mod tests {
             original_leaf_index: LeafNodeIndex::new(0),
             shares_vc_leaf: false,
             connection_contact: None,
+            outgoing_request: None,
+            accepted_friendship_package: None,
             reason,
             attempts: 0,
         };
@@ -1272,6 +1388,60 @@ mod tests {
             .expect("entry should be due");
         assert_eq!(dequeued.reason, ResyncReason::FutureEpoch);
         assert_eq!(dequeued.attempts, 3);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn onboarding_keeps_the_outgoing_request_and_its_acceptance() -> anyhow::Result<()> {
+        let (pool, mut resync) = setup(ResyncReason::Onboarding).await?;
+        let group_id = resync.group_id.clone();
+        let request = OutgoingRequest::Targeted {
+            user_id: UserId::random("example.com".parse()?),
+            friendship_package_ear_key: FriendshipPackageEarKey::random()?,
+            origin_group_id: Some(GroupId::from(QualifiedGroupId::new(
+                Uuid::new_v4(),
+                "example.com".parse()?,
+            ))),
+        };
+        resync.chat_id = None;
+        resync.outgoing_request = Some(request.clone());
+        let mut connection = pool.write().await?;
+        resync.enqueue(&mut connection).await?;
+        assert!(Resync::onboards_outgoing_request(&mut connection, &group_id).await?);
+
+        let friendship_package = EncryptedFriendshipPackage::random();
+        Resync::record_acceptance(&mut connection, &group_id, &friendship_package).await?;
+
+        let dequeued = connection
+            .with_transaction(async |txn| Resync::dequeue(txn, Uuid::new_v4(), Utc::now()).await)
+            .await?
+            .expect("entry should be due");
+        assert_eq!(dequeued.outgoing_request, Some(request));
+        let accepted = dequeued
+            .accepted_friendship_package
+            .expect("the acceptance should be kept");
+        assert_eq!(
+            accepted.aead_ciphertext(),
+            friendship_package.aead_ciphertext()
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn only_onboarding_into_an_outgoing_request_takes_a_join() -> anyhow::Result<()> {
+        let (pool, resync) = setup(ResyncReason::Onboarding).await?;
+        let group_id = resync.group_id.clone();
+        let mut connection = pool.write().await?;
+        resync.enqueue(&mut connection).await?;
+        assert!(!Resync::onboards_outgoing_request(&mut connection, &group_id).await?);
+
+        let unknown = GroupId::from(QualifiedGroupId::new(
+            Uuid::new_v4(),
+            "example.com".parse()?,
+        ));
+        assert!(!Resync::onboards_outgoing_request(&mut connection, &unknown).await?);
 
         Ok(())
     }
