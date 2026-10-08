@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                    request_id AS \"request_id: ChatId\",\n                    chat_id AS \"chat_id: ChatId\",\n                    created_at AS \"created_at: TimeStamp\",\n                    received_at AS \"received_at: TimeStamp\",\n                    connection_info AS \"connection_info: ConnectionInfo\",\n                    username AS \"username: _\",\n                    connection_offer_hash AS \"connection_offer_hash: _\",\n                    connection_package_hash AS \"connection_package_hash: _\",\n                    origin_chat_id AS \"origin_chat_id: ChatId\"\n                FROM pending_connection_request\n                WHERE request_id = ?",
+  "query": "SELECT\n                    request_id AS \"request_id: ChatId\",\n                    chat_id AS \"chat_id: ChatId\",\n                    created_at AS \"created_at: TimeStamp\",\n                    received_at AS \"received_at: TimeStamp\",\n                    connection_info AS \"connection_info: ConnectionInfo\",\n                    username AS \"username: _\",\n                    connection_offer_hash AS \"connection_offer_hash: _\",\n                    connection_package_hash AS \"connection_package_hash: _\",\n                    origin_group_id AS \"origin_group_id: GroupIdWrapper\"\n                FROM pending_connection_request\n                ORDER BY request_id",
   "describe": {
     "columns": [
       {
@@ -92,19 +92,19 @@
         }
       },
       {
-        "name": "origin_chat_id: ChatId",
+        "name": "origin_group_id: GroupIdWrapper",
         "ordinal": 8,
         "type_info": "Blob",
         "origin": {
           "Table": {
             "table": "pending_connection_request",
-            "name": "origin_chat_id"
+            "name": "origin_group_id"
           }
         }
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 0
     },
     "nullable": [
       false,
@@ -118,5 +118,5 @@
       true
     ]
   },
-  "hash": "9f086619e95aeeeb6cd162484f22b15ff2b23fa08b6bfd15dd4dbfc85ffacceb"
+  "hash": "a151febff3e5d0a4055793afd17a606fc11efa6a8920345ffd23f5de7bc70669"
 }

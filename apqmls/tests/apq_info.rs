@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::assert_matches;
+
 use apqmls::{
     ApqMlsGroup,
     authentication::ApqSigner,
@@ -13,6 +15,7 @@ use apqmls::{
     },
     processing::{
         ApqProcessMessageError, ApqProcessMessageValidationError, ApqProcessPublicMessageError,
+        resolve_partial_commit, resolve_partial_commit_public,
     },
     psk::derive_and_store_commit_psk,
     public_group::ApqPublicGroup,
@@ -27,7 +30,8 @@ use openmls::{
     },
     prelude::{
         AppDataUpdateProposal, Ciphersuite, Credential, KeyPackage, MlsMessageBodyIn, MlsMessageIn,
-        MlsMessageOut, OpenMlsProvider, PreSharedKeyProposal, Proposal, PublicGroup,
+        MlsMessageOut, OpenMlsProvider, PreSharedKeyProposal, Proposal, ProtocolMessage,
+        PublicGroup,
     },
     schedule::PreSharedKeyId,
 };
@@ -483,10 +487,10 @@ fn malformed_update_payload_is_rejected() {
 
     let error =
         expect_error(bob_group.process_message(&bob.provider, message, compare_credentials));
-    assert!(matches!(
+    assert_matches!(
         error,
         ApqProcessMessageError::ApqInfoUpdate(ApqInfoUpdateError::MalformedUpdate(_))
-    ));
+    );
 }
 
 /// A full update that tampers with one immutable APQInfo field. The new epochs
@@ -530,12 +534,10 @@ fn mode_change_is_rejected_by_member() {
 
     let error =
         expect_error(bob_group.process_message(&bob.provider, message, compare_credentials));
-    assert!(matches!(
+    assert_matches!(
         error,
-        ApqProcessMessageError::Validation(
-            ApqProcessMessageValidationError::ImmutableApqInfoModified
-        )
-    ));
+        ApqProcessMessageError::ApqInfoUpdate(ApqInfoUpdateError::ImmutableFieldModified)
+    );
 }
 
 #[test]
@@ -555,9 +557,7 @@ fn mode_change_is_rejected_by_public_group() {
     ));
     assert_eq!(
         error,
-        ApqProcessPublicMessageError::Validation(
-            ApqProcessMessageValidationError::ImmutableApqInfoModified
-        )
+        ApqProcessPublicMessageError::ApqInfoUpdate(ApqInfoUpdateError::ImmutableFieldModified)
     );
 }
 
@@ -582,13 +582,9 @@ fn group_id_and_ciphersuite_changes_are_rejected() {
 
         let error =
             expect_error(bob_group.process_message(&bob.provider, message, compare_credentials));
-        assert!(
-            matches!(
-                error,
-                ApqProcessMessageError::Validation(
-                    ApqProcessMessageValidationError::InvalidApqInfo
-                )
-            ),
+        assert_matches!(
+            error,
+            ApqProcessMessageError::ApqInfoUpdate(ApqInfoUpdateError::ImmutableFieldModified),
             "unexpected error: {error:?}"
         );
     }
@@ -619,10 +615,10 @@ fn a_full_commit_without_the_apq_psk_is_rejected_by_member() {
 
     let error =
         expect_error(bob_group.process_message(&bob.provider, message, compare_credentials));
-    assert!(matches!(
+    assert_matches!(
         error,
         ApqProcessMessageError::Validation(ApqProcessMessageValidationError::MissingApqPsk)
-    ));
+    );
 }
 
 #[test]
@@ -657,10 +653,10 @@ fn a_full_commit_with_a_foreign_apq_psk_is_rejected_by_member() {
 
     let error =
         expect_error(bob_group.process_message(&bob.provider, message, compare_credentials));
-    assert!(matches!(
+    assert_matches!(
         error,
         ApqProcessMessageError::Validation(ApqProcessMessageValidationError::ApqPskMismatch)
-    ));
+    );
 }
 
 #[test]
@@ -732,13 +728,9 @@ fn a_full_commit_with_two_apq_psks_is_rejected() {
 
         let error =
             expect_error(bob_group.process_message(&bob.provider, message, compare_credentials));
-        assert!(
-            matches!(
-                error,
-                ApqProcessMessageError::Validation(
-                    ApqProcessMessageValidationError::DuplicateApqPsk
-                )
-            ),
+        assert_matches!(
+            error,
+            ApqProcessMessageError::Validation(ApqProcessMessageValidationError::DuplicateApqPsk),
             "unexpected error: {error:?}"
         );
     }
@@ -778,10 +770,10 @@ fn a_welcome_without_the_apq_psk_is_rejected() {
         Some(alice_group.export_ratchet_tree().into()),
         compare_credentials,
     );
-    assert!(matches!(
+    assert_matches!(
         expect_error(result),
         WelcomeError::Validation(ApqValidationError::MissingApqPsk)
-    ));
+    );
 }
 
 #[test]
@@ -843,7 +835,7 @@ fn a_removed_apq_info_is_rejected_by_public_group() {
     ));
     assert_eq!(
         error,
-        ApqProcessPublicMessageError::Validation(ApqProcessMessageValidationError::MissingApqInfo)
+        ApqProcessPublicMessageError::ApqInfoUpdate(ApqInfoUpdateError::ApqInfoRemoval)
     );
 }
 
@@ -900,10 +892,10 @@ fn a_malformed_update_payload_is_rejected_by_public_group() {
         message,
         compare_credentials,
     ));
-    assert!(matches!(
+    assert_matches!(
         error,
         ApqProcessPublicMessageError::ApqInfoUpdate(ApqInfoUpdateError::MalformedUpdate(_))
-    ));
+    );
 }
 
 #[test]
@@ -932,12 +924,12 @@ fn external_join_requires_matching_apq_info() {
             verifiable_group_info(t_message, pq_message),
             compare_credentials,
         );
-    assert!(matches!(
+    assert_matches!(
         result,
         Err(ApqExternalCommitBuilderError::Validation(
             ApqValidationError::ApqInfoMismatch
         ))
-    ));
+    );
 }
 
 #[test]
@@ -974,10 +966,100 @@ fn external_join_requires_apq_info_in_the_pq_group_info() {
             verifiable_group_info(t_message, pq_message),
             compare_credentials,
         );
-    assert!(matches!(
+    assert_matches!(
         result,
         Err(ApqExternalCommitBuilderError::Validation(
             ApqValidationError::MissingApqInfo(Session::Pq)
         ))
-    ));
+    );
+}
+
+/// APQInfo updates that pass on their own, for an APQInfo whose epochs both
+/// advance by one.
+fn valid_apq_info_updates(group: &ApqMlsGroup) -> [Vec<AppDataUpdateProposal>; 2] {
+    let next = next_apq_info(group);
+    [
+        vec![update_proposal(ApqInfoUpdate::FullUpdate(next.clone()))],
+        vec![
+            update_proposal(ApqInfoUpdate::NewTEpoch(next.t_epoch)),
+            update_proposal(ApqInfoUpdate::NewPqEpoch(next.pq_epoch)),
+        ],
+    ]
+}
+
+/// A PARTIAL commit, i.e. one in the T leg only, that carries the given
+/// APQInfo update proposals.
+fn partial_commit(
+    client: &Client<OpenMlsRustCrypto>,
+    group: ApqMlsGroup,
+    proposals: &[AppDataUpdateProposal],
+) -> ProtocolMessage {
+    let entry = next_apq_info(&group).tls_serialize_detached().unwrap();
+    let (mut t_group, _pq_group) = group.into_groups();
+    let bundle = leg_commit(
+        &client.provider,
+        &mut t_group,
+        client.signer.t_signer(),
+        &[],
+        proposals,
+        &[],
+        Entry::Set(&entry),
+    );
+    roundtrip(bundle.into_commit())
+        .try_into_protocol_message()
+        .unwrap()
+}
+
+#[test]
+fn an_apq_info_update_in_a_partial_commit_is_rejected_by_member() {
+    for case in 0..2 {
+        let TwoMembers {
+            alice,
+            bob,
+            alice_group,
+            bob_group,
+        } = two_member_group();
+        let proposals = valid_apq_info_updates(&alice_group)[case].clone();
+        let message = partial_commit(&alice, alice_group, &proposals);
+
+        let (mut bob_t_group, _bob_pq_group) = bob_group.into_groups();
+        let processed = bob_t_group.process_message(&bob.provider, message).unwrap();
+        let error = expect_error(resolve_partial_commit(
+            &bob_t_group,
+            &bob.provider,
+            processed,
+        ));
+        assert_matches!(
+            error,
+            ApqProcessMessageError::ApqInfoUpdate(ApqInfoUpdateError::UnpairedUpdate)
+        );
+    }
+}
+
+#[test]
+fn an_apq_info_update_in_a_partial_commit_is_rejected_by_public_group() {
+    for case in 0..2 {
+        let TwoMembers {
+            alice, alice_group, ..
+        } = two_member_group();
+        let ds_provider = OpenMlsRustCrypto::default();
+        let mut ds_group = ds_group(&alice, &alice_group, &ds_provider);
+        let proposals = valid_apq_info_updates(&alice_group)[case].clone();
+        let message = partial_commit(&alice, alice_group, &proposals);
+
+        let mut ds_group = ds_group.as_mut();
+        let t_public_group = ds_group.t_public_group();
+        let processed = t_public_group
+            .process_message(ds_provider.crypto(), message)
+            .unwrap();
+        let error = expect_error(resolve_partial_commit_public(
+            t_public_group,
+            ds_provider.crypto(),
+            processed,
+        ));
+        assert_eq!(
+            error,
+            ApqProcessPublicMessageError::ApqInfoUpdate(ApqInfoUpdateError::UnpairedUpdate)
+        );
+    }
 }

@@ -22,7 +22,7 @@ use mimi_room_policy::RoleIndex;
 use tracing::debug;
 
 use crate::{
-    Chat, ChatMessage, ChatStatus, Contact, SystemMessage, TargetedMessageContact,
+    Chat, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage, TargetedMessageContact,
     chats::{PendingConnectionRequest, connection_requests},
     clients::CoreUser,
     contacts::UsernameContact,
@@ -106,10 +106,11 @@ impl CoreUser {
             }
         };
 
-        match &contents.connection {
+        let settled_chat = match &contents.connection {
             None => {
                 self.install_bootstrapped_group_chat(txn, &group, ds_timestamp)
-                    .await?
+                    .await?;
+                None
             }
             Some(connection) => {
                 Box::pin(self.install_bootstrapped_connection_chat(
@@ -120,9 +121,9 @@ impl CoreUser {
                 ))
                 .await?
             }
-        }
+        };
 
-        Ok(QsMessageOutcome::empty())
+        Ok(QsMessageOutcome::stale_chats(settled_chat))
     }
 
     /// Creates the chat of a group chat a sibling created, taking the
@@ -151,16 +152,19 @@ impl CoreUser {
         Ok(())
     }
 
-    /// Creates the chat and contact rows of a connection chat a sibling
-    /// created or accepted.
+    /// Creates the chat and contact rows of a connection chat a sibling created
+    /// or accepted.
+    ///
+    /// Returns the chat that showed the pending requests that was accepted. Its
+    /// notifications are stale.
     async fn install_bootstrapped_connection_chat(
         &self,
         txn: &mut WriteDbTransaction<'_>,
         group: &mut Group,
         connection: &BootstrapConnection,
         ds_timestamp: TimeStamp,
-    ) -> Result<()> {
-        match connection {
+    ) -> Result<Option<ChatId>> {
+        let settled_chat = match connection {
             BootstrapConnection::HandleInitiator {
                 username,
                 friendship_package_ear_key,
@@ -188,6 +192,7 @@ impl CoreUser {
                 .await?;
                 // The peer's external commit will reference this PSK.
                 group.store_connection_offer_psk(&mut *txn, *connection_offer_hash)?;
+                None
             }
 
             BootstrapConnection::TargetedInitiator {
@@ -214,6 +219,7 @@ impl CoreUser {
                 )
                 .upsert(&mut *txn)
                 .await?;
+                None
             }
 
             BootstrapConnection::Accept {
@@ -252,10 +258,10 @@ impl CoreUser {
                 let chat =
                     Chat::new_onboarding_connection_chat(group.group_id().clone(), user_id.clone());
 
-                // A connection offer that arrived as a targeted message
-                // reaches every sibling, so this client may already hold the
-                // pending requests the acting client settled. They are shown
-                // in another chat if this device knows a newer request. The
+                // This client may already hold pending requests of the
+                // sender, forwarded by a sibling or from a targeted message,
+                // which reaches every sibling. They are shown in another chat
+                // if the two devices disagree on the newest request. The
                 // username an offer went to is only in that pending state.
                 let request_id = chat.id();
                 let accepted = PendingConnectionRequest::load(&mut *txn, request_id).await?;
@@ -299,10 +305,11 @@ impl CoreUser {
                 if let Some(hash) = connection_offer_hash {
                     Group::delete_connection_offer_psk(txn, *hash)?;
                 }
+                host
             }
-        }
+        };
 
-        Ok(())
+        Ok(settled_chat)
     }
 }
 

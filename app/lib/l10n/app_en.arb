@@ -154,9 +154,13 @@
   "@safetyCodeScreen_title": {
     "description": "Title of the pane showing the safety code shared with one contact."
   },
-  "safetyCodeScreen_tapToCopy": "Tap to copy",
-  "@safetyCodeScreen_tapToCopy": {
+  "safetyCodeScreen_copyHint": "Tap to copy",
+  "@safetyCodeScreen_copyHint": {
     "description": "Hint under the safety code telling the user they can tap it to copy."
+  },
+  "safetyCodeScreen_copyHint_desktop": "Click to copy",
+  "@safetyCodeScreen_copyHint_desktop": {
+    "description": "Desktop version of safetyCodeScreen_copyHint: hint under the safety code telling the user they can click it to copy."
   },
   "safetyCodeScreen_copiedToClipboard": "Copied to clipboard",
   "@safetyCodeScreen_copiedToClipboard": {
@@ -365,11 +369,11 @@
     "description": "Confirming button of the add contact dialog, which sends a contact request."
   },
 
-  "changeGroupTitleDialog_title": "Change group title",
+  "changeGroupTitleDialog_title": "Change group name",
   "@changeGroupTitleDialog_title": {
     "description": "Title of the dialog for renaming a group."
   },
-  "changeGroupTitleDialog_content": "Choose a title for the group.",
+  "changeGroupTitleDialog_content": "Choose a name for the group.",
   "@changeGroupTitleDialog_content": {
     "description": "Body of the rename group dialog, above the name field."
   },
@@ -489,9 +493,13 @@
   "@invitationCodesScreen_copyAll": {
     "description": "Button that copies every unused invite code at once."
   },
-  "invitationCodesScreen_tapToGetCode": "Tap to get code",
-  "@invitationCodesScreen_tapToGetCode": {
+  "invitationCodesScreen_getCodeHint": "Tap to get code",
+  "@invitationCodesScreen_getCodeHint": {
     "description": "Hint on an empty code slot telling the user to tap it to request a code."
+  },
+  "invitationCodesScreen_getCodeHint_desktop": "Click to get a code",
+  "@invitationCodesScreen_getCodeHint_desktop": {
+    "description": "Desktop version of invitationCodesScreen_getCodeHint: hint on an empty code slot telling the user to click it to request a code."
   },
   "invitationCodesScreen_removeUsedCodes": "Remove used codes",
   "@invitationCodesScreen_removeUsedCodes": {
@@ -660,6 +668,10 @@
   "@linkingDeviceScreen_linking_confirm_edit_subtitle": {
     "description": "Hint under the device name telling the user they can tap it to rename the device."
   },
+  "linkingDeviceScreen_linking_confirm_edit_subtitle_desktop": "Click to edit device name",
+  "@linkingDeviceScreen_linking_confirm_edit_subtitle_desktop": {
+    "description": "Desktop version of linkingDeviceScreen_linking_confirm_edit_subtitle: hint under the device name telling the user they can click it to rename the device."
+  },
   "linkingDeviceScreen_linking_confirm_body": "You're about to link a new device, which will have full access to your Air account. Only do this if the device belongs to you.",
   "@linkingDeviceScreen_linking_confirm_body": {
     "description": "Warns that a linked device gets full account access."
@@ -774,6 +786,10 @@
   "linkedDevicesScreen_editNameHint": "Tap a device to edit its name.",
   "@linkedDevicesScreen_editNameHint": {
     "description": "Hint under the device list telling the user they can tap a device to rename it."
+  },
+  "linkedDevicesScreen_editNameHint_desktop": "Click a device to edit its name.",
+  "@linkedDevicesScreen_editNameHint_desktop": {
+    "description": "Desktop version of linkedDevicesScreen_editNameHint: hint under the device list telling the user they can click a device to rename it."
   },
   "linkedDevicesScreen_linkDevice": "Link a device",
   "@linkedDevicesScreen_linkDevice": {
@@ -1137,6 +1153,15 @@
       }
     }
   },
+  "systemMessage_receivedDirectConnectionRequestUnknownGroup": "{displayName} sent you a contact request through a mutual group chat.",
+  "@systemMessage_receivedDirectConnectionRequestUnknownGroup": {
+    "description": "Same as systemMessage_receivedDirectConnectionRequest, for when the group chat is not on this device, because it was deleted or has not synced yet. Also the subtitle of the contact request card.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
   "systemMessage_receivedAdditionalUsernameConnectionRequest": "{displayName} also sent you a contact request through your username {username}.",
   "@systemMessage_receivedAdditionalUsernameConnectionRequest": {
     "description": "System message in the chat of a pending contact request, when the same person sends another request through another of the user's usernames. It joins the request that is already there.",
@@ -1157,6 +1182,15 @@
         "type": "String"
       },
       "groupName": {
+        "type": "String"
+      }
+    }
+  },
+  "systemMessage_receivedAdditionalDirectConnectionRequestUnknownGroup": "{displayName} also sent you a contact request through a mutual group chat.",
+  "@systemMessage_receivedAdditionalDirectConnectionRequestUnknownGroup": {
+    "description": "Same as systemMessage_receivedAdditionalDirectConnectionRequest, for when the group chat is not on this device, because it was deleted or has not synced yet.",
+    "placeholders": {
+      "displayName": {
         "type": "String"
       }
     }
@@ -1187,55 +1221,59 @@
     "description": "System message marking where a newly linked device joined the chat."
   },
 
-  "systemMessage_deviceLinked": "You linked a new device named {device} to your account. {tapToView}",
+  "systemMessage_deviceLinked": "You linked a new device named {device} to your account. {viewDevicesAction}",
   "@systemMessage_deviceLinked": {
-    "description": "Notice in the self-chat message list when one of our own devices got linked. The device name is rendered in bold wherever it lands, so put it where your language needs it. tapToView is the call-to-action sentence (see systemMessage_devicesTapToView); place it wherever it reads naturally, with whatever punctuation or spacing your language needs around it.",
+    "description": "Notice in the self-chat message list when one of our own devices got linked. The device name is rendered in bold wherever it lands, so put it where your language needs it. viewDevicesAction is the call-to-action sentence (see systemMessage_viewDevicesAction); place it wherever it reads naturally, with whatever punctuation or spacing your language needs around it.",
     "placeholders": {
       "device": {
         "type": "String"
       },
-      "tapToView": {
+      "viewDevicesAction": {
         "type": "String"
       }
     }
   },
 
-  "systemMessage_deviceLinkedUnknown": "You linked a new device to your account. {tapToView}",
+  "systemMessage_deviceLinkedUnknown": "You linked a new device to your account. {viewDevicesAction}",
   "@systemMessage_deviceLinkedUnknown": {
     "description": "Same as systemMessage_deviceLinked, for when the device's name isn't known yet (e.g. not synced).",
     "placeholders": {
-      "tapToView": {
+      "viewDevicesAction": {
         "type": "String"
       }
     }
   },
 
-  "systemMessage_deviceUnlinked": "You unlinked the device {device} from your account. {tapToView}",
+  "systemMessage_deviceUnlinked": "You unlinked the device {device} from your account. {viewDevicesAction}",
   "@systemMessage_deviceUnlinked": {
-    "description": "Notice in the self-chat message list when one of our own devices got unlinked. The device name is rendered in bold wherever it lands, so put it where your language needs it. tapToView is the call-to-action sentence (see systemMessage_devicesTapToView); place it wherever it reads naturally, with whatever punctuation or spacing your language needs around it.",
+    "description": "Notice in the self-chat message list when one of our own devices got unlinked. The device name is rendered in bold wherever it lands, so put it where your language needs it. viewDevicesAction is the call-to-action sentence (see systemMessage_viewDevicesAction); place it wherever it reads naturally, with whatever punctuation or spacing your language needs around it.",
     "placeholders": {
       "device": {
         "type": "String"
       },
-      "tapToView": {
+      "viewDevicesAction": {
         "type": "String"
       }
     }
   },
 
-  "systemMessage_deviceUnlinkedUnknown": "You unlinked a device from your account. {tapToView}",
+  "systemMessage_deviceUnlinkedUnknown": "You unlinked a device from your account. {viewDevicesAction}",
   "@systemMessage_deviceUnlinkedUnknown": {
     "description": "Same as systemMessage_deviceUnlinked, for when the device's name isn't known anymore (it was already dropped once unlinked).",
     "placeholders": {
-      "tapToView": {
+      "viewDevicesAction": {
         "type": "String"
       }
     }
   },
 
-  "systemMessage_devicesTapToView": "Tap to view your devices.",
-  "@systemMessage_devicesTapToView": {
+  "systemMessage_viewDevicesAction": "Tap to view your devices.",
+  "@systemMessage_viewDevicesAction": {
     "description": "Call-to-action rendered as its own tappable, emphasized run at the point the surrounding sentence places it. Tapping it opens the devices section of settings."
+  },
+  "systemMessage_viewDevicesAction_desktop": "Click to view your devices.",
+  "@systemMessage_viewDevicesAction_desktop": {
+    "description": "Desktop version of systemMessage_viewDevicesAction: call-to-action rendered as its own clickable, emphasized run at the point the surrounding sentence places it. Clicking it opens the devices section of settings."
   },
 
   "systemMessage_selfChatCreated": "Use this chat as your personal notepad. Messages are synced across all of your account's linked devices.",
@@ -1390,6 +1428,15 @@
       }
     }
   },
+  "newConnectionDialog_handleExists_desktop": "{username} exists. Click “Send” to send a contact request.",
+  "@newConnectionDialog_handleExists_desktop": {
+    "description": "Desktop version of newConnectionDialog_handleExists: confirmation that the username exists, telling the user how to proceed. The quoted text is the confirming button and should match it.",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
   "newConnectionDialog_cancel": "Cancel",
   "@newConnectionDialog_cancel": {
     "description": "Button that dismisses the add contact dialog."
@@ -1529,6 +1576,10 @@
   "textMessage_hiddenPlaceholder": "Blocked user, tap to reveal message",
   "@textMessage_hiddenPlaceholder": {
     "description": "Stands in for a message from a blocked user, telling the user they can tap to reveal it."
+  },
+  "textMessage_hiddenPlaceholder_desktop": "Blocked user, click to reveal message",
+  "@textMessage_hiddenPlaceholder_desktop": {
+    "description": "Desktop version of textMessage_hiddenPlaceholder: stands in for a message from a blocked user, telling the user they can click to reveal it."
   },
   "textMessage_deleted": "Deleted message",
   "@textMessage_deleted": {
@@ -2018,6 +2069,10 @@
   "contactRequestDialog_avatarHint": "Tap to reveal their picture",
   "@contactRequestDialog_avatarHint": {
     "description": "Hint over the blurred picture of someone who is not yet a contact, telling the user they can tap to reveal it."
+  },
+  "contactRequestDialog_avatarHint_desktop": "Click to reveal their picture",
+  "@contactRequestDialog_avatarHint_desktop": {
+    "description": "Desktop version of contactRequestDialog_avatarHint: hint over the blurred picture of someone who is not yet a contact, telling the user they can click to reveal it."
   },
   "contactRequestDialog_cancel": "Later",
   "@contactRequestDialog_cancel": {

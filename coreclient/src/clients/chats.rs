@@ -16,7 +16,8 @@ use tracing::error;
 use crate::{
     ChatAttributes, ChatType, MessageDraft, MessageId, UserProfile,
     chats::{
-        Chat, messages::ChatMessage, notification_rebuild::ChatNotificationRebuildSet, persistence,
+        Chat, PendingConnectionRequest, messages::ChatMessage,
+        notification_rebuild::ChatNotificationRebuildSet, persistence,
     },
     groups::Group,
     job::{chat_operation::ChatOperation, create_chat::CreateChat},
@@ -80,6 +81,10 @@ impl CoreUser {
                 let chat = Chat::load(&mut *txn, &chat_id)
                     .await?
                     .context("missing chat for deletion")?;
+                // Sync the deletion with siblings
+                for request in PendingConnectionRequest::load_for_chat(&mut *txn, chat_id).await? {
+                    persistence::store_outgoing_deletion(&mut *txn, request.group_id()).await?;
+                }
                 persistence::erase(txn, &chat).await?;
                 persistence::store_outgoing_deletion(txn, chat.group_id()).await
             })
