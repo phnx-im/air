@@ -83,14 +83,10 @@ impl OutboundServiceContext {
                 .map(|(_, attempts)| *attempts)
                 .max()
                 .unwrap_or_default();
-            let content = SelfGroupAppMessage::DeletedMessages(DeletedMessages {
+            let app_message = SelfGroupAppMessage::DeletedMessages(DeletedMessages {
                 mimi_ids: batch.to_vec(),
-            })
-            .to_mimi_content();
-            let result = match content {
-                Ok(content) => self.send_application_message(&chat, content).await,
-                Err(error) => Err(OutboundServiceError::fatal(error)),
-            };
+            });
+            let result = self.send_self_group_message(&chat, app_message).await;
             match policy.fatal_when_exhausted(result, attempts) {
                 Ok(SendOutcome::Sent) => {
                     info!(

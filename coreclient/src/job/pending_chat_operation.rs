@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airapiclient::{ClassifyRequestError, RequestErrorKind, ds_api::DsRequestError};
+use airapiclient::{ClassifyRequestError, RequestErrorKind};
 use aircommon::{
     credentials::{
         RoomPolicyIdentity, UserCredential,
@@ -28,7 +28,7 @@ use mimi_room_policy::RoleIndex;
 use openmls::{group::GroupId, prelude::KeyPackageRef};
 use serde::{Deserialize, Serialize};
 use sqlx::{query, query_as, query_scalar};
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -52,7 +52,7 @@ use crate::{
     job::{
         Job, JobContext, JobContextReadConnection, JobError,
         chat_operation::{ChatOperationError, DerivationEpoch},
-        recoverable::RecoverableCause,
+        recoverable::{Recoverable, RecoverableCause},
     },
     key_stores::{
         indexed_keys::StorableIndexedKey,
@@ -588,14 +588,33 @@ impl PendingChatOperation {
         let mut ds_has_confirmed_leave = true;
         let ds_timestamp = match res {
             Ok(ds_timestamp) => ds_timestamp,
+            Err(error) if !is_leave => {
+                if let Some(detail) = error.device_limit_reached() {
+                    return Err(JobError::Domain(ChatOperationError::DeviceLimitReached {
+                        max_devices: detail.max_devices,
+                    }));
+                }
+
+                let error: JobError<ChatOperationError> = error.into();
+                if let JobError::Recoverable(Recoverable {
+                    cause: RecoverableCause::WrongEpoch,
+                    ..
+                }) = &error
+                {
+                    // Either commit was accepted on a previous try, or another
+                    // commit was faster. Either way the queue is expected to
+                    // resolve it.
+                    self.mark_as_waiting_for_queue_response(db.write().await?)
+                        .await?;
+                };
+
+                return Err(error);
+            }
             Err(error) => {
-                // A rate limited request was not processed by the DS
+                // A retry checks whether the proposal is still at the group's
+                // epoch. A rate limited request was not processed by the DS.
                 if !matches!(error.kind(), RequestErrorKind::RateLimited { .. }) {
                     self.number_of_attempts += 1;
-                }
-                if !is_leave {
-                    let job_error = self.handle_error(context.db.write().await?, error).await?;
-                    return Err(job_error);
                 }
 
                 // The leave action is special in that we want to consider
@@ -732,50 +751,6 @@ impl PendingChatOperation {
             .await?;
 
         Ok(messages)
-    }
-
-    async fn handle_error(
-        &mut self,
-        mut connection: impl WriteConnection,
-        error: DsRequestError,
-    ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
-        debug!(?error, "DS request failed");
-        if let Some(detail) = error.device_limit_reached() {
-            Ok(JobError::Domain(ChatOperationError::DeviceLimitReached {
-                max_devices: detail.max_devices,
-            }))
-        } else if error.is_not_found() {
-            // The group no longer exists on the DS. There is no point
-            // in retrying, the group needs to be torn down instead.
-            Ok(JobError::NotFound)
-        } else if error.is_wrong_epoch() {
-            // Either commit was accepted on a previous try, or another commit was faster. Either
-            // way the queue is expected to resolve it.
-            self.mark_as_waiting_for_queue_response(&mut connection)
-                .await?;
-            Err(JobError::Blocked)
-        } else if let RequestErrorKind::RateLimited { retry_after } = error.kind() {
-            // Retry later without giving up, the DS did not process the request.
-            Ok(JobError::RateLimited { retry_after })
-        } else if matches!(error.kind(), RequestErrorKind::Network)
-            && self.number_of_attempts < MAX_RETRIES
-        {
-            // If we get a network error (which means we don't know whether the request has been
-            // processed by the DS), we want to try again until we've either succeeded or reached a
-            // max number of retries.
-            Ok(JobError::NetworkError)
-        } else {
-            let error = if self.number_of_attempts >= MAX_RETRIES {
-                anyhow!(
-                    "Job failed after {} attempts due to DS errors: {:?}",
-                    MAX_RETRIES,
-                    error
-                )
-            } else {
-                anyhow!("Job failed due to DS error: {:?}", error)
-            };
-            Ok(JobError::Fatal(error))
-        }
     }
 
     /// Creates and stores a PendingChatOperation for removing users.
@@ -1774,7 +1749,6 @@ pub mod test_utils {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches;
 
     use aircommon::{
         credentials::{
@@ -1784,13 +1758,7 @@ mod tests {
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
     };
-    use airprotos::{
-        client::app_data::ClientAppData,
-        common::v1::{
-            DeviceLimitReachedDetail, StatusDetails, StatusDetailsCode, WrongEpochDetail,
-            status_details::Detail,
-        },
-    };
+    use airprotos::client::app_data::ClientAppData;
     use chrono::{Duration, Utc};
     use uuid::Uuid;
 
@@ -1800,15 +1768,6 @@ mod tests {
     };
 
     use super::*;
-
-    /// A DS error that reports a wrong-epoch rejection.
-    fn wrong_epoch_error() -> DsRequestError {
-        let details = StatusDetails {
-            code: StatusDetailsCode::WrongEpoch.into(),
-            detail: Some(Detail::WrongEpoch(WrongEpochDetail {})),
-        };
-        DsRequestError::Tonic(details.to_status(tonic::Code::InvalidArgument, "wrong epoch"))
-    }
 
     /// Builds a single-member APQ self-group with a pending settings-update
     /// operation, stored in the database.
@@ -1878,37 +1837,6 @@ mod tests {
             .await?;
 
         Ok((pool, job, signing_key))
-    }
-
-    /// A wrong-epoch rejection of a settings update parks the operation as
-    /// `WaitingForQueueResponse` but does not mark the self-group commit as
-    /// failed. A settings race must not raise a "desynced" banner.
-    #[tokio::test(flavor = "multi_thread")]
-    async fn wrong_epoch_parks_settings_without_marking_failed() -> anyhow::Result<()> {
-        let (pool, mut pending, _signing_key) = setup_self_group_settings_op().await?;
-
-        let result = pending
-            .handle_error(pool.write().await?, wrong_epoch_error())
-            .await;
-
-        // Parked, not failed.
-        assert_matches!(result, Err(JobError::Blocked));
-        assert!(
-            !pending.group.commit_failed(),
-            "settings race must not mark the commit failed"
-        );
-
-        // The status is persisted as waiting for the queue response.
-        let group_id = pending.group.group_id().clone();
-        let reloaded = PendingChatOperation::load_by_group_id(pool.read().await?, &group_id)
-            .await?
-            .expect("operation should still exist");
-        assert!(matches!(
-            reloaded.status,
-            PendingChatOperationStatus::WaitingForQueueResponse
-        ));
-
-        Ok(())
     }
 
     /// Any incoming commit deletes a pending settings operation, parked or
@@ -2386,51 +2314,6 @@ mod tests {
                 Ok(())
             })
             .await
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn not_found_ds_error_is_routed_to_not_found() -> anyhow::Result<()> {
-        let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
-
-        let leave_params = group
-            .group_mut()
-            .stage_leave_group(pool.write().await?, &signing_key)?;
-        let mut pending =
-            PendingChatOperation::new(group, OperationType::Leave(Box::new(leave_params)));
-
-        // A "group not found" response from the DS must be classified as
-        // NotFound so the group is torn down, not retried as a generic fatal.
-        let error = DsRequestError::Tonic(tonic::Status::not_found("group not found"));
-        let result = pending.handle_error(pool.write().await?, error).await;
-
-        assert_matches!(result, Ok(JobError::NotFound));
-
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn device_limit_ds_error_is_a_domain_error() -> anyhow::Result<()> {
-        let (pool, mut pending, _signing_key) = setup_self_group_settings_op().await?;
-
-        let details = StatusDetails {
-            code: StatusDetailsCode::DeviceLimitReached.into(),
-            detail: Some(Detail::DeviceLimitReached(DeviceLimitReachedDetail {
-                max_devices: 2,
-            })),
-        };
-        let error = DsRequestError::Tonic(
-            details.to_status(tonic::Code::ResourceExhausted, "max devices exceeded"),
-        );
-        let result = pending.handle_error(pool.write().await?, error).await;
-
-        assert_matches!(
-            result,
-            Ok(JobError::Domain(ChatOperationError::DeviceLimitReached {
-                max_devices: 2
-            }))
-        );
-
-        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]

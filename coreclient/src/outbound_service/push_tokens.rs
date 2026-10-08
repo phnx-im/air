@@ -53,6 +53,10 @@ impl OutboundServiceContext {
                 error @ (OutboundServiceError::NetworkError
                 | OutboundServiceError::RateLimited { .. }),
             ) => return Err(error),
+            // Retried indefinitely without a budget: dropping the update would
+            // leave the QS with a stale token and silently break push
+            // notifications. There is only ever one pending update, so it
+            // cannot pile up, and retries are spaced out by `next_retry_at`.
             Err(error) => {
                 error!(%error, "Failed to update push token; will retry later");
                 let retry_at = next_retry_at(now);
