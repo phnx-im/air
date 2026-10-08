@@ -251,6 +251,27 @@ build-rpm:
 build-deb:
     nfpm package -p deb
 
+# Build the Linux Flatpak offline, further arguments go to flatpak-builder.
+[linux]
+[positional-arguments]
+[script]
+build-flatpak flavor="production" *args:
+    shift
+    id=ms.air.Air
+    if [ "{{ flavor }}" = staging ]; then id=ms.air.Air.Staging; fi
+    # CI builds the pushed commit, local builds the working tree.
+    local=--local
+    if [ "{{ ci }}" = true ]; then local=; fi
+    cargo xtask flatpak-sources --flavor "{{ flavor }}" --arch "$(uname -m)" $local
+    builder=flatpak-builder
+    if ! command -v flatpak-builder > /dev/null; then
+        builder="flatpak run org.flatpak.Builder"
+    fi
+    $builder --user --sandbox --force-clean --ccache --install-deps-from=flathub \
+        --state-dir=target/flatpak/.flatpak-builder \
+        --subject="Air $(cat target/flatpak/version)" \
+        "$@" target/flatpak/build-dir "target/flatpak/$id.yml"
+
 [working-directory('app')]
 @flutter *args:
     flutter {{ args }}

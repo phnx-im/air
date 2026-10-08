@@ -5,6 +5,7 @@ import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/contact_request_card/contact_request_card.dart';
 import 'package:air/ds/patterns/contact_request_card/contact_request_card_tokens.dart';
 import 'package:air/features/user/users_cubit.dart';
@@ -84,7 +85,9 @@ class ContactRequestDialog extends HookWidget {
       displayName: senderProfile.displayName,
       gradientSeed: senderProfile.userId.uuid.uuid,
       image: contactRequestPicture(context, senderProfile.profilePicture),
-      pictureRevealLabel: loc.contactRequestDialog_avatarHint,
+      pictureRevealLabel: DeviceType.isDesktop
+          ? loc.contactRequestDialog_avatarHint_desktop
+          : loc.contactRequestDialog_avatarHint,
       actions: ContactRequestAnswers(
         acceptLabel: loc.contactRequestDialog_confirm,
         dismissLabel: loc.contactRequestDialog_cancel,

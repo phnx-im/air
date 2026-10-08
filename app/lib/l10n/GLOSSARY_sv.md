@@ -58,6 +58,8 @@ Svensk ortografi gäller, inte engelsk. Svenska använder färre versaler än en
 | **Länka** | Att ge en annan enhet åtkomst till kontot | Gäller enheter, inte kontakter. Inte samma sak som "anslut" |
 | **Avlänka** | Att dra in åtkomsten för en länkad enhet | |
 | **Rapportera spam** | Att markera en användare eller ett meddelande som oönskat/spam | Modereringsfunktion |
+| **Tryck** | Engelska "tap" | Mobiler och surfplattor |
+| **Klicka** | Engelska "click" | Dator, i `_desktop`-nycklar |
 
 ## Fil- och datatermer
 

@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::assert_matches;
+
 use apqmls::{
     ApqMlsGroup,
     authentication::ApqSigner,
@@ -428,12 +430,12 @@ fn missing_apq_info() {
             group_info,
             compare_credentials,
         );
-    assert!(matches!(
+    assert_matches!(
         result,
         Err(ApqExternalCommitBuilderError::Validation(
             ApqValidationError::MissingApqInfo(_)
         ))
-    ));
+    );
 }
 
 #[test]

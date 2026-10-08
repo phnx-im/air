@@ -9,6 +9,7 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/l10n/language_options.dart';
+import 'package:air/platform/account_marker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:logging/logging.dart';
@@ -84,6 +85,7 @@ class UserSessionCubit extends Cubit<UserSessionState> {
     }
     if (isClosed) return;
     emit(UserSessionState(user: user));
+    unawaited(writeAccountMarker());
 
     final navigationState = _navigationCubit.state;
     if (navigationState is! HomeState && !navigationState.isCreatingAccount) {
@@ -104,6 +106,7 @@ class UserSessionCubit extends Cubit<UserSessionState> {
       return;
     }
 
+    await deleteAccountMarker();
     _navigationCubit.openIntro();
     _userSettingsCubit.detach();
 

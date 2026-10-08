@@ -19,11 +19,11 @@ endif()
 # The unique GTK application identifier for this application. See:
 # https://wiki.gnome.org/HowDoI/ChooseApplicationID
 if(APP_FLAVOR STREQUAL "production")
-  set(APPLICATION_ID "ms.air")
+  set(APPLICATION_ID "ms.air.Air")
 elseif(APP_FLAVOR STREQUAL "staging")
-  set(APPLICATION_ID "ms.air.dev")
+  set(APPLICATION_ID "ms.air.Air.Staging")
 else()
-  set(APPLICATION_ID "ms.air.${APP_FLAVOR}")
+  set(APPLICATION_ID "ms.air.Air.${APP_FLAVOR}")
 endif()
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
