@@ -1001,7 +1001,12 @@ class _MessageContent extends StatelessWidget {
           isSelf: isSender,
           child: _capped(
             MessageBubbleTokens.padding,
-            _placeholder(context, loc.textMessage_hiddenPlaceholder),
+            _placeholder(
+              context,
+              DeviceType.isDesktop
+                  ? loc.textMessage_hiddenPlaceholder_desktop
+                  : loc.textMessage_hiddenPlaceholder,
+            ),
           ),
         ),
       );

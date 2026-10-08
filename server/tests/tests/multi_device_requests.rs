@@ -15,6 +15,7 @@ use super::{
     group_bootstrap::{
         add_username, drain_expecting_success, link_sibling, receive_connection_offer,
     },
+    multi_device::{drain_queue, send_and_receive},
 };
 
 /// Whether the chat holds a system message matching `predicate`.
@@ -106,6 +107,143 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
     drain_expecting_success(&bob_user, "bob failed to follow the accept").await;
     let chat_bob = bob_user.chat(&chat_id).await.unwrap();
     assert_eq!(chat_bob.chat_type(), &ChatType::Connection(alice.clone()));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Sibling with the request follows the accept", skip_all)]
+async fn sibling_holding_the_request_follows_the_accept() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let record = add_username(&mut setup, &alice).await;
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
+
+    let bob_user = setup.get_user(&bob).user().clone();
+    bob_user
+        .add_contact(record.username.clone(), record.hash, setup.apq_groups)
+        .await
+        .unwrap()
+        .unwrap();
+    let chat_id = receive_connection_offer(&device_a, &record).await;
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to take the request").await;
+    assert_eq!(pending_chats_from(&device_b, &bob).await, vec![chat_id]);
+
+    device_a
+        .accept_contact_request(chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let processed =
+        drain_expecting_success(&device_b, "the sibling failed to follow the accept").await;
+    assert_eq!(
+        processed.removed_chats,
+        vec![chat_id],
+        "the notification of the request should be dropped"
+    );
+    assert!(pending_chats_from(&device_b, &bob).await.is_empty());
+    assert_eq!(
+        device_b.chat(&chat_id).await.unwrap().chat_type(),
+        &ChatType::Connection(bob.clone())
+    );
+    assert_eq!(device_b.contact(&bob).await.unwrap().chat_id, chat_id);
+    assert!(
+        has_system_message(&device_b, chat_id, |message| matches!(
+            message,
+            SystemMessage::AcceptedConnectionRequest {
+                contact,
+                user_handle: Some(user_handle),
+            } if contact == &bob && user_handle == &record.username
+        ))
+        .await,
+        "the acceptance should name the username of the request"
+    );
+
+    drain_queue(&bob_user).await;
+    send_and_receive(&bob_user, &[&device_a, &device_b], chat_id, "hello alice").await;
+    send_and_receive(&device_b, &[&device_a, &bob_user], chat_id, "hello bob").await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Sibling moves older requests into the accepted chat", skip_all)]
+async fn sibling_moves_older_requests_into_the_accepted_chat() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let first = add_username(&mut setup, &alice).await;
+    let second = add_second_username(&setup, &alice).await;
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to follow the usernames").await;
+
+    let bob_user = setup.get_user(&bob).user().clone();
+    for record in [&first, &second] {
+        bob_user
+            .add_contact(record.username.clone(), record.hash, setup.apq_groups)
+            .await
+            .unwrap()
+            .unwrap();
+    }
+    let first_chat_id = receive_connection_offer(&device_a, &first).await;
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to take the first request").await;
+
+    // The newer request is accepted before it reaches the sibling, which only
+    // knows the older one. The outbox then drops the newer one.
+    let second_chat_id = receive_connection_offer(&device_a, &second).await;
+    assert_ne!(second_chat_id, first_chat_id);
+    device_a
+        .accept_contact_request(second_chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+    device_a.outbound_service().run_once().await;
+
+    let processed =
+        drain_expecting_success(&device_b, "the sibling failed to follow the accept").await;
+    assert_eq!(
+        processed.removed_chats,
+        vec![first_chat_id],
+        "the notification of the older request should be dropped"
+    );
+    assert!(device_b.chat(&first_chat_id).await.is_none());
+    assert!(pending_chats_from(&device_b, &bob).await.is_empty());
+    assert_eq!(
+        device_b.chat(&second_chat_id).await.unwrap().chat_type(),
+        &ChatType::Connection(bob.clone())
+    );
+    assert_eq!(
+        device_b.contact(&bob).await.unwrap().chat_id,
+        second_chat_id
+    );
+    assert!(
+        has_system_message(&device_b, second_chat_id, |message| matches!(
+            message,
+            SystemMessage::ReceivedHandleConnectionRequest { sender, user_handle }
+                if sender == &bob && user_handle == &first.username
+        ))
+        .await,
+        "the older request should move into the accepted chat"
+    );
+
+    drain_queue(&bob_user).await;
+    send_and_receive(
+        &bob_user,
+        &[&device_a, &device_b],
+        second_chat_id,
+        "hello alice",
+    )
+    .await;
+    send_and_receive(
+        &device_b,
+        &[&device_a, &bob_user],
+        second_chat_id,
+        "hello bob",
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
