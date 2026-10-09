@@ -847,11 +847,11 @@ pub(crate) async fn delete_token_at(
     Ok(result.rows_affected())
 }
 
-/// Loads every redemption whose broadcast is due at `now`, with the failed
+/// Loads every redemption whose broadcast is due at `due_at`, with the failed
 /// attempts to broadcast it so far.
 pub(crate) async fn load_redeemed_due(
     mut connection: impl ReadConnection,
-    now: DateTime<Utc>,
+    due_at: DateTime<Utc>,
 ) -> sqlx::Result<Vec<(TokenPosition, u32)>> {
     struct Row {
         operation_type: i64,
@@ -870,8 +870,12 @@ pub(crate) async fn load_redeemed_due(
             broadcast_attempts AS "broadcast_attempts: _"
          FROM privacy_pass_redeemed
          WHERE broadcast_after IS NOT NULL AND broadcast_after <= ?
-         ORDER BY operation_type, key_fingerprint, allowance_epoch, token_index"#,
-        now
+         ORDER BY
+            operation_type,
+            key_fingerprint,
+            allowance_epoch,
+            token_index"#,
+        due_at
     )
     .fetch_all(connection.as_mut())
     .await?;

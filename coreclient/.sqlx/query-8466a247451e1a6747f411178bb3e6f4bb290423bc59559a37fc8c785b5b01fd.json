@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE chat_message_queue\n                 SET attempts = ?, retry_at = ?\n                 WHERE message_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "8466a247451e1a6747f411178bb3e6f4bb290423bc59559a37fc8c785b5b01fd"
+}

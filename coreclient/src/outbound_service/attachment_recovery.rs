@@ -93,6 +93,7 @@ pub(super) async fn recover_interrupted_attachment_uploads(
 
 #[cfg(test)]
 mod tests {
+    use aircommon::time::TimeStamp;
     use chrono::{DateTime, Utc};
     use sqlx::SqlitePool;
     use uuid::Uuid;
@@ -138,7 +139,9 @@ mod tests {
         let task_id = Uuid::new_v4();
         let mut message_ids = Vec::new();
         while let Some(DequeuedMessage { message_id, .. }) = db
-            .with_write_transaction(async |txn| ChatMessageQueue::dequeue(txn, task_id).await)
+            .with_write_transaction(async |txn| {
+                ChatMessageQueue::dequeue(txn, task_id, TimeStamp::now()).await
+            })
             .await?
         {
             message_ids.push(message_id);

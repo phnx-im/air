@@ -68,14 +68,14 @@ pub(crate) async fn staged_deletions(connection: impl ReadConnection) -> sqlx::R
     )
 }
 
-/// The parked deletions that are due at `now`, with their failed attempts so
+/// The parked deletions that are due at `due_at`, with their failed attempts so
 /// far.
 pub(crate) async fn due_deletions(
     connection: impl ReadConnection,
-    now: TimeStamp,
+    due_at: TimeStamp,
 ) -> sqlx::Result<Vec<(MimiId, u32)>> {
     Ok(
-        self_group_outbox::load_due(connection, OutboxKind::DeletedMessage, now)
+        self_group_outbox::load_due(connection, OutboxKind::DeletedMessage, due_at)
             .await?
             .into_iter()
             .filter_map(|entry| Some((MimiId::from_slice(&entry.key).ok()?, entry.attempts)))

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::MimiId;
+use aircommon::{identifiers::MimiId, time::TimeStamp};
 use anyhow::Context;
 use mimi_content::MimiContent;
 use tokio_util::sync::CancellationToken;
@@ -54,7 +54,9 @@ impl OutboundServiceContext {
 
             let Some(dequeued) = self
                 .db
-                .with_write_transaction(async |txn| ReactionQueue::dequeue(txn, task_id).await)
+                .with_write_transaction(async |txn| {
+                    ReactionQueue::dequeue(txn, task_id, TimeStamp::now()).await
+                })
                 .await
                 .map_err(OutboundServiceError::fatal)?
             else {

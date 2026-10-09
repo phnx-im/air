@@ -90,7 +90,7 @@ impl OutboundServiceContext {
                 chat_id,
                 statuses,
                 attempts,
-            }) = ReceiptQueue::dequeue(self.db.write().await?, task_id)
+            }) = ReceiptQueue::dequeue(self.db.write().await?, task_id, TimeStamp::now())
                 .await
                 .map_err(OutboundServiceError::fatal)?
             else {

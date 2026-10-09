@@ -228,7 +228,7 @@ mod persistence {
         pub(crate) async fn dequeue(
             txn: &mut WriteDbTransaction<'_>,
             task_id: Uuid,
-            now: DateTime<Utc>,
+            due_at: DateTime<Utc>,
         ) -> sqlx::Result<Option<Self>>
         where
             T: OperationData + DeserializeOwned + Unpin + Send + 'static,
@@ -245,7 +245,7 @@ mod persistence {
                 LIMIT 1
                 "#,
                 kind,
-                now,
+                due_at,
                 task_id,
             )
             .fetch_optional(txn.as_mut())

@@ -4,6 +4,7 @@
 
 use std::time::Duration;
 
+use aircommon::time::TimeStamp;
 use anyhow::Context;
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
@@ -132,7 +133,9 @@ impl OutboundServiceContext {
 
             let Some(dequeued) = self
                 .db
-                .with_write_transaction(async |txn| ChatMessageQueue::dequeue(txn, task_id).await)
+                .with_write_transaction(async |txn| {
+                    ChatMessageQueue::dequeue(txn, task_id, TimeStamp::now()).await
+                })
                 .await
                 .map_err(OutboundServiceError::fatal)?
             else {

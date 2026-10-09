@@ -869,9 +869,9 @@ pub(crate) async fn redeemed_tokens_to_broadcast(
 /// each message so far, the most of any of its tokens.
 pub(crate) async fn redeemed_tokens_due(
     connection: impl ReadConnection,
-    now: DateTime<Utc>,
+    due_at: DateTime<Utc>,
 ) -> sqlx::Result<Vec<(RedeemedTokens, u32)>> {
-    let due = persistence::load_redeemed_due(connection, now).await?;
+    let due = persistence::load_redeemed_due(connection, due_at).await?;
     let attempts: BTreeMap<TokenPosition, u32> = due.iter().copied().collect();
     let messages = group_positions(due.into_iter().map(|(position, _)| position).collect());
     Ok(messages

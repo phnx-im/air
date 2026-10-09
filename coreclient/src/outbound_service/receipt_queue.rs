@@ -83,11 +83,11 @@ mod persistence {
         pub(crate) async fn dequeue(
             mut connection: impl WriteConnection,
             task_id: Uuid,
+            due_at: TimeStamp,
         ) -> anyhow::Result<Option<DequeuedReceipts>> {
             let mut txn = connection.begin().await?;
 
-            let now = TimeStamp::now();
-            let locked_before = *now - LOCKED_THRESHOLD;
+            let locked_before = *due_at - LOCKED_THRESHOLD;
 
             let chat_id = query_scalar!(
                 r#"SELECT chat_id AS "chat_id: _"
@@ -98,7 +98,7 @@ mod persistence {
                     LIMIT 1
                 "#,
                 locked_before,
-                now,
+                due_at,
             )
             .fetch_optional(txn.as_mut())
             .await?;
@@ -125,7 +125,7 @@ mod persistence {
                     attempts AS "attempts: _"
                 "#,
                 task_id,
-                now,
+                due_at,
                 chat_id,
                 locked_before,
             )
@@ -158,7 +158,9 @@ mod persistence {
             retry_at: TimeStamp,
         ) -> sqlx::Result<()> {
             query!(
-                "UPDATE receipt_queue SET attempts = ?, retry_at = ? WHERE locked_by = ?",
+                "UPDATE receipt_queue
+                 SET attempts = ?, retry_at = ?
+                 WHERE locked_by = ?",
                 attempts,
                 retry_at,
                 task_id,
@@ -264,7 +266,7 @@ mod tests {
             .await?;
         receipt.enqueue(db.write().await?, chat_id, &edited).await?;
 
-        let statuses = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4())
+        let statuses = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4(), TimeStamp::now())
             .await?
             .expect("no receipt queued")
             .statuses;
@@ -287,7 +289,7 @@ mod tests {
             .enqueue(db.write().await?, chat_id, &original)
             .await?;
         let in_flight = Uuid::new_v4();
-        let statuses = ReceiptQueue::dequeue(db.write().await?, in_flight)
+        let statuses = ReceiptQueue::dequeue(db.write().await?, in_flight, TimeStamp::now())
             .await?
             .expect("no receipt queued")
             .statuses;
@@ -296,7 +298,7 @@ mod tests {
         receipt.enqueue(db.write().await?, chat_id, &edited).await?;
         ReceiptQueue::remove(db.write().await?, in_flight).await?;
 
-        let statuses = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4())
+        let statuses = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4(), TimeStamp::now())
             .await?
             .expect("receipt for the edit was removed")
             .statuses;
@@ -314,7 +316,7 @@ mod tests {
             .enqueue(db.write().await?, chat_id, &original)
             .await?;
         let in_flight = Uuid::new_v4();
-        ReceiptQueue::dequeue(db.write().await?, in_flight)
+        ReceiptQueue::dequeue(db.write().await?, in_flight, TimeStamp::now())
             .await?
             .expect("no receipt queued");
 
@@ -323,7 +325,8 @@ mod tests {
             .await?;
         ReceiptQueue::remove(db.write().await?, in_flight).await?;
 
-        let queued = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4()).await?;
+        let queued =
+            ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4(), TimeStamp::now()).await?;
         assert!(queued.is_none(), "duplicate enqueue revived a sent receipt");
         Ok(())
     }
@@ -345,7 +348,7 @@ mod tests {
 
         ReceiptQueue::remove_superseded(db.write().await?, message_id, &edited).await?;
 
-        let statuses = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4())
+        let statuses = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4(), TimeStamp::now())
             .await?
             .expect("receipt for the current version was removed")
             .statuses;
@@ -375,7 +378,7 @@ mod tests {
         }
 
         let task_id = Uuid::new_v4();
-        let dequeued = ReceiptQueue::dequeue(db.write().await?, task_id)
+        let dequeued = ReceiptQueue::dequeue(db.write().await?, task_id, TimeStamp::now())
             .await?
             .expect("no receipt queued");
         assert_eq!(dequeued.attempts, 0);
@@ -383,7 +386,8 @@ mod tests {
         let later = TimeStamp::from(Utc::now() + TimeDelta::hours(1));
         ReceiptQueue::record_failed_attempt(db.write().await?, task_id, 1, later).await?;
         expire_locks(&db).await?;
-        let queued = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4()).await?;
+        let queued =
+            ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4(), TimeStamp::now()).await?;
         assert!(queued.is_none(), "deferred receipts were dequeued");
 
         let earlier = TimeStamp::from(Utc::now() - TimeDelta::seconds(1));
@@ -394,7 +398,7 @@ mod tests {
             .enqueue(db.write().await?, chat_id, &edited)
             .await?;
 
-        let dequeued = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4())
+        let dequeued = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4(), TimeStamp::now())
             .await?
             .expect("receipts are due again");
         assert_eq!(dequeued.statuses.len(), 3);

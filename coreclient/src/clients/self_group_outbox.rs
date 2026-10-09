@@ -52,8 +52,11 @@ pub(crate) async fn stage(
     let kind = kind.as_str();
     query!(
         "INSERT INTO self_group_outbox (kind, key, payload, previous)
-        VALUES (?1, ?2, ?3, ?4)
-        ON CONFLICT (kind, key) DO UPDATE SET payload = excluded.payload, attempts = 0, retry_at = NULL",
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT (kind, key) DO UPDATE 
+         SET payload = excluded.payload, 
+             attempts = 0, 
+             retry_at = NULL",
         kind,
         key,
         payload,
@@ -124,11 +127,11 @@ pub(crate) struct DueEntry {
     pub(crate) attempts: u32,
 }
 
-/// Every change staged under `kind` that is due at `now`, sorted by key.
+/// Every change staged under `kind` that is due at `due_at`, sorted by key.
 pub(crate) async fn load_due(
     mut connection: impl ReadConnection,
     kind: OutboxKind,
-    now: TimeStamp,
+    due_at: TimeStamp,
 ) -> sqlx::Result<Vec<DueEntry>> {
     let kind = kind.as_str();
     query_as!(
@@ -140,7 +143,7 @@ pub(crate) async fn load_due(
         WHERE kind = ?1 AND (retry_at IS NULL OR retry_at <= ?2)
         ORDER BY key"#,
         kind,
-        now,
+        due_at,
     )
     .fetch_all(connection.as_mut())
     .await
@@ -156,7 +159,9 @@ pub(crate) async fn record_failed_attempt(
 ) -> sqlx::Result<()> {
     let kind = kind.as_str();
     query!(
-        "UPDATE self_group_outbox SET attempts = ?1, retry_at = ?2 WHERE kind = ?3 AND key = ?4",
+        "UPDATE self_group_outbox 
+         SET attempts = ?1, retry_at = ?2
+         WHERE kind = ?3 AND key = ?4",
         attempts,
         retry_at,
         kind,

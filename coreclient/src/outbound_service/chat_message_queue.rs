@@ -68,8 +68,8 @@ mod persistence {
         pub(crate) async fn dequeue(
             txn: &mut WriteDbTransaction<'_>,
             task_id: Uuid,
+            due_at: TimeStamp,
         ) -> anyhow::Result<Option<DequeuedMessage>> {
-            let now = TimeStamp::now();
             let Some(message_id) = query_scalar!(
                 r#"
                 SELECT message_id
@@ -87,7 +87,7 @@ mod persistence {
                 LIMIT 1
                 "#,
                 task_id,
-                now,
+                due_at,
             )
             .fetch_optional(txn.as_mut())
             .await?
@@ -123,7 +123,9 @@ mod persistence {
             retry_at: TimeStamp,
         ) -> sqlx::Result<()> {
             query!(
-                "UPDATE chat_message_queue SET attempts = ?, retry_at = ? WHERE message_id = ?",
+                "UPDATE chat_message_queue
+                 SET attempts = ?, retry_at = ?
+                 WHERE message_id = ?",
                 attempts,
                 retry_at,
                 message_id,
@@ -260,7 +262,9 @@ mod persistence {
             let task_id = Uuid::new_v4();
             let mut message_ids = Vec::new();
             while let Some(dequeued) = db
-                .with_write_transaction(async |txn| ChatMessageQueue::dequeue(txn, task_id).await)
+                .with_write_transaction(async |txn| {
+                    ChatMessageQueue::dequeue(txn, task_id, TimeStamp::now()).await
+                })
                 .await?
             {
                 message_ids.push(dequeued.message_id);
@@ -368,7 +372,7 @@ mod persistence {
             record_failed_attempt(&db, first.id(), 2, TimeDelta::seconds(-1)).await?;
             let dequeued = db
                 .with_write_transaction(async |txn| {
-                    ChatMessageQueue::dequeue(txn, Uuid::new_v4()).await
+                    ChatMessageQueue::dequeue(txn, Uuid::new_v4(), TimeStamp::now()).await
                 })
                 .await?
                 .expect("message is due again");

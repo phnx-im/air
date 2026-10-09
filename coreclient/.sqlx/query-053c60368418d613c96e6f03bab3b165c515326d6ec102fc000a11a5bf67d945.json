@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE reaction_queue\n                 SET attempts = ?, retry_at = ? \n                 WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "053c60368418d613c96e6f03bab3b165c515326d6ec102fc000a11a5bf67d945"
+}

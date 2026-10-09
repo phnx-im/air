@@ -68,8 +68,8 @@ mod persistence {
         pub(crate) async fn dequeue(
             txn: &mut WriteDbTransaction<'_>,
             task_id: Uuid,
+            due_at: TimeStamp,
         ) -> anyhow::Result<Option<DequeuedReaction>> {
-            let now = TimeStamp::now();
             let Some(id) = query_scalar!(
                 r#"
                 SELECT id
@@ -87,7 +87,7 @@ mod persistence {
                 LIMIT 1
                 "#,
                 task_id,
-                now,
+                due_at,
             )
             .fetch_optional(txn.as_mut())
             .await?
@@ -132,7 +132,9 @@ mod persistence {
             retry_at: TimeStamp,
         ) -> sqlx::Result<()> {
             query!(
-                "UPDATE reaction_queue SET attempts = ?, retry_at = ? WHERE id = ?",
+                "UPDATE reaction_queue
+                 SET attempts = ?, retry_at = ? 
+                 WHERE id = ?",
                 attempts,
                 retry_at,
                 id,
@@ -169,7 +171,9 @@ mod persistence {
             let task_id = Uuid::new_v4();
             let mut contents = Vec::new();
             while let Some(dequeued) = db
-                .with_write_transaction(async |txn| ReactionQueue::dequeue(txn, task_id).await)
+                .with_write_transaction(async |txn| {
+                    ReactionQueue::dequeue(txn, task_id, TimeStamp::now()).await
+                })
                 .await?
             {
                 contents.push(dequeued.content);
@@ -199,7 +203,7 @@ mod persistence {
 
             let id = db
                 .with_write_transaction(async |txn| {
-                    ReactionQueue::dequeue(txn, Uuid::new_v4()).await
+                    ReactionQueue::dequeue(txn, Uuid::new_v4(), TimeStamp::now()).await
                 })
                 .await?
                 .expect("reaction is queued")
@@ -219,7 +223,7 @@ mod persistence {
             record(2, TimeDelta::seconds(-1)).await?;
             let dequeued = db
                 .with_write_transaction(async |txn| {
-                    ReactionQueue::dequeue(txn, Uuid::new_v4()).await
+                    ReactionQueue::dequeue(txn, Uuid::new_v4(), TimeStamp::now()).await
                 })
                 .await?
                 .expect("reaction is due again");

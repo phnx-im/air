@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n            operation_type,\n            key_fingerprint,\n            allowance_epoch,\n            token_index,\n            broadcast_attempts AS \"broadcast_attempts: _\"\n         FROM privacy_pass_redeemed\n         WHERE broadcast_after IS NOT NULL AND broadcast_after <= ?\n         ORDER BY operation_type, key_fingerprint, allowance_epoch, token_index",
+  "query": "SELECT\n            operation_type,\n            key_fingerprint,\n            allowance_epoch,\n            token_index,\n            broadcast_attempts AS \"broadcast_attempts: _\"\n         FROM privacy_pass_redeemed\n         WHERE broadcast_after IS NOT NULL AND broadcast_after <= ?\n         ORDER BY\n            operation_type,\n            key_fingerprint,\n            allowance_epoch,\n            token_index",
   "describe": {
     "columns": [
       {
@@ -70,5 +70,5 @@
       false
     ]
   },
-  "hash": "40ddfea0404bd4b90d94e4d720cf39e6592155b4e4ee3f9f147ef8c68c1f11ac"
+  "hash": "c92bf6879da1c7033b3bf3bea11286a14fa435b934a988db99433872767b3fc2"
 }
