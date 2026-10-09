@@ -108,9 +108,8 @@ class _SafetyCode extends HookWidget {
                 ClipboardData(text: safetyCode.data!.textRepresentation),
               );
               showSnackBarStandalone(
-                (loc) => SnackBar(
-                  content: Text(loc.safetyCodeScreen_copiedToClipboard),
-                ),
+                (loc) => loc.safetyCodeScreen_copiedToClipboard,
+                tone: .success,
               );
             }
           : null,
@@ -133,7 +132,9 @@ class _SafetyCode extends HookWidget {
                 AppIcon.copy(color: palette.text.tertiary, size: 16),
                 const SizedBox(width: S.s8),
                 Text(
-                  loc.safetyCodeScreen_tapToCopy,
+                  DeviceType.isDesktop
+                      ? loc.safetyCodeScreen_copyHint_desktop
+                      : loc.safetyCodeScreen_copyHint,
                   style: typeScale.body.s.style(color: palette.text.tertiary),
                 ),
               ],

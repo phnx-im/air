@@ -12,20 +12,25 @@ use aircoreclient::{
     ChatId, ChatStatus, ChatType, EventMessage, Message, ReadReceiptsSetting, SystemMessage,
     UserProfile,
     clients::{
-        CoreUser, MarkChatAsRead,
+        CoreUser, ListenResponse, MarkChatAsRead, listen_response,
         multi_device::{
             MultiDeviceLinkClientError, MultiDeviceProvisionClientError, MultiDeviceProvisionStep,
         },
         store::ClientRecord,
     },
 };
-use airprotos::{auth_service::v1::OperationType, relay_service::v1::LinkingSessionId};
+use airprotos::{
+    auth_service::v1::OperationType,
+    queue_service::v1::{SiblingClientState, sibling_client_state},
+    relay_service::v1::LinkingSessionId,
+};
 use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams};
 use chrono::{DateTime, Utc};
 use mimi_content::{MessageStatus, MimiContent};
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::time::sleep;
+use tokio_stream::{Stream, StreamExt};
 use uuid::Uuid;
 
 /// Sends `text` from `sender` into the self-group chat and asserts that
@@ -303,14 +308,12 @@ async fn multi_device_linking_session() {
         "self-group client ids must match each device's own client id"
     );
 
-    assert_eq!(
-        old_device.self_chat_title().await.unwrap().as_deref(),
-        Some("Notes to self"),
-        "old device should have a Notes to self chat"
+    assert!(
+        old_device.self_chat_id().await.unwrap().is_some(),
+        "old device should have a self-chat"
     );
-    assert_eq!(
-        new_device.self_chat_title().await.unwrap().as_deref(),
-        Some("Notes to self"),
+    assert!(
+        new_device.self_chat_id().await.unwrap().is_some(),
         "new device should have a Notes to self chat"
     );
 
@@ -2287,38 +2290,6 @@ async fn multi_device_skips_blocked_connection_chats() {
     );
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test unconfirmed connections are not inherited", skip_all)]
-async fn multi_device_skips_unconfirmed_connection_chats() {
-    let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-
-    // Alice requests a connection to bob's username, which bob never accepts.
-    let bob_username = setup
-        .get_user_mut(&bob)
-        .add_username()
-        .await
-        .unwrap()
-        .username;
-    let username_hash = bob_username.calculate_hash().unwrap();
-    let pending_chat_id = setup
-        .get_user(&alice)
-        .user()
-        .add_contact(bob_username, username_hash, setup.apq_groups)
-        .await
-        .unwrap()
-        .unwrap();
-
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
-    new_device.outbound_service().run_once().await;
-
-    assert!(
-        new_device.chat(&pending_chat_id).await.is_none(),
-        "an unconfirmed connection chat should not be conveyed to a linked device"
-    );
-}
-
 async fn one_unread_message_on_both_devices(
     setup: &TestBackend,
     alice: &UserId,
@@ -3080,4 +3051,83 @@ async fn multi_device_both_devices_leave_before_the_commit() {
         charlie_user.mls_chat_participants(chat_id).await.unwrap(),
         remaining
     );
+}
+
+/// Returns the next sibling client state change, skipping other events.
+async fn next_sibling_client_state(
+    stream: &mut (impl Stream<Item = Result<ListenResponse, tonic::Status>> + Unpin),
+) -> sibling_client_state::Change {
+    loop {
+        let response = tokio::time::timeout(Duration::from_secs(5), stream.next())
+            .await
+            .expect("timeout waiting for sibling client state")
+            .expect("stream ended")
+            .expect("stream failed");
+        if let Some(listen_response::Event::SiblingClientState(SiblingClientState {
+            change: Some(change),
+        })) = response.event
+        {
+            return change;
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_sibling_client_state() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+
+    let (mut old_stream, old_responder) = old_device.listen_queue().await.unwrap();
+    let (mut new_stream, _new_responder) = new_device.listen_queue().await.unwrap();
+
+    old_responder.report_client_state(b"state".to_vec()).await;
+    let sibling_client_state::Change::Updated(updated) =
+        next_sibling_client_state(&mut new_stream).await
+    else {
+        panic!("expected updated");
+    };
+    assert_eq!(updated.blob.as_ref().unwrap().encrypted_blob, b"state");
+    let old_client_id = updated.client_id.unwrap();
+
+    // A new session gets the current state right after the version status.
+    let (mut new_stream, _new_responder) = new_device.listen_queue().await.unwrap();
+    assert_matches!(
+        new_stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::VersionStatus(_)),
+        }))
+    );
+    assert_matches!(
+        new_stream.next().await,
+        Some(Ok(ListenResponse {
+            event: Some(listen_response::Event::SiblingClientState(SiblingClientState {
+                change: Some(sibling_client_state::Change::Updated(snapshot)),
+            })),
+        })) if snapshot.client_id == updated.client_id
+            && snapshot.epoch == updated.epoch
+            && snapshot.blob == updated.blob
+    );
+
+    // Ending the session clears the state.
+    old_responder.close(&mut old_stream).await;
+    let sibling_client_state::Change::Removed(removed) =
+        next_sibling_client_state(&mut new_stream).await
+    else {
+        panic!("expected removed");
+    };
+    assert_eq!(removed.client_id, Some(old_client_id));
+    assert!(removed.epoch > updated.epoch);
+
+    // Oversized states are ignored, the session goes on.
+    let (_old_stream, old_responder) = old_device.listen_queue().await.unwrap();
+    old_responder.report_client_state(vec![0; 1024]).await;
+    old_responder.report_client_state(b"after".to_vec()).await;
+    let sibling_client_state::Change::Updated(updated) =
+        next_sibling_client_state(&mut new_stream).await
+    else {
+        panic!("expected updated");
+    };
+    assert_eq!(updated.blob.unwrap().encrypted_blob, b"after");
 }

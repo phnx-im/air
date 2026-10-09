@@ -29,6 +29,7 @@ use airprotos::{
     signed::{SignedRequest, VerifiableRequest},
     validation::{InvalidTlsExt, MissingFieldExt},
 };
+use apqmls::validation::validate_apq_group_contexts;
 use chrono::{TimeDelta, Utc};
 use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
@@ -294,6 +295,16 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         ear_key: &GroupStateEarKey,
     ) -> Result<(), Status> {
         let group_id = group_data.group_uuid();
+
+        if group_state.is_marked_for_deletion() {
+            StorableDsGroupData::<true>::delete(txn.as_mut(), group_id)
+                .await
+                .map_err(|error| {
+                    error!(%error, "Failed to delete group state");
+                    Status::internal("Failed to delete group state")
+                })?;
+            return Ok(());
+        }
 
         group_state
             .write_staged_welcome_infos(txn, group_id, ear_key)
@@ -1133,6 +1144,17 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
         // Check that the t and pq client signature keys match
         Self::verify_signing_key(&t_group_state.group, &pq_group_state.group)?;
+
+        // Both legs must carry the same APQInfo, describing the two groups with a
+        // mode that matches their ciphersuites. Commits cannot change it later.
+        validate_apq_group_contexts(
+            t_group_state.group().group_info().group_context(),
+            pq_group_state.group().group_info().group_context(),
+        )
+        .map_err(|error| {
+            warn!(%error, "Invalid APQInfo in new APQ group");
+            Status::invalid_argument("Invalid APQInfo")
+        })?;
 
         // Both legs live in the snapshot of the T leg's group id
         let bootstrap = payload

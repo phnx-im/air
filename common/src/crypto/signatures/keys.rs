@@ -2,7 +2,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use crate::crypto::{RawKey, signatures::signable::Signature};
+use zeroize::Zeroize;
+
+use crate::crypto::{
+    RawKey,
+    kdf::{Kdf, keys::SiblingSecret},
+    signatures::signable::Signature,
+};
 
 use super::private_keys::{SigningKey, VerifyingKey, VerifyingKeyRef};
 
@@ -27,6 +33,22 @@ pub type QsUserVerifyingKey = VerifyingKey<QsUserVerifyingKeyType>;
 impl RawKey for QsUserVerifyingKeyType {}
 
 pub type QsUserSigningKey = SigningKey<QsUserVerifyingKeyType>;
+
+/// Salt for extracting the [`SiblingSecret`] from the QS user signing key
+const SIBLING_SECRET_SALT: &[u8] = b"air sibling secret v1";
+
+impl QsUserSigningKey {
+    /// Derives the secret shared by all clients of the user.
+    ///
+    /// All clients of a user share the QS user signing key, while the server
+    /// only knows its verifying key.
+    pub fn derive_sibling_secret(&self) -> SiblingSecret {
+        let (mut prk, _) = Kdf::extract(Some(SIBLING_SECRET_SALT), &self.signing_key);
+        let sibling_secret = SiblingSecret::from_bytes(prk.into());
+        prk.as_mut_slice().zeroize();
+        sibling_secret
+    }
+}
 
 pub type QsUserSignature = Signature<QsUserVerifyingKeyType>;
 

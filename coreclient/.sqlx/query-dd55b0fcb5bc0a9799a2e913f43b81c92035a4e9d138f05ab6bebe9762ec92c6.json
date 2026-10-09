@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE resync_queue\n                SET accepted_friendship_package = ?2\n                WHERE group_id = ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "dd55b0fcb5bc0a9799a2e913f43b81c92035a4e9d138f05ab6bebe9762ec92c6"
+}

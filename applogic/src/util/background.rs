@@ -13,8 +13,8 @@ use uuid::Uuid;
 
 use super::{FibonacciBackoff, spawn_from_sync};
 
-/// Timeout after a stream stop is not considered as error
-const DEFAULT_REGULAR_STOP_TIMEOUT: Duration = Duration::from_secs(30 * 60 * 60); // 30 minutes
+/// Uptime after which a stream counts as healthy and backoff is reset.
+const DEFAULT_HEALTHY_UPTIME: Duration = Duration::from_secs(60);
 
 /// A task that runs in the background and handles events from a stream.
 ///
@@ -31,8 +31,7 @@ pub(crate) struct BackgroundStreamTask<C, Event> {
     name: Arc<str>,
     context: C,
     cancel: CancellationToken,
-    /// Timeout after a stream stop is not considered as an error
-    regular_stop_timeout: Duration,
+    healthy_uptime: Duration,
     backoff: FibonacciBackoff,
     state: State<Event>,
     _marker: PhantomData<Event>,
@@ -53,7 +52,7 @@ where
             context,
             cancel,
             state: State::Initial,
-            regular_stop_timeout: DEFAULT_REGULAR_STOP_TIMEOUT,
+            healthy_uptime: DEFAULT_HEALTHY_UPTIME,
             backoff: FibonacciBackoff::new(),
             _marker: PhantomData,
         }
@@ -61,7 +60,7 @@ where
 
     #[cfg(test)]
     fn with_regular_stop_timeout(mut self, value: Duration) -> Self {
-        self.regular_stop_timeout = value;
+        self.healthy_uptime = value;
         self
     }
 
@@ -113,7 +112,6 @@ where
                             task_id = %self.task_id,
                             "background stream started"
                         );
-                        self.backoff.reset();
                         State::Running {
                             stream: Box::pin(stream),
                             started_at,
@@ -153,7 +151,6 @@ where
                         );
                         if self.context.handle_event(event).await {
                             // Continue processing
-                            self.backoff.reset();
                             State::Running { stream, started_at }
                         } else {
                             self.context.on_stream_end().await;
@@ -177,7 +174,7 @@ where
             }
 
             State::Stopped { started_at } => {
-                if started_at.elapsed() >= self.regular_stop_timeout {
+                if started_at.elapsed() >= self.healthy_uptime {
                     // reset backoff after a regular stop timeout
                     self.backoff.reset();
                     State::Initial
@@ -675,7 +672,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn background_stream_task_backoff_resets() {
+    async fn background_stream_task_backoff_not_reset_by_short_lived_stream() {
         init_test_tracing();
 
         let (context, _app_state_tx, create_stream_tx) = TestContext::new();
@@ -715,7 +712,21 @@ mod test {
         step_with_timeout(&mut task).await;
         assert_state!(task.state, State::Running { .. });
         assert_eq!(ack.await.unwrap(), 1);
-        assert_eq!(task.backoff.next_backoff(), Duration::from_secs(1));
+
+        drop(event_tx); // close stream
+
+        step_with_timeout(&mut task).await;
+        assert_state!(task.state, State::Stopped { .. });
+
+        step_with_timeout(&mut task).await;
+        assert_state!(
+            task.state,
+            State::Backoff {
+                error: None,
+                timeout
+            }
+            if timeout == Duration::from_secs(2)
+        );
     }
 
     #[tokio::test]

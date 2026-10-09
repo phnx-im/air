@@ -4,11 +4,8 @@
 
 use aircommon::{
     credentials::UserCredential,
-    crypto::{
-        aead::keys::FriendshipPackageEarKey, hpke::HpkeDecryptable,
-        indexed_aead::keys::UserProfileKey,
-    },
-    identifiers::{QualifiedGroupId, UserId, Username},
+    crypto::hpke::HpkeDecryptable,
+    identifiers::Username,
     messages::{
         client_as::{ConnectionOfferHash, ConnectionOfferMessage},
         connection_package::ConnectionPackageHash,
@@ -16,15 +13,12 @@ use aircommon::{
     time::TimeStamp,
 };
 use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
-use anyhow::{Context, Result, anyhow, bail, ensure};
+use anyhow::{Context, Result, anyhow, bail};
 use chrono::Utc;
-use openmls::group::GroupId;
-use tls_codec::DeserializeBytes;
-use tracing::{error, warn};
+use tracing::error;
 
 use crate::{
-    PartialContact, SystemMessage, TargetedMessageContact,
-    chats::{PendingConnectionInfo, messages::TimestampedMessage},
+    chats::connection_requests::{self, IncomingRequest, IncomingRequestSource, StoredRequest},
     clients::{
         api_clients::ApiClients,
         block_contact::{BlockedContact, BlockedContactError},
@@ -33,10 +27,9 @@ use crate::{
             payload::{ConnectionInfo, ConnectionOfferPayload},
         },
     },
-    contacts::UsernameContact,
     db::access::WriteConnection,
-    groups::ProfileInfo,
-    job::{Job, JobContext, JobContextDb},
+    groups::client_auth_info::StorableUserCredential,
+    job::{JobContext, JobContextDb},
     usernames::connection_packages::ConnectionPackageRecord,
 };
 
@@ -133,7 +126,7 @@ impl CoreUser {
         &self,
         username: Username,
         queue_message: UsernameQueueMessage,
-    ) -> Result<ChatId> {
+    ) -> Result<Option<StoredRequest>> {
         let payload = queue_message
             .payload
             .context("no payload in username queue message")?;
@@ -157,18 +150,25 @@ impl CoreUser {
                     now: Utc::now(),
                     qs_client_id: &self.inner.qs_client_id,
                 };
-                let chat_id =
+                let stored =
                     Self::process_connection_offer(&mut context, connection_info_source).await?;
-
-                Ok(chat_id)
+                if stored.is_some() {
+                    // Hands the request to the siblings.
+                    self.outbound_service().notify_pending_chat_operations();
+                }
+                Ok(stored)
             }
         }
     }
 
+    /// Stores an incoming connection request as pending. A request via a
+    /// username is also parked for the siblings.
+    ///
+    /// Returns where it was stored, or `None` if the request is known already.
     pub(crate) async fn process_connection_offer(
         context: &mut JobContext<'_, '_>,
         connection_info_source: ConnectionInfoSource,
-    ) -> anyhow::Result<ChatId> {
+    ) -> anyhow::Result<Option<StoredRequest>> {
         let api_clients = context.api_clients.clone();
         let (
             connection_info,
@@ -190,161 +190,78 @@ impl CoreUser {
             bail!(BlockedContactError);
         }
 
-        // Idempotency: skip if the chat for this connection offer already exists.
-        // ChatId is deterministic from the group_id, so a duplicate offer will
-        // produce the same chat_id and we can safely return early.
-        let chat_id = ChatId::try_from(&connection_info.connection_group_id)?;
-        let chat = {
+        // Idempotency: the request id is deterministic from the group id, so
+        // a duplicate offer is recognized. It may be shown in the chat of a
+        // newer request of the same sender.
+        let request_id = ChatId::try_from(&connection_info.connection_group_id)?;
+        let sender = sender_user_credential.user_id().clone();
+        let is_settled = {
             let mut connection = context.db.read().await?;
             let txn = connection.begin().await?;
-            Chat::load(txn, &chat_id).await?
+            connection_requests::is_settled(txn, request_id, &sender).await?
         };
-
-        if chat.is_some() {
-            return Ok(chat_id);
+        if is_settled {
+            return Ok(None);
         }
 
-        // Immediately fetch the user profile. This might fail if the user updated their
-        // profile in the meantime => fallback to fetching group info.
-        let sender_profile_key = UserProfileKey::from_base_secret(
-            connection_info
-                .friendship_package
-                .user_profile_base_secret
-                .clone(),
-            sender_user_credential.user_id(),
-        )?;
-
-        let fetch_profile_job =
-            CoreUser::fetch_user_profile_job((sender_user_credential.clone(), sender_profile_key));
-
-        if let Err(error) = fetch_profile_job.execute(context).await {
-            warn!(%error, "Failed to fetch user profile; falling back to fetching group info");
-
-            // Fetch external commit info
-            let qgid = QualifiedGroupId::tls_deserialize_exact_bytes(
-                connection_info.connection_group_id.as_slice(),
-            )?;
-            let eci = context
-                .api_clients
-                .get(qgid.owning_domain())?
-                .ds_connection_group_info(
-                    connection_info.connection_group_id.clone(),
-                    &connection_info.connection_group_ear_key,
-                )
-                .await?;
-            let encrypted_user_profile_key = if !eci.indexed_encrypted_user_profile_keys.is_empty()
-            {
-                ensure!(
-                    eci.indexed_encrypted_user_profile_keys.len() == 1,
-                    "Unjoined connection group must have exactly one user profile key"
-                );
-                eci.indexed_encrypted_user_profile_keys
-                    .values()
-                    .next()
-                    .expect("logic error: len == 1")
-            } else {
-                ensure!(
-                    eci.encrypted_user_profile_keys.len() == 1,
-                    "Unjoined connection group must have exactly one user profile key"
-                );
-                &eci.encrypted_user_profile_keys[0]
-            };
-
-            // Decrypt user profile key
-            let user_profile_key = UserProfileKey::decrypt(
-                &connection_info.connection_group_identity_link_wrapper_key,
-                encrypted_user_profile_key,
-                sender_user_credential.user_id(),
-            )?;
-
-            // Fetch and store user profile (it also creates a new contact)
-            let profile_info = ProfileInfo {
-                user_credential: sender_user_credential.clone(),
-                user_profile_key,
-            };
-
-            CoreUser::fetch_user_profile_job(profile_info)
-                .execute(context)
-                .await?;
-        }
-
-        let sender_user_id = sender_user_credential.user_id();
-
-        // Create pending unconfirmed chat
-        let (chat, partial_contact) = Self::create_pending_connection_chat(
-            &connection_info.connection_group_id,
-            sender_user_id.clone(),
-            username_connection_info.as_ref(),
-        )?;
-
-        // Create pending connection info
-        let (username, connection_offer_hash, connection_package_hash) =
-            if let Some(UsernameConnectionInfo {
-                connection_offer_hash,
-                connection_package_hash,
-                username,
-            }) = username_connection_info
-            {
-                (
-                    Some(username),
-                    Some(connection_offer_hash),
-                    Some(connection_package_hash),
-                )
-            } else {
-                (None, None, None)
-            };
-        let pending_chat = PendingConnectionInfo {
-            chat_id: chat.id(),
-            created_at: TimeStamp::now(),
-            connection_info,
-            handle: username,
-            connection_offer_hash,
-            connection_package_hash,
-        };
+        CoreUser::fetch_request_sender_profile(context, &connection_info, &sender_user_credential)
+            .await?;
 
         context
             .db
             .write()
             .await?
             .with_transaction(async |txn| {
-                // Create system messages for receipt and acceptance
-                let received_system_message = match &partial_contact {
-                    PartialContact::Username(contact) => {
-                        // Connection via username
-                        SystemMessage::ReceivedHandleConnectionRequest {
-                            sender: sender_user_id.clone(),
-                            user_handle: contact.username.clone(),
-                        }
-                    }
-                    PartialContact::TargetedMessage(contact) => {
-                        // Connection via targeted message
+                // The profile fetch held no database lock, so an accept on
+                // this device or a sibling's echo may have settled the sender
+                // meanwhile.
+                if connection_requests::is_settled(&mut *txn, request_id, &sender).await? {
+                    return Ok(None);
+                }
+                // Only this device got a username offer from the AS queue. A
+                // targeted message reaches every sibling on its own.
+                let forward = username_connection_info.is_some();
+                let source = match username_connection_info {
+                    Some(UsernameConnectionInfo {
+                        connection_offer_hash,
+                        connection_package_hash,
+                        username,
+                    }) => IncomingRequestSource::Username {
+                        username,
+                        connection_offer_hash,
+                        connection_package_hash,
+                    },
+                    None => {
                         let origin_chat_id =
                             origin_chat_id.context("logic error: no origin chat id")?;
                         let origin_chat = Chat::load(&mut *txn, &origin_chat_id)
                             .await?
                             .context("no origin chat")?;
-                        let origin_chat_title = match origin_chat.chat_type {
-                            crate::ChatType::Group(attributes) => attributes.title,
-                            _ => bail!("Non-group chat as targeted message origin"),
+                        let crate::ChatType::Group(_) = origin_chat.chat_type else {
+                            bail!("Non-group chat as targeted message origin");
                         };
-                        SystemMessage::ReceivedDirectConnectionRequest {
-                            sender: contact.user_id.clone(),
-                            chat_name: origin_chat_title,
+                        IncomingRequestSource::Group {
+                            origin_group_id: origin_chat.group_id,
                         }
                     }
                 };
-                let received_message =
-                    TimestampedMessage::system_message(received_system_message, message_timestamp);
-                let chat_messages = vec![received_message];
-
-                // Store chat, pending connection info, partial contact and system message
-                // Note: Group is not created here!
-                chat.store(&mut *txn).await?;
-                pending_chat.store(&mut *txn).await?;
-                partial_contact.upsert(&mut *txn).await?;
-                Self::store_new_messages(txn, chat.id(), chat_messages).await?;
-
-                Ok(chat.id)
+                // Forwarding and provisioning hand the verified credential of
+                // the sender to the siblings.
+                StorableUserCredential::new(sender_user_credential.clone())
+                    .store(&mut *txn)
+                    .await?;
+                let request = IncomingRequest {
+                    connection_info,
+                    sender,
+                    source,
+                    received_at: message_timestamp,
+                };
+                let stored = request.store(txn).await?;
+                if forward {
+                    connection_requests::park_received(txn, request_id, &sender_user_credential)
+                        .await?;
+                }
+                Ok(Some(stored))
             })
             .await
     }
@@ -386,33 +303,5 @@ impl CoreUser {
             })?;
 
         Ok((payload, hash))
-    }
-
-    fn create_pending_connection_chat(
-        group_id: &GroupId,
-        sender_user_id: UserId,
-        username_connection_info: Option<&UsernameConnectionInfo>,
-    ) -> anyhow::Result<(Chat, PartialContact)> {
-        let chat = Chat::new_pending_connection_chat(group_id.clone(), sender_user_id.clone());
-
-        // FIXME(901): For incoming contacts, there is no EAR key but it is required.
-        let random_ear_key = FriendshipPackageEarKey::random()?;
-
-        let partial_contact = if let Some(username_connection_info) = username_connection_info {
-            PartialContact::Username(UsernameContact::new(
-                username_connection_info.username.clone(),
-                chat.id(),
-                random_ear_key,
-                username_connection_info.connection_offer_hash,
-            ))
-        } else {
-            PartialContact::TargetedMessage(TargetedMessageContact::new(
-                sender_user_id.clone(),
-                chat.id(),
-                random_ear_key,
-            ))
-        };
-
-        Ok((chat, partial_contact))
     }
 }

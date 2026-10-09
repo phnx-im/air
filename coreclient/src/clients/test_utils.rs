@@ -6,7 +6,11 @@
 use aircommon::messages::client_ds_out::SendMessageCollisionTag;
 use openmls::group::{GroupEpoch, Member};
 
-use aircommon::{credentials::RoomPolicyIdentity, identifiers::QualifiedGroupId};
+use aircommon::{
+    credentials::RoomPolicyIdentity,
+    identifiers::{QualifiedGroupId, Username},
+    messages::connection_package::ConnectionPackageHash,
+};
 use openmls::prelude::GroupId;
 use uuid::Uuid;
 
@@ -24,6 +28,7 @@ use crate::{
         pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     },
     outbound_service::resync::{Resync, ResyncReason, ResyncStatus},
+    usernames::connection_packages::ConnectionPackageRecord,
 };
 
 use super::*;
@@ -77,18 +82,6 @@ impl CoreUser {
 
     pub async fn self_group(&self) -> anyhow::Result<Option<SelfGroup>> {
         Ok(SelfGroup::load(self.db().read().await?).await?)
-    }
-
-    pub async fn self_chat_title(&self) -> anyhow::Result<Option<String>> {
-        let Some(group) = self.self_group().await? else {
-            return Ok(None);
-        };
-        let chat_id = crate::ChatId::try_from(group.group_id())?;
-        let chat = self
-            .db()
-            .with_read_transaction(async |txn| crate::Chat::load(txn, &chat_id).await)
-            .await?;
-        Ok(chat.and_then(|chat| chat.attributes().map(|attrs| attrs.title().to_owned())))
     }
 
     pub async fn self_group_member_count(&self) -> anyhow::Result<Option<usize>> {
@@ -277,6 +270,8 @@ impl CoreUser {
             original_leaf_index: group.own_index(),
             shares_vc_leaf: false,
             connection_contact: None,
+            outgoing_request: None,
+            accepted_friendship_package: None,
             reason: ResyncReason::Manual,
             attempts: 0,
         };
@@ -496,5 +491,17 @@ impl CoreUser {
             .await?;
 
         Ok(())
+    }
+
+    /// The hashes of the connection packages of `username` whose decryption
+    /// keys this device holds.
+    pub async fn connection_package_hashes(
+        &self,
+        username: &Username,
+    ) -> anyhow::Result<Vec<ConnectionPackageHash>> {
+        Ok(
+            ConnectionPackageRecord::load_hashes_for_username(self.db().read().await?, username)
+                .await?,
+        )
     }
 }

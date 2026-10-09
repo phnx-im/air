@@ -62,6 +62,7 @@ pub(crate) enum OperationKind {
     FetchUserProfile,
     TimedTask,
     FetchGroupProfile,
+    FetchRequestSenderProfile,
 }
 
 impl<T: OperationData> Operation<T> {
@@ -99,6 +100,7 @@ impl OperationKind {
         match self {
             Self::FetchUserProfile => "fetch_profile",
             Self::FetchGroupProfile => "fetch_group_profile",
+            Self::FetchRequestSenderProfile => "fetch_request_sender_profile",
             Self::TimedTask => "timed_task",
         }
     }
@@ -111,6 +113,7 @@ impl FromStr for OperationKind {
         Ok(match s {
             "fetch_profile" => Self::FetchUserProfile,
             "fetch_group_profile" => Self::FetchGroupProfile,
+            "fetch_request_sender_profile" => Self::FetchRequestSenderProfile,
             "timed_task" => Self::TimedTask,
             _ => bail!("Invalid operation type: {s}"),
         })

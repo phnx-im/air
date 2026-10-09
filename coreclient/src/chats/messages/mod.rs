@@ -598,7 +598,8 @@ pub enum SystemMessage {
     },
     ChangePicture(UserId),
     /// We received a connection request from another user. The String is the
-    /// name of the chat through which the request was made.
+    /// name of the chat through which the request was made. Only in messages
+    /// stored before [`Self::ReceivedGroupConnectionRequest`].
     ReceivedDirectConnectionRequest {
         sender: UserId,
         chat_name: String,
@@ -621,7 +622,8 @@ pub enum SystemMessage {
     },
     /// We requested a connection with another user through a username.
     NewHandleConnectionChat(Username),
-    /// We requested a connection with another user through a group.
+    /// We requested a connection with another user through a group chat
+    /// that was not recorded. See [`Self::SentGroupConnectionRequest`].
     NewDirectConnectionChat(UserId),
     CreateGroup(UserId),
     /// We got onboarded into a group after linking.
@@ -630,6 +632,42 @@ pub enum SystemMessage {
     DeviceLinked(Uuid),
     /// A device, identified by its client id, was unlinked.
     DeviceUnlinked(Uuid),
+    /// We received another connection request through one of our usernames
+    /// while an earlier one of the same sender is pending.
+    ReceivedAdditionalUsernameConnectionRequest {
+        sender: UserId,
+        username: Username,
+    },
+    /// We received another connection request through a group chat while an
+    /// earlier one of the same sender is pending. The String is the name of
+    /// the group chat. Only in messages stored before
+    /// [`Self::ReceivedAdditionalGroupConnectionRequest`].
+    ReceivedAdditionalDirectConnectionRequest {
+        sender: UserId,
+        chat_name: String,
+    },
+    /// When the self-chat is created for the first time.
+    SelfChatCreated,
+    /// We received a connection request from another user through a group
+    /// chat. The title is looked up when the message is shown, so the group
+    /// chat may be gone or not on this device yet.
+    ReceivedGroupConnectionRequest {
+        sender: UserId,
+        origin_chat_id: ChatId,
+    },
+    /// We received another connection request through a group chat while an
+    /// earlier one of the same sender is pending. See
+    /// [`Self::ReceivedGroupConnectionRequest`].
+    ReceivedAdditionalGroupConnectionRequest {
+        sender: UserId,
+        origin_chat_id: ChatId,
+    },
+    /// We requested a connection with another user through a group chat. See
+    /// [`Self::ReceivedGroupConnectionRequest`].
+    SentGroupConnectionRequest {
+        recipient: UserId,
+        origin_chat_id: ChatId,
+    },
 }
 
 impl EventMessage {
@@ -643,6 +681,44 @@ impl EventMessage {
 }
 
 impl SystemMessage {
+    /// The message announcing a request we received through one of our
+    /// usernames. An `additional` request joins the pending ones of its
+    /// sender.
+    pub(crate) fn received_username_connection_request(
+        sender: UserId,
+        username: Username,
+        additional: bool,
+    ) -> Self {
+        if additional {
+            SystemMessage::ReceivedAdditionalUsernameConnectionRequest { sender, username }
+        } else {
+            SystemMessage::ReceivedHandleConnectionRequest {
+                sender,
+                user_handle: username,
+            }
+        }
+    }
+
+    /// The message announcing a request we received through a group chat. An
+    /// `additional` request joins the pending ones of its sender.
+    pub(crate) fn received_group_connection_request(
+        sender: UserId,
+        origin_chat_id: ChatId,
+        additional: bool,
+    ) -> Self {
+        if additional {
+            SystemMessage::ReceivedAdditionalGroupConnectionRequest {
+                sender,
+                origin_chat_id,
+            }
+        } else {
+            SystemMessage::ReceivedGroupConnectionRequest {
+                sender,
+                origin_chat_id,
+            }
+        }
+    }
+
     /// The user who performed the group operation this message reports.
     pub fn actor(&self) -> Option<&UserId> {
         match self {
@@ -658,7 +734,13 @@ impl SystemMessage {
             | SystemMessage::NewDirectConnectionChat(_)
             | SystemMessage::Onboarded
             | SystemMessage::DeviceLinked(_)
-            | SystemMessage::DeviceUnlinked(_) => None,
+            | SystemMessage::DeviceUnlinked(_)
+            | SystemMessage::ReceivedAdditionalUsernameConnectionRequest { .. }
+            | SystemMessage::ReceivedAdditionalDirectConnectionRequest { .. }
+            | SystemMessage::SelfChatCreated
+            | SystemMessage::ReceivedGroupConnectionRequest { .. }
+            | SystemMessage::ReceivedAdditionalGroupConnectionRequest { .. }
+            | SystemMessage::SentGroupConnectionRequest { .. } => None,
         }
     }
 
@@ -740,6 +822,45 @@ impl SystemMessage {
                 let display_name = core_user.user_profile(user_id).await.display_name;
                 format!("You requested a connection with {display_name}")
             }
+            SystemMessage::ReceivedAdditionalUsernameConnectionRequest { sender, username } => {
+                let display_name = core_user.user_profile(sender).await.display_name;
+                let username = username.plaintext();
+                format!(
+                    "{display_name} also sent you a contact request through your \
+                    username {username}."
+                )
+            }
+            SystemMessage::ReceivedAdditionalDirectConnectionRequest { sender, chat_name } => {
+                let display_name = core_user.user_profile(sender).await.display_name;
+                format!(
+                    "{display_name} also sent you a contact request through the group \
+                    chat {chat_name}."
+                )
+            }
+            SystemMessage::ReceivedGroupConnectionRequest {
+                sender,
+                origin_chat_id,
+            } => {
+                let display_name = core_user.user_profile(sender).await.display_name;
+                let origin = group_chat_reference(core_user, origin_chat_id).await;
+                format!("{display_name} sent you a contact request through {origin}.")
+            }
+            SystemMessage::ReceivedAdditionalGroupConnectionRequest {
+                sender,
+                origin_chat_id,
+            } => {
+                let display_name = core_user.user_profile(sender).await.display_name;
+                let origin = group_chat_reference(core_user, origin_chat_id).await;
+                format!("{display_name} also sent you a contact request through {origin}.")
+            }
+            SystemMessage::SentGroupConnectionRequest {
+                recipient,
+                origin_chat_id,
+            } => {
+                let display_name = core_user.user_profile(recipient).await.display_name;
+                let origin = group_chat_reference(core_user, origin_chat_id).await;
+                format!("You requested a connection with {display_name} through {origin}")
+            }
             SystemMessage::CreateGroup(user_id) => {
                 let user_display_name = core_user.user_profile(user_id).await.display_name;
                 format!("{user_display_name} created the group")
@@ -761,7 +882,20 @@ impl SystemMessage {
                     None => "A device was unlinked".into(),
                 }
             }
+            SystemMessage::SelfChatCreated => "Use this chat as your personal notepad. Messages \
+                are synced across all of your account's linked devices."
+                .into(),
         }
+    }
+}
+
+/// "the group chat <title>", or a generic reference if the group chat is not
+/// on this device.
+async fn group_chat_reference(core_user: &CoreUser, chat_id: &ChatId) -> String {
+    let chat = core_user.chat(chat_id).await;
+    match chat.as_ref().and_then(Chat::attributes) {
+        Some(attributes) => format!("the group chat {}", attributes.title()),
+        None => "a mutual group chat".to_owned(),
     }
 }
 

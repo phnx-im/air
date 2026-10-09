@@ -23,7 +23,8 @@ use aircommon::mls_group_config::{
 };
 use airprotos::client::app_data::ClientAppData;
 use airprotos::client::self_group::{
-    BlockedContactEntry, LinkedDevice, RedeemedTokens, SettingsUpdate, TokenSeed,
+    BlockedContactEntry, ConnectionRequestEntry, LinkedDevice, RedeemedTokens, SettingsUpdate,
+    TokenSeed,
 };
 use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
 use anyhow::{Context, anyhow, bail};
@@ -54,6 +55,10 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatId, ChatStatus, ChatType, Contact,
+    chats::{
+        connection_requests::{pending_requests_snapshot, store_provisioned_requests},
+        outgoing_requests::OutgoingRequest,
+    },
     clients::{
         CIPHERSUITE, CoreUser,
         api_clients::ApiClients,
@@ -124,6 +129,9 @@ pub(crate) struct ProvisioningPackage {
     /// The tokens the user's devices have redeemed so far.
     #[serde(default)]
     pub(crate) redeemed_tokens: Vec<RedeemedTokens>,
+    /// The incoming connection requests that are pending.
+    #[serde(default)]
+    pub(crate) connection_requests: Vec<ConnectionRequestEntry>,
     /// The name the confirming user gave this device. Empty means "no choice
     /// made", and the new device falls back to its own platform label.
     pub(crate) device_name: String,
@@ -159,6 +167,9 @@ pub(crate) struct HigherLevelGroup {
     pub(crate) vc_leaf_index: u32,
     /// Set if the group backs a connection chat rather than a group chat.
     pub(crate) connection: Option<ConnectionContact>,
+    /// Set if the group backs an outgoing connection request the recipient
+    /// has not answered yet.
+    pub(crate) outgoing_request: Option<OutgoingRequest>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -605,6 +616,10 @@ impl CoreUser {
         let blocked_contacts = blocked_contacts_snapshot(self.db().read().await?).await?;
         let redeemed_tokens =
             privacy_pass::redeemed_tokens_snapshot(self.db().read().await?).await?;
+        let connection_requests = self
+            .db()
+            .with_read_transaction(async |txn| pending_requests_snapshot(txn).await)
+            .await?;
 
         Ok(ProvisioningPackage {
             user_signing_key: key_store.signing_key.clone(),
@@ -624,6 +639,7 @@ impl CoreUser {
             token_seeds,
             blocked_contacts,
             redeemed_tokens,
+            connection_requests,
             device_name,
             groups,
         })
@@ -632,9 +648,10 @@ impl CoreUser {
     /// Describe every higher-level group the virtual client is a member of, so a
     /// joining emulator client can onboard itself into each of them.
     ///
-    /// Skips the emulation group itself, every connection chat that is not
-    /// confirmed yet, and every chat that is not active. A pending chat is one
-    /// whose onboarding has not landed, so its leaf is not ours to hand on.
+    /// Skips the emulation group itself, incoming connection requests, and every
+    /// chat that is not active. A pending chat is one whose onboarding has not
+    /// landed, so its leaf is not ours to hand on. An incoming request has no
+    /// group yet and is transferred over the provisioning package instead.
     async fn higher_level_groups(&self) -> anyhow::Result<Vec<HigherLevelGroup>> {
         self.db()
             .with_read_transaction(async |txn| -> anyhow::Result<_> {
@@ -665,26 +682,30 @@ impl CoreUser {
                 chats.sort_unstable_by_key(|(_, chat)| chat.last_message_at);
 
                 for (group, chat) in chats {
-                    let connection = match chat.chat_type() {
-                        ChatType::Group(_) => None,
+                    let (connection, outgoing_request) = match chat.chat_type() {
+                        ChatType::Group(_) => (None, None),
                         ChatType::Connection(user_id) => {
                             let Some(contact) = Contact::load(&mut *txn, user_id).await? else {
                                 warn!(group_id = ?group.group_id, "no contact for connection chat; skipping group");
                                 continue;
                             };
-                            Some(ConnectionContact {
+                            let connection = ConnectionContact {
                                 user_id: contact.user_id,
                                 wai_ear_key: contact.wai_ear_key,
                                 friendship_token: contact.friendship_token,
-                            })
+                            };
+                            (Some(connection), None)
                         }
-                        // TODO(gabriel): unconfirmed connections need the
-                        // partial contact and the connection-offer PSK on top
-                        // of the group.
-                        ChatType::HandleConnection(_)
-                        | ChatType::TargetedMessageConnection(_)
-                        | ChatType::PendingConnection(_) => {
-                            debug!(group_id = ?group.group_id, "skipping unconfirmed connection chat");
+                        ChatType::HandleConnection(_) | ChatType::TargetedMessageConnection(_) => {
+                            let Some(request) = OutgoingRequest::load(&mut *txn, &chat).await?
+                            else {
+                                warn!(group_id = ?group.group_id, "no partial contact for outgoing request; skipping group");
+                                continue;
+                            };
+                            (None, Some(request))
+                        }
+                        ChatType::PendingConnection(_) => {
+                            debug!(group_id = ?group.group_id, "skipping incoming connection request");
                             continue;
                         }
                     };
@@ -702,6 +723,7 @@ impl CoreUser {
                         identity_link_wrapper_key: group.identity_link_wrapper_key,
                         vc_leaf_index: vc_leaf_index.u32(),
                         connection,
+                        outgoing_request,
                     });
                 }
 
@@ -842,6 +864,7 @@ impl CoreUser {
                     }
                     Some(listen_response::Event::Payload(_))
                     | Some(listen_response::Event::VersionStatus(_))
+                    | Some(listen_response::Event::SiblingClientState(_))
                     | None => {}
                 },
                 // Terminal status => stream is over, acks cannot be confirmed
@@ -912,6 +935,7 @@ impl CoreUser {
                 token_seeds,
                 blocked_contacts,
                 redeemed_tokens,
+                connection_requests,
                 device_name: _,
                 groups,
             } = package;
@@ -969,6 +993,7 @@ impl CoreUser {
                     privacy_pass::store_provisioned_seeds(txn, &token_seeds).await?;
                     apply_blocked_contacts_update(txn, &blocked_contacts).await?;
                     privacy_pass::apply_redeemed_tokens(txn, &redeemed_tokens).await?;
+                    store_provisioned_requests(txn, &connection_requests).await?;
 
                     // Queue the onboarding into the groups the virtual client is
                     // already a member of. This is committed before the client
@@ -1025,10 +1050,14 @@ mod tests {
     use std::assert_matches;
 
     use aircommon::credentials::test_utils::create_test_credentials;
+    use aircommon::crypto::aead::keys::FriendshipPackageEarKey;
     use aircommon::crypto::hpke::ClientIdDecryptionKey;
-    use aircommon::identifiers::QualifiedGroupId;
+    use aircommon::identifiers::{QualifiedGroupId, Username};
+    use aircommon::messages::client_as::ConnectionOfferHash;
     use airprotos::auth_service::v1::OperationType;
-    use airprotos::client::self_group::ContactBlocked;
+    use airprotos::client::self_group::{
+        ConnectionRequestGroup, ConnectionRequestReceived, ConnectionRequestSource, ContactBlocked,
+    };
     use uuid::Uuid;
 
     use super::*;
@@ -1068,6 +1097,7 @@ mod tests {
             token_seeds,
             blocked_contacts,
             redeemed_tokens,
+            connection_requests: Vec::new(),
             device_name: "Work laptop".to_owned(),
             groups: Vec::new(),
         })
@@ -1107,7 +1137,7 @@ mod tests {
             blocked_at: 1_767_225_600,
             last_display_name: "Alice".to_owned(),
         })];
-        let package = sample_package(
+        let mut package = sample_package(
             SettingsUpdate {
                 send_read_receipts: Some(false),
                 linked_devices: None,
@@ -1116,6 +1146,33 @@ mod tests {
             blocked_contacts.clone(),
             sample_redeemed(),
         )?;
+        let connection_requests = vec![ConnectionRequestEntry::Received(
+            ConnectionRequestReceived {
+                connection_info: vec![0x11; 8],
+                sender_credential: vec![0x12; 8],
+                source: ConnectionRequestSource::Group(ConnectionRequestGroup {
+                    group_id: Some(GroupId::from_slice(&[0x13; 8])),
+                }),
+                connection_offer_hash: None,
+                connection_package_hash: None,
+                received_at: 1_767_225_600_123,
+            },
+        )];
+        package.connection_requests = connection_requests.clone();
+        let outgoing_request = OutgoingRequest::Username {
+            username: Username::new("joel-03".to_owned())?,
+            friendship_package_ear_key: FriendshipPackageEarKey::random()?,
+            connection_offer_hash: ConnectionOfferHash::new_for_test(vec![0x66; 32]),
+        };
+        package.groups.push(HigherLevelGroup {
+            group_id: GroupId::from_slice(&[0x14; 8]),
+            pq_group_id: None,
+            group_state_ear_key: GroupStateEarKey::random()?,
+            identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
+            vc_leaf_index: 0,
+            connection: None,
+            outgoing_request: Some(outgoing_request.clone()),
+        });
         let user_id = package.user_signing_key.credential().user_id().clone();
 
         let key = MultiDeviceLinkingKey::random()?;
@@ -1132,6 +1189,12 @@ mod tests {
         assert_eq!(decoded.token_seeds, sample_seeds());
         assert_eq!(decoded.blocked_contacts, blocked_contacts);
         assert_eq!(decoded.redeemed_tokens, sample_redeemed());
+        assert_eq!(decoded.connection_requests, connection_requests);
+        assert_eq!(
+            decoded.groups[0].outgoing_request,
+            Some(outgoing_request),
+            "an unanswered outgoing request travels with its group"
+        );
         assert_eq!(decoded.user_signing_key.credential().user_id(), &user_id);
         // The confirming user's device name rides along in the same package.
         assert_eq!(decoded.device_name, "Work laptop");
@@ -1139,8 +1202,9 @@ mod tests {
         Ok(())
     }
 
-    /// A provisioner from before redeemed-token sync sends no `redeemed_tokens`
-    /// key. Linking to it has to work, with nothing redeemed.
+    /// A provisioner from before redeemed-token and connection-request sync
+    /// sends no `redeemed_tokens` or `connection_requests` key. Linking to it
+    /// has to work, with both empty.
     #[test]
     fn a_package_without_redeemed_tokens_decodes_as_empty() -> anyhow::Result<()> {
         /// The package as an older provisioner serializes it.
@@ -1186,6 +1250,7 @@ mod tests {
             token_seeds,
             blocked_contacts,
             redeemed_tokens: _,
+            connection_requests: _,
             device_name,
             groups,
         } = sample_package(
@@ -1223,6 +1288,39 @@ mod tests {
 
         assert_eq!(decoded.token_seeds, sample_seeds());
         assert!(decoded.redeemed_tokens.is_empty());
+        assert!(decoded.connection_requests.is_empty());
+
+        Ok(())
+    }
+
+    /// A provisioner from before outgoing requests were handed over sends its
+    /// groups without an `outgoing_request` key.
+    #[test]
+    fn a_group_without_outgoing_request_decodes_as_none() -> anyhow::Result<()> {
+        /// The group as an older provisioner serializes it.
+        #[derive(serde::Serialize)]
+        struct OlderHigherLevelGroup {
+            group_id: GroupId,
+            pq_group_id: Option<GroupId>,
+            group_state_ear_key: GroupStateEarKey,
+            identity_link_wrapper_key: IdentityLinkWrapperKey,
+            vc_leaf_index: u32,
+            connection: Option<ConnectionContact>,
+        }
+
+        let older = OlderHigherLevelGroup {
+            group_id: GroupId::from_slice(&[0x14; 8]),
+            pq_group_id: None,
+            group_state_ear_key: GroupStateEarKey::random()?,
+            identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
+            vc_leaf_index: 0,
+            connection: None,
+        };
+
+        let bytes = PersistenceCodec::to_vec(&older)?;
+        let decoded: HigherLevelGroup = PersistenceCodec::from_slice(&bytes)?;
+        assert_eq!(decoded.group_id, older.group_id);
+        assert_eq!(decoded.outgoing_request, None);
 
         Ok(())
     }

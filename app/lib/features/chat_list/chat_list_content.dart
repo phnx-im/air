@@ -21,6 +21,7 @@ import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:air/features/chat/chat_list_item_cubit.dart';
 import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat/mute_chat_sheet.dart';
+import 'package:air/features/chat_list/update_reminder.dart';
 import 'package:air/features/message_list/display_message_tile.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/avatar.dart';
@@ -79,13 +80,42 @@ class ChatListContent extends HookWidget {
           ]
         : orderedChatIds;
 
+    final appExpiresAt = context.select(
+      (UserCubit cubit) => switch (cubit.state.versionStatus) {
+        VersionStatus_ExpiresAt(field0: final expiresAt) => expiresAt,
+        _ => null,
+      },
+    );
+    final dismissedFor = context.select(
+      (UserSettingsCubit cubit) => cubit.state.dismissedVersionExpiry,
+    );
+    final showUpdateReminder =
+        !shareMode &&
+        appExpiresAt != null &&
+        !(dismissedFor?.isAtSameMomentAs(appExpiresAt) ?? false);
+
+    // Every user has the self chat, so on its own it still means no chats.
+    final onlyChatId = chatIds.singleOrNull;
+    final onlySelfChat =
+        onlyChatId != null &&
+        (repository.getChat(onlyChatId)?.isSelfChat ?? false);
+
     final list = ChatList(
       tokens: ChatListTokens.current,
       backgroundColor: PanelSurface.colorOf(context),
       header: header,
       headerHeight: headerHeight,
-      itemCount: chatIds.length,
+      topBanner: showUpdateReminder
+          ? UpdateReminder(expiresAt: appExpiresAt)
+          : null,
+      itemCount: chatIds.length + (onlySelfChat ? 1 : 0),
       itemBuilder: (context, index) {
+        if (index == chatIds.length) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: S.s24),
+            child: _NoChats(shareMode: shareMode),
+          );
+        }
         final chatId = chatIds[index];
         final isLast = index == chatIds.length - 1;
         return BlocProvider(
@@ -132,7 +162,7 @@ class _NoChats extends StatelessWidget {
       alignment: AlignmentDirectional.center,
       padding: const EdgeInsets.symmetric(horizontal: S.s16),
       child: Text(
-        shareMode ? loc.shareScreen_noChats : loc.chatList_emptyMessage,
+        shareMode ? loc.shareScreen_noChats : loc.chatList_noChats,
         style: TextStyle(color: SemanticPalette.of(context).text.secondary),
       ),
     );
@@ -473,7 +503,7 @@ MessageDeliveryStatus? _deliveryStatus(
   UiMessageStatus.hidden || UiMessageStatus.deleted => null,
 };
 
-class _LastMessage extends StatelessWidget {
+class _LastMessage extends HookWidget {
   const _LastMessage({required this.chat, required this.ownClientId});
 
   final UiChatDetails chat;
@@ -487,6 +517,12 @@ class _LastMessage extends StatelessWidget {
     final italicStyle = previewStyle.copyWith(fontStyle: .italic);
 
     final lastMessage = chat.lastMessage;
+    final lastSystemMessage = switch (lastMessage?.message) {
+      UiMessage_Display(field0: UiEventMessage_System(field0: final message)) =>
+        message,
+      _ => null,
+    };
+    final groupChatTitle = useRequestGroupChatTitle(lastSystemMessage);
     final draftMessage = chat.draft?.message.trim();
     final lastSender = switch (lastMessage?.message) {
       UiMessage_Content(field0: final content) => content.sender,
@@ -502,7 +538,12 @@ class _LastMessage extends StatelessWidget {
     // === Hidden messages ===
     final isHidden = lastMessage?.status == UiMessageStatus.hidden;
     if (isHidden) {
-      return Text(loc.textMessage_hiddenPlaceholder, style: italicStyle);
+      return Text(
+        DeviceType.isDesktop
+            ? loc.textMessage_hiddenPlaceholder_desktop
+            : loc.textMessage_hiddenPlaceholder,
+        style: italicStyle,
+      );
     }
 
     // === Deleted messages ===
@@ -563,12 +604,12 @@ class _LastMessage extends StatelessWidget {
         : switch (lastMessage?.message) {
             UiMessage_Content(field0: final content) =>
               content.content.plaintextPreview(loc),
-            UiMessage_Display(field0: final eventMessage) =>
-              switch (eventMessage) {
-                UiEventMessage_System(field0: final systemMessage) =>
-                  buildSystemMessageText(context, systemMessage).toPlainText(),
-                _ => null,
-              },
+            UiMessage_Display() when lastSystemMessage != null =>
+              buildSystemMessageText(
+                context,
+                lastSystemMessage,
+                groupChatTitle: groupChatTitle,
+              ).toPlainText(),
             _ => null,
           };
 

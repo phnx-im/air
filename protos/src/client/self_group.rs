@@ -27,6 +27,7 @@ use aircommon::{
         secrets::Secret,
     },
     identifiers::MimiId,
+    messages::{client_as::ConnectionOfferHash, connection_package::ConnectionPackageHash},
 };
 use airmacros::{
     DeserializeTaggedMap, DeserializeTaggedUnion, SerializeTaggedMap, SerializeTaggedUnion,
@@ -92,6 +93,7 @@ impl PaddedAeadDecryptable<SelfGroupMessageKey, SelfGroupMessagesCtype> for Self
 ///   2: TokenSeed
 ///   3: BlockedContactsUpdate
 ///   4: DeletedChat
+///   6: ConnectionRequestsUpdate
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
@@ -104,6 +106,8 @@ pub enum SelfGroupMessage {
     BlockedContactsUpdate(BlockedContactsUpdate),
     #[tag(4)]
     DeletedChat(DeletedChat),
+    #[tag(6)]
+    ConnectionRequestsUpdate(ConnectionRequestsUpdate),
     /// A message kind this client does not understand; skipped on receive.
     #[unknown]
     Unknown,
@@ -469,6 +473,117 @@ pub struct ContactUnblocked {
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct DeletedChat {
     /// Group id of the chat's group, the T leg for APQ groups.
+    #[tag(1, with = "group_id_as_bytes")]
+    pub group_id: Option<GroupId>,
+}
+
+/// Update to a connection request. This is a diff and not a snapshot.
+///
+/// Only carries requests via a username. A request via a group chat reaches
+/// every device of the user on its own.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ConnectionRequestsUpdate = {
+///   requests: [* ConnectionRequestEntry] .tag 1,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ConnectionRequestsUpdate {
+    #[tag(1)]
+    pub requests: Vec<ConnectionRequestEntry>,
+}
+
+/// The new state of one connection request.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ConnectionRequestEntry = {
+///   1: ConnectionRequestReceived
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedUnion, DeserializeTaggedUnion)]
+pub enum ConnectionRequestEntry {
+    #[tag(1)]
+    Received(ConnectionRequestReceived),
+    /// A state this client does not understand. The entry is ignored on
+    /// receive.
+    #[unknown]
+    Unknown,
+}
+
+/// A pending incoming connection request, as a sibling forwards it or as the
+/// provisioning device hands it to a new device.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ConnectionRequestReceived = {
+///   connection_info: bstr .tag 1,          ; TLS-encoded ConnectionInfo
+///   sender_credential: bstr .tag 2,        ; TLS-encoded UserCredential
+///   source: ConnectionRequestSource .tag 3,
+///   ? connection_offer_hash: bstr .size 32 .tag 4,
+///   ? connection_package_hash: bstr .size 32 .tag 5,
+///   received_at: uint .tag 6,              ; unix epoch milliseconds (UTC)
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ConnectionRequestReceived {
+    #[tag(1)]
+    pub connection_info: Vec<u8>,
+    #[tag(2)]
+    pub sender_credential: Vec<u8>,
+    #[tag(3)]
+    pub source: ConnectionRequestSource,
+    /// Only present for a request via a username.
+    #[tag(4)]
+    pub connection_offer_hash: Option<ConnectionOfferHash>,
+    /// Only present for a request via a username.
+    #[tag(5)]
+    pub connection_package_hash: Option<ConnectionPackageHash>,
+    #[tag(6)]
+    pub received_at: u64,
+}
+
+/// How a connection request reached the user.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ConnectionRequestSource = {
+///   1: tstr //                  ; the own username the offer was sent to
+///   2: ConnectionRequestGroup   ; the group chat a targeted request came from
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedUnion, DeserializeTaggedUnion)]
+pub enum ConnectionRequestSource {
+    #[tag(1)]
+    Username(String),
+    /// Only handed to a new device, never forwarded.
+    #[tag(2)]
+    Group(ConnectionRequestGroup),
+    /// A source this client does not understand, or none at all. The entry is
+    /// ignored on receive.
+    #[default]
+    #[unknown]
+    Unknown,
+}
+
+/// The group chat a targeted connection request came from.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ConnectionRequestGroup = {
+///   group_id: bstr .tag 1,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ConnectionRequestGroup {
+    /// Group id of the chat's group, the T leg for APQ groups. Always set, a
+    /// receiver skips an entry without it.
     #[tag(1, with = "group_id_as_bytes")]
     pub group_id: Option<GroupId>,
 }
@@ -938,6 +1053,162 @@ mod test {
             SelfGroupAppMessage::from_mimi_content(&decoded),
             Some(message)
         );
+    }
+
+    // 1e. `ConnectionRequestsUpdate` encode/decode and forward compatibility.
+
+    fn sample_connection_request_group() -> ConnectionRequestGroup {
+        ConnectionRequestGroup {
+            group_id: Some(GroupId::from_slice(&[0x17; 8])),
+        }
+    }
+
+    fn sample_connection_requests_update() -> ConnectionRequestsUpdate {
+        ConnectionRequestsUpdate {
+            requests: vec![
+                ConnectionRequestEntry::Received(ConnectionRequestReceived {
+                    connection_info: vec![0x11; 8],
+                    sender_credential: vec![0x12; 8],
+                    source: ConnectionRequestSource::Username("alice".to_owned()),
+                    connection_offer_hash: Some(ConnectionOfferHash::from_bytes([0x13; 32])),
+                    connection_package_hash: Some(ConnectionPackageHash::from_bytes([0x14; 32])),
+                    received_at: 1_767_225_600_123,
+                }),
+                ConnectionRequestEntry::Received(ConnectionRequestReceived {
+                    connection_info: vec![0x15; 8],
+                    sender_credential: vec![0x16; 8],
+                    source: ConnectionRequestSource::Group(sample_connection_request_group()),
+                    connection_offer_hash: None,
+                    connection_package_hash: None,
+                    received_at: 1_767_225_600_456,
+                }),
+            ],
+        }
+    }
+
+    #[test]
+    fn connection_requests_update_roundtrip() {
+        let update = sample_connection_requests_update();
+        let bytes = PersistenceCodec::to_vec(&update).unwrap();
+        let decoded: ConnectionRequestsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(update, decoded);
+    }
+
+    #[test]
+    fn connection_requests_update_stability() {
+        let bytes = PersistenceCodec::to_vec(&sample_connection_requests_update()).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn connection_requests_update_travels_as_a_self_group_message() {
+        let messages = SelfGroupMessages(vec![SelfGroupMessage::ConnectionRequestsUpdate(
+            sample_connection_requests_update(),
+        )]);
+        let key = message_key_from([17u8; 32]);
+        let encrypted = messages.encrypt_padded(&key).unwrap();
+        let decrypted = SelfGroupMessages::decrypt_padded(&key, &encrypted).unwrap();
+        assert_eq!(messages, decrypted);
+    }
+
+    /// A client that predates tag 6 skips it and still reads the settings
+    /// update next to it.
+    #[test]
+    fn connection_requests_are_skipped_by_an_older_client() {
+        #[derive(Debug, Clone, PartialEq, DeserializeTaggedUnion)]
+        enum SelfGroupMessageV3 {
+            #[tag(1)]
+            SettingsUpdate(SettingsUpdate),
+            #[tag(2)]
+            TokenSeed(TokenSeed),
+            #[tag(3)]
+            BlockedContactsUpdate(BlockedContactsUpdate),
+            #[tag(4)]
+            DeletedChat(DeletedChat),
+            #[unknown]
+            Unknown,
+        }
+
+        let update = SettingsUpdate {
+            send_read_receipts: Some(true),
+            linked_devices: None,
+        };
+        let newer = vec![
+            SelfGroupMessage::ConnectionRequestsUpdate(sample_connection_requests_update()),
+            SelfGroupMessage::SettingsUpdate(update.clone()),
+        ];
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+
+        let decoded: Vec<SelfGroupMessageV3> = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            decoded,
+            vec![
+                SelfGroupMessageV3::Unknown,
+                SelfGroupMessageV3::SettingsUpdate(update),
+            ]
+        );
+    }
+
+    /// A request state added after this client shipped decodes to `Unknown`
+    /// and leaves the other entries readable.
+    #[test]
+    fn connection_request_entry_with_unknown_tag_decodes_to_unknown() {
+        #[derive(Debug, Clone, PartialEq, SerializeTaggedMap)]
+        struct ConnectionRequestLater {
+            #[tag(1)]
+            chat_id: Uuid,
+        }
+
+        #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion)]
+        enum ConnectionRequestEntryV2 {
+            #[tag(1)]
+            Received(ConnectionRequestReceived),
+            #[tag(99)]
+            Later(ConnectionRequestLater),
+        }
+
+        let received = ConnectionRequestReceived {
+            connection_info: vec![0x11; 8],
+            sender_credential: vec![0x12; 8],
+            source: ConnectionRequestSource::Group(sample_connection_request_group()),
+            connection_offer_hash: None,
+            connection_package_hash: None,
+            received_at: 1_767_225_600_123,
+        };
+        let newer = vec![
+            ConnectionRequestEntryV2::Later(ConnectionRequestLater {
+                chat_id: Uuid::from_u128(1),
+            }),
+            ConnectionRequestEntryV2::Received(received.clone()),
+        ];
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+
+        let decoded: Vec<ConnectionRequestEntry> = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            decoded,
+            vec![
+                ConnectionRequestEntry::Unknown,
+                ConnectionRequestEntry::Received(received),
+            ]
+        );
+    }
+
+    /// A request source added after this client shipped decodes to `Unknown`
+    /// instead of failing the whole entry list.
+    #[test]
+    fn connection_request_source_with_unknown_tag_decodes_to_unknown() {
+        #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion)]
+        enum ConnectionRequestSourceV2 {
+            #[tag(99)]
+            ContactLink(String),
+        }
+
+        let bytes =
+            PersistenceCodec::to_vec(&ConnectionRequestSourceV2::ContactLink("x".to_owned()))
+                .unwrap();
+        let decoded: ConnectionRequestSource = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(decoded, ConnectionRequestSource::Unknown);
     }
 
     // 2a. `SelfGroupMessage` forward compatibility: an unknown tag decodes to

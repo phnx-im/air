@@ -56,7 +56,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 2037473831;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1154126477;
 
 // Section: executor
 
@@ -7048,6 +7048,63 @@ fn wire__crate__api__user__User_client_record_id_impl(
         },
     )
 }
+fn wire__crate__api__user__User_danger_reset_self_group_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "User_danger_reset_self_group",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<User>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::user::User::danger_reset_self_group(&*api_that_guard)
+                                .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__user__User_global_unread_messages_count_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -13029,6 +13086,26 @@ impl SseDecode for crate::api::types::UiReaction {
     }
 }
 
+impl SseDecode for crate::api::types::UiRequestGroupChat {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                let mut var_field0 = <String>::sse_decode(deserializer);
+                return crate::api::types::UiRequestGroupChat::Title(var_field0);
+            }
+            1 => {
+                let mut var_field0 = <crate::api::types::ChatId>::sse_decode(deserializer);
+                return crate::api::types::UiRequestGroupChat::Chat(var_field0);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
 impl SseDecode for crate::api::share_cubit::UiShareSendError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -13151,10 +13228,11 @@ impl SseDecode for crate::api::types::UiSystemMessage {
             }
             5 => {
                 let mut var_sender = <crate::api::types::UiUserId>::sse_decode(deserializer);
-                let mut var_chatName = <String>::sse_decode(deserializer);
+                let mut var_groupChat =
+                    <crate::api::types::UiRequestGroupChat>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::ReceivedDirectConnectionRequest {
                     sender: var_sender,
-                    chat_name: var_chatName,
+                    group_chat: var_groupChat,
                 };
             }
             6 => {
@@ -13197,6 +13275,28 @@ impl SseDecode for crate::api::types::UiSystemMessage {
             13 => {
                 let mut var_field0 = <uuid::Uuid>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::DeviceUnlinked(var_field0);
+            }
+            14 => {
+                let mut var_sender = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                let mut var_username = <crate::api::types::UiUsername>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::ReceivedAdditionalUsernameConnectionRequest{sender: var_sender, username: var_username};
+            }
+            15 => {
+                let mut var_sender = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                let mut var_groupChat =
+                    <crate::api::types::UiRequestGroupChat>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::ReceivedAdditionalDirectConnectionRequest{sender: var_sender, group_chat: var_groupChat};
+            }
+            16 => {
+                return crate::api::types::UiSystemMessage::SelfChatCreated;
+            }
+            17 => {
+                let mut var_recipient = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                let mut var_originChatId = <crate::api::types::ChatId>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::SentDirectConnectionRequest {
+                    recipient: var_recipient,
+                    origin_chat_id: var_originChatId,
+                };
             }
             _ => {
                 unimplemented!("");
@@ -13464,44 +13564,45 @@ fn pde_ffi_dispatcher_primary_impl(
 135 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_send_on_enter_impl(port, ptr, rust_vec_len, data_len),
 136 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_sidebar_width_impl(port, ptr, rust_vec_len, data_len),
 138 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
-140 => wire__crate__api__user__User_global_unread_messages_count_impl(port, ptr, rust_vec_len, data_len),
-141 => wire__crate__api__user__User_load_impl(port, ptr, rust_vec_len, data_len),
-142 => wire__crate__api__user__User_load_client_records_impl(port, ptr, rust_vec_len, data_len),
-143 => wire__crate__api__user__User_load_default_impl(port, ptr, rust_vec_len, data_len),
-144 => wire__crate__api__user__User_new_impl(port, ptr, rust_vec_len, data_len),
-145 => wire__crate__api__user__User_prepare_for_background_impl(port, ptr, rust_vec_len, data_len),
-147 => wire__crate__api__user__User_trigger_timed_task_impl(port, ptr, rust_vec_len, data_len),
-148 => wire__crate__api__user__User_update_push_token_impl(port, ptr, rust_vec_len, data_len),
-149 => wire__crate__api__user__User_user_debug_info_impl(port, ptr, rust_vec_len, data_len),
-151 => wire__crate__api__users_cubit__UsersCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
-155 => wire__crate__api__users_cubit__UsersCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
-160 => wire__crate__api__chat_details_cubit__chat_details_state_default_impl(port, ptr, rust_vec_len, data_len),
-161 => wire__crate__api__invitation_code__check_invitation_code_impl(port, ptr, rust_vec_len, data_len),
-162 => wire__crate__api__logging__clear_app_logs_impl(port, ptr, rust_vec_len, data_len),
-163 => wire__crate__api__logging__clear_background_logs_impl(port, ptr, rust_vec_len, data_len),
-164 => wire__crate__api__registration__create_admission_session_impl(port, ptr, rust_vec_len, data_len),
-165 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
-166 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
-167 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
-168 => wire__crate__api__registration__get_registration_info_impl(port, ptr, rust_vec_len, data_len),
-171 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
-172 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
-173 => wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(port, ptr, rust_vec_len, data_len),
-174 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
-175 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
-176 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
-177 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
-179 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
-180 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
-181 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
-182 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
-183 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
-184 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
-185 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
-186 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
-187 => wire__crate__api__share_cubit__share_state_default_impl(port, ptr, rust_vec_len, data_len),
-188 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
-189 => wire__crate__api__share_cubit__ui_share_send_status_default_impl(port, ptr, rust_vec_len, data_len),
+140 => wire__crate__api__user__User_danger_reset_self_group_impl(port, ptr, rust_vec_len, data_len),
+141 => wire__crate__api__user__User_global_unread_messages_count_impl(port, ptr, rust_vec_len, data_len),
+142 => wire__crate__api__user__User_load_impl(port, ptr, rust_vec_len, data_len),
+143 => wire__crate__api__user__User_load_client_records_impl(port, ptr, rust_vec_len, data_len),
+144 => wire__crate__api__user__User_load_default_impl(port, ptr, rust_vec_len, data_len),
+145 => wire__crate__api__user__User_new_impl(port, ptr, rust_vec_len, data_len),
+146 => wire__crate__api__user__User_prepare_for_background_impl(port, ptr, rust_vec_len, data_len),
+148 => wire__crate__api__user__User_trigger_timed_task_impl(port, ptr, rust_vec_len, data_len),
+149 => wire__crate__api__user__User_update_push_token_impl(port, ptr, rust_vec_len, data_len),
+150 => wire__crate__api__user__User_user_debug_info_impl(port, ptr, rust_vec_len, data_len),
+152 => wire__crate__api__users_cubit__UsersCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
+156 => wire__crate__api__users_cubit__UsersCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
+161 => wire__crate__api__chat_details_cubit__chat_details_state_default_impl(port, ptr, rust_vec_len, data_len),
+162 => wire__crate__api__invitation_code__check_invitation_code_impl(port, ptr, rust_vec_len, data_len),
+163 => wire__crate__api__logging__clear_app_logs_impl(port, ptr, rust_vec_len, data_len),
+164 => wire__crate__api__logging__clear_background_logs_impl(port, ptr, rust_vec_len, data_len),
+165 => wire__crate__api__registration__create_admission_session_impl(port, ptr, rust_vec_len, data_len),
+166 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
+167 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
+168 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
+169 => wire__crate__api__registration__get_registration_info_impl(port, ptr, rust_vec_len, data_len),
+172 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
+173 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
+174 => wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(port, ptr, rust_vec_len, data_len),
+175 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
+176 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
+177 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
+178 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
+180 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
+181 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
+182 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
+183 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
+184 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
+185 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
+186 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
+187 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
+188 => wire__crate__api__share_cubit__share_state_default_impl(port, ptr, rust_vec_len, data_len),
+189 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
+190 => wire__crate__api__share_cubit__ui_share_send_status_default_impl(port, ptr, rust_vec_len, data_len),
                         _ => unreachable!(),
                     }
 }
@@ -13702,42 +13803,42 @@ fn pde_ffi_dispatcher_sync_impl(
             data_len,
         ),
         139 => wire__crate__api__user__User_client_record_id_impl(ptr, rust_vec_len, data_len),
-        146 => wire__crate__api__user__User_signal_pending_store_notifications_impl(
+        147 => wire__crate__api__user__User_signal_pending_store_notifications_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        150 => wire__crate__api__user__User_user_id_impl(ptr, rust_vec_len, data_len),
-        152 => wire__crate__api__users_cubit__UsersCubitBase_is_closed_impl(
+        151 => wire__crate__api__user__User_user_id_impl(ptr, rust_vec_len, data_len),
+        153 => wire__crate__api__users_cubit__UsersCubitBase_is_closed_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        153 => wire__crate__api__users_cubit__UsersCubitBase_new_impl(ptr, rust_vec_len, data_len),
-        154 => {
+        154 => wire__crate__api__users_cubit__UsersCubitBase_new_impl(ptr, rust_vec_len, data_len),
+        155 => {
             wire__crate__api__users_cubit__UsersCubitBase_state_impl(ptr, rust_vec_len, data_len)
         }
-        156 => {
+        157 => {
             wire__crate__api__users_cubit__UsersState_display_name_impl(ptr, rust_vec_len, data_len)
         }
-        157 => wire__crate__api__users_cubit__UsersState_profile_impl(ptr, rust_vec_len, data_len),
-        158 => wire__crate__api__users_cubit__UsersState_profile_picture_impl(
+        158 => wire__crate__api__users_cubit__UsersState_profile_impl(ptr, rust_vec_len, data_len),
+        159 => wire__crate__api__users_cubit__UsersState_profile_picture_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        159 => wire__crate__api__utils__app_version_impl(ptr, rust_vec_len, data_len),
-        169 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
-        170 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
-        178 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
+        160 => wire__crate__api__utils__app_version_impl(ptr, rust_vec_len, data_len),
+        170 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
+        171 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
+        179 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        190 => {
+        191 => {
             wire__crate__api__types__ui_username_validation_error_impl(ptr, rust_vec_len, data_len)
         }
-        191 => wire__crate__api__username_suggestions__username_from_display_impl(
+        192 => wire__crate__api__username_suggestions__username_from_display_impl(
             ptr,
             rust_vec_len,
             data_len,
@@ -16279,6 +16380,33 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiReaction>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::UiRequestGroupChat {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            crate::api::types::UiRequestGroupChat::Title(field0) => {
+                [0.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::types::UiRequestGroupChat::Chat(field0) => {
+                [1.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::UiRequestGroupChat
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiRequestGroupChat>
+    for crate::api::types::UiRequestGroupChat
+{
+    fn into_into_dart(self) -> crate::api::types::UiRequestGroupChat {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::share_cubit::UiShareSendError {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -16410,11 +16538,11 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
             .into_dart(),
             crate::api::types::UiSystemMessage::ReceivedDirectConnectionRequest {
                 sender,
-                chat_name,
+                group_chat,
             } => [
                 5.into_dart(),
                 sender.into_into_dart().into_dart(),
-                chat_name.into_into_dart().into_dart(),
+                group_chat.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::api::types::UiSystemMessage::AcceptedConnectionRequest { sender, username } => [
@@ -16448,6 +16576,34 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
             crate::api::types::UiSystemMessage::DeviceUnlinked(field0) => {
                 [13.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
+            crate::api::types::UiSystemMessage::ReceivedAdditionalUsernameConnectionRequest {
+                sender,
+                username,
+            } => [
+                14.into_dart(),
+                sender.into_into_dart().into_dart(),
+                username.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::api::types::UiSystemMessage::ReceivedAdditionalDirectConnectionRequest {
+                sender,
+                group_chat,
+            } => [
+                15.into_dart(),
+                sender.into_into_dart().into_dart(),
+                group_chat.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::api::types::UiSystemMessage::SelfChatCreated => [16.into_dart()].into_dart(),
+            crate::api::types::UiSystemMessage::SentDirectConnectionRequest {
+                recipient,
+                origin_chat_id,
+            } => [
+                17.into_dart(),
+                recipient.into_into_dart().into_dart(),
+                origin_chat_id.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -19565,6 +19721,25 @@ impl SseEncode for crate::api::types::UiReaction {
     }
 }
 
+impl SseEncode for crate::api::types::UiRequestGroupChat {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::api::types::UiRequestGroupChat::Title(field0) => {
+                <i32>::sse_encode(0, serializer);
+                <String>::sse_encode(field0, serializer);
+            }
+            crate::api::types::UiRequestGroupChat::Chat(field0) => {
+                <i32>::sse_encode(1, serializer);
+                <crate::api::types::ChatId>::sse_encode(field0, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
 impl SseEncode for crate::api::share_cubit::UiShareSendError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -19673,11 +19848,11 @@ impl SseEncode for crate::api::types::UiSystemMessage {
             }
             crate::api::types::UiSystemMessage::ReceivedDirectConnectionRequest {
                 sender,
-                chat_name,
+                group_chat,
             } => {
                 <i32>::sse_encode(5, serializer);
                 <crate::api::types::UiUserId>::sse_encode(sender, serializer);
-                <String>::sse_encode(chat_name, serializer);
+                <crate::api::types::UiRequestGroupChat>::sse_encode(group_chat, serializer);
             }
             crate::api::types::UiSystemMessage::AcceptedConnectionRequest { sender, username } => {
                 <i32>::sse_encode(6, serializer);
@@ -19714,6 +19889,33 @@ impl SseEncode for crate::api::types::UiSystemMessage {
             crate::api::types::UiSystemMessage::DeviceUnlinked(field0) => {
                 <i32>::sse_encode(13, serializer);
                 <uuid::Uuid>::sse_encode(field0, serializer);
+            }
+            crate::api::types::UiSystemMessage::ReceivedAdditionalUsernameConnectionRequest {
+                sender,
+                username,
+            } => {
+                <i32>::sse_encode(14, serializer);
+                <crate::api::types::UiUserId>::sse_encode(sender, serializer);
+                <crate::api::types::UiUsername>::sse_encode(username, serializer);
+            }
+            crate::api::types::UiSystemMessage::ReceivedAdditionalDirectConnectionRequest {
+                sender,
+                group_chat,
+            } => {
+                <i32>::sse_encode(15, serializer);
+                <crate::api::types::UiUserId>::sse_encode(sender, serializer);
+                <crate::api::types::UiRequestGroupChat>::sse_encode(group_chat, serializer);
+            }
+            crate::api::types::UiSystemMessage::SelfChatCreated => {
+                <i32>::sse_encode(16, serializer);
+            }
+            crate::api::types::UiSystemMessage::SentDirectConnectionRequest {
+                recipient,
+                origin_chat_id,
+            } => {
+                <i32>::sse_encode(17, serializer);
+                <crate::api::types::UiUserId>::sse_encode(recipient, serializer);
+                <crate::api::types::ChatId>::sse_encode(origin_chat_id, serializer);
             }
             _ => {
                 unimplemented!("");

@@ -7,23 +7,26 @@ import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/ds/patterns/modal/modal_guard.dart';
 import 'package:air/ds/patterns/modal/modal_stack.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
-import 'package:air/ds/patterns/snackbar/snackbar_tokens.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/platform/notification_permissions.dart';
 import 'package:air/util/image_providers.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/util/username_input_formatter.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
 
 /// Exact length of an invitation code.
@@ -276,6 +279,10 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
         text: loc.invitationCodeScreen_subheader,
         onLongPress: _revealServerField,
       ),
+      if (DeviceType.isPhone) ...[
+        const SizedBox(height: S.s12),
+        const _NotificationsHint(),
+      ],
       const SizedBox(height: S.s32),
       AppTextInput(
         tokens: AppTextInputTokens.current,
@@ -521,8 +528,9 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
       _goTo(_Step.profile);
       return;
     }
-    showErrorBannerStandalone(
-      (loc) => switch (error.code) {
+    showErrorDialog(
+      context,
+      message: (loc) => switch (error.code) {
         .missing => loc.invitationCodeScreen_error_missing,
         .invalid => loc.invitationCodeScreen_error_invalid,
         .internal => loc.invitationCodeScreen_error_internal(
@@ -556,17 +564,21 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
       case SignUpErrorCode.challengeRequired:
         final steps = _steps(context.read<RegistrationCubit>().state);
         _goTo(steps.first);
-        showErrorBannerStandalone(
-          (loc) => loc.signUpScreen_error_challengeRequired,
+        showErrorDialog(
+          context,
+          message: (loc) => loc.signUpScreen_error_challengeRequired,
         );
       case SignUpErrorCode.challengeRejected:
         _goTo(_Step.invitationCode);
-        showErrorBannerStandalone(
+        showSnackBarStandalone(
           (loc) => loc.invitationCodeScreen_error_invalid,
+          tone: .danger,
         );
       case SignUpErrorCode.internal:
-        showErrorBannerStandalone(
-          (loc) => loc.signUpScreen_error_register(error.message ?? ""),
+        showErrorDialog(
+          context,
+          message: (loc) =>
+              loc.signUpScreen_error_register(error.message ?? ""),
         );
     }
   }
@@ -624,8 +636,8 @@ class _AccountCreationFlowState extends State<AccountCreationFlow> {
       if (!mounted || !reportFailure) return false;
       setState(() => _isAddingUsername = false);
       showSnackBarStandalone(
-        (loc) => SnackBar(content: Text(loc.usernameOnboarding_error)),
-        tone: SnackbarTone.danger,
+        (loc) => loc.usernameOnboarding_error,
+        tone: .danger,
       );
       return false;
     }
@@ -669,6 +681,46 @@ class _Copy extends StatelessWidget {
     return GestureDetector(
       onLongPress: onLongPress,
       child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
+    );
+  }
+}
+
+/// Points at missing notification permission as another reason for the invite
+/// code step, with a link to the system notification settings.
+class _NotificationsHint extends HookWidget {
+  const _NotificationsHint();
+
+  @override
+  Widget build(BuildContext context) {
+    final linkTap = useMemoized(
+      () => TapGestureRecognizer()..onTap = openNotificationSettings,
+    );
+    useEffect(() => linkTap.dispose, [linkTap]);
+
+    final loc = AppLocalizations.of(context);
+    final style = Theme.of(context).textTheme.bodyMedium;
+
+    final linkText = loc.invitationCodeScreen_notificationsLinkText;
+    final hint = loc.invitationCodeScreen_notificationsHint(linkText);
+    final linkStart = hint.indexOf(linkText);
+
+    if (linkStart == -1) {
+      return Text(hint, style: style);
+    }
+
+    return Text.rich(
+      TextSpan(
+        style: style,
+        children: [
+          TextSpan(text: hint.substring(0, linkStart)),
+          TextSpan(
+            text: linkText,
+            style: TextStyle(color: SemanticPalette.of(context).function.link),
+            recognizer: linkTap,
+          ),
+          TextSpan(text: hint.substring(linkStart + linkText.length)),
+        ],
+      ),
     );
   }
 }

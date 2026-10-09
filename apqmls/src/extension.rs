@@ -20,11 +20,8 @@ use crate::{
     key_package::ensure_ciphersuite_support,
 };
 
-/// The component ID of the APQMLS component.
-///
-/// The value is not yet finalized in the draft
-/// <https://datatracker.ietf.org/doc/html/draft-ietf-mls-combiner#name-key-schedule>.
-pub const APQMLS_COMPONENT_ID: ComponentId = 0x8001;
+/// The component ID of the APQMLS component (`apq_mls_info`).
+pub const APQMLS_COMPONENT_ID: ComponentId = 0x0006;
 
 /// The mode of an [`ApqMlsGroup`], which determines whether only confidentiality or both
 /// confidentiality and authentication is PQ secure.
@@ -169,8 +166,14 @@ pub enum ApqInfoUpdateError {
     MalformedUpdate(tls_codec::Error),
     #[error("The APQInfo in the group context is malformed: {0}")]
     MalformedApqInfo(tls_codec::Error),
-    #[error("An epoch-only APQInfo update requires an existing APQInfo.")]
+    #[error("An APQInfo update requires an existing APQInfo.")]
     NoApqInfo,
+    #[error("The APQInfo must not be removed.")]
+    ApqInfoRemoval,
+    #[error("An APQInfo update must not change any field other than the epochs.")]
+    ImmutableFieldModified,
+    #[error("An APQInfo update requires a commit on both legs.")]
+    UnpairedUpdate,
     #[error("Failed to serialize the updated APQInfo: {0}")]
     Serialization(tls_codec::Error),
     #[error("The commit carries more than one full APQInfo update.")]
@@ -181,8 +184,6 @@ pub enum ApqInfoUpdateError {
     MixedUpdates,
     #[error("The commit updates only one of the two APQInfo epochs.")]
     IncompleteEpochUpdate,
-    #[error("The commit both removes and updates the APQInfo.")]
-    RemovalWithUpdate,
 }
 
 /// The APQInfo updates carried by a single commit.
@@ -197,11 +198,6 @@ pub(super) struct ApqInfoUpdates {
 }
 
 impl ApqInfoUpdates {
-    /// Whether the commit carries no APQInfo update at all.
-    pub(super) fn is_empty(&self) -> bool {
-        self.full.is_none() && self.t_epoch.is_none() && self.pq_epoch.is_none()
-    }
-
     /// Records one update, rejecting a second one of the same kind.
     pub(super) fn add(&mut self, update: ApqInfoUpdate) -> Result<(), ApqInfoUpdateError> {
         let (slot, error) = match update {
@@ -314,20 +310,33 @@ pub(super) fn ensure_leaf_node_component_support(
 
 /// Augments the capabilities and extensions of the given leaf node parameters with the support
 /// required in an APQMLS group.
+///
+/// Unset capabilities and extensions are taken from `own_leaf`, if any.
 pub(super) fn ensure_leaf_node_parameters(
     params: &LeafNodeParameters,
+    own_leaf: Option<&LeafNode>,
     apq_ciphersuite: ApqCiphersuite,
 ) -> Result<LeafNodeParameters, tls_codec::Error> {
     let capabilities = params
         .capabilities()
         .cloned()
-        .unwrap_or_default()
+        .unwrap_or_else(|| {
+            own_leaf
+                .map(LeafNode::capabilities)
+                .cloned()
+                .unwrap_or_default()
+        })
         .pipe(ensure_extension_support)?
         .pipe(|c| ensure_ciphersuite_support(c, apq_ciphersuite))?;
     let ln_extensions = params
         .extensions()
         .cloned()
-        .unwrap_or_default()
+        .unwrap_or_else(|| {
+            own_leaf
+                .map(LeafNode::extensions)
+                .cloned()
+                .unwrap_or_default()
+        })
         .pipe(ensure_leaf_node_component_support)?;
     let mut builder = LeafNodeParameters::builder()
         .with_capabilities(capabilities)

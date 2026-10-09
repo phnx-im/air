@@ -16,7 +16,8 @@ use tracing::error;
 use crate::{
     ChatAttributes, ChatType, MessageDraft, MessageId, UserProfile,
     chats::{
-        Chat, messages::ChatMessage, notification_rebuild::ChatNotificationRebuildSet, persistence,
+        Chat, PendingConnectionRequest, messages::ChatMessage,
+        notification_rebuild::ChatNotificationRebuildSet, persistence,
     },
     groups::Group,
     job::{chat_operation::ChatOperation, create_chat::CreateChat},
@@ -80,6 +81,10 @@ impl CoreUser {
                 let chat = Chat::load(&mut *txn, &chat_id)
                     .await?
                     .context("missing chat for deletion")?;
+                // Sync the deletion with siblings
+                for request in PendingConnectionRequest::load_for_chat(&mut *txn, chat_id).await? {
+                    persistence::store_outgoing_deletion(&mut *txn, request.group_id()).await?;
+                }
                 persistence::erase(txn, &chat).await?;
                 persistence::store_outgoing_deletion(txn, chat.group_id()).await
             })
@@ -373,6 +378,21 @@ impl CoreUser {
             participants,
             own_profile,
         })
+    }
+
+    /// Advances the chat notification watermark over everything a notification
+    /// would show, so that it is never shown.
+    pub async fn mark_chat_notified(&self, chat_id: ChatId) -> Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| {
+                let rebuild_set =
+                    Chat::load_notification_rebuild_set(&mut *txn, chat_id, self.user_id()).await?;
+                if let Some(newest) = rebuild_set.entries.last() {
+                    Chat::set_notified_until(txn, chat_id, newest.timestamp()).await?;
+                }
+                Ok(())
+            })
+            .await
     }
 }
 

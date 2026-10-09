@@ -22,10 +22,9 @@ use mimi_room_policy::RoleIndex;
 use tracing::debug;
 
 use crate::{
-    Chat, ChatMessage, ChatStatus, Contact, PartialContact, SystemMessage, TargetedMessageContact,
-    chats::PendingConnectionInfo,
+    Chat, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
+    chats::{PendingConnectionRequest, connection_requests},
     clients::CoreUser,
-    contacts::UsernameContact,
     db::access::WriteDbTransaction,
     groups::{
         Group,
@@ -106,10 +105,11 @@ impl CoreUser {
             }
         };
 
-        match &contents.connection {
+        let settled_chat = match contents.connection {
             None => {
                 self.install_bootstrapped_group_chat(txn, &group, ds_timestamp)
-                    .await?
+                    .await?;
+                None
             }
             Some(connection) => {
                 Box::pin(self.install_bootstrapped_connection_chat(
@@ -120,9 +120,9 @@ impl CoreUser {
                 ))
                 .await?
             }
-        }
+        };
 
-        Ok(QsMessageOutcome::empty())
+        Ok(QsMessageOutcome::stale_chats(settled_chat))
     }
 
     /// Creates the chat of a group chat a sibling created, taking the
@@ -151,69 +151,23 @@ impl CoreUser {
         Ok(())
     }
 
-    /// Creates the chat and contact rows of a connection chat a sibling
-    /// created or accepted.
+    /// Creates the chat and contact rows of a connection chat a sibling created
+    /// or accepted.
+    ///
+    /// Returns the chat that showed the pending requests that was accepted. Its
+    /// notifications are stale.
     async fn install_bootstrapped_connection_chat(
         &self,
         txn: &mut WriteDbTransaction<'_>,
         group: &mut Group,
-        connection: &BootstrapConnection,
+        connection: BootstrapConnection,
         ds_timestamp: TimeStamp,
-    ) -> Result<()> {
-        match connection {
-            BootstrapConnection::HandleInitiator {
-                username,
-                friendship_package_ear_key,
-                connection_offer_hash,
-            } => {
+    ) -> Result<Option<ChatId>> {
+        let settled_chat = match connection {
+            BootstrapConnection::Initiator(request) => {
                 ensure_only_member(group, self.user_id())?;
-
-                let chat = Chat::new_handle_chat(group.group_id().clone(), username.clone());
-                chat.store(&mut *txn).await?;
-                ChatMessage::new_system_message(
-                    chat.id(),
-                    ds_timestamp,
-                    SystemMessage::NewHandleConnectionChat(username.clone()),
-                )
-                .store(&mut *txn)
-                .await?;
-
-                UsernameContact::new(
-                    username.clone(),
-                    chat.id(),
-                    friendship_package_ear_key.clone(),
-                    *connection_offer_hash,
-                )
-                .upsert(&mut *txn)
-                .await?;
-                // The peer's external commit will reference this PSK.
-                group.store_connection_offer_psk(&mut *txn, *connection_offer_hash)?;
-            }
-
-            BootstrapConnection::TargetedInitiator {
-                user_id,
-                friendship_package_ear_key,
-            } => {
-                ensure_only_member(group, self.user_id())?;
-
-                let chat =
-                    Chat::new_targeted_message_chat(group.group_id().clone(), user_id.clone());
-                chat.store(&mut *txn).await?;
-                ChatMessage::new_system_message(
-                    chat.id(),
-                    ds_timestamp,
-                    SystemMessage::NewDirectConnectionChat(user_id.clone()),
-                )
-                .store(&mut *txn)
-                .await?;
-
-                TargetedMessageContact::new(
-                    user_id.clone(),
-                    chat.id(),
-                    friendship_package_ear_key.clone(),
-                )
-                .upsert(&mut *txn)
-                .await?;
+                request.store(txn, group, ds_timestamp).await?;
+                None
             }
 
             BootstrapConnection::Accept {
@@ -225,15 +179,15 @@ impl CoreUser {
                 ensure!(
                     members.len() == 2
                         && members.contains(self.user_id())
-                        && members.contains(user_id),
+                        && members.contains(&user_id),
                     "connection group has unexpected members: {members:?}"
                 );
 
                 let user_profile_key = UserProfileKey::from_base_secret(
                     friendship_package.user_profile_base_secret.clone(),
-                    user_id,
+                    &user_id,
                 )?;
-                let credential = StorableUserCredential::load_by_user_id(&mut *txn, user_id)
+                let credential = StorableUserCredential::load_by_user_id(&mut *txn, &user_id)
                     .await?
                     .with_context(|| format!("no verified credential for {user_id:?}"))?;
                 Self::schedule_fetch_user_profile(&mut *txn, (credential.into(), user_profile_key))
@@ -244,7 +198,7 @@ impl CoreUser {
                 // Patch only one that does not, it would fail the member check
                 // on the next commit.
                 if group.room_state_role(self.user_id())?.is_none() {
-                    group.room_state_change_role(user_id, self.user_id(), RoleIndex::Regular)?;
+                    group.room_state_change_role(&user_id, self.user_id(), RoleIndex::Regular)?;
                     let now = TimeStamp::now();
                     group.store_update(&mut *txn, Some(now), Some(now)).await?;
                 }
@@ -252,26 +206,29 @@ impl CoreUser {
                 let chat =
                     Chat::new_onboarding_connection_chat(group.group_id().clone(), user_id.clone());
 
-                // A connection offer that arrived as a targeted message
-                // reaches every sibling, so this client may already hold the
-                // pending chat the acting client just replaced. The handle of
-                // a username offer is only in that pending state.
-                let pending = PendingConnectionInfo::load(&mut *txn, chat.id()).await?;
-                let user_handle = pending.and_then(|pending| pending.handle);
-                let partial_contact =
-                    match UsernameContact::load_by_chat_id(&mut *txn, chat.id()).await? {
-                        Some(contact) => Some(PartialContact::Username(contact)),
-                        None => TargetedMessageContact::load(&mut *txn, user_id)
-                            .await?
-                            .map(PartialContact::TargetedMessage),
-                    };
-                if let Some(partial_contact) = partial_contact {
-                    partial_contact.delete(&mut *txn).await?;
+                // This client may already hold pending requests of the
+                // sender, forwarded by a sibling or from a targeted message,
+                // which reaches every sibling. They are shown in another chat
+                // if the two devices disagree on the newest request. The
+                // username an offer went to is only in that pending state.
+                let request_id = chat.id();
+                let accepted = PendingConnectionRequest::load(&mut *txn, request_id).await?;
+                let user_handle = accepted.and_then(|request| request.username);
+                let host = PendingConnectionRequest::chat_of_sender(&mut *txn, &user_id).await?;
+                if let Some(host) = host {
+                    connection_requests::settle_accepted(txn, host).await?;
                 }
-                PendingConnectionInfo::delete(&mut *txn, chat.id()).await?;
 
                 chat.store(&mut *txn).await?;
                 Chat::update_status(&mut *txn, chat.id(), &ChatStatus::Active).await?;
+                if let Some(host) = host
+                    && host != chat.id()
+                    && let Some(host_chat) = Chat::load(&mut *txn, &host).await?
+                {
+                    ChatMessage::move_to_chat(&mut *txn, host, chat.id()).await?;
+                    Group::delete_from_db(txn, host_chat.group_id()).await?;
+                    Chat::delete(&mut *txn, host).await?;
+                }
                 ChatMessage::new_system_message(
                     chat.id(),
                     ds_timestamp,
@@ -294,12 +251,13 @@ impl CoreUser {
                 .await?;
 
                 if let Some(hash) = connection_offer_hash {
-                    Group::delete_connection_offer_psk(txn, *hash)?;
+                    Group::delete_connection_offer_psk(txn, hash)?;
                 }
+                host
             }
-        }
+        };
 
-        Ok(())
+        Ok(settled_chat)
     }
 }
 

@@ -5,10 +5,10 @@
 //! Derivation and persistence of the per-epoch self-group message key.
 //!
 //! Self-group commits carry encrypted `SelfGroupMessages` payloads (settings
-//! updates, Privacy Pass token seeds, blocked contacts and deleted chats) under a symmetric key that is scoped to
-//! a single self-group epoch. The key is derived from the MLS safe exporter of
-//! the T group for
-//! [`AIR_COMPONENT_ID`] and then run through one further KDF step.
+//! updates, Privacy Pass token seeds, blocked contacts, deleted chats and
+//! connection requests) under a symmetric key that is scoped to a single
+//! self-group epoch. The key is derived from the MLS safe exporter of the T
+//! group for [`AIR_COMPONENT_ID`] and then run through one further KDF step.
 //!
 //! The MLS application export tree is a puncturable PRF: exporting the same
 //! component ID twice within one epoch fails, because the first export
@@ -39,8 +39,8 @@ use airprotos::client::{
     app_data::GroupAppData,
     component::AIR_COMPONENT_ID,
     self_group::{
-        AppEphemeralPayload, BlockedContactEntry, DeletedChat, SelfGroupMessage, SelfGroupMessages,
-        SettingsUpdate, TokenSeed,
+        AppEphemeralPayload, BlockedContactEntry, ConnectionRequestEntry, DeletedChat,
+        SelfGroupMessage, SelfGroupMessages, SettingsUpdate, TokenSeed,
     },
 };
 use anyhow::{Result, anyhow, ensure};
@@ -330,6 +330,9 @@ impl Group {
                         extracted.blocked_contacts.extend(update.contacts);
                     }
                     SelfGroupMessage::DeletedChat(deleted) => extracted.deleted_chats.push(deleted),
+                    SelfGroupMessage::ConnectionRequestsUpdate(update) => {
+                        extracted.connection_requests.extend(update.requests);
+                    }
                     // A message kind added by a newer client.
                     SelfGroupMessage::Unknown => debug!("Skipping unknown self-group message"),
                 }
@@ -351,6 +354,8 @@ pub(crate) struct SelfGroupPayload {
     pub(crate) blocked_contacts: Vec<BlockedContactEntry>,
     /// Chats the sender deleted.
     pub(crate) deleted_chats: Vec<DeletedChat>,
+    /// Connection-request changes.
+    pub(crate) connection_requests: Vec<ConnectionRequestEntry>,
 }
 
 impl SelfGroupPayload {
@@ -359,10 +364,11 @@ impl SelfGroupPayload {
             && self.token_seeds.is_empty()
             && self.blocked_contacts.is_empty()
             && self.deleted_chats.is_empty()
+            && self.connection_requests.is_empty()
     }
 }
 
-mod persistence {
+pub(super) mod persistence {
     use aircommon::crypto::aead::keys::SelfGroupMessageKey;
     use openmls::group::GroupId;
     use sqlx::query;
@@ -416,6 +422,20 @@ mod persistence {
             group_id,
             epoch,
             key,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        Ok(())
+    }
+
+    pub(crate) async fn delete(
+        mut connection: impl WriteConnection,
+        group_id: &GroupId,
+    ) -> sqlx::Result<()> {
+        let group_id = GroupIdRefWrapper::from(group_id);
+        query!(
+            "DELETE FROM self_group_message_key WHERE group_id = ?",
+            group_id,
         )
         .execute(connection.as_mut())
         .await?;

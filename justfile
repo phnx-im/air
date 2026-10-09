@@ -229,10 +229,16 @@ build platform:
 
 app_flavor := env("APP_FLAVOR", "staging")
 
+# Flutter's name for the Linux target arch (x64 or arm64).
+linux_arch := env("LINUX_ARCH", "x64")
+pkg_arch := if linux_arch == "x64" { "amd64" } else { linux_arch }
+
 # Package the Linux build as an rpm.
 [linux]
 [working-directory: 'app/linux']
 [env('APP_FLAVOR', app_flavor)]
+[env('LINUX_ARCH', linux_arch)]
+[env('PKG_ARCH', pkg_arch)]
 build-rpm:
     nfpm package -p rpm
 
@@ -240,8 +246,31 @@ build-rpm:
 [linux]
 [working-directory: 'app/linux']
 [env('APP_FLAVOR', app_flavor)]
+[env('LINUX_ARCH', linux_arch)]
+[env('PKG_ARCH', pkg_arch)]
 build-deb:
     nfpm package -p deb
+
+# Build the Linux Flatpak offline, further arguments go to flatpak-builder.
+[linux]
+[positional-arguments]
+[script]
+build-flatpak flavor="production" *args:
+    shift
+    id=ms.air.Air
+    if [ "{{ flavor }}" = staging ]; then id=ms.air.Air.Staging; fi
+    # CI builds the pushed commit, local builds the working tree.
+    local=--local
+    if [ "{{ ci }}" = true ]; then local=; fi
+    cargo xtask flatpak-sources --flavor "{{ flavor }}" --arch "$(uname -m)" $local
+    builder=flatpak-builder
+    if ! command -v flatpak-builder > /dev/null; then
+        builder="flatpak run org.flatpak.Builder"
+    fi
+    $builder --user --sandbox --force-clean --ccache --install-deps-from=flathub \
+        --state-dir=target/flatpak/.flatpak-builder \
+        --subject="Air $(cat target/flatpak/version)" \
+        "$@" target/flatpak/build-dir "target/flatpak/$id.yml"
 
 [working-directory('app')]
 @flutter *args:

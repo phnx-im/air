@@ -225,6 +225,9 @@ async fn complete_sent_messages(
             SelfGroupMessage::DeletedChat(chat) => {
                 chats::persistence::remove_staged_deletion(txn, std::slice::from_ref(chat)).await?
             }
+            SelfGroupMessage::ConnectionRequestsUpdate(update) => {
+                chats::connection_requests::complete_sent_entries(txn, &update.requests).await?
+            }
             // Seeds stage their own commit, so they never travel in a drained
             // outbox.
             SelfGroupMessage::TokenSeed(_) | SelfGroupMessage::Unknown => {}
@@ -238,7 +241,7 @@ async fn complete_sent_messages(
 /// Settings return to the values stored before they were touched, because the
 /// local write was optimistic. A block stays applied and parked: it is not an
 /// optimistic edit to undo, and it reaches the siblings on a later commit. The
-/// same holds for a deleted chat.
+/// same holds for a deleted chat and a connection request.
 async fn roll_back_sent_messages(
     txn: &mut WriteDbTransaction<'_>,
     messages: &[SelfGroupMessage],

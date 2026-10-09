@@ -5,6 +5,7 @@ import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/contact_request_card/contact_request_card.dart';
 import 'package:air/ds/patterns/contact_request_card/contact_request_card_tokens.dart';
 import 'package:air/features/user/users_cubit.dart';
@@ -18,8 +19,9 @@ import 'package:provider/provider.dart';
 sealed class ContactRequestSource {
   const ContactRequestSource();
 
+  /// [originChatTitle] is null when the group chat is not on this device.
   const factory ContactRequestSource.targetedMessage({
-    required String originChatTitle,
+    required String? originChatTitle,
   }) = _TargetedMessageContactRequest;
 
   const factory ContactRequestSource.username({required UiUsername username}) =
@@ -29,7 +31,7 @@ sealed class ContactRequestSource {
 class _TargetedMessageContactRequest extends ContactRequestSource {
   const _TargetedMessageContactRequest({required this.originChatTitle});
 
-  final String originChatTitle;
+  final String? originChatTitle;
 }
 
 class _UsernameContactRequest extends ContactRequestSource {
@@ -60,10 +62,14 @@ class ContactRequestDialog extends HookWidget {
     final isAccepting = useState(false);
 
     final subtitle = switch (source) {
-      _TargetedMessageContactRequest(:final originChatTitle) =>
+      _TargetedMessageContactRequest(:final String originChatTitle) =>
         loc.systemMessage_receivedDirectConnectionRequest(
           senderProfile.displayName,
           originChatTitle,
+        ),
+      _TargetedMessageContactRequest(originChatTitle: null) =>
+        loc.systemMessage_receivedDirectConnectionRequestUnknownGroup(
+          senderProfile.displayName,
         ),
       _UsernameContactRequest(:final username) =>
         loc.systemMessage_receivedHandleConnectionRequest(
@@ -83,7 +89,9 @@ class ContactRequestDialog extends HookWidget {
         senderProfile.profilePicture,
         ContactRequestCardTokens.avatarSize,
       ),
-      pictureRevealLabel: loc.contactRequestDialog_avatarHint,
+      pictureRevealLabel: DeviceType.isDesktop
+          ? loc.contactRequestDialog_avatarHint_desktop
+          : loc.contactRequestDialog_avatarHint,
       acceptLabel: loc.contactRequestDialog_confirm,
       dismissLabel: loc.contactRequestDialog_cancel,
       onAccept: () => _accept(context, isAccepting),
@@ -117,14 +125,18 @@ class ContactRequestDialog extends HookWidget {
       if (error != null) {
         Logger.detached("ContactRequestDialog")
             .severe("Failed to request resync: $error");
-        showErrorBannerStandalone(
+        showSnackBarStandalone(
           (loc) => loc.contactRequestDialog_error_incompatibleClient,
+          tone: .danger,
         );
       }
     } catch (e, stackTrace) {
       Logger.detached("ContactRequestDialog")
           .severe("Failed to accept contact request: $e", e, stackTrace);
-      showErrorBannerStandalone((loc) => loc.contactRequestDialog_error_fatal);
+      showSnackBarStandalone(
+        (loc) => loc.contactRequestDialog_error_fatal,
+        tone: .danger,
+      );
     } finally {
       isAccepting.value = false;
     }

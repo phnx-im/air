@@ -303,6 +303,7 @@ message ListenRequest {
     InitListenRequest init = 1;
     AckListenRequest ack = 2;
     FetchListenRequest fetch = 3;
+    ReportClientStateListenRequest client_state = 4;
   }
 }
 
@@ -334,13 +335,46 @@ message AckListenRequest {
 
 message FetchListenRequest {}
 
+message ReportClientStateListenRequest {
+  bytes encrypted_blob = 1;
+}
+
 message ListenResponse {
   oneof event {
     QueueEmpty empty = 1;
     QueueMessage message = 2;
     QueueEventPayload payload = 3;
     VersionStatus version_status = 4;
+    SiblingClientState sibling_client_state = 5;
   }
+}
+
+message SiblingClientState {
+  oneof change {
+    SiblingClientStateUpdated updated = 1;
+    SiblingClientStateRemoved removed = 2;
+  }
+}
+
+// The sibling updated its state
+message SiblingClientStateUpdated {
+  QsClientId client_id = 1;
+  // Server-assigned, increasing per client ID as long as its session lives.
+  uint64 epoch = 2;
+  // How old this update is. Clients should decide whether an old state is worth discard.
+  SiblingClientStateEncryptedBlob blob = 3;
+}
+
+// The sibling stopped listening or was deleted
+message SiblingClientStateRemoved {
+  QsClientId client_id = 1;
+  // Server-assigned, increasing per client id, also across reconnects and
+  // server restarts.
+  uint64 epoch = 2;
+}
+
+message SiblingClientStateEncryptedBlob {
+  bytes encrypted_blob = 1;
 }
 
 // Event notifying recipients that the queue is empty

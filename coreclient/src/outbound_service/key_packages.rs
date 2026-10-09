@@ -28,9 +28,12 @@ use crate::{
 
 impl OutboundServiceContext {
     pub(super) async fn upload_key_packages(&self) -> anyhow::Result<Duration> {
-        match SelfGroup::load(self.db.read().await?).await? {
-            // Only upload key packages via self-group if the self-group exists.
-            // => The upload mechanism automatically switches when another device is linked.
+        match SelfGroup::load(self.db.read().await?)
+            .await?
+            .filter(SelfGroup::has_linked_devices)
+        {
+            // Only upload via the self group if there are linked devices, so
+            // the upload mechanism switches once another device is linked.
             Some(group) => self.upload_via_self_group(group).await,
             None => {
                 let batch = self.generate_key_packages().await?; // shared: plain + APQ

@@ -68,6 +68,8 @@ impl TestUser {
             .unwrap();
         // Run outbound service to upload KeyPackages
         user.user.outbound_service().run_once().await;
+        user.user.ensure_self_group().await.unwrap();
+
         user
     }
 
@@ -107,6 +109,7 @@ impl TestUser {
         )
         .await
         .unwrap();
+        user.ensure_self_group().await.unwrap();
         Self {
             user,
             db_dir: Some(db_dir.to_owned()),
@@ -185,7 +188,7 @@ pub struct TestBackend {
     /// Present only if we spawned a local server.
     listener_control_handle: Option<ControlHandle>,
     /// Present only if we spawned a local server.
-    max_devices: Option<[MaxDevices; 2]>,
+    max_devices: Option<[MaxDevices; 3]>,
     /// Whether to create APQ groups by default
     ///
     /// Read from the `TEST_WITH_APQ_GROUPS` environment variable.
@@ -2067,6 +2070,42 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                     SystemMessage::DeviceUnlinked(uuid) => {
                         Some(format!("You unlinked a device with UUID {uuid}"))
                     }
+                    SystemMessage::ReceivedAdditionalUsernameConnectionRequest {
+                        sender,
+                        username,
+                    } => Some(format!(
+                        "User {sender:?} requested another connection to your username {}",
+                        username.plaintext()
+                    )),
+                    SystemMessage::ReceivedAdditionalDirectConnectionRequest {
+                        sender,
+                        chat_name,
+                    } => Some(format!(
+                        "User {sender:?} requested another connection through the chat \
+                            {chat_name}"
+                    )),
+                    SystemMessage::SelfChatCreated => Some("The self-chat was created".to_owned()),
+                    SystemMessage::ReceivedGroupConnectionRequest {
+                        sender,
+                        origin_chat_id,
+                    } => Some(format!(
+                        "User {sender:?} requested a direct connection to your contact \
+                            through the chat {origin_chat_id}"
+                    )),
+                    SystemMessage::ReceivedAdditionalGroupConnectionRequest {
+                        sender,
+                        origin_chat_id,
+                    } => Some(format!(
+                        "User {sender:?} requested another connection through the chat \
+                            {origin_chat_id}"
+                    )),
+                    SystemMessage::SentGroupConnectionRequest {
+                        recipient,
+                        origin_chat_id,
+                    } => Some(format!(
+                        "You requested a connection with {recipient:?} through the chat \
+                            {origin_chat_id}"
+                    )),
                 }
             } else {
                 None

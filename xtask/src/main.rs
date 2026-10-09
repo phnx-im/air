@@ -4,9 +4,11 @@
 
 mod bump_version;
 mod cut_release;
+mod flatpak_sources;
 mod generate_emoji;
 mod generate_licenses;
 mod prune_unused_l10n;
+mod publish_flatpak;
 mod publish_linux_packages;
 mod util;
 mod validate_l10n;
@@ -43,6 +45,15 @@ enum Commands {
     /// Sign and publish a .deb or .rpm to an S3-hosted package repository.
     #[command(name = "publish-packages")]
     PublishLinuxPackages(publish_linux_packages::PublishArgs),
+    /// Copy a published package version from one release track to another.
+    #[command(name = "promote-packages")]
+    PromoteLinuxPackages(publish_linux_packages::PromoteArgs),
+    /// Generate the Flatpak manifest and the sources for an offline build.
+    #[command(name = "flatpak-sources")]
+    FlatpakSources(flatpak_sources::FlatpakSourcesArgs),
+    /// Sign and publish Flatpak bundles to the S3-hosted OSTree repository.
+    #[command(name = "publish-flatpak")]
+    PublishFlatpak(publish_flatpak::PublishArgs),
     /// Parse an emoji-data `emoji_pretty.json` and generate a Dart file of
     /// emojis grouped by category.
     #[command(name = "generate-emoji")]
@@ -60,6 +71,9 @@ fn main() -> anyhow::Result<()> {
         Commands::PruneUnusedL10n(args) => prune_unused_l10n::run(args),
         Commands::ValidateL10n(args) => validate_l10n::run(args),
         Commands::PublishLinuxPackages(args) => publish_linux_packages::run(args),
+        Commands::PromoteLinuxPackages(args) => publish_linux_packages::promote(args),
+        Commands::FlatpakSources(args) => flatpak_sources::run(args),
+        Commands::PublishFlatpak(args) => publish_flatpak::run(args),
         Commands::GenerateEmoji(args) => generate_emoji::run(args),
         Commands::GenerateLicenses(args) => generate_licenses::run(args),
     }

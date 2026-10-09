@@ -8,6 +8,7 @@ import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat_list/chat_list_content.dart';
 import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -390,9 +391,11 @@ void main() {
     });
 
     Widget buildSubject({
-      required List<UiChatDetails> chats,
+      List<UiChatDetails> chats = const [],
+      FakeChatsRepository? repository,
+      bool shareMode = false,
     }) => RepositoryProvider<ChatsRepository>.value(
-      value: FakeChatsRepository(chats),
+      value: repository ?? FakeChatsRepository(chats),
       child: MultiBlocProvider(
         providers: [
           BlocProvider<NavigationCubit>.value(value: navigationCubit),
@@ -407,7 +410,7 @@ void main() {
                 debugShowCheckedModeBanner: false,
                 theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: const Scaffold(body: ChatListContent()),
+                home: Scaffold(body: ChatListContent(shareMode: shareMode)),
               );
             },
           ),
@@ -441,6 +444,85 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/chat_list_content.png'),
       );
+    });
+
+    group('update reminder', () {
+      final expiresAt = DateTime.utc(2026, 8, 1, 12);
+      final reminderTitle = find.text('Update Air');
+
+      setUp(() {
+        when(() => userCubit.state).thenReturn(
+          MockUiUser(id: 1, versionStatus: VersionStatus.expiresAt(expiresAt)),
+        );
+        when(
+          () => userSettingsCubit.setDismissedVersionExpiry(
+            value: any(named: 'value'),
+          ),
+        ).thenAnswer((_) async {});
+      });
+
+      testWidgets('is hidden when the version is supported', (tester) async {
+        when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
+
+        await tester.pumpWidget(buildSubject(chats: chats));
+
+        expect(reminderTitle, findsNothing);
+      });
+
+      testWidgets('is shown when the version expires and dismisses', (
+        tester,
+      ) async {
+        await tester.pumpWidget(buildSubject(chats: chats));
+
+        expect(reminderTitle, findsOneWidget);
+
+        await tester.tap(
+          find.byWidgetPredicate(
+            (widget) => widget is AppIcon && widget.type == AppIconType.x,
+          ),
+        );
+        await tester.pump();
+
+        verify(
+          () => userSettingsCubit.setDismissedVersionExpiry(value: expiresAt),
+        ).called(1);
+      });
+
+      testWidgets('is hidden when dismissed for the announced expiry', (
+        tester,
+      ) async {
+        when(() => userSettingsCubit.state).thenReturn(
+          UserSettings(
+            experimentalFeatures: false,
+            dismissedVersionExpiry: expiresAt,
+          ),
+        );
+
+        await tester.pumpWidget(buildSubject(chats: chats));
+
+        expect(reminderTitle, findsNothing);
+      });
+
+      testWidgets('is shown when dismissed for an earlier expiry', (
+        tester,
+      ) async {
+        when(() => userSettingsCubit.state).thenReturn(
+          UserSettings(
+            experimentalFeatures: false,
+            dismissedVersionExpiry: expiresAt.subtract(const Duration(days: 7)),
+          ),
+        );
+
+        await tester.pumpWidget(buildSubject(chats: chats));
+
+        expect(reminderTitle, findsOneWidget);
+      });
+
+      testWidgets('is hidden in share mode', (tester) async {
+        await tester.pumpWidget(buildSubject(chats: chats, shareMode: true));
+
+        expect(reminderTitle, findsNothing);
+      });
     });
 
     // The draft chat, whose preview is the draft whatever navigation does.
@@ -517,6 +599,33 @@ void main() {
 
       expect(find.textContaining('Some draft message'), findsOne);
       expect(find.textContaining('reacted'), findsNothing);
+    });
+
+    testWidgets('names the group chat of a request once it syncs', (
+      tester,
+    ) async {
+      final repository = FakeChatsRepository([requestChat(99.chatId())]);
+      sizeView(tester, const Size(400, 120));
+      await tester.pumpWidget(buildSubject(repository: repository));
+      // Takes the replayed order, so only the group chat can rebuild the row.
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Bob sent you a contact request through a mutual group chat.',
+        ),
+        findsOne,
+      );
+
+      repository.upsert(groupChat(99.chatId(), 'Book Club'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Bob sent you a contact request through the group chat Book Club.',
+        ),
+        findsOne,
+      );
     });
 
     Future<void> pumpAttachmentChat(
@@ -659,6 +768,48 @@ UiChatDetails reactedChat({
   lastReaction: reaction,
   draft: draft,
   mutedUntil: null,
+  pendingCommitFailed: false,
+  resyncFailed: false,
+);
+
+/// A group chat titled [title], with no messages.
+UiChatDetails groupChat(ChatId id, String title) => UiChatDetails(
+  id: id,
+  status: const UiChatStatus.active(),
+  chatType: UiChatType_Group(UiChatAttributes(title: title, picture: null)),
+  lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+  unreadMessages: 0,
+  isApq: false,
+  isSelfChat: false,
+  pendingCommitFailed: false,
+  resyncFailed: false,
+);
+
+/// The chat of Bob's pending contact request through the group chat
+/// [groupChatId].
+UiChatDetails requestChat(ChatId groupChatId) => UiChatDetails(
+  id: 9.chatId(),
+  status: const UiChatStatus.active(),
+  isApq: false,
+  isSelfChat: false,
+  chatType: UiChatType_PendingConnection(userProfiles[1]),
+  unreadMessages: 0,
+  lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+  lastMessage: UiChatMessage(
+    id: 9.messageId(),
+    chatId: 9.chatId(),
+    timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
+    message: UiMessage_Display(
+      UiEventMessage_System(
+        UiSystemMessage.receivedDirectConnectionRequest(
+          sender: userProfiles[1].userId,
+          groupChat: UiRequestGroupChat.chat(groupChatId),
+        ),
+      ),
+    ),
+    status: UiMessageStatus.sent,
+    reactions: [],
+  ),
   pendingCommitFailed: false,
   resyncFailed: false,
 );

@@ -213,6 +213,11 @@ impl User {
         self.user.trigger_timed_task(id).await?;
         Ok(())
     }
+
+    /// Erase the self group and its chat from the local database.
+    pub async fn danger_reset_self_group(&self) -> Result<()> {
+        self.user.danger_reset_self_group().await
+    }
 }
 
 #[frb(mirror(UserDebugInfo))]

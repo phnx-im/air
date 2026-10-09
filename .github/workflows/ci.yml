@@ -25,7 +25,7 @@ env:
 jobs:
   check:
     name: ${{ matrix.name }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -86,7 +86,7 @@ jobs:
 
   buf:
     name: Proto lints
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -103,7 +103,7 @@ jobs:
 
   flutter:
     name: Flutter tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Skipped on push to main: tests already ran on the PR; the push run only
     # exists to warm sccache for subsequent PRs.
     if: github.event_name != 'push'
@@ -137,7 +137,7 @@ jobs:
 
   rust-build-tests:
     name: Rust test build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Checkout code
@@ -171,7 +171,7 @@ jobs:
     # still runs above to populate sccache for subsequent PRs.
     if: github.event_name != 'push'
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     strategy:

@@ -568,7 +568,7 @@ pub enum UiSystemMessage {
     },
     ReceivedDirectConnectionRequest {
         sender: UiUserId,
-        chat_name: String,
+        group_chat: UiRequestGroupChat,
     },
     AcceptedConnectionRequest {
         sender: UiUserId,
@@ -584,6 +584,30 @@ pub enum UiSystemMessage {
     Onboarded,
     DeviceLinked(Uuid),
     DeviceUnlinked(Uuid),
+    ReceivedAdditionalUsernameConnectionRequest {
+        sender: UiUserId,
+        username: UiUsername,
+    },
+    ReceivedAdditionalDirectConnectionRequest {
+        sender: UiUserId,
+        group_chat: UiRequestGroupChat,
+    },
+    SelfChatCreated,
+    /// The origin chat may be gone, or not on this device yet.
+    SentDirectConnectionRequest {
+        recipient: UiUserId,
+        origin_chat_id: ChatId,
+    },
+}
+
+/// The group chat a connection request came through.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[frb(dart_metadata = ("freezed"))]
+pub enum UiRequestGroupChat {
+    /// The title, from a message stored before the chat id was kept.
+    Title(String),
+    /// Looked up when shown. The chat may be gone, or not on this device yet.
+    Chat(ChatId),
 }
 
 impl From<SystemMessage> for UiSystemMessage {
@@ -628,9 +652,16 @@ impl From<SystemMessage> for UiSystemMessage {
             SystemMessage::ReceivedDirectConnectionRequest { sender, chat_name } => {
                 UiSystemMessage::ReceivedDirectConnectionRequest {
                     sender: sender.into(),
-                    chat_name,
+                    group_chat: UiRequestGroupChat::Title(chat_name),
                 }
             }
+            SystemMessage::ReceivedGroupConnectionRequest {
+                sender,
+                origin_chat_id,
+            } => UiSystemMessage::ReceivedDirectConnectionRequest {
+                sender: sender.into(),
+                group_chat: UiRequestGroupChat::Chat(origin_chat_id),
+            },
             SystemMessage::NewDirectConnectionChat(user_id) => {
                 UiSystemMessage::NewDirectConnectionChat(user_id.into())
             }
@@ -638,6 +669,33 @@ impl From<SystemMessage> for UiSystemMessage {
             SystemMessage::Onboarded => UiSystemMessage::Onboarded,
             SystemMessage::DeviceLinked(client_id) => UiSystemMessage::DeviceLinked(client_id),
             SystemMessage::DeviceUnlinked(client_id) => UiSystemMessage::DeviceUnlinked(client_id),
+            SystemMessage::ReceivedAdditionalUsernameConnectionRequest { sender, username } => {
+                UiSystemMessage::ReceivedAdditionalUsernameConnectionRequest {
+                    sender: sender.into(),
+                    username: username.into(),
+                }
+            }
+            SystemMessage::ReceivedAdditionalDirectConnectionRequest { sender, chat_name } => {
+                UiSystemMessage::ReceivedAdditionalDirectConnectionRequest {
+                    sender: sender.into(),
+                    group_chat: UiRequestGroupChat::Title(chat_name),
+                }
+            }
+            SystemMessage::SelfChatCreated => UiSystemMessage::SelfChatCreated,
+            SystemMessage::ReceivedAdditionalGroupConnectionRequest {
+                sender,
+                origin_chat_id,
+            } => UiSystemMessage::ReceivedAdditionalDirectConnectionRequest {
+                sender: sender.into(),
+                group_chat: UiRequestGroupChat::Chat(origin_chat_id),
+            },
+            SystemMessage::SentGroupConnectionRequest {
+                recipient,
+                origin_chat_id,
+            } => UiSystemMessage::SentDirectConnectionRequest {
+                recipient: recipient.into(),
+                origin_chat_id,
+            },
         }
     }
 }
