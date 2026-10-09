@@ -167,16 +167,30 @@ pub(crate) enum JobError<E> {
     #[error("Recoverable error: {0}")]
     Recoverable(Recoverable),
     #[error(transparent)]
-    Fatal(#[from] anyhow::Error),
+    Fatal(anyhow::Error),
 }
 
 impl<E> JobError<E> {
     pub(crate) fn fatal(error: impl Into<anyhow::Error>) -> Self {
-        Self::Fatal(error.into())
+        error.into().into()
     }
 
     pub(crate) fn domain(error: impl Into<E>) -> Self {
         Self::Domain(error.into())
+    }
+}
+
+// A busy database is recoverable, even when anyhow wrapped it.
+impl<E> From<anyhow::Error> for JobError<E> {
+    fn from(error: anyhow::Error) -> Self {
+        let is_busy = error
+            .chain()
+            .any(|error| error.downcast_ref::<sqlx::Error>().is_some_and(is_db_busy));
+        if is_busy {
+            Self::Recoverable(Recoverable::busy(error))
+        } else {
+            Self::Fatal(error)
+        }
     }
 }
 
@@ -315,6 +329,7 @@ mod tests {
     use tonic::{Code, Status};
 
     use super::*;
+    use crate::job::recoverable::RecoverableCause;
 
     fn rate_limited() -> Status {
         let mut status = Status::resource_exhausted("Too Many Requests! Wait for 3s");
@@ -357,6 +372,22 @@ mod tests {
         }
         .to_status(Code::ResourceExhausted, "max devices exceeded");
         let error: JobError<Infallible> = DsRequestError::Tonic(status).into();
+        assert_matches!(error, JobError::Fatal(_));
+    }
+
+    #[test]
+    fn busy_database_is_found_in_anyhow_chains() {
+        let error = anyhow::Error::from(sqlx::Error::PoolTimedOut).context("loading the group");
+        let error: JobError<Infallible> = error.into();
+        assert_matches!(
+            error,
+            JobError::Recoverable(Recoverable {
+                cause: RecoverableCause::Busy,
+                ..
+            })
+        );
+
+        let error: JobError<Infallible> = anyhow::Error::from(sqlx::Error::RowNotFound).into();
         assert_matches!(error, JobError::Fatal(_));
     }
 }

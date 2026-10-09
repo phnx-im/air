@@ -222,10 +222,6 @@ impl OutboundServiceContext {
 
             let collisions = ds_error.process_tag_collisions(&sent_tags);
             if collisions.is_empty() {
-                // The DS will never accept this receipt
-                if ds_error.is_invalid_argument() {
-                    return Err(OutboundServiceError::fatal(ds_error));
-                }
                 return Err(ds_error.into());
             }
 
@@ -368,10 +364,6 @@ impl OutboundServiceContext {
             }
             if !ds_error.process_tag_collisions(&sent_tags).is_empty() {
                 return Ok(SendOutcome::Collided);
-            }
-            // The DS will never accept this message
-            if ds_error.is_invalid_argument() {
-                return Err(OutboundServiceError::fatal(ds_error));
             }
             return Err(ds_error.into());
         }
