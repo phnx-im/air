@@ -587,44 +587,39 @@ impl PendingChatOperation {
         let mut retry_leave = false;
         let ds_timestamp = match res {
             Ok(ds_timestamp) => ds_timestamp,
-            Err(error) if !is_leave => {
-                if let Some(detail) = error.device_limit_reached() {
+            Err(error) => {
+                if !is_leave && let Some(detail) = error.device_limit_reached() {
                     return Err(JobError::Domain(ChatOperationError::DeviceLimitReached {
                         max_devices: detail.max_devices,
                     }));
                 }
 
+                // The leave action is special in that we want to consider it successful regardless
+                // of any DS errors and post-process anyway. If the DS returned an error, we'll try
+                // again later, but that's just for the benefit of the server and the other chat
+                // members.
                 let error: JobError<ChatOperationError> = error.into();
-                if let JobError::Recoverable(Recoverable {
-                    cause: RecoverableCause::WrongEpoch,
-                    ..
-                }) = &error
-                {
-                    // Either commit was accepted on a previous try, or another
-                    // commit was faster. Either way the queue is expected to
-                    // resolve it.
-                    self.mark_as_waiting_for_queue_response(db.write().await?)
-                        .await?;
-                    return Err(JobError::Blocked);
-                };
-
-                return Err(error);
-            }
-            Err(error) => {
-                // The leave action is special in that we want to consider
-                // it successful regardless of any DS errors and
-                // post-process anyway. If the DS returned an error, we'll
-                // try again later, but that's just for the benefit of the
-                // server and the other chat members.
-                let error: JobError<ChatOperationError> = error.into();
-                retry_leave = match error {
-                    // The DS did not process the request
-                    JobError::RateLimited { .. } => true,
+                retry_leave = match &error {
+                    // Either commit was accepted on a previous try, or another commit was faster.
+                    // Either way the queue is expected to resolve it.
+                    JobError::Recoverable(Recoverable {
+                        cause: RecoverableCause::WrongEpoch,
+                        ..
+                    }) if !is_leave => {
+                        self.mark_as_waiting_for_queue_response(db.write().await?)
+                            .await?;
+                        return Err(JobError::Blocked);
+                    }
+                    _ if !is_leave => return Err(error),
+                    // Not specific to the leave, retried without a budget
+                    JobError::NetworkError | JobError::RateLimited { .. } => true,
                     // Retrying cannot succeed
-                    JobError::NotFound | JobError::Fatal(_) => false,
-                    // A retry checks whether the proposal is still at the
-                    // group's epoch
-                    _ => {
+                    JobError::NotFound
+                    | JobError::Fatal(_)
+                    | JobError::Domain(_)
+                    | JobError::Blocked => false,
+                    // A retry checks whether the proposal is still at the group's epoch
+                    JobError::Recoverable(_) => {
                         self.number_of_attempts += 1;
                         self.number_of_attempts < MAX_RETRIES
                     }
