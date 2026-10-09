@@ -55,6 +55,11 @@ abstract class MultiDeviceLinkConfirmation implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MultiDeviceProvisionedUser>>
 abstract class MultiDeviceProvisionedUser implements RustOpaqueInterface {
+  /// Aborts a running provisioning session and discards its local database.
+  ///
+  /// Has no effect once linking has finished.
+  void cancel();
+
   factory MultiDeviceProvisionedUser() =>
       RustLib.instance.api.crateApiMultiDeviceMultiDeviceProvisionedUserNew();
 
