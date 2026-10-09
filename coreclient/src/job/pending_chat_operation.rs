@@ -310,9 +310,6 @@ impl Job for PendingChatOperation {
                 | JobError::RateLimited { .. }
                 | JobError::Recoverable(_)),
             ) => {
-                #[cfg(not(any(test, feature = "test_utils")))]
-                let retry_due = context.now + RETRY_INTERVAL;
-                #[cfg(any(test, feature = "test_utils"))]
                 let retry_due = context.now + RETRY_INTERVAL;
                 self.update_retry_due_at(context.db.write().await?, retry_due)
                     .await?;
