@@ -18,6 +18,7 @@ use crate::{
             DbAccess, ReadConnection, ReadDbConnection, ReadDbTransaction, WriteConnection,
             WriteDbConnection, WriteDbTransaction,
         },
+        is_db_busy,
         notification::DbNotifier,
     },
     job::recoverable::{Recoverable, RequestFailure},
@@ -275,10 +276,14 @@ impl<E> From<reqwest::Error> for JobError<E> {
     }
 }
 
-// The following errors are universally considered fatal for jobs.
+// Only lock contention is recoverable, every other database error is fatal.
 impl<E> From<sqlx::Error> for JobError<E> {
-    fn from(err: sqlx::Error) -> Self {
-        JobError::Fatal(anyhow::Error::new(err))
+    fn from(error: sqlx::Error) -> Self {
+        if is_db_busy(&error) {
+            Self::Recoverable(Recoverable::busy(error))
+        } else {
+            Self::Fatal(error.into())
+        }
     }
 }
 

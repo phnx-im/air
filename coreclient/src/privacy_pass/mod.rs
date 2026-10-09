@@ -38,7 +38,10 @@ use tokio::time;
 use tracing::{debug, info, warn};
 
 use crate::{
-    db::access::{DbAccess, ReadConnection, WriteConnection, WriteDbTransaction},
+    db::{
+        access::{DbAccess, ReadConnection, WriteConnection, WriteDbTransaction},
+        is_db_busy,
+    },
     groups::self_group::SelfGroup,
 };
 
@@ -675,11 +678,7 @@ async fn store_batch_tokens(
                 return Ok(());
             }
             Err(error) => {
-                const DB_LOCKED_CODE: &str = "5"; // SQLITE_BUSY
-                let is_db_locked = error
-                    .as_database_error()
-                    .is_some_and(|e| e.code().as_deref() == Some(DB_LOCKED_CODE));
-                if !is_db_locked {
+                if !is_db_busy(&error) {
                     return Err(error.into());
                 }
                 retries += 1;
