@@ -365,12 +365,14 @@ dependencies = [
  "criterion",
  "futures-core",
  "hex",
+ "http-body 1.1.0",
  "image",
  "indexmap",
  "jsonwebtoken",
  "libc",
  "metrics",
  "metrics-exporter-prometheus",
+ "metrics-util",
  "mimi_content",
  "mockito",
  "pin-project",
@@ -4646,7 +4648,9 @@ dependencies = [
  "crossbeam-epoch",
  "crossbeam-utils",
  "hashbrown 0.16.1",
+ "indexmap",
  "metrics",
+ "ordered-float",
  "quanta",
  "rand 0.9.5",
  "rand_xoshiro",
@@ -5335,6 +5339,15 @@ source = "git+https://github.com/openmls/openmls?rev=ecce88ec336d00ac1186489ffcf
 dependencies = [
  "serde",
  "tls_codec",
+]
+
+[[package]]
+name = "ordered-float"
+version = "5.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7d950ca161dc355eaf28f82b11345ed76c6e1f6eb1f4f4479e0323b9e2fbd0e"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]

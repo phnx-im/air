@@ -68,6 +68,7 @@ h2 = "0.4.12"
 hex = "0.4.3"
 hkdf = "0.13"
 hmac = { version = "0.13", features = ["zeroize"] }
+http-body = "1.1.0"
 ignore = "0.4"
 # default formats minus avif and exr, which pull in the unmaintained paste
 # crate (RUSTSEC-2024-0436) via ravif and exr
@@ -80,6 +81,7 @@ jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 memmap2 = "0.9.5"
 metrics = "0.24.2"
 metrics-exporter-prometheus = { version = "0.17.2", default-features = false }
+metrics-util = { version = "0.20.4", default-features = false, features = ["debugging"] }
 mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = "603f3e07372119560ce9d60252e5df2f6cbd1e18" }
 mimi_content = { git = "https://github.com/phnx-im/mimi-content", rev = "1444aa24aa0ccab5d2079624d001fd2aa7ad8ce4", features = ["serde"] }
 minicbor = { version = "2.2.1", features = ["std"] }
