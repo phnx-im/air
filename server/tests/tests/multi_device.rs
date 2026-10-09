@@ -528,29 +528,60 @@ async fn multi_device_linking_session() {
     );
 }
 
-// Linking with a session ID that was never registered returns an error.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test attachment upload in the self-group", skip_all)]
-async fn multi_device_self_group_attachment_upload() {
+#[tracing::instrument(
+    name = "Test attachment upload and download in the self-group",
+    skip_all
+)]
+async fn multi_device_self_group_attachment() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let user = setup.get_user(&alice).user();
-    let chat_id = self_chat_id(user).await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
 
+    let chat_id = self_chat_id(old_device).await;
+    let attachment = vec![0x00, 0x01, 0x02, 0x03];
     let tmp_dir = TempDir::new().unwrap();
     let path = tmp_dir.path().join("test.bin");
-    std::fs::write(&path, [0x00, 0x01, 0x02, 0x03]).unwrap();
+    std::fs::write(&path, &attachment).unwrap();
 
-    let (_attachment_id, _progress, upload_task) = user
+    let (_attachment_id, _progress, upload_task) = old_device
         .upload_chat_attachment(chat_id, &path, MarkChatAsRead::Yes)
         .await
         .unwrap()
         .unwrap();
-    if let Err(error) = upload_task.await {
-        panic!("upload in the self-group failed: {error:?}");
-    }
+    let message = upload_task
+        .await
+        .unwrap_or_else(|error| panic!("upload in the self-group failed: {error:?}"));
+    old_device
+        .outbound_service()
+        .enqueue_chat_message(message.id())
+        .await
+        .unwrap();
+    old_device.outbound_service().run_once().await;
+
+    drain_queue(&new_device).await;
+    let pending = new_device.pending_attachments().await.unwrap();
+    assert_eq!(pending.len(), 1);
+    let attachment_id = pending[0];
+
+    let (_progress, download_task) = new_device.download_attachment(attachment_id);
+    download_task
+        .await
+        .expect("download in the self-group failed");
+
+    let content = new_device
+        .load_attachment(attachment_id)
+        .await
+        .unwrap()
+        .into_bytes()
+        .unwrap();
+    assert_eq!(content, attachment);
 }
 
+// Linking with a session ID that was never registered returns an error.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Test link with nonexistent session ID", skip_all)]
 async fn multi_device_link_with_nonexistent_session_id() {
