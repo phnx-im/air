@@ -21,7 +21,7 @@ use tokio::{
     time::{self, Instant},
 };
 use tokio_util::sync::{CancellationToken, WaitForCancellationFutureOwned};
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use crate::{
     clients::api_clients::ApiClients,
@@ -325,6 +325,7 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
                     Err(WorkAborted::Interrupted) => {}
                     Err(WorkAborted::BackOff { retry_after }) => {
                         let delay = backoff.next_backoff().max(retry_after.unwrap_or_default());
+                        info!(?delay, ?retry_after, "Backing off outbound service");
                         backoff_until = Some(Instant::now() + delay);
                     }
                 }

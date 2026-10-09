@@ -176,11 +176,7 @@ impl RunResultExt for Result<(), OutboundServiceError> {
                 Err(WorkAborted::Interrupted)
             }
             Err(OutboundServiceError::RateLimited { retry_after }) => {
-                info!(
-                    task,
-                    ?retry_after,
-                    "Rate limited, aborting outbound service run"
-                );
+                info!(task, "Rate limited, aborting outbound service run");
                 Err(WorkAborted::BackOff { retry_after })
             }
         }
