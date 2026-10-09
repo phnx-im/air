@@ -12,10 +12,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    outbound_service::{
-        error::OutboundServiceError,
-        retry::{RetryDecision, RetryPolicy},
-    },
+    outbound_service::{error::OutboundServiceError, retry::RetryPolicy},
     privacy_pass,
 };
 
@@ -100,10 +97,8 @@ impl OutboundServiceContext {
                         allowance_epoch = message.allowance_epoch,
                         "Failed to tell the siblings about redeemed privacy pass tokens; retrying later"
                     );
-                    if let RetryDecision::Backoff { attempts, retry_in } =
-                        policy.decide(error.cause, *attempts)
+                    if let Some((attempts, broadcast_after)) = policy.defer(error.cause, *attempts)
                     {
-                        let broadcast_after = Utc::now() + retry_in;
                         self.db
                             .with_write_transaction(async |txn| {
                                 privacy_pass::defer_redeemed_broadcasts(

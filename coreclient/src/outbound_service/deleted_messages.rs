@@ -9,17 +9,13 @@ use aircommon::{identifiers::MimiId, time::TimeStamp};
 use airprotos::client::self_group::{
     DeletedMessages, MAX_DELETED_MESSAGES_PER_MESSAGE, SelfGroupAppMessage,
 };
-use chrono::Utc;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
 use crate::{
     chats::messages::persistence,
     db::access::WriteDbTransaction,
-    outbound_service::{
-        error::OutboundServiceError,
-        retry::{RetryDecision, RetryPolicy},
-    },
+    outbound_service::{error::OutboundServiceError, retry::RetryPolicy},
 };
 
 use super::{OutboundService, OutboundServiceContext, SendOutcome, self_chat::SelfChatReadiness};
@@ -114,15 +110,12 @@ impl OutboundServiceContext {
                 // Keep the batch for a later run, the next batches may still go out
                 Err(OutboundServiceError::Recoverable(error)) => {
                     warn!(%error, count = batch.len(), "Failed to tell the siblings about deleted messages; retrying later");
-                    if let RetryDecision::Backoff { attempts, retry_in } =
-                        policy.decide(error.cause, attempts)
-                    {
-                        let retry_at = TimeStamp::from(Utc::now() + retry_in);
+                    if let Some((attempts, retry_at)) = policy.defer(error.cause, attempts) {
                         persistence::defer_deletions(
                             self.db.write().await?,
                             batch,
                             attempts,
-                            retry_at,
+                            retry_at.into(),
                         )
                         .await?;
                     }

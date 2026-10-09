@@ -4,7 +4,6 @@
 
 use std::time::Duration;
 
-use aircommon::time::TimeStamp;
 use anyhow::Context;
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
@@ -21,7 +20,7 @@ use crate::job::chat_operation::{ChatOperation, DerivationEpoch};
 use crate::job::pending_chat_operation::PendingChatOperation;
 use crate::outbound_service::error::OutboundServiceError;
 use crate::outbound_service::resync::Resync;
-use crate::outbound_service::retry::{RetryDecision, RetryPolicy};
+use crate::outbound_service::retry::RetryPolicy;
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, Message, MessageId,
     outbound_service::chat_message_queue::{ChatMessageQueue, DequeuedMessage},
@@ -220,14 +219,16 @@ impl OutboundServiceContext {
                 Err(error @ OutboundServiceError::RateLimited { .. }) => return Err(error),
                 Err(OutboundServiceError::Recoverable(error)) => {
                     // Leave the message in the queue so a later run retries it
-                    if let RetryDecision::Backoff { attempts, retry_in } =
-                        RetryPolicy::MESSAGES.decide(error.cause, attempts)
+                    if let Some((attempts, retry_at)) =
+                        RetryPolicy::MESSAGES.defer(error.cause, attempts)
                     {
-                        let retry_at = TimeStamp::from(Utc::now() + retry_in);
                         self.db
                             .with_write_transaction(async |txn| {
                                 ChatMessageQueue::record_failed_attempt(
-                                    txn, message_id, attempts, retry_at,
+                                    txn,
+                                    message_id,
+                                    attempts,
+                                    retry_at.into(),
                                 )
                                 .await
                             })

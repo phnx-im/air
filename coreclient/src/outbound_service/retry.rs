@@ -4,7 +4,7 @@
 
 //! Retry budgets for items that are kept after a recoverable error.
 
-use chrono::TimeDelta;
+use chrono::{DateTime, TimeDelta, Utc};
 
 use crate::{job::recoverable::RecoverableCause, outbound_service::error::OutboundServiceError};
 
@@ -76,6 +76,21 @@ impl RetryPolicy {
                 attempts,
                 retry_in: self.backoff(attempts),
             }
+        }
+    }
+
+    /// Spends an attempt and returns the attempts so far with when the item is
+    /// due again, or `None` if the error does not spend an attempt.
+    pub(crate) fn defer(
+        &self,
+        cause: RecoverableCause,
+        attempts: u32,
+    ) -> Option<(u32, DateTime<Utc>)> {
+        match self.decide(cause, attempts) {
+            RetryDecision::Backoff { attempts, retry_in } => {
+                Some((attempts, Utc::now() + retry_in))
+            }
+            RetryDecision::Retry | RetryDecision::GiveUp => None,
         }
     }
 

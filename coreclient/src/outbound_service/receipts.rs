@@ -12,7 +12,6 @@ use aircommon::{
     time::TimeStamp,
 };
 use anyhow::Context;
-use chrono::Utc;
 use mimi_content::{
     Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPart, PerMessageStatus,
 };
@@ -28,10 +27,8 @@ use crate::{
     groups::{Group, handle_group_not_found_on_ds, openmls_provider::AirOpenMlsProvider},
     job::pending_chat_operation::PendingChatOperation,
     outbound_service::{
-        error::OutboundServiceError,
-        receipt_queue::DequeuedReceipts,
-        resync::Resync,
-        retry::{RetryDecision, RetryPolicy},
+        error::OutboundServiceError, receipt_queue::DequeuedReceipts, resync::Resync,
+        retry::RetryPolicy,
     },
 };
 
@@ -141,15 +138,12 @@ impl OutboundServiceContext {
                     Err(OutboundServiceError::Recoverable(error)) => {
                         error!(%error, "Failed to send receipt; will retry later");
                         // Don't unlock the receipts now; they will be unlocked after a threshold.
-                        if let RetryDecision::Backoff { attempts, retry_in } =
-                            policy.decide(error.cause, attempts)
-                        {
-                            let retry_at = TimeStamp::from(Utc::now() + retry_in);
+                        if let Some((attempts, retry_at)) = policy.defer(error.cause, attempts) {
                             ReceiptQueue::record_failed_attempt(
                                 self.db.write().await?,
                                 task_id,
                                 attempts,
-                                retry_at,
+                                retry_at.into(),
                             )
                             .await?;
                         }
