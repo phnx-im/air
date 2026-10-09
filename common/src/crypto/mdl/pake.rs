@@ -128,7 +128,7 @@ impl MdlInitiator {
     /// Starts the exchange.
     pub fn start(password: &LinkingPassword, ci: &[u8], sid: &[u8], ad_a: &[u8]) -> Self {
         let ctx = Context {
-            prs: password.as_str().as_bytes(),
+            prs: password.as_bytes(),
             ci,
             sid,
         };
@@ -178,7 +178,7 @@ pub fn respond(
 ) -> Result<MdlResponse, InvalidPakeMessage> {
     let msg_a = Msg::from_bytes(msg_a)?;
     let ctx = Context {
-        prs: password.as_str().as_bytes(),
+        prs: password.as_bytes(),
         ci,
         sid,
     };

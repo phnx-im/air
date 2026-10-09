@@ -37,7 +37,7 @@ pub enum LinkingCodeError {
 /// Five decimal digits, each drawn uniformly at random, which is about 16.6
 /// bits.
 #[derive(Clone, PartialEq, Eq)]
-pub struct LinkingPassword(String);
+pub struct LinkingPassword([u8; PASSWORD_DIGITS]);
 
 impl Drop for LinkingPassword {
     fn drop(&mut self) {
@@ -49,14 +49,11 @@ impl LinkingPassword {
     /// Draws a fresh password from the thread CSPRNG.
     pub fn generate() -> Self {
         let mut rng = rand::rng();
-        let digits = (0..PASSWORD_DIGITS)
-            .map(|_| char::from(b'0' + rng.random_range(0..10u8)))
-            .collect();
-        Self(digits)
+        Self(std::array::from_fn(|_| b'0' + rng.random_range(0..10u8)))
     }
 
-    /// The digits, which are what CPace takes as its `PRS`.
-    pub fn as_str(&self) -> &str {
+    /// The ASCII digits, which are what CPace takes as its `PRS`.
+    pub fn as_bytes(&self) -> &[u8; PASSWORD_DIGITS] {
         &self.0
     }
 }
@@ -102,7 +99,7 @@ impl LinkingCode {
     /// The canonical digit string the user carries to the other device.
     pub fn to_digits(&self) -> String {
         let mut digits = self.rendezvous_id.clone();
-        digits.push_str(self.password.as_str());
+        digits.extend(self.password.0.iter().copied().map(char::from));
         digits
     }
 
@@ -119,9 +116,13 @@ impl LinkingCode {
         // The password has a fixed length, so the rendezvous ID can grow
         // without a delimiter as long as the split happens from the end.
         let password_start = digits.len() - PASSWORD_DIGITS;
+        let mut password = LinkingPassword([0; PASSWORD_DIGITS]);
+        password
+            .0
+            .copy_from_slice(&digits.as_bytes()[password_start..]);
         Ok(Self {
             rendezvous_id: digits[..password_start].to_owned(),
-            password: LinkingPassword(digits[password_start..].to_owned()),
+            password,
         })
     }
 }
@@ -131,10 +132,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn generated_passwords_are_five_digits() {
+    fn generated_passwords_are_ascii_digits() {
         let password = LinkingPassword::generate();
-        assert_eq!(password.as_str().len(), PASSWORD_DIGITS);
-        assert!(password.as_str().bytes().all(|b| b.is_ascii_digit()));
+        assert!(password.as_bytes().iter().all(u8::is_ascii_digit));
     }
 
     #[test]
@@ -155,14 +155,15 @@ mod tests {
     #[test]
     fn the_split_runs_from_the_end() {
         let generated = LinkingCode::generate("1234567").unwrap();
-        let parsed = LinkingCode::parse(&generated.to_digits()).unwrap();
+        let digits = generated.to_digits();
+        let parsed = LinkingCode::parse(&digits).unwrap();
         assert_eq!(parsed.rendezvous_id(), "1234567");
-        assert_eq!(parsed.password().as_str().len(), PASSWORD_DIGITS);
+        assert_eq!(parsed.password().as_bytes(), &digits.as_bytes()[7..]);
     }
 
     #[test]
     fn a_code_is_the_rendezvous_id_followed_by_the_password() {
-        let code = LinkingCode::new("417", LinkingPassword("50931".to_owned())).unwrap();
+        let code = LinkingCode::new("417", LinkingPassword(*b"50931")).unwrap();
         assert_eq!(code.to_digits(), "41750931");
     }
 
