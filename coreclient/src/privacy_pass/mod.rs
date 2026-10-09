@@ -853,6 +853,7 @@ fn broadcast_deadline(now: DateTime<Utc>) -> DateTime<Utc> {
 }
 
 /// The redemptions whose broadcast is due at `now`, one message per batch.
+#[cfg(any(test, feature = "test_utils"))]
 pub(crate) async fn redeemed_tokens_to_broadcast(
     connection: impl ReadConnection,
     now: DateTime<Utc>,
