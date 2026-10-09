@@ -61,6 +61,8 @@
 //! smaller than the smallest requested one and responds with the requested
 //! messages.
 
+use client_pseudonym::ClientPseudonymizer;
+
 use aircommon::{
     crypto::signatures::keys::QsUserVerifyingKey,
     identifiers::{Fqdn, QsClientId, QsUserId},
@@ -84,6 +86,7 @@ use crate::{
 mod auth;
 pub mod client_api;
 mod client_id_decryption_key;
+mod client_pseudonym;
 mod client_record;
 pub mod ds_api;
 pub mod errors;
@@ -102,6 +105,7 @@ pub struct Qs {
     queues: Queues,
     version_policy: VersionPolicy,
     max_devices: MaxDevices,
+    client_pseudonymizer: ClientPseudonymizer,
     stop: CancellationToken,
 }
 
@@ -138,6 +142,7 @@ impl BackendService for Qs {
             queues,
             version_policy,
             max_devices: MaxDevices::new(max_devices),
+            client_pseudonymizer: ClientPseudonymizer::random(),
             stop,
         })
     }

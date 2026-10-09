@@ -127,6 +127,7 @@ impl Qs {
                             &mut txn,
                             qs_client_id,
                             self.queues(),
+                            &self.client_pseudonymizer,
                             &message.payload,
                         )
                         .await
@@ -178,6 +179,7 @@ impl Qs {
                 client_record
                     .send_push_notification(
                         &self.db_pool,
+                        &self.client_pseudonymizer,
                         push_notification_provider,
                         push_token_ear_key.as_ref(),
                     )
@@ -194,8 +196,14 @@ impl Qs {
         payload: &DsFanOutPayload,
     ) -> Result<Option<QsClientRecord>, EnqueueError> {
         let mut txn = self.db_pool.begin().await?;
-        let client_record =
-            QsClientRecord::enqueue(&mut txn, client_id, self.queues(), payload).await?;
+        let client_record = QsClientRecord::enqueue(
+            &mut txn,
+            client_id,
+            self.queues(),
+            &self.client_pseudonymizer,
+            payload,
+        )
+        .await?;
         txn.commit().await?;
         Ok(client_record)
     }

@@ -27,7 +27,7 @@ use mls_assist::openmls::{components::vc_derivation_info::EpochId, prelude::Leaf
 use prost::Message;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming, async_trait};
-use tracing::{error, warn};
+use tracing::{error, info_span, warn};
 
 use crate::{
     errors::QueueError,
@@ -554,7 +554,10 @@ impl QueueService for GrpcQs {
             client_id,
             session,
         };
-        let responses = spawn_listen_session(requests, events, self.qs.stop.clone(), handler, "qs");
+        let qs_client = self.qs.client_pseudonymizer.pseudonym(&client_id);
+        let responses = info_span!("qs_listen", %qs_client).in_scope(|| {
+            spawn_listen_session(requests, events, self.qs.stop.clone(), handler, "qs")
+        });
         Ok(Response::new(responses))
     }
 }
