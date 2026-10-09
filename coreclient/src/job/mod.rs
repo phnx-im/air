@@ -18,7 +18,7 @@ use crate::{
             DbAccess, ReadConnection, ReadDbConnection, ReadDbTransaction, WriteConnection,
             WriteDbConnection, WriteDbTransaction,
         },
-        is_db_busy,
+        has_db_busy_error, is_db_busy,
         notification::DbNotifier,
     },
     job::recoverable::{Recoverable, RequestFailure},
@@ -183,10 +183,7 @@ impl<E> JobError<E> {
 // A busy database is recoverable, even when anyhow wrapped it.
 impl<E> From<anyhow::Error> for JobError<E> {
     fn from(error: anyhow::Error) -> Self {
-        let is_busy = error
-            .chain()
-            .any(|error| error.downcast_ref::<sqlx::Error>().is_some_and(is_db_busy));
-        if is_busy {
+        if has_db_busy_error(&error) {
             Self::Recoverable(Recoverable::busy(error))
         } else {
             Self::Fatal(error)

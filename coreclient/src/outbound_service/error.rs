@@ -11,7 +11,7 @@ use airapiclient::{
 use tracing::{error, info};
 
 use crate::{
-    db::is_db_busy,
+    db::{has_db_busy_error, is_db_busy},
     job::{
         JobError,
         recoverable::{Recoverable, RequestFailure},
@@ -52,10 +52,7 @@ impl OutboundServiceError {
         if let Some(transient) = transient_request_error(&error) {
             return transient;
         }
-        let is_busy = error
-            .chain()
-            .any(|error| error.downcast_ref::<sqlx::Error>().is_some_and(is_db_busy));
-        if is_busy {
+        if has_db_busy_error(&error) {
             return Self::Recoverable(Recoverable::busy(error));
         }
         Self::Fatal(error)

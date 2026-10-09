@@ -22,3 +22,11 @@ pub(crate) fn is_db_busy(error: &sqlx::Error) -> bool {
         _ => false,
     }
 }
+
+/// Whether the chain of `error` contains a database error due to lock
+/// contention.
+pub(crate) fn has_db_busy_error(error: &anyhow::Error) -> bool {
+    error
+        .chain()
+        .any(|error| error.downcast_ref::<sqlx::Error>().is_some_and(is_db_busy))
+}
