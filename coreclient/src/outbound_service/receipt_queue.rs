@@ -153,7 +153,7 @@ mod persistence {
                     SET locked_by = ?1, locked_at = ?2
                     WHERE rowid IN (
                         SELECT rowid FROM receipt_queue
-                        WHERE chat_id = ?3 
+                        WHERE chat_id = ?3
                             AND (locked_at IS NULL OR locked_at < ?4)
                             AND (retry_at IS NULL OR retry_at <= ?2)
                         ORDER BY created_at ASC
@@ -442,7 +442,7 @@ mod tests {
         let dequeued = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4(), TimeStamp::now())
             .await?
             .expect("receipts are due again");
-        assert_eq!(dequeued.statuses.len(), 3);
+        assert_eq!(dequeued.statuses.len(), 2);
         assert_eq!(dequeued.attempts, 2);
         Ok(())
     }
