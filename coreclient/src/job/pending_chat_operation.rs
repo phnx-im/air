@@ -474,15 +474,12 @@ impl PendingChatOperation {
 
         let api_client = api_clients.get(qgid.owning_domain())?;
 
-        // If this is a leave operation that has been tried before, we have to
-        // check whether the group is still at the same epoch. If not, we have
-        // to re-create the proposal.
+        // If the group moved on since the leave proposal was staged, we have to re-create the
+        // proposal.
         if let OperationType::Leave(leave_params) = &mut self.operation
-            // This is always Some, because we know the MlsMessage is a
-            // PublicMessage
+            // This is always Some, because we know the MlsMessage is a PublicMessage
             && let Some(message_epoch) = leave_params.t_remove_proposal.epoch()
             && message_epoch != self.group.mls_group().epoch()
-            && self.number_of_attempts > 0
         {
             // No need to check the PQ epoch (if any) because a different PQ epoch implies a
             // different T epoch.
