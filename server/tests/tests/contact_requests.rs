@@ -15,7 +15,7 @@ use super::group_bootstrap::{
     add_username, drain_expecting_success, drain_username_queue, receive_connection_offer,
 };
 
-async fn system_messages(device: &CoreUser, chat_id: ChatId) -> Vec<SystemMessage> {
+pub(crate) async fn system_messages(device: &CoreUser, chat_id: ChatId) -> Vec<SystemMessage> {
     device
         .messages(chat_id, 100)
         .await

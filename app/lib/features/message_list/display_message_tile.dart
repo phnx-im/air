@@ -20,6 +20,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:air/features/message_list/contact_request_dialog.dart';
+import 'package:air/features/message_list/sent_contact_request_card.dart';
 import 'package:air/features/message_list/timestamp.dart';
 import 'package:uuid/uuid_value.dart';
 
@@ -87,9 +88,16 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
 
   @override
   Widget build(BuildContext context) {
-    final isConfirmed = context.select(
-      (ChatDetailsCubit cubit) => cubit.state.chat?.isConfirmed ?? false,
+    final (chatId, requestState) = context.select(
+      (ChatDetailsCubit cubit) =>
+          (cubit.state.chat?.id, cubit.state.chat?.requestState),
     );
+    // An open request brings its card. Once it is answered or retracted, the
+    // message that announced it reads as a plain record.
+    final incoming = requestState == ContactRequestState.incoming;
+    final outgoingChatId = requestState == ContactRequestState.outgoing
+        ? chatId
+        : null;
 
     final ownUserId = context.read<UserCubit>().state.userId;
     GestureRecognizer? profileTap(UiUserId userId) =>
@@ -98,7 +106,7 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
 
     return switch (widget.message) {
       UiSystemMessage_ReceivedDirectConnectionRequest(:final sender)
-          when !isConfirmed =>
+          when incoming =>
         _request(
           ContactRequestDialog(
             sender: sender,
@@ -109,11 +117,35 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
         :final sender,
         :final username,
       )
-          when !isConfirmed =>
+          when incoming =>
         _request(
           ContactRequestDialog(
             sender: sender,
             source: .username(username: username),
+          ),
+        ),
+      UiSystemMessage_NewHandleConnectionChat(:final field0)
+          when outgoingChatId != null =>
+        _request(
+          SentContactRequestCard(
+            chatId: outgoingChatId,
+            recipient: .username(field0),
+          ),
+        ),
+      UiSystemMessage_NewDirectConnectionChat(:final field0)
+          when outgoingChatId != null =>
+        _request(
+          SentContactRequestCard(
+            chatId: outgoingChatId,
+            recipient: .user(field0),
+          ),
+        ),
+      UiSystemMessage_SentDirectConnectionRequest(:final recipient)
+          when outgoingChatId != null =>
+        _request(
+          SentContactRequestCard(
+            chatId: outgoingChatId,
+            recipient: .user(recipient, groupChatTitle: groupChatTitle),
           ),
         ),
       _ => SystemMessage(
@@ -380,6 +412,9 @@ TextSpan buildSystemMessageText(
     },
     UiSystemMessage_SelfChatCreated() => TextSpan(
       text: loc.systemMessage_selfChatCreated,
+    ),
+    UiSystemMessage_ConnectionRequestUnavailable() => TextSpan(
+      text: loc.systemMessage_connectionRequestUnavailable,
     ),
   };
 }

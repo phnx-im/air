@@ -27,6 +27,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/ds/components/button/button.dart';
 
 import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/features/chat/contact_request_actions.dart';
 import 'package:air/features/chat_details/delete_contact_button.dart';
 import 'package:air/features/chat_details/report_spam_button.dart';
 import 'package:air/features/chat_details/unblock_contact_button.dart';
@@ -195,6 +196,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
       :members,
       :isGroupChat,
       :isConfirmed,
+      :requestState,
     ) = context.select((ChatDetailsCubit cubit) {
       final chat = cubit.state.chat;
       final status = chat?.status;
@@ -214,6 +216,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
           _ => false,
         },
         isConfirmed: chat?.isConfirmed ?? false,
+        requestState: chat?.requestState,
       );
     });
 
@@ -247,7 +250,9 @@ class _ChatScreenViewState extends State<ChatScreenView> {
       scrollToBottomController: _scrollToBottomController,
       textEditingController: widget.textEditingController,
     );
-    if (showInactiveFooter) {
+    if (requestState == ContactRequestState.closed) {
+      footer = _ClosedRequestFooter(chatId: chatId);
+    } else if (showInactiveFooter) {
       footer = const _InactiveChatFooter();
     } else if (showBlockedFooter) {
       footer = _BlockedChatFooter(
@@ -479,6 +484,31 @@ class _PendingCommitFailedBanner extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Replaces the composer in the chat of a contact request that ended without a
+/// connection. The chat is only a record by then, so the one thing left to do
+/// with it is to delete it.
+class _ClosedRequestFooter extends StatelessWidget {
+  const _ClosedRequestFooter({required this.chatId});
+
+  final ChatId chatId;
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    return Container(
+      padding: const EdgeInsets.all(S.s16),
+      alignment: .center,
+      child: Button(
+        onPressed: () => deleteClosedContactRequest(context, chatId),
+        size: ButtonSize.current,
+        type: ButtonType.secondary,
+        tone: ButtonTone.danger,
+        label: loc.closedContactRequest_delete,
       ),
     );
   }

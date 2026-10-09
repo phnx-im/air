@@ -1,0 +1,26 @@
+---
+source: coreclient/src/chats/outgoing_requests.rs
+expression: diag
+---
+a1                                                  # map(1)
+   68                                               #   text(8)
+      557365726e616d65                              #     "Username"
+   a3                                               #   map(3)
+      68                                            #     text(8)
+         757365726e616d65                           #       "username"
+      66                                            #     text(6)
+         656c6c69652d                               #       "ellie-"
+      78 1a                                         #     text(26)
+         667269656e64736869705f7061636b61           #       "friendship_packa"
+         67655f6561725f6b6579                       #       "ge_ear_key"
+      a1                                            #     map(1)
+         66                                         #       text(6)
+            736563726574                            #         "secret"
+         58 20                                      #       bytes(32)
+            667269656e64736869705f7061636b61        #         "friendship_packa"
+            67655f6561725f6b65795f33325f5f5f        #         "ge_ear_key_32___"
+      75                                            #     text(21)
+         636f6e6e656374696f6e5f6f666665725f68617368 #       "connection_offer_hash"
+      58 20                                         #     bytes(32)
+         01020300000000000000000000000000           #       "\x01\x02\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+         00000000000000000000000000000000           #       "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"

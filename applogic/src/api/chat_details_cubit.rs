@@ -672,17 +672,30 @@ impl ChatDetailsCubitBase {
         Ok(())
     }
 
-    pub async fn accept_contact_request(
-        &self,
-    ) -> anyhow::Result<Option<UiAcceptContactRequestError>> {
+    pub async fn accept_contact_request(&self) -> anyhow::Result<UiAcceptContactRequestResult> {
         let chat_id = self.context.chat_id;
-        Ok(self
+        let result = match self
             .context
             .core_user
             .accept_contact_request(chat_id)
             .await?
-            .err()
-            .map(From::from))
+        {
+            Ok(accepted_chat_id) => UiAcceptContactRequestResult {
+                accepted_chat_id: Some(accepted_chat_id),
+                error: None,
+            },
+            Err(AcceptContactRequestError::Unavailable) => UiAcceptContactRequestResult {
+                accepted_chat_id: None,
+                error: None,
+            },
+            Err(AcceptContactRequestError::IncompatibleClient { reason }) => {
+                UiAcceptContactRequestResult {
+                    accepted_chat_id: None,
+                    error: Some(UiAcceptContactRequestError { reason }),
+                }
+            }
+        };
+        Ok(result)
     }
 
     /// Mute notifications for this chat until the given datetime.
@@ -939,6 +952,14 @@ pub enum UploadAttachmentError {
     },
 }
 
+/// The outcome of accepting a contact request.
+pub struct UiAcceptContactRequestResult {
+    /// The chat of the new connection. It is not the chat of the request if
+    /// the sender's newest request was gone and an older one was accepted.
+    pub accepted_chat_id: Option<ChatId>,
+    pub error: Option<UiAcceptContactRequestError>,
+}
+
 /// Accepting a contact request failed.
 // Mirror of [`AcceptContactRequestError`] due to a freezed 4.0 regression [freezed-1371].
 //
@@ -950,17 +971,10 @@ pub struct UiAcceptContactRequestError {
     pub reason: String,
 }
 
-impl From<AcceptContactRequestError> for UiAcceptContactRequestError {
-    fn from(error: AcceptContactRequestError) -> Self {
-        match error {
-            AcceptContactRequestError::IncompatibleClient { reason } => Self { reason },
-        }
-    }
-}
-
 #[frb(mirror(AcceptContactRequestError))]
 pub enum _AcceptContactRequestError {
     IncompatibleClient { reason: String },
+    Unavailable,
 }
 
 #[frb(mirror(GroupDebugInfo))]

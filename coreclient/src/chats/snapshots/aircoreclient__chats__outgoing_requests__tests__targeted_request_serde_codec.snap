@@ -1,0 +1,55 @@
+---
+source: coreclient/src/chats/outgoing_requests.rs
+expression: diag
+---
+a1                                           # map(1)
+   68                                        #   text(8)
+      5461726765746564                       #     "Targeted"
+   a3                                        #   map(3)
+      67                                     #     text(7)
+         757365725f6964                      #       "user_id"
+      a2                                     #     map(2)
+         64                                  #       text(4)
+            75756964                         #         "uuid"
+         50                                  #       bytes(16)
+            00000000000000000000000000000001 #         "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01"
+         66                                  #       text(6)
+            646f6d61696e                     #         "domain"
+         a1                                  #       map(1)
+            66                               #         text(6)
+               646f6d61696e                  #           "domain"
+            a1                               #         map(1)
+               66                            #           text(6)
+                  446f6d61696e               #             "Domain"
+               69                            #           text(9)
+                  6c6f63616c686f7374         #             "localhost"
+      78 1a                                  #     text(26)
+         667269656e64736869705f7061636b61    #       "friendship_packa"
+         67655f6561725f6b6579                #       "ge_ear_key"
+      a1                                     #     map(1)
+         66                                  #       text(6)
+            736563726574                     #         "secret"
+         58 20                               #       bytes(32)
+            667269656e64736869705f7061636b61 #         "friendship_packa"
+            67655f6561725f6b65795f33325f5f5f #         "ge_ear_key_32___"
+      6f                                     #     text(15)
+         6f726967696e5f67726f75705f6964      #       "origin_group_id"
+      a1                                     #     map(1)
+         65                                  #       text(5)
+            76616c7565                       #         "value"
+         a1                                  #       map(1)
+            63                               #         text(3)
+               766563                        #           "vec"
+            8c                               #         array(12)
+               18 6f                         #           unsigned(111)
+               18 72                         #           unsigned(114)
+               18 69                         #           unsigned(105)
+               18 67                         #           unsigned(103)
+               18 69                         #           unsigned(105)
+               18 6e                         #           unsigned(110)
+               18 2d                         #           unsigned(45)
+               18 67                         #           unsigned(103)
+               18 72                         #           unsigned(114)
+               18 6f                         #           unsigned(111)
+               18 75                         #           unsigned(117)
+               18 70                         #           unsigned(112)

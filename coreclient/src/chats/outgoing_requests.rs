@@ -6,6 +6,13 @@
 //!
 //! A sibling client learns about the request from the group bootstrap echo when
 //! the request is sent, or from the provisioning package at linking time.
+//!
+//! Retracting a request deletes its connection group on the DS, which the DS
+//! allows since the group has no other member yet, and then erases the chat.
+//! The siblings share the sender's leaf, so the DS hands them the delete
+//! commit, and they erase the chat when they process it. The deletion also
+//! travels through the self-group, for a sibling that cannot process the
+//! commit.
 
 use std::collections::HashSet;
 
@@ -31,7 +38,7 @@ use serde::{Deserialize, Serialize};
 use tls_codec::{DeserializeBytes, Serialize as _, VLBytes};
 
 use crate::{
-    Chat, ChatId, ChatMessage, ChatType, SystemMessage,
+    Chat, ChatId, ChatMessage, ChatStatus, ChatType, SystemMessage,
     chats::connection_requests,
     clients::{CoreUser, connection_offer::FriendshipPackage},
     contacts::{PartialContact, PartialContactType, TargetedMessageContact, UsernameContact},
@@ -212,6 +219,28 @@ pub(crate) async fn confirm(
     })
 }
 
+impl CoreUser {
+    /// Retracts the outgoing contact request the chat shows, and erases the
+    /// chat on all of the user's devices.
+    ///
+    /// Deleting the connection group on the DS means the recipient can no
+    /// longer accept the request. The recipient is not told. Fails without a
+    /// change if the DS cannot be reached, see
+    /// [`CoreUser::delete_and_erase_chat`].
+    pub async fn retract_contact_request(&self, chat_id: ChatId) -> anyhow::Result<()> {
+        let chat = self
+            .db()
+            .with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
+            .await?
+            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+        ensure!(
+            chat.is_unconfirmed() && matches!(chat.status(), ChatStatus::Active),
+            "Chat {chat_id} is not an open outgoing contact request"
+        );
+        self.delete_and_erase_chat(chat_id).await
+    }
+}
+
 /// Confirms the outgoing request `chat` stands for with the friendship package
 /// of a recipient's join this device could not process, since it onboarded
 /// into `group` at a later epoch.
@@ -278,8 +307,10 @@ pub(crate) fn join_friendship_package(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::LazyLock;
+
     use aircommon::{
-        crypto::aead::keys::EncryptedUserProfileKey,
+        codec::PersistenceCodec, crypto::aead::keys::EncryptedUserProfileKey,
         messages::client_ds::JoinConnectionGroupParamsAad,
     };
     use openmls::prelude::{
@@ -288,6 +319,7 @@ mod tests {
     use openmls_basic_credential::SignatureKeyPair;
     use openmls_rust_crypto::OpenMlsRustCrypto;
     use openmls_traits::OpenMlsProvider as _;
+    use uuid::Uuid;
 
     use crate::clients::CIPHERSUITE;
 
@@ -403,5 +435,52 @@ mod tests {
             .message;
         let message = message_in(message).try_into_protocol_message().unwrap();
         assert!(join_friendship_package(&message).unwrap().is_none());
+    }
+
+    fn friendship_package_ear_key() -> FriendshipPackageEarKey {
+        // The key has no constructor from fixed bytes, so we build it from its
+        // serde form.
+        serde_json::from_value(serde_json::json!({
+            "secret": b"friendship_package_ear_key_32___",
+        }))
+        .unwrap()
+    }
+
+    static USERNAME_REQUEST: LazyLock<OutgoingRequest> =
+        LazyLock::new(|| OutgoingRequest::Username {
+            username: Username::new("ellie-".to_owned()).unwrap(),
+            friendship_package_ear_key: friendship_package_ear_key(),
+            connection_offer_hash: ConnectionOfferHash::new_for_test(vec![1, 2, 3]),
+        });
+
+    static TARGETED_REQUEST: LazyLock<OutgoingRequest> =
+        LazyLock::new(|| OutgoingRequest::Targeted {
+            user_id: UserId::new(Uuid::from_u128(1), "localhost".parse().unwrap()),
+            friendship_package_ear_key: friendship_package_ear_key(),
+            origin_group_id: Some(GroupId::from_slice(b"origin-group")),
+        });
+
+    #[test]
+    fn username_request_serde_codec() {
+        let bytes = PersistenceCodec::to_vec(&*USERNAME_REQUEST).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn username_request_serde_json() {
+        insta::assert_json_snapshot!(&*USERNAME_REQUEST);
+    }
+
+    #[test]
+    fn targeted_request_serde_codec() {
+        let bytes = PersistenceCodec::to_vec(&*TARGETED_REQUEST).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn targeted_request_serde_json() {
+        insta::assert_json_snapshot!(&*TARGETED_REQUEST);
     }
 }

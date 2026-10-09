@@ -479,8 +479,8 @@ pub struct DeletedChat {
 
 /// Update to a connection request. This is a diff and not a snapshot.
 ///
-/// Only carries requests via a username. A request via a group chat reaches
-/// every device of the user on its own.
+/// A received request is only carried if it came via a username. A request
+/// via a group chat reaches every device of the user on its own.
 ///
 /// ## CDDL Definition
 ///
@@ -497,17 +497,23 @@ pub struct ConnectionRequestsUpdate {
 
 /// The new state of one connection request.
 ///
+/// A request is identified by the chat id derived from the id of its
+/// connection group, which is the same on every device.
+///
 /// ## CDDL Definition
 ///
 /// ```cddl
 /// ConnectionRequestEntry = {
-///   1: ConnectionRequestReceived
+///   1: ConnectionRequestReceived //
+///   3: ConnectionRequestUnavailable
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedUnion, DeserializeTaggedUnion)]
 pub enum ConnectionRequestEntry {
     #[tag(1)]
     Received(ConnectionRequestReceived),
+    #[tag(3)]
+    Unavailable(ConnectionRequestUnavailable),
     /// A state this client does not understand. The entry is ignored on
     /// receive.
     #[unknown]
@@ -586,6 +592,22 @@ pub struct ConnectionRequestGroup {
     /// receiver skips an entry without it.
     #[tag(1, with = "group_id_as_bytes")]
     pub group_id: Option<GroupId>,
+}
+
+/// An incoming connection request turned out to be gone when the user tried
+/// to accept it, because its sender retracted it.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ConnectionRequestUnavailable = {
+///   chat_id: bstr .size 16 .tag 1,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ConnectionRequestUnavailable {
+    #[tag(1)]
+    pub chat_id: Uuid,
 }
 
 #[cfg(test)]
@@ -1082,6 +1104,9 @@ mod test {
                     connection_package_hash: None,
                     received_at: 1_767_225_600_456,
                 }),
+                ConnectionRequestEntry::Unavailable(ConnectionRequestUnavailable {
+                    chat_id: Uuid::from_u128(0x19),
+                }),
             ],
         }
     }
@@ -1192,6 +1217,30 @@ mod test {
                 ConnectionRequestEntry::Received(received),
             ]
         );
+    }
+
+    /// A client that only knows received requests skips the unavailable ones.
+    #[test]
+    fn unavailable_requests_are_skipped_by_an_older_client() {
+        #[derive(Debug, Clone, PartialEq, DeserializeTaggedUnion)]
+        enum ConnectionRequestEntryV1 {
+            #[tag(1)]
+            Received(ConnectionRequestReceived),
+            #[unknown]
+            Unknown,
+        }
+
+        let bytes =
+            PersistenceCodec::to_vec(&sample_connection_requests_update().requests).unwrap();
+        let decoded: Vec<ConnectionRequestEntryV1> = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert!(matches!(
+            decoded.as_slice(),
+            [
+                ConnectionRequestEntryV1::Received(_),
+                ConnectionRequestEntryV1::Received(_),
+                ConnectionRequestEntryV1::Unknown,
+            ]
+        ));
     }
 
     /// A request source added after this client shipped decodes to `Unknown`

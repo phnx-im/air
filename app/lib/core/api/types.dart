@@ -526,6 +526,8 @@ sealed class UiSystemMessage with _$UiSystemMessage {
     required UiUserId recipient,
     required ChatId originChatId,
   }) = UiSystemMessage_SentDirectConnectionRequest;
+  const factory UiSystemMessage.connectionRequestUnavailable() =
+      UiSystemMessage_ConnectionRequestUnavailable;
 }
 
 /// UI representation of an [`UserId`]

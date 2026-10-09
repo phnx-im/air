@@ -5,17 +5,17 @@
 //! Connection requests across the devices of a user.
 
 use aircoreclient::{
-    ChatId, ChatType, DisplayName, EventMessage, Message, SystemMessage, UserProfile,
-    clients::CoreUser,
+    AcceptContactRequestError, ChatId, ChatStatus, ChatType, DisplayName, SystemMessage,
+    UserProfile, clients::CoreUser,
 };
 use airserver_test_harness::utils::setup::TestBackend;
 
 use super::{
-    contact_requests::{add_second_username, pending_chats_from},
+    contact_requests::{add_second_username, pending_chats_from, system_messages},
     group_bootstrap::{
         add_username, drain_expecting_success, link_sibling, receive_connection_offer,
     },
-    multi_device::{drain_queue, link_new_device, send_and_receive},
+    multi_device::{assert_inactive, drain_queue, link_new_device, send_and_receive},
 };
 
 /// Whether the chat holds a system message matching `predicate`.
@@ -24,15 +24,7 @@ async fn has_system_message(
     chat_id: ChatId,
     predicate: impl Fn(&SystemMessage) -> bool,
 ) -> bool {
-    device
-        .messages(chat_id, 100)
-        .await
-        .unwrap()
-        .iter()
-        .any(|message| match message.message() {
-            Message::Event(EventMessage::System(system_message)) => predicate(system_message),
-            _ => false,
-        })
+    system_messages(device, chat_id).await.iter().any(predicate)
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -588,4 +580,258 @@ async fn deleting_a_request_chat_before_forwarding_clears_the_sibling() {
         pending_chats_from(&device_b, &bob).await.is_empty(),
         "the sibling should drop the older request too"
     );
+}
+
+async fn assert_erased(device: &CoreUser, chat_id: ChatId, label: &str) {
+    assert!(
+        device.chat(&chat_id).await.is_none(),
+        "the {label} device should erase the chat of the retracted request"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Retracted request", skip_all)]
+async fn retracting_a_request_makes_it_unavailable_to_the_recipient() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+
+    let bob_record = add_username(&mut setup, &bob).await;
+    let chat_id = device_a
+        .add_contact(
+            bob_record.username.clone(),
+            bob_record.hash,
+            setup.apq_groups,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    drain_expecting_success(&device_b, "the sibling failed to mirror the request").await;
+    let bob_user = setup.get_user(&bob).user().clone();
+    let bob_chat_id = receive_connection_offer(&bob_user, &bob_record).await;
+
+    device_a.retract_contact_request(chat_id).await.unwrap();
+    assert_erased(&device_a, chat_id, "retracting").await;
+    // The siblings share the sender's leaf, so they get the delete commit.
+    drain_expecting_success(&device_b, "the sibling failed to follow the deletion").await;
+    assert_erased(&device_b, chat_id, "sibling").await;
+    // The self-group deletion finds the chat gone already.
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to take the deletion").await;
+    assert!(
+        device_b.retract_contact_request(chat_id).await.is_err(),
+        "an erased request cannot be retracted again"
+    );
+
+    let accepted = bob_user.accept_contact_request(bob_chat_id).await.unwrap();
+    assert!(
+        matches!(accepted, Err(AcceptContactRequestError::Unavailable)),
+        "a retracted request cannot be accepted, got {accepted:?}"
+    );
+    assert_inactive(&bob_user, bob_chat_id, None, "recipient").await;
+    assert!(
+        has_system_message(&bob_user, bob_chat_id, |message| matches!(
+            message,
+            SystemMessage::ConnectionRequestUnavailable
+        ))
+        .await,
+        "the recipient should record that the request is gone"
+    );
+
+    // The retraction frees the username for a new request.
+    let new_chat_id = device_a
+        .add_contact(
+            bob_record.username.clone(),
+            bob_record.hash,
+            setup.apq_groups,
+        )
+        .await
+        .unwrap();
+    assert!(new_chat_id.is_ok(), "got {new_chat_id:?}");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Deleting an outgoing request", skip_all)]
+async fn deleting_an_outgoing_request_retracts_it() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let bob_record = add_username(&mut setup, &bob).await;
+
+    let alice_user = setup.get_user(&alice).user().clone();
+    let chat_id = alice_user
+        .add_contact(
+            bob_record.username.clone(),
+            bob_record.hash,
+            setup.apq_groups,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    let bob_user = setup.get_user(&bob).user().clone();
+    let bob_chat_id = receive_connection_offer(&bob_user, &bob_record).await;
+
+    alice_user.delete_chat(chat_id).await.unwrap();
+    alice_user.erase_chat(chat_id).await.unwrap();
+
+    let accepted = bob_user.accept_contact_request(bob_chat_id).await.unwrap();
+    assert!(
+        matches!(accepted, Err(AcceptContactRequestError::Unavailable)),
+        "a deleted request cannot be accepted, got {accepted:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Retracting offline", skip_all)]
+async fn retracting_offline_keeps_the_request() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let bob_record = add_username(&mut setup, &bob).await;
+
+    let alice_user = setup.get_user(&alice).user().clone();
+    let chat_id = alice_user
+        .add_contact(
+            bob_record.username.clone(),
+            bob_record.hash,
+            setup.apq_groups,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    let bob_user = setup.get_user(&bob).user().clone();
+    let bob_chat_id = receive_connection_offer(&bob_user, &bob_record).await;
+
+    setup.listener_control_handle().set_drop_next_request();
+    alice_user
+        .retract_contact_request(chat_id)
+        .await
+        .expect_err("expected the retraction to fail due to a network error");
+    let chat = alice_user.chat(&chat_id).await.unwrap();
+    assert_eq!(chat.status(), &ChatStatus::Active);
+    assert!(
+        alice_user
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none(),
+        "no delete should stay parked"
+    );
+
+    alice_user.retract_contact_request(chat_id).await.unwrap();
+    assert_erased(&alice_user, chat_id, "retracting").await;
+    let accepted = bob_user.accept_contact_request(bob_chat_id).await.unwrap();
+    assert!(
+        matches!(accepted, Err(AcceptContactRequestError::Unavailable)),
+        "a retracted request cannot be accepted, got {accepted:?}"
+    );
+}
+
+/// Both devices retract the request before either learns about the other's
+/// retraction. The second one finds the group gone.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Retracting on both devices", skip_all)]
+async fn retracting_on_both_devices_erases_the_chat() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+
+    let bob_record = add_username(&mut setup, &bob).await;
+    let chat_id = device_a
+        .add_contact(
+            bob_record.username.clone(),
+            bob_record.hash,
+            setup.apq_groups,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    drain_expecting_success(&device_b, "the sibling failed to mirror the request").await;
+    drain_expecting_success(&device_a, "the sender failed to take its own echo").await;
+
+    device_a.retract_contact_request(chat_id).await.unwrap();
+    device_b.retract_contact_request(chat_id).await.unwrap();
+    assert_erased(&device_a, chat_id, "first").await;
+    assert_erased(&device_b, chat_id, "late").await;
+
+    // Both devices erased the group, so the delete commit queued for them has
+    // nowhere to go.
+    for device in [&device_a, &device_b] {
+        let queued = device.qs_fetch_messages().await.unwrap();
+        let processed = device.fully_process_qs_messages(queued).await;
+        assert!(
+            processed
+                .errors
+                .iter()
+                .all(|error| error.to_string().contains("No chat found")),
+            "{:?}",
+            processed.errors
+        );
+    }
+
+    for (device, sibling) in [(&device_a, &device_b), (&device_b, &device_a)] {
+        device.outbound_service().run_once().await;
+        drain_expecting_success(sibling, "a device failed to take the deletion").await;
+    }
+    assert_erased(&device_a, chat_id, "first").await;
+    assert_erased(&device_b, chat_id, "late").await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Accepting falls back to an older request", skip_all)]
+async fn accepting_falls_back_to_the_older_request() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let first = add_username(&mut setup, &alice).await;
+    let second = add_second_username(&setup, &alice).await;
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to follow the usernames").await;
+
+    let bob_user = setup.get_user(&bob).user().clone();
+    let mut sent = Vec::new();
+    for record in [&first, &second] {
+        let chat_id = bob_user
+            .add_contact(record.username.clone(), record.hash, setup.apq_groups)
+            .await
+            .unwrap()
+            .unwrap();
+        sent.push(chat_id);
+    }
+    let older_chat_id = receive_connection_offer(&device_a, &first).await;
+    let newer_chat_id = receive_connection_offer(&device_a, &second).await;
+    assert_eq!([older_chat_id, newer_chat_id], sent.as_slice());
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to take the requests").await;
+
+    bob_user
+        .retract_contact_request(newer_chat_id)
+        .await
+        .unwrap();
+
+    let accepted = device_a
+        .accept_contact_request(newer_chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        accepted, older_chat_id,
+        "the older request should be accepted"
+    );
+    assert!(device_a.chat(&newer_chat_id).await.is_none());
+    let chat = device_a.chat(&older_chat_id).await.unwrap();
+    assert_eq!(chat.chat_type(), &ChatType::Connection(bob.clone()));
+
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to follow the accept").await;
+    assert!(pending_chats_from(&device_b, &bob).await.is_empty());
+    let chat_b = device_b.chat(&older_chat_id).await.unwrap();
+    assert_eq!(chat_b.chat_type(), &ChatType::Connection(bob.clone()));
+
+    drain_expecting_success(&bob_user, "bob failed to take the accept").await;
+    let bob_chat = bob_user.chat(&older_chat_id).await.unwrap();
+    assert_eq!(bob_chat.chat_type(), &ChatType::Connection(alice.clone()));
 }
