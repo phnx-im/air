@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Incoming connection requests across the devices of a user.
+//! Connection requests across the devices of a user.
 
 use aircoreclient::{
     ChatId, ChatType, DisplayName, EventMessage, Message, SystemMessage, UserProfile,
@@ -15,7 +15,7 @@ use super::{
     group_bootstrap::{
         add_username, drain_expecting_success, link_sibling, receive_connection_offer,
     },
-    multi_device::{drain_queue, send_and_receive},
+    multi_device::{drain_queue, link_new_device, send_and_receive},
 };
 
 /// Whether the chat holds a system message matching `predicate`.
@@ -378,6 +378,175 @@ async fn linked_device_gets_open_incoming_requests() {
             .chat_type(),
         &ChatType::Connection(charlie.clone())
     );
+}
+
+/// When the recipients accept the outgoing requests, relative to the new
+/// device's onboarding into their connection groups.
+#[derive(Debug, Clone, Copy)]
+enum Acceptance {
+    AfterOnboarding,
+    /// Before the onboarding, with the new device processing the joins before
+    /// it onboards.
+    BeforeOnboardingJoinsFirst,
+    /// Before the onboarding, with the new device processing the joins after
+    /// it onboards.
+    BeforeOnboardingJoinsLast,
+}
+
+/// A new device gets the open outgoing requests of its user and follows the
+/// recipients accepting them. When they accept before it onboards, the new
+/// device holds their joins only in its queue, at an epoch before the one it
+/// onboards at.
+async fn linked_device_gets_open_outgoing_requests(acceptance: Acceptance) {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    let dave = setup.add_user().await;
+
+    // Alice and charlie share a group, through dave.
+    setup.connect_users(&dave, &alice).await;
+    setup.connect_users(&dave, &charlie).await;
+    let group_chat_id = setup.create_group(&dave).await;
+    setup
+        .invite_to_group(group_chat_id, &dave, vec![&alice, &charlie])
+        .await;
+    let record = add_username(&mut setup, &bob).await;
+    let device_a = setup.get_user(&alice).user().clone();
+
+    // An open request to bob's username, and one through the group to charlie.
+    let username_chat_id = device_a
+        .add_contact(record.username.clone(), record.hash, setup.apq_groups)
+        .await
+        .unwrap()
+        .unwrap();
+    let group_request_chat_id = device_a
+        .add_contact_from_group(group_chat_id, charlie.clone(), setup.apq_groups)
+        .await
+        .unwrap();
+
+    let (device_b, _tmp) = link_new_device(&setup, &alice).await;
+    drain_queue(&device_a).await;
+    if let Acceptance::AfterOnboarding = acceptance {
+        device_b.outbound_service().run_once().await;
+        drain_queue(&device_a).await;
+        drain_queue(&device_b).await;
+        assert_eq!(
+            device_b.chat(&username_chat_id).await.unwrap().chat_type(),
+            &ChatType::HandleConnection(record.username.clone())
+        );
+        assert_eq!(
+            device_b
+                .chat(&group_request_chat_id)
+                .await
+                .unwrap()
+                .chat_type(),
+            &ChatType::TargetedMessageConnection(charlie.clone())
+        );
+    }
+
+    let bob_user = setup.get_user(&bob).user().clone();
+    receive_connection_offer(&bob_user, &record).await;
+    bob_user
+        .accept_contact_request(username_chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+    let charlie_user = setup.get_user(&charlie).user().clone();
+    drain_expecting_success(&charlie_user, "charlie failed to take the request").await;
+    charlie_user
+        .accept_contact_request(group_request_chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+
+    match acceptance {
+        Acceptance::AfterOnboarding => {}
+        Acceptance::BeforeOnboardingJoinsFirst => {
+            drain_expecting_success(&device_b, "the new device failed on the joins").await;
+            device_b.outbound_service().run_once().await;
+        }
+        Acceptance::BeforeOnboardingJoinsLast => {
+            device_b.outbound_service().run_once().await;
+            drain_expecting_success(&device_b, "the new device failed on the joins").await;
+        }
+    }
+
+    for (label, device) in [("original", &device_a), ("new", &device_b)] {
+        drain_expecting_success(device, "a device failed to follow the accepts").await;
+        assert_eq!(
+            device.chat(&username_chat_id).await.unwrap().chat_type(),
+            &ChatType::Connection(bob.clone()),
+            "the {label} device should see the connection to bob"
+        );
+        assert_eq!(
+            device
+                .chat(&group_request_chat_id)
+                .await
+                .unwrap()
+                .chat_type(),
+            &ChatType::Connection(charlie.clone()),
+            "the {label} device should see the connection to charlie"
+        );
+    }
+    assert!(
+        has_system_message(&device_b, group_request_chat_id, |message| matches!(
+            message,
+            SystemMessage::SentGroupConnectionRequest { recipient, origin_chat_id }
+                if recipient == &charlie && origin_chat_id == &group_chat_id
+        ))
+        .await
+    );
+    assert!(
+        has_system_message(&device_b, username_chat_id, |message| matches!(
+            message,
+            SystemMessage::ReceivedConnectionConfirmation { sender, .. } if sender == &bob
+        ))
+        .await
+    );
+
+    send_and_receive(
+        &device_b,
+        &[&bob_user, &device_a],
+        username_chat_id,
+        "hi bob",
+    )
+    .await;
+    send_and_receive(
+        &device_b,
+        &[&charlie_user, &device_a],
+        group_request_chat_id,
+        "hi charlie",
+    )
+    .await;
+
+    // A commit of the new device passes the room state checks of the others.
+    device_b.update_key(username_chat_id).await.unwrap();
+    send_and_receive(
+        &bob_user,
+        &[&device_a, &device_b],
+        username_chat_id,
+        "hi alice",
+    )
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Requests accepted after onboarding", skip_all)]
+async fn outgoing_requests_accepted_after_onboarding() {
+    linked_device_gets_open_outgoing_requests(Acceptance::AfterOnboarding).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Requests accepted before onboarding, joins first", skip_all)]
+async fn outgoing_requests_accepted_before_onboarding_joins_first() {
+    linked_device_gets_open_outgoing_requests(Acceptance::BeforeOnboardingJoinsFirst).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Requests accepted before onboarding, joins last", skip_all)]
+async fn outgoing_requests_accepted_before_onboarding_joins_last() {
+    linked_device_gets_open_outgoing_requests(Acceptance::BeforeOnboardingJoinsLast).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

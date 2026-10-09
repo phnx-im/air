@@ -3851,6 +3851,76 @@ String toString() {
 
 
 /// @nodoc
+
+
+class UiSystemMessage_SentDirectConnectionRequest extends UiSystemMessage {
+  const UiSystemMessage_SentDirectConnectionRequest({required this.recipient, required this.originChatId}): super._();
+  
+
+ final  UiUserId recipient;
+ final  ChatId originChatId;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiSystemMessage_SentDirectConnectionRequestCopyWith<UiSystemMessage_SentDirectConnectionRequest> get copyWith => _$UiSystemMessage_SentDirectConnectionRequestCopyWithImpl<UiSystemMessage_SentDirectConnectionRequest>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_SentDirectConnectionRequest&&(identical(other.recipient, recipient) || other.recipient == recipient)&&(identical(other.originChatId, originChatId) || other.originChatId == originChatId));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,recipient,originChatId);
+}
+
+@override
+String toString() {
+    return 'UiSystemMessage.sentDirectConnectionRequest(recipient: $recipient, originChatId: $originChatId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiSystemMessage_SentDirectConnectionRequestCopyWith<$Res> implements $UiSystemMessageCopyWith<$Res> {
+  factory $UiSystemMessage_SentDirectConnectionRequestCopyWith(UiSystemMessage_SentDirectConnectionRequest value, $Res Function(UiSystemMessage_SentDirectConnectionRequest) _then) = _$UiSystemMessage_SentDirectConnectionRequestCopyWithImpl;
+@useResult
+$Res call({
+ UiUserId recipient, ChatId originChatId
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiSystemMessage_SentDirectConnectionRequestCopyWithImpl<$Res>
+    implements $UiSystemMessage_SentDirectConnectionRequestCopyWith<$Res> {
+  _$UiSystemMessage_SentDirectConnectionRequestCopyWithImpl(this._self, this._then);
+
+  final UiSystemMessage_SentDirectConnectionRequest _self;
+  final $Res Function(UiSystemMessage_SentDirectConnectionRequest) _then;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? recipient = null,Object? originChatId = null,}) {
+  return _then(UiSystemMessage_SentDirectConnectionRequest(
+recipient: null == recipient ? _self.recipient : recipient // ignore: cast_nullable_to_non_nullable
+as UiUserId,originChatId: null == originChatId ? _self.originChatId : originChatId // ignore: cast_nullable_to_non_nullable
+as ChatId,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$UiUsername {
 
  String get plaintext;

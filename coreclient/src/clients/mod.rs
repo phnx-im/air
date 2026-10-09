@@ -68,7 +68,6 @@ use crate::{
         Chat,
         messages::{ChatMessage, TimestampedMessage},
     },
-    clients::connection_offer::FriendshipPackage,
     contacts::Contact,
     db::notification::DbNotification,
     key_stores::MemoryUserKeyStore,
