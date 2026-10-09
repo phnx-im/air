@@ -158,10 +158,6 @@ impl DsRequestError {
         }
     }
 
-    pub fn is_invalid_argument(&self) -> bool {
-        matches!(self, Self::Tonic(status) if status.code() == Code::InvalidArgument)
-    }
-
     pub fn device_limit_reached(&self) -> Option<DeviceLimitReachedDetail> {
         if let Self::Tonic(status) = self
             && status.code() == Code::ResourceExhausted

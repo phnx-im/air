@@ -73,9 +73,6 @@ impl From<ApiClientInitError> for OutboundServiceError {
 /// The first rate limited or network request error in the chain of `error`,
 /// as [`OutboundServiceError::RateLimited`] or
 /// [`OutboundServiceError::NetworkError`].
-///
-/// TODO(gabriel): remove this abomination by making sure we bubble up this
-/// correctly from all callsites.
 fn transient_request_error(error: &anyhow::Error) -> Option<OutboundServiceError> {
     error.chain().find_map(|error| {
         let kind = error

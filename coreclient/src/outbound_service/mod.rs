@@ -227,6 +227,7 @@ impl<C: OutboundServiceWork> OutboundService<C> {
     /// Runs the background task and waits until it is done.
     ///
     /// If the background is already running, just waits until it is done.
+    /// During a rate limit backoff, returns without running the work.
     ///
     /// The task is stopped in any case.
     pub async fn run_once(&self) {
