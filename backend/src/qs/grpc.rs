@@ -529,7 +529,8 @@ impl QueueService for GrpcQs {
             queues: self.qs.queues.clone(),
             client_id,
         };
-        let responses = info_span!("qs_listen", qs_client_id = %client_id).in_scope(|| {
+        let qs_client = self.qs.client_pseudonymizer.pseudonym(&client_id);
+        let responses = info_span!("qs_listen", %qs_client).in_scope(|| {
             spawn_listen_session(requests, events, self.qs.stop.clone(), handler, "qs")
         });
         Ok(Response::new(responses))
