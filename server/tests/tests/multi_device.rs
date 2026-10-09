@@ -530,6 +530,28 @@ async fn multi_device_linking_session() {
 
 // Linking with a session ID that was never registered returns an error.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test attachment upload in the self-group", skip_all)]
+async fn multi_device_self_group_attachment_upload() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let user = setup.get_user(&alice).user();
+    let chat_id = self_chat_id(user).await;
+
+    let tmp_dir = TempDir::new().unwrap();
+    let path = tmp_dir.path().join("test.bin");
+    std::fs::write(&path, [0x00, 0x01, 0x02, 0x03]).unwrap();
+
+    let (_attachment_id, _progress, upload_task) = user
+        .upload_chat_attachment(chat_id, &path, MarkChatAsRead::Yes)
+        .await
+        .unwrap()
+        .unwrap();
+    if let Err(error) = upload_task.await {
+        panic!("upload in the self-group failed: {error:?}");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Test link with nonexistent session ID", skip_all)]
 async fn multi_device_link_with_nonexistent_session_id() {
     let mut setup = TestBackend::single().await;

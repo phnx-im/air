@@ -13,8 +13,11 @@ use airapiclient::{
     ds_api::{DsAttachmentTarget, ProvisionAttachmentResponse},
 };
 use aircommon::{
-    credentials::keys::UserSigningKey,
-    crypto::aead::{AeadCiphertext, AeadEncryptable, keys::AttachmentEarKey},
+    credentials::keys::ClientKeyType,
+    crypto::{
+        aead::{AeadCiphertext, AeadEncryptable, keys::AttachmentEarKey},
+        signatures::private_keys::SigningKey,
+    },
     identifiers::{RemoteAttachmentId, UserId},
 };
 use airprotos::{
@@ -390,9 +393,10 @@ impl CoreUser {
         group.ensure_clean(connection.as_mut())?;
         drop(connection);
 
+        let signer = self.attachment_signer(&group.attachment_target()).await?;
         let provisioned = encrypt_and_provision(
             &self.api_client()?,
-            self.signing_key(),
+            &signer,
             AttachmentTarget::Group(&group),
             StorageObjectType::Attachment,
             &content,
@@ -874,7 +878,7 @@ struct ProvisionedAttachment {
 
 async fn encrypt_and_provision(
     api_client: &ApiClient,
-    signing_key: &UserSigningKey,
+    signing_key: &SigningKey<ClientKeyType>,
     target: AttachmentTarget<'_>,
     object_type: StorageObjectType,
     content: &AttachmentBytes,

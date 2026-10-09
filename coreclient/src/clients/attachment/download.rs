@@ -46,6 +46,8 @@ enum AttachmentDownloadError {
     ApiClientInit(#[from] ApiClientInitError),
     #[error("failed to get attachment download URL: {0}")]
     DsRequest(#[from] DsRequestError),
+    #[error("failed to load attachment signing key: {0}")]
+    Signer(#[source] anyhow::Error),
     #[error("failed to download attachment: {0}")]
     Http(#[from] reqwest::Error),
     #[error("attachment size overflow: {0}")]
@@ -204,13 +206,9 @@ impl CoreUser {
         remote_attachment_id: RemoteAttachmentId,
     ) -> anyhow::Result<Url> {
         let api_client = self.api_clients().default_client()?;
+        let signer = self.attachment_signer(&target).await?;
         let download_url = api_client
-            .ds_get_attachment_url(
-                object_type,
-                self.signing_key(),
-                target,
-                remote_attachment_id,
-            )
+            .ds_get_attachment_url(object_type, &signer, target, remote_attachment_id)
             .await?
             .parse()?;
         Ok(download_url)
@@ -259,11 +257,16 @@ impl CoreUser {
 
         // Get the download URL from DS
         let api_client = self.api_clients().default_client()?;
+        let target = group.attachment_target();
+        let signer = self
+            .attachment_signer(&target)
+            .await
+            .map_err(AttachmentDownloadError::Signer)?;
         let download_url = api_client
             .ds_get_attachment_url(
                 StorageObjectType::Attachment,
-                self.signing_key(),
-                group.attachment_target(),
+                &signer,
+                target,
                 remote_attachment_id,
             )
             .await?;
