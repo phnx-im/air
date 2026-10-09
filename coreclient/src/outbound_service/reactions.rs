@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::MimiId;
+use aircommon::{identifiers::MimiId, time::TimeStamp};
 use anyhow::Context;
 use mimi_content::MimiContent;
 use tokio_util::sync::CancellationToken;
@@ -14,7 +14,7 @@ use crate::{
     chats::reactions::Reaction,
     db::access::{WriteConnection, WriteDbTransaction},
     job::pending_chat_operation::PendingChatOperation,
-    outbound_service::resync::Resync,
+    outbound_service::{error::OutboundServiceError, resync::Resync, retry::RetryPolicy},
 };
 
 use super::{OutboundService, OutboundServiceContext, SendOutcome, reaction_queue::ReactionQueue};
@@ -44,7 +44,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_queued_reactions(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), OutboundServiceError> {
         // Used to identify locked reactions by this task
         let task_id = Uuid::new_v4();
         loop {
@@ -54,8 +54,11 @@ impl OutboundServiceContext {
 
             let Some(dequeued) = self
                 .db
-                .with_write_transaction(async |txn| ReactionQueue::dequeue(txn, task_id).await)
-                .await?
+                .with_write_transaction(async |txn| {
+                    ReactionQueue::dequeue(txn, task_id, TimeStamp::now()).await
+                })
+                .await
+                .map_err(OutboundServiceError::fatal)?
             else {
                 return Ok(());
             };
@@ -96,7 +99,9 @@ impl OutboundServiceContext {
                 continue;
             }
 
-            match self.send_reaction_message(&dequeued).await {
+            let policy = RetryPolicy::REACTIONS_AND_RECEIPTS;
+            let result = self.send_reaction_message(&dequeued).await;
+            match policy.fatal_when_exhausted(result, dequeued.attempts) {
                 Ok(SendOutcome::Sent) => {
                     self.db
                         .with_write_transaction(async |txn| {
@@ -109,9 +114,37 @@ impl OutboundServiceContext {
                     // at a fresh generation. It stays locked by this task until then.
                     debug!(?chat_id, "Reaction collided, re-enqueuing for a later run");
                 }
-                Err(error) => {
+                // Keeps the reaction queued, every further request would fail as well
+                Err(
+                    error @ (OutboundServiceError::NetworkError
+                    | OutboundServiceError::RateLimited { .. }),
+                ) => {
+                    debug!(%error, ?chat_id, "Failed to send reaction; will retry later");
+                    return Err(error);
+                }
+                Err(OutboundServiceError::Recoverable(error)) => {
+                    // Leave the reaction in the queue so a later run retries it
+                    if let Some((attempts, retry_at)) = policy.defer(error.cause, dequeued.attempts)
+                    {
+                        self.db
+                            .with_write_transaction(async |txn| {
+                                ReactionQueue::record_failed_attempt(
+                                    txn,
+                                    dequeued.id,
+                                    attempts,
+                                    retry_at.into(),
+                                )
+                                .await
+                            })
+                            .await?;
+                    }
+                    error!(%error, ?chat_id, "Failed to send reaction; will retry later");
+                }
+                Err(OutboundServiceError::Fatal(error)) => {
                     error!(%error, ?chat_id, "Failed to send reaction; dropping and rolling back");
-                    self.rollback_failed_reaction(&dequeued).await?;
+                    self.rollback_failed_reaction(&dequeued)
+                        .await
+                        .map_err(OutboundServiceError::fatal)?;
                 }
             }
         }
@@ -120,19 +153,21 @@ impl OutboundServiceContext {
     async fn send_reaction_message(
         &self,
         dequeued: &super::reaction_queue::DequeuedReaction,
-    ) -> anyhow::Result<SendOutcome> {
+    ) -> Result<SendOutcome, OutboundServiceError> {
         // load chat
         let chat = self
             .db
             .with_read_transaction(async |txn| Chat::load(txn, &dequeued.chat_id).await)
             .await?
-            .with_context(|| format!("Can't find chat with id {}", dequeued.chat_id))?;
+            .with_context(|| format!("Can't find chat with id {}", dequeued.chat_id))
+            .map_err(OutboundServiceError::fatal)?;
         if let ChatStatus::Blocked = chat.status() {
             return Ok(SendOutcome::Sent);
         }
 
         let content = MimiContent::deserialize(&dequeued.content)
-            .context("Failed to deserialize queued reaction content")?;
+            .context("Failed to deserialize queued reaction content")
+            .map_err(OutboundServiceError::fatal)?;
         self.send_application_message(&chat, content).await
     }
 

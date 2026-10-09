@@ -228,7 +228,7 @@ mod persistence {
         pub(crate) async fn dequeue(
             txn: &mut WriteDbTransaction<'_>,
             task_id: Uuid,
-            now: DateTime<Utc>,
+            due_at: DateTime<Utc>,
         ) -> sqlx::Result<Option<Self>>
         where
             T: OperationData + DeserializeOwned + Unpin + Send + 'static,
@@ -245,7 +245,7 @@ mod persistence {
                 LIMIT 1
                 "#,
                 kind,
-                now,
+                due_at,
                 task_id,
             )
             .fetch_optional(txn.as_mut())
@@ -346,11 +346,26 @@ mod persistence {
         /// Increase the number of retries and set the retry due at
         pub(crate) async fn reschedule(
             &mut self,
-            mut connection: impl WriteConnection,
+            connection: impl WriteConnection,
+            schedule_at: DateTime<Utc>,
+        ) -> sqlx::Result<()> {
+            self.retries += 1;
+            self.scheduled_at = schedule_at;
+            self.store_schedule(connection).await
+        }
+
+        /// Set the retry due at without counting a retry, for failures that are
+        /// not the operation's fault (network errors, rate limiting)
+        pub(crate) async fn postpone(
+            &mut self,
+            connection: impl WriteConnection,
             schedule_at: DateTime<Utc>,
         ) -> sqlx::Result<()> {
             self.scheduled_at = schedule_at;
-            self.retries += 1;
+            self.store_schedule(connection).await
+        }
+
+        async fn store_schedule(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
             let retries = self.retries as i64;
             query!(
                 "UPDATE operation SET
@@ -488,6 +503,30 @@ mod tests {
 
         let retry_time = Utc::now() + chrono::Duration::minutes(5);
         op.reschedule(&mut txn, retry_time).await.unwrap();
+
+        let op = Operation::<MockData>::dequeue(&mut txn, Uuid::new_v4(), retry_time)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(op.retries, 1);
+        assert_eq!(op.scheduled_at, retry_time);
+    }
+
+    #[sqlx::test]
+    async fn test_postpone_keeps_retries(pool: SqlitePool) {
+        let pool = DbAccess::for_tests(pool);
+
+        let mut connection = pool.write().await.unwrap();
+        let mut txn = connection.begin().await.unwrap();
+        let mut op = Operation::new(MockData {
+            payload: "postpone_test".to_string(),
+        });
+        op.enqueue(&mut txn).await.unwrap();
+
+        let retry_time = Utc::now() + chrono::Duration::minutes(5);
+        op.reschedule(&mut txn, retry_time).await.unwrap();
+        op.postpone(&mut txn, retry_time).await.unwrap();
 
         let op = Operation::<MockData>::dequeue(&mut txn, Uuid::new_v4(), retry_time)
             .await

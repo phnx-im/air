@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT chat_id AS \"chat_id: _\"\n                    FROM receipt_queue\n                    WHERE (locked_at IS NULL OR locked_at < ?1)\n                        AND (retry_at IS NULL OR retry_at <= ?2)\n                    ORDER BY created_at ASC\n                    LIMIT 1\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "chat_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "receipt_queue",
+            "name": "chat_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d1fad450729fd3e65962d8b2e5c767c342b73a0fad6a48867be961decd180be4"
+}

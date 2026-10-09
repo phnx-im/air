@@ -18,6 +18,14 @@ impl ChatMessageQueue {
     }
 }
 
+/// A dequeued, locked message ready to be sent.
+pub(crate) struct DequeuedMessage {
+    pub(crate) chat_id: ChatId,
+    pub(crate) message_id: MessageId,
+    /// Server errors this message already ran into.
+    pub(crate) attempts: u32,
+}
+
 mod persistence {
     use aircommon::time::TimeStamp;
     use mimi_content::MessageStatus;
@@ -54,19 +62,32 @@ mod persistence {
             Ok(())
         }
 
+        /// Dequeues the oldest message that is due. A message is only sent once
+        /// every earlier message of its chat left the queue, so a message kept
+        /// for a later run holds back the rest of its chat.
         pub(crate) async fn dequeue(
             txn: &mut WriteDbTransaction<'_>,
             task_id: Uuid,
-        ) -> anyhow::Result<Option<(ChatId, MessageId)>> {
+            due_at: TimeStamp,
+        ) -> anyhow::Result<Option<DequeuedMessage>> {
             let Some(message_id) = query_scalar!(
                 r#"
                 SELECT message_id
-                FROM chat_message_queue
-                WHERE locked_by IS NULL OR locked_by != ?1
-                ORDER BY created_at ASC
+                FROM chat_message_queue AS queued
+                WHERE (locked_by IS NULL OR locked_by != ?1)
+                    AND (retry_at IS NULL OR retry_at <= ?2)
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM chat_message_queue AS earlier
+                        WHERE earlier.chat_id = queued.chat_id
+                            AND (earlier.created_at, earlier.rowid)
+                                < (queued.created_at, queued.rowid)
+                    )
+                ORDER BY created_at ASC, rowid ASC
                 LIMIT 1
                 "#,
-                task_id
+                task_id,
+                due_at,
             )
             .fetch_optional(txn.as_mut())
             .await?
@@ -74,17 +95,16 @@ mod persistence {
                 return Ok(None);
             };
 
-            struct DequeuedMessage {
-                message_id: Uuid,
-                chat_id: Uuid,
-            }
-            let res = query_as!(
+            let dequeued = query_as!(
                 DequeuedMessage,
                 r#"
                 UPDATE chat_message_queue
                 SET locked_by = ?1
                 WHERE message_id = ?2
-                RETURNING message_id AS "message_id: _", chat_id AS "chat_id: _"
+                RETURNING
+                    message_id AS "message_id: _",
+                    chat_id AS "chat_id: _",
+                    attempts AS "attempts: _"
                 "#,
                 task_id,
                 message_id
@@ -92,15 +112,27 @@ mod persistence {
             .fetch_optional(txn.as_mut())
             .await?;
 
-            if let Some(DequeuedMessage {
+            Ok(dequeued)
+        }
+
+        /// Keeps the message queued until `retry_at`.
+        pub(crate) async fn record_failed_attempt(
+            txn: &mut WriteDbTransaction<'_>,
+            message_id: MessageId,
+            attempts: u32,
+            retry_at: TimeStamp,
+        ) -> sqlx::Result<()> {
+            query!(
+                "UPDATE chat_message_queue
+                 SET attempts = ?, retry_at = ?
+                 WHERE message_id = ?",
+                attempts,
+                retry_at,
                 message_id,
-                chat_id,
-            }) = res
-            {
-                Ok(Some((ChatId::new(chat_id), MessageId::new(message_id))))
-            } else {
-                Ok(None)
-            }
+            )
+            .execute(txn.as_mut())
+            .await?;
+            Ok(())
         }
 
         pub(crate) async fn remove(
@@ -172,6 +204,7 @@ mod persistence {
 
     #[cfg(test)]
     mod test {
+        use chrono::{TimeDelta, Utc};
         use sqlx::SqlitePool;
 
         use crate::{
@@ -228,11 +261,13 @@ mod persistence {
         async fn drain(db: &DbAccess) -> anyhow::Result<Vec<MessageId>> {
             let task_id = Uuid::new_v4();
             let mut message_ids = Vec::new();
-            while let Some((_, message_id)) = db
-                .with_write_transaction(async |txn| ChatMessageQueue::dequeue(txn, task_id).await)
+            while let Some(dequeued) = db
+                .with_write_transaction(async |txn| {
+                    ChatMessageQueue::dequeue(txn, task_id, TimeStamp::now()).await
+                })
                 .await?
             {
-                message_ids.push(message_id);
+                message_ids.push(dequeued.message_id);
             }
             Ok(message_ids)
         }
@@ -271,6 +306,78 @@ mod persistence {
             assert_eq!(stored_status(&db, first.id()).await?, MessageStatus::Error);
             assert_eq!(stored_status(&db, second.id()).await?, MessageStatus::Error);
             assert!(drain(&db).await?.is_empty());
+
+            Ok(())
+        }
+
+        async fn remove(db: &DbAccess, message_id: MessageId) -> anyhow::Result<()> {
+            db.with_write_transaction(async |txn| -> anyhow::Result<_> {
+                ChatMessageQueue::remove(txn, message_id).await?;
+                Ok(())
+            })
+            .await
+        }
+
+        async fn record_failed_attempt(
+            db: &DbAccess,
+            message_id: MessageId,
+            attempts: u32,
+            retry_in: TimeDelta,
+        ) -> anyhow::Result<()> {
+            let retry_at = TimeStamp::from(Utc::now() + retry_in);
+            db.with_write_transaction(async |txn| -> anyhow::Result<_> {
+                ChatMessageQueue::record_failed_attempt(txn, message_id, attempts, retry_at)
+                    .await?;
+                Ok(())
+            })
+            .await
+        }
+
+        #[sqlx::test]
+        async fn queued_message_holds_back_its_chat(pool: SqlitePool) -> anyhow::Result<()> {
+            let db = DbAccess::for_tests(pool);
+            let (first, second) = queued_messages(&db).await?;
+
+            let other_chat = test_chat();
+            other_chat.store(db.write().await?).await?;
+            let other = test_chat_message_with_salt(other_chat.id(), [3; 16]);
+            other.store(db.write().await?).await?;
+            db.with_write_transaction(async |txn| -> anyhow::Result<_> {
+                ChatMessageQueue::new(other_chat.id(), other.id())
+                    .enqueue(&mut *txn)
+                    .await?;
+                Ok(())
+            })
+            .await?;
+
+            // `first` stays queued, so `second` waits while the other chat goes on
+            assert_eq!(drain(&db).await?, vec![first.id(), other.id()]);
+
+            remove(&db, first.id()).await?;
+            remove(&db, other.id()).await?;
+            assert_eq!(drain(&db).await?, vec![second.id()]);
+
+            Ok(())
+        }
+
+        #[sqlx::test]
+        async fn failed_attempt_defers_message(pool: SqlitePool) -> anyhow::Result<()> {
+            let db = DbAccess::for_tests(pool);
+            let (first, _second) = queued_messages(&db).await?;
+
+            // Neither the deferred message nor the rest of its chat is due
+            record_failed_attempt(&db, first.id(), 1, TimeDelta::hours(1)).await?;
+            assert!(drain(&db).await?.is_empty());
+
+            record_failed_attempt(&db, first.id(), 2, TimeDelta::seconds(-1)).await?;
+            let dequeued = db
+                .with_write_transaction(async |txn| {
+                    ChatMessageQueue::dequeue(txn, Uuid::new_v4(), TimeStamp::now()).await
+                })
+                .await?
+                .expect("message is due again");
+            assert_eq!(dequeued.message_id, first.id());
+            assert_eq!(dequeued.attempts, 2);
 
             Ok(())
         }

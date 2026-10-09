@@ -847,22 +847,78 @@ pub(crate) async fn delete_token_at(
     Ok(result.rows_affected())
 }
 
-/// Loads every redemption whose broadcast is due at `now`.
+/// Loads every redemption whose broadcast is due at `due_at`, with the failed
+/// attempts to broadcast it so far.
 pub(crate) async fn load_redeemed_due(
     mut connection: impl ReadConnection,
-    now: DateTime<Utc>,
-) -> sqlx::Result<Vec<TokenPosition>> {
+    due_at: DateTime<Utc>,
+) -> sqlx::Result<Vec<(TokenPosition, u32)>> {
+    struct Row {
+        operation_type: i64,
+        key_fingerprint: Vec<u8>,
+        allowance_epoch: i64,
+        token_index: i64,
+        broadcast_attempts: u32,
+    }
     let rows = sqlx::query_as!(
-        RedeemedRow,
-        "SELECT operation_type, key_fingerprint, allowance_epoch, token_index
+        Row,
+        r#"SELECT
+            operation_type,
+            key_fingerprint,
+            allowance_epoch,
+            token_index,
+            broadcast_attempts AS "broadcast_attempts: _"
          FROM privacy_pass_redeemed
          WHERE broadcast_after IS NOT NULL AND broadcast_after <= ?
-         ORDER BY operation_type, key_fingerprint, allowance_epoch, token_index",
-        now
+         ORDER BY
+            operation_type,
+            key_fingerprint,
+            allowance_epoch,
+            token_index"#,
+        due_at
     )
     .fetch_all(connection.as_mut())
     .await?;
-    rows.into_iter().map(RedeemedRow::decode).collect()
+    rows.into_iter()
+        .map(|row| {
+            let position = RedeemedRow {
+                operation_type: row.operation_type,
+                key_fingerprint: row.key_fingerprint,
+                allowance_epoch: row.allowance_epoch,
+                token_index: row.token_index,
+            }
+            .decode()?;
+            Ok((position, row.broadcast_attempts))
+        })
+        .collect()
+}
+
+/// Defers the pending broadcast of the redemption at `position`.
+pub(crate) async fn defer_redeemed(
+    mut connection: impl WriteConnection,
+    position: &TokenPosition,
+    attempts: u32,
+    broadcast_after: DateTime<Utc>,
+) -> sqlx::Result<()> {
+    let (operation_type, key_fingerprint, allowance_epoch, token_index) = position.sql_params();
+    sqlx::query!(
+        "UPDATE privacy_pass_redeemed
+         SET broadcast_attempts = ?, broadcast_after = ?
+         WHERE operation_type = ?
+            AND key_fingerprint = ?
+            AND allowance_epoch = ?
+            AND token_index = ?
+            AND broadcast_after IS NOT NULL",
+        attempts,
+        broadcast_after,
+        operation_type,
+        key_fingerprint,
+        allowance_epoch,
+        token_index
+    )
+    .execute(connection.as_mut())
+    .await?;
+    Ok(())
 }
 
 /// Loads every recorded redemption, for the snapshot a newly linked device

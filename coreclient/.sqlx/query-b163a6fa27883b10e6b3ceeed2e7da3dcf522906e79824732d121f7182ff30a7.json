@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE receipt_queue\n                    SET locked_by = ?1, locked_at = ?2\n                    WHERE rowid IN (\n                        SELECT rowid FROM receipt_queue\n                        WHERE chat_id = ?3\n                            AND (locked_at IS NULL OR locked_at < ?4)\n                            AND (retry_at IS NULL OR retry_at <= ?2)\n                        ORDER BY created_at ASC\n                        LIMIT ?5\n                    )\n                RETURNING\n                    mimi_id AS \"mimi_id: _\",\n                    status AS \"status: _\",\n                    attempts AS \"attempts: _\"\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "mimi_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "receipt_queue",
+            "name": "mimi_id"
+          }
+        }
+      },
+      {
+        "name": "status: _",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "receipt_queue",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "name": "attempts: _",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "receipt_queue",
+            "name": "attempts"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b163a6fa27883b10e6b3ceeed2e7da3dcf522906e79824732d121f7182ff30a7"
+}

@@ -16,7 +16,7 @@ use aircommon::{
 };
 use anyhow::{Context, Result, anyhow, bail};
 use apqmls::commit_builder::ApqCommitMessageBundle;
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Utc};
 use openmls::{
     group::GroupId,
     prelude::{LeafNodeIndex, MlsMessageOut},
@@ -39,18 +39,13 @@ use crate::{
         DecryptedProfileInfos, Group, ProfileInfo, handle_group_not_found_on_ds,
         self_group::SelfGroup,
     },
-    job::{operation::OperationData, profile::FetchUserProfileOperation},
+    job::{operation::OperationData, profile::FetchUserProfileOperation, recoverable::Recoverable},
     outbound_service::{
         OutboundServiceContext,
-        error::{
-            OutboundServiceError, classify_ds_error, is_ds_not_found_error, is_ds_rejection_error,
-            is_ds_wrong_epoch_error,
-        },
+        error::{OutboundServiceError, is_ds_not_found_error},
+        retry::{RetryDecision, RetryPolicy},
     },
 };
-
-/// DS rejections before a queued resync is given up on.
-const MAX_RESYNC_ATTEMPTS: u32 = 5;
 
 /// Why a group is being resynced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -174,7 +169,7 @@ pub(crate) struct Resync {
     /// accepted [`Self::outgoing_request`] before this resync onboards.
     pub(crate) accepted_friendship_package: Option<EncryptedFriendshipPackage>,
     pub(crate) reason: ResyncReason,
-    /// How many DS rejections this entry has collected so far.
+    /// How many server errors this entry has collected so far.
     pub(crate) attempts: u32,
 }
 
@@ -263,13 +258,13 @@ impl CoreUser {
 impl OutboundServiceContext {
     /// Drains the resync queue.
     ///
-    /// DS rejections count towards [`MAX_RESYNC_ATTEMPTS`] with backoff, then the entry is marked
+    /// Server errors count towards [`RetryPolicy::RESYNC`] with backoff, then the entry is marked
     /// `failed` until a manual resync or a processed commit clears it. Other errors retry on the
     /// next run.
     pub(super) async fn perform_queued_resyncs(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), OutboundServiceError> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
         loop {
@@ -281,7 +276,8 @@ impl OutboundServiceContext {
             let Some(resync) = self
                 .db
                 .with_write_transaction(async |txn| Resync::dequeue(txn, task_id, now).await)
-                .await?
+                .await
+                .map_err(OutboundServiceError::fatal)?
             else {
                 return Ok(());
             };
@@ -298,7 +294,11 @@ impl OutboundServiceContext {
     }
 
     /// Performs a single dequeued resync and records its outcome in the queue.
-    async fn perform_resync(&self, resync: Resync, now: DateTime<Utc>) -> anyhow::Result<()> {
+    async fn perform_resync(
+        &self,
+        resync: Resync,
+        now: DateTime<Utc>,
+    ) -> Result<(), OutboundServiceError> {
         info!("Performing resync");
 
         let group_id = resync.group_id.clone();
@@ -335,6 +335,14 @@ impl OutboundServiceContext {
             }
             // We are not a member anymore, which was already handled inside.
             Ok(None) => return Ok(()),
+            // Leave the entry untouched and retry in a later run
+            Err(
+                error @ (OutboundServiceError::NetworkError
+                | OutboundServiceError::RateLimited { .. }),
+            ) => {
+                warn!(%error, "Resync failed; retrying later");
+                return Err(error);
+            }
             Err(OutboundServiceError::Fatal(error)) => {
                 if is_ds_not_found_error(&error) {
                     error!(%error, "Group not found on DS during resync; tearing down group");
@@ -342,7 +350,8 @@ impl OutboundServiceContext {
                         .with_write_transaction(async |txn| {
                             handle_group_not_found_on_ds(txn, &group_id).await
                         })
-                        .await?;
+                        .await
+                        .map_err(OutboundServiceError::fatal)?;
                     return Ok(());
                 }
 
@@ -351,7 +360,7 @@ impl OutboundServiceContext {
                 return Ok(());
             }
             Err(OutboundServiceError::Recoverable(error)) => {
-                match retry_decision(&error, attempts) {
+                match RetryPolicy::RESYNC.decide(error.cause, attempts) {
                     RetryDecision::Retry => {
                         warn!(%error, "Resync failed; retrying later");
                     }
@@ -395,43 +404,6 @@ impl OutboundServiceContext {
     }
 }
 
-/// What to do with a queue entry after a recoverable error.
-#[derive(Debug, PartialEq, Eq)]
-enum RetryDecision {
-    /// Leave the entry untouched. The next run picks it up again.
-    Retry,
-    /// Spend an attempt and defer the next one.
-    Backoff { attempts: u32, retry_in: TimeDelta },
-    /// Spend the last attempt and give up.
-    GiveUp,
-}
-
-fn retry_decision(error: &anyhow::Error, attempts: u32) -> RetryDecision {
-    if !is_ds_rejection_error(error) || is_ds_wrong_epoch_error(error) {
-        return RetryDecision::Retry;
-    }
-    let attempts = attempts + 1;
-    if attempts >= MAX_RESYNC_ATTEMPTS {
-        RetryDecision::GiveUp
-    } else {
-        RetryDecision::Backoff {
-            attempts,
-            retry_in: resync_backoff(attempts),
-        }
-    }
-}
-
-/// Backoff 1m -> 2m -> 4m -> 8m, doubling per spent attempt. With
-/// [`MAX_RESYNC_ATTEMPTS`] the entry is given up on after the 8m wait. The
-/// cap only matters if the attempt limit grows.
-fn resync_backoff(attempts: u32) -> TimeDelta {
-    const RESYNC_BACKOFF_BASE: TimeDelta = TimeDelta::seconds(30);
-    const RESYNC_BACKOFF_MAX: TimeDelta = TimeDelta::seconds(60 * 60);
-
-    let factor = 1i32 << attempts.min(16);
-    (RESYNC_BACKOFF_BASE * factor).min(RESYNC_BACKOFF_MAX)
-}
-
 impl Resync {
     /// Resync using an external commit.
     ///
@@ -447,15 +419,12 @@ impl Resync {
         own_user_id: &UserId,
     ) -> Result<Option<(ChatId, DecryptedProfileInfos)>, OutboundServiceError> {
         let shares_vc_leaf = self.shares_vc_leaf;
-        if shares_vc_leaf
-            && SelfGroup::load(&mut connection)
-                .await
-                .map_err(OutboundServiceError::recoverable)?
-                .is_none()
-        {
-            return Err(OutboundServiceError::recoverable(anyhow!(
-                "self group not joined yet; deferring onboarding of group {:?}",
-                self.group_id
+        if shares_vc_leaf && SelfGroup::load(&mut connection).await?.is_none() {
+            return Err(OutboundServiceError::Recoverable(Recoverable::deferred(
+                anyhow!(
+                    "self group not joined yet; deferring onboarding of group {:?}",
+                    self.group_id
+                ),
             )));
         }
 
@@ -474,7 +443,7 @@ impl Resync {
                     handle_group_not_found_on_ds(txn, &self.group_id).await
                 })
                 .await
-                .map_err(OutboundServiceError::recoverable)?;
+                .map_err(OutboundServiceError::fatal)?;
             return Ok(None);
         };
         let connection_contact = self.connection_contact.take();
@@ -482,10 +451,7 @@ impl Resync {
         let accepted_friendship_package = self.accepted_friendship_package.take();
         let ds_timestamp = TimeStamp::now();
 
-        let mut txn = connection
-            .begin()
-            .await
-            .map_err(OutboundServiceError::recoverable)?;
+        let mut txn = connection.begin().await?;
         let (group, commit, member_profile_infos, members_diff) = Box::pin(self.create_commit(
             &mut txn,
             api_clients,
@@ -522,9 +488,7 @@ impl Resync {
             ),
         };
 
-        txn.commit()
-            .await
-            .map_err(OutboundServiceError::recoverable)?;
+        txn.commit().await?;
 
         Self::send_commit(api_clients, signer, &group, commit, original_leaf_index).await?;
 
@@ -669,7 +633,7 @@ impl Resync {
                 &self.group_state_ear_key,
             )
             .await
-            .map_err(classify_ds_error)
+            .map_err(OutboundServiceError::from)
     }
 
     async fn create_commit(
@@ -771,7 +735,7 @@ impl Resync {
             .get(qgid.owning_domain())
             .map_err(OutboundServiceError::fatal)?;
 
-        let response = match commit {
+        match commit {
             ResyncCommit::T(commit) => {
                 api_client
                     .ds_resync(
@@ -781,7 +745,7 @@ impl Resync {
                         group.group_state_ear_key(),
                         original_leaf_index,
                     )
-                    .await
+                    .await?
             }
             ResyncCommit::PQ(bundle) => {
                 api_client
@@ -791,11 +755,10 @@ impl Resync {
                         group.group_state_ear_key(),
                         original_leaf_index,
                     )
-                    .await
+                    .await?
             }
         };
 
-        response.map_err(classify_ds_error)?;
         Ok(())
     }
 }
@@ -1262,72 +1225,14 @@ struct ResyncTCommit {
 
 #[cfg(test)]
 mod tests {
-    use std::{assert_matches, time::Duration};
+    use std::assert_matches;
 
-    use airapiclient::ds_api::DsRequestError;
     use aircommon::crypto::aead::keys::FriendshipPackageEarKey;
-    use airprotos::common::v1::{
-        StatusDetails, StatusDetailsCode, WrongEpochDetail, status_details::Detail,
-    };
+    use chrono::TimeDelta;
 
     use crate::{ChatAttributes, db::access::DbAccess, utils::persistence::open_db_in_memory};
 
     use super::*;
-
-    fn ds_rejection() -> anyhow::Error {
-        DsRequestError::Tonic(tonic::Status::invalid_argument("rejected")).into()
-    }
-
-    fn ds_wrong_epoch() -> anyhow::Error {
-        let details = StatusDetails {
-            code: StatusDetailsCode::WrongEpoch.into(),
-            detail: Some(Detail::WrongEpoch(WrongEpochDetail {})),
-        };
-        DsRequestError::Tonic(details.to_status(tonic::Code::InvalidArgument, "wrong epoch")).into()
-    }
-
-    #[test]
-    fn local_error_does_not_spend_an_attempt() {
-        let error = anyhow!("self group not joined yet");
-        assert_eq!(retry_decision(&error, 3), RetryDecision::Retry);
-    }
-
-    #[test]
-    fn network_error_does_not_spend_an_attempt() {
-        let error: anyhow::Error = DsRequestError::Timeout(Duration::from_secs(1)).into();
-        assert_eq!(retry_decision(&error, 3), RetryDecision::Retry);
-    }
-
-    #[test]
-    fn wrong_epoch_does_not_spend_an_attempt() {
-        assert_eq!(retry_decision(&ds_wrong_epoch(), 3), RetryDecision::Retry);
-    }
-
-    #[test]
-    fn ds_rejection_spends_an_attempt_with_backoff() {
-        assert_eq!(
-            retry_decision(&ds_rejection(), 0),
-            RetryDecision::Backoff {
-                attempts: 1,
-                retry_in: TimeDelta::minutes(1),
-            }
-        );
-        assert_eq!(
-            retry_decision(&ds_rejection(), 3),
-            RetryDecision::Backoff {
-                attempts: 4,
-                retry_in: TimeDelta::minutes(8),
-            }
-        );
-    }
-
-    #[test]
-    fn last_ds_rejection_gives_up() {
-        assert_eq!(
-            retry_decision(&ds_rejection(), MAX_RESYNC_ATTEMPTS - 1),
-            RetryDecision::GiveUp
-        );
-    }
 
     /// A chat and a matching queue entry. The queue only stores ids and keys,
     /// so no MLS group is needed.

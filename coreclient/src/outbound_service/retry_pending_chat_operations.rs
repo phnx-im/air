@@ -9,7 +9,7 @@ use airprotos::client::self_group::{
 use anyhow::Context as _;
 use openmls::group::GroupId;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -22,7 +22,7 @@ use crate::{
     db::access::WriteDbTransaction,
     groups::{Group, VerifiedGroup},
     job::{JobError, pending_chat_operation::PendingChatOperation},
-    outbound_service::{OutboundServiceContext, error::OutboundServiceRunError},
+    outbound_service::{OutboundServiceContext, error::OutboundServiceError},
     privacy_pass,
 };
 
@@ -30,7 +30,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_pending_chat_operations(
         &self,
         run_token: &CancellationToken,
-    ) -> Result<(), OutboundServiceRunError> {
+    ) -> Result<(), OutboundServiceError> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
         loop {
@@ -56,7 +56,8 @@ impl OutboundServiceContext {
                 .with_write_transaction(async |txn| {
                     PendingChatOperation::dequeue(txn, task_id, now).await
                 })
-                .await?;
+                .await
+                .map_err(OutboundServiceError::fatal)?;
             let Some(pending_chat_operation) = pending_chat_operation else {
                 return Ok(());
             };
@@ -67,10 +68,6 @@ impl OutboundServiceContext {
             // The job manages its own retry count and deletion upon success.
             // We're just executing it here.
             match self.execute_job(pending_chat_operation).await {
-                Err(JobError::NetworkError) => {
-                    // If we're getting a network error, error out of the loop and wait for the next run.
-                    return Err(OutboundServiceRunError::NetworkError);
-                }
                 Err(error @ (JobError::Fatal(_) | JobError::Domain(_))) => {
                     error!(%error, ?group_id, "Failed to execute pending chat operation");
                     // This job has a fatal error. Continue with the next one.
@@ -79,6 +76,12 @@ impl OutboundServiceContext {
                 Err(JobError::Blocked | JobError::NotFound) => {
                     continue;
                 }
+                Err(JobError::Recoverable(error)) => {
+                    // The job set its retry due at. Continue with the next one.
+                    warn!(%error, ?group_id, "Failed to execute pending chat operation; retrying later");
+                    continue;
+                }
+                Err(error) => return Err(error.into()),
                 Ok(_) => (),
             }
         }

@@ -37,9 +37,9 @@
 //   - If the epoch is wrong because another participant has already committed
 //     in the meantime, the PCO should be put into status "waiting for queue
 //     response".
-//   - If it's a network error, or this is a retry after an earlier network
-//     error, check if the maximum retry count (5) was reached if it was, delete
-//     the PCO.
+//   - Network errors are retried without limit and never spend an attempt.
+//     Only recoverable server errors spend the budget of 5 attempts, after
+//     which the PCO is deleted.
 //   - If the PCO is a leave operation, it should take immediate local effect
 //     regardless of any "wrong epoch" or network errors. If there was such an
 //     error, it should be retried, though.
@@ -307,7 +307,7 @@ async fn apq_wrong_epoch_recovery_keeps_t_and_pq_rosters_consistent() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn network_errors_eventually_delete_pending_operation() {
+async fn network_errors_do_not_spend_attempts() {
     let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
     let alice_user = &setup.get_user(&alice).user;
 
@@ -317,29 +317,28 @@ async fn network_errors_eventually_delete_pending_operation() {
         .await
         .expect_err("expected update to fail due to network error");
 
-    let mut pending = alice_user
-        .pending_chat_operation_info(chat_id)
-        .await
-        .unwrap()
-        .expect("pending operation should exist");
-    assert_eq!(pending.operation_type, "other");
-
-    while pending.number_of_attempts < 5 {
+    // More retries than the budget of recoverable errors allows
+    for _ in 0..6 {
         setup.listener_control_handle().set_drop_next_response();
         let _ = alice_user
             .update_key(chat_id)
             .await
             .expect_err("expected retry to fail due to network error");
-
-        match alice_user
-            .pending_chat_operation_info(chat_id)
-            .await
-            .unwrap()
-        {
-            Some(info) => pending = info,
-            None => break,
-        }
     }
+
+    let pending = alice_user
+        .pending_chat_operation_info(chat_id)
+        .await
+        .unwrap()
+        .expect("pending operation should survive network errors");
+    assert_eq!(pending.operation_type, "other");
+    assert_eq!(pending.request_status, "ready_to_retry");
+    assert_eq!(pending.number_of_attempts, 0);
+
+    // The first commit reached the DS, its queue response resolves the op
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user.fully_process_qs_messages(qs_messages).await;
+    assert!(result.errors.is_empty());
 
     let pending_after = alice_user
         .pending_chat_operation_info(chat_id)

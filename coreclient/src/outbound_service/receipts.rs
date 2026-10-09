@@ -27,8 +27,8 @@ use crate::{
     groups::{Group, handle_group_not_found_on_ds, openmls_provider::AirOpenMlsProvider},
     job::pending_chat_operation::PendingChatOperation,
     outbound_service::{
-        error::{OutboundServiceError, classify_ds_error},
-        resync::Resync,
+        error::OutboundServiceError, receipt_queue::DequeuedReceipts, resync::Resync,
+        retry::RetryPolicy,
     },
 };
 
@@ -75,16 +75,24 @@ impl OutboundServiceContext {
     pub(super) async fn send_queued_receipts(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<()> {
-        // Used to identify locked receipts by this task
-        let task_id = Uuid::new_v4();
+    ) -> Result<(), OutboundServiceError> {
         loop {
             if run_token.is_cancelled() {
                 return Ok(()); // the task is being stopped
             }
 
-            let Some((chat_id, statuses)) =
-                ReceiptQueue::dequeue(self.db.write().await?, task_id).await?
+            // Identifies the receipts locked for one chat. Receipts are locked for
+            // a while rather than per run, so a run-wide id would also cover the
+            // receipts of chats kept earlier in the run.
+            let task_id = Uuid::new_v4();
+
+            let Some(DequeuedReceipts {
+                chat_id,
+                statuses,
+                attempts,
+            }) = ReceiptQueue::dequeue(self.db.write().await?, task_id, TimeStamp::now())
+                .await
+                .map_err(OutboundServiceError::fatal)?
             else {
                 return Ok(());
             };
@@ -106,8 +114,11 @@ impl OutboundServiceContext {
 
             debug!(?chat_id, num_statuses = statuses.len(), "dequeued receipt");
 
+            let policy = RetryPolicy::REACTIONS_AND_RECEIPTS;
             match UnsentReceipt::new(statuses.iter().map(|(mimi_id, status)| (mimi_id, *status))) {
-                Ok(Some(receipt)) => match self.send_chat_receipt(chat_id, receipt).await {
+                Ok(Some(receipt)) => match policy
+                    .fatal_when_exhausted(self.send_chat_receipt(chat_id, receipt).await, attempts)
+                {
                     Ok(ReceiptSendOutcome::Sent) => {
                         ReceiptQueue::remove(self.db.write().await?, task_id).await?;
                     }
@@ -127,8 +138,18 @@ impl OutboundServiceContext {
                     Err(OutboundServiceError::Recoverable(error)) => {
                         error!(%error, "Failed to send receipt; will retry later");
                         // Don't unlock the receipts now; they will be unlocked after a threshold.
+                        if let Some((attempts, retry_at)) = policy.defer(error.cause, attempts) {
+                            ReceiptQueue::record_failed_attempt(
+                                self.db.write().await?,
+                                task_id,
+                                attempts,
+                                retry_at.into(),
+                            )
+                            .await?;
+                        }
                         continue;
                     }
+                    Err(error) => return Err(error),
                 },
                 Ok(None) => {
                     // Nothing to send => Remove from the queue
@@ -155,8 +176,7 @@ impl OutboundServiceContext {
         let chat = self
             .db
             .with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
-            .await
-            .map_err(OutboundServiceError::recoverable)?
+            .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))
             .map_err(OutboundServiceError::fatal)?;
         if let ChatStatus::Blocked = chat.status() {
@@ -191,13 +211,12 @@ impl OutboundServiceContext {
                     })
                     .await
                     .map_err(OutboundServiceError::fatal)?;
-                return Err(classify_ds_error(ds_error));
+                return Err(ds_error.into());
             }
 
             let collisions = ds_error.process_tag_collisions(&sent_tags);
             if collisions.is_empty() {
-                // Not a collision we can recover from; propagate the error.
-                return Err(classify_ds_error(ds_error));
+                return Err(ds_error.into());
             }
 
             // The DS rejects the whole message on any collision.
@@ -312,16 +331,19 @@ impl OutboundServiceContext {
         &self,
         chat: &Chat,
         content: MimiContent,
-    ) -> anyhow::Result<SendOutcome> {
-        let (group_state_ear_key, params, signer) =
-            self.new_mls_message(chat, content, None).await?;
+    ) -> Result<SendOutcome, OutboundServiceError> {
+        let (group_state_ear_key, params, signer) = self
+            .new_mls_message(chat, content, None)
+            .await
+            .map_err(OutboundServiceError::fatal)?;
         let epoch = params.epoch;
         let sent_tags = params.collision_tags.clone();
         let generation = params.generation;
 
         if let Err(ds_error) = self
             .api_clients
-            .get(&chat.owner_domain())?
+            .get(&chat.owner_domain())
+            .map_err(OutboundServiceError::fatal)?
             .ds_send_message(params, &signer, &group_state_ear_key)
             .await
         {
@@ -330,7 +352,8 @@ impl OutboundServiceContext {
                     .with_write_transaction(async |txn| {
                         handle_group_not_found_on_ds(txn, chat.group_id()).await
                     })
-                    .await?;
+                    .await
+                    .map_err(OutboundServiceError::fatal)?;
                 return Err(ds_error.into());
             }
             if !ds_error.process_tag_collisions(&sent_tags).is_empty() {

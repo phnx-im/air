@@ -23,11 +23,13 @@ use crate::{
         HeterogeneousVcKeyPackageBatch, MemoryUserKeyStore, VcKeyPackageBatchConfig,
         key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
     },
-    outbound_service::{APQ_KEY_PACKAGES, KEY_PACKAGES, OutboundServiceContext},
+    outbound_service::{
+        APQ_KEY_PACKAGES, KEY_PACKAGES, OutboundServiceContext, error::OutboundServiceError,
+    },
 };
 
 impl OutboundServiceContext {
-    pub(super) async fn upload_key_packages(&self) -> anyhow::Result<Duration> {
+    pub(super) async fn upload_key_packages(&self) -> Result<Duration, OutboundServiceError> {
         match SelfGroup::load(self.db.read().await?)
             .await?
             .filter(SelfGroup::has_linked_devices)
@@ -36,13 +38,19 @@ impl OutboundServiceContext {
             // the upload mechanism switches once another device is linked.
             Some(group) => self.upload_via_self_group(group).await,
             None => {
-                let batch = self.generate_key_packages().await?; // shared: plain + APQ
+                let batch = self
+                    .generate_key_packages()
+                    .await
+                    .map_err(OutboundServiceError::fatal)?; // shared: plain + APQ
                 self.upload_via_publish(batch).await
             }
         }
     }
 
-    async fn upload_via_publish(&self, batch: KeyPackageBatch) -> anyhow::Result<Duration> {
+    async fn upload_via_publish(
+        &self,
+        batch: KeyPackageBatch,
+    ) -> Result<Duration, OutboundServiceError> {
         info!(
             plain = batch.plain.len(),
             apq = batch.apq.len(),
@@ -51,7 +59,7 @@ impl OutboundServiceContext {
 
         let api_client = self.api_clients.default_client()?;
 
-        let key_package_refs = batch.references()?;
+        let key_package_refs = batch.references().map_err(OutboundServiceError::fatal)?;
 
         // Publish plain key packages
         if let Err(error) = api_client
@@ -73,7 +81,8 @@ impl OutboundServiceContext {
                 mark_key_packages_as_live(txn, key_package_refs.plain.as_slice(), false).await?;
                 Ok(())
             })
-            .await?;
+            .await
+            .map_err(OutboundServiceError::fatal)?;
 
         // Publish APQ key packages
         if let Err(error) = api_client
@@ -96,14 +105,18 @@ impl OutboundServiceContext {
                 delete_orphaned_key_packages(txn).await?;
                 Ok(())
             })
-            .await?;
+            .await
+            .map_err(OutboundServiceError::fatal)?;
 
         info!("Uploaded key packages");
 
         Ok(Duration::weeks(1))
     }
 
-    async fn upload_via_self_group(&self, mut self_group: SelfGroup) -> anyhow::Result<Duration> {
+    async fn upload_via_self_group(
+        &self,
+        mut self_group: SelfGroup,
+    ) -> Result<Duration, OutboundServiceError> {
         // Generate key packages
         let Some(generated) = self
             .db
@@ -147,7 +160,8 @@ impl OutboundServiceContext {
 
                 Ok(Some(generated))
             })
-            .await?
+            .await
+            .map_err(OutboundServiceError::fatal)?
         else {
             return Ok(Duration::minutes(5));
         };
@@ -166,7 +180,7 @@ impl OutboundServiceContext {
             plain: key_packages,
             apq: apq_key_packages,
         };
-        let key_package_refs = batch.references()?;
+        let key_package_refs = batch.references().map_err(OutboundServiceError::fatal)?;
 
         info!(
             plain = batch.plain.len(),
@@ -174,7 +188,10 @@ impl OutboundServiceContext {
             "Uploading key packages via self-group"
         );
 
-        let api_client = self.api_clients.default_client()?;
+        let api_client = self
+            .api_clients
+            .default_client()
+            .map_err(OutboundServiceError::fatal)?;
         let batch_id = KeyPackageBatchId {
             epoch_id,
             leaf_index,
@@ -227,7 +244,8 @@ impl OutboundServiceContext {
                     .await
                 }),
         )
-        .await?;
+        .await
+        .map_err(OutboundServiceError::fatal)?;
 
         self.execute_job(job).await?;
         Ok(Duration::weeks(1))
