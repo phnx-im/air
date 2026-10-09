@@ -10,8 +10,10 @@ use mls_assist::openmls::{
 };
 
 mod cancellable_stream;
+mod keepalive_stream;
 
 pub use cancellable_stream::{CancellableStream, CancellingStream};
+pub use keepalive_stream::KeepAliveStream;
 
 /// Returns the removed client indices from a staged commit.
 pub fn removed_clients(staged_commit: &StagedCommit) -> Vec<LeafNodeIndex> {

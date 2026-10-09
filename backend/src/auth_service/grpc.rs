@@ -822,13 +822,19 @@ struct UsernameSessionHandler {
 
 impl ListenRequestHandler<ListenUsernameRequest> for UsernameSessionHandler {
     async fn handle(&mut self, request: ListenUsernameRequest) -> Result<(), Status> {
-        let Some(listen_username_request::Request::Ack(ack_request)) = request.request else {
-            return Err(ListenHandleProtocolViolation::OnlyAckRequestAllowed.into());
-        };
-        let Some(message_id) = ack_request.message_id else {
-            return Err(ListenHandleProtocolViolation::MissingMessageId.into());
-        };
-        self.queues.ack(message_id.into()).await?;
+        match request.request {
+            Some(listen_username_request::Request::KeepAlive(_)) => {}
+            Some(listen_username_request::Request::Init(_)) => {
+                return Err(ListenHandleProtocolViolation::UnexpectedInitRequest.into());
+            }
+            Some(listen_username_request::Request::Ack(ack_request)) => {
+                let Some(message_id) = ack_request.message_id else {
+                    return Err(ListenHandleProtocolViolation::MissingMessageId.into());
+                };
+                self.queues.ack(message_id.into()).await?;
+            }
+            None => {}
+        }
         Ok(())
     }
 }
@@ -846,8 +852,8 @@ fn report_gate_reason(decision: GateDecision) {
 enum ListenHandleProtocolViolation {
     /// Missing initial request
     MissingInitRequest,
-    /// Only ack request allowed
-    OnlyAckRequestAllowed,
+    /// Unexpected init request
+    UnexpectedInitRequest,
     /// Missing message id in ack request
     MissingMessageId,
 }

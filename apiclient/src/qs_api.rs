@@ -23,16 +23,17 @@ use aircommon::{
         },
         push_token::EncryptedPushToken,
     },
-    utils::{CancellableStream, CancellingStream},
+    utils::{CancellableStream, CancellingStream, KeepAliveStream},
     virtual_client::KeyPackageBatchId,
 };
 use airprotos::{
     common::v1::{StatusDetails, StatusDetailsCode},
     queue_service::v1::{
         AckListenRequest, ApqKeyPackageRequest, CreateClientPayload, DeleteClientPayload,
-        DeleteUserPayload, FetchListenRequest, InitListenPayload, ListenResponse,
-        PublishApqKeyPackagesPayload, PublishKeyPackagesPayload, ReportClientStateListenRequest,
-        StageKeyPackagesPayload, UpdateClientPayload, UpdateUserPayload, listen_request,
+        DeleteUserPayload, FetchListenRequest, InitListenPayload, KeepAliveListenRequest,
+        ListenResponse, PublishApqKeyPackagesPayload, PublishKeyPackagesPayload,
+        ReportClientStateListenRequest, StageKeyPackagesPayload, UpdateClientPayload,
+        UpdateUserPayload, listen_request,
     },
 };
 use airprotos::{
@@ -50,7 +51,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::Status;
 use tracing::{debug, error};
 
-use crate::ApiClient;
+use crate::{ApiClient, LISTEN_KEEPALIVE_INTERVAL};
 
 #[derive(Error, Debug)]
 pub enum QsRequestError {
@@ -394,13 +395,22 @@ impl ApiClient {
         };
 
         const RESPONSE_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
+
         let (tx, rx) = mpsc::channel::<ListenRequest>(RESPONSE_CHANNEL_BUFFER_SIZE);
 
         // Cancels the requests stream when the responses stream is ended or was dropped
         let cancel = CancellationToken::new();
 
         let requests = CancellableStream::new(
-            tokio_stream::once(init_request).chain(ReceiverStream::new(rx)),
+            KeepAliveStream::new(
+                tokio_stream::once(init_request).chain(ReceiverStream::new(rx)),
+                LISTEN_KEEPALIVE_INTERVAL,
+                || ListenRequest {
+                    request: Some(listen_request::Request::KeepAlive(
+                        KeepAliveListenRequest {},
+                    )),
+                },
+            ),
             cancel.clone(),
         );
 
