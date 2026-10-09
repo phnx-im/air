@@ -44,11 +44,21 @@ pub(crate) enum OutboundServiceError {
 
 impl OutboundServiceError {
     /// Reports this error as fatal, unless the anyhow chain contains a rate
-    /// limited or network request error. Neither is specific to the item, so
-    /// they are reported as such instead of dropping the item.
+    /// limited or network request error, or a busy database. None of them is
+    /// specific to the item, so they are reported as such instead of dropping
+    /// the item.
     pub(crate) fn fatal(error: impl Into<anyhow::Error>) -> Self {
         let error = error.into();
-        transient_request_error(&error).unwrap_or_else(|| Self::Fatal(error))
+        if let Some(transient) = transient_request_error(&error) {
+            return transient;
+        }
+        let is_busy = error
+            .chain()
+            .any(|error| error.downcast_ref::<sqlx::Error>().is_some_and(is_db_busy));
+        if is_busy {
+            return Self::Recoverable(Recoverable::busy(error));
+        }
+        Self::Fatal(error)
     }
 }
 
@@ -228,6 +238,22 @@ mod tests {
         );
         assert_matches!(
             OutboundServiceError::fatal(anyhow::anyhow!("invalid group state")),
+            OutboundServiceError::Fatal(_)
+        );
+    }
+
+    #[test]
+    fn busy_database_is_found_in_anyhow_chains() {
+        let error = anyhow::Error::from(sqlx::Error::PoolTimedOut).context("loading the chat");
+        assert_matches!(
+            OutboundServiceError::fatal(error),
+            OutboundServiceError::Recoverable(Recoverable {
+                cause: RecoverableCause::Busy,
+                ..
+            })
+        );
+        assert_matches!(
+            OutboundServiceError::fatal(sqlx::Error::RowNotFound),
             OutboundServiceError::Fatal(_)
         );
     }
