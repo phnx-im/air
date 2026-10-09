@@ -256,6 +256,6 @@ pub(crate) enum AsCredentialStoreError {
     PersistenceError(#[from] sqlx::Error),
     #[error(transparent)]
     ApiClientsError(#[from] ApiClientInitError),
-    #[error(transparent)]
+    #[error("AS request failed")]
     AsRequestError(#[from] AsRequestError),
 }

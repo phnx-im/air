@@ -2,12 +2,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::time::Duration;
+
 use airapiclient::{ApiClientInitError, as_api::AsRequestError, ds_api::DsRequestError};
 use aircommon::{codec, identifiers::QsClientId};
 use chrono::{DateTime, Utc};
 use sqlx::SqliteConnection;
 use thiserror::Error;
-use tracing::info;
+use tracing::warn;
 
 use crate::{
     clients::api_clients::ApiClients,
@@ -16,8 +18,10 @@ use crate::{
             DbAccess, ReadConnection, ReadDbConnection, ReadDbTransaction, WriteConnection,
             WriteDbConnection, WriteDbTransaction,
         },
+        has_db_busy_error, is_db_busy,
         notification::DbNotifier,
     },
+    job::recoverable::{Recoverable, RequestFailure},
     key_stores::MemoryUserKeyStore,
 };
 
@@ -27,6 +31,7 @@ pub(crate) mod create_chat;
 pub(crate) mod operation;
 pub(crate) mod pending_chat_operation;
 pub(crate) mod profile;
+pub(crate) mod recoverable;
 
 pub(crate) struct JobContext<'a, 'c> {
     pub api_clients: &'a ApiClients,
@@ -149,21 +154,46 @@ pub(crate) enum JobError<E> {
     Domain(E),
     #[error("Network error")]
     NetworkError,
+    /// The server rate limited the request and did not process it.
+    #[error("Rate limited, retry after {retry_after:?}")]
+    RateLimited {
+        /// The wait time the server asked for, if any.
+        retry_after: Option<Duration>,
+    },
     #[error("Blocked")]
     Blocked,
     #[error("Not found")]
     NotFound,
+    #[error("Recoverable error: {0}")]
+    Recoverable(Recoverable),
     #[error(transparent)]
-    Fatal(#[from] anyhow::Error),
+    Fatal(anyhow::Error),
 }
 
 impl<E> JobError<E> {
     pub(crate) fn fatal(error: impl Into<anyhow::Error>) -> Self {
-        Self::Fatal(error.into())
+        error.into().into()
     }
 
     pub(crate) fn domain(error: impl Into<E>) -> Self {
         Self::Domain(error.into())
+    }
+}
+
+// A busy database is recoverable, even when anyhow wrapped it.
+impl<E> From<anyhow::Error> for JobError<E> {
+    fn from(error: anyhow::Error) -> Self {
+        if has_db_busy_error(&error) {
+            Self::Recoverable(Recoverable::busy(error))
+        } else {
+            Self::Fatal(error)
+        }
+    }
+}
+
+impl<E> From<Recoverable> for JobError<E> {
+    fn from(error: Recoverable) -> Self {
+        Self::Recoverable(error)
     }
 }
 
@@ -205,43 +235,66 @@ pub(crate) trait Job: Send {
 
 impl<E> From<AsRequestError> for JobError<E> {
     fn from(error: AsRequestError) -> Self {
-        if error.is_network_error() {
-            info!(?error, "Job failed due to network error");
-            Self::NetworkError
-        } else {
-            Self::Fatal(error.into())
-        }
+        Self::from_request_failure(RequestFailure::classify(error))
     }
 }
 
 impl<E> From<DsRequestError> for JobError<E> {
     fn from(error: DsRequestError) -> Self {
-        if error.is_not_found() {
-            Self::NotFound
-        } else if error.is_network_error() {
-            info!(?error, "Job failed due to network error");
-            Self::NetworkError
-        } else {
-            Self::Fatal(error.into())
+        Self::from_request_failure(RequestFailure::classify_ds(error))
+    }
+}
+
+impl<E> JobError<E> {
+    fn from_request_failure(failure: RequestFailure) -> Self {
+        match failure {
+            RequestFailure::RateLimited { retry_after, error } => {
+                warn!(?error, "Job failed due to rate limiting");
+                Self::RateLimited { retry_after }
+            }
+            RequestFailure::Network(error) => {
+                warn!(?error, "Job failed due to network error");
+                Self::NetworkError
+            }
+            RequestFailure::NotFound(_) => Self::NotFound,
+            RequestFailure::Recoverable(recoverable) => Self::Recoverable(recoverable),
+            RequestFailure::Fatal(error) => Self::Fatal(error),
         }
     }
 }
 
 impl<E> From<reqwest::Error> for JobError<E> {
     fn from(error: reqwest::Error) -> Self {
-        if error.is_connect() || error.is_timeout() {
-            info!(?error, "Job failed due to network error");
-            Self::NetworkError
-        } else {
-            Self::Fatal(error.into())
+        match error.status() {
+            Some(reqwest::StatusCode::TOO_MANY_REQUESTS) => {
+                // The response headers are not kept by reqwest's error
+                warn!(?error, "Job failed due to rate limiting");
+                Self::RateLimited { retry_after: None }
+            }
+            Some(status) if status.is_server_error() => Recoverable::server(error).into(),
+            Some(_) => Self::Fatal(error.into()),
+            // Failed to send the request or to read the response
+            None if error.is_connect()
+                || error.is_timeout()
+                || error.is_request()
+                || error.is_body() =>
+            {
+                warn!(?error, "Job failed due to network error");
+                Self::NetworkError
+            }
+            None => Self::Fatal(error.into()),
         }
     }
 }
 
-// The following errors are universally considered fatal for jobs.
+// Only lock contention is recoverable, every other database error is fatal.
 impl<E> From<sqlx::Error> for JobError<E> {
-    fn from(err: sqlx::Error) -> Self {
-        JobError::Fatal(anyhow::Error::new(err))
+    fn from(error: sqlx::Error) -> Self {
+        if is_db_busy(&error) {
+            Self::Recoverable(Recoverable::busy(error))
+        } else {
+            Self::Fatal(error.into())
+        }
     }
 }
 
@@ -260,5 +313,78 @@ impl<E> From<codec::Error> for JobError<E> {
 impl<E> From<tls_codec::Error> for JobError<E> {
     fn from(err: tls_codec::Error) -> Self {
         JobError::Fatal(anyhow::Error::new(err))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{assert_matches, convert::Infallible};
+
+    use airprotos::common::v1::{
+        DeviceLimitReachedDetail, StatusDetails, StatusDetailsCode, status_details,
+    };
+    use tonic::{Code, Status};
+
+    use super::*;
+    use crate::job::recoverable::RecoverableCause;
+
+    fn rate_limited() -> Status {
+        let mut status = Status::resource_exhausted("Too Many Requests! Wait for 3s");
+        status
+            .metadata_mut()
+            .insert("retry-after", "3".parse().unwrap());
+        status
+    }
+
+    #[test]
+    fn rate_limited_requests_map_to_rate_limited() {
+        let error: JobError<Infallible> = AsRequestError::Tonic(rate_limited()).into();
+        assert_matches!(
+            error,
+            JobError::RateLimited {
+                retry_after: Some(retry_after)
+            } if retry_after == Duration::from_secs(3)
+        );
+
+        let error: JobError<Infallible> = DsRequestError::Tonic(rate_limited()).into();
+        assert_matches!(
+            error,
+            JobError::RateLimited {
+                retry_after: Some(retry_after)
+            } if retry_after == Duration::from_secs(3)
+        );
+
+        let status = Status::resource_exhausted("Too Many Requests!");
+        let error: JobError<Infallible> = DsRequestError::Tonic(status).into();
+        assert_matches!(error, JobError::RateLimited { retry_after: None });
+    }
+
+    #[test]
+    fn resource_exhausted_with_details_is_not_rate_limited() {
+        let status = StatusDetails {
+            code: StatusDetailsCode::DeviceLimitReached.into(),
+            detail: Some(status_details::Detail::DeviceLimitReached(
+                DeviceLimitReachedDetail { max_devices: 2 },
+            )),
+        }
+        .to_status(Code::ResourceExhausted, "max devices exceeded");
+        let error: JobError<Infallible> = DsRequestError::Tonic(status).into();
+        assert_matches!(error, JobError::Fatal(_));
+    }
+
+    #[test]
+    fn busy_database_is_found_in_anyhow_chains() {
+        let error = anyhow::Error::from(sqlx::Error::PoolTimedOut).context("loading the group");
+        let error: JobError<Infallible> = error.into();
+        assert_matches!(
+            error,
+            JobError::Recoverable(Recoverable {
+                cause: RecoverableCause::Busy,
+                ..
+            })
+        );
+
+        let error: JobError<Infallible> = anyhow::Error::from(sqlx::Error::RowNotFound).into();
+        assert_matches!(error, JobError::Fatal(_));
     }
 }

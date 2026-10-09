@@ -1674,6 +1674,100 @@ async fn delete_reaction() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Queued reaction survives network error", skip_all)]
+async fn queued_reaction_survives_network_error() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    let bob_target = sent.recipient_message_id(&bob);
+
+    let bob_user = setup.get_user(&bob).user();
+    // Flush the delivery receipt, otherwise the run aborts before reactions
+    bob_user.outbound_service().run_once().await;
+    setup.listener_control_handle().set_drop_all();
+    bob_user
+        .send_reaction(chat_id, bob_target, "🫪".to_owned())
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+    setup.listener_control_handle().set_normal();
+
+    // The network error keeps the reaction queued, it is not rolled back.
+    let expected = indexmap! { "🫪".to_owned() => vec![bob.clone()] };
+    assert_eq!(
+        bob_user.message_reactions(bob_target).await.unwrap(),
+        expected
+    );
+
+    bob_user.outbound_service().run_once().await;
+    assert_eq!(
+        bob_user.message_reactions(bob_target).await.unwrap(),
+        expected
+    );
+
+    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    assert_eq!(
+        setup
+            .get_user(&alice)
+            .user()
+            .message_reactions(sent.own_message_id)
+            .await
+            .unwrap(),
+        expected,
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Reaction add and retract stay in order", skip_all)]
+async fn reaction_add_and_retract_stay_in_order() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    let bob_target = sent.recipient_message_id(&bob);
+
+    let bob_user = setup.get_user(&bob).user();
+    // Flush the delivery receipt, otherwise the run aborts before reactions
+    bob_user.outbound_service().run_once().await;
+    setup.listener_control_handle().set_drop_all();
+    bob_user
+        .send_reaction(chat_id, bob_target, "🫪".to_owned())
+        .await
+        .unwrap();
+    bob_user
+        .delete_reaction(chat_id, bob_target, "🫪".to_owned())
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+    setup.listener_control_handle().set_normal();
+
+    bob_user.outbound_service().run_once().await;
+    assert!(
+        bob_user
+            .message_reactions(bob_target)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    assert!(
+        setup
+            .get_user(&alice)
+            .user()
+            .message_reactions(sent.own_message_id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Multiple reactions per user", skip_all)]
 async fn multiple_reactions_per_user() {
     let mut setup = TestBackend::single().await;

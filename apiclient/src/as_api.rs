@@ -56,7 +56,7 @@ use tonic::{Code, Request, Status};
 use tracing::error;
 use uuid::Uuid;
 
-use crate::ApiClient;
+use crate::{ApiClient, ClassifyRequestError, RequestErrorKind, classify_status};
 
 /// Errors that can occur when sending requests to the AS.
 #[derive(Error, Debug)]
@@ -67,6 +67,15 @@ pub enum AsRequestError {
     UnexpectedResponse,
     #[error(transparent)]
     Tonic(#[from] tonic::Status),
+}
+
+impl ClassifyRequestError for AsRequestError {
+    fn kind(&self) -> RequestErrorKind {
+        match self {
+            Self::Tonic(status) => classify_status(status),
+            Self::LibraryError | Self::UnexpectedResponse => RequestErrorKind::Rejected,
+        }
+    }
 }
 
 impl AsRequestError {
@@ -102,17 +111,6 @@ impl AsRequestError {
                         .unwrap_or(false)
             }
             _ => false,
-        }
-    }
-
-    /// Returns true if the error is likely due to a network issue and we can't
-    /// be sure whether the server received the request.
-    pub fn is_network_error(&self) -> bool {
-        if let Self::Tonic(status) = self {
-            // TODO: Also handle unknown errors here but downcast them to io::Error
-            matches!(status.code(), Code::Unavailable | Code::DeadlineExceeded)
-        } else {
-            false
         }
     }
 
