@@ -45,6 +45,7 @@ use std::time::Duration;
 use tls_codec::{Deserialize as _, DeserializeBytes, Serialize as _};
 use tokio::{sync::oneshot, time::timeout};
 use tokio_stream::StreamExt;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
@@ -192,10 +193,44 @@ pub enum MultiDeviceProvisionClientError {
 impl CoreUser {
     /// Provisions a new client for linking by connecting to the relay at `domain`.
     ///
+    /// Aborts and removes the new local client database when `cancellation_token` is cancelled
+    /// before linking finished.
+    ///
     /// On success returns a fully bootstrapped [`CoreUser`] for the freshly
     /// linked device, persisted under `db_path`.
     pub async fn multi_device_provision_client(
         db_path: &str,
+        domain: Fqdn,
+        server_url: Option<Url>,
+        session_tx: tokio::sync::mpsc::Sender<MultiDeviceProvisionStep>,
+        cancellation_token: CancellationToken,
+    ) -> anyhow::Result<Result<CoreUser, MultiDeviceProvisionClientError>> {
+        let client_record_id = Uuid::new_v4();
+        let result = tokio::select! {
+            biased;
+            _ = cancellation_token.cancelled() => Err(anyhow!("multi-device provisioning cancelled")),
+            result = Self::provision_client(
+                db_path,
+                client_record_id,
+                domain,
+                server_url,
+                session_tx,
+            ) => result,
+        };
+
+        if result.is_err() {
+            warn!("multi-device linking failed, deleting new client database");
+            delete_client_database(db_path, client_record_id)
+                .await
+                .inspect_err(|error| error!(%error, "failed to delete client database"))
+                .ok();
+        }
+        result
+    }
+
+    async fn provision_client(
+        db_path: &str,
+        client_record_id: Uuid,
         domain: Fqdn,
         server_url: Option<Url>,
         session_tx: tokio::sync::mpsc::Sender<MultiDeviceProvisionStep>,
@@ -279,7 +314,8 @@ impl CoreUser {
         // 5. we then process the Welcome that the QS fans out to our fresh queue.
         // 6. the old client gives us enough information to onboard ourselves (the new client) into all existing groups.
         let device_name = package.device_name.clone();
-        let core_user = Self::link_new_device(api_clients, db_path, package).await?;
+        let core_user =
+            Self::link_new_device(api_clients, db_path, client_record_id, package).await?;
         info!("bootstrapped linked client");
 
         let outcome: anyhow::Result<Result<(), MultiDeviceProvisionClientError>> = async {
@@ -320,26 +356,21 @@ impl CoreUser {
         }
         .await;
 
-        let failure = match outcome {
+        match outcome {
             Ok(Ok(())) => {
                 info!("joined self group");
+                // Only now does the account become loadable.
+                let air_db = open_air_db(db_path).await?;
+                let mut client_record =
+                    ClientRecord::new(core_user.user_id().clone(), client_record_id);
+                client_record.finish();
+                client_record.store(air_db.write().await?).await?;
                 core_user.outbound_service().notify_vc_onboarding();
-                return Ok(Ok(core_user));
+                Ok(Ok(core_user))
             }
             Ok(Err(error)) => Ok(Err(error)),
             Err(error) => Err(error),
-        };
-
-        // Clean up the local client database after failure.
-        let client_record_id = core_user.client_record_id();
-        drop(core_user);
-        delete_client_database(db_path, client_record_id)
-            .await
-            .inspect_err(|error| {
-                error!(%error, "failed to delete client database");
-            })
-            .ok();
-        failure
+        }
     }
 
     /// Establishes a session with a new device (with the given `session_id`). The `connected_tx` and `confirmation_rx` are
@@ -826,14 +857,13 @@ impl CoreUser {
     async fn link_new_device(
         api_clients: ApiClients,
         db_path: &str,
+        client_record_id: Uuid,
         package: ProvisioningPackage,
     ) -> anyhow::Result<CoreUser> {
-        let air_db = open_air_db(db_path).await?;
-        let client_record_id = uuid::Uuid::new_v4();
         let client_db = open_client_db(db_path, client_record_id).await?;
         let global_lock = open_lock_file(db_path)?;
 
-        let result: anyhow::Result<CoreUser> = async {
+        {
             let ProvisioningPackage {
                 user_signing_key,
                 qs_user_id,
@@ -913,9 +943,7 @@ impl CoreUser {
                     store_provisioned_requests(txn, &connection_requests).await?;
 
                     // Queue the onboarding into the groups the virtual client is
-                    // already a member of. This is committed before the client
-                    // record is finished below, so an interrupted linking (crash, exit)
-                    // leaves the onboarding to be picked up.
+                    // already a member of.
                     Self::enqueue_vc_onboarding(txn, groups).await
                 })
                 .await?;
@@ -931,10 +959,6 @@ impl CoreUser {
             );
             final_state.store(client_db.write().await?).await?;
 
-            let mut client_record = ClientRecord::new(user_id.clone(), client_record_id);
-            client_record.finish();
-            client_record.store(air_db.write().await?).await?;
-
             Ok(final_state.final_state()?.into_self_user(
                 client_db,
                 client_record_id,
@@ -942,18 +966,6 @@ impl CoreUser {
                 global_lock,
             ))
         }
-        .await;
-
-        if result.is_err() {
-            // Clean up the local client database after failure.
-            delete_client_database(db_path, client_record_id)
-                .await
-                .inspect_err(|error| {
-                    error!(%error, "failed to delete client database");
-                })
-                .ok();
-        }
-        result
     }
 
     /// Whether a sibling device removed this device from the self group.

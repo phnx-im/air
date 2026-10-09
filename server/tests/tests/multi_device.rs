@@ -31,6 +31,7 @@ use std::time::Duration;
 use tempfile::TempDir;
 use tokio::time::sleep;
 use tokio_stream::{Stream, StreamExt};
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 /// Sends `text` from `sender` into the self-group chat and asserts that
@@ -161,11 +162,16 @@ async fn link_new_device_named(
     let new_device_task = tokio::spawn(async move {
         let tmp = TempDir::new().unwrap();
         let db_path = tmp.path().to_str().unwrap();
-        let new_device =
-            CoreUser::multi_device_provision_client(db_path, domain, Some(server_url), session_tx)
-                .await
-                .unwrap()
-                .unwrap();
+        let new_device = CoreUser::multi_device_provision_client(
+            db_path,
+            domain,
+            Some(server_url),
+            session_tx,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
         (new_device, tmp)
     });
 
@@ -568,11 +574,16 @@ async fn multi_device_second_link_attempt_returns_error() {
     let new_device_task = tokio::spawn(async move {
         let tmp = TempDir::new().unwrap();
         let db_path = tmp.path().to_str().unwrap();
-        let new_device =
-            CoreUser::multi_device_provision_client(db_path, domain, Some(server_url), session_tx)
-                .await
-                .unwrap()
-                .unwrap();
+        let new_device = CoreUser::multi_device_provision_client(
+            db_path,
+            domain,
+            Some(server_url),
+            session_tx,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
         (new_device, tmp)
     });
 
@@ -625,6 +636,7 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
             alice_domain,
             Some(alice_server_url),
             alice_session_tx,
+            CancellationToken::new(),
         )
         .await
         .unwrap()
@@ -642,6 +654,7 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
             bob_domain,
             Some(bob_server_url),
             bob_session_tx,
+            CancellationToken::new(),
         )
         .await
         .unwrap()
@@ -1309,8 +1322,14 @@ async fn assert_link_rejected_at_limit(
     let new_device_task = tokio::spawn({
         let db_path = db_path.clone();
         async move {
-            CoreUser::multi_device_provision_client(&db_path, domain, Some(server_url), session_tx)
-                .await
+            CoreUser::multi_device_provision_client(
+                &db_path,
+                domain,
+                Some(server_url),
+                session_tx,
+                CancellationToken::new(),
+            )
+            .await
         }
     });
     let session_id = recv_session_id(&mut session_rx).await;
@@ -3130,4 +3149,55 @@ async fn multi_device_sibling_client_state() {
         panic!("expected updated");
     };
     assert_eq!(updated.blob.unwrap().encrypted_blob, b"after");
+}
+
+fn client_db_files(db_path: &std::path::Path) -> Vec<String> {
+    std::fs::read_dir(db_path)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .filter(|name| name.contains(".db") && !name.starts_with("air.db"))
+        .collect()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test cancelled provisioning", skip_all)]
+async fn multi_device_cancelled_provisioning_leaves_no_client() -> anyhow::Result<()> {
+    let setup = TestBackend::single().await;
+    let tmp = TempDir::new()?;
+    let db_path = tmp.path().to_str().unwrap().to_owned();
+
+    let (session_tx, mut session_rx) = tokio::sync::mpsc::channel(1);
+    let cancel = CancellationToken::new();
+    let task = tokio::spawn({
+        let domain = setup.domain().clone();
+        let server_url = setup.server_url();
+        let db_path = db_path.clone();
+        let cancel = cancel.clone();
+        async move {
+            CoreUser::multi_device_provision_client(
+                &db_path,
+                domain,
+                Some(server_url),
+                session_tx,
+                cancel,
+            )
+            .await
+        }
+    });
+    recv_session_id(&mut session_rx).await;
+
+    cancel.cancel();
+    assert!(task.await?.is_err(), "cancelled provisioning must fail");
+
+    assert!(
+        ClientRecord::load_all_from_air_db(&db_path)
+            .await?
+            .is_empty()
+    );
+    assert!(
+        client_db_files(tmp.path()).is_empty(),
+        "no client DB files may remain: {:?}",
+        client_db_files(tmp.path())
+    );
+    Ok(())
 }

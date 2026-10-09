@@ -18,6 +18,7 @@ use anyhow::{Context, Result};
 use flutter_rust_bridge::frb;
 use qrcode::QrCode;
 use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 use url::Url;
 
@@ -88,6 +89,7 @@ pub enum MultiDeviceProvisionEvent {
 #[frb(opaque)]
 pub struct MultiDeviceProvisionedUser {
     user: Mutex<Option<User>>,
+    cancel: CancellationToken,
 }
 
 impl MultiDeviceProvisionedUser {
@@ -95,12 +97,21 @@ impl MultiDeviceProvisionedUser {
     pub fn new() -> Self {
         Self {
             user: Mutex::new(None),
+            cancel: CancellationToken::new(),
         }
     }
 
     #[frb(sync)]
     pub fn take(&self) -> Option<User> {
         self.user.lock().unwrap().take()
+    }
+
+    /// Aborts a running provisioning session and discards its local database.
+    ///
+    /// Has no effect once linking has finished.
+    #[frb(sync)]
+    pub fn cancel(&self) {
+        self.cancel.cancel();
     }
 }
 
@@ -151,21 +162,27 @@ pub async fn multi_device_provision_client(
     };
 
     let linking_session = async {
-        let event =
-            match CoreUser::multi_device_provision_client(&db_path, domain, None, session_tx).await
-            {
-                Ok(Ok(core_user)) => {
-                    *provisioned_user.user.lock().unwrap() = Some(User::from_core_user(core_user));
-                    MultiDeviceProvisionEvent::Linked
-                }
-                Ok(Err(MultiDeviceProvisionClientError::DeviceLimitReached { max_devices })) => {
-                    MultiDeviceProvisionEvent::DeviceLimitReached { max_devices }
-                }
-                Err(error) => {
-                    error!(%error, "multi-device provisioning failed");
-                    MultiDeviceProvisionEvent::Failed(error.to_string())
-                }
-            };
+        let event = match CoreUser::multi_device_provision_client(
+            &db_path,
+            domain,
+            None,
+            session_tx,
+            provisioned_user.cancel.clone(),
+        )
+        .await
+        {
+            Ok(Ok(core_user)) => {
+                *provisioned_user.user.lock().unwrap() = Some(User::from_core_user(core_user));
+                MultiDeviceProvisionEvent::Linked
+            }
+            Ok(Err(MultiDeviceProvisionClientError::DeviceLimitReached { max_devices })) => {
+                MultiDeviceProvisionEvent::DeviceLimitReached { max_devices }
+            }
+            Err(error) => {
+                error!(%error, "multi-device provisioning failed");
+                MultiDeviceProvisionEvent::Failed(error.to_string())
+            }
+        };
         if let Err(error) = sink.add(event) {
             error!(%error, "failed to forward MultiDeviceProvisionEvent to the Dart side");
         }
