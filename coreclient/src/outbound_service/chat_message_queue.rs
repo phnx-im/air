@@ -95,13 +95,8 @@ mod persistence {
                 return Ok(None);
             };
 
-            struct Record {
-                message_id: MessageId,
-                chat_id: ChatId,
-                attempts: u32,
-            }
-            let record = query_as!(
-                Record,
+            let dequeued = query_as!(
+                DequeuedMessage,
                 r#"
                 UPDATE chat_message_queue
                 SET locked_by = ?1
@@ -117,11 +112,7 @@ mod persistence {
             .fetch_optional(txn.as_mut())
             .await?;
 
-            Ok(record.map(|record| DequeuedMessage {
-                chat_id: record.chat_id,
-                message_id: record.message_id,
-                attempts: record.attempts,
-            }))
+            Ok(dequeued)
         }
 
         /// Keeps the message queued until `retry_at`.

@@ -847,27 +847,9 @@ pub(crate) async fn delete_token_at(
     Ok(result.rows_affected())
 }
 
-/// Loads every redemption whose broadcast is due at `now`.
-pub(crate) async fn load_redeemed_due(
-    mut connection: impl ReadConnection,
-    now: DateTime<Utc>,
-) -> sqlx::Result<Vec<TokenPosition>> {
-    let rows = sqlx::query_as!(
-        RedeemedRow,
-        "SELECT operation_type, key_fingerprint, allowance_epoch, token_index
-         FROM privacy_pass_redeemed
-         WHERE broadcast_after IS NOT NULL AND broadcast_after <= ?
-         ORDER BY operation_type, key_fingerprint, allowance_epoch, token_index",
-        now
-    )
-    .fetch_all(connection.as_mut())
-    .await?;
-    rows.into_iter().map(RedeemedRow::decode).collect()
-}
-
 /// Loads every redemption whose broadcast is due at `now`, with the failed
 /// attempts to broadcast it so far.
-pub(crate) async fn load_redeemed_due_with_attempts(
+pub(crate) async fn load_redeemed_due(
     mut connection: impl ReadConnection,
     now: DateTime<Utc>,
 ) -> sqlx::Result<Vec<(TokenPosition, u32)>> {

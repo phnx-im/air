@@ -857,7 +857,11 @@ pub(crate) async fn redeemed_tokens_to_broadcast(
     connection: impl ReadConnection,
     now: DateTime<Utc>,
 ) -> sqlx::Result<Vec<RedeemedTokens>> {
-    let positions = persistence::load_redeemed_due(connection, now).await?;
+    let positions = persistence::load_redeemed_due(connection, now)
+        .await?
+        .into_iter()
+        .map(|(position, _attempts)| position)
+        .collect();
     Ok(group_positions(positions))
 }
 
@@ -867,7 +871,7 @@ pub(crate) async fn redeemed_tokens_due(
     connection: impl ReadConnection,
     now: DateTime<Utc>,
 ) -> sqlx::Result<Vec<(RedeemedTokens, u32)>> {
-    let due = persistence::load_redeemed_due_with_attempts(connection, now).await?;
+    let due = persistence::load_redeemed_due(connection, now).await?;
     let attempts: BTreeMap<TokenPosition, u32> = due.iter().copied().collect();
     let messages = group_positions(due.into_iter().map(|(position, _)| position).collect());
     Ok(messages
