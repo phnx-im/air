@@ -37,7 +37,7 @@ use airprotos::{
 };
 use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams, TestUser};
 use chrono::{DateTime, Utc};
-use mimi_content::MimiContent;
+use mimi_content::{MessageStatus, MimiContent};
 use semver::Version;
 use tokio::time::{sleep, timeout};
 use tokio_stream::{Stream, StreamExt};
@@ -72,6 +72,7 @@ async fn rate_limit() {
     let alice = &setup.get_user(&alice);
 
     let mut resource_exhausted = false;
+    let mut held_id = None;
 
     // should stop with `resource_exhausted = true` at some point
     for i in 0..100 {
@@ -80,7 +81,7 @@ async fn rate_limit() {
             .user
             .send_message(
                 chat_id,
-                MimiContent::simple_markdown_message("Hello bob".into(), [0; 16]), // simple seed for testing
+                MimiContent::simple_markdown_message(format!("Hello bob {i}"), [0; 16]), // simple seed for testing
                 None,
                 MarkChatAsRead::Yes,
             )
@@ -98,20 +99,27 @@ async fn rate_limit() {
             continue;
         }
 
+        // A rate limited message stays queued and is not marked as failed.
+        assert_ne!(message.status(), MessageStatus::Error);
+        held_id = Some((message.id(), format!("Hello bob {i}")));
         resource_exhausted = true;
         break;
     }
     assert!(resource_exhausted);
+    let (held_id, held_text) = held_id.unwrap();
 
     info!("waiting for rate limit tokens to replenish");
-    tokio::time::sleep(Duration::from_secs(1)).await; // replenish
+    // One token per second, the held and the final message and Bob's fetch
+    // need several
+    tokio::time::sleep(Duration::from_secs(5)).await;
 
     info!("sending message after rate limit tokens replenished");
+    const FINAL_TEXT: &str = "after replenish";
     alice
         .user
         .send_message(
             chat_id,
-            MimiContent::simple_markdown_message("Hello bob".into(), [0; 16]), // simple seed for testing
+            MimiContent::simple_markdown_message(FINAL_TEXT.into(), [0; 16]), // simple seed for testing
             None,
             MarkChatAsRead::Yes,
         )
@@ -120,8 +128,25 @@ async fn rate_limit() {
     alice.user.outbound_service().run_once().await;
 
     let message = alice.user.last_message(chat_id).await.unwrap().unwrap();
-
     assert!(message.is_sent());
+    let held = alice.user.message(held_id).await.unwrap().unwrap();
+    assert!(held.is_sent());
+    assert_ne!(held.status(), MessageStatus::Error);
+
+    // Bob receives the held message before the later one
+    let bob = setup.get_user(&bob);
+    bob.fetch_and_process_qs_messages().await;
+    let texts: Vec<String> = bob
+        .user
+        .messages(chat_id, 1000)
+        .await
+        .unwrap()
+        .iter()
+        .filter_map(|m| m.message().mimi_content()?.string_rendering().ok())
+        .collect();
+    let held_pos = texts.iter().position(|t| *t == held_text).unwrap();
+    let final_pos = texts.iter().position(|t| t == FINAL_TEXT).unwrap();
+    assert!(held_pos < final_pos);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
