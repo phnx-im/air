@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO receipt_queue\n                    (message_id,  chat_id, mimi_id, status, created_at)\n                SELECT ?1, ?2, ?3, ?4, ?5\n                WHERE NOT (\n                    ?4 = ?6 AND EXISTS (\n                        SELECT 1 FROM receipt_queue\n                        WHERE chat_id = ?2 AND mimi_id = ?3 AND status = ?7\n                    )\n                )\n                ON CONFLICT DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "70794fcd40196b6f0c663cd0026f8e593eb0da0084295eef8f3007346d95c1af"
+}

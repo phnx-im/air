@@ -216,6 +216,7 @@ impl OutboundServiceContext {
 
             let collisions = ds_error.process_tag_collisions(&sent_tags);
             if collisions.is_empty() {
+                // Not a collision we can recover from; propagate the error.
                 return Err(ds_error.into());
             }
 

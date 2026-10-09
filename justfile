@@ -137,6 +137,8 @@ regenerate-sqlx: regenerate-sqlx-client regenerate-sqlx-server
 regenerate-sqlx-client:
     cargo sqlx database setup --no-dotenv --database-url {{CLIENT_DATABASE_URL}}
     cargo sqlx prepare --no-dotenv --database-url {{CLIENT_DATABASE_URL}} -- --tests
+    # The dev-dependency on airbackend also writes its Postgres queries here
+    grep -L '"db_name": "SQLite"' .sqlx/*.json | xargs -r rm
 
 # Regenerate server database query metadata.
 [working-directory: 'backend']

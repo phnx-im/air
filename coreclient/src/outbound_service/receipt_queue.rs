@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::MimiId;
+use aircommon::messages::client_ds_out::MAX_COLLISION_TAGS_PER_REQUEST;
 use mimi_content::MessageStatus;
 
 use crate::{ChatId, MessageId};
@@ -35,6 +36,12 @@ pub(crate) struct DequeuedReceipts {
     pub(crate) attempts: u32,
 }
 
+/// Upper bound on the receipts sent in one message
+///
+/// Each receipt takes a collision tag, and the message generation takes one
+/// more.
+const MAX_RECEIPTS_PER_MESSAGE: usize = MAX_COLLISION_TAGS_PER_REQUEST - 1;
+
 mod persistence {
     use std::time::Duration;
 
@@ -61,18 +68,45 @@ mod persistence {
             );
 
             let status: u8 = self.message_status.into();
+            let delivered_status: u8 = MessageStatus::Delivered.into();
+            let read_status: u8 = MessageStatus::Read.into();
             let now = TimeStamp::now();
+
+            // A read receipt implies delivery, so we can skip queued delivery receipts for
+            // the same message (helping decrease traffic and skip using a collision tag).
+            if self.message_status == MessageStatus::Read {
+                let locked_before = *now - LOCKED_THRESHOLD;
+                query!(
+                    "DELETE FROM receipt_queue
+                    WHERE chat_id = ?1 AND mimi_id = ?2 AND status = ?3
+                        AND (locked_at IS NULL OR locked_at < ?4)",
+                    chat_id,
+                    mimi_id,
+                    delivered_status,
+                    locked_before,
+                )
+                .execute(connection.as_mut())
+                .await?;
+            }
 
             query!(
                 "INSERT INTO receipt_queue
                     (message_id,  chat_id, mimi_id, status, created_at)
-                VALUES (?1, ?2, ?3, ?4, ?5)
+                SELECT ?1, ?2, ?3, ?4, ?5
+                WHERE NOT (
+                    ?4 = ?6 AND EXISTS (
+                        SELECT 1 FROM receipt_queue
+                        WHERE chat_id = ?2 AND mimi_id = ?3 AND status = ?7
+                    )
+                )
                 ON CONFLICT DO NOTHING",
                 self.message_id,
                 chat_id,
                 mimi_id,
                 status,
                 now,
+                delivered_status,
+                read_status,
             )
             .execute(connection.as_mut())
             .await?;
@@ -88,6 +122,7 @@ mod persistence {
             let mut txn = connection.begin().await?;
 
             let locked_before = *due_at - LOCKED_THRESHOLD;
+            let limit = MAX_RECEIPTS_PER_MESSAGE as i64;
 
             let chat_id = query_scalar!(
                 r#"SELECT chat_id AS "chat_id: _"
@@ -116,9 +151,14 @@ mod persistence {
                 Record,
                 r#"UPDATE receipt_queue
                     SET locked_by = ?1, locked_at = ?2
-                    WHERE chat_id = ?3
-                        AND (locked_at IS NULL OR locked_at < ?4)
-                        AND (retry_at IS NULL OR retry_at <= ?2)
+                    WHERE rowid IN (
+                        SELECT rowid FROM receipt_queue
+                        WHERE chat_id = ?3 
+                            AND (locked_at IS NULL OR locked_at < ?4)
+                            AND (retry_at IS NULL OR retry_at <= ?2)
+                        ORDER BY created_at ASC
+                        LIMIT ?5
+                    )
                 RETURNING
                     mimi_id AS "mimi_id: _",
                     status AS "status: _",
@@ -128,6 +168,7 @@ mod persistence {
                 due_at,
                 chat_id,
                 locked_before,
+                limit,
             )
             .fetch_all(txn.as_mut())
             .await?;
@@ -403,6 +444,145 @@ mod tests {
             .expect("receipts are due again");
         assert_eq!(dequeued.statuses.len(), 3);
         assert_eq!(dequeued.attempts, 2);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn dequeue_splits_receipts_into_batches(pool: SqlitePool) -> anyhow::Result<()> {
+        let db = DbAccess::for_tests(pool.clone());
+        let (chat_id, message_id, _) = stored_message(&db).await?;
+
+        let receipt = ReceiptQueue::new(message_id, MessageStatus::Read);
+        for i in 0..=MAX_RECEIPTS_PER_MESSAGE {
+            let mimi_id = MimiId::from_slice(&[i as u8; 32])?;
+            receipt
+                .enqueue(db.write().await?, chat_id, &mimi_id)
+                .await?;
+        }
+
+        let first = Uuid::new_v4();
+        let dequeued = ReceiptQueue::dequeue(db.write().await?, first, TimeStamp::now())
+            .await?
+            .expect("no receipt queued");
+        assert_eq!(dequeued.statuses.len(), MAX_RECEIPTS_PER_MESSAGE);
+
+        let second = Uuid::new_v4();
+        let dequeued = ReceiptQueue::dequeue(db.write().await?, second, TimeStamp::now())
+            .await?
+            .expect("no second batch queued");
+        assert_eq!(dequeued.statuses.len(), 1);
+
+        // Sending the second batch keeps the first one queued
+        ReceiptQueue::remove(db.write().await?, second).await?;
+        let queued: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM receipt_queue")
+            .fetch_one(&pool)
+            .await?;
+        assert_eq!(queued, MAX_RECEIPTS_PER_MESSAGE as i64);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn read_receipt_replaces_queued_delivery_receipt(pool: SqlitePool) -> anyhow::Result<()> {
+        let db = DbAccess::for_tests(pool);
+        let (chat_id, message_id, mimi_id) = stored_message(&db).await?;
+
+        for status in [MessageStatus::Delivered, MessageStatus::Read] {
+            ReceiptQueue::new(message_id, status)
+                .enqueue(db.write().await?, chat_id, &mimi_id)
+                .await?;
+        }
+
+        let statuses = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4(), TimeStamp::now())
+            .await?
+            .expect("no receipt queued")
+            .statuses;
+        assert_eq!(statuses, vec![(mimi_id, MessageStatus::Read)]);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn delivery_receipt_after_read_receipt_is_skipped(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let db = DbAccess::for_tests(pool);
+        let (chat_id, message_id, mimi_id) = stored_message(&db).await?;
+
+        for status in [MessageStatus::Read, MessageStatus::Delivered] {
+            ReceiptQueue::new(message_id, status)
+                .enqueue(db.write().await?, chat_id, &mimi_id)
+                .await?;
+        }
+
+        let statuses = ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4(), TimeStamp::now())
+            .await?
+            .expect("no receipt queued")
+            .statuses;
+        assert_eq!(statuses, vec![(mimi_id, MessageStatus::Read)]);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn read_receipt_to_another_chat_keeps_delivery_receipt(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let db = DbAccess::for_tests(pool.clone());
+        let (chat_id, message_id, mimi_id) = stored_message(&db).await?;
+
+        ReceiptQueue::new(message_id, MessageStatus::Delivered)
+            .enqueue(db.write().await?, chat_id, &mimi_id)
+            .await?;
+        ReceiptQueue::new(message_id, MessageStatus::Read)
+            .enqueue(db.write().await?, ChatId::random(), &mimi_id)
+            .await?;
+
+        let queued: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM receipt_queue")
+            .fetch_one(&pool)
+            .await?;
+        assert_eq!(queued, 2);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn delivery_receipt_after_read_receipt_to_another_chat_is_queued(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let db = DbAccess::for_tests(pool.clone());
+        let (chat_id, message_id, mimi_id) = stored_message(&db).await?;
+
+        ReceiptQueue::new(message_id, MessageStatus::Read)
+            .enqueue(db.write().await?, ChatId::random(), &mimi_id)
+            .await?;
+        ReceiptQueue::new(message_id, MessageStatus::Delivered)
+            .enqueue(db.write().await?, chat_id, &mimi_id)
+            .await?;
+
+        let queued: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM receipt_queue")
+            .fetch_one(&pool)
+            .await?;
+        assert_eq!(queued, 2);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn read_receipt_keeps_delivery_receipt_in_flight(pool: SqlitePool) -> anyhow::Result<()> {
+        let db = DbAccess::for_tests(pool.clone());
+        let (chat_id, message_id, mimi_id) = stored_message(&db).await?;
+
+        ReceiptQueue::new(message_id, MessageStatus::Delivered)
+            .enqueue(db.write().await?, chat_id, &mimi_id)
+            .await?;
+        ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4(), TimeStamp::now())
+            .await?
+            .expect("no receipt queued");
+
+        ReceiptQueue::new(message_id, MessageStatus::Read)
+            .enqueue(db.write().await?, chat_id, &mimi_id)
+            .await?;
+
+        let queued: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM receipt_queue")
+            .fetch_one(&pool)
+            .await?;
+        assert_eq!(queued, 2);
         Ok(())
     }
 }
