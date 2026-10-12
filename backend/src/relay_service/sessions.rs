@@ -5,13 +5,10 @@
 //! The relay's session table: rendezvous ID assignment, quarantine and the
 //! time-to-live reaper.
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
-    time::Duration,
-};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use airprotos::relay_service::v1::RelayFrame;
+use parking_lot::Mutex;
 use rand::RngExt;
 use tokio::{
     sync::{mpsc, oneshot},
@@ -185,7 +182,7 @@ impl Rs {
         let (responder_ready_tx, responder_ready_rx) = oneshot::channel();
         let cancel = self.stop.child_token();
 
-        let mut table = self.lock();
+        let mut table = self.table.lock();
         let id = table.assign()?;
         table.live.insert(
             id.clone(),
@@ -211,7 +208,7 @@ impl Rs {
         id: &str,
         responder: Outbound,
     ) -> Option<(Outbound, CancellationToken, SessionGuard)> {
-        let mut table = self.lock();
+        let mut table = self.table.lock();
         let session = table.live.get_mut(id)?;
 
         // The reaper runs on an interval, so a session can outlive its
@@ -248,7 +245,7 @@ impl Rs {
     /// Ends a session and puts its ID into quarantine.
     fn end(&self, id: &str) {
         let quarantine_until = Instant::now() + self.settings.idquarantine;
-        let session = self.lock().retire(id.to_owned(), quarantine_until);
+        let session = self.table.lock().retire(id.to_owned(), quarantine_until);
         if let Some(session) = session {
             session.cancel.cancel();
             info!(rendezvous_id = %id, "ended a linking session");
@@ -258,26 +255,20 @@ impl Rs {
     /// Whether `id` currently represents a live session.
     #[cfg(test)]
     fn is_live(&self, id: &str) -> bool {
-        self.lock().live.contains_key(id)
+        self.table.lock().live.contains_key(id)
     }
 
     /// Whether `id` is held back from reuse.
     #[cfg(test)]
     fn is_quarantined(&self, id: &str) -> bool {
-        self.lock().quarantine.contains_key(id)
-    }
-
-    fn lock(&self) -> MutexGuard<'_, Table> {
-        // A poisoned lock would mean a panic inside one of these short
-        // critical sections, none of which can leave the table inconsistent.
-        self.table.lock().unwrap_or_else(PoisonError::into_inner)
+        self.table.lock().quarantine.contains_key(id)
     }
 
     /// Drops expired sessions and releases quarantined IDs.
     fn reap(&self) {
         let now = Instant::now();
         let quarantine_until = now + self.settings.idquarantine;
-        let mut table = self.lock();
+        let mut table = self.table.lock();
 
         let expired: Vec<SessionId> = table
             .live
@@ -394,7 +385,7 @@ mod tests {
     async fn the_width_grows_past_half_occupancy() {
         let rs = relay(long(), long());
         {
-            let mut table = rs.lock();
+            let mut table = rs.table.lock();
             let until = Instant::now() + long();
             for n in 0..501 {
                 table.quarantine.insert(format!("{n:03}"), until);
@@ -409,7 +400,7 @@ mod tests {
         let quarantined: HashSet<SessionId> =
             (0..900).step_by(2).map(|n| format!("{n:03}")).collect();
         {
-            let mut table = rs.lock();
+            let mut table = rs.table.lock();
             let until = Instant::now() + long();
             for id in &quarantined {
                 table.quarantine.insert(id.clone(), until);
