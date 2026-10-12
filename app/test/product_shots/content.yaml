@@ -6,9 +6,13 @@
 # Defaults to `en_US` when omitted.
 locale: en_US
 
-# Own profile. Avatar files are implicitly `<key>.jpg` under
-# test/assets/images/ for own/contacts (not for chats, whose avatar is a
-# separate photo unrelated to the key).
+# Directory the photos below are loaded from, relative to this file. Defaults
+# to air's test/assets/images/ when omitted.
+# images: ../../assets/images
+
+# Own profile. Avatar files are implicitly `<key>.jpg` under the images
+# directory for own/contacts (not for chats, whose avatar is a separate photo
+# unrelated to the key).
 own:
   key: sasha
   name: Sasha
@@ -38,11 +42,25 @@ contacts:
   - key: lukas
     name: Lukas
 
-# Which chat is shown in each product shot that needs a full transcript.
-# (chat_list shows every chat below and needs no mapping.)
+# Per product shot: the chat it opens (chat_list shows every chat below and
+# needs none), and the marketing headline and subtitle above the device. Line
+# breaks in the copy are kept. Only the marketing shots need the copy.
 shots:
-  private_chat: jacob
-  group_chat: roomies
+  chat_list:
+    title: |-
+      Secure messaging
+      for everyone.
+    subtitle: |-
+      Everything in Air is
+      end-to-end encrypted.
+  private_chat:
+    chat: jacob
+    title: Connect with friends.
+    subtitle: Send messages in private chats.
+  group_chat:
+    chat: roomies
+    title: Create group chats.
+    subtitle: Message with multiple people.
 
 # Chats
 chats:
