@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE own_client_info SET unlink_reason = ?\n            RETURNING user_uuid AS \"user_uuid: Uuid\", user_domain AS \"user_domain: Fqdn\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_uuid: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "user_uuid"
+          }
+        }
+      },
+      {
+        "name": "user_domain: Fqdn",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "user_domain"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "6bed7279e0d4ad28606b052a85a816b5615a71abfd0ad060f1188783ede24379"
+}

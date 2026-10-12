@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::pin::pin;
+use std::{ops::ControlFlow, pin::pin};
 
 use futures_util::{Stream, stream::BoxStream};
 use tokio_stream::{StreamExt, wrappers::ReceiverStream};
@@ -16,9 +16,13 @@ use crate::util::StatusExt;
 pub(crate) trait ListenRequestHandler<Req>: Send + 'static {
     /// Processes a single request.
     ///
+    /// Returning `Break` ends the session regularly, the response stream is closed with OK.
     /// Returning an error ends the session. The error is sent to the client as the terminal status
     /// of the response stream.
-    fn handle(&mut self, request: Req) -> impl Future<Output = Result<(), Status>> + Send;
+    fn handle(
+        &mut self,
+        request: Req,
+    ) -> impl Future<Output = Result<ControlFlow<()>, Status>> + Send;
 }
 
 enum Event<Req, Resp> {
@@ -44,6 +48,7 @@ enum Event<Req, Resp> {
 /// - `responses` ends: the client is told via an ABORTED status. The caller must ensure that
 ///   `responses` only ends when this session is superseded (evicted).
 /// - `stop` is cancelled: the client is told an UNAVAILABLE status.
+/// - `handler` breaks: the response stream is closed with OK.
 /// - `handler` fails: its error is terminal status.
 ///
 /// `name` identifies the session in logs. `handler` is dropped when the session ends.
@@ -100,14 +105,17 @@ where
             };
 
             match event {
-                Event::Incoming(request) => {
-                    if let Err(error) = handler.handle(request).await {
+                Event::Incoming(request) => match handler.handle(request).await {
+                    Ok(ControlFlow::Continue(())) => {}
+                    // Returning drops out_tx which closes the response with OK trailers.
+                    Ok(ControlFlow::Break(())) => return,
+                    Err(error) => {
                         // We report the error to the client and stop.
                         error!(%error, %name, "error processing listen request");
                         let _ = out_tx.send(Err(error)).await;
                         return;
                     }
-                }
+                },
                 Event::Deliver(response) => {
                     if out_tx.send(Ok(response)).await.is_err() {
                         return;

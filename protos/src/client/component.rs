@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::codec::{self, PersistenceCodec};
+use aircommon::{
+    codec::{self, PersistenceCodec},
+    time::TimeStamp,
+};
 use airmacros::{DeserializeTaggedMap, SerializeTaggedMap};
 use mls_assist::openmls::component::ComponentId;
 
@@ -27,6 +30,12 @@ pub struct AirComponent {
     /// Only meaningful in the group context; always `false` in leaf nodes and key packages.
     #[tag(2)]
     pub is_self_group: bool,
+    /// When the group was deleted, if it was.
+    ///
+    /// Set in a self-group when the user deletes the account. Only meaningful in the group
+    /// context. Always `None` in leaf nodes and key packages.
+    #[tag(3)]
+    pub deleted: Option<TimeStamp>,
 }
 
 /// List of features supported by the client.
