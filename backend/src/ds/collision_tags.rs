@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::messages::client_ds_out::MAX_COLLISION_TAGS_PER_REQUEST;
 use airprotos::{
     common::v1::{
         GenerationCollisionDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
@@ -12,8 +13,6 @@ use prost::Message;
 use sqlx::{PgExecutor, PgPool};
 use tonic::Code;
 use uuid::Uuid;
-
-const MAX_COLLISION_TAGS_PER_REQUEST: usize = 30;
 
 pub(super) struct CollisionTags(Vec<i64>);
 

@@ -31,6 +31,10 @@ import 'package:air/features/chat_details/change_group_title_dialog.dart';
 import 'package:air/features/developer/chat_debug_info_view.dart'
     show ChatDebugInfoRow;
 import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/util/scaffold_messenger.dart';
+import 'package:logging/logging.dart';
+
+final _log = Logger('GroupDetailsView');
 
 /// Body of the group details modal page. Content only: surface, header, and
 /// scrolling are the modal's.
@@ -342,8 +346,16 @@ class _GroupActions extends StatelessWidget {
     );
     if (!confirmed) return;
     AppHaptics.destructive();
-    userCubit.deleteChat(chat.id);
-    if (!context.mounted) return;
+    try {
+      await userCubit.deleteChat(chat.id);
+    } catch (e, stackTrace) {
+      _log.severe("Failed to delete chat: $e", e, stackTrace);
+      showSnackBarStandalone(
+        (loc) => loc.deleteChatDialog_error,
+        tone: .danger,
+      );
+      return;
+    }
     navigationCubit.closeChat();
   }
 }

@@ -1044,6 +1044,10 @@ impl PendingChatOperation {
     /// Creates and stores a PendingChatOperation for deleting a chat.
     /// If the chat has only one member (the user themself), it is
     /// directly set to inactive instead.
+    ///
+    /// The exception is an open outgoing request. Its group has only the user
+    /// as member until the recipient joins, and deleting it on the DS is what
+    /// retracts the request.
     pub(super) async fn create_delete(
         txn: &mut WriteDbTransaction<'_>,
         signer: &UserSigningKey,
@@ -1060,7 +1064,7 @@ impl PendingChatOperation {
 
         let past_members: Vec<_> = group.members().collect();
 
-        if past_members.len() == 1 {
+        if past_members.len() == 1 && !chat.is_unconfirmed() {
             chat.set_status(txn, ChatStatus::inactive(past_members))
                 .await?;
             Ok(None)
@@ -1288,6 +1292,26 @@ impl PendingChatOperation {
                 Self::delete(txn, group_id).await?;
             }
         }
+        Ok(())
+    }
+
+    /// Gives up the parked delete of the group, so it is never sent. Any other
+    /// parked operation of the group stays.
+    pub(crate) async fn abandon_delete(
+        txn: &mut WriteDbTransaction<'_>,
+        group_id: &GroupId,
+    ) -> anyhow::Result<()> {
+        let Some(mut job) = Self::load_by_group_id(&mut *txn, group_id).await? else {
+            return Ok(());
+        };
+        if !job.operation.is_delete() {
+            return Ok(());
+        }
+        job.group
+            .group_mut()
+            .discard_pending_commit(&mut *txn)
+            .await?;
+        Self::delete(txn, group_id).await?;
         Ok(())
     }
 
@@ -2341,5 +2365,64 @@ mod tests {
                 Ok(())
             })
             .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn abandon_delete_drops_the_parked_delete() -> anyhow::Result<()> {
+        let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
+        let group_id = group.group_id().clone();
+        let mut connection = pool.write().await?;
+
+        Box::pin(
+            connection.with_transaction(async |txn| -> anyhow::Result<()> {
+                let params = group
+                    .group_mut()
+                    .stage_delete(&mut *txn, &signing_key)
+                    .await?;
+                PendingChatOperation::new(group, OperationType::Delete(Box::new(params)))
+                    .store(&mut *txn)
+                    .await?;
+
+                PendingChatOperation::abandon_delete(txn, &group_id).await?;
+
+                assert!(
+                    PendingChatOperation::load_by_group_id(&mut *txn, &group_id)
+                        .await?
+                        .is_none()
+                );
+                let group = Group::load(&mut *txn, &group_id).await?.unwrap();
+                assert!(group.mls_group().pending_commit().is_none());
+                Ok(())
+            }),
+        )
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn abandon_delete_keeps_another_parked_operation() -> anyhow::Result<()> {
+        let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
+        let group_id = group.group_id().clone();
+        let mut connection = pool.write().await?;
+
+        Box::pin(
+            connection.with_transaction(async |txn| -> anyhow::Result<()> {
+                let leave_params = group
+                    .group_mut()
+                    .stage_leave_group(&mut *txn, &signing_key)?;
+                PendingChatOperation::new(group, OperationType::Leave(Box::new(leave_params)))
+                    .store(&mut *txn)
+                    .await?;
+
+                PendingChatOperation::abandon_delete(txn, &group_id).await?;
+
+                assert!(
+                    PendingChatOperation::load_by_group_id(&mut *txn, &group_id)
+                        .await?
+                        .is_some()
+                );
+                Ok(())
+            }),
+        )
+        .await
     }
 }
