@@ -2,6 +2,10 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+# The app's language, as a locale tag like `en_US`, `de` or `zh_Hant`.
+# Defaults to `en_US` when omitted.
+locale: en_US
+
 # Own profile. Avatar files are implicitly `<key>.jpg` under
 # test/assets/images/ for own/contacts (not for chats, whose avatar is a
 # separate photo unrelated to the key).

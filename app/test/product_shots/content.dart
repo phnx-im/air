@@ -7,8 +7,9 @@ import 'dart:typed_data';
 
 import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
+import 'package:air/l10n/language_options.dart';
 import 'package:crypto/crypto.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -38,6 +39,9 @@ const _imagesDir = String.fromEnvironment(
 );
 
 final _content = _Content.load();
+
+/// The locale the app is rendered in, from `content.yaml`'s `locale`.
+final contentLocale = _content.locale;
 
 final userProfiles = _content.userProfiles;
 final chats = _content.chats;
@@ -124,6 +128,9 @@ class _Content {
       _attachmentImagesByChat[chatKey] ?? const {};
 
   UiChatDetails chat(String key) => _chatsByKey[key]!;
+
+  Locale get locale =>
+      localeFromTag(_yaml['locale'] as String?) ?? const Locale('en', 'US');
 
   String shotChatKey(String shot) =>
       (_yaml['shots'] as YamlMap)[shot] as String;

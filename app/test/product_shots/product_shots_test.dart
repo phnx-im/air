@@ -10,6 +10,7 @@ import 'package:air/features/chat/chats_repository.dart' as chats_repository;
 import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
+import 'package:air/l10n/supported_locales.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
@@ -23,6 +24,7 @@ import 'package:air/util/time/app_clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
@@ -166,6 +168,12 @@ Widget _buildProductShotSubject({
         darkTheme: testThemeData(.dark, withColorEmojis: true),
         themeMode: brightness == Brightness.dark ? .dark : .light,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: supportedLocalesWithFallback(
+          AppLocalizations.supportedLocales,
+          const Locale('en', 'US'),
+        ),
+        localeListResolutionCallback: resolveLocaleList,
+        locale: contentLocale,
         home: Material(
           color: frameless ? Colors.transparent : null,
           child: MediaQuery(
@@ -543,7 +551,8 @@ _ProductShotSpec _groupChatSpec() => _chatSpec(
 );
 
 void main() {
-  setUpAll(() {
+  setUpAll(() async {
+    await initializeDateFormatting();
     registerFallbackValue(0.messageId());
     registerFallbackValue(0.userId());
     registerFallbackValue(0.attachmentId());
