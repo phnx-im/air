@@ -981,7 +981,7 @@ impl ApiClient {
     /// The result is used to upload the attachment to the server.
     pub async fn ds_provision_attachment(
         &self,
-        signing_key: &UserSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         target: DsAttachmentTarget<'_>,
         content_length: i64,
         object_type: StorageObjectType,
@@ -1029,7 +1029,7 @@ impl ApiClient {
     pub async fn ds_get_attachment_url(
         &self,
         object_type: StorageObjectType,
-        signing_key: &UserSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         target: DsAttachmentTarget<'_>,
         remote_attachment_id: RemoteAttachmentId,
     ) -> Result<String, DsRequestError> {
