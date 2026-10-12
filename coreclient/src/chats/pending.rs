@@ -63,13 +63,43 @@ impl PendingConnectionRequest {
     }
 }
 
+/// How accepting the newest request of a chat went.
+enum AcceptOutcome {
+    Accepted,
+    /// The request was gone. `next` is the chat of the sender's remaining
+    /// requests, if there are any.
+    Unavailable {
+        next: Option<ChatId>,
+    },
+    Failed(AcceptContactRequestError),
+}
+
 impl CoreUser {
     /// Accepts the incoming contact request the chat shows.
+    ///
+    /// The newest of the sender's pending requests is accepted. If its sender
+    /// retracted it, the next newest is. Returns the chat of the connection,
+    /// which is not `chat_id` if an older request was accepted.
     #[instrument(skip(self), err)]
     pub async fn accept_contact_request(
         &self,
         chat_id: ChatId,
-    ) -> anyhow::Result<Result<(), AcceptContactRequestError>> {
+    ) -> anyhow::Result<Result<ChatId, AcceptContactRequestError>> {
+        let mut chat_id = chat_id;
+        // Every round that does not end the loop removes one request.
+        loop {
+            match self.accept_newest_request(chat_id).await? {
+                AcceptOutcome::Accepted => return Ok(Ok(chat_id)),
+                AcceptOutcome::Failed(error) => return Ok(Err(error)),
+                AcceptOutcome::Unavailable { next: Some(next) } => chat_id = next,
+                AcceptOutcome::Unavailable { next: None } => {
+                    return Ok(Err(AcceptContactRequestError::Unavailable));
+                }
+            }
+        }
+    }
+
+    async fn accept_newest_request(&self, chat_id: ChatId) -> anyhow::Result<AcceptOutcome> {
         // Load needed data
         let (chat, sender_user_id, request, own_user_profile_key) = self
             .db()
@@ -91,7 +121,7 @@ impl CoreUser {
             .await?;
 
         let PendingConnectionRequest {
-            request_id: _,
+            request_id,
             chat_id: _,
             created_at: _,
             received_at: _,
@@ -106,14 +136,23 @@ impl CoreUser {
         let (aad, qgid) = self.prepare_group(&connection_info, &own_user_profile_key)?;
 
         // Fetch external commit info
-        let eci = self
+        let eci = match self
             .api_clients()
             .get(qgid.owning_domain())?
             .ds_connection_group_info(
                 connection_info.connection_group_id.clone(),
                 &connection_info.connection_group_ear_key,
             )
-            .await?;
+            .await
+        {
+            Ok(eci) => eci,
+            // The sender retracted the request.
+            Err(error) if error.is_not_found() => {
+                let next = self.record_unavailable_request(request_id).await?;
+                return Ok(AcceptOutcome::Unavailable { next });
+            }
+            Err(error) => return Err(error.into()),
+        };
         let is_apq = eci.is_apq()?;
 
         // Create a new group by joining it (if group already exists, it will be replaced)
@@ -255,34 +294,41 @@ impl CoreUser {
         // Propagate the error to the caller if it is a leaf node validation error.
         let (commit, group_bootstrap) = match result {
             Ok(value) => value,
-            Err(error) => return Ok(Err(error.into())),
+            Err(error) => return Ok(AcceptOutcome::Failed(error.into())),
         };
 
         // Send confirmation to DS
         let qs_client_reference = self.create_own_client_reference();
         let api_client = self.api_clients().get(qgid.owning_domain())?;
-        match commit {
-            ConnectionJoinCommit::T(bundle) => {
-                api_client
-                    .ds_join_connection_group(
-                        bundle.commit,
-                        bundle.group_info,
-                        qs_client_reference,
-                        &connection_info.connection_group_ear_key,
-                        group_bootstrap,
-                    )
-                    .await?;
+        let joined = match commit {
+            ConnectionJoinCommit::T(bundle) => api_client
+                .ds_join_connection_group(
+                    bundle.commit,
+                    bundle.group_info,
+                    qs_client_reference,
+                    &connection_info.connection_group_ear_key,
+                    group_bootstrap,
+                )
+                .await
+                .map(|_| ()),
+            ConnectionJoinCommit::Apq(bundle) => api_client
+                .ds_apq_join_connection_group(
+                    *bundle,
+                    qs_client_reference,
+                    &connection_info.connection_group_ear_key,
+                    group_bootstrap,
+                )
+                .await
+                .map(|_| ()),
+        };
+        match joined {
+            Ok(()) => {}
+            // The sender retracted the request after we fetched the group.
+            Err(error) if error.is_not_found() => {
+                let next = self.record_unavailable_request(request_id).await?;
+                return Ok(AcceptOutcome::Unavailable { next });
             }
-            ConnectionJoinCommit::Apq(bundle) => {
-                api_client
-                    .ds_apq_join_connection_group(
-                        *bundle,
-                        qs_client_reference,
-                        &connection_info.connection_group_ear_key,
-                        group_bootstrap,
-                    )
-                    .await?;
-            }
+            Err(error) => return Err(error.into()),
         }
 
         // The chat becomes the connection with the sender, and the sender's
@@ -318,7 +364,7 @@ impl CoreUser {
             })
             .await?;
 
-        Ok(Ok(()))
+        Ok(AcceptOutcome::Accepted)
     }
 
     fn prepare_group(
@@ -539,6 +585,10 @@ mod persistence {
 pub enum AcceptContactRequestError {
     #[error("Incompatible client: {reason}")]
     IncompatibleClient { reason: String },
+    /// The sender retracted every pending request the chat showed. The chat
+    /// is now a record of that.
+    #[error("The contact request is no longer available")]
+    Unavailable,
 }
 
 impl From<LeafNodeValidationError> for AcceptContactRequestError {

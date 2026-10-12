@@ -48,7 +48,7 @@ use crate::{
             edit::{MessageEdit, handle_message_edit},
             persistence::apply_deleted_messages,
         },
-        outgoing_requests,
+        outgoing_requests, persistence,
         reactions::Reaction,
     },
     clients::{
@@ -911,6 +911,9 @@ impl CoreUser {
                 }
             }
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
+                // Only our own devices are members of an unconfirmed connection
+                // group, so its deletion is a sibling retracting the request.
+                let retracted = we_were_removed && chat.is_unconfirmed();
                 let sender_user_credential =
                     StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id)
                         .await?
@@ -933,7 +936,14 @@ impl CoreUser {
                     .group_mut()
                     .store_update(&mut *txn, None, None)
                     .await?;
-                log_processed_commit(&group, &sender, &sender_user_id);
+                log_processed_commit(&group, &sender);
+
+                if retracted {
+                    if let Some(chat) = Chat::load(&mut *txn, &chat_id).await? {
+                        persistence::erase(txn, &chat).await?;
+                    }
+                    return Ok(QsMessageOutcome::empty());
+                }
                 HandledMessages {
                     new_messages,
                     ..Default::default()
@@ -954,7 +964,7 @@ impl CoreUser {
                     .group_mut()
                     .store_update(&mut *txn, Some(ds_timestamp), pq_updated_at)
                     .await?;
-                log_processed_commit(&group, &sender, &sender_user_id);
+                log_processed_commit(&group, &sender);
                 self.finalize_own_commit(
                     &mut *txn,
                     &group,
@@ -1815,7 +1825,7 @@ fn own_commit_key_package_batch(
 }
 
 /// Logs a merged commit. `group` must already be in the new epoch.
-fn log_processed_commit(group: &VerifiedGroup, sender: &Sender, sender_user_id: &UserId) {
+fn log_processed_commit(group: &VerifiedGroup, sender: &Sender) {
     let group = group.group();
     let sender_index = match sender {
         Sender::Member(index) => Some(index.u32()),
@@ -1826,7 +1836,6 @@ fn log_processed_commit(group: &VerifiedGroup, sender: &Sender, sender_user_id: 
         epoch = group.mls_group().epoch().as_u64(),
         pq_epoch = group.pq().map(|pq| pq.mls_group.epoch().as_u64()),
         sender_index,
-        ?sender_user_id,
         "processed commit"
     );
 }

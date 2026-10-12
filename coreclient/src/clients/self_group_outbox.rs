@@ -5,7 +5,8 @@
 //! The outbox of self-group messages that still have to reach the user's other
 //! devices.
 
-use sqlx::query;
+use aircommon::time::TimeStamp;
+use sqlx::{query, query_as};
 
 use crate::db::access::{ReadConnection, WriteConnection};
 
@@ -51,8 +52,11 @@ pub(crate) async fn stage(
     let kind = kind.as_str();
     query!(
         "INSERT INTO self_group_outbox (kind, key, payload, previous)
-        VALUES (?1, ?2, ?3, ?4)
-        ON CONFLICT (kind, key) DO UPDATE SET payload = excluded.payload",
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT (kind, key) DO UPDATE 
+         SET payload = excluded.payload, 
+             attempts = 0, 
+             retry_at = NULL",
         kind,
         key,
         payload,
@@ -115,6 +119,57 @@ pub(crate) async fn load_kind(
             previous: row.previous,
         })
         .collect())
+}
+
+/// A staged change that is due, with its failed attempts so far.
+pub(crate) struct DueEntry {
+    pub(crate) key: Vec<u8>,
+    pub(crate) attempts: u32,
+}
+
+/// Every change staged under `kind` that is due at `due_at`, sorted by key.
+pub(crate) async fn load_due(
+    mut connection: impl ReadConnection,
+    kind: OutboxKind,
+    due_at: TimeStamp,
+) -> sqlx::Result<Vec<DueEntry>> {
+    let kind = kind.as_str();
+    query_as!(
+        DueEntry,
+        r#"SELECT
+            key,
+            attempts AS "attempts: _"
+        FROM self_group_outbox
+        WHERE kind = ?1 AND (retry_at IS NULL OR retry_at <= ?2)
+        ORDER BY key"#,
+        kind,
+        due_at,
+    )
+    .fetch_all(connection.as_mut())
+    .await
+}
+
+/// Keeps the change staged under `key` until `retry_at`.
+pub(crate) async fn record_failed_attempt(
+    mut connection: impl WriteConnection,
+    kind: OutboxKind,
+    key: &[u8],
+    attempts: u32,
+    retry_at: TimeStamp,
+) -> sqlx::Result<()> {
+    let kind = kind.as_str();
+    query!(
+        "UPDATE self_group_outbox 
+         SET attempts = ?1, retry_at = ?2
+         WHERE kind = ?3 AND key = ?4",
+        attempts,
+        retry_at,
+        kind,
+        key,
+    )
+    .execute(connection.as_mut())
+    .await?;
+    Ok(())
 }
 
 /// Drops the change staged under `key`.

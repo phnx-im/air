@@ -2,36 +2,32 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+mod payloads;
+#[cfg(test)]
+mod tests;
+
 use airapiclient::rs_api::RsRequestError;
 use aircommon::codec::PersistenceCodec;
-use aircommon::credentials::keys::{SelfGroupSigningKey, UserSigningKey};
+use aircommon::credentials::keys::SelfGroupSigningKey;
 use aircommon::crypto::RatchetDecryptionKey;
-use aircommon::crypto::aead::keys::{
-    GroupStateEarKey, IdentityLinkWrapperKey, PushTokenEarKey, WelcomeAttributionInfoEarKey,
-};
 use aircommon::crypto::aead::{
     AeadDecryptable, AeadEncryptable, Ciphertext, keys::MultiDeviceLinkingKey,
 };
-use aircommon::crypto::hpke::ClientIdEncryptionKey;
 use aircommon::crypto::indexed_aead::keys::UserProfileKey;
 use aircommon::crypto::kdf::keys::RatchetSecret;
-use aircommon::crypto::signatures::keys::{QsClientSigningKey, QsUserSigningKey};
-use aircommon::identifiers::{Fqdn, QsClientId, QsUserId, UserId};
-use aircommon::messages::{FriendshipToken, QueueMessage};
+use aircommon::crypto::signatures::keys::QsClientSigningKey;
+use aircommon::identifiers::Fqdn;
+use aircommon::messages::QueueMessage;
 use aircommon::mls_group_config::{
     APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE, self_group_leaf_node_capabilities,
 };
 use airprotos::client::app_data::ClientAppData;
-use airprotos::client::self_group::{
-    BlockedContactEntry, ConnectionRequestEntry, LinkedDevice, RedeemedTokens, SettingsUpdate,
-    TokenSeed,
-};
+use airprotos::client::self_group::SettingsUpdate;
 use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
 use anyhow::{Context, anyhow, bail};
 use apqmls::authentication::ApqCredentialWithKey;
 use apqmls::messages::ApqKeyPackage;
 use chrono::Utc;
-use openmls::group::GroupId;
 use openmls::prelude::{Credential, CredentialType, SignaturePublicKey};
 use openmls::{
     group::{MlsGroup, MlsGroupCreateConfig, MlsGroupJoinConfig, StagedWelcome},
@@ -86,97 +82,18 @@ use crate::{
     utils::persistence::{open_air_db, open_client_db, open_lock_file},
 };
 
+pub(crate) use payloads::{ConnectionContact, HigherLevelGroup};
+use payloads::{ProvisioningPackage, SelfGroupJoinRequest};
+
 const EXPORTER_LABEL: &str = "multi-device-linking";
 
 /// How long to wait for the new device to disconnect after sending it an
 /// abort.
 const LINKING_ABORT_GRACE: Duration = Duration::from_secs(5);
 
-/// Everything the old (existing) device hands to the new device over the
-/// secure linking channel so the new device can bootstrap a working
-/// [`CoreUser`] and join the user's self group.
-#[derive(Serialize, Deserialize)]
-pub(crate) struct ProvisioningPackage {
-    /// Identity + AS user credential (shared across devices for the MVP).
-    ///
-    /// Contains the user id.
-    pub(crate) user_signing_key: UserSigningKey,
-    /// User-level QS key material (shared by all of the user's devices).
-    pub(crate) qs_user_id: QsUserId,
-    pub(crate) qs_user_signing_key: QsUserSigningKey,
-    pub(crate) friendship_token: FriendshipToken,
-    pub(crate) push_token_ear_key: PushTokenEarKey,
-    pub(crate) wai_ear_key: WelcomeAttributionInfoEarKey,
-    pub(crate) qs_client_id_encryption_key: ClientIdEncryptionKey,
-    /// Freshly created queue for the new device (created by the old device).
-    pub(crate) qs_client_id: QsClientId,
-    pub(crate) qs_client_signing_key: QsClientSigningKey,
-    pub(crate) qs_queue_decryption_key: RatchetDecryptionKey,
-    pub(crate) qs_initial_ratchet_secret: RatchetSecret,
-    /// User profile
-    pub(crate) user_profile_key: UserProfileKey,
-    /// Self-group metadata not carried by the Welcome.
-    pub(crate) self_group_id: GroupId,
-    /// Synced user settings snapshot so the new device starts with the
-    /// provisioner's values.
-    pub(crate) synced_settings: SettingsUpdate,
-    /// The agreed Privacy Pass token seeds, so the new device derives the same
-    /// token requests as its sibling instead of running an agreement round for a
-    /// key whose allowance epoch the sibling has already locked.
-    pub(crate) token_seeds: Vec<TokenSeed>,
-    /// Contacts blocked so far.
-    pub(crate) blocked_contacts: Vec<BlockedContactEntry>,
-    /// The tokens the user's devices have redeemed so far.
-    #[serde(default)]
-    pub(crate) redeemed_tokens: Vec<RedeemedTokens>,
-    /// The incoming connection requests that are pending.
-    #[serde(default)]
-    pub(crate) connection_requests: Vec<ConnectionRequestEntry>,
-    /// The name the confirming user gave this device. Empty means "no choice
-    /// made", and the new device falls back to its own platform label.
-    pub(crate) device_name: String,
-    /// The higher-level groups the virtual client is already a member of, which
-    /// the new emulator client onboards itself into.
-    pub(crate) groups: Vec<HigherLevelGroup>,
-}
-
-/// What the new device sends back over the secure linking channel.
-///
-/// The metadata entry travels with the key package so the old device can publish
-/// it on the very same self-group commit that adds the new leaf. Sending it as a
-/// settings commit of its own would advance the self-group epoch behind the back
-/// of the device performing the add, breaking the next link with a wrong-epoch
-/// rejection.
-#[derive(Serialize, Deserialize)]
-pub(crate) struct SelfGroupJoinRequest {
-    pub(crate) key_package: ApqKeyPackage,
-    pub(crate) device: LinkedDevice,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum LinkingAbort {
     DeviceLimitReached { max_devices: u32 },
-}
-
-#[derive(Serialize, Deserialize)]
-pub(crate) struct HigherLevelGroup {
-    pub(crate) group_id: GroupId,
-    pub(crate) pq_group_id: Option<GroupId>,
-    pub(crate) group_state_ear_key: GroupStateEarKey,
-    pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
-    pub(crate) vc_leaf_index: u32,
-    /// Set if the group backs a connection chat rather than a group chat.
-    pub(crate) connection: Option<ConnectionContact>,
-    /// Set if the group backs an outgoing connection request the recipient
-    /// has not answered yet.
-    pub(crate) outgoing_request: Option<OutgoingRequest>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct ConnectionContact {
-    pub(crate) user_id: UserId,
-    pub(crate) wai_ear_key: WelcomeAttributionInfoEarKey,
-    pub(crate) friendship_token: FriendshipToken,
 }
 
 #[derive(Debug)]
@@ -1042,286 +959,5 @@ impl CoreUser {
     /// Whether a sibling device removed this device from the self group.
     pub async fn is_account_unlinked(&self) -> anyhow::Result<bool> {
         OwnClientInfo::is_account_unlinked(self.db().read().await?).await
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::assert_matches;
-
-    use aircommon::credentials::test_utils::create_test_credentials;
-    use aircommon::crypto::aead::keys::FriendshipPackageEarKey;
-    use aircommon::crypto::hpke::ClientIdDecryptionKey;
-    use aircommon::identifiers::{QualifiedGroupId, Username};
-    use aircommon::messages::client_as::ConnectionOfferHash;
-    use airprotos::auth_service::v1::OperationType;
-    use airprotos::client::self_group::{
-        ConnectionRequestGroup, ConnectionRequestReceived, ConnectionRequestSource, ContactBlocked,
-    };
-    use uuid::Uuid;
-
-    use super::*;
-
-    /// Builds a [`ProvisioningPackage`] with the given synced settings, token
-    /// seeds, blocked contacts and redeemed tokens, and otherwise freshly
-    /// generated key material.
-    fn sample_package(
-        synced_settings: SettingsUpdate,
-        token_seeds: Vec<TokenSeed>,
-        blocked_contacts: Vec<BlockedContactEntry>,
-        redeemed_tokens: Vec<RedeemedTokens>,
-    ) -> anyhow::Result<ProvisioningPackage> {
-        let user_id = UserId::random("example.com".parse()?);
-        let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
-        let self_group_id = GroupId::from(QualifiedGroupId::new(
-            Uuid::new_v4(),
-            "example.com".parse()?,
-        ));
-        Ok(ProvisioningPackage {
-            user_signing_key,
-            qs_user_id: QsUserId::random(),
-            qs_user_signing_key: QsUserSigningKey::generate()?,
-            friendship_token: FriendshipToken::random()?,
-            push_token_ear_key: PushTokenEarKey::random()?,
-            wai_ear_key: WelcomeAttributionInfoEarKey::random()?,
-            qs_client_id_encryption_key: ClientIdDecryptionKey::generate()?
-                .encryption_key()
-                .clone(),
-            qs_client_id: QsClientId::random(&mut rand::rng()),
-            qs_client_signing_key: QsClientSigningKey::generate()?,
-            qs_queue_decryption_key: RatchetDecryptionKey::generate()?,
-            qs_initial_ratchet_secret: RatchetSecret::random()?,
-            user_profile_key: UserProfileKey::random(&user_id)?,
-            self_group_id,
-            synced_settings,
-            token_seeds,
-            blocked_contacts,
-            redeemed_tokens,
-            connection_requests: Vec::new(),
-            device_name: "Work laptop".to_owned(),
-            groups: Vec::new(),
-        })
-    }
-
-    fn sample_seeds() -> Vec<TokenSeed> {
-        vec![TokenSeed {
-            operation_type: OperationType::AddUsername,
-            key_fingerprint: [0x11; 32],
-            seed: [0x22; 32],
-        }]
-    }
-
-    fn sample_redeemed() -> Vec<RedeemedTokens> {
-        vec![RedeemedTokens {
-            operation_type: OperationType::AddUsername,
-            key_fingerprint: [0x11; 32],
-            allowance_epoch: 679,
-            token_indices: vec![0, 4],
-        }]
-    }
-
-    #[test]
-    fn linking_abort_roundtrips_through_linking_channel() -> anyhow::Result<()> {
-        let key = MultiDeviceLinkingKey::random()?;
-        let frame =
-            LinkingMessage::seal(&LinkingAbort::DeviceLimitReached { max_devices: 2 }, &key)?;
-        let decoded: LinkingAbort = LinkingMessage::open(frame.as_slice(), &key)?;
-        assert_matches!(decoded, LinkingAbort::DeviceLimitReached { max_devices: 2 });
-        Ok(())
-    }
-
-    #[test]
-    fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
-        let blocked_contacts = vec![BlockedContactEntry::Blocked(ContactBlocked {
-            user_id: UserId::random("example.com".parse()?).into(),
-            blocked_at: 1_767_225_600,
-            last_display_name: "Alice".to_owned(),
-        })];
-        let mut package = sample_package(
-            SettingsUpdate {
-                send_read_receipts: Some(false),
-                linked_devices: None,
-            },
-            sample_seeds(),
-            blocked_contacts.clone(),
-            sample_redeemed(),
-        )?;
-        let connection_requests = vec![ConnectionRequestEntry::Received(
-            ConnectionRequestReceived {
-                connection_info: vec![0x11; 8],
-                sender_credential: vec![0x12; 8],
-                source: ConnectionRequestSource::Group(ConnectionRequestGroup {
-                    group_id: Some(GroupId::from_slice(&[0x13; 8])),
-                }),
-                connection_offer_hash: None,
-                connection_package_hash: None,
-                received_at: 1_767_225_600_123,
-            },
-        )];
-        package.connection_requests = connection_requests.clone();
-        let outgoing_request = OutgoingRequest::Username {
-            username: Username::new("joel-03".to_owned())?,
-            friendship_package_ear_key: FriendshipPackageEarKey::random()?,
-            connection_offer_hash: ConnectionOfferHash::new_for_test(vec![0x66; 32]),
-        };
-        package.groups.push(HigherLevelGroup {
-            group_id: GroupId::from_slice(&[0x14; 8]),
-            pq_group_id: None,
-            group_state_ear_key: GroupStateEarKey::random()?,
-            identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
-            vc_leaf_index: 0,
-            connection: None,
-            outgoing_request: Some(outgoing_request.clone()),
-        });
-        let user_id = package.user_signing_key.credential().user_id().clone();
-
-        let key = MultiDeviceLinkingKey::random()?;
-        let frame = LinkingMessage::seal(&package, &key)?;
-        let decoded: ProvisioningPackage = LinkingMessage::open(frame.as_slice(), &key)?;
-
-        assert_eq!(
-            decoded.synced_settings,
-            SettingsUpdate {
-                send_read_receipts: Some(false),
-                linked_devices: None,
-            }
-        );
-        assert_eq!(decoded.token_seeds, sample_seeds());
-        assert_eq!(decoded.blocked_contacts, blocked_contacts);
-        assert_eq!(decoded.redeemed_tokens, sample_redeemed());
-        assert_eq!(decoded.connection_requests, connection_requests);
-        assert_eq!(
-            decoded.groups[0].outgoing_request,
-            Some(outgoing_request),
-            "an unanswered outgoing request travels with its group"
-        );
-        assert_eq!(decoded.user_signing_key.credential().user_id(), &user_id);
-        // The confirming user's device name rides along in the same package.
-        assert_eq!(decoded.device_name, "Work laptop");
-
-        Ok(())
-    }
-
-    /// A provisioner from before redeemed-token and connection-request sync
-    /// sends no `redeemed_tokens` or `connection_requests` key. Linking to it
-    /// has to work, with both empty.
-    #[test]
-    fn a_package_without_redeemed_tokens_decodes_as_empty() -> anyhow::Result<()> {
-        /// The package as an older provisioner serializes it.
-        #[derive(serde::Serialize)]
-        struct OlderProvisioningPackage {
-            user_id: UserId,
-            user_signing_key: UserSigningKey,
-            qs_user_id: QsUserId,
-            qs_user_signing_key: QsUserSigningKey,
-            friendship_token: FriendshipToken,
-            push_token_ear_key: PushTokenEarKey,
-            wai_ear_key: WelcomeAttributionInfoEarKey,
-            qs_client_id_encryption_key: ClientIdEncryptionKey,
-            qs_client_id: QsClientId,
-            qs_client_signing_key: QsClientSigningKey,
-            qs_queue_decryption_key: RatchetDecryptionKey,
-            qs_initial_ratchet_secret: RatchetSecret,
-            user_profile_key: UserProfileKey,
-            self_group_id: GroupId,
-            identity_link_wrapper_key: IdentityLinkWrapperKey,
-            synced_settings: SettingsUpdate,
-            token_seeds: Vec<TokenSeed>,
-            blocked_contacts: Vec<BlockedContactEntry>,
-            device_name: String,
-            groups: Vec<HigherLevelGroup>,
-        }
-
-        let ProvisioningPackage {
-            user_signing_key,
-            qs_user_id,
-            qs_user_signing_key,
-            friendship_token,
-            push_token_ear_key,
-            wai_ear_key,
-            qs_client_id_encryption_key,
-            qs_client_id,
-            qs_client_signing_key,
-            qs_queue_decryption_key,
-            qs_initial_ratchet_secret,
-            user_profile_key,
-            self_group_id,
-            synced_settings,
-            token_seeds,
-            blocked_contacts,
-            redeemed_tokens: _,
-            connection_requests: _,
-            device_name,
-            groups,
-        } = sample_package(
-            SettingsUpdate::default(),
-            sample_seeds(),
-            Vec::new(),
-            sample_redeemed(),
-        )?;
-        let older = OlderProvisioningPackage {
-            user_id: user_signing_key.credential().user_id().clone(),
-            user_signing_key,
-            qs_user_id,
-            qs_user_signing_key,
-            friendship_token,
-            push_token_ear_key,
-            wai_ear_key,
-            qs_client_id_encryption_key,
-            qs_client_id,
-            qs_client_signing_key,
-            qs_queue_decryption_key,
-            qs_initial_ratchet_secret,
-            user_profile_key,
-            self_group_id,
-            identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
-            synced_settings,
-            token_seeds,
-            blocked_contacts,
-            device_name,
-            groups,
-        };
-
-        let key = MultiDeviceLinkingKey::random()?;
-        let frame = LinkingMessage::seal(&older, &key)?;
-        let decoded: ProvisioningPackage = LinkingMessage::open(frame.as_slice(), &key)?;
-
-        assert_eq!(decoded.token_seeds, sample_seeds());
-        assert!(decoded.redeemed_tokens.is_empty());
-        assert!(decoded.connection_requests.is_empty());
-
-        Ok(())
-    }
-
-    /// A provisioner from before outgoing requests were handed over sends its
-    /// groups without an `outgoing_request` key.
-    #[test]
-    fn a_group_without_outgoing_request_decodes_as_none() -> anyhow::Result<()> {
-        /// The group as an older provisioner serializes it.
-        #[derive(serde::Serialize)]
-        struct OlderHigherLevelGroup {
-            group_id: GroupId,
-            pq_group_id: Option<GroupId>,
-            group_state_ear_key: GroupStateEarKey,
-            identity_link_wrapper_key: IdentityLinkWrapperKey,
-            vc_leaf_index: u32,
-            connection: Option<ConnectionContact>,
-        }
-
-        let older = OlderHigherLevelGroup {
-            group_id: GroupId::from_slice(&[0x14; 8]),
-            pq_group_id: None,
-            group_state_ear_key: GroupStateEarKey::random()?,
-            identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
-            vc_leaf_index: 0,
-            connection: None,
-        };
-
-        let bytes = PersistenceCodec::to_vec(&older)?;
-        let decoded: HigherLevelGroup = PersistenceCodec::from_slice(&bytes)?;
-        assert_eq!(decoded.group_id, older.group_id);
-        assert_eq!(decoded.outgoing_request, None);
-
-        Ok(())
     }
 }

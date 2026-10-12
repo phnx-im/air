@@ -84,35 +84,17 @@ class ContactRequestDialog extends HookWidget {
       subtitle: subtitle,
       displayName: senderProfile.displayName,
       gradientSeed: senderProfile.userId.uuid.uuid,
-      image: _picture(
-        context,
-        senderProfile.profilePicture,
-        ContactRequestCardTokens.avatarSize,
-      ),
+      image: contactRequestPicture(context, senderProfile.profilePicture),
       pictureRevealLabel: DeviceType.isDesktop
           ? loc.contactRequestDialog_avatarHint_desktop
           : loc.contactRequestDialog_avatarHint,
-      acceptLabel: loc.contactRequestDialog_confirm,
-      dismissLabel: loc.contactRequestDialog_cancel,
-      onAccept: () => _accept(context, isAccepting),
-      onDismiss: () => context.read<NavigationCubit>().closeChat(),
-      isAccepting: isAccepting.value,
-    );
-  }
-
-  ImageProvider? _picture(
-    BuildContext context,
-    ImageData? picture,
-    double size,
-  ) {
-    if (picture == null) return null;
-    // Decode straight to the circle's pixel size: profile pictures arrive far
-    // larger than any avatar renders them.
-    final targetSize = (size * MediaQuery.devicePixelRatioOf(context)).round();
-    return TaggedMemoryImage.fromImageData(
-      picture,
-      targetWidth: targetSize,
-      targetHeight: targetSize,
+      actions: ContactRequestAnswers(
+        acceptLabel: loc.contactRequestDialog_confirm,
+        dismissLabel: loc.contactRequestDialog_cancel,
+        onAccept: () => _accept(context, isAccepting),
+        onDismiss: () => context.read<NavigationCubit>().closeChat(),
+        isAccepting: isAccepting.value,
+      ),
     );
   }
 
@@ -120,8 +102,11 @@ class ContactRequestDialog extends HookWidget {
     isAccepting.value = true;
 
     final chatDetailsCubit = context.read<ChatDetailsCubit>();
+    final navigationCubit = context.read<NavigationCubit>();
     try {
-      final error = await chatDetailsCubit.acceptContactRequest();
+      final result = await chatDetailsCubit.acceptContactRequest();
+      final error = result.error;
+      final acceptedChatId = result.acceptedChatId;
       if (error != null) {
         Logger.detached("ContactRequestDialog")
             .severe("Failed to request resync: $error");
@@ -129,6 +114,11 @@ class ContactRequestDialog extends HookWidget {
           (loc) => loc.contactRequestDialog_error_incompatibleClient,
           tone: .danger,
         );
+      } else if (acceptedChatId != null &&
+          acceptedChatId != navigationCubit.state.chatId) {
+        // The newest request was retracted, so an older one was accepted. Its
+        // chat replaces this one.
+        await navigationCubit.openChat(acceptedChatId);
       }
     } catch (e, stackTrace) {
       Logger.detached("ContactRequestDialog")
@@ -141,4 +131,20 @@ class ContactRequestDialog extends HookWidget {
       isAccepting.value = false;
     }
   }
+}
+
+/// The other person's picture on a contact request card.
+ImageProvider? contactRequestPicture(BuildContext context, ImageData? picture) {
+  if (picture == null) return null;
+  // Decode straight to the circle's pixel size: profile pictures arrive far
+  // larger than any avatar renders them.
+  final targetSize =
+      (ContactRequestCardTokens.avatarSize *
+              MediaQuery.devicePixelRatioOf(context))
+          .round();
+  return TaggedMemoryImage.fromImageData(
+    picture,
+    targetWidth: targetSize,
+    targetHeight: targetSize,
+  );
 }

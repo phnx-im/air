@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use airapiclient::ds_api::DsAttachmentTarget;
 use aircommon::{
     credentials::keys::{LeafSigningKey, SelfGroupSigningKey, UserSigningKey},
     identifiers::{QsClientId, QsUserId, UserId},
@@ -46,6 +47,23 @@ impl OwnClientInfo {
             Ok(LeafSigningKey::SelfGroup(signing_key))
         } else {
             Ok(LeafSigningKey::User(user_signer.clone()))
+        }
+    }
+
+    /// The signing key for DS attachment requests against `target`.
+    ///
+    /// The DS verifies group requests against the sender's leaf key, so they follow
+    /// [`Self::signer_for_group`].
+    pub(crate) async fn signer_for_attachment_target(
+        connection: impl ReadConnection,
+        target: &DsAttachmentTarget<'_>,
+        user_signer: &UserSigningKey,
+    ) -> anyhow::Result<LeafSigningKey> {
+        match target {
+            DsAttachmentTarget::Group { group_id, .. } => {
+                Self::signer_for_group(connection, group_id, user_signer).await
+            }
+            DsAttachmentTarget::User { .. } => Ok(LeafSigningKey::User(user_signer.clone())),
         }
     }
 

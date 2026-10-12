@@ -4,12 +4,12 @@
 
 //! Client for the server gRPC API
 
-use std::{sync::Arc, time::Duration};
+use std::{error::Error as _, io, iter, sync::Arc, time::Duration};
 
 use aircommon::identifiers::Fqdn;
 use airprotos::{
     auth_service::v1::auth_service_client::AuthServiceClient,
-    common::v1::{ClientMetadata, Version},
+    common::v1::{ClientMetadata, StatusDetails, Version, status_details::Detail},
     delivery_service::v1::delivery_service_client::DeliveryServiceClient,
     queue_service::v1::queue_service_client::QueueServiceClient,
     relay_service::v1::relay_service_client::RelayServiceClient,
@@ -18,7 +18,7 @@ use thiserror::Error;
 use tokio::time::timeout;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{
-    Status,
+    Code, Status,
     transport::{Channel, ClientTlsConfig, Endpoint, Uri},
 };
 use tracing::{info, warn};
@@ -160,4 +160,86 @@ impl ApiClient {
             version: Some(Self::version().clone()),
         }
     }
+}
+
+/// What a failed request means, independent of the service.
+#[derive(Debug, Clone, Copy)]
+pub enum RequestErrorKind {
+    /// The server did not process the request.
+    RateLimited { retry_after: Option<Duration> },
+    /// Unknown whether the server received the request.
+    Network,
+    /// Resource not found.
+    NotFound,
+    /// The server refused the request, resending it won't help.
+    Rejected,
+    /// The server failed to handle the request, a retry may succeed.
+    ServerError,
+}
+
+pub trait ClassifyRequestError {
+    fn kind(&self) -> RequestErrorKind;
+}
+
+/// The single place that knows gRPC codes, status details and
+/// `retry-after`.
+pub(crate) fn classify_status(status: &Status) -> RequestErrorKind {
+    match status.code() {
+        // rate limiting or specific conditions of resource exhaustion
+        Code::ResourceExhausted => {
+            if status.details().is_empty() {
+                RequestErrorKind::RateLimited {
+                    retry_after: retry_after(status),
+                }
+            } else {
+                match StatusDetails::from_status(status).and_then(|details| details.detail) {
+                    // A limit of the user, not a load problem of the server
+                    Some(Detail::DeviceLimitReached(_)) => RequestErrorKind::Rejected,
+                    // The quota of a single operation type, it must not back off
+                    // every other request of the client
+                    Some(Detail::TokenQuotaExceeded(_)) => RequestErrorKind::Rejected,
+                    // Never sent with this code
+                    Some(
+                        Detail::VersionUnsupported(_)
+                        | Detail::AttachmentTooLarge(_)
+                        | Detail::WrongEpoch(_)
+                        | Detail::GenerationCollision(_),
+                    ) => RequestErrorKind::Rejected,
+                    // Details we cannot decode, e.g. from a newer server
+                    None => RequestErrorKind::ServerError,
+                }
+            }
+        }
+        Code::FailedPrecondition => {
+            match StatusDetails::from_status(status).and_then(|details| details.detail) {
+                Some(Detail::VersionUnsupported(_)) => RequestErrorKind::Rejected,
+                Some(_) | None => RequestErrorKind::ServerError,
+            }
+        }
+        Code::Unavailable | Code::DeadlineExceeded | Code::Cancelled => RequestErrorKind::Network,
+        // tonic reports transport failures it cannot map to a code as unknown
+        Code::Unknown
+            if iter::successors(status.source(), |&error| error.source())
+                .any(|error| error.is::<io::Error>()) =>
+        {
+            RequestErrorKind::Network
+        }
+        Code::NotFound => RequestErrorKind::NotFound,
+        Code::Internal | Code::Unknown | Code::Aborted | Code::DataLoss => {
+            RequestErrorKind::ServerError
+        }
+        Code::Ok
+        | Code::InvalidArgument
+        | Code::AlreadyExists
+        | Code::PermissionDenied
+        | Code::OutOfRange
+        | Code::Unimplemented
+        | Code::Unauthenticated => RequestErrorKind::Rejected,
+    }
+}
+
+/// The `retry-after` metadata of a status in whole seconds.
+fn retry_after(status: &Status) -> Option<Duration> {
+    let secs = status.metadata().get("retry-after")?.to_str().ok()?;
+    secs.trim().parse().ok().map(Duration::from_secs)
 }

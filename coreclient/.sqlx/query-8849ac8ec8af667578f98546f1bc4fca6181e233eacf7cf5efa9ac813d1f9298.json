@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n                UPDATE reaction_queue\n                SET locked_by = ?1\n                WHERE id = ?2\n                RETURNING\n                    id AS \"id: _\",\n                    chat_id AS \"chat_id: _\",\n                    reaction_mimi_id AS \"reaction_mimi_id: _\",\n                    content\n                ",
+  "query": "\n                UPDATE reaction_queue\n                SET locked_by = ?1\n                WHERE id = ?2\n                RETURNING\n                    id AS \"id: _\",\n                    chat_id AS \"chat_id: _\",\n                    reaction_mimi_id AS \"reaction_mimi_id: _\",\n                    content,\n                    attempts AS \"attempts: _\"\n                ",
   "describe": {
     "columns": [
       {
@@ -46,6 +46,17 @@
             "name": "content"
           }
         }
+      },
+      {
+        "name": "attempts: _",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "reaction_queue",
+            "name": "attempts"
+          }
+        }
       }
     ],
     "parameters": {
@@ -55,8 +66,9 @@
       false,
       false,
       true,
+      false,
       false
     ]
   },
-  "hash": "83398c695f70a85ac55a25bfccf7a8b2c84f75dda8a3c9decef5283093cec8d9"
+  "hash": "8849ac8ec8af667578f98546f1bc4fca6181e233eacf7cf5efa9ac813d1f9298"
 }

@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airapiclient::qs_api::QsRequestError;
 use aircommon::{
     crypto::aead::AeadEncryptable,
     messages::push_token::PushToken,
@@ -20,7 +19,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_pending_push_token_updates(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), OutboundServiceError> {
         if run_token.is_cancelled() {
             return Ok(());
         }
@@ -36,7 +35,7 @@ impl OutboundServiceContext {
             Err(error) => {
                 error!(%error, "Invalid push token state; dropping");
                 push_token_state::clear_pending(self.db.write().await?).await?;
-                return Err(error);
+                return Err(OutboundServiceError::Fatal(error));
             }
         };
 
@@ -47,9 +46,18 @@ impl OutboundServiceContext {
             Err(OutboundServiceError::Fatal(error)) => {
                 error!(%error, "Failed to update push token; dropping");
                 push_token_state::clear_pending(self.db.write().await?).await?;
-                return Err(error);
+                return Err(OutboundServiceError::Fatal(error));
             }
-            Err(OutboundServiceError::Recoverable(error)) => {
+            // Keep the update pending, it is due again in the next run
+            Err(
+                error @ (OutboundServiceError::NetworkError
+                | OutboundServiceError::RateLimited { .. }),
+            ) => return Err(error),
+            // Retried indefinitely without a budget: dropping the update would
+            // leave the QS with a stale token and silently break push
+            // notifications. There is only ever one pending update, so it
+            // cannot pile up, and retries are spaced out by `next_retry_at`.
+            Err(error) => {
                 error!(%error, "Failed to update push token; will retry later");
                 let retry_at = next_retry_at(now);
                 push_token_state::schedule_retry(self.db.write().await?, retry_at).await?;
@@ -89,8 +97,7 @@ impl OutboundServiceContext {
                 encrypted_push_token,
                 &signing_key,
             )
-            .await
-            .map_err(classify_qs_error)?;
+            .await?;
         Ok(())
     }
 }
@@ -100,19 +107,4 @@ fn next_retry_at(now: TimeStamp) -> TimeStamp {
     TimeStamp::from(
         *now.as_ref() + Duration::seconds(push_token_state::PUSH_TOKEN_PENDING_MAX_FUTURE_SECS),
     )
-}
-
-/// Treats protocol/validation errors as fatal and transport errors as recoverable.
-fn classify_qs_error(error: QsRequestError) -> OutboundServiceError {
-    if error.is_unsupported_version() {
-        return OutboundServiceError::fatal(error);
-    }
-
-    match error {
-        QsRequestError::LibraryError
-        | QsRequestError::MissingField(_)
-        | QsRequestError::UnexpectedResponse
-        | QsRequestError::Tls(_) => OutboundServiceError::fatal(error),
-        QsRequestError::Tonic(_) => OutboundServiceError::recoverable(error),
-    }
 }

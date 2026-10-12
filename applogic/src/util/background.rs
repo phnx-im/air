@@ -4,6 +4,7 @@
 
 use std::{fmt, marker::PhantomData, pin::Pin, sync::Arc};
 
+use aircommon::utils::FibonacciBackoff;
 use tokio::time;
 use tokio::time::{Duration, Instant};
 use tokio_stream::{Stream, StreamExt};
@@ -11,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 use uuid::Uuid;
 
-use super::{FibonacciBackoff, spawn_from_sync};
+use super::spawn_from_sync;
 
 /// Uptime after which a stream counts as healthy and backoff is reset.
 const DEFAULT_HEALTHY_UPTIME: Duration = Duration::from_secs(60);
