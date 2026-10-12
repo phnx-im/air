@@ -7,7 +7,7 @@
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use airprotos::relay_service::v1::RelayFrame;
+use airprotos::relay_service::v1::{RelayFrame, RendezVousId};
 use parking_lot::Mutex;
 use rand::RngExt;
 use tokio::{
@@ -24,9 +24,6 @@ use crate::settings::RelaySettings;
 
 /// Frames going out to one peer of a session.
 pub(crate) type Outbound = mpsc::Sender<Result<RelayFrame, Status>>;
-
-/// A session's rendezvous ID: a decimal string the relay assigns.
-pub type SessionId = String;
 
 /// Digits the relay starts assigning rendezvous IDs at.
 const INITIAL_WIDTH: u32 = MIN_RENDEZVOUS_DIGITS as u32;
@@ -65,10 +62,10 @@ struct Session {
 }
 
 struct Table {
-    live: HashMap<SessionId, Session>,
+    live: HashMap<RendezVousId, Session>,
     /// Ended IDs and the instant they may be assigned again. A user typing a
     /// stale code must not consume an unrelated fresh session.
-    quarantine: HashMap<SessionId, Instant>,
+    quarantine: HashMap<RendezVousId, Instant>,
     /// Digits of the IDs currently being drawn. It only ever grows, and
     /// clients never parse structure out of an ID.
     width: u32,
@@ -87,7 +84,7 @@ impl Default for Table {
 impl Table {
     /// A random ID at the current width that is neither live nor
     /// quarantined, widening when the current width is more than half full.
-    fn assign(&mut self) -> Option<SessionId> {
+    fn assign(&mut self) -> Option<RendezVousId> {
         let mut rng = rand::rng();
         while self.width <= MAX_WIDTH {
             let capacity = 10u64.pow(self.width);
@@ -98,7 +95,8 @@ impl Table {
             let width = self.width as usize;
             for _ in 0..MAX_DRAWS_PER_WIDTH {
                 let n = rng.random_range(0..capacity);
-                let candidate = format!("{n:0width$}");
+                let candidate = RendezVousId::new(format!("{n:0width$}"))
+                    .expect("a zero-padded integer is a run of digits");
                 if !self.live.contains_key(&candidate) && !self.quarantine.contains_key(&candidate)
                 {
                     return Some(candidate);
@@ -110,7 +108,7 @@ impl Table {
     }
 
     /// Removes a live session and holds its ID back until `quarantine_until`.
-    fn retire(&mut self, id: SessionId, quarantine_until: Instant) -> Option<Session> {
+    fn retire(&mut self, id: RendezVousId, quarantine_until: Instant) -> Option<Session> {
         let session = self.live.remove(&id);
         self.quarantine.insert(id, quarantine_until);
         session
@@ -119,7 +117,7 @@ impl Table {
     /// IDs of the current width that are unavailable.
     fn occupancy(&self) -> u64 {
         let width = self.width as usize;
-        let of_width = |id: &&SessionId| id.len() == width;
+        let of_width = |id: &&RendezVousId| id.value.len() == width;
         let live = self.live.keys().filter(of_width).count();
         let quarantined = self.quarantine.keys().filter(of_width).count();
         (live + quarantined) as u64
@@ -130,11 +128,11 @@ impl Table {
 /// peer's task can finish, cancellation and panics included, tears it down.
 pub(crate) struct SessionGuard {
     rs: Rs,
-    id: SessionId,
+    id: RendezVousId,
 }
 
 impl SessionGuard {
-    pub(crate) fn id(&self) -> &str {
+    pub(crate) fn id(&self) -> &RendezVousId {
         &self.id
     }
 }
@@ -205,7 +203,7 @@ impl Rs {
     /// session, or it already has a responder, or the provisioner is gone.
     pub(crate) fn claim(
         &self,
-        id: &str,
+        id: &RendezVousId,
         responder: Outbound,
     ) -> Option<(Outbound, CancellationToken, SessionGuard)> {
         let mut table = self.table.lock();
@@ -232,10 +230,10 @@ impl Rs {
         }
         let (provisioner, cancel) = (session.provisioner.clone(), session.cancel.clone());
         drop(table);
-        Some((provisioner, cancel, self.guard(id.to_owned())))
+        Some((provisioner, cancel, self.guard(id.clone())))
     }
 
-    fn guard(&self, id: SessionId) -> SessionGuard {
+    fn guard(&self, id: RendezVousId) -> SessionGuard {
         SessionGuard {
             rs: self.clone(),
             id,
@@ -243,9 +241,9 @@ impl Rs {
     }
 
     /// Ends a session and puts its ID into quarantine.
-    fn end(&self, id: &str) {
+    fn end(&self, id: &RendezVousId) {
         let quarantine_until = Instant::now() + self.settings.idquarantine;
-        let session = self.table.lock().retire(id.to_owned(), quarantine_until);
+        let session = self.table.lock().retire(id.clone(), quarantine_until);
         if let Some(session) = session {
             session.cancel.cancel();
             info!(rendezvous_id = %id, "ended a linking session");
@@ -254,13 +252,13 @@ impl Rs {
 
     /// Whether `id` currently represents a live session.
     #[cfg(test)]
-    fn is_live(&self, id: &str) -> bool {
+    fn is_live(&self, id: &RendezVousId) -> bool {
         self.table.lock().live.contains_key(id)
     }
 
     /// Whether `id` is held back from reuse.
     #[cfg(test)]
-    fn is_quarantined(&self, id: &str) -> bool {
+    fn is_quarantined(&self, id: &RendezVousId) -> bool {
         self.table.lock().quarantine.contains_key(id)
     }
 
@@ -270,7 +268,7 @@ impl Rs {
         let quarantine_until = now + self.settings.idquarantine;
         let mut table = self.table.lock();
 
-        let expired: Vec<SessionId> = table
+        let expired: Vec<RendezVousId> = table
             .live
             .iter()
             .filter(|(_, session)| session.expires_at <= now)
@@ -321,9 +319,14 @@ mod tests {
         Duration::from_secs(60)
     }
 
+    /// A well-formed ID for a test to hand the relay.
+    fn id(digits: &str) -> RendezVousId {
+        RendezVousId::new(digits.to_owned()).expect("test ids are digit runs")
+    }
+
     /// Opens a session and keeps both channel ends alive for the caller.
     struct Opened {
-        id: SessionId,
+        id: RendezVousId,
         session: SessionGuard,
         cancel: CancellationToken,
         _provisioner_rx: mpsc::Receiver<Result<RelayFrame, Status>>,
@@ -335,7 +338,7 @@ mod tests {
         let (session, responder_ready_rx, cancel) =
             rs.open(tx).expect("no rendezvous id available");
         Opened {
-            id: session.id().to_owned(),
+            id: session.id().clone(),
             session,
             cancel,
             _provisioner_rx: rx,
@@ -347,11 +350,10 @@ mod tests {
     async fn fresh_ids_are_distinct_three_digit_numbers() {
         let rs = relay(long(), long());
         let sessions: Vec<Opened> = (0..3).map(|_| open(&rs)).collect();
-        let ids: HashSet<&str> = sessions.iter().map(|s| s.id.as_str()).collect();
+        let ids: HashSet<&RendezVousId> = sessions.iter().map(|s| &s.id).collect();
         assert_eq!(ids.len(), 3, "ids must be pairwise distinct: {ids:?}");
         for id in ids {
-            assert_eq!(id.len(), 3, "{id}");
-            assert!(id.bytes().all(|b| b.is_ascii_digit()), "{id}");
+            assert_eq!(id.value.len(), 3, "{id}");
         }
     }
 
@@ -388,17 +390,19 @@ mod tests {
             let mut table = rs.table.lock();
             let until = Instant::now() + long();
             for n in 0..501 {
-                table.quarantine.insert(format!("{n:03}"), until);
+                table.quarantine.insert(id(&format!("{n:03}")), until);
             }
         }
-        assert_eq!(open(&rs).id.len(), 4);
+        assert_eq!(open(&rs).id.value.len(), 4);
     }
 
     #[tokio::test]
     async fn a_dense_table_never_hands_out_a_taken_id() {
         let rs = relay(long(), long());
-        let quarantined: HashSet<SessionId> =
-            (0..900).step_by(2).map(|n| format!("{n:03}")).collect();
+        let quarantined: HashSet<RendezVousId> = (0..900)
+            .step_by(2)
+            .map(|n| id(&format!("{n:03}")))
+            .collect();
         {
             let mut table = rs.table.lock();
             let until = Instant::now() + long();
@@ -410,10 +414,10 @@ mod tests {
         // Together with the quarantine this fills the width to exactly half,
         // which is the densest table that still assigns three digits.
         let sessions: Vec<Opened> = (0..50).map(|_| open(&rs)).collect();
-        let ids: HashSet<&str> = sessions.iter().map(|s| s.id.as_str()).collect();
+        let ids: HashSet<&RendezVousId> = sessions.iter().map(|s| &s.id).collect();
         assert_eq!(ids.len(), sessions.len(), "a live id was handed out twice");
         for id in ids {
-            assert_eq!(id.len(), 3, "{id}");
+            assert_eq!(id.value.len(), 3, "{id}");
             assert!(!quarantined.contains(id), "{id} is quarantined");
         }
     }
@@ -476,7 +480,7 @@ mod tests {
     async fn claiming_an_unknown_id_fails() {
         let rs = relay(long(), long());
         let (responder, _rx) = mpsc::channel(8);
-        assert!(rs.claim("999", responder).is_none());
+        assert!(rs.claim(&id("999"), responder).is_none());
     }
 
     #[tokio::test(start_paused = true)]

@@ -44,7 +44,7 @@ impl<Qep: QsConnector> GrpcRs<Qep> {
 }
 
 /// Pipes one peer's inbound frames to the other peer.
-async fn forward(rendezvous_id: &str, mut inbound: Streaming<RelayFrame>, peer: Outbound) {
+async fn forward(id: &RendezVousId, mut inbound: Streaming<RelayFrame>, peer: Outbound) {
     while let Some(frame) = inbound.next().await {
         match frame {
             Ok(frame) => {
@@ -53,24 +53,24 @@ async fn forward(rendezvous_id: &str, mut inbound: Streaming<RelayFrame>, peer: 
                 }
             }
             Err(status) => {
-                warn!(%rendezvous_id, %status, "inbound stream failed");
+                warn!(rendezvous_id = %id, %status, "inbound stream failed");
                 break;
             }
         }
     }
-    info!(%rendezvous_id, "peer disconnected");
+    info!(rendezvous_id = %id, "peer disconnected");
 }
 
 /// Pipes the provisioner's frames to the responder once one attaches.
 async fn relay_provisioner(
-    rendezvous_id: &str,
+    id: &RendezVousId,
     mut inbound: Streaming<RelayFrame>,
     responder_ready_rx: oneshot::Receiver<Outbound>,
 ) {
     let buffered = match inbound.next().await {
         Some(Ok(frame)) => frame,
         Some(Err(status)) => {
-            warn!(%rendezvous_id, %status, "provisioner stream failed");
+            warn!(rendezvous_id = %id, %status, "provisioner stream failed");
             return;
         }
         None => return,
@@ -81,7 +81,7 @@ async fn relay_provisioner(
     };
 
     if responder.send(Ok(buffered)).await.is_ok() {
-        forward(rendezvous_id, inbound, responder).await;
+        forward(id, inbound, responder).await;
     }
 }
 
@@ -119,7 +119,7 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             .ok_or_else(|| Status::resource_exhausted("no rendezvous id available"))?;
 
         let assigned = MdlMessage::SessionAssigned(SessionAssigned {
-            rendezvous_id: session.id().to_owned(),
+            rendezvous_id: session.id().value.clone(),
         })
         .into_frame()
         .map_err(|error| {
@@ -187,17 +187,15 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             .map_err(|_| Status::invalid_argument("invalid signature"))?;
 
         let rendezvous_id = payload.rendezvous_id.ok_or_missing_field("rendezvous_id")?;
-        let Ok(rendezvous_id) = RendezVousId::new(rendezvous_id.value) else {
+        let Ok(id) = RendezVousId::new(rendezvous_id.value) else {
             return Err(Status::not_found("session not found"));
         };
-        let rendezvous_id = rendezvous_id.value;
 
         let (outbound_tx, outbound_rx) = mpsc::channel(CHANNEL_CAPACITY);
-        let Some((provisioner, cancel, session)) = self.rs.claim(&rendezvous_id, outbound_tx)
-        else {
+        let Some((provisioner, cancel, session)) = self.rs.claim(&id, outbound_tx) else {
             return Err(Status::not_found("session not found"));
         };
-        info!(%rendezvous_id, "attached the responder to a linking session");
+        info!(rendezvous_id = %id, "attached the responder to a linking session");
 
         tokio::spawn(cancel.run_until_cancelled_owned(async move {
             forward(session.id(), inbound, provisioner).await;
