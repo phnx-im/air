@@ -13,53 +13,74 @@ concurrency:
   group: app-release
   queue: max
 
+# GitHub's push.paths filter can't be scoped to a single branch, so
+# the regular paths filter will not work for release branches.
 on:
   push:
     branches:
       - main
       - "release/**"
-    paths:
-      - "apiclient/**"
-      - "app/**"
-      - "applogic/**"
-      - "apqmls/**"
-      - "common/**"
-      - "coreclient/**"
-      - "macros/**"
-      - "mls-assist/**"
-      - "protos/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-  # Recovery path: retry a failed or superseded release by dispatching a new
-  # run (never by re-running an old one, which would reuse its stale build
-  # number).
+  # Recovery path: retry a failed or superseded release.
   workflow_dispatch:
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      relevant: ${{ steps.check.outputs.relevant }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Check for relevant path changes
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" != "push" ] || [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "${{ github.event.before }}" "${{ github.event.after }}" -- \
+            apiclient app applogic apqmls common coreclient macros mls-assist protos Cargo.toml Cargo.lock; then
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          fi
+
   android:
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
     uses: ./.github/workflows/android.yml
     with:
       upload: true
     secrets: inherit
 
   ios:
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
     uses: ./.github/workflows/ios.yml
     with:
       upload: true
     secrets: inherit
 
   macos:
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
     uses: ./.github/workflows/macos.yml
     with:
       upload: true
     secrets: inherit
 
   linux:
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
     uses: ./.github/workflows/linux.yml
     with:
       upload: true
     secrets: inherit
 
   windows:
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
     uses: ./.github/workflows/windows.yml
     secrets: inherit
