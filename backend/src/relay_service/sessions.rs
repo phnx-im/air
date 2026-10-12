@@ -2,10 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The relay's session table: rendezvous ID assignment, quarantine and the
-//! time-to-live reaper.
+//! The relay's session table: rendezvous ID assignment and quarantine.
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc};
 
 use airprotos::relay_service::v1::{RelayFrame, RendezVousId};
 use parking_lot::Mutex;
@@ -36,13 +35,6 @@ const MAX_WIDTH: u32 = 9;
 /// Random draws at one width before giving up on it and widening.
 const MAX_DRAWS_PER_WIDTH: u32 = 32;
 
-/// The reaper sweeps a few times per session lifetime, so an idle session
-/// is torn down at most a fraction of its lifetime late. The lower bound
-/// only keeps a degenerate lifetime from turning the sweep into a busy loop.
-const REAP_DIVISOR: u32 = 4;
-const MIN_REAP_INTERVAL: Duration = Duration::from_millis(20);
-const MAX_REAP_INTERVAL: Duration = Duration::from_secs(30);
-
 /// How far a session has got.
 enum State {
     /// The provisioner is waiting for an existing device to answer its code.
@@ -55,7 +47,7 @@ struct Session {
     /// Frames going to the provisioning device.
     provisioner: Outbound,
     state: State,
-    /// When the reaper tears this session down.
+    /// When the session is torn down.
     expires_at: Instant,
     /// Cancels both peers' forwarding tasks.
     cancel: CancellationToken,
@@ -129,11 +121,17 @@ impl Table {
 pub(crate) struct SessionGuard {
     rs: Rs,
     id: RendezVousId,
+    expires_at: Instant,
 }
 
 impl SessionGuard {
     pub(crate) fn id(&self) -> &RendezVousId {
         &self.id
+    }
+
+    /// When the session must be torn down.
+    pub(crate) fn expires_at(&self) -> Instant {
+        self.expires_at
     }
 }
 
@@ -152,7 +150,7 @@ pub struct Rs {
 }
 
 impl Rs {
-    /// Creates the relay and starts its reaper.
+    /// Creates the relay.
     pub fn new(stop: CancellationToken, mut settings: RelaySettings) -> Self {
         if settings.idquarantine < settings.sessionttl {
             warn!(
@@ -163,13 +161,11 @@ impl Rs {
             settings.idquarantine = settings.sessionttl;
         }
 
-        let rs = Self {
+        Self {
             table: Arc::default(),
             settings,
             stop,
-        };
-        rs.spawn_reaper();
-        rs
+        }
     }
 
     /// Opens a session for a provisioning device.
@@ -179,21 +175,25 @@ impl Rs {
     ) -> Option<(SessionGuard, oneshot::Receiver<Outbound>, CancellationToken)> {
         let (responder_ready_tx, responder_ready_rx) = oneshot::channel();
         let cancel = self.stop.child_token();
+        let now = Instant::now();
+        let expires_at = now + self.settings.sessionttl;
 
         let mut table = self.table.lock();
+        // Released IDs only matter when a new one is drawn.
+        table.quarantine.retain(|_, until| *until > now);
         let id = table.assign()?;
         table.live.insert(
             id.clone(),
             Session {
                 provisioner,
                 state: State::AwaitingResponder(responder_ready_tx),
-                expires_at: Instant::now() + self.settings.sessionttl,
+                expires_at,
                 cancel: cancel.clone(),
             },
         );
         drop(table);
         info!(rendezvous_id = %id, "opened a linking session");
-        Some((self.guard(id), responder_ready_rx, cancel))
+        Some((self.guard(id, expires_at), responder_ready_rx, cancel))
     }
 
     /// Attaches the single responder a session accepts.
@@ -209,8 +209,8 @@ impl Rs {
         let mut table = self.table.lock();
         let session = table.live.get_mut(id)?;
 
-        // The reaper runs on an interval, so a session can outlive its
-        // deadline by a little.
+        // The provisioner's task tears the session down at the deadline,
+        // but it may not have run yet.
         if session.expires_at <= Instant::now() {
             drop(table);
             self.end(id);
@@ -228,15 +228,18 @@ impl Rs {
             self.end(id);
             return None;
         }
-        let (provisioner, cancel) = (session.provisioner.clone(), session.cancel.clone());
+        let provisioner = session.provisioner.clone();
+        let cancel = session.cancel.clone();
+        let expires_at = session.expires_at;
         drop(table);
-        Some((provisioner, cancel, self.guard(id.clone())))
+        Some((provisioner, cancel, self.guard(id.clone(), expires_at)))
     }
 
-    fn guard(&self, id: RendezVousId) -> SessionGuard {
+    fn guard(&self, id: RendezVousId, expires_at: Instant) -> SessionGuard {
         SessionGuard {
             rs: self.clone(),
             id,
+            expires_at,
         }
     }
 
@@ -261,46 +264,11 @@ impl Rs {
     fn is_quarantined(&self, id: &RendezVousId) -> bool {
         self.table.lock().quarantine.contains_key(id)
     }
-
-    /// Drops expired sessions and releases quarantined IDs.
-    fn reap(&self) {
-        let now = Instant::now();
-        let quarantine_until = now + self.settings.idquarantine;
-        let mut table = self.table.lock();
-
-        let expired: Vec<RendezVousId> = table
-            .live
-            .iter()
-            .filter(|(_, session)| session.expires_at <= now)
-            .map(|(id, _)| id.clone())
-            .collect();
-        for id in expired {
-            if let Some(session) = table.retire(id.clone(), quarantine_until) {
-                session.cancel.cancel();
-                warn!(rendezvous_id = %id, "linking session expired");
-            }
-        }
-
-        table.quarantine.retain(|_, until| *until > now);
-    }
-
-    fn spawn_reaper(&self) {
-        let lifetime = self.settings.sessionttl.min(self.settings.idquarantine);
-        let interval = (lifetime / REAP_DIVISOR).clamp(MIN_REAP_INTERVAL, MAX_REAP_INTERVAL);
-
-        let rs = self.clone();
-        tokio::spawn(self.stop.clone().run_until_cancelled_owned(async move {
-            loop {
-                tokio::time::sleep(interval).await;
-                rs.reap();
-            }
-        }));
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use std::{collections::HashSet, time::Duration};
 
     use super::*;
 
@@ -357,13 +325,6 @@ mod tests {
         }
     }
 
-    /// Moves the paused clock past `deadline` and lets the reaper sweep.
-    async fn advance_past(deadline: Duration) {
-        tokio::task::yield_now().await;
-        tokio::time::advance(deadline + MAX_REAP_INTERVAL).await;
-        tokio::task::yield_now().await;
-    }
-
     #[tokio::test(start_paused = true)]
     async fn an_ended_id_is_reused_only_after_quarantine() {
         let rs = relay(long(), long());
@@ -379,8 +340,25 @@ mod tests {
             "a quarantined id must not be handed out"
         );
 
-        advance_past(long()).await;
+        tokio::time::advance(long() + Duration::from_secs(1)).await;
+        assert!(
+            rs.is_quarantined(&first.id),
+            "a stale entry is only released by the next open"
+        );
+        let _third = open(&rs);
         assert!(!rs.is_quarantined(&first.id));
+    }
+
+    #[tokio::test]
+    async fn dropping_a_guard_ends_the_session() {
+        let rs = relay(long(), long());
+        let session = open(&rs);
+
+        drop(session.session);
+
+        assert!(session.cancel.is_cancelled());
+        assert!(!rs.is_live(&session.id));
+        assert!(rs.is_quarantined(&session.id));
     }
 
     #[tokio::test]
@@ -440,10 +418,13 @@ mod tests {
         let rs = relay(long(), long());
         let session = open(&rs);
 
-        // Reach past the deadline before the reaper has armed its first sweep,
-        // so nothing but the claim itself can notice the expiry.
+        // The table never expires a session by itself, so only the claim can
+        // notice the deadline here.
         tokio::time::advance(long() + Duration::from_secs(1)).await;
-        assert!(rs.is_live(&session.id), "the reaper must not have run yet");
+        assert!(
+            rs.is_live(&session.id),
+            "the table must not expire sessions"
+        );
 
         let (responder, _rx) = mpsc::channel(8);
         assert!(rs.claim(&session.id, responder).is_none());
@@ -481,20 +462,5 @@ mod tests {
         let rs = relay(long(), long());
         let (responder, _rx) = mpsc::channel(8);
         assert!(rs.claim(&id("999"), responder).is_none());
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn the_reaper_expires_and_quarantines_a_session() {
-        let rs = relay(long(), long());
-        let session = open(&rs);
-
-        advance_past(long()).await;
-
-        assert!(!rs.is_live(&session.id));
-        assert!(rs.is_quarantined(&session.id));
-        assert!(session.cancel.is_cancelled());
-
-        let (responder, _rx) = mpsc::channel(8);
-        assert!(rs.claim(&session.id, responder).is_none());
     }
 }
