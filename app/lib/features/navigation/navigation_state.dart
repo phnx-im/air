@@ -59,7 +59,7 @@ sealed class NavigationState with _$NavigationState {
   /// only part of navigation Rust reads, derived here and pushed across.
   NotificationPolicy get notificationPolicy {
     if (this case HomeState(:final home)) {
-      final chatId = home.chatId;
+      final chatId = home.chatOpen ? home.chatId : null;
       if (chatId != null) {
         return NotificationPolicy.suppressChat(chatId: chatId);
       }

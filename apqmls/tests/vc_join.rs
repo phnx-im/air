@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::assert_matches;
+
 use apqmls::{
     ApqMlsGroup,
     authentication::{ApqSignatureKeyPair, ApqSigner},
@@ -545,12 +547,12 @@ fn creation_join_with_foreign_epoch_id_fails() {
         Some(ratchet_tree),
         foreign.epoch_id.clone(),
     );
-    assert!(matches!(
+    assert_matches!(
         result,
         Err(VcCreationJoinError::Join(
             VcGroupCreationJoinError::EpochIdMismatch
         ))
-    ));
+    );
 
     // Neither half was created.
     assert!(
@@ -589,12 +591,12 @@ fn sibling_external_commit_join_with_foreign_epoch_id_fails() {
         pq_commit,
         foreign.epoch_id.clone(),
     );
-    assert!(matches!(
+    assert_matches!(
         result,
         Err(VcSiblingExternalCommitJoinError::Join(
             VcExternalCommitJoinError::EpochIdMismatch
         ))
-    ));
+    );
 
     // The PQ half is attempted first and fails, so neither half is left in storage.
     assert!(
@@ -700,12 +702,12 @@ fn creation_join_with_group_infos_of_different_groups_fails() {
         None,
         alice.epoch_id.clone(),
     );
-    assert!(matches!(
+    assert_matches!(
         result,
         Err(VcCreationJoinError::Linkage(
             ApqGroupInfoLinkageError::ApqInfoMismatch
         ))
-    ));
+    );
 }
 
 /// Swapping the two halves' group infos leaves their ApqInfo equal, so the
@@ -726,12 +728,12 @@ fn creation_join_with_swapped_group_infos_fails() {
         None,
         alice.epoch_id.clone(),
     );
-    assert!(matches!(
+    assert_matches!(
         result,
         Err(VcCreationJoinError::Linkage(
             ApqGroupInfoLinkageError::GroupIdMismatch
         ))
-    ));
+    );
 }
 
 #[test]
@@ -798,10 +800,10 @@ fn creation_join_with_mismatched_ciphersuite_fails() {
         None,
         alice.epoch_id.clone(),
     );
-    assert!(matches!(
+    assert_matches!(
         result,
         Err(VcCreationJoinError::Linkage(
             ApqGroupInfoLinkageError::CiphersuiteMismatch
         ))
-    ));
+    );
 }

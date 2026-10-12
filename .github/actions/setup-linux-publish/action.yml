@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name: Setup Linux package publishing
+description: Installs the repository tools and unlocks the signing key for cargo xtask publish-packages / publish-flatpak / promote-packages
+inputs:
+  apt-packages:
+    description: "Space separated list of extra apt packages (repository tools)"
+    required: true
+  gpg-key-id:
+    description: "Signing key id"
+    required: true
+  gpg-signing-key:
+    description: "Armored secret signing key"
+    required: true
+  gpg-passphrase:
+    description: "Passphrase of the signing key"
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Install awscli
+      uses: unfor19/install-aws-cli-action@e8b481e524a99f37fbd39fdc1dcb3341ab091367 # v1.0.7
+
+    - name: Install dependencies
+      shell: bash
+      run: sudo apt-get update && sudo apt-get install -y gpg ${{ inputs.apt-packages }}
+
+    - name: Import GPG key and unlock it in the agent
+      shell: bash
+      env:
+        GPG_KEY_ID: ${{ inputs.gpg-key-id }}
+        GPG_PASSPHRASE: ${{ inputs.gpg-passphrase }}
+        GPG_SIGNING_KEY: ${{ inputs.gpg-signing-key }}
+      run: |
+        mkdir -p ~/.gnupg
+        chmod 700 ~/.gnupg
+        cat >> ~/.gnupg/gpg-agent.conf <<'EOF'
+        allow-loopback-pinentry
+        allow-preset-passphrase
+        default-cache-ttl 7200
+        max-cache-ttl 7200
+        EOF
+        echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+        gpg-connect-agent reloadagent /bye
+        echo "$GPG_SIGNING_KEY" | gpg --batch --import
+
+        # Preload the passphrase into gpg-agent so subsequent signing calls
+        # (including gpg invocations spawned by rpm --addsign) don't prompt.
+        preset_bin="$(gpgconf --list-dirs libexecdir)/gpg-preset-passphrase"
+        while IFS= read -r keygrip; do
+          [ -n "$keygrip" ] || continue
+          "$preset_bin" --preset --passphrase "$GPG_PASSPHRASE" "$keygrip"
+        done < <(gpg --batch --with-colons --with-keygrip --list-secret-keys "$GPG_KEY_ID" \
+          | awk -F: '/^grp:/ {print $10}')

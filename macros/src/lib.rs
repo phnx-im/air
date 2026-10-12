@@ -200,7 +200,7 @@ fn skip_if_default_condition(fi: &FieldInfo) -> TokenStream2 {
 /// Information about a single enum variant of a tagged union.
 struct VariantInfo {
     ident: syn::Ident,
-    /// The single unnamed payload type, or `None` for the `#[unknown]` variant.
+    /// The single unnamed payload type, or `None` for unit variants.
     ty: Option<syn::Type>,
     /// The `#[tag(N)]` value, or `None` for the `#[unknown]` variant.
     tag: Option<u32>,
@@ -255,17 +255,20 @@ fn extract_variant_infos(data: &syn::DataEnum) -> Vec<VariantInfo> {
             } else {
                 let ty = match &variant.fields {
                     Fields::Unnamed(f) if f.unnamed.len() == 1 => {
-                        f.unnamed.first().unwrap().ty.clone()
+                        Some(f.unnamed.first().unwrap().ty.clone())
                     }
+                    Fields::Unit => None,
                     _ => panic!(
-                        "variant `{ident}` must have exactly one unnamed field (`Variant(T)`)",
+                        "variant `{ident}` must be a unit variant or have exactly one unnamed field (`Variant(T)`)",
                     ),
                 };
-                let array_len = array_u8_len(&ty);
-                let is_bytes = is_vec_u8(&ty) || array_len.is_some() || is_cow_u8_slice(&ty);
+                let array_len = ty.as_ref().and_then(array_u8_len);
+                let is_bytes = ty
+                    .as_ref()
+                    .is_some_and(|ty| is_vec_u8(ty) || array_len.is_some() || is_cow_u8_slice(ty));
                 VariantInfo {
                     ident: ident.clone(),
-                    ty: Some(ty),
+                    ty,
                     tag: Some(tag.unwrap_or_else(|| {
                         panic!("variant `{ident}` must carry an #[tag(N)] attribute")
                     })),
@@ -734,9 +737,10 @@ pub fn derive_deserialize_tagged_map(input: TokenStream) -> TokenStream {
 
 /// Derives `serde::Serialize` for an enum as a protobuf-`oneof`-like tagged union.
 ///
-/// Each variant must have exactly one unnamed field (`Variant(T)`) and be annotated with
-/// `#[tag(N)]`, where `N` is a `u32` integer (unique across variants) that becomes the map key in
-/// the encoded form. The active variant is encoded as a single-entry CBOR map `{ N: payload }`.
+/// Each variant must be annotated with `#[tag(N)]`, where `N` is a `u32` integer (unique across
+/// variants) that becomes the map key in the encoded form, and have exactly one unnamed field
+/// (`Variant(T)`) or none. The active variant is encoded as a single-entry CBOR map
+/// `{ N: payload }`, a unit variant as `{ N: null }`.
 ///
 /// At most one variant may instead be marked `#[unknown]`. It must be a unit variant and must not
 /// carry a `#[tag]`. It represents a tag the reader did not recognise; attempting to **serialize**
@@ -754,6 +758,8 @@ pub fn derive_deserialize_tagged_map(input: TokenStream) -> TokenStream {
 ///     Text(String),
 ///     #[tag(2)]
 ///     Blob(Vec<u8>),  // encoded as bytes
+///     #[tag(3)]
+///     Ping,  // encoded as null
 ///     #[unknown]
 ///     Unknown,
 /// }
@@ -772,8 +778,11 @@ pub fn derive_serialize_tagged_union(input: TokenStream) -> TokenStream {
 
     let mut generics = input.generics.clone();
     let where_clause = generics.make_where_clause();
-    for vi in infos.iter().filter(|vi| !vi.is_unknown && !vi.is_bytes) {
-        let ty = vi.ty.as_ref().unwrap();
+    for ty in infos
+        .iter()
+        .filter(|vi| !vi.is_bytes)
+        .filter_map(|vi| vi.ty.as_ref())
+    {
         where_clause
             .predicates
             .push(syn::parse_quote!(#ty: ::serde::Serialize));
@@ -791,6 +800,15 @@ pub fn derive_serialize_tagged_union(input: TokenStream) -> TokenStream {
                             "cannot serialize the #[unknown] variant of ", stringify!(#name)
                         ))
                     ),
+                }
+            } else if vi.ty.is_none() {
+                let tag = vi.tag.unwrap();
+                quote! {
+                    #name::#ident => {
+                        let mut _map = serializer.serialize_map(Some(1))?;
+                        _map.serialize_entry(&#tag, &::core::option::Option::<()>::None)?;
+                        _map.end()
+                    }
                 }
             } else {
                 let tag = vi.tag.unwrap();
@@ -830,6 +848,7 @@ pub fn derive_serialize_tagged_union(input: TokenStream) -> TokenStream {
 ///
 /// The encoded form is a single-entry CBOR map `{ N: payload }`. The integer key selects the
 /// variant carrying the matching `#[tag(N)]`, and its payload is decoded into that variant's field.
+/// A unit variant ignores the payload, so that a later version can add one.
 ///
 /// A map with zero entries or more than one entry is a deserialization error. When the key matches
 /// no known tag: if a `#[unknown]` variant is declared, the value is consumed and that variant is
@@ -877,8 +896,11 @@ pub fn derive_deserialize_tagged_union(input: TokenStream) -> TokenStream {
         .params
         .insert(0, GenericParam::Lifetime(de_lt_param));
     let where_clause = all_generics.make_where_clause();
-    for vi in infos.iter().filter(|vi| !vi.is_unknown && !vi.is_bytes) {
-        let ty = vi.ty.as_ref().unwrap();
+    for ty in infos
+        .iter()
+        .filter(|vi| !vi.is_bytes)
+        .filter_map(|vi| vi.ty.as_ref())
+    {
         where_clause
             .predicates
             .push(syn::parse_quote!(#ty: ::serde::Deserialize<'de>));
@@ -892,7 +914,15 @@ pub fn derive_deserialize_tagged_union(input: TokenStream) -> TokenStream {
         .map(|vi| {
             let ident = &vi.ident;
             let tag = vi.tag.unwrap();
-            if vi.is_bytes {
+            if vi.ty.is_none() {
+                // Ignores the value, so that a later version can add a payload.
+                quote! {
+                    #tag => {
+                        let _: ::serde::de::IgnoredAny = _map.next_value()?;
+                        #name::#ident
+                    }
+                }
+            } else if vi.is_bytes {
                 if let Some(n) = &vi.array_len {
                     quote! {
                         #tag => #name::#ident(

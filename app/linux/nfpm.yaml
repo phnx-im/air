@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 name: "air"
-arch: "amd64"
+arch: "${PKG_ARCH}"
 platform: "linux"
 version: 0.23.0
 release: "${RELEASE}"
@@ -17,7 +17,7 @@ license: "AGPL-3.0-or-later"
 overrides:
   rpm:
     contents:
-      - src: ../build/linux/x64/${APP_FLAVOR}/release/bundle/air
+      - src: ../build/linux/${LINUX_ARCH}/${APP_FLAVOR}/release/bundle/air
         expand: true
         dst: /usr/lib64/air/air
         file_info:
@@ -25,49 +25,49 @@ overrides:
       - src: /usr/lib64/air/air
         dst: /usr/bin/air
         type: symlink
-      - src: ../build/linux/x64/${APP_FLAVOR}/release/bundle/data
+      - src: ../build/linux/${LINUX_ARCH}/${APP_FLAVOR}/release/bundle/data
         expand: true
         dst: /usr/lib64/air/data
         type: tree
-      - src: ../build/linux/x64/${APP_FLAVOR}/release/bundle/lib
+      - src: ../build/linux/${LINUX_ARCH}/${APP_FLAVOR}/release/bundle/lib
         expand: true
         dst: /usr/lib64/air/lib
         type: tree
-      - src: ./ms.air.desktop
-        dst: /usr/share/applications/ms.air.desktop
-      - src: ./ms.air.service
-        dst: /usr/share/dbus-1/services/ms.air.service
-      - src: ./ms.air.svg
-        dst: /usr/share/icons/hicolor/scalable/apps/ms.air.svg
-      - src: ./ms.air.png
-        dst: /usr/share/icons/hicolor/256x256/apps/ms.air.png
+      - src: ./ms.air.Air.desktop
+        dst: /usr/share/applications/ms.air.Air.desktop
+      - src: ./ms.air.Air.service
+        dst: /usr/share/dbus-1/services/ms.air.Air.service
+      - src: ./ms.air.Air.svg
+        dst: /usr/share/icons/hicolor/scalable/apps/ms.air.Air.svg
+      - src: ./ms.air.Air.png
+        dst: /usr/share/icons/hicolor/256x256/apps/ms.air.Air.png
     depends:
       - gtk3 >= 3.24.51
   deb:
     contents:
-      - src: ../build/linux/x64/${APP_FLAVOR}/release/bundle/air
+      - src: ../build/linux/${LINUX_ARCH}/${APP_FLAVOR}/release/bundle/air
         expand: true
-        dst: /usr/lib/x86_64-linux-gnu/air/air
+        dst: /usr/lib/air/air
         file_info:
           mode: 0755
-      - src: /usr/lib/x86_64-linux-gnu/air/air
+      - src: /usr/lib/air/air
         dst: /usr/bin/air
         type: symlink
-      - src: ../build/linux/x64/${APP_FLAVOR}/release/bundle/data
+      - src: ../build/linux/${LINUX_ARCH}/${APP_FLAVOR}/release/bundle/data
         expand: true
-        dst: /usr/lib/x86_64-linux-gnu/air/data
+        dst: /usr/lib/air/data
         type: tree
-      - src: ../build/linux/x64/${APP_FLAVOR}/release/bundle/lib
+      - src: ../build/linux/${LINUX_ARCH}/${APP_FLAVOR}/release/bundle/lib
         expand: true
-        dst: /usr/lib/x86_64-linux-gnu/air/lib
+        dst: /usr/lib/air/lib
         type: tree
-      - src: ./ms.air.desktop
-        dst: /usr/share/applications/ms.air.desktop
-      - src: ./ms.air.service
-        dst: /usr/share/dbus-1/services/ms.air.service
-      - src: ./ms.air.svg
-        dst: /usr/share/icons/hicolor/scalable/apps/ms.air.svg
-      - src: ./ms.air.png
-        dst: /usr/share/icons/hicolor/256x256/apps/ms.air.png
+      - src: ./ms.air.Air.desktop
+        dst: /usr/share/applications/ms.air.Air.desktop
+      - src: ./ms.air.Air.service
+        dst: /usr/share/dbus-1/services/ms.air.Air.service
+      - src: ./ms.air.Air.svg
+        dst: /usr/share/icons/hicolor/scalable/apps/ms.air.Air.svg
+      - src: ./ms.air.Air.png
+        dst: /usr/share/icons/hicolor/256x256/apps/ms.air.Air.png
     depends:
       - libgtk-3-0

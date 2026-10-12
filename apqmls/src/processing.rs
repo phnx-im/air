@@ -366,7 +366,7 @@ impl ApqMlsGroupMut<'_> {
         let pq_message = self
             .pq_group
             .process_message(provider, protocol_message.pq_protocol_message)?;
-        let mut pq_message = resolve_app_data_commit(self.pq_group, provider, pq_message)?;
+        let mut pq_message = resolve_full_commit_leg(self.pq_group, provider, pq_message)?;
 
         let pq_message_info = MessageInfo::new(
             pq_message.content(),
@@ -411,7 +411,7 @@ impl ApqMlsGroupMut<'_> {
         let t_message = self
             .t_group
             .process_message(provider, protocol_message.t_protocol_message)?;
-        let t_message = resolve_app_data_commit(self.t_group, provider, t_message)?;
+        let t_message = resolve_full_commit_leg(self.t_group, provider, t_message)?;
 
         let t_message_info = MessageInfo::new(
             t_message.content(),
@@ -463,7 +463,7 @@ impl ApqPublicGroupMut<'_> {
         let pq_message = self
             .pq_public_group
             .process_message(crypto, protocol_message.pq_protocol_message)?;
-        let pq_message = resolve_app_data_commit_public(self.pq_public_group, crypto, pq_message)?;
+        let pq_message = resolve_full_commit_leg_public(self.pq_public_group, crypto, pq_message)?;
         let pq_message_info = MessageInfo::new(
             pq_message.content(),
             pq_message.sender().clone(),
@@ -473,7 +473,7 @@ impl ApqPublicGroupMut<'_> {
         let t_message = self
             .t_public_group
             .process_message(crypto, protocol_message.t_protocol_message)?;
-        let t_message = resolve_app_data_commit_public(self.t_public_group, crypto, t_message)?;
+        let t_message = resolve_full_commit_leg_public(self.t_public_group, crypto, t_message)?;
         let t_message_info = MessageInfo::new(
             t_message.content(),
             t_message.sender().clone(),
@@ -665,8 +665,21 @@ impl<'a> ValidationParams<'a> {
     }
 }
 
-/// Resolves an [`UnresolvedAppDataCommit`] into a [`ProcessedMessage`].
-pub fn resolve_app_data_commit<Provider: OpenMlsProvider>(
+/// Resolves the app data updates of a commit in a single group.
+///
+/// That is a PARTIAL commit of an APQ group, or any commit of a classical group. Such a commit must
+/// not update the APQInfo.
+pub fn resolve_partial_commit<Provider: OpenMlsProvider>(
+    group: &MlsGroup,
+    provider: &Provider,
+    message: ProcessedMessage,
+) -> Result<ProcessedMessage, ApqProcessMessageError<Provider::StorageError>> {
+    reject_unpaired_apq_info_update(&message)?;
+    resolve_full_commit_leg(group, provider, message)
+}
+
+/// Resolves the app data updates of one leg of a FULL commit.
+fn resolve_full_commit_leg<Provider: OpenMlsProvider>(
     group: &MlsGroup,
     provider: &Provider,
     message: ProcessedMessage,
@@ -683,8 +696,18 @@ pub fn resolve_app_data_commit<Provider: OpenMlsProvider>(
         .map_err(Into::into)
 }
 
-/// Same as [`resolve_app_data_commit`], but for public groups.
-fn resolve_app_data_commit_public<Crypto: OpenMlsCrypto>(
+/// Same as [`resolve_partial_commit`], but for public groups.
+pub fn resolve_partial_commit_public<Crypto: OpenMlsCrypto>(
+    group: &PublicGroup,
+    crypto: &Crypto,
+    message: ProcessedMessage,
+) -> Result<ProcessedMessage, ApqProcessPublicMessageError> {
+    reject_unpaired_apq_info_update(&message)?;
+    resolve_full_commit_leg_public(group, crypto, message)
+}
+
+/// Same as [`resolve_full_commit_leg`], but for public groups.
+fn resolve_full_commit_leg_public<Crypto: OpenMlsCrypto>(
     group: &PublicGroup,
     crypto: &Crypto,
     message: ProcessedMessage,
@@ -701,7 +724,26 @@ fn resolve_app_data_commit_public<Crypto: OpenMlsCrypto>(
         .map_err(Into::into)
 }
 
+/// Rejects a commit that carries an `AppDataUpdate` proposal for
+/// [`APQMLS_COMPONENT_ID`].
+///
+/// Only a FULL commit may update the APQInfo, because its epochs can only be
+/// checked against the other leg.
+fn reject_unpaired_apq_info_update(message: &ProcessedMessage) -> Result<(), ApqInfoUpdateError> {
+    if let ProcessedMessageContent::UnresolvedAppDataCommit(unresolved) = message.content()
+        && unresolved
+            .app_data_update_proposals()
+            .any(|proposal| proposal.component_id() == APQMLS_COMPONENT_ID)
+    {
+        return Err(ApqInfoUpdateError::UnpairedUpdate);
+    }
+    Ok(())
+}
+
 /// Computes the app data dictionary changes of a commit.
+///
+/// It rejects creating or removing of APQInfo, and changing any of its fields
+/// other than the epochs.
 ///
 /// The APQInfo updates are collected first and applied together, because the
 /// draft only allows a single `full_update` or a `new_t_epoch` paired with a
@@ -723,12 +765,15 @@ pub fn compute_app_data_updates<'a>(
         .map_err(ApqInfoUpdateError::MalformedApqInfo)?;
 
     let mut apq_info_updates = ApqInfoUpdates::default();
-    let mut apq_info_removed = false;
     let mut updated = false;
     for proposal in proposals {
         let is_apq_info = proposal.component_id() == APQMLS_COMPONENT_ID;
         match proposal.operation() {
             AppDataUpdateOperation::Update(data) if is_apq_info => {
+                if current_apq_info.is_none() {
+                    // ApqInfo must not be created
+                    return Err(ApqInfoUpdateError::NoApqInfo);
+                };
                 let update = ApqInfoUpdate::tls_deserialize_exact(data)
                     .map_err(ApqInfoUpdateError::MalformedUpdate)?;
                 apq_info_updates.add(update)?;
@@ -739,21 +784,24 @@ pub fn compute_app_data_updates<'a>(
                     data.clone(),
                 ));
             }
+            AppDataUpdateOperation::Remove if is_apq_info => {
+                // ApqInfo must not be removed
+                return Err(ApqInfoUpdateError::ApqInfoRemoval);
+            }
             AppDataUpdateOperation::Remove => {
                 updater.remove(&proposal.component_id());
-                apq_info_removed |= is_apq_info;
             }
         }
         updated = true;
     }
 
-    // Removing the APQInfo and updating it in the same commit contradict each
-    // other, and neither is one of the two shapes the draft allows.
-    if apq_info_removed && !apq_info_updates.is_empty() {
-        return Err(ApqInfoUpdateError::RemovalWithUpdate);
-    }
-
     if let Some(new_apq_info) = apq_info_updates.resolve(current_apq_info.as_ref())? {
+        if current_apq_info
+            .as_ref()
+            .is_some_and(|current| !new_apq_info.matches_except_epochs(current))
+        {
+            return Err(ApqInfoUpdateError::ImmutableFieldModified);
+        }
         updater.set(
             new_apq_info
                 .to_component_data()
@@ -766,6 +814,8 @@ pub fn compute_app_data_updates<'a>(
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches;
+
     use openmls::{
         component::ComponentId,
         prelude::{AppDataDictionary, AppDataUpdateProposal},
@@ -773,7 +823,7 @@ mod tests {
     use tls_codec::Serialize as _;
 
     use super::*;
-    use crate::extension::tests::test_apq_info;
+    use crate::extension::{PqtMode, tests::test_apq_info};
 
     const OTHER_COMPONENT_ID: ComponentId = 0x8100;
 
@@ -804,19 +854,6 @@ mod tests {
         let updates =
             compute_app_data_updates(AppDataDictionaryUpdater::new(dictionary), proposals.iter())?;
         Ok(updates.into_iter().flatten().collect())
-    }
-
-    #[test]
-    fn full_update_is_stored_as_a_bare_apq_info() {
-        let apq_info = test_apq_info();
-        let proposals = [apq_info.to_full_update_proposal().unwrap()];
-        assert_eq!(
-            changes(None, &proposals).unwrap(),
-            vec![(
-                APQMLS_COMPONENT_ID,
-                Some(apq_info.tls_serialize_detached().unwrap())
-            )]
-        );
     }
 
     #[test]
@@ -884,12 +921,13 @@ mod tests {
     #[test]
     fn duplicate_full_updates_are_rejected() {
         let apq_info = test_apq_info();
+        let dictionary = dictionary_with(&apq_info);
         let proposals = [
             apq_info.to_full_update_proposal().unwrap(),
             apq_info.to_full_update_proposal().unwrap(),
         ];
         assert_eq!(
-            changes(None, &proposals),
+            changes(Some(&dictionary), &proposals),
             Err(ApqInfoUpdateError::DuplicateFullUpdate)
         );
     }
@@ -924,7 +962,7 @@ mod tests {
     }
 
     #[test]
-    fn a_full_update_replaces_the_current_apq_info_wholesale() {
+    fn a_full_update_is_stored_as_a_bare_apq_info() {
         let current = test_apq_info();
         let dictionary = dictionary_with(&current);
         let mut replacement = current.clone();
@@ -945,10 +983,10 @@ mod tests {
             APQMLS_COMPONENT_ID,
             vec![0xff],
         )];
-        assert!(matches!(
-            changes(None, &proposals),
+        assert_matches!(
+            changes(Some(&dictionary_with(&test_apq_info())), &proposals),
             Err(ApqInfoUpdateError::MalformedUpdate(_))
-        ));
+        );
     }
 
     #[test]
@@ -956,10 +994,10 @@ mod tests {
         let mut dictionary = AppDataDictionary::new();
         dictionary.insert(APQMLS_COMPONENT_ID, vec![0xff]);
         let proposals = [apq_proposal(ApqInfoUpdate::NewTEpoch(GroupEpoch::from(9)))];
-        assert!(matches!(
+        assert_matches!(
             changes(Some(&dictionary), &proposals),
             Err(ApqInfoUpdateError::MalformedApqInfo(_))
-        ));
+        );
     }
 
     #[test]
@@ -975,31 +1013,64 @@ mod tests {
     }
 
     #[test]
-    fn removals_are_passed_through() {
+    fn removals_of_other_components_are_passed_through() {
         let apq_info = test_apq_info();
         let dictionary = dictionary_with(&apq_info);
-        let proposals = [
-            AppDataUpdateProposal::remove(APQMLS_COMPONENT_ID),
-            AppDataUpdateProposal::remove(OTHER_COMPONENT_ID),
-        ];
+        let proposals = [AppDataUpdateProposal::remove(OTHER_COMPONENT_ID)];
         assert_eq!(
             changes(Some(&dictionary), &proposals).unwrap(),
-            vec![(APQMLS_COMPONENT_ID, None), (OTHER_COMPONENT_ID, None)]
+            vec![(OTHER_COMPONENT_ID, None)]
         );
     }
 
     #[test]
-    fn removing_and_updating_the_apq_info_in_one_commit_is_rejected() {
+    fn removing_the_apq_info_is_rejected() {
         let apq_info = test_apq_info();
         let dictionary = dictionary_with(&apq_info);
-        let proposals = [
-            apq_info.to_full_update_proposal().unwrap(),
-            AppDataUpdateProposal::remove(APQMLS_COMPONENT_ID),
-        ];
+        for proposals in [
+            vec![AppDataUpdateProposal::remove(APQMLS_COMPONENT_ID)],
+            vec![
+                apq_info.to_full_update_proposal().unwrap(),
+                AppDataUpdateProposal::remove(APQMLS_COMPONENT_ID),
+            ],
+        ] {
+            assert_eq!(
+                changes(Some(&dictionary), &proposals),
+                Err(ApqInfoUpdateError::ApqInfoRemoval)
+            );
+        }
+    }
+
+    #[test]
+    fn a_full_update_without_an_existing_apq_info_is_rejected() {
+        let proposals = [test_apq_info().to_full_update_proposal().unwrap()];
         assert_eq!(
-            changes(Some(&dictionary), &proposals),
-            Err(ApqInfoUpdateError::RemovalWithUpdate)
+            changes(None, &proposals),
+            Err(ApqInfoUpdateError::NoApqInfo)
         );
+    }
+
+    #[test]
+    fn a_full_update_changing_an_immutable_field_is_rejected() {
+        let current = test_apq_info();
+        let dictionary = dictionary_with(&current);
+        let modifications: [fn(&mut ApqInfo); 5] = [
+            |info| info.t_session_group_id = GroupId::from_slice(b"other t group"),
+            |info| info.pq_session_group_id = GroupId::from_slice(b"other pq group"),
+            |info| info.mode = PqtMode::ConfAndAuth,
+            |info| info.t_cipher_suite = Ciphersuite::MLS_128_DHKEMP256_AES128GCM_SHA256_P256,
+            |info| info.pq_cipher_suite = Ciphersuite::MLS_256_MLKEM1024_AES256GCM_SHA384_MLDSA87,
+        ];
+        for modify in modifications {
+            let mut replacement = current.clone();
+            replacement.set_epoch(GroupEpoch::from(4), GroupEpoch::from(5));
+            modify(&mut replacement);
+            let proposals = [replacement.to_full_update_proposal().unwrap()];
+            assert_eq!(
+                changes(Some(&dictionary), &proposals),
+                Err(ApqInfoUpdateError::ImmutableFieldModified)
+            );
+        }
     }
 
     #[test]

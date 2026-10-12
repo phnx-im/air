@@ -11,7 +11,7 @@ use aircommon::identifiers::Username;
 use airprotos::{auth_service::v1::UsernameQueueMessage, queue_service::v1::ListenResponse};
 
 use crate::{
-    ChatId,
+    StoredRequest,
     clients::{
         CoreUser,
         event_loop::{ClientOperation, RemoteQueueEvent},
@@ -22,12 +22,13 @@ use crate::{
 impl CoreUser {
     /// Process a queue message received from the AS username queue.
     ///
-    /// Returns the [`ChatId`] of any newly created chat.
+    /// Returns where a new contact request was stored, or `None` if the request
+    /// is known already.
     pub async fn process_username_queue_message(
         &self,
         username: Username,
         queue_message: UsernameQueueMessage,
-    ) -> anyhow::Result<ChatId> {
+    ) -> anyhow::Result<Option<StoredRequest>> {
         let (message, response) = RemoteQueueEvent::username_queue_message(username, queue_message);
         self.inner
             .event_loop_sender

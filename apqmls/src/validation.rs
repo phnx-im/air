@@ -292,6 +292,18 @@ pub fn validate_apq_group_info(
     )
 }
 
+/// Same as [`validate_apq_session`], but from the group contexts of the two
+/// sessions.
+pub fn validate_apq_group_contexts(
+    t_group_context: &GroupContext,
+    pq_group_context: &GroupContext,
+) -> Result<ApqInfo, ApqValidationError> {
+    validate_apq_info(
+        &ApqSessionRef::from_group_context(Session::T, t_group_context),
+        &ApqSessionRef::from_group_context(Session::Pq, pq_group_context),
+    )
+}
+
 /// A borrowed view of one leg of an APQ session.
 struct ApqSessionRef<'a> {
     session: Session,

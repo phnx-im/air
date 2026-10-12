@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM pending_connection_request WHERE request_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "f40ea6d436abd49d1372b6ae0418aa32879f464d6715c54c0ceff8439a4ac2c4"
+}

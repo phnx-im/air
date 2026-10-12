@@ -313,3 +313,41 @@ fn generic_payload_roundtrips() {
     let value = GenericPayload::Value(42u64);
     assert_eq!(cbor_roundtrip(&value), value);
 }
+
+#[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
+enum WithUnit {
+    #[tag(1)]
+    Empty,
+    #[tag(2)]
+    Value(u32),
+    #[unknown]
+    Unknown,
+}
+
+#[test]
+fn unit_variant_roundtrips() {
+    assert_eq!(cbor_roundtrip(&WithUnit::Empty), WithUnit::Empty);
+    assert_eq!(cbor_roundtrip(&WithUnit::Value(5)), WithUnit::Value(5));
+}
+
+#[test]
+fn unit_variant_is_encoded_as_null() {
+    let buf = cbor_bytes(&WithUnit::Empty);
+    let mut decoder = minicbor::Decoder::new(&buf);
+    assert_eq!(decoder.map().expect("map"), Some(1));
+    assert_eq!(decoder.u32().expect("key"), 1);
+    decoder.null().expect("null");
+    assert_eq!(decoder.position(), buf.len());
+}
+
+#[test]
+fn unit_variant_ignores_payload() {
+    let mut buf = Vec::new();
+    let mut encoder = minicbor::Encoder::new(&mut buf);
+    encoder.map(1).expect("map header");
+    encoder.u32(1).expect("key");
+    encoder.str("added later").expect("value");
+
+    let value: WithUnit = from_slice(&buf).expect("deserialize");
+    assert_eq!(value, WithUnit::Empty);
+}

@@ -161,6 +161,36 @@ void main() {
       );
     }, variant: desktopPlatform);
 
+    testWidgets('desktop layout update reminder', (tester) async {
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      binding.platformDispatcher.views.first.physicalSize = const Size(
+        3840,
+        2160,
+      );
+      addTearDown(() {
+        binding.platformDispatcher.views.first.resetPhysicalSize();
+      });
+
+      when(() => userCubit.state).thenReturn(
+        MockUiUser(
+          id: 1,
+          versionStatus: VersionStatus.expiresAt(DateTime.utc(2026, 8, 1, 12)),
+        ),
+      );
+      when(() => navigationCubit.state)
+          .thenReturn(const NavigationState.home());
+      when(() => chatDetailsCubit.state)
+          .thenReturn(ChatDetailsState(chat: chats[2], members: members));
+      messageListCubit.setState(messages);
+
+      await tester.pumpWidget(buildSubject(chats: chats));
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/home_screen_desktop_update_reminder.png'),
+      );
+    }, variant: desktopPlatform);
+
     testWidgets('desktop layout selected chat', (tester) async {
       final binding = TestWidgetsFlutterBinding.ensureInitialized();
       binding.platformDispatcher.views.first.physicalSize = const Size(

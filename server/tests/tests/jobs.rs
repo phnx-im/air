@@ -37,9 +37,9 @@
 //   - If the epoch is wrong because another participant has already committed
 //     in the meantime, the PCO should be put into status "waiting for queue
 //     response".
-//   - If it's a network error, or this is a retry after an earlier network
-//     error, check if the maximum retry count (5) was reached if it was, delete
-//     the PCO.
+//   - Network errors are retried without limit and never spend an attempt.
+//     Only recoverable server errors spend the budget of 5 attempts, after
+//     which the PCO is deleted.
 //   - If the PCO is a leave operation, it should take immediate local effect
 //     regardless of any "wrong epoch" or network errors. If there was such an
 //     error, it should be retried, though.
@@ -356,7 +356,7 @@ async fn apq_wrong_epoch_recovery_keeps_t_and_pq_rosters_consistent() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn network_errors_eventually_delete_pending_operation() {
+async fn network_errors_do_not_spend_attempts() {
     let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
     let alice_user = &setup.get_user(&alice).user;
 
@@ -366,29 +366,28 @@ async fn network_errors_eventually_delete_pending_operation() {
         .await
         .expect_err("expected update to fail due to network error");
 
-    let mut pending = alice_user
-        .pending_chat_operation_info(chat_id)
-        .await
-        .unwrap()
-        .expect("pending operation should exist");
-    assert_eq!(pending.operation_type, "other");
-
-    while pending.number_of_attempts < 5 {
+    // More retries than the budget of recoverable errors allows
+    for _ in 0..6 {
         setup.listener_control_handle().set_drop_next_response();
         let _ = alice_user
             .update_key(chat_id)
             .await
             .expect_err("expected retry to fail due to network error");
-
-        match alice_user
-            .pending_chat_operation_info(chat_id)
-            .await
-            .unwrap()
-        {
-            Some(info) => pending = info,
-            None => break,
-        }
     }
+
+    let pending = alice_user
+        .pending_chat_operation_info(chat_id)
+        .await
+        .unwrap()
+        .expect("pending operation should survive network errors");
+    assert_eq!(pending.operation_type, "other");
+    assert_eq!(pending.request_status, "ready_to_retry");
+    assert_eq!(pending.number_of_attempts, 0);
+
+    // The first commit reached the DS, its queue response resolves the op
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user.fully_process_qs_messages(qs_messages).await;
+    assert!(result.errors.is_empty());
 
     let pending_after = alice_user
         .pending_chat_operation_info(chat_id)
@@ -540,4 +539,68 @@ async fn commit_that_ignores_a_pending_self_remove_is_rejected() {
     let chat_participants = bob_user.chat_participants(chat_id).await.unwrap();
     assert_eq!(chat_participants.len(), 1);
     assert!(!chat_participants.contains(&alice));
+}
+
+/// Connects Alice and Bob and has Alice delete their chat while the DS loses
+/// either her request or its response. Returns what the retry needs.
+async fn delete_chat_with_a_network_error(
+    lose_response: bool,
+) -> (TestBackend, UserId, UserId, ChatId) {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+    let alice_user = setup.get_user(&alice).user.clone();
+
+    if lose_response {
+        setup.listener_control_handle().set_drop_next_response();
+    } else {
+        setup.listener_control_handle().set_drop_next_request();
+    }
+    alice_user
+        .delete_and_erase_chat(chat_id)
+        .await
+        .expect_err("expected the delete to fail due to a network error");
+
+    // The chat stays, and no delete is parked that erasing it would drop.
+    assert!(alice_user.chat(&chat_id).await.is_some());
+    assert!(
+        alice_user
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    (setup, alice, bob, chat_id)
+}
+
+/// Retries the delete and checks that it reached Bob.
+async fn assert_retried_delete_reaches_the_contact(
+    setup: &TestBackend,
+    alice: &UserId,
+    bob: &UserId,
+    chat_id: ChatId,
+) {
+    let alice_user = &setup.get_user(alice).user;
+    alice_user.delete_and_erase_chat(chat_id).await.unwrap();
+    assert!(alice_user.chat(&chat_id).await.is_none());
+
+    let bob_user = &setup.get_user(bob).user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    bob_user.fully_process_qs_messages(qs_messages).await;
+    let chat = bob_user.chat(&chat_id).await.unwrap();
+    assert!(matches!(chat.status(), ChatStatus::Inactive(_)));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn deleting_a_chat_offline_keeps_it() {
+    let (setup, alice, bob, chat_id) = delete_chat_with_a_network_error(false).await;
+    assert_retried_delete_reaches_the_contact(&setup, &alice, &bob, chat_id).await;
+}
+
+/// The DS applied the first attempt, so the retry finds the group gone.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn deleting_a_chat_after_a_lost_response_finishes_on_retry() {
+    let (setup, alice, bob, chat_id) = delete_chat_with_a_network_error(true).await;
+    assert_retried_delete_reaches_the_contact(&setup, &alice, &bob, chat_id).await;
 }

@@ -74,9 +74,6 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
   Widget build(BuildContext context) {
     final navigationState = context.watch<NavigationCubit>().state;
 
-    // hide material banners if any
-    ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
-
     final breakpoint = context.breakpoint;
 
     // routing

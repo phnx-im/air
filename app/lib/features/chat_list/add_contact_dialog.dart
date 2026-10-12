@@ -177,7 +177,9 @@ class _Description extends StatelessWidget {
     final (text, color) = switch ((errorMessage, hasUsernameHash)) {
       (final errorMessage?, _) => (errorMessage, palette.function.danger),
       (null, true) => (
-        loc.newConnectionDialog_handleExists(username),
+        DeviceType.isDesktop
+            ? loc.newConnectionDialog_handleExists_desktop(username)
+            : loc.newConnectionDialog_handleExists(username),
         palette.function.success.primary,
       ),
       (null, false) => (
@@ -228,21 +230,27 @@ class _SubmitHandler {
   void _checkUsername(BuildContext context, UiUsername username) async {
     isSubmitting.value = true;
     final userCubit = context.read<UserCubit>();
-    final hash = await userCubit.checkUsernameExists(username: username);
+    try {
+      final hash = await userCubit.checkUsernameExists(username: username);
+      if (!context.mounted) return;
+      if (hash == null) {
+        final loc = AppLocalizations.of(context);
+        errorMessage.value = loc.newConnectionDialog_error_usernameNotFound(
+          username.plaintext,
+        );
+        return;
+      }
 
-    if (!context.mounted) return;
-    final loc = AppLocalizations.of(context);
-
-    if (hash == null) {
-      errorMessage.value = loc.newConnectionDialog_error_usernameNotFound(
-        username.plaintext,
+      usernameHash.value = hash;
+    } catch (e) {
+      _log.severe("Failed to check username: $e", e);
+      showSnackBarStandalone(
+        (loc) => loc.newConnectionDialog_error(username.plaintext),
+        tone: .danger,
       );
+    } finally {
       isSubmitting.value = false;
-      return;
     }
-
-    usernameHash.value = hash;
-    isSubmitting.value = false;
   }
 
   void _connectUsername(
@@ -277,13 +285,13 @@ class _SubmitHandler {
         Navigator.of(context).pop();
       }
     } catch (e) {
-      // fatal error
       _log.severe("Failed to create connection: $e", e);
-      showErrorBannerStandalone(
+      showSnackBarStandalone(
         (loc) => loc.newConnectionDialog_error(username.plaintext),
+        tone: .danger,
       );
     } finally {
-      isSubmitting.value = false;
+      if (context.mounted) isSubmitting.value = false;
     }
   }
 }

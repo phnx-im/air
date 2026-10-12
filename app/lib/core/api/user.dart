@@ -24,6 +24,9 @@ abstract class User implements RustOpaqueInterface {
   /// Random UUID naming this client's DB file and identifying its client record.
   UuidValue get clientRecordId;
 
+  /// Erase the self group and its chat from the local database.
+  Future<void> dangerResetSelfGroup();
+
   /// Total number of unread messages across all chats
   Future<int> get globalUnreadMessagesCount;
 

@@ -23,12 +23,11 @@ use aircommon::{
             AsCredentialsResponseIn, EncryptedUserProfile, GetUserProfileResponse,
             RegisterUserResponseIn, UsernameDeleteResponse,
         },
-        connection_package::ConnectionPackage,
-        connection_package::VersionedConnectionPackageIn,
+        connection_package::{ConnectionPackage, VersionedConnectionPackageIn},
         push_token::{PushToken, PushTokenOperator},
     },
     registration::{ChallengeKind, NewAdmissionSession, RegistrationChallenge, RegistrationInfo},
-    time::Duration,
+    utils::KeepAliveStream,
 };
 use airprotos::{
     auth_service::v1::{
@@ -38,12 +37,13 @@ use airprotos::{
         CreateUsernamePayload, DeleteUserPayload, DeleteUsernamePayload,
         EnqueueConnectionOfferStep, FetchSignedConnectionPackageStep, GetInvitationCodesRequest,
         GetRegistrationInfoRequest, GetUserProfileRequest, InitListenUsernamePayload,
-        InvitationCode, IssueTokenBatchPayload, IssueTokenBatchResponse, ListenUsernameRequest,
-        MergeUserProfilePayload, OperationType, PublishConnectionPackagesPayload, PushPlatform,
-        RefreshUsernamePayload, RegisterUserRequest, RegisterUserResponse, ReportSpamPayload,
-        SignedConnectionPackage, StageUserProfilePayload, UsernameQueueMessage,
-        connect_username_request, connect_username_response, issue_token_batch_response,
-        listen_username_request, register_user_response,
+        InvitationCode, IssueTokenBatchPayload, IssueTokenBatchResponse,
+        KeepAliveListenUsernameRequest, ListenUsernameRequest, MergeUserProfilePayload,
+        OperationType, PublishConnectionPackagesPayload, PushPlatform, RefreshUsernamePayload,
+        RegisterUserRequest, RegisterUserResponse, ReportSpamPayload, SignedConnectionPackage,
+        StageUserProfilePayload, UsernameQueueMessage, connect_username_request,
+        connect_username_response, issue_token_batch_response, listen_username_request,
+        register_user_response,
     },
     client::signed_connection_package::AnyConnectionPackageIn,
     common::v1::{StatusDetails, StatusDetailsCode},
@@ -56,7 +56,9 @@ use tonic::{Code, Request, Status};
 use tracing::error;
 use uuid::Uuid;
 
-use crate::ApiClient;
+use crate::{
+    ApiClient, ClassifyRequestError, LISTEN_KEEPALIVE_INTERVAL, RequestErrorKind, classify_status,
+};
 
 /// Errors that can occur when sending requests to the AS.
 #[derive(Error, Debug)]
@@ -67,6 +69,15 @@ pub enum AsRequestError {
     UnexpectedResponse,
     #[error(transparent)]
     Tonic(#[from] tonic::Status),
+}
+
+impl ClassifyRequestError for AsRequestError {
+    fn kind(&self) -> RequestErrorKind {
+        match self {
+            Self::Tonic(status) => classify_status(status),
+            Self::LibraryError | Self::UnexpectedResponse => RequestErrorKind::Rejected,
+        }
+    }
 }
 
 impl AsRequestError {
@@ -102,17 +113,6 @@ impl AsRequestError {
                         .unwrap_or(false)
             }
             _ => false,
-        }
-    }
-
-    /// Returns true if the error is likely due to a network issue and we can't
-    /// be sure whether the server received the request.
-    pub fn is_network_error(&self) -> bool {
-        if let Self::Tonic(status) = self {
-            // TODO: Also handle unknown errors here but downcast them to io::Error
-            matches!(status.code(), Code::Unavailable | Code::DeadlineExceeded)
-        } else {
-            false
         }
     }
 
@@ -251,7 +251,7 @@ impl ApiClient {
                     AsRequestError::UnexpectedResponse
                 })?
                 .into(),
-            lifetime: Duration::seconds(response.lifetime_seconds.into()),
+            lifetime: aircommon::time::Duration::seconds(response.lifetime_seconds.into()),
         })
     }
 
@@ -531,6 +531,7 @@ impl ApiClient {
         let init_request = init_payload.sign(signing_key)?;
 
         const ACK_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
+
         let (ack_tx, ack_rx) = mpsc::channel::<Uuid>(ACK_CHANNEL_BUFFER_SIZE);
 
         let requests = tokio_stream::once(ListenUsernameRequest {
@@ -545,6 +546,13 @@ impl ApiClient {
                 )),
             }),
         );
+        let requests = KeepAliveStream::new(requests, LISTEN_KEEPALIVE_INTERVAL, || {
+            ListenUsernameRequest {
+                request: Some(listen_username_request::Request::KeepAlive(
+                    KeepAliveListenUsernameRequest {},
+                )),
+            }
+        });
 
         let responses = self
             .as_grpc_client()

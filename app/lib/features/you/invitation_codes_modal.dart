@@ -133,8 +133,8 @@ class InvitationCodesContent extends StatelessWidget {
     }
 
     showSnackBarStandalone(
-      (loc) =>
-          SnackBar(content: Text(loc.invitationCodesScreen_copiedToClipboard)),
+      (loc) => loc.invitationCodesScreen_copiedToClipboard,
+      tone: .success,
     );
   }
 
@@ -227,8 +227,8 @@ class _InvitationCodeItem extends StatelessWidget {
     );
 
     showSnackBarStandalone(
-      (loc) =>
-          SnackBar(content: Text(loc.invitationCodesScreen_copiedToClipboard)),
+      (loc) => loc.invitationCodesScreen_copiedToClipboard,
+      tone: .success,
     );
 
     if (!code.copied) {
@@ -255,7 +255,11 @@ class _InvitationTokenItem extends StatelessWidget {
         child: Row(
           children: [
             Text(
-              AppLocalizations.of(context).invitationCodesScreen_tapToGetCode,
+              DeviceType.isDesktop
+                  ? AppLocalizations.of(context)
+                        .invitationCodesScreen_getCodeHint_desktop
+                  : AppLocalizations.of(context)
+                        .invitationCodesScreen_getCodeHint,
               style: typeScale.body.regular
                   .style(color: palette.text.tertiary)
                   .copyWith(fontStyle: .italic),
@@ -276,17 +280,17 @@ class _InvitationTokenItem extends StatelessWidget {
       switch (error) {
         case RequestInvitationCodeError.globalQuotaExceeded:
           showSnackBarStandalone(
-            (loc) => SnackBar(
-              content: Text(loc.invitationCodesScreen_global_quota_exceeded),
-            ),
+            (loc) => loc.invitationCodesScreen_global_quota_exceeded,
+            tone: .danger,
           );
           break;
         case null:
           return;
       }
     } catch (e) {
-      showErrorBannerStandalone(
+      showSnackBarStandalone(
         (loc) => loc.invitationCodesScreen_errorRequestingCode,
+        tone: .danger,
       );
     }
   }

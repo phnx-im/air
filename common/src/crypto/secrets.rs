@@ -9,19 +9,27 @@
 use std::{fmt::Display, ops::Deref};
 
 use rand::TryRng;
-use secrecy::{
-    CloneableSecret, SerializableSecret,
-    zeroize::{Zeroize, ZeroizeOnDrop},
-};
+use secrecy::{CloneableSecret, SerializableSecret};
 use serde::{Deserialize, Serialize};
 use sqlx::{Database, Decode, Encode, Type, encode::IsNull, error::BoxDynError};
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use super::RandomnessError;
 
-/// Struct that contains a (symmetric) secret of fixed length LENGTH.
+/// Struct that contains a (symmetric) secret of fixed length LENGTH. It is
+/// wiped from memory when dropped.
 #[derive(
-    TlsSerialize, TlsDeserializeBytes, TlsSize, Clone, PartialEq, Eq, Serialize, Deserialize,
+    TlsSerialize,
+    TlsDeserializeBytes,
+    TlsSize,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Zeroize,
+    ZeroizeOnDrop,
 )]
 pub struct Secret<const LENGTH: usize> {
     #[serde(with = "serde_bytes")]
@@ -51,15 +59,6 @@ impl<const LENGTH: usize> Secret<LENGTH> {
         Ok(Self { secret })
     }
 }
-
-// Ensure that secrets are wiped from memory securely upon being dropped.
-impl<const LENGTH: usize> Zeroize for Secret<LENGTH> {
-    fn zeroize(&mut self) {
-        self.secret.zeroize()
-    }
-}
-
-impl<const LENGTH: usize> ZeroizeOnDrop for Secret<LENGTH> {}
 
 // Ensures that secrets are not printed in debug outputs.
 impl<const LENGTH: usize> std::fmt::Debug for Secret<LENGTH> {
@@ -92,8 +91,8 @@ where
         &self,
         buf: &mut <DB as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
-        let bytes: Box<[u8]> = self.secret.into();
-        Encode::<DB>::encode(bytes, buf)
+        let bytes: Zeroizing<Box<[u8]>> = Zeroizing::new(self.secret.into());
+        Encode::<DB>::encode_by_ref(&*bytes, buf)
     }
 }
 
@@ -109,7 +108,7 @@ where
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, sqlx::Type)]
+#[derive(Clone, Serialize, Deserialize, sqlx::Type, Zeroize, ZeroizeOnDrop)]
 #[sqlx(transparent)]
 pub(super) struct SecretBytes(#[serde(with = "serde_bytes")] Vec<u8>);
 
@@ -126,14 +125,6 @@ impl Deref for SecretBytes {
         &self.0
     }
 }
-
-impl Zeroize for SecretBytes {
-    fn zeroize(&mut self) {
-        self.0.zeroize();
-    }
-}
-
-impl ZeroizeOnDrop for SecretBytes {}
 
 // Ensures that secrets are not printed in debug outputs.
 impl std::fmt::Debug for SecretBytes {

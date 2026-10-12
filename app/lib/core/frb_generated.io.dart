@@ -848,6 +848,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiMimiContent dco_decode_box_autoadd_ui_mimi_content(dynamic raw);
 
   @protected
+  UiRequestGroupChat dco_decode_box_autoadd_ui_request_group_chat(dynamic raw);
+
+  @protected
   UiShareSendError dco_decode_box_autoadd_ui_share_send_error(dynamic raw);
 
   @protected
@@ -1358,6 +1361,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UiAcceptContactRequestResult dco_decode_ui_accept_contact_request_result(
+    dynamic raw,
+  );
+
+  @protected
   UiAttachment dco_decode_ui_attachment(dynamic raw);
 
   @protected
@@ -1434,6 +1442,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiReaction dco_decode_ui_reaction(dynamic raw);
+
+  @protected
+  UiRequestGroupChat dco_decode_ui_request_group_chat(dynamic raw);
 
   @protected
   UiShareSendError dco_decode_ui_share_send_error(dynamic raw);
@@ -2250,6 +2261,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UiRequestGroupChat sse_decode_box_autoadd_ui_request_group_chat(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiShareSendError sse_decode_box_autoadd_ui_share_send_error(
     SseDeserializer deserializer,
   );
@@ -2896,6 +2912,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UiAcceptContactRequestResult sse_decode_ui_accept_contact_request_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiAttachment sse_decode_ui_attachment(SseDeserializer deserializer);
 
   @protected
@@ -2976,6 +2997,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiReaction sse_decode_ui_reaction(SseDeserializer deserializer);
+
+  @protected
+  UiRequestGroupChat sse_decode_ui_request_group_chat(
+    SseDeserializer deserializer,
+  );
 
   @protected
   UiShareSendError sse_decode_ui_share_send_error(SseDeserializer deserializer);
@@ -3962,6 +3988,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_ui_request_group_chat(
+    UiRequestGroupChat self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_ui_share_send_error(
     UiShareSendError self,
     SseSerializer serializer,
@@ -4772,6 +4804,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_ui_accept_contact_request_result(
+    UiAcceptContactRequestResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_ui_attachment(UiAttachment self, SseSerializer serializer);
 
   @protected
@@ -4893,6 +4931,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_ui_reaction(UiReaction self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ui_request_group_chat(
+    UiRequestGroupChat self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_ui_share_send_error(

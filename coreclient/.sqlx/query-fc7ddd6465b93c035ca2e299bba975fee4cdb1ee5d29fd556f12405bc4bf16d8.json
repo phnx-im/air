@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE receipt_queue\n                 SET attempts = ?, retry_at = ?\n                 WHERE locked_by = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "fc7ddd6465b93c035ca2e299bba975fee4cdb1ee5d29fd556f12405bc4bf16d8"
+}

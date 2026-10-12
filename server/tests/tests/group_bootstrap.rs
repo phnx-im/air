@@ -26,7 +26,10 @@ use super::multi_device::{
 ///
 /// Returns the original device and the new one. The [`TempDir`] holds the new
 /// device's database and must stay alive as long as it is used.
-async fn link_sibling(setup: &TestBackend, user_id: &UserId) -> (CoreUser, CoreUser, TempDir) {
+pub(crate) async fn link_sibling(
+    setup: &TestBackend,
+    user_id: &UserId,
+) -> (CoreUser, CoreUser, TempDir) {
     let (device_b, tmp) = link_new_device(setup, user_id).await;
     // Onboarding into the pre-existing groups runs in the background.
     device_b.outbound_service().run_once().await;
@@ -37,7 +40,10 @@ async fn link_sibling(setup: &TestBackend, user_id: &UserId) -> (CoreUser, CoreU
 }
 
 /// Drains `device`'s queue and asserts that every message was processed.
-async fn drain_expecting_success(device: &CoreUser, context: &str) -> ProcessedQsMessages {
+pub(crate) async fn drain_expecting_success(
+    device: &CoreUser,
+    context: &str,
+) -> ProcessedQsMessages {
     let queued = device.qs_fetch_messages().await.unwrap();
     let processed = device.fully_process_qs_messages(queued).await;
     assert!(
@@ -50,13 +56,24 @@ async fn drain_expecting_success(device: &CoreUser, context: &str) -> ProcessedQ
 
 /// Registers a username for `user_id`, which a peer can then request a
 /// connection to.
-async fn add_username(setup: &mut TestBackend, user_id: &UserId) -> UsernameRecord {
+pub(crate) async fn add_username(setup: &mut TestBackend, user_id: &UserId) -> UsernameRecord {
     setup.get_user_mut(user_id).add_username().await.unwrap()
 }
 
 /// Drains the username queue of `record` and returns the pending chat the
 /// connection offer in it created.
-async fn receive_connection_offer(user: &CoreUser, record: &UsernameRecord) -> ChatId {
+pub(crate) async fn receive_connection_offer(user: &CoreUser, record: &UsernameRecord) -> ChatId {
+    drain_username_queue(user, record)
+        .await
+        .expect("the connection offer should have created a pending chat")
+}
+
+/// Drains the username queue of `record` and returns the pending chat a
+/// connection offer in it created, if any.
+pub(crate) async fn drain_username_queue(
+    user: &CoreUser,
+    record: &UsernameRecord,
+) -> Option<ChatId> {
     let (mut stream, responder) = user.listen_username(record).await.unwrap();
     let mut chat_id = None;
     while let Some(Some(message)) = timeout(Duration::from_millis(500), stream.next())
@@ -64,14 +81,15 @@ async fn receive_connection_offer(user: &CoreUser, record: &UsernameRecord) -> C
         .unwrap()
     {
         let message_id = message.message_id.unwrap();
-        chat_id = Some(
-            user.process_username_queue_message(record.username.clone(), message)
-                .await
-                .unwrap(),
-        );
+        chat_id = user
+            .process_username_queue_message(record.username.clone(), message)
+            .await
+            .unwrap()
+            .map(|stored| stored.chat_id)
+            .or(chat_id);
         responder.ack(message_id.into()).await;
     }
-    chat_id.expect("the connection offer should have created a pending chat")
+    chat_id
 }
 
 /// Asserts that both devices sit on the same epoch and share the virtual
@@ -482,6 +500,22 @@ async fn sibling_mirrors_a_targeted_message_connection() {
         .expect("the sibling should have a targeted message contact");
     assert_eq!(contact_b.user_id, contact_a.user_id);
     assert_eq!(contact_b.chat_id, contact_a.chat_id);
+    let group_id = device_a.chat(&group_chat_id).await.unwrap().group_id;
+    assert_eq!(contact_a.origin_group_id.as_ref(), Some(&group_id));
+    assert_eq!(contact_b.origin_group_id.as_ref(), Some(&group_id));
+    for (label, device) in [("initiating", &device_a), ("sibling", &device_b)] {
+        let messages = device.messages(chat_id, 1).await.unwrap();
+        assert!(
+            matches!(
+                messages[0].message(),
+                Message::Event(EventMessage::System(SystemMessage::SentGroupConnectionRequest {
+                    recipient,
+                    origin_chat_id,
+                })) if recipient == &charlie && origin_chat_id == &group_chat_id
+            ),
+            "the {label} device should name the group chat of the request"
+        );
+    }
 
     assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after the creation echo").await;
 

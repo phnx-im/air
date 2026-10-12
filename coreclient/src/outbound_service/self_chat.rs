@@ -2,14 +2,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use airprotos::client::self_group::SelfGroupAppMessage;
 use tracing::debug;
 
 use crate::{
-    Chat, groups::self_group::SelfGroup, job::pending_chat_operation::PendingChatOperation,
-    outbound_service::resync::Resync,
+    Chat,
+    groups::self_group::SelfGroup,
+    job::pending_chat_operation::PendingChatOperation,
+    outbound_service::{error::OutboundServiceError, resync::Resync},
 };
 
-use super::OutboundServiceContext;
+use super::{OutboundServiceContext, SendOutcome};
 
 /// Whether the self group can take an application message.
 pub(super) enum SelfChatReadiness {
@@ -22,7 +25,7 @@ pub(super) enum SelfChatReadiness {
 
 impl OutboundServiceContext {
     pub(super) async fn self_chat_for_app_message(&self) -> anyhow::Result<SelfChatReadiness> {
-        if !SelfGroup::has_linked_devices(self.db.read().await?).await? {
+        if !SelfGroup::load_and_check_if_has_linked_device(self.db.read().await?).await? {
             return Ok(SelfChatReadiness::NoSiblings);
         }
 
@@ -45,5 +48,18 @@ impl OutboundServiceContext {
         }
 
         Ok(SelfChatReadiness::Ready(chat))
+    }
+
+    /// Sends a self-group app message to the siblings. A message that cannot
+    /// be built is fatal.
+    pub(super) async fn send_self_group_message(
+        &self,
+        chat: &Chat,
+        message: SelfGroupAppMessage,
+    ) -> Result<SendOutcome, OutboundServiceError> {
+        let content = message
+            .to_mimi_content()
+            .map_err(OutboundServiceError::fatal)?;
+        self.send_application_message(chat, content).await
     }
 }

@@ -1,0 +1,150 @@
+// SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! State a client relays to its sibling clients through the QS.
+
+use airmacros::{
+    DeserializeTaggedMap, DeserializeTaggedUnion, SerializeTaggedMap, SerializeTaggedUnion,
+};
+use uuid::Uuid;
+
+use crate::{
+    codec::PersistenceCodec,
+    crypto::{
+        aead::{PaddedAeadDecryptable, PaddedAeadEncryptable, keys::ClientStateKey},
+        errors::{DecryptionError, EncryptionError},
+    },
+    identifiers::QsClientId,
+};
+
+use super::*;
+
+/// Notifications a client suppresses because the user is looking at it.
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, SerializeTaggedUnion, DeserializeTaggedUnion,
+)]
+pub enum NotificationSuppression {
+    #[default]
+    #[tag(1)]
+    None,
+    #[tag(2)]
+    Chat(Uuid),
+    #[tag(3)]
+    All,
+    /// Sent by a newer client, treated as [`Suppression::None`].
+    #[unknown]
+    Unknown,
+}
+
+/// The padding hides which kind of [`Suppression`] a client reports.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ClientState {
+    #[tag(1)]
+    suppression: NotificationSuppression,
+}
+
+#[derive(Debug)]
+pub struct EncryptedClientStateCtype;
+pub type EncryptedClientState = Ciphertext<EncryptedClientStateCtype>;
+
+impl PaddedAeadEncryptable<ClientStateKey, EncryptedClientStateCtype> for ClientState {}
+impl PaddedAeadDecryptable<ClientStateKey, EncryptedClientStateCtype> for ClientState {}
+
+impl ClientState {
+    pub fn new(suppression: NotificationSuppression) -> Self {
+        Self { suppression }
+    }
+
+    pub fn suppression(&self) -> NotificationSuppression {
+        self.suppression
+    }
+
+    /// Encrypts the state of the client `sender`.
+    pub fn encrypt_to_bytes(
+        &self,
+        key: &ClientStateKey,
+        sender: &QsClientId,
+    ) -> Result<Vec<u8>, EncryptionError> {
+        let ciphertext = self.encrypt_padded_with_aad(key, sender)?;
+        PersistenceCodec::to_vec(&ciphertext).map_err(|_| EncryptionError::SerializationError)
+    }
+
+    /// Decrypts the state of the client `sender`.
+    pub fn decrypt_from_bytes(
+        key: &ClientStateKey,
+        sender: &QsClientId,
+        bytes: &[u8],
+    ) -> Result<Self, DecryptionError> {
+        let ciphertext: EncryptedClientState = PersistenceCodec::from_slice(bytes)
+            .map_err(|_| DecryptionError::DeserializationError)?;
+        Self::decrypt_padded_with_aad(key, &ciphertext, sender)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::crypto::{kdf::KdfDerivable, signatures::keys::QsUserSigningKey};
+
+    use super::*;
+
+    fn key(signing_key: &QsUserSigningKey) -> ClientStateKey {
+        ClientStateKey::derive(&signing_key.derive_sibling_secret(), &Vec::new()).unwrap()
+    }
+
+    #[test]
+    fn roundtrip() {
+        let signing_key = QsUserSigningKey::generate().unwrap();
+        let key = key(&signing_key);
+        let sender = QsClientId::random(&mut rand::rng());
+
+        for suppression in [
+            NotificationSuppression::None,
+            NotificationSuppression::Chat(Uuid::new_v4()),
+            NotificationSuppression::All,
+        ] {
+            let bytes = ClientState::new(suppression)
+                .encrypt_to_bytes(&key, &sender)
+                .unwrap();
+            let decrypted = ClientState::decrypt_from_bytes(&key, &sender, &bytes).unwrap();
+            assert_eq!(decrypted.suppression(), suppression);
+        }
+    }
+
+    #[test]
+    fn ciphertext_length_does_not_reveal_suppression() {
+        let signing_key = QsUserSigningKey::generate().unwrap();
+        let key = key(&signing_key);
+        let sender = QsClientId::random(&mut rand::rng());
+
+        let lengths: Vec<_> = [
+            NotificationSuppression::None,
+            NotificationSuppression::Chat(Uuid::new_v4()),
+            NotificationSuppression::All,
+        ]
+        .map(|suppression| {
+            ClientState::new(suppression)
+                .encrypt_to_bytes(&key, &sender)
+                .unwrap()
+                .len()
+        })
+        .into();
+        assert!(lengths.iter().all(|len| *len == lengths[0]));
+    }
+
+    #[test]
+    fn other_sender_or_user_is_rejected() {
+        let signing_key = QsUserSigningKey::generate().unwrap();
+        let key = key(&signing_key);
+        let sender = QsClientId::random(&mut rand::rng());
+        let bytes = ClientState::new(NotificationSuppression::All)
+            .encrypt_to_bytes(&key, &sender)
+            .unwrap();
+
+        let other_sender = QsClientId::random(&mut rand::rng());
+        assert!(ClientState::decrypt_from_bytes(&key, &other_sender, &bytes).is_err());
+
+        let other_key = self::key(&QsUserSigningKey::generate().unwrap());
+        assert!(ClientState::decrypt_from_bytes(&other_key, &sender, &bytes).is_err());
+    }
+}

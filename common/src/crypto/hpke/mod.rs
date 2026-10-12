@@ -18,6 +18,7 @@ use mls_assist::{
 use serde::{Deserialize, Serialize};
 use tls_codec::Serialize as TlsSerializeTrait;
 use tracing::error;
+use zeroize::Zeroizing;
 
 use crate::identifiers::{ClientConfig, SealedClientReference};
 
@@ -122,13 +123,15 @@ impl<KT> DecryptionKey<KT> {
 
     pub fn generate() -> Result<Self, RandomnessError> {
         let provider = OpenMlsRustCrypto::default();
-        let key_seed = provider
-            .rand()
-            .random_array::<32>()
-            .map_err(|_| RandomnessError::InsufficientRandomness)?;
+        let key_seed = Zeroizing::new(
+            provider
+                .rand()
+                .random_array::<32>()
+                .map_err(|_| RandomnessError::InsufficientRandomness)?,
+        );
         let keypair = provider
             .crypto()
-            .derive_hpke_keypair(HPKE_CONFIG, &key_seed)
+            .derive_hpke_keypair(HPKE_CONFIG, key_seed.as_slice())
             .map_err(|_| RandomnessError::InsufficientRandomness)?;
         Ok(Self::new(
             keypair.private,

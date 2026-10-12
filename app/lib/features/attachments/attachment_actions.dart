@@ -55,7 +55,10 @@ Future<void> saveAttachment(
       );
     } catch (e, stackTrace) {
       _log.severe("Failed to save attachment: $e", e, stackTrace);
-      showErrorBannerStandalone((loc) => loc.messageContextMenu_saveError);
+      showSnackBarStandalone(
+        (loc) => loc.messageContextMenu_saveError,
+        tone: .danger,
+      );
       return;
     }
   } else if (Platform.isIOS) {
@@ -65,10 +68,9 @@ Future<void> saveAttachment(
   }
 
   showSnackBarStandalone(
-    (loc) => SnackBar(
-      duration: const Duration(seconds: 1),
-      content: Text(loc.messageContextMenu_saveConfirmation),
-    ),
+    (loc) => loc.messageContextMenu_saveConfirmation,
+    tone: .success,
+    duration: const Duration(seconds: 1),
   );
 }
 

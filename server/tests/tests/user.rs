@@ -584,7 +584,9 @@ async fn add_contact_and_change_profile() {
     let alice_bob_chat_id = alice_user
         .process_username_queue_message(alice_username_record.username, messages.pop().unwrap())
         .await
-        .unwrap();
+        .unwrap()
+        .expect("the offer should create a pending chat")
+        .chat_id;
     alice_user
         .accept_contact_request(alice_bob_chat_id)
         .await

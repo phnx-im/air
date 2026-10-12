@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::HashMap, sync::Arc, time::Instant};
+use std::{collections::HashMap, sync::Arc};
 
 use aircommon::identifiers::QsClientId;
 use airprotos::queue_service::v1::{
@@ -57,7 +57,6 @@ struct ClientSessionData {
 #[derive(Debug)]
 pub(super) struct ClientState {
     epoch: Epoch,
-    received_at: Instant,
     encrypted_blob: Vec<u8>,
 }
 
@@ -128,7 +127,6 @@ impl UserClients {
 
         let state = ClientState {
             epoch: epoch.advance(),
-            received_at: Instant::now(),
             encrypted_blob,
         };
         let updated = state.to_updated(client_id);
@@ -182,11 +180,9 @@ impl UserClients {
 
 impl ClientState {
     fn to_updated(&self, client_id: QsClientId) -> SiblingClientStateUpdated {
-        let age_ms = self.received_at.elapsed().as_millis();
         SiblingClientStateUpdated {
             client_id: Some(client_id.into()),
             epoch: self.epoch.0,
-            age_ms: age_ms.try_into().unwrap_or(u32::MAX),
             blob: Some(SiblingClientStateEncryptedBlob {
                 encrypted_blob: self.encrypted_blob.clone(),
             }),
@@ -309,17 +305,13 @@ mod tests {
         let updated = updated_of(next_change(&mut b_rx));
         assert_eq!(client_id_of(updated.client_id), a);
         assert_eq!(updated.blob.unwrap().encrypted_blob, b"state");
-        assert_eq!(updated.age_ms, 0);
         assert_no_change(&mut a_rx);
 
-        // A late listener gets the current states, aged since they were
-        // received.
         std::thread::sleep(Duration::from_millis(10));
         let states = clients.states(b);
         assert_eq!(states.len(), 1);
         let state = updated_of(change_of(states.into_iter().next().unwrap()));
         assert_eq!(state.epoch, updated.epoch);
-        assert!(state.age_ms >= 10);
         assert!(clients.states(a).is_empty());
 
         drop(a_session);

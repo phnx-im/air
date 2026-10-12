@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS (\n                    SELECT 1 FROM resync_queue\n                    WHERE group_id = ? AND outgoing_request IS NOT NULL\n                ) AS \"onboards: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "onboards: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "219e2593d728e3887f6a3adccb96d941942991f7a17cf1d9f34da7242cbc1403"
+}

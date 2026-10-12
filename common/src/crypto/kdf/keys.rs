@@ -64,3 +64,17 @@ impl RawKey for VcApplicationSecretType {}
 impl KdfKey for VcApplicationSecret {
     const ADDITIONAL_LABEL: &'static str = "VcApplicationSecret";
 }
+
+/// Secret shared by all clients of a user and unknown to the server.
+///
+/// Derived from the user's QS signing key, which all clients of a user share
+/// (see [`crate::crypto::signatures::keys::QsUserSigningKey::derive_sibling_secret`]).
+#[derive(Debug)]
+pub struct SiblingSecretType;
+pub type SiblingSecret = Key<SiblingSecretType>;
+
+impl RawKey for SiblingSecretType {}
+
+impl KdfKey for SiblingSecret {
+    const ADDITIONAL_LABEL: &'static str = "SiblingSecret";
+}

@@ -4,6 +4,7 @@
 
 import 'dart:async';
 
+import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/checkbox/checkbox.dart';
@@ -93,8 +94,9 @@ class _EmailForm extends HookWidget {
         debugLogsUrl.value = await context.read<UserCubit>().uploadLogs();
       } catch (e) {
         _log.severe("Failed to upload logs: $e", e);
-        showErrorBannerStandalone(
+        showSnackBarStandalone(
           (loc) => loc.contactUsScreen_errorUploadingLogs,
+          tone: .danger,
         );
         debugLogsUrl.value = null;
       } finally {
@@ -227,8 +229,10 @@ class _EmailForm extends HookWidget {
       await launcher.launchUrl(emailUri);
     } catch (e) {
       _log.severe("Failed to launch email: $e", e);
-      showErrorBannerStandalone(
-        (loc) => loc.contactUsScreen_errorLaunchingEmail,
+      if (!context.mounted) return;
+      showErrorDialog(
+        context,
+        message: (loc) => loc.contactUsScreen_errorLaunchingEmail,
       );
     }
   }

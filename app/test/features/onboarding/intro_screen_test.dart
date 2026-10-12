@@ -28,7 +28,7 @@ void main() {
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     });
 
-    Widget buildSubject() => MultiBlocProvider(
+    Widget buildSubject({bool accountMarker = false}) => MultiBlocProvider(
       providers: [
         BlocProvider<UserSessionCubit>.value(value: userSessionCubit),
         BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
@@ -39,7 +39,7 @@ void main() {
           debugShowCheckedModeBanner: false,
           theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: const IntroScreen(),
+          home: IntroScreen(checkAccountMarker: () async => accountMarker),
         ),
       ),
     );
@@ -84,6 +84,16 @@ void main() {
       );
     });
 
+    testWidgets('renders the transfer notice on phone', (tester) async {
+      await tester.pumpWidget(buildSubject(accountMarker: true));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/intro_screen_data_not_transferred.png'),
+      );
+    });
+
     testWidgets('renders correctly on desktop', (tester) async {
       final binding = TestWidgetsFlutterBinding.ensureInitialized();
       binding.platformDispatcher.views.first.physicalSize = const Size(
@@ -100,6 +110,27 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/intro_screen_desktop.png'),
+      );
+    }, variant: desktopPlatform);
+
+    testWidgets('renders the transfer notice on desktop', (tester) async {
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      binding.platformDispatcher.views.first.physicalSize = const Size(
+        3840,
+        2160,
+      );
+      addTearDown(() {
+        binding.platformDispatcher.views.first.resetPhysicalSize();
+      });
+
+      await tester.pumpWidget(buildSubject(accountMarker: true));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile(
+          'goldens/intro_screen_data_not_transferred_desktop.png',
+        ),
       );
     }, variant: desktopPlatform);
   });

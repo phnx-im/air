@@ -4,7 +4,7 @@
 
 use apqmls::{
     messages::{ApqGroupInfo, ApqProtocolMessage},
-    processing::compute_app_data_updates,
+    processing::resolve_partial_commit_public,
     public_group::ApqPublicGroupMut,
 };
 use openmls::prelude::{ContentType, Credential, OpenMlsCrypto, ProtocolMessage, Verifiable};
@@ -43,7 +43,7 @@ impl Group {
                         // put into the ProposalStore. Otherwise we don't do
                         // anything with them.
                         let processed_message = self.public_group.process_message(provider, *pm)?;
-                        let processed_message = resolve_app_data_commit_public(
+                        let processed_message = resolve_partial_commit_public(
                             &self.public_group,
                             provider,
                             processed_message,
@@ -75,7 +75,7 @@ impl Group {
             .public_group
             .process_message(provider, ProtocolMessage::PublicMessage(commit.clone()))?;
         let processed_message =
-            resolve_app_data_commit_public(&self.public_group, provider, processed_message)?;
+            resolve_partial_commit_public(&self.public_group, provider, processed_message)?;
         let confirmation_tag = commit
             .confirmation_tag()
             .ok_or(LibraryError::LibraryError)?
@@ -311,34 +311,17 @@ pub enum GroupInfoValidationError {
     InconsistentGroupContext,
 }
 
-/// Resolves an [`UnresolvedAppDataCommit`] into a [`ProcessedMessage`].
-fn resolve_app_data_commit_public<Crypto: OpenMlsCrypto>(
-    group: &PublicGroup,
-    crypto: &Crypto,
-    message: ProcessedMessage,
-) -> Result<ProcessedMessage, ProcessAssistedMessageError> {
-    let ProcessedMessageContent::UnresolvedAppDataCommit(unresolved) = message.content() else {
-        return Ok(message);
-    };
-    let updates = compute_app_data_updates(
-        group.app_data_dictionary_updater(),
-        unresolved.app_data_update_proposals(),
-    )?;
-    group
-        .resolve_app_data_commit(crypto, message, updates)
-        .map_err(Into::into)
-}
-
 #[cfg(test)]
 mod tests {
-    use apqmls::extension::{APQMLS_COMPONENT_ID, ApqInfo, ApqInfoUpdate, PqtMode};
+    use apqmls::{
+        extension::{APQMLS_COMPONENT_ID, ApqInfo, ApqInfoUpdate, PqtMode},
+        processing::compute_app_data_updates,
+    };
     use openmls::{
         group::{AppDataDictionaryUpdater, GroupEpoch, GroupId},
-        prelude::{AppDataUpdateProposal, Ciphersuite},
+        prelude::{AppDataDictionary, AppDataUpdateProposal, Ciphersuite},
     };
     use tls_codec::Serialize as _;
-
-    use super::*;
 
     fn apq_info() -> ApqInfo {
         ApqInfo {
@@ -354,15 +337,27 @@ mod tests {
 
     #[test]
     fn an_apq_info_update_resolves_to_a_bare_apq_info() {
-        let apq_info = apq_info();
+        let current = apq_info();
+        let mut dictionary = AppDataDictionary::new();
+        dictionary.insert(
+            APQMLS_COMPONENT_ID,
+            current.tls_serialize_detached().unwrap(),
+        );
+        let apq_info = ApqInfo {
+            t_epoch: GroupEpoch::from(2),
+            pq_epoch: GroupEpoch::from(2),
+            ..current
+        };
         let payload = ApqInfoUpdate::FullUpdate(apq_info.clone())
             .tls_serialize_detached()
             .unwrap();
         let proposals = [AppDataUpdateProposal::update(APQMLS_COMPONENT_ID, payload)];
 
-        let changes =
-            compute_app_data_updates(AppDataDictionaryUpdater::new(None), proposals.iter())
-                .unwrap();
+        let changes = compute_app_data_updates(
+            AppDataDictionaryUpdater::new(Some(&dictionary)),
+            proposals.iter(),
+        )
+        .unwrap();
 
         let changes: Vec<_> = changes.into_iter().flatten().collect();
         assert_eq!(

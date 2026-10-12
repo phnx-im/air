@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE pending_connection_request SET chat_id = ?1 WHERE chat_id = ?2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "1219a6c1b832882a4a7f7003fb1ab4a02400fb598c0ccaa65882f0572720f53b"
+}

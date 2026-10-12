@@ -23,13 +23,13 @@ part 'chat_details_cubit.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `clear_draft`, `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `store_draft_from_state`, `update_state_task`, `upload_attachment_impl`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AcceptContactRequestError`, `ChatDetailsContext`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `eq`, `fmt`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `eq`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `into_ui_result`
 // These functions are ignored (category: IgnoreBecauseNotAllowedOwner): `into_ui_result`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>>
 abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
-  Future<UiAcceptContactRequestError?> acceptContactRequest();
+  Future<UiAcceptContactRequestResult> acceptContactRequest();
 
   Future<GroupDebugInfo> chatDebugInfo();
 
@@ -484,6 +484,27 @@ class UiAcceptContactRequestError {
       other is UiAcceptContactRequestError &&
           runtimeType == other.runtimeType &&
           reason == other.reason;
+}
+
+/// The outcome of accepting a contact request.
+class UiAcceptContactRequestResult {
+  /// The chat of the new connection. It is not the chat of the request if
+  /// the sender's newest request was gone and an older one was accepted.
+  final ChatId? acceptedChatId;
+  final UiAcceptContactRequestError? error;
+
+  const UiAcceptContactRequestResult({this.acceptedChatId, this.error});
+
+  @override
+  int get hashCode => acceptedChatId.hashCode ^ error.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UiAcceptContactRequestResult &&
+          runtimeType == other.runtimeType &&
+          acceptedChatId == other.acceptedChatId &&
+          error == other.error;
 }
 
 @freezed

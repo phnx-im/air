@@ -357,8 +357,9 @@ class _AddContactDialog extends HookWidget {
         Navigator.of(context).pop();
       }
 
-      showErrorBannerStandalone(
+      showSnackBarStandalone(
         (loc) => loc.newConnectionDialog_error(displayName),
+        tone: .danger,
       );
     } finally {
       setInProgress(false);

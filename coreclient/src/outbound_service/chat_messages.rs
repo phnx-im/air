@@ -4,6 +4,7 @@
 
 use std::time::Duration;
 
+use aircommon::time::TimeStamp;
 use anyhow::Context;
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
@@ -18,11 +19,13 @@ use crate::groups::{Group, handle_group_not_found_on_ds};
 use crate::job::JobError;
 use crate::job::chat_operation::{ChatOperation, DerivationEpoch};
 use crate::job::pending_chat_operation::PendingChatOperation;
+use crate::job::recoverable::{Recoverable, RecoverableCause};
 use crate::outbound_service::error::OutboundServiceError;
 use crate::outbound_service::resync::Resync;
+use crate::outbound_service::retry::RetryPolicy;
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, Message, MessageId,
-    outbound_service::chat_message_queue::ChatMessageQueue,
+    outbound_service::chat_message_queue::{ChatMessageQueue, DequeuedMessage},
 };
 
 use super::{OutboundService, OutboundServiceContext, SendOutcome};
@@ -124,7 +127,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_queued_messages(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), OutboundServiceError> {
         // Used to identify locked messages by this task
         let task_id = Uuid::new_v4();
         loop {
@@ -132,14 +135,18 @@ impl OutboundServiceContext {
                 return Ok(()); // the task is being stopped
             }
 
-            let Some((chat_id, message_id)) = self
+            let Some(dequeued) = self
                 .db
-                .with_write_transaction(async |txn| ChatMessageQueue::dequeue(txn, task_id).await)
-                .await?
+                .with_write_transaction(async |txn| {
+                    ChatMessageQueue::dequeue(txn, task_id, TimeStamp::now()).await
+                })
+                .await
+                .map_err(OutboundServiceError::fatal)?
             else {
                 return Ok(());
             };
-            debug!(?message_id, "dequeued messages");
+            let chat_id = dequeued.chat_id;
+            debug!(message_id = ?dequeued.message_id, "dequeued messages");
 
             // If a chat operation is pending, we skip sending chat messages for
             // this chat
@@ -151,10 +158,7 @@ impl OutboundServiceContext {
                 continue;
             }
 
-            match self
-                .send_queued_message(run_token, chat_id, message_id)
-                .await?
-            {
+            match self.send_queued_message(run_token, dequeued).await? {
                 RunControl::NextMessage => continue,
                 RunControl::EndRun => return Ok(()),
             }
@@ -166,23 +170,32 @@ impl OutboundServiceContext {
     /// A message that cannot be sent for its own reasons is marked as failed
     /// and dropped from the queue. Once the attempts of a transient failure are
     /// exhausted, we presume the network to be down and fail the whole queue.
+    /// When rate limited, the message stays queued and the run is aborted.
+    /// After a server error it stays queued for a later run, until its
+    /// [`RetryPolicy::MESSAGES`] budget is used up.
     async fn send_queued_message(
         &self,
         run_token: &CancellationToken,
-        chat_id: ChatId,
-        message_id: MessageId,
-    ) -> anyhow::Result<RunControl> {
+        DequeuedMessage {
+            chat_id,
+            message_id,
+            attempts,
+        }: DequeuedMessage,
+    ) -> Result<RunControl, OutboundServiceError> {
         let mut attempt = 0;
         loop {
             attempt += 1;
-            let error = match self.send_chat_message(message_id).await {
+            let result = RetryPolicy::MESSAGES
+                .fatal_when_exhausted(self.send_chat_message(message_id).await, attempts);
+            let error = match result {
                 Ok(SendOutcome::Sent) => {
                     self.db
                         .with_write_transaction(async |txn| -> anyhow::Result<_> {
                             ChatMessageQueue::remove(txn, message_id).await?;
                             Ok(())
                         })
-                        .await?;
+                        .await
+                        .map_err(OutboundServiceError::fatal)?;
                     return Ok(RunControl::NextMessage);
                 }
                 Ok(SendOutcome::Collided) => {
@@ -205,10 +218,33 @@ impl OutboundServiceContext {
                                 .await?;
                             Ok(())
                         })
-                        .await?;
+                        .await
+                        .map_err(OutboundServiceError::fatal)?;
                     return Ok(RunControl::NextMessage);
                 }
-                Err(OutboundServiceError::Recoverable(error)) => error,
+                // Abort the whole run if we get rate limited
+                Err(error @ OutboundServiceError::RateLimited { .. }) => return Err(error),
+                Err(OutboundServiceError::Recoverable(error)) => {
+                    // Leave the message in the queue so a later run retries it
+                    if let Some((attempts, retry_at)) =
+                        RetryPolicy::MESSAGES.defer(error.cause, attempts)
+                    {
+                        self.db
+                            .with_write_transaction(async |txn| {
+                                ChatMessageQueue::record_failed_attempt(
+                                    txn,
+                                    message_id,
+                                    attempts,
+                                    retry_at.into(),
+                                )
+                                .await
+                            })
+                            .await?;
+                    }
+                    warn!(%error, ?message_id, "Failed to send chat message; retrying in a later run");
+                    return Ok(RunControl::NextMessage);
+                }
+                Err(error) => error,
             };
 
             if attempt >= MAX_SEND_ATTEMPTS {
@@ -217,7 +253,8 @@ impl OutboundServiceContext {
                     .with_write_transaction(async |txn| -> anyhow::Result<_> {
                         Ok(ChatMessageQueue::remove_all_and_mark_as_failed(txn).await?)
                     })
-                    .await?;
+                    .await
+                    .map_err(OutboundServiceError::fatal)?;
                 return Ok(RunControl::EndRun);
             }
 
@@ -292,7 +329,7 @@ impl OutboundServiceContext {
         }
 
         let Message::Content(content) = message.message() else {
-            return Err(OutboundServiceError::fatal(anyhow!(
+            return Err(OutboundServiceError::Fatal(anyhow!(
                 "Messages scheduled for sending is not a content message."
             )));
         };
@@ -336,12 +373,7 @@ impl OutboundServiceContext {
                     return Ok(SendOutcome::Collided);
                 }
 
-                if ds_error.is_network_error() {
-                    return Err(OutboundServiceError::recoverable(ds_error));
-                }
-                return Err(OutboundServiceError::fatal(
-                    anyhow::Error::from(ds_error).context("DS rejected message"),
-                ));
+                return Err(ds_error.into());
             }
         };
 
@@ -414,20 +446,16 @@ impl OutboundServiceContext {
         {
             Ok(_) => Ok(CommitOutcome::Committed),
             Err(JobError::Blocked) => Ok(CommitOutcome::ChatBlocked),
-            Err(JobError::NetworkError) => Err(OutboundServiceError::recoverable(anyhow!(
-                "Network error while committing pending proposals"
-            ))),
-            // The job already cleaned up the local state.
-            Err(JobError::NotFound) => Err(OutboundServiceError::fatal(anyhow!(
-                "Chat not found while committing pending proposals"
-            ))),
-            Err(JobError::Stale(error)) => {
+            Err(JobError::Recoverable(
+                error @ Recoverable {
+                    cause: RecoverableCause::Stale,
+                    ..
+                },
+            )) => {
                 info!(%error, ?chat_id, "Commit of pending proposals is stale");
                 Ok(CommitOutcome::Stale)
             }
-            Err(error @ (JobError::Domain(_) | JobError::Fatal(_))) => {
-                Err(OutboundServiceError::fatal(error))
-            }
+            Err(error) => Err(error.into()),
         }
     }
 }

@@ -339,6 +339,26 @@ void main() {
       ).called(1);
     });
 
+    testWidgets('a failed rename reports it in a dialog', (tester) async {
+      when(
+        () => cubit.renameDevice(
+          clientId: any(named: 'clientId'),
+          name: any(named: 'name'),
+        ),
+      ).thenThrow(Exception('offline'));
+
+      await pumpView(tester);
+
+      await tester.tap(find.text('iOS'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Work phone');
+      await tester.tap(find.text('Change'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Renaming failed.'), findsOneWidget);
+      expect(find.text('Okay'), findsOneWidget);
+    });
+
     /// A device is unlinked from one of its siblings, so only sibling rows offer
     /// it. Offering it on this device would be a footgun.
     testWidgets('offers unlink only for sibling devices', (tester) async {
@@ -376,6 +396,25 @@ void main() {
           ),
         ),
       ).called(1);
+    });
+
+    testWidgets('a failed unlink reports it in a dialog', (tester) async {
+      when(() => cubit.unlinkDevice(clientId: any(named: 'clientId')))
+          .thenAnswer((_) async => throw Exception('offline'));
+
+      await pumpView(tester, state: _withSibling());
+
+      await tester.tap(
+        find.byWidgetPredicate(
+          (widget) => widget is AppIcon && widget.type == AppIconType.trash,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Unlink'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Unlinking failed.'), findsOneWidget);
+      expect(find.text('Okay'), findsOneWidget);
     });
 
     testWidgets('renders unlink confirm dialog', (tester) async {

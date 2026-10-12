@@ -81,15 +81,12 @@ impl GrpcQs {
 enum ProcessListenQueueRequestError {
     /// Unexpected init request
     UnexpectedInitRequest,
-    /// Received empty request
-    EmptyRequest,
 }
 
 impl From<ProcessListenQueueRequestError> for Status {
     fn from(error: ProcessListenQueueRequestError) -> Self {
         match error {
-            ProcessListenQueueRequestError::UnexpectedInitRequest
-            | ProcessListenQueueRequestError::EmptyRequest => {
+            ProcessListenQueueRequestError::UnexpectedInitRequest => {
                 Status::invalid_argument(error.to_string())
             }
         }
@@ -594,9 +591,8 @@ impl ListenRequestHandler<ListenRequest> for QueueSessionHandler {
             Some(listen_request::Request::Init(_)) => {
                 return Err(ProcessListenQueueRequestError::UnexpectedInitRequest.into());
             }
-            None => {
-                return Err(ProcessListenQueueRequestError::EmptyRequest.into());
-            }
+            Some(listen_request::Request::KeepAlive(_)) => {}
+            None => {}
         }
         Ok(())
     }

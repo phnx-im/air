@@ -165,13 +165,20 @@ impl BackgroundStreamContext<UsernameQueueMessage> for UsernameContext {
             .process_username_queue_message(self.username_record.username.clone(), message)
             .await
         {
-            Ok(chat_id) => {
+            Ok(Some(stored)) => {
                 let user = User::from_core_user(self.cubit_context.core_user.clone());
                 let mut notifications = Vec::with_capacity(1);
-                user.new_connection_request_notifications(&[chat_id], &mut notifications)
+                user.new_connection_request_notifications(&[stored.chat_id], &mut notifications)
                     .await;
                 self.cubit_context.show_notifications(notifications).await;
+                if let Some(moved_from) = stored.moved_from {
+                    self.cubit_context
+                        .notification_service
+                        .cancel_chat_notifications(vec![moved_from])
+                        .await;
+                }
             }
+            Ok(None) => {}
             Err(error) => {
                 error!(?error, "failed to process username queue message");
             }

@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use airapiclient::ds_api::DsAttachmentTarget;
 use aircommon::{
     credentials::keys::{LeafSigningKey, SelfGroupSigningKey, UserSigningKey},
     identifiers::{QsClientId, QsUserId, UserId},
@@ -10,7 +11,7 @@ use anyhow::Context;
 use openmls::group::GroupId;
 use uuid::Uuid;
 
-use crate::db::access::ReadConnection;
+use crate::db::access::{ReadConnection, WriteConnection};
 
 mod persistence;
 
@@ -47,5 +48,53 @@ impl OwnClientInfo {
         } else {
             Ok(LeafSigningKey::User(user_signer.clone()))
         }
+    }
+
+    /// The signing key for DS attachment requests against `target`.
+    ///
+    /// The DS verifies group requests against the sender's leaf key, so they follow
+    /// [`Self::signer_for_group`].
+    pub(crate) async fn signer_for_attachment_target(
+        connection: impl ReadConnection,
+        target: &DsAttachmentTarget<'_>,
+        user_signer: &UserSigningKey,
+    ) -> anyhow::Result<LeafSigningKey> {
+        match target {
+            DsAttachmentTarget::Group { group_id, .. } => {
+                Self::signer_for_group(connection, group_id, user_signer).await
+            }
+            DsAttachmentTarget::User { .. } => Ok(LeafSigningKey::User(user_signer.clone())),
+        }
+    }
+
+    /// Un-assigns the self-group this client had.
+    pub(crate) async fn clear_self_group(mut connection: impl WriteConnection) -> sqlx::Result<()> {
+        sqlx::query!(
+            "UPDATE own_client_info SET self_group_id = NULL, self_group_signing_key = NULL",
+        )
+        .execute(connection.as_mut())
+        .await?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+impl OwnClientInfo {
+    /// Stores a random `own_client_info` row, as linked to the self group
+    /// `self_group_id` if given.
+    pub(crate) async fn store_for_test(
+        connection: impl crate::db::access::WriteConnection,
+        self_group_id: Option<GroupId>,
+    ) -> anyhow::Result<Self> {
+        let info = Self {
+            qs_user_id: QsUserId::random(),
+            qs_client_id: QsClientId::random(&mut rand::rng()),
+            user_id: UserId::random("example.com".parse()?),
+            client_id: Uuid::new_v4(),
+            self_group_id,
+            self_group_signing_key: None,
+        };
+        info.store(connection).await?;
+        Ok(info)
     }
 }

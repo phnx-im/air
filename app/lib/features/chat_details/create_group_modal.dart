@@ -384,7 +384,10 @@ class _CreateGroupDetailsPane extends HookWidget {
         error,
         stackTrace,
       );
-      showErrorBannerStandalone((loc) => loc.newChatDialog_error(groupName));
+      showSnackBarStandalone(
+        (loc) => loc.newChatDialog_error(groupName),
+        tone: .danger,
+      );
     } finally {
       isCreating.value = false;
     }

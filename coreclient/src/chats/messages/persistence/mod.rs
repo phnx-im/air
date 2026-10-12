@@ -268,6 +268,23 @@ impl ChatMessage {
         has_more
     }
 
+    /// Moves every message of one chat to another.
+    pub(crate) async fn move_to_chat(
+        mut connection: impl WriteConnection,
+        from: ChatId,
+        to: ChatId,
+    ) -> sqlx::Result<()> {
+        query!(
+            "UPDATE message SET chat_id = ?1 WHERE chat_id = ?2",
+            to,
+            from
+        )
+        .execute(connection.as_mut())
+        .await?;
+        connection.notifier().update(to);
+        Ok(())
+    }
+
     pub(crate) async fn load_multiple(
         mut connection: impl ReadConnection,
         chat_id: ChatId,

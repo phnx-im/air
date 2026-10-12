@@ -5,15 +5,17 @@
 use std::collections::HashSet;
 
 use aircommon::credentials::keys::SelfGroupSigningKey;
-use airprotos::client::self_group::{BlockedContactsUpdate, SelfGroupMessage, SettingsUpdate};
+use airprotos::client::self_group::{
+    BlockedContactsUpdate, ConnectionRequestsUpdate, SelfGroupMessage, SettingsUpdate,
+};
 use anyhow::Context as _;
 use openmls::group::GroupId;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{
-    chats,
+    chats::{self, connection_requests},
     clients::{
         block_contact,
         own_client_info::OwnClientInfo,
@@ -21,8 +23,12 @@ use crate::{
     },
     db::access::WriteDbTransaction,
     groups::{Group, VerifiedGroup},
-    job::{JobError, pending_chat_operation::PendingChatOperation},
-    outbound_service::{OutboundServiceContext, error::OutboundServiceRunError},
+    job::{
+        JobError,
+        pending_chat_operation::PendingChatOperation,
+        recoverable::{Recoverable, RecoverableCause},
+    },
+    outbound_service::{OutboundServiceContext, error::OutboundServiceError},
     privacy_pass,
 };
 
@@ -30,7 +36,7 @@ impl OutboundServiceContext {
     pub(super) async fn send_pending_chat_operations(
         &self,
         run_token: &CancellationToken,
-    ) -> Result<(), OutboundServiceRunError> {
+    ) -> Result<(), OutboundServiceError> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
         // Groups whose commit the DS rejected as stale in this run. They are
@@ -63,7 +69,8 @@ impl OutboundServiceContext {
                 .with_write_transaction(async |txn| {
                     PendingChatOperation::dequeue(txn, task_id, now).await
                 })
-                .await?;
+                .await
+                .map_err(OutboundServiceError::fatal)?;
             let Some(pending_chat_operation) = pending_chat_operation else {
                 return Ok(());
             };
@@ -74,11 +81,12 @@ impl OutboundServiceContext {
             // The job manages its own retry count and deletion upon success.
             // We're just executing it here.
             match self.execute_job(pending_chat_operation).await {
-                Err(JobError::NetworkError) => {
-                    // If we're getting a network error, error out of the loop and wait for the next run.
-                    return Err(OutboundServiceRunError::NetworkError);
-                }
-                Err(JobError::Stale(error)) => {
+                Err(JobError::Recoverable(
+                    error @ Recoverable {
+                        cause: RecoverableCause::Stale,
+                        ..
+                    },
+                )) => {
                     info!(%error, ?group_id, "Pending chat operation is stale, deferring the group");
                     stale_groups.insert(group_id);
                     continue;
@@ -91,6 +99,12 @@ impl OutboundServiceContext {
                 Err(JobError::Blocked | JobError::NotFound) => {
                     continue;
                 }
+                Err(JobError::Recoverable(error)) => {
+                    // The job set its retry due at. Continue with the next one.
+                    warn!(%error, ?group_id, "Failed to execute pending chat operation; retrying later");
+                    continue;
+                }
+                Err(error) => return Err(error.into()),
                 Ok(_) => (),
             }
         }
@@ -190,6 +204,13 @@ async fn drain_outbox(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<Vec<Se
     if !contacts.is_empty() {
         messages.push(SelfGroupMessage::BlockedContactsUpdate(
             BlockedContactsUpdate { contacts },
+        ));
+    }
+
+    let requests = connection_requests::staged_entries(&mut *txn).await?;
+    if !requests.is_empty() {
+        messages.push(SelfGroupMessage::ConnectionRequestsUpdate(
+            ConnectionRequestsUpdate { requests },
         ));
     }
 

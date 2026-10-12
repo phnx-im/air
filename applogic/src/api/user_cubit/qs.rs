@@ -4,21 +4,23 @@
 
 use std::sync::Arc;
 
+use aircommon::messages::client_state::NotificationSuppression;
 use aircoreclient::clients::{
-    ListenResponse, listen_response,
+    CoreUser, ListenResponse, QsListenResponder, SiblingClientStates, listen_response,
     process::{process_qs::ProcessedQsMessages, qs_stream::QsProcessEventResult},
 };
 use airprotos::queue_service;
 use chrono::{DateTime, Utc};
 use flutter_rust_bridge::frb;
+use tokio::sync::watch;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
 use tonic::Code;
 use tracing::{debug, error, warn};
 
 use crate::{
-    api::{user::User, user_cubit::VersionStatus},
-    util::{BackgroundStreamContext, BackgroundStreamTask},
+    api::{notification_context::NotificationPolicy, user::User, user_cubit::VersionStatus},
+    util::{BackgroundStreamContext, BackgroundStreamTask, spawn_from_sync},
 };
 
 use super::{AppState, CubitContext, UiUser};
@@ -27,6 +29,58 @@ use super::{AppState, CubitContext, UiUser};
 #[frb(ignore)]
 pub(super) struct QueueContext {
     cubit_context: CubitContext,
+    /// Stops publishing the client state over the current stream
+    stop_client_state: Option<CancellationToken>,
+    /// Sibling client states received over the current stream
+    sibling_client_states: Option<SiblingClientStates>,
+}
+
+/// The notifications this client suppresses because the user is looking at it.
+fn suppression(app_state: AppState, policy: NotificationPolicy) -> NotificationSuppression {
+    match (app_state, policy) {
+        (AppState::Foreground, NotificationPolicy::SuppressChat { chat_id }) => {
+            NotificationSuppression::Chat(chat_id.uuid())
+        }
+        (AppState::Foreground, NotificationPolicy::SuppressAll) => NotificationSuppression::All,
+        _ => NotificationSuppression::None,
+    }
+}
+
+/// Reports the client state to the siblings whenever the suppression changes.
+///
+/// The state is also reported when nothing is suppressed, so that the QS cannot
+/// tell the cases apart.
+async fn report_client_state_task(
+    core_user: CoreUser,
+    responder: QsListenResponder,
+    mut app_state: watch::Receiver<AppState>,
+    mut policy: watch::Receiver<NotificationPolicy>,
+) {
+    loop {
+        // Report the current state
+        let reported = suppression(*app_state.borrow_and_update(), *policy.borrow_and_update());
+        match core_user.encrypt_client_state(reported) {
+            Ok(encrypted) => responder.report_client_state(encrypted).await,
+            Err(error) => error!(%error, "failed to encrypt client state"),
+        }
+
+        // Wait for an app state or policy change, discard
+        // irrelevant updates, then go back to waiting
+        loop {
+            tokio::select! {
+                changed = app_state.changed() => if changed.is_err() {
+                    return;
+                },
+                changed = policy.changed() => if changed.is_err() {
+                    return;
+                },
+            }
+            // Stop waiting if the suppression changed
+            if suppression(*app_state.borrow(), *policy.borrow()) != reported {
+                break;
+            }
+        }
+    }
 }
 
 impl CubitContext {
@@ -40,7 +94,9 @@ impl CubitContext {
             new_connections,
             reaction_notifications,
             chats_with_changed_notifications,
+            removed_chats,
         }: ProcessedQsMessages,
+        siblings: Option<&SiblingClientStates>,
     ) {
         let mut notifications = Vec::with_capacity(new_chats.len() + new_messages.len());
         let user = User::from_core_user(self.core_user.clone());
@@ -51,6 +107,7 @@ impl CubitContext {
                 &new_messages,
                 &reaction_notifications,
                 &chats_with_changed_notifications,
+                siblings,
             )
             .await;
         notifications.extend(chat_notifications.additions);
@@ -58,9 +115,11 @@ impl CubitContext {
             .await;
         self.show_notifications(notifications).await;
 
-        if !chat_notifications.empty_chats.is_empty() {
+        let mut stale_chats = chat_notifications.empty_chats;
+        stale_chats.extend(removed_chats);
+        if !stale_chats.is_empty() {
             self.notification_service
-                .cancel_chat_notifications(chat_notifications.empty_chats)
+                .cancel_chat_notifications(stale_chats)
                 .await;
         }
     }
@@ -95,6 +154,8 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
             }
             Err(error) => return Err(error.into()),
         };
+        self.sibling_client_states = Some(self.cubit_context.core_user.sibling_client_states()?);
+        self.spawn_report_client_state(responder.clone());
         self.cubit_context
             .core_user
             .replace_qs_listen_responder(responder)
@@ -117,6 +178,20 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
     }
 
     async fn handle_event(&mut self, event: ListenResponse) -> bool {
+        let event = match event {
+            ListenResponse {
+                event: Some(listen_response::Event::SiblingClientState(state)),
+            } => {
+                if let Some(states) = &mut self.sibling_client_states
+                    && let Err(error) = states.try_apply(state)
+                {
+                    error!(%error, "failed to apply sibling client state");
+                }
+                return true;
+            }
+            event => event,
+        };
+
         // Update the version status communicated by the server. Note that the server can also clear
         // the status.
         if let ListenResponse {
@@ -157,7 +232,10 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
             QsProcessEventResult::FullyProcessed { processed }
             | QsProcessEventResult::PartiallyProcessed { processed, .. } => {
                 self.cubit_context
-                    .show_notifications_for_processed_qs_messages(processed)
+                    .show_notifications_for_processed_qs_messages(
+                        processed,
+                        self.sibling_client_states.as_ref(),
+                    )
                     .await;
                 // A commit in this batch may have removed this device from the
                 // self group, which the app has to act on.
@@ -174,6 +252,12 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
         // => There is a hole in the sequence of the messages, therefore we cannot continue
         // processing them.
         !is_partially_processed
+    }
+
+    async fn on_stream_end(&mut self) {
+        if let Some(stop) = self.stop_client_state.take() {
+            stop.cancel();
+        }
     }
 
     async fn in_foreground(&self) {
@@ -202,7 +286,24 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
 
 impl QueueContext {
     pub(super) fn new(cubit_context: CubitContext) -> Self {
-        Self { cubit_context }
+        Self {
+            cubit_context,
+            stop_client_state: None,
+            sibling_client_states: None,
+        }
+    }
+
+    fn spawn_report_client_state(&mut self, responder: QsListenResponder) {
+        let stop = CancellationToken::new();
+        if let Some(previous) = self.stop_client_state.replace(stop.clone()) {
+            previous.cancel();
+        }
+        spawn_from_sync(stop.run_until_cancelled_owned(report_client_state_task(
+            self.cubit_context.core_user.clone(),
+            responder,
+            self.cubit_context.app_state.clone(),
+            self.cubit_context.notification_policy.clone(),
+        )));
     }
 
     pub(super) fn into_task(

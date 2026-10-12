@@ -48,11 +48,15 @@ class ReportSpamButton extends StatelessWidget {
       try {
         await context.read<UserCubit>().reportSpam(userId);
         showSnackBarStandalone(
-          (loc) => SnackBar(content: Text(loc.reportSpamDialog_success)),
+          (loc) => loc.reportSpamDialog_success,
+          tone: .success,
         );
       } catch (e) {
         _log.severe("Failed to report spam: $e");
-        showErrorBannerStandalone((loc) => loc.reportSpamDialog_error);
+        showSnackBarStandalone(
+          (loc) => loc.reportSpamDialog_error,
+          tone: .danger,
+        );
       }
     }
   }

@@ -304,6 +304,7 @@ message ListenRequest {
     AckListenRequest ack = 2;
     FetchListenRequest fetch = 3;
     ReportClientStateListenRequest client_state = 4;
+    KeepAliveListenRequest keep_alive = 5;
   }
 }
 
@@ -339,6 +340,8 @@ message ReportClientStateListenRequest {
   bytes encrypted_blob = 1;
 }
 
+message KeepAliveListenRequest {}
+
 message ListenResponse {
   oneof event {
     QueueEmpty empty = 1;
@@ -362,8 +365,7 @@ message SiblingClientStateUpdated {
   // Server-assigned, increasing per client ID as long as its session lives.
   uint64 epoch = 2;
   // How old this update is. Clients should decide whether an old state is worth discard.
-  uint32 age_ms = 3;
-  SiblingClientStateEncryptedBlob blob = 4;
+  SiblingClientStateEncryptedBlob blob = 3;
 }
 
 // The sibling stopped listening or was deleted

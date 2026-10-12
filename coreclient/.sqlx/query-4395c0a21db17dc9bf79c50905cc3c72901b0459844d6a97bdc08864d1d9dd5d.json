@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE privacy_pass_redeemed\n         SET broadcast_attempts = ?, broadcast_after = ?\n         WHERE operation_type = ?\n            AND key_fingerprint = ?\n            AND allowance_epoch = ?\n            AND token_index = ?\n            AND broadcast_after IS NOT NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "4395c0a21db17dc9bf79c50905cc3c72901b0459844d6a97bdc08864d1d9dd5d"
+}

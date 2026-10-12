@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO pending_connection_request (\n                    request_id,\n                    chat_id,\n                    created_at,\n                    received_at,\n                    connection_info,\n                    username,\n                    connection_offer_hash,\n                    connection_package_hash,\n                    origin_group_id\n                )\n                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)\n                ON CONFLICT (request_id) DO UPDATE SET\n                    chat_id = excluded.chat_id,\n                    created_at = excluded.created_at,\n                    received_at = excluded.received_at,\n                    connection_info = excluded.connection_info,\n                    username = excluded.username,\n                    connection_offer_hash = excluded.connection_offer_hash,\n                    connection_package_hash = excluded.connection_package_hash,\n                    origin_group_id = excluded.origin_group_id",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "466cf6769fa8d4871177dfe7f0ca4d5fecdf964439e24508d2476b6fb8c5b3e2"
+}

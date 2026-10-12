@@ -28,3 +28,19 @@ Future<void> requestNotificationPermission() async {
     );
   }
 }
+
+/// Opens the system notification settings for Air on Android and iOS.
+Future<void> openNotificationSettings() async {
+  if (!Platform.isIOS && !Platform.isAndroid) {
+    return;
+  }
+  try {
+    await platform.invokeMethod<void>('openNotificationSettings');
+  } on PlatformException catch (e, stacktrace) {
+    _log.severe(
+      "Failed to open notification settings: '${e.message}'",
+      e,
+      stacktrace,
+    );
+  }
+}

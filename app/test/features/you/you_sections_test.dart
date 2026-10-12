@@ -22,8 +22,6 @@ import '../../helpers.dart';
 import '../../mocks.dart';
 import 'invitation_codes_modal_test.dart';
 
-const physicalSize = Size(1080, 3300);
-
 void main() {
   group('YouSection', () {
     late MockUserCubit userCubit;
@@ -77,24 +75,20 @@ void main() {
     );
 
     Future<void> pumpSection(WidgetTester tester, YouSection section) async {
-      tester.view.physicalSize = physicalSize;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-      });
       await tester.pumpWidget(buildSubject(section));
     }
 
     group('profile', () {
-      testWidgets('renders correctly (no handles)', (tester) async {
+      testWidgets('renders correctly (no usernames)', (tester) async {
         await pumpSection(tester, YouSection.profile);
 
         await expectLater(
           find.byType(MaterialApp),
-          matchesGoldenFile('goldens/you_profile_no_handles.png'),
+          matchesGoldenFile('goldens/you_profile_no_usernames.png'),
         );
       });
 
-      testWidgets('renders correctly (some handles)', (tester) async {
+      testWidgets('renders correctly (some usernames)', (tester) async {
         when(() => userCubit.state).thenReturn(
           MockUiUser(
             id: 1,
@@ -109,11 +103,11 @@ void main() {
 
         await expectLater(
           find.byType(MaterialApp),
-          matchesGoldenFile('goldens/you_profile_some_handles.png'),
+          matchesGoldenFile('goldens/you_profile_some_usernames.png'),
         );
       });
 
-      testWidgets('renders correctly (all handles)', (tester) async {
+      testWidgets('renders correctly (all usernames)', (tester) async {
         when(() => userCubit.state).thenReturn(
           MockUiUser(
             id: 1,
@@ -131,7 +125,7 @@ void main() {
 
         await expectLater(
           find.byType(MaterialApp),
-          matchesGoldenFile('goldens/you_profile_all_handles.png'),
+          matchesGoldenFile('goldens/you_profile_all_usernames.png'),
         );
       });
     });
@@ -146,6 +140,15 @@ void main() {
     });
 
     group('preferences', () {
+      testWidgets('renders correctly', (tester) async {
+        await pumpSection(tester, YouSection.preferences);
+
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/you_preferences.png'),
+        );
+      });
+
       testWidgets('read receipts toggle debounces into one submit', (
         tester,
       ) async {

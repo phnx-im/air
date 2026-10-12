@@ -12,10 +12,14 @@ use std::{
 use aircommon::{
     credentials::keys::{LeafSigningKey, UserSigningKey},
     identifiers::{QsClientId, UserId},
+    utils::FibonacciBackoff,
 };
 use chrono::Utc;
 use pin_project::pin_project;
-use tokio::{sync::watch, time};
+use tokio::{
+    sync::watch,
+    time::{self, Instant},
+};
 use tokio_util::sync::{CancellationToken, WaitForCancellationFutureOwned};
 use tracing::{debug, error, info};
 
@@ -24,7 +28,7 @@ use crate::{
     db::access::DbAccess,
     job::{Job, JobContext, JobContextDb, JobError},
     key_stores::MemoryUserKeyStore,
-    outbound_service::error::OutboundServiceRunError,
+    outbound_service::error::RunResultExt,
     utils::global_lock::GlobalLock,
 };
 
@@ -44,6 +48,7 @@ pub(crate) mod receipt_queue;
 mod receipts;
 mod redeemed_tokens;
 pub(crate) mod resync;
+mod retry;
 mod retry_pending_chat_operations;
 mod self_chat;
 pub(crate) mod timed_tasks;
@@ -83,12 +88,25 @@ impl<C: OutboundServiceWork> Clone for OutboundService<C> {
 }
 
 pub trait OutboundServiceWork: Clone + Send + 'static {
-    fn work(&self, run_token: CancellationToken) -> impl Future<Output = ()> + Send;
+    fn work(
+        &self,
+        run_token: CancellationToken,
+    ) -> impl Future<Output = Result<(), WorkAborted>> + Send;
+}
+
+/// Why a run stopped before all tasks were done.
+#[derive(Debug)]
+pub enum WorkAborted {
+    /// The network is unavailable. The next run happens as usual.
+    Interrupted,
+    /// The server rate limited us. No run happens until the backoff passed,
+    /// which is at least `retry_after`.
+    BackOff { retry_after: Option<Duration> },
 }
 
 impl OutboundServiceWork for OutboundServiceContext {
-    async fn work(&self, run_token: CancellationToken) {
-        Box::pin(OutboundServiceContext::work(self, run_token)).await;
+    async fn work(&self, run_token: CancellationToken) -> Result<(), WorkAborted> {
+        Box::pin(OutboundServiceContext::work(self, run_token)).await
     }
 }
 
@@ -121,7 +139,8 @@ impl OutboundService<OutboundServiceContext> {
     pub async fn send_queued_messages_once(&self) -> anyhow::Result<()> {
         self.context
             .send_queued_messages(&CancellationToken::new())
-            .await
+            .await?;
+        Ok(())
     }
 }
 
@@ -208,6 +227,7 @@ impl<C: OutboundServiceWork> OutboundService<C> {
     /// Runs the background task and waits until it is done.
     ///
     /// If the background is already running, just waits until it is done.
+    /// During a rate limit backoff, returns without running the work.
     ///
     /// The task is stopped in any case.
     pub async fn run_once(&self) {
@@ -229,6 +249,9 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
         );
         ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
 
+        let mut backoff_until: Option<Instant> = None;
+        let mut backoff = FibonacciBackoff::new();
+
         loop {
             let (run_token, from_notification) = tokio::select! {
                 changed = run_token_rx.changed() => {
@@ -238,18 +261,34 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
                     let run_token = run_token_rx.borrow_and_update().clone();
                     debug!(?run_token, "incoming work notification");
                     if run_token.is_cancelled() {
+                        debug!("background work was cancelled");
+                        run_token.mark_as_done();
+                        continue;
+                    }
+                    if backoff_until.is_some() {
+                        debug!("background work is backed-off");
                         run_token.mark_as_done();
                         continue;
                     }
                     (run_token, true)
                 }
-                _ = ticker.tick() => {
+                _ = ticker.tick(), if backoff_until.is_none() => {
                     let run_token = run_token_rx.borrow().clone();
                     if run_token.is_cancelled() {
                         continue;
                     }
                     debug!("periodic wake");
                     (run_token, false)
+                }
+                _ = tokio::time::sleep_until(backoff_until.unwrap_or_else(Instant::now)), if backoff_until.is_some() => {
+                    backoff_until = None;
+                    debug!("ready to run after backoff");
+                    let run_token = run_token_rx.borrow().clone();
+                    if run_token.is_cancelled() {
+                        debug!("cancelled during backoff");
+                        continue;
+                    }
+                    (run_token, true)
                 }
             };
 
@@ -279,7 +318,17 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
                     }
                 };
                 debug!("starting doing work in background task");
-                self.context.work(run_token.cancel.clone()).await;
+                match self.context.work(run_token.cancel.clone()).await {
+                    Ok(()) => {
+                        backoff.reset();
+                    }
+                    Err(WorkAborted::Interrupted) => {}
+                    Err(WorkAborted::BackOff { retry_after }) => {
+                        let delay = backoff.next_backoff().max(retry_after.unwrap_or_default());
+                        info!(?delay, ?retry_after, "Backing off outbound service");
+                        backoff_until = Some(Instant::now() + delay);
+                    }
+                }
                 debug!("finished work in background task");
             }
 
@@ -321,51 +370,63 @@ impl OutboundServiceContext {
         Ok(value)
     }
 
-    async fn work(&self, run_token: CancellationToken) {
+    async fn work(&self, run_token: CancellationToken) -> Result<(), WorkAborted> {
         // Profiles are fetched concurrently to other tasks.
-        let fetch_profiles = self.spawn_fetch_profiles(&run_token);
+        let profiles_token = run_token.child_token();
+        let fetch_profiles = self.spawn_fetch_profiles(&profiles_token);
 
-        if let Err(error) = self.perform_queued_resyncs(&run_token).await {
-            error!(%error, "Failed to perform queued resyncs");
+        let result = self.run_tasks(&run_token).await;
+        if result.is_err() {
+            // Further requests would fail as well
+            profiles_token.cancel();
         }
-        match Box::pin(self.send_pending_chat_operations(&run_token)).await {
-            Err(OutboundServiceRunError::NetworkError) => {
-                info!("Network appears unavailable, terminating outbound service run");
-                return;
-            }
-            Err(OutboundServiceRunError::Fatal(error)) => {
-                error!(%error, "Failed to retry pending chat operations");
-            }
-            Ok(_) => (),
-        }
-        if let Err(error) = self.send_queued_receipts(&run_token).await {
-            error!(%error, "Failed to send queued receipts");
-        }
-        if let Err(error) = self.send_redeemed_tokens(&run_token).await {
-            error!(%error, "Failed to send redeemed privacy pass tokens");
-        }
-        if let Err(error) = self.send_deleted_messages(&run_token).await {
-            error!(%error, "Failed to send deleted messages");
-        }
-        if let Err(error) =
-            attachment_recovery::recover_interrupted_attachment_uploads(&self.db).await
-        {
-            error!(%error, "Failed to recover interrupted attachment uploads");
-        }
-        if let Err(error) = self.send_queued_messages(&run_token).await {
-            error!(%error, "Failed to send queued messages");
-        }
-        if let Err(error) = self.send_queued_reactions(&run_token).await {
-            error!(%error, "Failed to send queued reactions");
-        }
-        if let Err(error) = self.send_pending_push_token_updates(&run_token).await {
-            error!(%error, "Failed to send push token update");
-        }
-        if let Err(error) = Box::pin(self.execute_timed_tasks(&run_token)).await {
-            error!(%error, "Failed to execute timed tasks");
-        }
-
+        // Hold the global lock until the fetch is done
         fetch_profiles.await;
+        result
+    }
+
+    async fn run_tasks(&self, run_token: &CancellationToken) -> Result<(), WorkAborted> {
+        self.perform_queued_resyncs(run_token)
+            .await
+            .or_abort("queued resyncs")?;
+
+        Box::pin(self.send_pending_chat_operations(run_token))
+            .await
+            .or_abort("pending chat operations")?;
+
+        self.send_queued_receipts(run_token)
+            .await
+            .or_abort("queued receipts")?;
+
+        self.send_redeemed_tokens(run_token)
+            .await
+            .or_abort("send redeemed tokens")?;
+
+        self.send_deleted_messages(run_token)
+            .await
+            .or_abort("send deleted messages")?;
+
+        attachment_recovery::recover_interrupted_attachment_uploads(&self.db)
+            .await
+            .or_abort("recover interrupted attachment uploads")?;
+
+        self.send_queued_messages(run_token)
+            .await
+            .or_abort("queued messages")?;
+
+        self.send_queued_reactions(run_token)
+            .await
+            .or_abort("queued reactions")?;
+
+        self.send_pending_push_token_updates(run_token)
+            .await
+            .or_abort("push token updates")?;
+
+        Box::pin(self.execute_timed_tasks(run_token))
+            .await
+            .or_abort("timed tasks")?;
+
+        Ok(())
     }
 
     fn signing_key(&self) -> &UserSigningKey {
@@ -482,6 +543,7 @@ impl Future for WaitForDoneFuture {
 #[cfg(test)]
 mod test {
     use std::{
+        collections::VecDeque,
         sync::{
             Arc,
             atomic::{AtomicUsize, Ordering},
@@ -509,7 +571,7 @@ mod test {
     }
 
     impl OutboundServiceWork for DelayedCounterContext {
-        async fn work(&self, run_token: CancellationToken) {
+        async fn work(&self, run_token: CancellationToken) -> Result<(), WorkAborted> {
             debug!("starting work in delayed counter");
             sleep(Duration::from_millis(50)).await;
             if !run_token.is_cancelled() {
@@ -518,6 +580,7 @@ mod test {
             } else {
                 debug!("work cancelled");
             }
+            Ok(())
         }
     }
 
@@ -734,7 +797,7 @@ mod test {
         }
 
         impl OutboundServiceWork for MultiCounterContext {
-            async fn work(&self, run_token: CancellationToken) {
+            async fn work(&self, run_token: CancellationToken) -> Result<(), WorkAborted> {
                 sleep(Duration::from_millis(30)).await;
                 if !run_token.is_cancelled() {
                     self.counter.fetch_add(1, Ordering::SeqCst);
@@ -747,6 +810,7 @@ mod test {
                 if !run_token.is_cancelled() {
                     self.counter.fetch_add(1, Ordering::SeqCst);
                 }
+                Ok(())
             }
         }
 
@@ -765,6 +829,134 @@ mod test {
         assert!(service.run_token_tx.subscribe().borrow().is_cancelled());
     }
 
+    /// Returns the scripted outcomes run by run, then succeeds, and records
+    /// when each run started.
+    #[derive(Clone, Default)]
+    struct ScriptedContext {
+        outcomes: Arc<std::sync::Mutex<VecDeque<Result<(), WorkAborted>>>>,
+        runs: Arc<std::sync::Mutex<Vec<Instant>>>,
+    }
+
+    impl ScriptedContext {
+        fn new(outcomes: impl IntoIterator<Item = Result<(), WorkAborted>>) -> Self {
+            Self {
+                outcomes: Arc::new(std::sync::Mutex::new(outcomes.into_iter().collect())),
+                runs: Default::default(),
+            }
+        }
+
+        fn runs(&self) -> Vec<Instant> {
+            self.runs.lock().unwrap().clone()
+        }
+
+        async fn wait_for_runs(&self, count: usize) -> Vec<Instant> {
+            timeout(Duration::from_secs(10), async {
+                while self.runs.lock().unwrap().len() < count {
+                    sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .expect("runs did not happen in time");
+            self.runs()
+        }
+    }
+
+    impl OutboundServiceWork for ScriptedContext {
+        async fn work(&self, _run_token: CancellationToken) -> Result<(), WorkAborted> {
+            self.runs.lock().unwrap().push(Instant::now());
+            self.outcomes.lock().unwrap().pop_front().unwrap_or(Ok(()))
+        }
+    }
+
+    fn rate_limited(retry_after: Option<Duration>) -> Result<(), WorkAborted> {
+        Err(WorkAborted::BackOff { retry_after })
+    }
+
+    #[tokio::test]
+    async fn rate_limited_run_backs_off() {
+        init_test_tracing();
+
+        let context = ScriptedContext::new([rate_limited(None)]);
+        let service = OutboundService::build(context.clone(), global_lock(), TEST_WAKE_INTERVAL);
+
+        service.start().await;
+        assert_eq!(context.runs().len(), 1);
+
+        // Neither notifications nor periodic wakes run work during the backoff
+        timeout(Duration::from_millis(500), service.notify_work())
+            .await
+            .expect("a notification during the backoff must be marked as done");
+        sleep(Duration::from_millis(300)).await;
+        assert_eq!(context.runs().len(), 1);
+
+        let runs = context.wait_for_runs(2).await;
+        assert!(runs[1] - runs[0] >= Duration::from_secs(1));
+    }
+
+    #[tokio::test]
+    async fn backoff_waits_at_least_retry_after() {
+        init_test_tracing();
+
+        let retry_after = Duration::from_millis(1500);
+        let context = ScriptedContext::new([rate_limited(Some(retry_after))]);
+        let service = OutboundService::with_context(context.clone(), global_lock());
+
+        service.start().await;
+
+        let runs = context.wait_for_runs(2).await;
+        assert!(runs[1] - runs[0] >= retry_after);
+    }
+
+    #[tokio::test]
+    async fn successful_run_resets_backoff() {
+        init_test_tracing();
+
+        let context = ScriptedContext::new([rate_limited(None), Ok(()), rate_limited(None)]);
+        let service = OutboundService::with_context(context.clone(), global_lock());
+
+        service.start().await;
+        context.wait_for_runs(2).await;
+
+        service.notify_work().await;
+        let runs = context.wait_for_runs(4).await;
+
+        // Without the reset, the second backoff would be 2s
+        let backoff = runs[3] - runs[2];
+        assert!(backoff >= Duration::from_secs(1));
+        assert!(backoff < Duration::from_secs(2), "backoff was {backoff:?}");
+    }
+
+    #[tokio::test]
+    async fn network_error_does_not_back_off() {
+        init_test_tracing();
+
+        let context = ScriptedContext::new([Err(WorkAborted::Interrupted)]);
+        let service = OutboundService::with_context(context.clone(), global_lock());
+
+        service.start().await;
+        timeout(Duration::from_millis(500), service.notify_work())
+            .await
+            .expect("the run after a network error must not wait");
+
+        assert_eq!(context.runs().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn stop_during_backoff_skips_the_next_run() {
+        init_test_tracing();
+
+        let context = ScriptedContext::new([rate_limited(None)]);
+        let service = OutboundService::with_context(context.clone(), global_lock());
+
+        service.start().await;
+        timeout(Duration::from_millis(500), service.stop())
+            .await
+            .expect("stop must not wait for the backoff");
+
+        sleep(Duration::from_millis(1500)).await;
+        assert_eq!(context.runs().len(), 1);
+    }
+
     #[derive(Clone)]
     struct BlockingWork {
         gate: Arc<Notify>,
@@ -772,10 +964,11 @@ mod test {
     }
 
     impl OutboundServiceWork for BlockingWork {
-        async fn work(&self, _run_token: CancellationToken) {
+        async fn work(&self, _run_token: CancellationToken) -> Result<(), WorkAborted> {
             self.started.notify_waiters();
             // Wait until the test explicitly releases the gate.
             self.gate.notified().await;
+            Ok(())
         }
     }
 

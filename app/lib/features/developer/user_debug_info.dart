@@ -8,7 +8,7 @@ import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/developer/developer_fields.dart';
 import 'package:air/util/scaffold_messenger.dart';
-import 'package:flutter/material.dart' show Icons, SnackBar, Tooltip;
+import 'package:flutter/material.dart' show Icons, Tooltip;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:intl/intl.dart';
@@ -73,17 +73,15 @@ class TimedTasksCard extends StatelessWidget {
     try {
       await user.triggerTimedTask(task.id);
       showSnackBarStandalone(
-        (loc) => SnackBar(
-          content: Text('Triggered ${task.name}'),
-          duration: const Duration(seconds: 2),
-        ),
+        (_) => 'Triggered ${task.name}',
+        tone: .success,
+        duration: const Duration(seconds: 2),
       );
     } catch (error) {
       showSnackBarStandalone(
-        (loc) => SnackBar(
-          content: Text('Failed to trigger ${task.name}: $error'),
-          duration: const Duration(seconds: 3),
-        ),
+        (_) => 'Failed to trigger ${task.name}: $error',
+        tone: .danger,
+        duration: const Duration(seconds: 3),
       );
     }
     onTriggered();

@@ -30,6 +30,13 @@ class ChatListTokens {
 
   final ChatListFadeTokens fades;
 
+  static const EdgeInsets topBannerPadding = EdgeInsets.fromLTRB(
+    S.s12,
+    S.s0,
+    S.s12,
+    S.s8,
+  );
+
   static const ChatListTokens phone = ChatListTokens(
     headerClearance: S.s24,
     contentBottomPadding: S.s160,

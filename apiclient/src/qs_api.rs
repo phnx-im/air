@@ -23,16 +23,17 @@ use aircommon::{
         },
         push_token::EncryptedPushToken,
     },
-    utils::{CancellableStream, CancellingStream},
+    utils::{CancellableStream, CancellingStream, KeepAliveStream},
     virtual_client::KeyPackageBatchId,
 };
 use airprotos::{
     common::v1::{StatusDetails, StatusDetailsCode},
     queue_service::v1::{
         AckListenRequest, ApqKeyPackageRequest, CreateClientPayload, DeleteClientPayload,
-        DeleteUserPayload, FetchListenRequest, InitListenPayload, ListenResponse,
-        PublishApqKeyPackagesPayload, PublishKeyPackagesPayload, ReportClientStateListenRequest,
-        StageKeyPackagesPayload, UpdateClientPayload, UpdateUserPayload, listen_request,
+        DeleteUserPayload, FetchListenRequest, InitListenPayload, KeepAliveListenRequest,
+        ListenResponse, PublishApqKeyPackagesPayload, PublishKeyPackagesPayload,
+        ReportClientStateListenRequest, StageKeyPackagesPayload, UpdateClientPayload,
+        UpdateUserPayload, listen_request,
     },
 };
 use airprotos::{
@@ -48,9 +49,11 @@ use tokio::sync::mpsc;
 use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
-use tracing::error;
+use tracing::{debug, error};
 
-use crate::ApiClient;
+use crate::{
+    ApiClient, ClassifyRequestError, LISTEN_KEEPALIVE_INTERVAL, RequestErrorKind, classify_status,
+};
 
 #[derive(Error, Debug)]
 pub enum QsRequestError {
@@ -69,6 +72,18 @@ pub enum QsRequestError {
 impl From<LibraryError> for QsRequestError {
     fn from(_: LibraryError) -> Self {
         Self::LibraryError
+    }
+}
+
+impl ClassifyRequestError for QsRequestError {
+    fn kind(&self) -> RequestErrorKind {
+        match self {
+            Self::Tonic(status) => classify_status(status),
+            Self::LibraryError
+            | Self::Tls(_)
+            | Self::UnexpectedResponse
+            | Self::MissingField(_) => RequestErrorKind::Rejected,
+        }
     }
 }
 
@@ -394,13 +409,22 @@ impl ApiClient {
         };
 
         const RESPONSE_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
+
         let (tx, rx) = mpsc::channel::<ListenRequest>(RESPONSE_CHANNEL_BUFFER_SIZE);
 
         // Cancels the requests stream when the responses stream is ended or was dropped
         let cancel = CancellationToken::new();
 
         let requests = CancellableStream::new(
-            tokio_stream::once(init_request).chain(ReceiverStream::new(rx)),
+            KeepAliveStream::new(
+                tokio_stream::once(init_request).chain(ReceiverStream::new(rx)),
+                LISTEN_KEEPALIVE_INTERVAL,
+                || ListenRequest {
+                    request: Some(listen_request::Request::KeepAlive(
+                        KeepAliveListenRequest {},
+                    )),
+                },
+            ),
             cancel.clone(),
         );
 
@@ -464,6 +488,7 @@ impl QsListenResponder {
 
     /// Replaces the client state that the QS relays to sibling clients.
     pub async fn report_client_state(&self, encrypted_blob: Vec<u8>) {
+        debug!("reporting encrypted client state");
         let _ignore_closed_tx = self
             .tx
             .send(ListenRequest {

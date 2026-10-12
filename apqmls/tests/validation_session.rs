@@ -5,6 +5,8 @@
 //! Tests for the checks that only apply to a path constructing a paired APQ
 //! session: matching epochs and consistent membership.
 
+use std::assert_matches;
+
 use apqmls::{
     ApqCiphersuite, ApqMlsGroup,
     authentication::ApqSigner,
@@ -175,10 +177,10 @@ fn a_stale_t_epoch_is_only_rejected_at_construction() {
     validate_apq_session(&group.t_group, group.pq_group()).unwrap();
 
     // On a construction path it is not.
-    assert!(matches!(
+    assert_matches!(
         validate_apq_session_at_construction(&group.t_group, group.pq_group(), any_credential),
         Err(ApqValidationError::EpochMismatch(Session::T))
-    ));
+    );
 }
 
 #[test]
@@ -186,10 +188,10 @@ fn a_stale_pq_epoch_is_rejected_at_construction() {
     let alice = new_client("Alice");
     let group = commit_in_leg(&alice, create_group(&alice), Leg::Pq, |builder| builder);
 
-    assert!(matches!(
+    assert_matches!(
         validate_apq_session_at_construction(&group.t_group, group.pq_group(), any_credential),
         Err(ApqValidationError::EpochMismatch(Session::Pq))
-    ));
+    );
 }
 
 #[test]
@@ -215,13 +217,13 @@ fn divergent_membership_is_rejected() {
         builder.propose_adds([t_key_package])
     });
 
-    assert!(matches!(
+    assert_matches!(
         validate_membership(&group.t_group, group.pq_group(), any_credential),
         Err(ApqValidationError::MemberCountMismatch {
             t_members: 2,
             pq_members: 1,
         })
-    ));
+    );
 }
 
 #[test]
@@ -233,10 +235,10 @@ fn credentials_are_compared_through_the_predicate() {
     validate_membership(&group.t_group, group.pq_group(), |a, b| a == b).unwrap();
 
     // A predicate that never matches must reject the very first leaf.
-    assert!(matches!(
+    assert_matches!(
         validate_membership(&group.t_group, group.pq_group(), |_, _| false),
         Err(ApqValidationError::CredentialMismatch(0))
-    ));
+    );
 }
 
 #[test]
@@ -255,12 +257,12 @@ fn the_predicate_decides_what_counts_as_the_same_member() {
     )
     .unwrap();
 
-    assert!(matches!(
+    assert_matches!(
         validate_membership(&alice_group.t_group, impostor_group.pq_group(), |_, _| {
             false
         }),
         Err(ApqValidationError::CredentialMismatch(0))
-    ));
+    );
 }
 
 #[test]
@@ -280,8 +282,8 @@ fn a_blank_leaf_in_one_leg_is_rejected() {
         builder.propose_removals([LeafNodeIndex::new(2)])
     });
 
-    assert!(matches!(
+    assert_matches!(
         validate_membership(&group.t_group, group.pq_group(), any_credential),
         Err(ApqValidationError::LeafOccupancyMismatch(_))
-    ));
+    );
 }

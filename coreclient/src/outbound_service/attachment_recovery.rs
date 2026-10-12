@@ -27,7 +27,7 @@ use crate::{
         persistence::{AttachmentStatus, UnqueuedAttachmentMessage},
     },
     db::access::DbAccess,
-    outbound_service::chat_message_queue::ChatMessageQueue,
+    outbound_service::{chat_message_queue::ChatMessageQueue, error::OutboundServiceError},
 };
 
 /// How long an attachment may stay in [`AttachmentStatus::Uploading`] before it
@@ -42,7 +42,9 @@ const UPLOAD_STALE_AFTER: Duration = Duration::from_secs(30 * 60);
 ///
 /// Runs under the global lock, so no other outbound service works on the same
 /// database at the same time.
-pub(super) async fn recover_interrupted_attachment_uploads(db: &DbAccess) -> anyhow::Result<()> {
+pub(super) async fn recover_interrupted_attachment_uploads(
+    db: &DbAccess,
+) -> Result<(), OutboundServiceError> {
     let stale_before = Utc::now() - UPLOAD_STALE_AFTER;
     db.with_write_transaction(async |txn| -> anyhow::Result<()> {
         let uploaded = AttachmentRecord::load_unqueued_uploaded_messages(&mut *txn).await?;
@@ -85,10 +87,13 @@ pub(super) async fn recover_interrupted_attachment_uploads(db: &DbAccess) -> any
         Ok(())
     })
     .await
+    .map_err(OutboundServiceError::fatal)?;
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+    use aircommon::time::TimeStamp;
     use chrono::{DateTime, Utc};
     use sqlx::SqlitePool;
     use uuid::Uuid;
@@ -104,7 +109,7 @@ mod tests {
             persistence::{AttachmentStatus, test::test_attachment_record_with},
         },
         db::access::DbAccess,
-        outbound_service::chat_message_queue::ChatMessageQueue,
+        outbound_service::chat_message_queue::{ChatMessageQueue, DequeuedMessage},
     };
 
     use super::{UPLOAD_STALE_AFTER, recover_interrupted_attachment_uploads};
@@ -133,8 +138,10 @@ mod tests {
     async fn queued_message_ids(db: &DbAccess) -> anyhow::Result<Vec<MessageId>> {
         let task_id = Uuid::new_v4();
         let mut message_ids = Vec::new();
-        while let Some((_, message_id)) = db
-            .with_write_transaction(async |txn| ChatMessageQueue::dequeue(txn, task_id).await)
+        while let Some(DequeuedMessage { message_id, .. }) = db
+            .with_write_transaction(async |txn| {
+                ChatMessageQueue::dequeue(txn, task_id, TimeStamp::now()).await
+            })
             .await?
         {
             message_ids.push(message_id);

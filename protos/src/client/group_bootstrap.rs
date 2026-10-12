@@ -294,6 +294,7 @@ pub struct HandleInitiatorContext {
 /// TargetedInitiatorContext = {
 ///   ? user_id: PeerUserId .tag 1,
 ///   ? friendship_package_ear_key: bstr .size 32 .tag 2,
+///   ? origin_group_id: bstr .tag 3,
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
@@ -303,6 +304,10 @@ pub struct TargetedInitiatorContext {
     pub user_id: Option<PeerUserId>,
     #[tag(2, with = "secret_as_bytes")]
     pub friendship_package_ear_key: Option<FriendshipPackageEarKey>,
+    /// Group id of the group chat the targeted message went through, the T
+    /// leg for APQ groups.
+    #[tag(3, with = "group_id_as_bytes")]
+    pub origin_group_id: Option<GroupId>,
 }
 
 /// The acting client accepted a connection request by externally joining the
@@ -594,6 +599,7 @@ mod test {
             ConnectionContext::TargetedInitiator(TargetedInitiatorContext {
                 user_id: Some(user_id().into()),
                 friendship_package_ear_key: Some(key(3)),
+                origin_group_id: Some(t_group_id()),
             }),
         ];
         for context in contexts {
