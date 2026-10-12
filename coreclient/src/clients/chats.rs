@@ -11,16 +11,19 @@ use aircommon::{
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::{DateTime, Utc};
 use mimi_room_policy::VerifiedRoomState;
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::{
-    ChatAttributes, ChatType, MessageDraft, MessageId, UserProfile,
+    ChatAttributes, ChatStatus, ChatType, MessageDraft, MessageId, UserProfile,
     chats::{
         Chat, PendingConnectionRequest, messages::ChatMessage,
         notification_rebuild::ChatNotificationRebuildSet, persistence,
     },
     groups::Group,
-    job::{chat_operation::ChatOperation, create_chat::CreateChat},
+    job::{
+        JobError, chat_operation::ChatOperation, create_chat::CreateChat,
+        pending_chat_operation::PendingChatOperation,
+    },
     utils::image::resize_profile_image,
 };
 
@@ -93,6 +96,40 @@ impl CoreUser {
         self.outbound_service().notify_pending_chat_operations();
 
         Ok(())
+    }
+
+    /// Deletes the chat on the DS and then erases it on all of the user's
+    /// devices.
+    ///
+    /// Fails without a change if the DS cannot be reached. Erasing the chat
+    /// would drop the parked delete, so the other members would never learn
+    /// about it. Any other failure of the delete still erases the chat, so a
+    /// chat whose group is broken can be removed.
+    pub async fn delete_and_erase_chat(&self, chat_id: ChatId) -> Result<()> {
+        let chat = self
+            .db()
+            .with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
+            .await?
+            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+        match self.execute_job(ChatOperation::delete_chat(chat_id)).await {
+            Ok(_) | Err(JobError::NotFound) => {}
+            Err(JobError::NetworkError) => {
+                self.db()
+                    .with_write_transaction(async |txn| {
+                        PendingChatOperation::abandon_delete(txn, chat.group_id()).await
+                    })
+                    .await?;
+                bail!("Failed to reach the DS to delete chat {chat_id}");
+            }
+            // An inactive chat has no group on the DS left to delete.
+            Err(error) if matches!(chat.status(), ChatStatus::Inactive(_)) => {
+                debug!(%error, "Erasing an inactive chat without a DS delete");
+            }
+            Err(error) => {
+                error!(%error, "Failed to delete the chat on the DS, erasing it anyway");
+            }
+        }
+        self.erase_chat(chat_id).await
     }
 
     pub async fn leave_chat(&self, chat_id: ChatId) -> Result<()> {

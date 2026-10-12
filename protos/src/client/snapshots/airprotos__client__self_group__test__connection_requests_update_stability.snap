@@ -4,7 +4,7 @@ expression: diag
 ---
 a1                                              # map(1)
    01                                           #   unsigned(1)
-   82                                           #   array(2)
+   83                                           #   array(3)
       a1                                        #     map(1)
          01                                     #       unsigned(1)
          a6                                     #       map(6)
@@ -47,3 +47,9 @@ a1                                              # map(1)
                      1717171717171717           #               "\x17\x17\x17\x17\x17\x17\x17\x17"
             06                                  #         unsigned(6)
             1b 0000019b76daa9c8                 #         unsigned(1,767,225,600,456)
+      a1                                        #     map(1)
+         03                                     #       unsigned(3)
+         a1                                     #       map(1)
+            01                                  #         unsigned(1)
+            50                                  #         bytes(16)
+               00000000000000000000000000000019 #           "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x19"

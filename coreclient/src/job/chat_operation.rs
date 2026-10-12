@@ -20,6 +20,7 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
+    clients::own_client_info::OwnClientInfo,
     db::access::WriteConnection,
     groups::Group,
     job::{Job, JobContext, JobContextDb, JobError, pending_chat_operation::PendingChatOperation},
@@ -421,10 +422,17 @@ impl ChatOperation {
             // Provision
             let api_client = api_clients.default_client()?;
             let content_length = ciphertext.len().try_into().context("usize overflow")?;
+            let target = group.attachment_target();
+            let signer = OwnClientInfo::signer_for_attachment_target(
+                db.read().await?,
+                &target,
+                &key_store.signing_key,
+            )
+            .await?;
             let provision_response = api_client
                 .ds_provision_attachment(
-                    &key_store.signing_key,
-                    group.attachment_target(),
+                    &signer,
+                    target,
                     content_length,
                     StorageObjectType::GroupProfile,
                 )

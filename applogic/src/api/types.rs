@@ -598,6 +598,7 @@ pub enum UiSystemMessage {
         recipient: UiUserId,
         origin_chat_id: ChatId,
     },
+    ConnectionRequestUnavailable,
 }
 
 /// The group chat a connection request came through.
@@ -696,6 +697,9 @@ impl From<SystemMessage> for UiSystemMessage {
                 recipient: recipient.into(),
                 origin_chat_id,
             },
+            SystemMessage::ConnectionRequestUnavailable => {
+                UiSystemMessage::ConnectionRequestUnavailable
+            }
         }
     }
 }

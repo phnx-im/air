@@ -2106,6 +2106,9 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                         "You requested a connection with {recipient:?} through the chat \
                             {origin_chat_id}"
                     )),
+                    SystemMessage::ConnectionRequestUnavailable => {
+                        Some("The connection request is no longer available".to_owned())
+                    }
                 }
             } else {
                 None
