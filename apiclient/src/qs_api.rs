@@ -51,7 +51,9 @@ use tokio_util::sync::CancellationToken;
 use tonic::Status;
 use tracing::{debug, error};
 
-use crate::{ApiClient, LISTEN_KEEPALIVE_INTERVAL};
+use crate::{
+    ApiClient, ClassifyRequestError, LISTEN_KEEPALIVE_INTERVAL, RequestErrorKind, classify_status,
+};
 
 #[derive(Error, Debug)]
 pub enum QsRequestError {
@@ -70,6 +72,18 @@ pub enum QsRequestError {
 impl From<LibraryError> for QsRequestError {
     fn from(_: LibraryError) -> Self {
         Self::LibraryError
+    }
+}
+
+impl ClassifyRequestError for QsRequestError {
+    fn kind(&self) -> RequestErrorKind {
+        match self {
+            Self::Tonic(status) => classify_status(status),
+            Self::LibraryError
+            | Self::Tls(_)
+            | Self::UnexpectedResponse
+            | Self::MissingField(_) => RequestErrorKind::Rejected,
+        }
     }
 }
 

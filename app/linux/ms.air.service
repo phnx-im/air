@@ -1,3 +1,0 @@
-[D-BUS Service]
-Name=ms.air
-Exec=/usr/bin/air --gapplication-service

@@ -199,5 +199,42 @@ void main() {
 
       expect(find.text('Debug info'), findsOneWidget);
     });
+
+    group('delete', () {
+      setUpAll(() => registerFallbackValue(0.chatId()));
+
+      Future<void> confirmDeletion(WidgetTester tester) async {
+        await tester.pumpWidget(buildSubject());
+        await tester.ensureVisible(find.text('Delete'));
+        await tester.tap(find.text('Delete'));
+        await tester.pumpAndSettle();
+        // The dialog's confirm button sits above the button that opened it.
+        await tester.tap(find.text('Delete').last);
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('deletes the chat and closes it once confirmed', (
+        tester,
+      ) async {
+        when(() => userCubit.deleteChat(any())).thenAnswer((_) async {});
+
+        await confirmDeletion(tester);
+
+        verify(() => userCubit.deleteChat(chats[2].id)).called(1);
+        verify(() => navigationCubit.closeChat()).called(1);
+      });
+
+      testWidgets('keeps the chat open when the deletion fails', (
+        tester,
+      ) async {
+        when(() => userCubit.deleteChat(any()))
+            .thenAnswer((_) async => throw Exception('offline'));
+
+        await confirmDeletion(tester);
+
+        verify(() => userCubit.deleteChat(chats[2].id)).called(1);
+        verifyNever(() => navigationCubit.closeChat());
+      });
+    });
   });
 }

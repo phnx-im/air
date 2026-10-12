@@ -106,6 +106,10 @@ impl ApqProtocolMessage {
         }
     }
 
+    pub fn t_protocol_message(&self) -> &ProtocolMessage {
+        &self.t_protocol_message
+    }
+
     pub fn t_epoch(&self) -> GroupEpoch {
         self.t_protocol_message.epoch()
     }

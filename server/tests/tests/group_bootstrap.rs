@@ -500,6 +500,22 @@ async fn sibling_mirrors_a_targeted_message_connection() {
         .expect("the sibling should have a targeted message contact");
     assert_eq!(contact_b.user_id, contact_a.user_id);
     assert_eq!(contact_b.chat_id, contact_a.chat_id);
+    let group_id = device_a.chat(&group_chat_id).await.unwrap().group_id;
+    assert_eq!(contact_a.origin_group_id.as_ref(), Some(&group_id));
+    assert_eq!(contact_b.origin_group_id.as_ref(), Some(&group_id));
+    for (label, device) in [("initiating", &device_a), ("sibling", &device_b)] {
+        let messages = device.messages(chat_id, 1).await.unwrap();
+        assert!(
+            matches!(
+                messages[0].message(),
+                Message::Event(EventMessage::System(SystemMessage::SentGroupConnectionRequest {
+                    recipient,
+                    origin_chat_id,
+                })) if recipient == &charlie && origin_chat_id == &group_chat_id
+            ),
+            "the {label} device should name the group chat of the request"
+        );
+    }
 
     assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after the creation echo").await;
 

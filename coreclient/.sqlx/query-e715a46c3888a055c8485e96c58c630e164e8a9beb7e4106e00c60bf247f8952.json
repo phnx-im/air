@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT id\n                FROM reaction_queue AS queued\n                WHERE (locked_by IS NULL OR locked_by != ?1)\n                    AND (retry_at IS NULL OR retry_at <= ?2)\n                    AND NOT EXISTS (\n                        SELECT 1\n                        FROM reaction_queue AS earlier\n                        WHERE earlier.chat_id = queued.chat_id\n                            AND (earlier.created_at, earlier.rowid)\n                                < (queued.created_at, queued.rowid)\n                    )\n                ORDER BY created_at ASC, rowid ASC\n                LIMIT 1\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction_queue",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e715a46c3888a055c8485e96c58c630e164e8a9beb7e4106e00c60bf247f8952"
+}

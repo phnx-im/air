@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Air
+Comment=Air is an easy-to-use, secure messenger for chatting 1:1 and in groups.
+DBusActivatable=true
+Exec=air
+Icon=ms.air.Air
+Terminal=false
+Type=Application
+Categories=Chat;

@@ -57,7 +57,7 @@ use mls_assist::{
 use tonic::Code;
 use tracing::error;
 
-use crate::ApiClient;
+use crate::{ApiClient, ClassifyRequestError, RequestErrorKind, classify_status};
 
 /// How long we wait for the DS to answer a send request.
 ///
@@ -87,6 +87,19 @@ pub enum DsRequestError {
 impl From<LibraryError> for DsRequestError {
     fn from(_: LibraryError) -> Self {
         Self::LibraryError
+    }
+}
+
+impl ClassifyRequestError for DsRequestError {
+    fn kind(&self) -> RequestErrorKind {
+        match self {
+            Self::Tonic(status) => classify_status(status),
+            // We stopped waiting, the DS may still have received the request
+            Self::Timeout(_) => RequestErrorKind::Network,
+            Self::LibraryError | Self::Tls(_) | Self::UnexpectedResponse => {
+                RequestErrorKind::Rejected
+            }
+        }
     }
 }
 
@@ -134,22 +147,6 @@ impl DsRequestError {
             true
         } else {
             false
-        }
-    }
-
-    /// Returns true if the error is likely due to a network issue and we can't
-    /// be sure whether the server received the request.
-    pub fn is_network_error(&self) -> bool {
-        match self {
-            Self::Timeout(_) => true,
-            Self::Tonic(status) => {
-                // TODO: Also handle unknown errors here but downcast them to io::Error
-                matches!(
-                    status.code(),
-                    Code::Unavailable | Code::DeadlineExceeded | Code::Unknown
-                )
-            }
-            Self::LibraryError | Self::Tls(_) | Self::UnexpectedResponse => false,
         }
     }
 
@@ -984,7 +981,7 @@ impl ApiClient {
     /// The result is used to upload the attachment to the server.
     pub async fn ds_provision_attachment(
         &self,
-        signing_key: &UserSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         target: DsAttachmentTarget<'_>,
         content_length: i64,
         object_type: StorageObjectType,
@@ -1032,7 +1029,7 @@ impl ApiClient {
     pub async fn ds_get_attachment_url(
         &self,
         object_type: StorageObjectType,
-        signing_key: &UserSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         target: DsAttachmentTarget<'_>,
         remote_attachment_id: RemoteAttachmentId,
     ) -> Result<String, DsRequestError> {
@@ -1158,13 +1155,37 @@ fn extract_encrypted_user_profile_keys(
 mod tests {
     use super::*;
 
+    use std::{assert_matches, io};
+
     #[test]
     fn timeout_is_classified_as_a_network_error() {
         let error = DsRequestError::Timeout(SEND_TIMEOUT);
-        assert!(
-            error.is_network_error(),
+        assert_matches!(
+            error.kind(),
+            RequestErrorKind::Network,
             "a send we stopped waiting for may still have reached the DS"
         );
         assert!(!error.is_not_found());
+    }
+
+    #[test]
+    fn unknown_status_with_nested_io_error_is_a_network_error() {
+        #[derive(Debug, thiserror::Error)]
+        #[error("transport error")]
+        struct Transport(#[source] io::Error);
+
+        let transport = Transport(io::Error::from(io::ErrorKind::ConnectionReset));
+        let status = tonic::Status::from_error(Box::new(transport));
+        assert_eq!(status.code(), Code::Unknown);
+        assert_matches!(
+            DsRequestError::Tonic(status).kind(),
+            RequestErrorKind::Network
+        );
+
+        let status = tonic::Status::unknown("server error");
+        assert_matches!(
+            DsRequestError::Tonic(status).kind(),
+            RequestErrorKind::ServerError
+        );
     }
 }

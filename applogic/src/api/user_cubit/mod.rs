@@ -350,18 +350,21 @@ impl UserCubitBase {
         Ok(())
     }
 
+    /// Deletes the chat on the server and erases it on all of the user's
+    /// devices. Fails without a change if the server cannot be reached.
     #[frb(positional)]
     pub async fn delete_chat(&self, chat_id: ChatId) -> anyhow::Result<()> {
+        self.context.core_user.delete_and_erase_chat(chat_id).await
+    }
+
+    /// Retracts the outgoing contact request of the chat, so its recipient can
+    /// no longer accept it, and erases the chat.
+    #[frb(positional)]
+    pub async fn retract_contact_request(&self, chat_id: ChatId) -> anyhow::Result<()> {
         self.context
             .core_user
-            .delete_chat(chat_id)
+            .retract_contact_request(chat_id)
             .await
-            .inspect_err(|error| {
-                error!(%error, "failed to delete conversion; skipping");
-            })
-            .ok();
-        self.context.core_user.erase_chat(chat_id).await?;
-        Ok(())
     }
 
     /// Only delete the local chat data, do not delete the chat on the server or try to leave it.

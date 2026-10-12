@@ -164,3 +164,153 @@ jobs:
           if [[ "$TRACK" == nightly ]]; then
             TRACK=unstable cargo xtask publish-packages -- app/linux/${{ matrix.glob }}
           fi
+
+  # Offline source build, as on Flathub. Only release runs build it (about
+  # 15 min cold, 12 min warm). Independent of the deb/rpm jobs.
+  linux-flatpak-build:
+    if: inputs.upload
+
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 300
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The build needs about 10 GB, plus runtimes and caches.
+      - name: Free disk space
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      - name: Install flatpak-builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+      - name: Install just
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+
+      - name: Compute build number
+        run: echo "AIR_BUILD_NUMBER=$(bash scripts/build-number.sh)" >> "$GITHUB_ENV"
+
+      # Runtime and SDK, see app/linux/flatpak/ms.air.Air.yml.jinja.
+      - name: Cache Flatpak runtimes
+        uses: actions/cache@v5
+        with:
+          path: ~/.local/share/flatpak
+          key: flatpak-runtimes-${{ matrix.arch }}-26.08-llvm22
+
+      # Hashes of the Flutter and Rust artifacts and the resolved
+      # flutter_tools lock.
+      - name: Cache Flatpak source metadata
+        uses: actions/cache@v5
+        with:
+          path: target/flatpak/cache
+          key: flatpak-sources-${{ matrix.arch }}-${{ hashFiles('app/.fvmrc', 'applogic/rust-toolchain.toml', 'Cargo.lock') }}
+          restore-keys: |
+            flatpak-sources-${{ matrix.arch }}-
+
+      - name: Generate Flatpak sources
+        run: cargo xtask flatpak-sources --flavor production --arch ${{ matrix.arch }}
+
+      # Downloads, git mirrors and the sccache dir. The module cache is left
+      # out to stay within the cache quota, the toolchain modules rebuild in
+      # a few minutes. Keyed on the inputs, not on the generated files, which
+      # contain the commit. Only main saves, like the sccache cache in
+      # setup-buildenv.
+      - name: Cache flatpak-builder state
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache@v5
+        with:
+          path: |
+            target/flatpak/.flatpak-builder/downloads
+            target/flatpak/.flatpak-builder/git
+            target/flatpak/.flatpak-builder/ccache
+          key: flatpak-builder-${{ matrix.arch }}-${{ hashFiles('Cargo.lock', 'app/pubspec.lock', 'app/.fvmrc', 'applogic/rust-toolchain.toml', 'app/linux/flatpak/ms.air.Air.yml.jinja') }}
+          restore-keys: |
+            flatpak-builder-${{ matrix.arch }}-
+
+      - name: Restore flatpak-builder state
+        if: github.ref != 'refs/heads/main'
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            target/flatpak/.flatpak-builder/downloads
+            target/flatpak/.flatpak-builder/git
+            target/flatpak/.flatpak-builder/ccache
+          key: flatpak-builder-${{ matrix.arch }}-${{ hashFiles('Cargo.lock', 'app/pubspec.lock', 'app/.fvmrc', 'applogic/rust-toolchain.toml', 'app/linux/flatpak/ms.air.Air.yml.jinja') }}
+          restore-keys: |
+            flatpak-builder-${{ matrix.arch }}-
+
+      # Exported on the branch "build", publish-flatpak commits it to the
+      # track branch.
+      - name: Build Flatpak
+        run: |
+          just build-flatpak production --disable-rofiles-fuse --repo=target/flatpak/repo --default-branch=build
+          flatpak build-bundle target/flatpak/repo target/flatpak/ms.air.Air-${{ matrix.arch }}.flatpak ms.air.Air build
+
+      - name: Upload Flatpak bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux-flatpak-bundle-${{ matrix.arch }}
+          path: target/flatpak/ms.air.Air-${{ matrix.arch }}.flatpak
+          if-no-files-found: error
+
+      # Input of a later Flathub submission.
+      - name: Upload Flatpak manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux-flatpak-manifest-${{ matrix.arch }}
+          path: |
+            target/flatpak/ms.air.Air.yml
+            target/flatpak/generated
+          if-no-files-found: error
+
+  linux-flatpak-publish:
+    environment: linux-packages
+
+    needs: linux-flatpak-build
+    runs-on: ubuntu-24.04
+
+    if: inputs.upload
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # All arches go into a single publish run, since parallel runs would
+      # overwrite each other's summary.
+      - name: Download Flatpak bundles
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: linux-flatpak-bundle-*
+          merge-multiple: true
+          path: target/flatpak/bundles
+
+      - name: Setup package publishing
+        uses: ./.github/actions/setup-linux-publish
+        with:
+          apt-packages: flatpak ostree
+          gpg-key-id: ${{ vars.GPG_KEY_ID }}
+          gpg-signing-key: ${{ secrets.GPG_SIGNING_KEY }}
+          gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Publish Flatpak
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          GPG_KEY_ID: ${{ vars.GPG_KEY_ID }}
+          REPOSITORY_BASE_URL: ${{ vars.REPOSITORY_BASE_URL }}
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
+          S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
+          # Same tracks as the deb/rpm packages.
+          TRACK: ${{ startsWith(github.ref, 'refs/heads/release/') && 'beta' || 'nightly' }}
+        run: cargo xtask publish-flatpak -- target/flatpak/bundles/*.flatpak

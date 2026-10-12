@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use airapiclient::{ClassifyRequestError, RequestErrorKind};
 use aircommon::identifiers::Fqdn;
 use airprotos::auth_service::v1::OperationType;
 use anyhow::Context;
@@ -55,7 +56,7 @@ impl CoreUser {
         let result = api_client.as_get_invitation_codes([token]).await;
         let codes = match result {
             Ok(codes) => codes,
-            Err(e) if e.is_network_error() => {
+            Err(e) if matches!(e.kind(), RequestErrorKind::Network) => {
                 // Token is not burned, but the request failed
                 return Err(e.into());
             }

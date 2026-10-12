@@ -16,10 +16,7 @@ use aircommon::{
     crypto::{
         aead::{
             AEAD_KEY_SIZE,
-            keys::{
-                FriendshipPackageEarKey, GroupBootstrapKey, GroupStateEarKey,
-                IdentityLinkWrapperKey,
-            },
+            keys::{GroupBootstrapKey, GroupStateEarKey, IdentityLinkWrapperKey},
         },
         kdf::{KdfDerivable, keys::VcApplicationSecret},
     },
@@ -34,6 +31,7 @@ use openmls::{components::vc_derivation_info::EpochId, prelude::GroupId};
 use zeroize::Zeroizing;
 
 use crate::{
+    chats::outgoing_requests::OutgoingRequest,
     clients::connection_offer::FriendshipPackage,
     db::access::WriteDbTransaction,
     groups::{Group, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
@@ -172,17 +170,9 @@ impl TryFrom<GroupBootstrap> for GroupBootstrapContents {
 /// The contact context a sibling needs to mirror a connection chat.
 #[derive(Debug)]
 pub(crate) enum BootstrapConnection {
-    /// A sibling initiated the connection via a user handle.
-    HandleInitiator {
-        username: Username,
-        friendship_package_ear_key: FriendshipPackageEarKey,
-        connection_offer_hash: ConnectionOfferHash,
-    },
-    /// A sibling initiated the connection via a targeted message.
-    TargetedInitiator {
-        user_id: UserId,
-        friendship_package_ear_key: FriendshipPackageEarKey,
-    },
+    /// A sibling initiated the connection via a user handle or a targeted
+    /// message.
+    Initiator(OutgoingRequest),
     /// A sibling accepted a connection request by externally joining the
     /// peer's connection group.
     Accept {
@@ -199,28 +189,33 @@ impl TryFrom<ConnectionContext> for BootstrapConnection {
 
     fn try_from(context: ConnectionContext) -> Result<Self> {
         match context {
-            ConnectionContext::HandleInitiator(context) => Ok(Self::HandleInitiator {
-                username: Username::new(
-                    context
-                        .username
-                        .context("handle initiator context without a username")?,
-                )?,
-                friendship_package_ear_key: context
-                    .friendship_package_ear_key
-                    .context("handle initiator context without a friendship package ear key")?,
-                connection_offer_hash: context
-                    .connection_offer_hash
-                    .context("handle initiator context without a connection offer hash")?,
-            }),
-            ConnectionContext::TargetedInitiator(context) => Ok(Self::TargetedInitiator {
-                user_id: context
-                    .user_id
-                    .context("targeted initiator context without a user id")?
-                    .to_user_id()?,
-                friendship_package_ear_key: context
-                    .friendship_package_ear_key
-                    .context("targeted initiator context without a friendship package ear key")?,
-            }),
+            ConnectionContext::HandleInitiator(context) => {
+                Ok(Self::Initiator(OutgoingRequest::Username {
+                    username: Username::new(
+                        context
+                            .username
+                            .context("handle initiator context without a username")?,
+                    )?,
+                    friendship_package_ear_key: context
+                        .friendship_package_ear_key
+                        .context("handle initiator context without a friendship package ear key")?,
+                    connection_offer_hash: context
+                        .connection_offer_hash
+                        .context("handle initiator context without a connection offer hash")?,
+                }))
+            }
+            ConnectionContext::TargetedInitiator(context) => {
+                Ok(Self::Initiator(OutgoingRequest::Targeted {
+                    user_id: context
+                        .user_id
+                        .context("targeted initiator context without a user id")?
+                        .to_user_id()?,
+                    friendship_package_ear_key: context.friendship_package_ear_key.context(
+                        "targeted initiator context without a friendship package ear key",
+                    )?,
+                    origin_group_id: context.origin_group_id,
+                }))
+            }
             ConnectionContext::Accept(context) => Ok(Self::Accept {
                 user_id: context
                     .user_id

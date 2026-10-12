@@ -9,8 +9,12 @@ import 'package:air/ds/components/button/button.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/platform/haptics.dart';
 import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
+
+final _log = Logger("DeleteContactButton");
 
 class DeleteContactButton extends StatelessWidget {
   const DeleteContactButton({
@@ -50,10 +54,18 @@ class DeleteContactButton extends StatelessWidget {
         destructive: true,
       ),
     );
-    if (confirmed ?? false) {
-      AppHaptics.destructive();
-      userCubit.deleteChat(chatId);
-      navigationCubit.closeChat();
+    if (!(confirmed ?? false)) return;
+    AppHaptics.destructive();
+    try {
+      await userCubit.deleteChat(chatId);
+    } catch (e, stackTrace) {
+      _log.severe("Failed to delete contact: $e", e, stackTrace);
+      showSnackBarStandalone(
+        (loc) => loc.deleteContactDialog_error,
+        tone: .danger,
+      );
+      return;
     }
+    navigationCubit.closeChat();
   }
 }

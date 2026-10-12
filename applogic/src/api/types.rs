@@ -593,6 +593,12 @@ pub enum UiSystemMessage {
         group_chat: UiRequestGroupChat,
     },
     SelfChatCreated,
+    /// The origin chat may be gone, or not on this device yet.
+    SentDirectConnectionRequest {
+        recipient: UiUserId,
+        origin_chat_id: ChatId,
+    },
+    ConnectionRequestUnavailable,
 }
 
 /// The group chat a connection request came through.
@@ -684,6 +690,16 @@ impl From<SystemMessage> for UiSystemMessage {
                 sender: sender.into(),
                 group_chat: UiRequestGroupChat::Chat(origin_chat_id),
             },
+            SystemMessage::SentGroupConnectionRequest {
+                recipient,
+                origin_chat_id,
+            } => UiSystemMessage::SentDirectConnectionRequest {
+                recipient: recipient.into(),
+                origin_chat_id,
+            },
+            SystemMessage::ConnectionRequestUnavailable => {
+                UiSystemMessage::ConnectionRequestUnavailable
+            }
         }
     }
 }

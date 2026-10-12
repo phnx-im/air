@@ -146,6 +146,9 @@ pub struct SelfRemoveParamsOut {
     pub pq_remove_proposal: Option<AssistedMessageOut>,
 }
 
+/// Upper bound on the collision tags of one send message request
+pub const MAX_COLLISION_TAGS_PER_REQUEST: usize = 30;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CollisionTag(i64);
 

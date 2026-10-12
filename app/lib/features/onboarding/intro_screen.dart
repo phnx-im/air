@@ -20,13 +20,16 @@ import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
+import 'package:air/platform/account_marker.dart';
 import 'package:air/platform/notification_permissions.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class IntroScreen extends HookWidget {
-  const IntroScreen({super.key});
+  const IntroScreen({super.key, this.checkAccountMarker = hasAccountMarker});
+
+  final Future<bool> Function() checkAccountMarker;
 
   /// The mark takes more room where there is more of it to take.
   static const double _logoWidthPhone = 104;
@@ -52,6 +55,9 @@ class IntroScreen extends HookWidget {
     );
 
     final onLogoTap = useDeveloperUnlock();
+
+    final dataLeftBehind =
+        useFuture(useMemoized(checkAccountMarker)).data ?? false;
 
     openLinking() async {
       await requestNotificationPermission();
@@ -82,6 +88,7 @@ class IntroScreen extends HookWidget {
     // A window gives the picker a top row inside the safe zone. A phone floats
     // it over the corner, leaving the mark centered in the full height.
     final isPhone = DeviceType.isPhone;
+    final isDesktop = DeviceType.isDesktop;
     const picker = _LanguagePicker();
 
     return NuxScaffold(
@@ -106,6 +113,38 @@ class IntroScreen extends HookWidget {
               mainAxisSize: .min,
               crossAxisAlignment: .stretch,
               children: [
+                if (dataLeftBehind) ...[
+                  Text(
+                    loc.introScreen_newPhone_title,
+                    style: typeScale.body.m.style(
+                      weight: Weight.emphasized,
+                      color: palette.text.primary,
+                    ),
+                    textAlign: .center,
+                  ),
+                  const SizedBox(height: S.s8),
+                  Text(
+                    loc.introScreen_newPhone_body,
+                    style: typeScale.body.s.style(
+                      color: palette.text.secondary,
+                    ),
+                  ),
+                  const SizedBox(height: S.s8),
+                  _NumberedStep(
+                    1,
+                    isDesktop
+                        ? loc.introScreen_newPhone_step1Desktop
+                        : loc.introScreen_newPhone_step1,
+                  ),
+                  const SizedBox(height: S.s4),
+                  _NumberedStep(
+                    2,
+                    isDesktop
+                        ? loc.introScreen_newPhone_step2Desktop
+                        : loc.introScreen_newPhone_step2,
+                  ),
+                  const SizedBox(height: S.s16),
+                ],
                 const _TermsOfUseText(),
                 const SizedBox(height: S.s16),
                 if (serverFieldVisible.value) ...[
@@ -273,6 +312,29 @@ class _ServerTextField extends HookWidget {
           onFieldSubmitted();
         }
       },
+    );
+  }
+}
+
+class _NumberedStep extends StatelessWidget {
+  const _NumberedStep(this.index, this.text);
+
+  final int index;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = SemanticPalette.of(context);
+    final style = typeScale.body.s.style(color: palette.text.secondary);
+
+    return Row(
+      spacing: S.s8,
+      crossAxisAlignment: .baseline,
+      textBaseline: .alphabetic,
+      children: [
+        Text("$index.", style: style),
+        Expanded(child: Text(text, style: style)),
+      ],
     );
   }
 }

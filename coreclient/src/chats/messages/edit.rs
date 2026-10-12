@@ -642,7 +642,8 @@ mod tests {
         edited.update(&mut txn).await?;
         txn.commit().await?;
 
-        let queued = ReceiptQueue::dequeue(pool.write().await?, Uuid::new_v4()).await?;
+        let queued =
+            ReceiptQueue::dequeue(pool.write().await?, Uuid::new_v4(), TimeStamp::now()).await?;
         assert!(
             queued.is_none(),
             "receipts for the replaced version were kept"

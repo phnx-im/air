@@ -65,10 +65,36 @@ extension UiChatDetailsExtension on UiChatDetails {
     UiChatType_PendingConnection() => false,
   };
 
+  /// Where the contact request behind this chat stands, or `null` if the chat
+  /// is not a contact request.
+  ContactRequestState? get requestState {
+    final closed = status is UiChatStatus_Inactive;
+    return switch (chatType) {
+      UiChatType_PendingConnection() =>
+        closed ? ContactRequestState.closed : ContactRequestState.incoming,
+      UiChatType_HandleConnection() || UiChatType_TargetedMessageConnection() =>
+        closed ? ContactRequestState.closed : ContactRequestState.outgoing,
+      UiChatType_Connection() || UiChatType_Group() => null,
+    };
+  }
+
   bool get isMuted => mutedUntil.isMuted;
 
   /// Whether the chat takes shared content, i.e. the user can send into it.
   bool get canShareInto => status == const UiChatStatus.active() && isConfirmed;
+}
+
+/// Where a contact request stands, see [UiChatDetailsExtension.requestState].
+enum ContactRequestState {
+  /// Someone asked to connect, and the user has not answered yet.
+  incoming,
+
+  /// The user asked to connect, and the recipient has not answered yet.
+  outgoing,
+
+  /// The request ended without a connection, for example because its sender
+  /// retracted it before the user could accept.
+  closed,
 }
 
 extension UiChatMutedExtension on UiChatMuted? {
