@@ -452,3 +452,67 @@ async fn pending_leave_is_deleted_when_another_member_commits_self_remove() {
         "pending leave should be deleted once another member commits our self-remove"
     );
 }
+
+/// Connects Alice and Bob and has Alice delete their chat while the DS loses
+/// either her request or its response. Returns what the retry needs.
+async fn delete_chat_with_a_network_error(
+    lose_response: bool,
+) -> (TestBackend, UserId, UserId, ChatId) {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+    let alice_user = setup.get_user(&alice).user.clone();
+
+    if lose_response {
+        setup.listener_control_handle().set_drop_next_response();
+    } else {
+        setup.listener_control_handle().set_drop_next_request();
+    }
+    alice_user
+        .delete_and_erase_chat(chat_id)
+        .await
+        .expect_err("expected the delete to fail due to a network error");
+
+    // The chat stays, and no delete is parked that erasing it would drop.
+    assert!(alice_user.chat(&chat_id).await.is_some());
+    assert!(
+        alice_user
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    (setup, alice, bob, chat_id)
+}
+
+/// Retries the delete and checks that it reached Bob.
+async fn assert_retried_delete_reaches_the_contact(
+    setup: &TestBackend,
+    alice: &UserId,
+    bob: &UserId,
+    chat_id: ChatId,
+) {
+    let alice_user = &setup.get_user(alice).user;
+    alice_user.delete_and_erase_chat(chat_id).await.unwrap();
+    assert!(alice_user.chat(&chat_id).await.is_none());
+
+    let bob_user = &setup.get_user(bob).user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    bob_user.fully_process_qs_messages(qs_messages).await;
+    let chat = bob_user.chat(&chat_id).await.unwrap();
+    assert!(matches!(chat.status(), ChatStatus::Inactive(_)));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn deleting_a_chat_offline_keeps_it() {
+    let (setup, alice, bob, chat_id) = delete_chat_with_a_network_error(false).await;
+    assert_retried_delete_reaches_the_contact(&setup, &alice, &bob, chat_id).await;
+}
+
+/// The DS applied the first attempt, so the retry finds the group gone.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn deleting_a_chat_after_a_lost_response_finishes_on_retry() {
+    let (setup, alice, bob, chat_id) = delete_chat_with_a_network_error(true).await;
+    assert_retried_delete_reaches_the_contact(&setup, &alice, &bob, chat_id).await;
+}

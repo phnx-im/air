@@ -47,6 +47,7 @@ use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, Tr
 use tracing::{Level, enabled, error, info};
 
 use crate::{connect_info::ClientIpExtractor, grpc_metrics::GrpcMetricsLayer};
+use tower_http::classify::{GrpcCode, GrpcErrorsAsFailures, SharedClassifier};
 
 pub mod args;
 pub mod as_connector;
@@ -216,18 +217,31 @@ pub async fn run<
         .layer(InterceptorLayer::new(ConnectInfoInterceptor))
         .layer(GrpcMetricsLayer::new())
         .layer(
-            TraceLayer::new_for_grpc()
-                .make_span_with(
-                    DefaultMakeSpan::new()
-                        .level(Level::INFO)
-                        .include_headers(enabled!(Level::DEBUG)),
-                )
-                .on_request(DefaultOnRequest::new().level(Level::INFO))
-                .on_response(
-                    DefaultOnResponse::new()
-                        .level(Level::INFO)
-                        .include_headers(enabled!(Level::DEBUG)),
-                ),
+            // Codes the DS, QS and AS return as business outcomes (unknown
+            // users, wrong epochs, quotas, bad credentials, evicted listens)
+            // are not failures. Internal, Unknown and Unavailable stay
+            // failures.
+            TraceLayer::new(SharedClassifier::new(
+                GrpcErrorsAsFailures::new()
+                    .with_success(GrpcCode::InvalidArgument)
+                    .with_success(GrpcCode::NotFound)
+                    .with_success(GrpcCode::AlreadyExists)
+                    .with_success(GrpcCode::FailedPrecondition)
+                    .with_success(GrpcCode::ResourceExhausted)
+                    .with_success(GrpcCode::Unauthenticated)
+                    .with_success(GrpcCode::Aborted),
+            ))
+            .make_span_with(
+                DefaultMakeSpan::new()
+                    .level(Level::INFO)
+                    .include_headers(enabled!(Level::DEBUG)),
+            )
+            .on_request(DefaultOnRequest::new().level(Level::INFO))
+            .on_response(
+                DefaultOnResponse::new()
+                    .level(Level::INFO)
+                    .include_headers(enabled!(Level::DEBUG)),
+            ),
         )
         .layer(GovernorLayer::new(governor_config))
         .add_service(health_service)

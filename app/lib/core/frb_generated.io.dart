@@ -1361,6 +1361,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UiAcceptContactRequestResult dco_decode_ui_accept_contact_request_result(
+    dynamic raw,
+  );
+
+  @protected
   UiAttachment dco_decode_ui_attachment(dynamic raw);
 
   @protected
@@ -2903,6 +2908,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiAcceptContactRequestError sse_decode_ui_accept_contact_request_error(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiAcceptContactRequestResult sse_decode_ui_accept_contact_request_result(
     SseDeserializer deserializer,
   );
 
@@ -4790,6 +4800,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ui_accept_contact_request_error(
     UiAcceptContactRequestError self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ui_accept_contact_request_result(
+    UiAcceptContactRequestResult self,
     SseSerializer serializer,
   );
 

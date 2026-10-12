@@ -304,6 +304,7 @@ message ListenRequest {
     AckListenRequest ack = 2;
     FetchListenRequest fetch = 3;
     ReportClientStateListenRequest client_state = 4;
+    KeepAliveListenRequest keep_alive = 5;
   }
 }
 
@@ -338,6 +339,8 @@ message FetchListenRequest {}
 message ReportClientStateListenRequest {
   bytes encrypted_blob = 1;
 }
+
+message KeepAliveListenRequest {}
 
 message ListenResponse {
   oneof event {

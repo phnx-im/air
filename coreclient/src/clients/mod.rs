@@ -10,9 +10,15 @@ use std::{
 
 pub use airapiclient::as_api::AsListenUsernameResponder;
 pub use airapiclient::qs_api::QsListenResponder;
-use airapiclient::{ApiClient, ApiClientInitError, as_api::AsRequestError, qs_api::QsRequestError};
+use airapiclient::{
+    ApiClient, ApiClientInitError, as_api::AsRequestError, ds_api::DsAttachmentTarget,
+    qs_api::QsRequestError,
+};
 use aircommon::{
-    credentials::{UserCredential, UserCredentialCsr, UserCredentialPayload, keys::UserSigningKey},
+    credentials::{
+        UserCredential, UserCredentialCsr, UserCredentialPayload,
+        keys::{LeafSigningKey, UserSigningKey},
+    },
     crypto::{
         RatchetDecryptionKey,
         aead::keys::WelcomeAttributionInfoEarKey,
@@ -380,6 +386,18 @@ impl CoreUser {
 
     pub(crate) fn signing_key(&self) -> &UserSigningKey {
         &self.inner.key_store.signing_key
+    }
+
+    pub(crate) async fn attachment_signer(
+        &self,
+        target: &DsAttachmentTarget<'_>,
+    ) -> anyhow::Result<LeafSigningKey> {
+        OwnClientInfo::signer_for_attachment_target(
+            self.db().read().await?,
+            target,
+            self.signing_key(),
+        )
+        .await
     }
 
     pub(crate) fn api_clients(&self) -> &ApiClients {
