@@ -100,7 +100,7 @@ fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
     let mut package = sample_package(
         SettingsUpdate {
             send_read_receipts: Some(false),
-            linked_devices: None,
+            ..Default::default()
         },
         sample_seeds(),
         blocked_contacts.clone(),
@@ -143,7 +143,7 @@ fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
         decoded.synced_settings,
         SettingsUpdate {
             send_read_receipts: Some(false),
-            linked_devices: None,
+            ..Default::default()
         }
     );
     assert_eq!(decoded.token_seeds, sample_seeds());

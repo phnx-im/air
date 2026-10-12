@@ -362,6 +362,9 @@ pub struct LinkedDevice {
 /// SettingsUpdate = {
 ///   ? send_read_receipts: bool .tag 1
 ///   ? linked_devices: [* LinkedDevice] .tag 2
+///   ? default_emoji_skin_tone: uint .size 1 .tag 3
+///   ? send_on_enter: bool .tag 4
+///   ? limit_animated_images_loops: bool .tag 5
 /// }
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
@@ -371,6 +374,14 @@ pub struct SettingsUpdate {
     /// Sorted by `client_id` so the encoding is canonical.
     #[tag(2)]
     pub linked_devices: Option<Vec<LinkedDevice>>,
+    /// 0 is no modifier, 1 to 5 are the Fitzpatrick modifiers U+1F3FB to
+    /// U+1F3FF in order. Receivers clamp unknown values.
+    #[tag(3)]
+    pub default_emoji_skin_tone: Option<u8>,
+    #[tag(4)]
+    pub send_on_enter: Option<bool>,
+    #[tag(5)]
+    pub limit_animated_images_loops: Option<bool>,
 }
 
 /// The contacts whose blocked state the sender just changed. This is a diff and
@@ -643,7 +654,7 @@ mod test {
     fn sample_messages() -> SelfGroupMessages {
         SelfGroupMessages(vec![SelfGroupMessage::SettingsUpdate(SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         })])
     }
 
@@ -696,6 +707,7 @@ mod test {
                 "Laptop",
                 LinkedDevicePlatform::Linux,
             )]),
+            ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&update).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
@@ -718,8 +730,13 @@ mod test {
         };
         let bytes = PersistenceCodec::to_vec(&old).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
-        assert_eq!(decoded.send_read_receipts, Some(false));
-        assert_eq!(decoded.linked_devices, None);
+        assert_eq!(
+            decoded,
+            SettingsUpdate {
+                send_read_receipts: Some(false),
+                ..Default::default()
+            }
+        );
     }
 
     #[test]
@@ -728,7 +745,7 @@ mod test {
         struct SettingsUpdateV3 {
             #[tag(1)]
             send_read_receipts: Option<bool>,
-            #[tag(3)]
+            #[tag(99)]
             something_new: Option<u64>,
         }
 
@@ -748,7 +765,7 @@ mod test {
     fn settings_update_roundtrip_and_wire_shape() {
         let set = SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&set).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
@@ -758,13 +775,28 @@ mod test {
 
         let empty = SettingsUpdate {
             send_read_receipts: None,
-            linked_devices: None,
+            ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&empty).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
         assert_eq!(empty, decoded);
         // `{}`: map(0).
         assert_eq!(&bytes[1..], &[0xA0]);
+    }
+
+    #[test]
+    fn settings_update_display_settings_roundtrip_and_wire_shape() {
+        let update = SettingsUpdate {
+            default_emoji_skin_tone: Some(3),
+            send_on_enter: Some(true),
+            limit_animated_images_loops: Some(false),
+            ..Default::default()
+        };
+        let bytes = PersistenceCodec::to_vec(&update).unwrap();
+        let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(update, decoded);
+        // `{3: 3, 4: true, 5: false}`
+        assert_eq!(&bytes[1..], &[0xA3, 0x03, 0x03, 0x04, 0xF5, 0x05, 0xF4]);
     }
 
     #[test]
@@ -776,6 +808,7 @@ mod test {
                 "Laptop",
                 LinkedDevicePlatform::Linux,
             )]),
+            ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&update).unwrap();
         let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
@@ -873,7 +906,7 @@ mod test {
 
         let update = SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         };
         let newer = vec![
             SelfGroupMessage::TokenSeed(sample_seed()),
@@ -955,7 +988,7 @@ mod test {
 
         let update = SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         };
         let newer = vec![
             SelfGroupMessage::BlockedContactsUpdate(sample_blocked_contacts_update()),
@@ -1157,7 +1190,7 @@ mod test {
 
         let update = SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         };
         let newer = vec![
             SelfGroupMessage::ConnectionRequestsUpdate(sample_connection_requests_update()),
@@ -1506,11 +1539,11 @@ mod test {
     fn vec_of_messages_with_unknown_element() {
         let known_a = SelfGroupMessageV2::SettingsUpdate(SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         });
         let known_b = SelfGroupMessageV2::SettingsUpdate(SettingsUpdate {
             send_read_receipts: Some(false),
-            linked_devices: None,
+            ..Default::default()
         });
         let newer = vec![known_a, SelfGroupMessageV2::Something(9), known_b];
         let bytes = PersistenceCodec::to_vec(&newer).unwrap();
@@ -1521,12 +1554,12 @@ mod test {
             vec![
                 SelfGroupMessage::SettingsUpdate(SettingsUpdate {
                     send_read_receipts: Some(true),
-                    linked_devices: None,
+                    ..Default::default()
                 }),
                 SelfGroupMessage::Unknown,
                 SelfGroupMessage::SettingsUpdate(SettingsUpdate {
                     send_read_receipts: Some(false),
-                    linked_devices: None,
+                    ..Default::default()
                 }),
             ]
         );

@@ -5,11 +5,12 @@
 use std::sync::Arc;
 
 use aircoreclient::{
-    DeveloperModeSetting, ExperimentalFeaturesSetting, ReadReceiptsSetting, UserSetting,
+    DefaultEmojiSkinToneSetting, DeveloperModeSetting, ExperimentalFeaturesSetting,
+    LimitAnimatedImagesLoopsSetting, ReadReceiptsSetting, SendOnEnterSetting, UserSetting,
     clients::CoreUser,
     db::notification::{DbEntityId, DbNotification},
 };
-use anyhow::{anyhow, bail};
+use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use flutter_rust_bridge::frb;
 use tokio::sync::watch;
@@ -212,7 +213,7 @@ impl UserSettingsCubitBase {
             return Ok(());
         }
         self.core_user
-            .set_user_setting(&SendOnEnterSetting(value))
+            .set_synced_user_setting(&SendOnEnterSetting(value))
             .await?;
         self.core
             .state_tx()
@@ -225,7 +226,7 @@ impl UserSettingsCubitBase {
             return Ok(());
         }
         self.core_user
-            .set_user_setting(&LimitAnimatedImagesLoopsSetting(value))
+            .set_synced_user_setting(&LimitAnimatedImagesLoopsSetting(value))
             .await?;
         self.core
             .state_tx()
@@ -277,7 +278,7 @@ impl UserSettingsCubitBase {
             return Ok(());
         }
         self.core_user
-            .set_user_setting(&DefaultEmojiSkinToneSetting(value))
+            .set_synced_user_setting(&DefaultEmojiSkinToneSetting(value))
             .await?;
         self.core
             .state_tx()
@@ -320,7 +321,7 @@ async fn settings_listener(
     state_tx: watch::Sender<UserSettings>,
     cancel: CancellationToken,
 ) {
-    reload_read_receipts(&core_user, &state_tx).await;
+    reload_synced_settings(&core_user, &state_tx).await;
 
     loop {
         let notification = tokio::select! {
@@ -331,50 +332,64 @@ async fn settings_listener(
             },
         };
 
+        let mut reload = false;
         for entity_id in notification.ops.keys() {
             let DbEntityId::UserSetting(key) = entity_id else {
                 continue;
             };
-            if key == ReadReceiptsSetting::KEY {
-                reload_read_receipts(&core_user, &state_tx).await;
+            if SYNCED_SETTING_KEYS.contains(&key.as_str()) {
+                reload = true;
             } else {
                 debug!(%key, "ignoring notification for unhandled user setting");
             }
         }
-    }
-}
-
-/// Reads the read receipts setting from the database and emits it if it changed.
-///
-/// A missing row means a rollback deleted it, so the state falls back to the
-/// default (matching the `frb(default)` of `true`).
-async fn reload_read_receipts(core_user: &CoreUser, state_tx: &watch::Sender<UserSettings>) {
-    let read_receipts = core_user
-        .user_setting::<ReadReceiptsSetting>()
-        .await
-        .is_none_or(|ReadReceiptsSetting(value)| value);
-    state_tx.send_if_modified(|state| {
-        let modified = state.read_receipts != read_receipts;
-        state.read_receipts = read_receipts;
-        modified
-    });
-}
-
-struct DefaultEmojiSkinToneSetting(u8);
-
-impl UserSetting for DefaultEmojiSkinToneSetting {
-    const KEY: &'static str = "default_emoji_skin_tone";
-
-    fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        Ok(vec![self.0])
-    }
-
-    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        match bytes.as_slice() {
-            [byte] => Ok(Self(*byte)),
-            _ => bail!("invalid default_emoji_skin_tone bytes"),
+        if reload {
+            reload_synced_settings(&core_user, &state_tx).await;
         }
     }
+}
+
+const SYNCED_SETTING_KEYS: [&str; 4] = [
+    ReadReceiptsSetting::KEY,
+    DefaultEmojiSkinToneSetting::KEY,
+    SendOnEnterSetting::KEY,
+    LimitAnimatedImagesLoopsSetting::KEY,
+];
+
+/// Reads the synced settings from the database and emits them if any changed.
+///
+/// A missing row means a rollback deleted it, so the state falls back to the
+/// default.
+async fn reload_synced_settings(core_user: &CoreUser, state_tx: &watch::Sender<UserSettings>) {
+    let defaults = UserSettings::default();
+    let read_receipts = core_user
+        .user_setting()
+        .await
+        .map_or(defaults.read_receipts, |ReadReceiptsSetting(value)| value);
+    let default_emoji_skin_tone = core_user.user_setting().await.map_or(
+        defaults.default_emoji_skin_tone,
+        |DefaultEmojiSkinToneSetting(value)| value,
+    );
+    let send_on_enter = core_user
+        .user_setting()
+        .await
+        .map_or(defaults.send_on_enter, |SendOnEnterSetting(value)| value);
+    let limit_animated_images_loops = core_user.user_setting().await.map_or(
+        defaults.limit_animated_images_loops,
+        |LimitAnimatedImagesLoopsSetting(value)| value,
+    );
+
+    state_tx.send_if_modified(|state| {
+        let modified = state.read_receipts != read_receipts
+            || state.default_emoji_skin_tone != default_emoji_skin_tone
+            || state.send_on_enter != send_on_enter
+            || state.limit_animated_images_loops != limit_animated_images_loops;
+        state.read_receipts = read_receipts;
+        state.default_emoji_skin_tone = default_emoji_skin_tone;
+        state.send_on_enter = send_on_enter;
+        state.limit_animated_images_loops = limit_animated_images_loops;
+        modified
+    });
 }
 
 /// Device-local, since the banner is dismissed on the device in hand.
@@ -450,39 +465,5 @@ impl UserSetting for LocaleSetting {
         let value =
             String::from_utf8(bytes).map_err(|error| anyhow!("invalid locale bytes: {error}"))?;
         Ok(Self(value))
-    }
-}
-
-struct SendOnEnterSetting(bool);
-
-impl UserSetting for SendOnEnterSetting {
-    const KEY: &'static str = "send_on_enter";
-
-    fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        Ok(vec![self.0 as u8])
-    }
-
-    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        match bytes.as_slice() {
-            [byte] => Ok(Self(*byte != 0)),
-            _ => bail!("invalid send_on_enter bytes"),
-        }
-    }
-}
-
-struct LimitAnimatedImagesLoopsSetting(bool);
-
-impl UserSetting for LimitAnimatedImagesLoopsSetting {
-    const KEY: &'static str = "limit_animated_images_loops";
-
-    fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        Ok(vec![self.0 as u8])
-    }
-
-    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        match bytes.as_slice() {
-            [byte] => Ok(Self(*byte != 0)),
-            _ => bail!("invalid limit_animated_images_loops bytes"),
-        }
     }
 }
