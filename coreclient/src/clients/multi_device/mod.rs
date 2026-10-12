@@ -353,11 +353,10 @@ impl CoreUser {
         connected_tx: oneshot::Sender<()>,
         confirmation_rx: oneshot::Receiver<String>,
     ) -> anyhow::Result<Result<(), MultiDeviceLinkClientError>> {
-        let rendezvous_id = RendezVousId::new(code);
-        if !rendezvous_id.is_well_formed() {
+        let Ok(rendezvous_id) = RendezVousId::new(code) else {
             warn!("rejected a malformed linking code");
             return Ok(Err(MultiDeviceLinkClientError::InvalidCode));
-        }
+        };
 
         let client = self.api_client()?;
         let qs_user_id = self.inner.qs_user_id;

@@ -26,15 +26,20 @@ impl RelayFrame {
     }
 }
 
-impl RendezVousId {
-    pub fn new(value: String) -> Self {
-        Self { value }
-    }
+/// The string is not a rendezvous ID.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("malformed rendezvous id")]
+pub struct InvalidRendezVousId;
 
-    /// Whether this is a well-formed rendezvous ID, that is a non-empty run
-    /// of ASCII digits.
-    pub fn is_well_formed(&self) -> bool {
-        !self.value.is_empty() && self.value.bytes().all(|b| b.is_ascii_digit())
+impl RendezVousId {
+    /// A rendezvous ID from its digits.
+    ///
+    /// Only a non-empty run of ASCII digits is accepted.
+    pub fn new(value: String) -> Result<Self, InvalidRendezVousId> {
+        if value.is_empty() || !value.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(InvalidRendezVousId);
+        }
+        Ok(Self { value })
     }
 }
 
@@ -49,11 +54,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn well_formed_ids_are_digit_runs() {
-        assert!(RendezVousId::new("000".to_owned()).is_well_formed());
-        assert!(RendezVousId::new("12345".to_owned()).is_well_formed());
-        assert!(!RendezVousId::new(String::new()).is_well_formed());
-        assert!(!RendezVousId::new("12a".to_owned()).is_well_formed());
-        assert!(!RendezVousId::new(" 12".to_owned()).is_well_formed());
+    fn only_digit_runs_are_ids() {
+        assert!(RendezVousId::new("000".to_owned()).is_ok());
+        assert!(RendezVousId::new("12345".to_owned()).is_ok());
+        assert_eq!(RendezVousId::new(String::new()), Err(InvalidRendezVousId));
+        assert_eq!(
+            RendezVousId::new("12a".to_owned()),
+            Err(InvalidRendezVousId)
+        );
+        assert_eq!(
+            RendezVousId::new(" 12".to_owned()),
+            Err(InvalidRendezVousId)
+        );
     }
 }
