@@ -17,7 +17,10 @@ use airprotos::{
     validation::MissingFieldExt,
 };
 use futures_util::Stream;
-use tokio::sync::{mpsc, oneshot};
+use tokio::{
+    sync::{mpsc, oneshot},
+    time::timeout_at,
+};
 use tokio_stream::{StreamExt, wrappers::ReceiverStream};
 use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::{error, info, warn};
@@ -130,8 +133,14 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             return Err(Status::aborted("provisioner disconnected"));
         }
 
+        // The guard's drop ends the session, so hitting the deadline tears
+        // down both peers' forwarding tasks.
+        let expires_at = session.expires_at();
         tokio::spawn(cancel.run_until_cancelled_owned(async move {
-            relay_provisioner(session.id(), inbound, responder_ready_rx).await;
+            let relay = relay_provisioner(session.id(), inbound, responder_ready_rx);
+            if timeout_at(expires_at, relay).await.is_err() {
+                warn!(rendezvous_id = %session.id(), "linking session expired");
+            }
         }));
 
         Ok(Response::new(
