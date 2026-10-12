@@ -1411,6 +1411,11 @@ async fn assert_link_rejected_at_limit(
             .is_empty(),
         "the rejected device must not keep a client record"
     );
+    assert!(
+        client_db_files(tmp.path()).is_empty(),
+        "no client DB files may remain: {:?}",
+        client_db_files(tmp.path())
+    );
     Ok(())
 }
 
