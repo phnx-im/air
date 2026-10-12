@@ -106,6 +106,7 @@ mod persistence;
 pub mod process;
 pub(crate) mod push_token_state;
 mod reactions;
+mod refresh_profiles;
 pub mod registration;
 mod remove_users;
 pub(crate) mod safety_code;
