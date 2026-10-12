@@ -67,6 +67,7 @@ use crate::{
         store::{ClientRecord, UserCreationState},
         user_settings::{SettingsUpdateExt, apply_settings_update},
     },
+    db::access::DbAccess,
     delete_client_database,
     groups::{
         Group, client_auth_info::StorableUserCredential, openmls_provider::AirOpenMlsProvider,
@@ -205,12 +206,15 @@ impl CoreUser {
         session_tx: tokio::sync::mpsc::Sender<MultiDeviceProvisionStep>,
         cancellation_token: CancellationToken,
     ) -> anyhow::Result<Result<CoreUser, MultiDeviceProvisionClientError>> {
+        // Opened up front, the cleanup below requires air.db to exist.
+        let air_db = open_air_db(db_path).await?;
         let client_record_id = Uuid::new_v4();
         let result = tokio::select! {
             biased;
             _ = cancellation_token.cancelled() => Err(anyhow!("multi-device provisioning cancelled")),
             result = Self::provision_client(
                 db_path,
+                &air_db,
                 client_record_id,
                 domain,
                 server_url,
@@ -230,6 +234,7 @@ impl CoreUser {
 
     async fn provision_client(
         db_path: &str,
+        air_db: &DbAccess,
         client_record_id: Uuid,
         domain: Fqdn,
         server_url: Option<Url>,
@@ -360,7 +365,6 @@ impl CoreUser {
             Ok(Ok(())) => {
                 info!("joined self group");
                 // Only now does the account become loadable.
-                let air_db = open_air_db(db_path).await?;
                 let mut client_record =
                     ClientRecord::new(core_user.user_id().clone(), client_record_id);
                 client_record.finish();
