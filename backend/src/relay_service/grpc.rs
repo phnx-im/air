@@ -9,7 +9,7 @@ use airprotos::{
     relay_service::{
         mdl::{MDL_PROTOCOL_VERSION, MdlMessage, ProvisionRequest, SessionAssigned},
         v1::{
-            LinkClientRequest, LinkClientRequestPayload, RelayFrame,
+            LinkClientRequest, LinkClientRequestPayload, RelayFrame, RendezVousId,
             relay_service_server::RelayService,
         },
     },
@@ -187,9 +187,9 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             .map_err(|_| Status::invalid_argument("invalid signature"))?;
 
         let rendezvous_id = payload.rendezvous_id.ok_or_missing_field("rendezvous_id")?;
-        if !rendezvous_id.is_well_formed() {
+        let Ok(rendezvous_id) = RendezVousId::new(rendezvous_id.value) else {
             return Err(Status::not_found("session not found"));
-        }
+        };
         let rendezvous_id = rendezvous_id.value;
 
         let (outbound_tx, outbound_rx) = mpsc::channel(CHANNEL_CAPACITY);
