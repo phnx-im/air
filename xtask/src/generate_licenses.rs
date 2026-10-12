@@ -11,7 +11,13 @@ use xshell::{Shell, cmd};
 use crate::util::workspace_root;
 
 /// Our own crates that are published and hence not caught by the `private` filter in `about.toml`.
-const OWN_CRATES: &[&str] = &["apqmls", "mimi_content", "mimi-room-policy", "mls-assist"];
+const OWN_CRATES: &[&str] = &[
+    "apqmls",
+    "cpace",
+    "mimi_content",
+    "mimi-room-policy",
+    "mls-assist",
+];
 
 const OUTPUT: &str = "app/assets/licenses/rust_licenses.json";
 

@@ -17,7 +17,7 @@ use openmls::{
     component::{ComponentId, ComponentType},
     group::{GroupContext, GroupEpoch, GroupId, MlsGroup},
     prelude::{
-        AppDataDictionary, AppDataDictionaryExtension, Capabilities, Ciphersuite,
+        AppDataDictionary, AppDataDictionaryExtension, Capabilities, Ciphersuite, CredentialType,
         CredentialWithKey, Extension, ExtensionType, Extensions, MlsMessageBodyIn, MlsMessageIn,
         OpenMlsProvider, group_info::VerifiableGroupInfo,
     },
@@ -107,7 +107,7 @@ impl Fixture {
             ]),
             Some(&[ExtensionType::AppDataDictionary]),
             None,
-            None,
+            Some(&[CredentialType::Basic]),
         );
         MlsGroup::builder()
             .ciphersuite(group_ciphersuite)
