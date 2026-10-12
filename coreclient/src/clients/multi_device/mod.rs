@@ -218,7 +218,7 @@ impl CoreUser {
             ) => result,
         };
 
-        if result.is_err() {
+        if !matches!(result, Ok(Ok(_))) {
             warn!("multi-device linking failed, deleting new client database");
             delete_client_database(db_path, client_record_id)
                 .await
