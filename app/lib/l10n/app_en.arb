@@ -712,9 +712,9 @@
   "@linkingDeviceScreen_linking_confirm_button": {
     "description": "Button that confirms linking the new device."
   },
-  "linkingDeviceScreen_instructions_1": "Open Air on your existing device and go to You → Manage devices.",
+  "linkingDeviceScreen_instructions_1": "Open Air on your existing device, then go to You → Devices.",
   "@linkingDeviceScreen_instructions_1": {
-    "description": "First linking step. Names the You tab and the manage devices row as they appear in this locale."
+    "description": "First linking step. Names the You tab and the Devices row as they appear in this locale."
   },
   "linkingDeviceScreen_instructions_2": "Tap \"Link a device\", then scan the QR code or enter the numeric code shown above.",
   "@linkingDeviceScreen_instructions_2": {
