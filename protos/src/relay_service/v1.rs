@@ -26,7 +26,7 @@ impl RelayFrame {
     }
 }
 
-impl RendezvousId {
+impl RendezVousId {
     pub fn new(value: String) -> Self {
         Self { value }
     }
@@ -38,7 +38,7 @@ impl RendezvousId {
     }
 }
 
-impl fmt::Display for RendezvousId {
+impl fmt::Display for RendezVousId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.value.fmt(f)
     }
@@ -50,10 +50,10 @@ mod tests {
 
     #[test]
     fn well_formed_ids_are_digit_runs() {
-        assert!(RendezvousId::new("000".to_owned()).is_well_formed());
-        assert!(RendezvousId::new("12345".to_owned()).is_well_formed());
-        assert!(!RendezvousId::new(String::new()).is_well_formed());
-        assert!(!RendezvousId::new("12a".to_owned()).is_well_formed());
-        assert!(!RendezvousId::new(" 12".to_owned()).is_well_formed());
+        assert!(RendezVousId::new("000".to_owned()).is_well_formed());
+        assert!(RendezVousId::new("12345".to_owned()).is_well_formed());
+        assert!(!RendezVousId::new(String::new()).is_well_formed());
+        assert!(!RendezVousId::new("12a".to_owned()).is_well_formed());
+        assert!(!RendezVousId::new(" 12".to_owned()).is_well_formed());
     }
 }

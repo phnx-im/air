@@ -8,7 +8,7 @@ use aircommon::{
 };
 use airprotos::relay_service::{
     mdl::{MDL_PROTOCOL_VERSION, MdlMessage, ProvisionRequest},
-    v1::{LinkClientRequest, LinkClientRequestPayload, RelayFrame, RendezvousId},
+    v1::{LinkClientRequest, LinkClientRequestPayload, RelayFrame, RendezVousId},
 };
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -65,7 +65,7 @@ impl ApiClient {
         &self,
         qs_user_id: QsUserId,
         qs_user_signing_key: &QsUserSigningKey,
-        rendezvous_id: RendezvousId,
+        rendezvous_id: RendezVousId,
     ) -> Result<(mpsc::Sender<RelayFrame>, tonic::Streaming<RelayFrame>), RsRequestError> {
         // don't buffer frames: we expect the peer to consume what we send before we move forward
         let (tx, rx) = mpsc::channel::<RelayFrame>(1);

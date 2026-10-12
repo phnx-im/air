@@ -24,7 +24,7 @@ use aircommon::mls_group_config::{
 use airprotos::client::app_data::ClientAppData;
 use airprotos::client::self_group::SettingsUpdate;
 use airprotos::relay_service::mdl::{MdlMessage, SessionAssigned};
-use airprotos::relay_service::v1::{RelayFrame, RendezvousId};
+use airprotos::relay_service::v1::{RelayFrame, RendezVousId};
 use anyhow::{Context, anyhow, bail};
 use apqmls::authentication::ApqCredentialWithKey;
 use apqmls::messages::ApqKeyPackage;
@@ -353,7 +353,7 @@ impl CoreUser {
         connected_tx: oneshot::Sender<()>,
         confirmation_rx: oneshot::Receiver<String>,
     ) -> anyhow::Result<Result<(), MultiDeviceLinkClientError>> {
-        let rendezvous_id = RendezvousId::new(code);
+        let rendezvous_id = RendezVousId::new(code);
         if !rendezvous_id.is_well_formed() {
             warn!("rejected a malformed linking code");
             return Ok(Err(MultiDeviceLinkClientError::InvalidCode));
