@@ -10,6 +10,7 @@ import 'package:air/features/chat/chats_repository.dart' as chats_repository;
 import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
+import 'package:air/l10n/supported_locales.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
@@ -23,6 +24,7 @@ import 'package:air/util/time/app_clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
@@ -166,6 +168,12 @@ Widget _buildProductShotSubject({
         darkTheme: testThemeData(.dark, withColorEmojis: true),
         themeMode: brightness == Brightness.dark ? .dark : .light,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: supportedLocalesWithFallback(
+          AppLocalizations.supportedLocales,
+          const Locale('en', 'US'),
+        ),
+        localeListResolutionCallback: resolveLocaleList,
+        locale: contentLocale,
         home: Material(
           color: frameless ? Colors.transparent : null,
           child: MediaQuery(
@@ -211,8 +219,6 @@ class _ProductShotSpec {
     required this.goldenPrefix,
     required this.lightPalette,
     required this.darkPalette,
-    required this.title,
-    required this.subtitle,
     required this.buildProviders,
     required this.buildScreen,
   });
@@ -220,8 +226,6 @@ class _ProductShotSpec {
   final String goldenPrefix;
   final _ShotPalette lightPalette;
   final _ShotPalette darkPalette;
-  final String title;
-  final String subtitle;
 
   /// Builds fresh mocks/providers for a single test run. Takes the platform
   /// because the desktop shots open a chat the mobile ones do not.
@@ -229,6 +233,10 @@ class _ProductShotSpec {
   buildProviders;
 
   final Widget Function(TargetPlatform platform) buildScreen;
+
+  /// Read only for the marketing shots, so a content set recording just the
+  /// device shots can leave the copy out.
+  ShotCopy get copy => shotCopy(goldenPrefix);
 
   _ShotPalette paletteFor(Brightness brightness) =>
       brightness == Brightness.dark ? darkPalette : lightPalette;
@@ -284,8 +292,8 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
                         titleColor: palette.titleColor,
                         subtitleColor: palette.subtitleColor,
                         frameColor: palette.frameColor,
-                        title: spec.title,
-                        subtitle: spec.subtitle,
+                        title: spec.copy.title,
+                        subtitle: spec.copy.subtitle,
                         brightness: brightness,
                         device: marketingDevice,
                         child: screen,
@@ -327,8 +335,6 @@ _ProductShotSpec _chatListSpec() => _ProductShotSpec(
     subtitleColor: Primitive.neutral(NeutralShade.s400),
     frameColor: Primitive.neutral(NeutralShade.s700),
   ),
-  title: 'Secure messaging\nfor everyone.',
-  subtitle: 'Everything in Air is\nend-to-end encrypted.',
   buildProviders: (platform) {
     final isDesktop = _isDesktopPlatform(platform);
     final navigationCubit = MockNavigationCubit();
@@ -439,8 +445,6 @@ _ProductShotSpec _chatSpec({
   required String goldenPrefix,
   required _ShotPalette lightPalette,
   required _ShotPalette darkPalette,
-  required String title,
-  required String subtitle,
   required UiChatDetails chat,
   required List<UiUserId> members,
   required List<UiChatMessage> messages,
@@ -449,8 +453,6 @@ _ProductShotSpec _chatSpec({
   goldenPrefix: goldenPrefix,
   lightPalette: lightPalette,
   darkPalette: darkPalette,
-  title: title,
-  subtitle: subtitle,
   buildProviders: (platform) {
     final navigationCubit = MockNavigationCubit();
     final userCubit = MockUserCubit();
@@ -512,8 +514,6 @@ _ProductShotSpec _privateChatSpec() => _chatSpec(
     subtitleColor: Primitive.chromatic(Hue.orange, Shade.s300),
     frameColor: Primitive.chromatic(Hue.orange, Shade.s700),
   ),
-  title: 'Connect with friends.',
-  subtitle: 'Send messages in private chats.',
   chat: privateChat,
   members: privateChatMembers,
   messages: privateChatMessages,
@@ -534,8 +534,6 @@ _ProductShotSpec _groupChatSpec() => _chatSpec(
     subtitleColor: Primitive.chromatic(Hue.blue, Shade.s300),
     frameColor: Primitive.chromatic(Hue.blue, Shade.s700),
   ),
-  title: 'Create group chats.',
-  subtitle: 'Message with multiple people.',
   chat: groupChat,
   members: groupChatMembers,
   messages: groupChatMessages,
@@ -543,7 +541,8 @@ _ProductShotSpec _groupChatSpec() => _chatSpec(
 );
 
 void main() {
-  setUpAll(() {
+  setUpAll(() async {
+    await initializeDateFormatting();
     registerFallbackValue(0.messageId());
     registerFallbackValue(0.userId());
     registerFallbackValue(0.attachmentId());

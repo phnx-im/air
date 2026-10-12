@@ -218,6 +218,11 @@ impl<C: OutboundServiceWork> OutboundService<C> {
         self.notify_work()
     }
 
+    /// Wakes the outbound service to run freshly enqueued profile fetches.
+    pub(crate) fn notify_profile_fetches(&self) -> WaitForDoneFuture {
+        self.notify_work()
+    }
+
     /// Wakes the outbound service to onboard a freshly linked device into the
     /// virtual client's existing groups.
     pub(crate) fn notify_vc_onboarding(&self) -> WaitForDoneFuture {

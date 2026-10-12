@@ -79,6 +79,9 @@ abstract class User implements RustOpaqueInterface {
   /// Stop background work gracefully and wait for completion.
   Future<void> prepareForBackground();
 
+  /// Re-fetch the profiles of all groups and contacts in the background.
+  Future<void> refreshAllProfiles();
+
   /// Signals the foreground drainer that background push handlers have
   /// persisted new store notifications.
   void signalPendingStoreNotifications();
