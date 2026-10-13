@@ -92,7 +92,9 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
     );
     // An open request brings its card. Once it is answered or retracted, the
     // message that announced it reads as a plain record.
-    final incoming = requestState == ContactRequestState.incoming;
+    final incomingChatId = requestState == ContactRequestState.incoming
+        ? chatId
+        : null;
     final outgoingChatId = requestState == ContactRequestState.outgoing
         ? chatId
         : null;
@@ -104,9 +106,10 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
 
     return switch (widget.message) {
       UiSystemMessage_ReceivedDirectConnectionRequest(:final sender)
-          when incoming =>
+          when incomingChatId != null =>
         _request(
           ContactRequestDialog(
+            chatId: incomingChatId,
             sender: sender,
             source: .targetedMessage(originChatTitle: groupChatTitle),
           ),
@@ -115,9 +118,10 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
         :final sender,
         :final username,
       )
-          when incoming =>
+          when incomingChatId != null =>
         _request(
           ContactRequestDialog(
+            chatId: incomingChatId,
             sender: sender,
             source: .username(username: username),
           ),

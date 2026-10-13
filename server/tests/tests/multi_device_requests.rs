@@ -835,3 +835,148 @@ async fn accepting_falls_back_to_the_older_request() {
     let bob_chat = bob_user.chat(&older_chat_id).await.unwrap();
     assert_eq!(bob_chat.chat_type(), &ChatType::Connection(alice.clone()));
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Declined request leaves the sibling", skip_all)]
+async fn declining_a_request_removes_it_on_the_sibling() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let record = add_username(&mut setup, &alice).await;
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
+
+    let bob_user = setup.get_user(&bob).user().clone();
+    let bob_chat_id = bob_user
+        .add_contact(record.username.clone(), record.hash, setup.apq_groups)
+        .await
+        .unwrap()
+        .unwrap();
+    let chat_id = receive_connection_offer(&device_a, &record).await;
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to take the request").await;
+    assert!(device_b.chat(&chat_id).await.is_some());
+
+    device_b.decline_contact_request(chat_id).await.unwrap();
+    assert!(device_b.chat(&chat_id).await.is_none());
+    assert!(
+        device_b.decline_contact_request(chat_id).await.is_err(),
+        "a declined request cannot be declined again"
+    );
+    device_b.outbound_service().run_once().await;
+
+    let processed =
+        drain_expecting_success(&device_a, "the device failed to take the decline").await;
+    assert_eq!(
+        processed.removed_chats,
+        vec![chat_id],
+        "the notification of the declined request is stale"
+    );
+    assert!(device_a.chat(&chat_id).await.is_none());
+
+    // The sender is not told.
+    drain_queue(&bob_user).await;
+    let bob_chat = bob_user.chat(&bob_chat_id).await.unwrap();
+    assert!(bob_chat.is_unconfirmed());
+    assert_eq!(bob_chat.status(), &ChatStatus::Active);
+}
+
+/// The blocking device knows only the first request. The second one is still
+/// waiting to be forwarded when the block arrives.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Blocking a request sender", skip_all)]
+async fn blocking_a_request_sender_declines_on_the_sibling() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let first = add_username(&mut setup, &alice).await;
+    let second = add_second_username(&setup, &alice).await;
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to follow the usernames").await;
+
+    let bob_user = setup.get_user(&bob).user().clone();
+    for record in [&first, &second] {
+        bob_user
+            .add_contact(record.username.clone(), record.hash, setup.apq_groups)
+            .await
+            .unwrap()
+            .unwrap();
+    }
+    receive_connection_offer(&device_a, &first).await;
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to take the first request").await;
+    let second_chat_id = receive_connection_offer(&device_a, &second).await;
+
+    device_b.block_contact(bob.clone()).await.unwrap();
+    assert!(pending_chats_from(&device_b, &bob).await.is_empty());
+    device_b.outbound_service().run_once().await;
+
+    let processed = drain_expecting_success(&device_a, "the device failed to take the block").await;
+    assert!(
+        processed.removed_chats.contains(&second_chat_id),
+        "the notification of the declined requests is stale, got {:?}",
+        processed.removed_chats
+    );
+    assert!(
+        pending_chats_from(&device_a, &bob).await.is_empty(),
+        "the device should decline the request the blocking sibling did not know"
+    );
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to drain").await;
+    assert!(pending_chats_from(&device_b, &bob).await.is_empty());
+}
+
+/// The sibling declines before it learns that the device accepted.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Decline racing an accept", skip_all)]
+async fn a_decline_racing_an_accept_keeps_the_connection() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let record = add_username(&mut setup, &alice).await;
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
+
+    let bob_user = setup.get_user(&bob).user().clone();
+    bob_user
+        .add_contact(record.username.clone(), record.hash, setup.apq_groups)
+        .await
+        .unwrap()
+        .unwrap();
+    let chat_id = receive_connection_offer(&device_a, &record).await;
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to take the request").await;
+
+    device_a
+        .accept_contact_request(chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+    device_b.decline_contact_request(chat_id).await.unwrap();
+    device_b.outbound_service().run_once().await;
+
+    drain_expecting_success(&device_a, "the device failed to take the decline").await;
+    assert_eq!(
+        device_a
+            .chat(&chat_id)
+            .await
+            .map(|chat| chat.chat_type().clone()),
+        Some(ChatType::Connection(bob.clone())),
+        "the accepting device should keep the connection"
+    );
+    drain_expecting_success(&device_b, "the sibling failed to follow the accept").await;
+    assert_eq!(
+        device_b
+            .chat(&chat_id)
+            .await
+            .map(|chat| chat.chat_type().clone()),
+        Some(ChatType::Connection(bob.clone())),
+        "the declining sibling should follow the accept"
+    );
+
+    drain_queue(&bob_user).await;
+    send_and_receive(&bob_user, &[&device_a, &device_b], chat_id, "hello alice").await;
+}

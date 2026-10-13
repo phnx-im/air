@@ -16,8 +16,7 @@ use tracing::{debug, error};
 use crate::{
     ChatAttributes, ChatStatus, ChatType, MessageDraft, MessageId, UserProfile,
     chats::{
-        Chat, PendingConnectionRequest, messages::ChatMessage,
-        notification_rebuild::ChatNotificationRebuildSet, persistence,
+        Chat, messages::ChatMessage, notification_rebuild::ChatNotificationRebuildSet, persistence,
     },
     groups::Group,
     job::{
@@ -75,7 +74,8 @@ impl CoreUser {
     }
 
     /// Erases the chat data with the given [`ChatId`] and parks the deletion
-    /// for the user's other devices.
+    /// for the user's other devices. Erasing open incoming requests declines
+    /// them.
     ///
     /// Must not be called before the chat is deleted.
     pub async fn erase_chat(&self, chat_id: ChatId) -> Result<()> {
@@ -84,12 +84,7 @@ impl CoreUser {
                 let chat = Chat::load(&mut *txn, &chat_id)
                     .await?
                     .context("missing chat for deletion")?;
-                // Sync the deletion with siblings
-                for request in PendingConnectionRequest::load_for_chat(&mut *txn, chat_id).await? {
-                    persistence::store_outgoing_deletion(&mut *txn, request.group_id()).await?;
-                }
-                persistence::erase(txn, &chat).await?;
-                persistence::store_outgoing_deletion(txn, chat.group_id()).await
+                persistence::erase_and_park_deletion(txn, &chat).await
             })
             .await?;
 
@@ -99,7 +94,8 @@ impl CoreUser {
     }
 
     /// Deletes the chat on the DS and then erases it on all of the user's
-    /// devices.
+    /// devices. The chat of incoming requests has no group of ours on the DS,
+    /// so it is only erased, which declines the requests.
     ///
     /// Fails without a change if the DS cannot be reached. Erasing the chat
     /// would drop the parked delete, so the other members would never learn
@@ -111,6 +107,9 @@ impl CoreUser {
             .with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+        if let ChatType::PendingConnection(_) = chat.chat_type() {
+            return self.erase_chat(chat_id).await;
+        }
         match self.execute_job(ChatOperation::delete_chat(chat_id)).await {
             Ok(_) | Err(JobError::NotFound) => {}
             Err(JobError::NetworkError) => {

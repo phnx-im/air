@@ -17,8 +17,8 @@ use aircommon::messages::FriendshipToken;
 use aircommon::messages::client_as::ConnectionOfferHash;
 use airprotos::auth_service::v1::OperationType;
 use airprotos::client::self_group::{
-    BlockedContactEntry, ConnectionRequestEntry, ConnectionRequestGroup, ConnectionRequestReceived,
-    ConnectionRequestSource, ContactBlocked, RedeemedTokens, TokenSeed,
+    BlockedContactEntry, ConnectionRequestDeclined, ConnectionRequestEntry, ConnectionRequestGroup,
+    ConnectionRequestReceived, ConnectionRequestSource, ContactBlocked, RedeemedTokens, TokenSeed,
 };
 use openmls::group::GroupId;
 use uuid::Uuid;
@@ -106,8 +106,12 @@ fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
         blocked_contacts.clone(),
         sample_redeemed(),
     )?;
-    let connection_requests = vec![ConnectionRequestEntry::Received(
-        ConnectionRequestReceived {
+    let connection_requests = vec![
+        ConnectionRequestEntry::Declined(ConnectionRequestDeclined {
+            chat_id: Uuid::from_u128(0x15),
+            declined_at: 1_767_225_600_789,
+        }),
+        ConnectionRequestEntry::Received(ConnectionRequestReceived {
             connection_info: vec![0x11; 8],
             sender_credential: vec![0x12; 8],
             source: ConnectionRequestSource::Group(ConnectionRequestGroup {
@@ -116,8 +120,8 @@ fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
             connection_offer_hash: None,
             connection_package_hash: None,
             received_at: 1_767_225_600_123,
-        },
-    )];
+        }),
+    ];
     package.connection_requests = connection_requests.clone();
     let outgoing_request = OutgoingRequest::Username {
         username: Username::new("joel-03".to_owned())?,

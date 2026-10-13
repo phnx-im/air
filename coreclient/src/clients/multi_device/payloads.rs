@@ -64,7 +64,7 @@ pub(crate) struct ProvisioningPackage {
     /// The tokens the user's devices have redeemed so far.
     #[serde(default)]
     pub(crate) redeemed_tokens: Vec<RedeemedTokens>,
-    /// The incoming connection requests that are pending.
+    /// The incoming connection requests that are pending or declined.
     #[serde(default)]
     pub(crate) connection_requests: Vec<ConnectionRequestEntry>,
     /// The name the confirming user gave this device. Empty means "no choice

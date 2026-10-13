@@ -6,7 +6,9 @@ use aircommon::identifiers::UserId;
 use airprotos::client::self_group::BlockedContactEntry;
 use chrono::{DateTime, Utc};
 
-use crate::{clients::CoreUser, user_profiles::display_name::DisplayName};
+use crate::{
+    chats::connection_requests, clients::CoreUser, user_profiles::display_name::DisplayName,
+};
 
 use self::pending::BlockedState;
 
@@ -14,7 +16,7 @@ pub(crate) mod pending;
 pub(crate) mod persistence;
 
 impl CoreUser {
-    /// Blocks a contact.
+    /// Blocks a contact. Their pending requests are declined.
     pub async fn block_contact(&self, user_id: UserId) -> anyhow::Result<()> {
         let profile = self.user_profile(&user_id).await;
         self.record_blocked_state(BlockedState::Blocked(BlockedContact {
@@ -38,6 +40,9 @@ impl CoreUser {
         self.db()
             .with_write_transaction(async |txn| {
                 intended.apply(&mut *txn).await?;
+                if let BlockedState::Blocked(contact) = &intended {
+                    connection_requests::decline_requests_from(txn, &contact.user_id).await?;
+                }
                 persistence::store_outgoing_entry(txn, &entry).await
             })
             .await?;

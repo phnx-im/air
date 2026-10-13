@@ -18,22 +18,23 @@ sealed class ContactRequestCardActions {
 final class ContactRequestAnswers extends ContactRequestCardActions {
   const ContactRequestAnswers({
     required this.acceptLabel,
-    required this.dismissLabel,
+    required this.declineLabel,
+    required this.blockLabel,
     required this.onAccept,
-    required this.onDismiss,
+    required this.onDecline,
+    required this.onBlock,
     this.isAccepting = false,
   });
 
   final String acceptLabel;
-
-  /// Label for leaving the request unanswered.
-  final String dismissLabel;
-
+  final String declineLabel;
+  final String blockLabel;
   final VoidCallback onAccept;
-  final VoidCallback onDismiss;
+  final VoidCallback onDecline;
+  final VoidCallback onBlock;
 
   /// Whether accepting is in flight. Holds the accept button on a spinner and
-  /// swallows a second tap.
+  /// swallows a second tap. Declining and blocking wait for it too.
   final bool isAccepting;
 }
 
@@ -270,23 +271,47 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
   Widget _actions() => switch (widget.actions) {
     ContactRequestAnswers(
       :final acceptLabel,
-      :final dismissLabel,
+      :final declineLabel,
+      :final blockLabel,
       :final onAccept,
-      :final onDismiss,
+      :final onDecline,
+      :final onBlock,
       :final isAccepting,
     ) =>
-      Row(
+      Column(
+        mainAxisSize: .min,
+        spacing: ContactRequestCardTokens.actionsGap,
         children: [
-          Expanded(
-            child: Button(
-              size: ButtonSize.large,
-              type: ButtonType.secondary,
-              onPressed: onDismiss,
-              label: dismissLabel,
-            ),
+          Row(
+            spacing: ContactRequestCardTokens.actionsGap,
+            children: [
+              Expanded(
+                child: Button(
+                  size: ButtonSize.large,
+                  type: ButtonType.secondary,
+                  tone: ButtonTone.danger,
+                  state: isAccepting
+                      ? ButtonState.disabled
+                      : ButtonState.active,
+                  onPressed: onBlock,
+                  label: blockLabel,
+                ),
+              ),
+              Expanded(
+                child: Button(
+                  size: ButtonSize.large,
+                  type: ButtonType.secondary,
+                  state: isAccepting
+                      ? ButtonState.disabled
+                      : ButtonState.active,
+                  onPressed: onDecline,
+                  label: declineLabel,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: ContactRequestCardTokens.actionsGap),
-          Expanded(
+          SizedBox(
+            width: double.infinity,
             child: Button(
               size: ButtonSize.large,
               type: ButtonType.primary,
