@@ -169,7 +169,10 @@ class MultiDeviceProvisionScreen extends HookWidget {
               }
             },
           );
-      return subscription.cancel;
+      return () {
+        provisionedUser.cancel();
+        subscription.cancel();
+      };
     }, [domain, attempt.value, resolvedDbPath]);
 
     void reload() => attempt.value++;

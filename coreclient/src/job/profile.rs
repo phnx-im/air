@@ -363,10 +363,11 @@ impl Job for FetchGroupProfileOperation {
             is_initial_fetch,
         } = self;
 
+        let chat_id = ChatId::try_from(&group_id).map_err(JobError::fatal)?;
         info!(
-            ?group_id,
+            %chat_id,
             object_id = %external_group_profile.object_id,
-            ?uploaded_at,
+            uploaded_at = %uploaded_at.as_ref(),
             "Fetching group profile"
         );
 
@@ -428,8 +429,8 @@ impl Job for FetchGroupProfileOperation {
         .map_err(JobError::fatal)?;
 
         debug!(
-            ?group_id,
-            ?external_group_profile,
+            %chat_id,
+            object_id = %external_group_profile.object_id,
             "Fetched and decrypted group profile"
         );
 
@@ -460,7 +461,7 @@ impl Job for FetchGroupProfileOperation {
                     CoreUser::store_new_messages(txn, chat.id(), messages).await?;
                 }
 
-                debug!(?group_id, chat_id = %chat.id(), "Updated chat attributes");
+                debug!(%chat_id, "Updated chat attributes");
 
                 Ok(())
             })
