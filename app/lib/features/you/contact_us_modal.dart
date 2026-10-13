@@ -218,12 +218,16 @@ class _EmailForm extends HookWidget {
     if (debugLogsUrl != null) {
       final loc = AppLocalizations.of(context);
       body += "\n\n";
-      body += loc.contactUsScreen_body_logsUrl(
-        Uri.encodeComponent(debugLogsUrl),
-      );
+      body += loc.contactUsScreen_body_logsUrl(debugLogsUrl);
     }
-    final Uri emailUri = Uri.parse(
-      'mailto:help@air.ms?subject=$subject&body=$body',
+    // Not `queryParameters`: it encodes spaces as `+`, which some mail apps
+    // show literally.
+    final emailUri = Uri(
+      scheme: 'mailto',
+      path: 'help@air.ms',
+      query:
+          'subject=${Uri.encodeComponent(subject ?? '')}'
+          '&body=${Uri.encodeComponent(body)}',
     );
     try {
       await launcher.launchUrl(emailUri);
