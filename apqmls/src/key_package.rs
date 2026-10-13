@@ -19,7 +19,9 @@ use thiserror::Error;
 use crate::{
     ApqCiphersuite,
     authentication::{ApqCredentialWithKey, ApqSigner},
-    extension::{ensure_extension_support, ensure_leaf_node_component_support},
+    extension::{
+        capabilities_policy, ensure_extension_support, ensure_leaf_node_component_support,
+    },
     messages::{ApqKeyPackage, ApqKeyPackageIn},
 };
 
@@ -34,7 +36,7 @@ pub enum KeyPackageNewError {
 
 /// A builder for creating a new [`ApqKeyPackage`].
 pub struct ApqKeyPackageBuilder {
-    capabilities: Capabilities,
+    capabilities: Option<Capabilities>,
     t_kp_builder: KeyPackageBuilder,
     pq_kp_builder: KeyPackageBuilder,
     key_package_extensions: Extensions<KeyPackage>,
@@ -68,7 +70,7 @@ impl ApqKeyPackageBuilder {
     /// Create a key package builder.
     pub fn new() -> Self {
         Self {
-            capabilities: Capabilities::default(),
+            capabilities: None,
             t_kp_builder: KeyPackageBuilder::new(),
             pq_kp_builder: KeyPackageBuilder::new(),
             key_package_extensions: Extensions::default(),
@@ -89,8 +91,8 @@ impl ApqKeyPackageBuilder {
         self
     }
 
-    /// Mark the key package as a last-resort key package via a
-    /// [`openmls::extensions::LastResortExtension`].
+    /// Mark the key package as a last-resort key package via
+    /// [`openmls::prelude::KeyPackageBuilder::mark_as_last_resort`].
     pub fn mark_as_last_resort(mut self) -> Self {
         self.t_kp_builder = self.t_kp_builder.mark_as_last_resort();
         self.pq_kp_builder = self.pq_kp_builder.mark_as_last_resort();
@@ -98,8 +100,11 @@ impl ApqKeyPackageBuilder {
     }
 
     /// Set the leaf node capabilities.
+    ///
+    /// Besides what APQMLS adds, they must cover the leaf's credential type and
+    /// extensions. If never set, they are derived from the leaf.
     pub fn leaf_node_capabilities(mut self, capabilities: Capabilities) -> Self {
-        self.capabilities = capabilities;
+        self.capabilities = Some(capabilities);
         // The capabilities are set in `build`, so we don't set them here.
         self
     }
@@ -117,8 +122,10 @@ impl ApqKeyPackageBuilder {
         self,
         ciphersuite: ApqCiphersuite,
     ) -> Result<(KeyPackageBuilder, KeyPackageBuilder), KeyPackageNewError> {
+        let policy = capabilities_policy(self.capabilities.as_ref());
         let capabilities = self
             .capabilities
+            .unwrap_or_default()
             .pipe(ensure_extension_support)?
             .pipe(|c| ensure_ciphersuite_support(c, ciphersuite))?;
 
@@ -130,11 +137,13 @@ impl ApqKeyPackageBuilder {
         let t_kp_builder = self
             .t_kp_builder
             .leaf_node_capabilities(capabilities.clone())
+            .capabilities_policy(policy)
             .leaf_node_extensions(ln_extensions.clone())
             .key_package_extensions(pk_extensions.clone());
         let pq_kp_builder = self
             .pq_kp_builder
             .leaf_node_capabilities(capabilities)
+            .capabilities_policy(policy)
             .leaf_node_extensions(ln_extensions)
             .key_package_extensions(pk_extensions);
         Ok((t_kp_builder, pq_kp_builder))
