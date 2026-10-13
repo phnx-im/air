@@ -514,6 +514,7 @@ impl CoreUser {
             Err(error) => return Err(error.into()),
         }
         info!("added new device to self group");
+        self.outbound_service().notify_key_package_upload();
 
         // Keep the RPC alive until the relay closes our stream, which happens
         // once the new device has finished and disconnected.

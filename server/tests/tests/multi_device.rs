@@ -766,10 +766,14 @@ async fn multi_device_settings_sync() {
     drain_queue(old_device).await;
     drain_queue(&new_device).await;
 
-    // Initial key package upload
+    // Initial key package uploads. Each upload completes only once the
+    // uploading device fetches its own commit.
     new_device.outbound_service().run_once().await;
     drain_queue(&new_device).await;
     drain_queue(old_device).await;
+    old_device.outbound_service().run_once().await;
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
 
     // Nothing was set before linking, so the linking payload carried an empty
     // snapshot and the new device starts unset.
@@ -1211,6 +1215,11 @@ async fn multi_device_deleted_chat_is_erased_on_sibling() -> anyhow::Result<()> 
     let first_device = setup.get_user(&alice).user();
     drain_queue(first_device).await;
     drain_queue(&second_device).await;
+    // Linking makes the first device upload key packages, which completes only
+    // once it fetches its own commit.
+    first_device.outbound_service().run_once().await;
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
     assert!(second_device.chat(&chat_id).await.is_some());
 
     first_device.delete_chat(chat_id).await?;
@@ -1474,6 +1483,13 @@ async fn multi_device_self_group_above_limit_can_shrink() -> anyhow::Result<()> 
     drain_queue(&device_2).await;
     let (device_3, _tmp_3) = link_new_device(&setup, &alice).await;
     let device_1 = setup.get_user(&alice).user();
+    drain_queue(device_1).await;
+    drain_queue(&device_2).await;
+    drain_queue(&device_3).await;
+
+    // Linking makes device 1 upload key packages, which completes only once
+    // it fetches its own commit.
+    device_1.outbound_service().run_once().await;
     drain_queue(device_1).await;
     drain_queue(&device_2).await;
     drain_queue(&device_3).await;

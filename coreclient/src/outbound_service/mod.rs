@@ -229,6 +229,11 @@ impl<C: OutboundServiceWork> OutboundService<C> {
         self.notify_work()
     }
 
+    /// Wakes the outbound service to run a key package upload that was made due.
+    pub(crate) fn notify_key_package_upload(&self) -> WaitForDoneFuture {
+        self.notify_work()
+    }
+
     /// Runs the background task and waits until it is done.
     ///
     /// If the background is already running, just waits until it is done.
