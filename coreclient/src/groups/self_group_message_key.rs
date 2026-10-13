@@ -712,7 +712,7 @@ mod derivation_tests {
 
         let update = SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         };
         group
             .stage_self_group_messages(
@@ -861,7 +861,7 @@ mod derivation_tests {
 
         let update = SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         };
         group
             .stage_self_group_messages(
@@ -964,7 +964,7 @@ mod derivation_tests {
         let ciphertext =
             SelfGroupMessages(vec![SelfGroupMessage::SettingsUpdate(SettingsUpdate {
                 send_read_receipts: Some(true),
-                linked_devices: None,
+                ..Default::default()
             })])
             .encrypt_padded(&foreign_key)?;
         let undecryptable_bytes =

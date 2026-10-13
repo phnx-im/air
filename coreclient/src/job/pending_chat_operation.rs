@@ -1842,7 +1842,7 @@ mod tests {
 
                 let update = SettingsUpdate {
                     send_read_receipts: Some(true),
-                    linked_devices: None,
+                    ..Default::default()
                 };
                 let messages = vec![SelfGroupMessage::SettingsUpdate(update)];
                 let params = group
