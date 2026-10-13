@@ -294,6 +294,10 @@ impl<'a> CommitBuilder<'a> {
     /// - build the commit
     /// - stage the commit
     ///
+    /// The PQ commit is staged before the T commit is built. If a later step
+    /// fails, the PQ commit stays staged in the provider's storage, so callers
+    /// should run this inside a storage transaction they roll back on error.
+    ///
     /// TODO: Split this up to enable sans-io usage.
     pub fn finalize<S: ApqSigner, Provider: OpenMlsProvider>(
         mut self,
