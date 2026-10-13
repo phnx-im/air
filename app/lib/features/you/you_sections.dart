@@ -465,9 +465,15 @@ class _LimitAnimatedImagesLoopsSetting extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final settingsCubit = context.read<UserSettingsCubit>();
-    final limitAnimatedImagesLoops = useState(
-      useMemoized(() => settingsCubit.state.limitAnimatedImagesLoops),
+    final limitAnimatedImagesLoopsSetting = context.select(
+      (UserSettingsCubit cubit) => cubit.state.limitAnimatedImagesLoops,
     );
+    final limitAnimatedImagesLoops = useState(limitAnimatedImagesLoopsSetting);
+    // Converge onto the cubit state, see `PreferencesSection`.
+    useEffect(() {
+      limitAnimatedImagesLoops.value = limitAnimatedImagesLoopsSetting;
+      return null;
+    }, [limitAnimatedImagesLoopsSetting]);
 
     final loc = AppLocalizations.of(context);
 
@@ -477,8 +483,16 @@ class _LimitAnimatedImagesLoopsSetting extends HookWidget {
         SwitchField(
           label: loc.userSettingsScreen_limitAnimatedImagesLoops,
           value: limitAnimatedImagesLoops,
-          onSubmit: (value) {
-            settingsCubit.setLimitAnimatedImagesLoops(value: value);
+          onSubmit: (value) async {
+            try {
+              await settingsCubit.setLimitAnimatedImagesLoops(value: value);
+            } catch (e) {
+              _log.severe("Failed to set limit animated images loops: $e", e);
+              if (context.mounted) {
+                limitAnimatedImagesLoops.value =
+                    settingsCubit.state.limitAnimatedImagesLoops;
+              }
+            }
           },
         ),
 
