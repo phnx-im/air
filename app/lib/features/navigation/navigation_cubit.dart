@@ -152,14 +152,29 @@ class NavigationCubit extends Cubit<NavigationState> {
       _updateHome((home) => home.copyWith(chatDetails: const []));
 
   /// Switches tab. A tab always lands on its root, even the current one.
-  void switchTab(HomeTab tab) =>
-      _updateHome((home) => home.copyWith(activeTab: tab, youSection: null));
+  void switchTab(HomeTab tab) => _updateHome(
+    (home) => home.copyWith(
+      activeTab: tab,
+      youSection: null,
+      youSectionOverChat: false,
+    ),
+  );
 
-  void openYouSection(YouSection section) =>
-      _updateHome((home) => home.copyWith(youSection: section));
+  void openYouSection(YouSection section) => _updateHome(
+    (home) => home.copyWith(youSection: section, youSectionOverChat: false),
+  );
 
-  void closeYouSection() =>
-      _updateHome((home) => home.copyWith(youSection: null));
+  void openYouSectionOverChat(YouSection section) => _updateHome(
+    (home) => home.copyWith(
+      activeTab: HomeTab.profile,
+      youSection: section,
+      youSectionOverChat: home.chatOpen,
+    ),
+  );
+
+  void closeYouSection() => _updateHome(
+    (home) => home.copyWith(youSection: null, youSectionOverChat: false),
+  );
 
   /// Opens the developer settings: a profile tab section once a user is
   /// loaded, a screen of its own before that.
@@ -174,6 +189,7 @@ class NavigationCubit extends Cubit<NavigationState> {
             home: home.copyWith(
               activeTab: HomeTab.profile,
               youSection: YouSection.developer,
+              youSectionOverChat: false,
             ),
           ),
         );
@@ -208,7 +224,15 @@ class NavigationCubit extends Cubit<NavigationState> {
     if (home.shareDestinationOpen) {
       return home.copyWith(pendingShare: null, shareDestinationOpen: false);
     }
-    if (home.youSection != null) return home.copyWith(youSection: null);
+    if (home.youSection != null) {
+      return home.youSectionOverChat
+          ? home.copyWith(
+              youSection: null,
+              activeTab: HomeTab.chats,
+              youSectionOverChat: false,
+            )
+          : home.copyWith(youSection: null);
+    }
     if (home.activeTab != HomeTab.chats) {
       return home.copyWith(activeTab: HomeTab.chats);
     }
