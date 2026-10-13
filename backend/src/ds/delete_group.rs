@@ -176,8 +176,10 @@ mod test {
     use aircommon::{
         crypto::aead::keys::EncryptedUserProfileKey,
         identifiers::{QsReference, SealedClientReference},
+        mls_group_config::default_leaf_node_capabilities,
         time::TimeStamp,
     };
+    use airprotos::client::{app_data::GroupAppData, component::AIR_COMPONENT_ID};
     use apqmls::{
         ApqCiphersuite, ApqMlsGroup,
         authentication::{
@@ -189,9 +191,14 @@ mod test {
     use mls_assist::{
         group::Group,
         messages::AssistedMessageOut,
-        openmls::prelude::{
-            Ciphersuite, HpkeCiphertext, KeyPackage, LeafNodeIndex, MlsGroup, MlsMessageBodyIn,
-            MlsMessageIn, MlsMessageOut, OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY,
+        openmls::{
+            component::ComponentData,
+            group::GroupContext,
+            prelude::{
+                AppDataUpdateProposal, Ciphersuite, Extensions, HpkeCiphertext, KeyPackage,
+                LeafNodeIndex, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
+                OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, Proposal,
+            },
         },
         openmls_rust_crypto::OpenMlsRustCrypto,
         openmls_traits::signatures::Signer,
@@ -293,6 +300,41 @@ mod test {
         }
     }
 
+    /// The group context of a T group as the client creates it.
+    fn t_group_context_extensions() -> Extensions<GroupContext> {
+        let app_data = GroupAppData {
+            is_self_group: false,
+            safe_aad_components: None,
+            profile: None,
+            deleted: None,
+        };
+        Extensions::from_vec(vec![app_data.to_extension().unwrap()]).unwrap()
+    }
+
+    fn new_t_group(creator: &Client) -> MlsGroup {
+        MlsGroup::builder()
+            .ciphersuite(T_CIPHERSUITE)
+            .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
+            .with_capabilities(default_leaf_node_capabilities())
+            .with_group_context_extensions(t_group_context_extensions())
+            .build(
+                &creator.provider,
+                creator.signer.t_signer(),
+                creator.credential.t_credential.clone(),
+            )
+            .unwrap()
+    }
+
+    /// The Air component of the group context with the deleted flag set.
+    fn deleted_component_data(
+        extensions: &Extensions<GroupContext>,
+        deleted: TimeStamp,
+    ) -> ComponentData {
+        let mut component = GroupAppData::air_component(extensions).unwrap();
+        component.deleted = Some(deleted);
+        component.to_component_data().unwrap()
+    }
+
     fn others(group: &MlsGroup) -> Vec<LeafNodeIndex> {
         group
             .members()
@@ -302,19 +344,33 @@ mod test {
     }
 
     /// Stages a commit of the creator and returns it with the new group info.
+    /// With `deleted`, the commit sets the deleted flag like a delete commit.
     fn t_commit(
         creator: &Client,
         group: &mut MlsGroup,
         adds: Vec<KeyPackage>,
         removals: Vec<LeafNodeIndex>,
+        deleted: Option<TimeStamp>,
     ) -> (MlsMessageOut, MlsMessageOut) {
-        let (commit, _welcome, group_info) = group
+        let component_data =
+            deleted.map(|deleted| deleted_component_data(group.extensions(), deleted));
+        let mut builder = group
             .commit_builder()
             .force_self_update(true)
             .propose_adds(adds)
-            .propose_removals(removals)
-            .load_psks(creator.provider.storage())
-            .unwrap()
+            .propose_removals(removals);
+        if let Some(component_data) = &component_data {
+            builder = builder.add_proposal(Proposal::AppDataUpdate(Box::new(
+                AppDataUpdateProposal::update(AIR_COMPONENT_ID, component_data.data().to_vec()),
+            )));
+        }
+        let mut builder = builder.load_psks(creator.provider.storage()).unwrap();
+        if let Some(component_data) = component_data {
+            let mut updater = builder.app_data_dictionary_updater();
+            updater.set(component_data);
+            builder.with_app_data_dictionary_updates(updater.changes());
+        }
+        let (commit, _welcome, group_info) = builder
             .create_group_info(true)
             .build(
                 creator.provider.rand(),
@@ -338,21 +394,14 @@ mod test {
 
     /// Deletes a group of `size` members as its creator and returns whether
     /// the DS marks the group state for deletion.
-    fn delete_t_group(size: usize) -> bool {
+    fn delete_t_group(size: usize, deleted: Option<TimeStamp>) -> bool {
         let creator = Client::new();
-        let mut group = MlsGroup::builder()
-            .ciphersuite(T_CIPHERSUITE)
-            .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
-            .build(
-                &creator.provider,
-                creator.signer.t_signer(),
-                creator.credential.t_credential.clone(),
-            )
-            .unwrap();
+        let mut group = new_t_group(&creator);
         let key_packages: Vec<_> = (1..size)
             .map(|_| {
                 let joiner = Client::new();
                 KeyPackage::builder()
+                    .leaf_node_capabilities(default_leaf_node_capabilities())
                     .build(
                         T_CIPHERSUITE,
                         &joiner.provider,
@@ -365,7 +414,7 @@ mod test {
             })
             .collect();
         if !key_packages.is_empty() {
-            t_commit(&creator, &mut group, key_packages, Vec::new());
+            t_commit(&creator, &mut group, key_packages, Vec::new(), None);
             group.merge_pending_commit(&creator.provider).unwrap();
         }
 
@@ -373,7 +422,7 @@ mod test {
         add_joiner_profiles(&mut state);
 
         let removed = others(&group);
-        let (commit, group_info) = t_commit(&creator, &mut group, Vec::new(), removed);
+        let (commit, group_info) = t_commit(&creator, &mut group, Vec::new(), removed, deleted);
         state.delete_group(assisted(commit, group_info)).unwrap();
 
         state.is_marked_for_deletion()
@@ -381,11 +430,14 @@ mod test {
 
     /// The APQ counterpart of [`delete_t_group`]. Returns the marker of the T
     /// and the PQ leg state.
-    fn delete_apq_group(size: usize) -> (bool, bool) {
+    fn delete_apq_group(size: usize, deleted: Option<TimeStamp>) -> (bool, bool) {
         let creator = Client::new();
         let mut group = ApqMlsGroup::builder()
             .with_ciphersuite(apq_ciphersuite())
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
+            .with_capabilities(default_leaf_node_capabilities())
+            .with_group_context_extensions(t_group_context_extensions(), Extensions::empty())
+            .unwrap()
             .build(
                 &creator.provider,
                 &creator.signer,
@@ -396,6 +448,7 @@ mod test {
             .map(|_| {
                 let joiner = Client::new();
                 ApqKeyPackage::builder()
+                    .leaf_node_capabilities(default_leaf_node_capabilities())
                     .build(
                         &joiner.provider,
                         apq_ciphersuite(),
@@ -421,11 +474,17 @@ mod test {
         let mut pq_state = ds_group_state(&creator, group.pq_group(), creator.signer.pq_signer());
 
         let removed = others(&group.t_group);
-        let bundle = group
+        let component_data =
+            deleted.map(|deleted| deleted_component_data(group.t_group.extensions(), deleted));
+        let mut builder = group
             .commit_builder()
             .force_self_update(true)
             .propose_removals(removed)
-            .create_group_info(true)
+            .create_group_info(true);
+        if let Some(component_data) = component_data {
+            builder = builder.update_t_app_data(component_data);
+        }
+        let bundle = builder
             .finalize(&creator.provider, &creator.signer, |_| true, |_| true)
             .unwrap();
         let (t_commit, pq_commit) = bundle.commit.split();
@@ -445,15 +504,51 @@ mod test {
         )
     }
 
+    /// Stages a self-update of the creator and returns whether the DS sees
+    /// the group flags unchanged by it. With `deleted`, the update sets the
+    /// deleted flag.
+    fn group_flags_unchanged_by_update(deleted: Option<TimeStamp>) -> bool {
+        let creator = Client::new();
+        let mut group = new_t_group(&creator);
+        let state = ds_group_state(&creator, &group, creator.signer.t_signer());
+
+        let (commit, group_info) = t_commit(&creator, &mut group, Vec::new(), Vec::new(), deleted);
+        let processed = state
+            .group()
+            .process_assisted_message(state.provider.crypto(), assisted(commit, group_info))
+            .unwrap();
+        let ProcessedAssistedMessage::Commit(processed_message, _) =
+            &processed.processed_assisted_message
+        else {
+            panic!("expected a commit");
+        };
+        let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
+            processed_message.content()
+        else {
+            panic!("expected a staged commit");
+        };
+        state.group_flags_unchanged(staged_commit)
+    }
+
     #[test]
     fn a_delete_by_the_only_member_deletes_the_group_state() {
-        assert!(delete_t_group(1));
-        assert_eq!(delete_apq_group(1), (true, true));
+        for deleted in [None, Some(TimeStamp::now())] {
+            assert!(delete_t_group(1, deleted));
+            assert_eq!(delete_apq_group(1, deleted), (true, true));
+        }
     }
 
     #[test]
     fn a_delete_that_removes_other_members_keeps_the_group_state() {
-        assert!(!delete_t_group(2));
-        assert_eq!(delete_apq_group(2), (false, false));
+        for deleted in [None, Some(TimeStamp::now())] {
+            assert!(!delete_t_group(2, deleted));
+            assert_eq!(delete_apq_group(2, deleted), (false, false));
+        }
+    }
+
+    #[test]
+    fn a_regular_commit_that_sets_the_deleted_flag_changes_the_group_flags() {
+        assert!(group_flags_unchanged_by_update(None));
+        assert!(!group_flags_unchanged_by_update(Some(TimeStamp::now())));
     }
 }

@@ -146,9 +146,9 @@ impl DsGroupState {
         // A join cannot carry a remove, so a pending self-remove of the inviter
         // rejects the join instead of being forgotten with the merge.
         self.ensure_self_removes_committed(staged_commit)?;
-        if !self.self_group_flag_unchanged(staged_commit) {
+        if !self.group_flags_unchanged(staged_commit) {
             return Err(JoinConnectionGroupError::InvalidMessage(
-                "commit would toggle the self-group flag",
+                "commit would change the self-group or deleted flag",
             ));
         }
         let joiner_leaf = staged_commit.update_path_leaf_node().ok_or(

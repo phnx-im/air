@@ -147,7 +147,8 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     /// the state on success.
     ///
     /// If the group state has expired, it has already been deleted; the transaction is committed to
-    /// persist the deletion and [`Status::not_found()`] is returned.
+    /// persist the deletion and [`Status::not_found()`] is returned. A group marked as deleted
+    /// takes no further updates and returns [`Status::not_found()`] as well.
     async fn load_for_update_or_not_found<'a>(
         &self,
         mut txn: PgTransaction<'a>,
@@ -158,7 +159,10 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .load_group_state_for_update(&mut txn, qgid, ear_key)
             .await
         {
-            Ok((group_data, group_state)) => Ok((txn, group_state, group_data)),
+            Ok((group_data, group_state)) => {
+                ensure_not_deleted(&group_state)?;
+                Ok((txn, group_state, group_data))
+            }
             Err(LoadGroupStateError::Expired) => {
                 // The group state has expired and has already been deleted.
                 // Commit the transaction and return not found.
@@ -665,6 +669,16 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 }
 
 /// Resolves the PQ leg's group id from the T group's `ApqInfo`, `None` for a T group.
+/// Rejects an operation on a group whose context marks it as deleted. Reads
+/// stay possible, so that members that missed the deletion still learn about
+/// it when they resync.
+fn ensure_not_deleted(group_state: &DsGroupState) -> Result<(), Status> {
+    if group_state.is_deleted() {
+        return Err(Status::not_found("Group is deleted"));
+    }
+    Ok(())
+}
+
 fn apq_pq_qgid(group_state: &DsGroupState) -> Result<Option<QualifiedGroupId>, Status> {
     group_state
         .apq_info()
@@ -1958,6 +1972,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .load_group_state_immutable(&qgid, &ear_key)
             .await
             .map_err(to_status)?;
+        ensure_not_deleted(&group_state)?;
 
         // verify signature
         let sender_key = sender_verifying_key(&group_state, sender_index)?;
@@ -2461,6 +2476,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .load_group_state_immutable(&qgid, &ear_key)
                     .await
                     .map_err(to_status)?;
+                ensure_not_deleted(&group_state)?;
 
                 let sender_key = sender_verifying_key(&group_state, sender_index)?;
 
@@ -2608,6 +2624,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .load_group_state_immutable(&qgid, &ear_key)
             .await
             .map_err(to_status)?;
+        ensure_not_deleted(&group_state)?;
 
         // verify signature
         let sender_key = sender_verifying_key(&group_state, sender_index)?;

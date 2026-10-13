@@ -121,8 +121,8 @@ impl DsGroupState {
             return Err(GroupOperationError::InvalidMessage);
         };
 
-        if !self.self_group_flag_unchanged(staged_commit) {
-            warn!("Commit would toggle the self-group flag");
+        if !self.group_flags_unchanged(staged_commit) {
+            warn!("Commit would change the self-group or deleted flag");
             return Err(GroupOperationError::InvalidMessage);
         }
 
@@ -463,8 +463,8 @@ impl DsGroupState {
                 warn!("PQ message content is not a staged commit");
                 return Err(GroupOperationError::InvalidMessage);
             };
-            if !pq_group_state.self_group_flag_unchanged(pq_staged_commit) {
-                warn!("PQ commit would toggle the self-group flag");
+            if !pq_group_state.group_flags_unchanged(pq_staged_commit) {
+                warn!("PQ commit would change the self-group or deleted flag");
                 return Err(GroupOperationError::InvalidMessage);
             }
             // See the T leg. Self-removes need to be committed on both legs.

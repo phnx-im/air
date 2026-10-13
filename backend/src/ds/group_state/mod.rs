@@ -391,13 +391,26 @@ impl DsGroupState {
         Ok(())
     }
 
+    /// Returns `true` if the group context marks the group as deleted.
+    pub(crate) fn is_deleted(&self) -> bool {
+        GroupAppData::is_deleted_group_context(
+            self.group().group_info().group_context().extensions(),
+        )
+    }
+
     /// The self-group flag in the group context's [`GroupAppData`] is fixed at
-    /// group creation. Returns `true` if merging `staged_commit` keeps it
-    /// unchanged.
-    pub(crate) fn self_group_flag_unchanged(&self, staged_commit: &StagedCommit) -> bool {
-        let current_extensions = self.group().group_info().group_context().extensions();
-        GroupAppData::is_self_group_context(staged_commit.group_context().extensions())
-            == GroupAppData::is_self_group_context(current_extensions)
+    /// group creation, and only a delete commit sets the deleted flag. Returns
+    /// `true` if merging `staged_commit` changes neither.
+    pub(crate) fn group_flags_unchanged(&self, staged_commit: &StagedCommit) -> bool {
+        let current = GroupAppData::from_group_context(
+            self.group().group_info().group_context().extensions(),
+        );
+        let staged = GroupAppData::from_group_context(staged_commit.group_context().extensions());
+        let flags = |data: Option<GroupAppData>| {
+            data.map(|data| (data.is_self_group, data.deleted))
+                .unwrap_or_default()
+        };
+        flags(staged) == flags(current)
     }
 
     /// Returns `true` if the leaf declares a `VC_COMPONENT_ID` entry in its `AppDataDictionary` extension.

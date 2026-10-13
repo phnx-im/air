@@ -75,10 +75,9 @@ impl DsGroupState {
         let (t_staged_commit, pq_staged_commit) =
             (t_staged_commit.as_ref(), pq_staged_commit.as_ref());
 
-        if !t.self_group_flag_unchanged(t_staged_commit)
-            || !pq.self_group_flag_unchanged(pq_staged_commit)
+        if !t.group_flags_unchanged(t_staged_commit) || !pq.group_flags_unchanged(pq_staged_commit)
         {
-            error!("Commit would toggle the self-group flag");
+            error!("Commit would change the self-group or deleted flag");
             return Err(InvalidApqExternalCommit);
         }
 
