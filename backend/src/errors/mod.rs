@@ -136,23 +136,12 @@ pub(crate) enum GroupOperationError {
     /// Incomplete Welcome message.
     #[error("Incomplete Welcome message.")]
     IncompleteWelcome,
-    /// The commit does not remove every leaf with a pending self-remove
-    /// proposal.
-    #[error("Commit leaves a pending self-remove proposal uncommitted")]
-    UncommittedSelfRemove,
+    #[error(transparent)]
+    SelfRemoveCheck(#[from] SelfRemoveCheckError),
     #[error("Error merging commit")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
     #[error("Max devices exceeded")]
     MaxDevicesExceeded { max_devices: u32 },
-}
-
-impl From<SelfRemoveCheckError> for GroupOperationError {
-    fn from(error: SelfRemoveCheckError) -> Self {
-        match error {
-            SelfRemoveCheckError::ProposalStore => Self::ProcessingError,
-            SelfRemoveCheckError::Uncommitted => Self::UncommittedSelfRemove,
-        }
-    }
 }
 
 /// The DS's classification of an [`ApqProcessPublicMessageError`].
@@ -242,7 +231,7 @@ impl From<GroupOperationError> for Status {
                 Status::invalid_argument(msg)
             }
             GroupOperationError::ApqMembershipChange => Status::failed_precondition(msg),
-            GroupOperationError::UncommittedSelfRemove => uncommitted_self_remove_status(msg),
+            GroupOperationError::SelfRemoveCheck(error) => error.into(),
             GroupOperationError::MergeCommitError(merge_commit_error) => {
                 error!(%merge_commit_error, "failed merging commit");
                 Status::internal(msg)
@@ -329,32 +318,27 @@ impl From<ProcessAssistedMessageError> for ClientSelfRemovalError {
 }
 
 fn wrong_epoch_status(msg: String) -> Status {
-    Status::with_details(
-        Code::InvalidArgument,
-        msg,
-        StatusDetails {
-            code: StatusDetailsCode::WrongEpoch.into(),
-            detail: Some(Detail::WrongEpoch(WrongEpochDetail {})),
-        }
-        .encode_to_vec()
-        .into(),
-    )
+    StatusDetails {
+        code: StatusDetailsCode::WrongEpoch.into(),
+        detail: Some(Detail::WrongEpoch(WrongEpochDetail {})),
+    }
+    .to_status(Code::InvalidArgument, msg)
 }
 
-/// The commit was rejected for leaving a self-remove proposal uncommitted.
-fn uncommitted_self_remove_status(msg: String) -> Status {
-    Status::with_details(
-        Code::InvalidArgument,
-        msg,
-        StatusDetails {
-            code: StatusDetailsCode::UncommittedSelfRemove.into(),
-            detail: Some(Detail::UncommittedSelfRemove(
-                UncommittedSelfRemoveDetail {},
-            )),
+impl From<SelfRemoveCheckError> for Status {
+    fn from(error: SelfRemoveCheckError) -> Self {
+        let msg = error.to_string();
+        match error {
+            SelfRemoveCheckError::ProposalStore => Status::internal(msg),
+            SelfRemoveCheckError::Uncommitted => StatusDetails {
+                code: StatusDetailsCode::UncommittedSelfRemove.into(),
+                detail: Some(Detail::UncommittedSelfRemove(
+                    UncommittedSelfRemoveDetail {},
+                )),
+            }
+            .to_status(Code::InvalidArgument, msg),
         }
-        .encode_to_vec()
-        .into(),
-    )
+    }
 }
 
 impl From<ClientSelfRemovalError> for Status {
@@ -381,21 +365,10 @@ pub(crate) enum ResyncClientError {
     /// Error processing message.
     #[error("Error processing message")]
     ProcessingError,
-    /// The commit does not remove every leaf with a pending self-remove
-    /// proposal.
-    #[error("Commit leaves a pending self-remove proposal uncommitted")]
-    UncommittedSelfRemove,
+    #[error(transparent)]
+    SelfRemoveCheck(#[from] SelfRemoveCheckError),
     #[error("Error merging commit")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
-}
-
-impl From<SelfRemoveCheckError> for ResyncClientError {
-    fn from(error: SelfRemoveCheckError) -> Self {
-        match error {
-            SelfRemoveCheckError::ProposalStore => Self::ProcessingError,
-            SelfRemoveCheckError::Uncommitted => Self::UncommittedSelfRemove,
-        }
-    }
 }
 
 impl From<ResyncClientError> for Status {
@@ -404,7 +377,7 @@ impl From<ResyncClientError> for Status {
         match e {
             ResyncClientError::InvalidMessage => Status::invalid_argument(msg),
             ResyncClientError::ProcessingError => Status::internal(msg),
-            ResyncClientError::UncommittedSelfRemove => uncommitted_self_remove_status(msg),
+            ResyncClientError::SelfRemoveCheck(error) => error.into(),
             ResyncClientError::MergeCommitError(merge_commit_error) => {
                 error!(%merge_commit_error, "failed merging commit");
                 Status::internal(msg)

@@ -26,7 +26,7 @@ use mls_assist::{
     group::{Group, RetainedWelcomeInfo},
     openmls::{
         group::GroupId,
-        prelude::{GroupEpoch, LeafNodeIndex, Proposal, Sender, StagedCommit},
+        prelude::{GroupEpoch, LeafNodeIndex, Proposal, StagedCommit},
     },
     provider_traits::MlsAssistProvider,
 };
@@ -363,10 +363,8 @@ impl DsGroupState {
             })?;
         Ok(proposals
             .iter()
-            .filter_map(|proposal| match (proposal.proposal(), proposal.sender()) {
-                (Proposal::SelfRemove, Sender::Member(leaf_index)) => Some(*leaf_index),
-                _ => None,
-            })
+            .filter(|proposal| matches!(proposal.proposal(), Proposal::SelfRemove))
+            .filter_map(removed_client)
             .collect())
     }
 
