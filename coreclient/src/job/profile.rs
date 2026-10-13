@@ -26,6 +26,7 @@ use tracing::{debug, error, info, warn};
 use crate::{
     Chat, ChatAttributes, ChatId, ChatStatus,
     chats::PendingConnectionRequest,
+    clients::own_client_info::OwnClientInfo,
     clients::{
         CoreUser, connection_offer::payload::ConnectionInfo, update_key::update_chat_attributes,
     },
@@ -362,10 +363,11 @@ impl Job for FetchGroupProfileOperation {
             is_initial_fetch,
         } = self;
 
+        let chat_id = ChatId::try_from(&group_id).map_err(JobError::fatal)?;
         info!(
-            ?group_id,
+            %chat_id,
             object_id = %external_group_profile.object_id,
-            ?uploaded_at,
+            uploaded_at = %uploaded_at.as_ref(),
             "Fetching group profile"
         );
 
@@ -394,11 +396,18 @@ impl Job for FetchGroupProfileOperation {
         // Fetch group profile from the object storage
         let api_client = context.api_clients.get(&chat.owner_domain())?;
         let remote_attachment_id = RemoteAttachmentId::new(external_group_profile.object_id);
+        let target = group.attachment_target();
+        let signer = OwnClientInfo::signer_for_attachment_target(
+            context.db.read().await?,
+            &target,
+            &context.key_store.signing_key,
+        )
+        .await?;
         let url = api_client
             .ds_get_attachment_url(
                 StorageObjectType::GroupProfile,
-                &context.key_store.signing_key,
-                group.attachment_target(),
+                &signer,
+                target,
                 remote_attachment_id,
             )
             .await?;
@@ -420,8 +429,8 @@ impl Job for FetchGroupProfileOperation {
         .map_err(JobError::fatal)?;
 
         debug!(
-            ?group_id,
-            ?external_group_profile,
+            %chat_id,
+            object_id = %external_group_profile.object_id,
             "Fetched and decrypted group profile"
         );
 
@@ -452,7 +461,7 @@ impl Job for FetchGroupProfileOperation {
                     CoreUser::store_new_messages(txn, chat.id(), messages).await?;
                 }
 
-                debug!(?group_id, chat_id = %chat.id(), "Updated chat attributes");
+                debug!(%chat_id, "Updated chat attributes");
 
                 Ok(())
             })
