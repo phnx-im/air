@@ -15,7 +15,7 @@ use aircommon::{
     },
 };
 use airprotos::client::component::{
-    AIR_COMPONENT_ID, AIR_GROUP_PROFILE_COMPONENT_ID, AirComponent,
+    AIR_COMPONENT_ID, AIR_GROUP_PROFILE_COMPONENT_ID, AirComponent, AirFeatures,
 };
 use airprotos::client::group::{EncryptedGroupTitle, ExternalGroupProfile, GroupData};
 use anyhow::Context as _;
@@ -62,6 +62,8 @@ pub struct GroupDebugInfo {
     pub required_capabilities: Option<RequiredDebugCapabilities>,
     pub members: HashMap<u32, DebugCapabilities>,
     pub group_data: Option<GroupDataDebugInfo>,
+    /// App data of the T group context.
+    pub app_data: Option<AppDataDebugInfo>,
     pub size_bytes: u64,
     pub pq: Option<PqGroupDebugInfo>,
     pub resync: Option<ResyncDebugInfo>,
@@ -112,7 +114,25 @@ pub struct RequiredDebugCapabilities {
 #[derive(Debug, Clone)]
 pub struct AppDataDebugInfo {
     pub components: Vec<String>,
-    pub air_component: Option<AirComponent>,
+    pub air_component: Option<AirComponentDebugInfo>,
+}
+
+/// An [`AirComponent`] with the deleted timestamp rendered as a string.
+#[derive(Debug, Clone)]
+pub struct AirComponentDebugInfo {
+    pub features: AirFeatures,
+    pub is_self_group: bool,
+    pub deleted: Option<String>,
+}
+
+impl From<AirComponent> for AirComponentDebugInfo {
+    fn from(component: AirComponent) -> Self {
+        Self {
+            features: component.features,
+            is_self_group: component.is_self_group,
+            deleted: component.deleted.map(|deleted| deleted.to_rfc3339()),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -158,6 +178,11 @@ impl GroupDebugInfo {
                     .external_group_profile
                     .map(ExternalGroupProfileDebugInfo::from),
             });
+        let app_data = group
+            .mls_group()
+            .extensions()
+            .app_data_dictionary()
+            .map(|ext| AppDataDebugInfo::from_app_data_dictionary(ext.dictionary()));
 
         let mut members = HashMap::new();
         for member in group.mls_group().members() {
@@ -208,6 +233,7 @@ impl GroupDebugInfo {
             required_capabilities,
             members,
             group_data,
+            app_data,
             size_bytes,
             pq,
             resync,
@@ -310,7 +336,8 @@ impl AppDataDebugInfo {
             .unwrap_or_default();
         let air_component = dict
             .get(&AIR_COMPONENT_ID)
-            .and_then(|data| AirComponent::from_bytes(data).ok());
+            .and_then(|data| AirComponent::from_bytes(data).ok())
+            .map(From::from);
         Self {
             components,
             air_component,

@@ -2012,6 +2012,9 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                     SystemMessage::CreateGroup(user_id) => {
                         Some(format!("{user_id:?} created the group"))
                     }
+                    SystemMessage::DeleteGroup(deleter) => {
+                        Some(format!("{deleter:?} deleted the chat"))
+                    }
                     SystemMessage::NewHandleConnectionChat(user_handle) => {
                         let user_handle_str = user_handle.plaintext();
                         Some(format!("You requested a connection with {user_handle_str}"))

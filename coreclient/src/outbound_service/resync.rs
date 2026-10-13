@@ -36,7 +36,7 @@ use crate::{
     },
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
-        DecryptedProfileInfos, Group, ProfileInfo, handle_group_not_found_on_ds,
+        DecryptedProfileInfos, Group, GroupDeleted, ProfileInfo, handle_group_not_found_on_ds,
         self_group::SelfGroup,
     },
     job::{operation::OperationData, profile::FetchUserProfileOperation, recoverable::Recoverable},
@@ -46,6 +46,27 @@ use crate::{
         retry::{RetryDecision, RetryPolicy},
     },
 };
+
+/// Tears down a group whose group context is marked as deleted as if the DS
+/// returns "group not found". Also announces the deletion in the chat.
+async fn handle_group_deleted(
+    txn: &mut WriteDbTransaction<'_>,
+    group_id: &GroupId,
+    deleted: &GroupDeleted,
+) -> Result<()> {
+    if let Some(chat) = Chat::load_by_group_id(&mut *txn, group_id).await?
+        && !chat.status().is_inactive()
+    {
+        ChatMessage::new_system_message(
+            chat.id(),
+            deleted.deleted_at,
+            SystemMessage::DeleteGroup(deleted.deleter.clone()),
+        )
+        .store(&mut *txn)
+        .await?;
+    }
+    handle_group_not_found_on_ds(txn, group_id).await
+}
 
 /// Why a group is being resynced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -344,6 +365,17 @@ impl OutboundServiceContext {
                 return Err(error);
             }
             Err(OutboundServiceError::Fatal(error)) => {
+                if let Some(deleted) = error.downcast_ref::<GroupDeleted>() {
+                    info!("Group was deleted while out of sync; tearing down its MLS state");
+                    self.db
+                        .with_write_transaction(async |txn| {
+                            handle_group_deleted(txn, &group_id, deleted).await
+                        })
+                        .await
+                        .map_err(OutboundServiceError::fatal)?;
+                    return Ok(());
+                }
+
                 if is_ds_not_found_error(&error) {
                     error!(%error, "Group not found on DS during resync; tearing down group");
                     self.db
@@ -430,37 +462,49 @@ impl Resync {
 
         let external_commit_info = self.fetch_group_info(api_clients).await?;
         let existing_chat_id = self.chat_id;
-        let Some(original_leaf_index) =
-            self.resolve_original_leaf_index(&external_commit_info, signer)
-        else {
-            warn!(
-                group_id = ?self.group_id,
-                "No leaf carries our signature key: not a member of the group (according to the server)"
-            );
-            // Drop the resync, mark the chat as inactive and delete the group state.
-            connection
-                .with_transaction(async |txn| -> anyhow::Result<()> {
-                    handle_group_not_found_on_ds(txn, &self.group_id).await
-                })
-                .await
-                .map_err(OutboundServiceError::fatal)?;
-            return Ok(None);
-        };
+        let group_id = self.group_id.clone();
+        let original_leaf_index = self.resolve_original_leaf_index(&external_commit_info, signer);
         let connection_contact = self.connection_contact.take();
         let outgoing_request = self.outgoing_request.take();
         let accepted_friendship_package = self.accepted_friendship_package.take();
         let ds_timestamp = TimeStamp::now();
 
         let mut txn = connection.begin().await?;
-        let (group, commit, member_profile_infos, members_diff) = Box::pin(self.create_commit(
+        let joined = Box::pin(self.create_commit(
             &mut txn,
             api_clients,
             signer,
             own_user_id,
             external_commit_info,
         ))
-        .await
-        .map_err(OutboundServiceError::fatal)?;
+        .await;
+
+        let Some(original_leaf_index) = original_leaf_index else {
+            // If we don't have a leaf in that group anymore, either the group was deleted, or we
+            // were removed. As soon as OpenMLS allows us to verify the group info prior to actually
+            // joining, we can check for deletion before actually trying to join.
+            if let Err(error) = joined
+                && error.is::<GroupDeleted>()
+            {
+                return Err(OutboundServiceError::fatal(error));
+            }
+            warn!(
+                ?group_id,
+                "No leaf carries our signature key: not a member of the group (according to the server)"
+            );
+            // Roll back the join, drop the resync, mark the chat as inactive and delete the
+            // group state.
+            drop(txn);
+            connection
+                .with_transaction(async |txn| -> anyhow::Result<()> {
+                    handle_group_not_found_on_ds(txn, &group_id).await
+                })
+                .await
+                .map_err(OutboundServiceError::fatal)?;
+            return Ok(None);
+        };
+        let (group, commit, member_profile_infos, members_diff) =
+            joined.map_err(OutboundServiceError::fatal)?;
 
         let (chat_id, chat_created) = match existing_chat_id {
             Some(chat_id) => (chat_id, false),
@@ -1228,9 +1272,16 @@ mod tests {
     use std::assert_matches;
 
     use aircommon::crypto::aead::keys::FriendshipPackageEarKey;
-    use chrono::TimeDelta;
+    use chrono::{TimeDelta, TimeZone};
 
-    use crate::{ChatAttributes, db::access::DbAccess, utils::persistence::open_db_in_memory};
+    use crate::{
+        ChatAttributes, EventMessage, Message,
+        db::access::DbAccess,
+        job::pending_chat_operation::{
+            PendingChatOperation, tests::setup_group_with_pending_operation,
+        },
+        utils::persistence::open_db_in_memory,
+    };
 
     use super::*;
 
@@ -1264,6 +1315,162 @@ mod tests {
         };
 
         Ok((pool, resync))
+    }
+
+    /// A group with a chat, a pending chat operation and a queued resync, as a
+    /// resync that finds the group deleted sees it. Returns the group's owner.
+    async fn setup_deleted_group() -> anyhow::Result<(DbAccess, GroupId, ChatId, UserId)> {
+        let (pool, chat_id) = Box::pin(setup_group_with_pending_operation()).await?;
+        let group = Group::load_with_chat_id(pool.read().await?, chat_id)
+            .await?
+            .context("group not found")?;
+        Resync::for_group(chat_id, &group, ResyncReason::Manual)
+            .enqueue(pool.write().await?)
+            .await?;
+        assert!(
+            PendingChatOperation::load(pool.read().await?, &chat_id)
+                .await?
+                .is_some()
+        );
+        Ok((
+            pool,
+            group.group_id().clone(),
+            chat_id,
+            group.own_user_id().clone(),
+        ))
+    }
+
+    async fn load_chat(pool: &DbAccess, chat_id: ChatId) -> anyhow::Result<Chat> {
+        pool.with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
+            .await?
+            .context("chat not found")
+    }
+
+    fn group_deleted() -> GroupDeleted {
+        GroupDeleted {
+            deleter: UserId::random("example.com".parse().unwrap()),
+            deleted_at: Utc.with_ymd_and_hms(2026, 10, 13, 12, 0, 0).unwrap().into(),
+        }
+    }
+
+    async fn deletion_message_times(
+        pool: &DbAccess,
+        chat_id: ChatId,
+        deleter: &UserId,
+    ) -> anyhow::Result<Vec<DateTime<Utc>>> {
+        let messages = ChatMessage::load_multiple(pool.read().await?, chat_id, 100).await?;
+        let deletion = Message::Event(EventMessage::System(SystemMessage::DeleteGroup(
+            deleter.clone(),
+        )));
+        Ok(messages
+            .iter()
+            .filter(|message| message.message() == &deletion)
+            .map(|message| message.timestamp())
+            .collect())
+    }
+
+    async fn assert_group_torn_down(
+        pool: &DbAccess,
+        group_id: &GroupId,
+        chat_id: ChatId,
+    ) -> anyhow::Result<()> {
+        assert!(Group::load(pool.read().await?, group_id).await?.is_none());
+        assert!(
+            PendingChatOperation::load(pool.read().await?, &chat_id)
+                .await?
+                .is_none()
+        );
+        assert!(
+            Resync::status(pool.read().await?, group_id)
+                .await?
+                .is_none()
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_deleted_group_ends_the_chat_with_its_members() -> anyhow::Result<()> {
+        let (pool, group_id, chat_id, owner) = setup_deleted_group().await?;
+        let deleted = group_deleted();
+
+        pool.write()
+            .await?
+            .with_transaction(async |txn| handle_group_deleted(txn, &group_id, &deleted).await)
+            .await?;
+
+        let chat = load_chat(&pool, chat_id).await?;
+        assert_eq!(chat.status(), &ChatStatus::inactive(vec![owner]));
+        assert_eq!(
+            deletion_message_times(&pool, chat_id, &deleted.deleter).await?,
+            [*deleted.deleted_at.as_ref()]
+        );
+        assert_group_torn_down(&pool, &group_id, chat_id).await?;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_deleted_group_adds_no_message_to_an_inactive_chat() -> anyhow::Result<()> {
+        let (pool, group_id, chat_id, _owner) = setup_deleted_group().await?;
+        let deleted = group_deleted();
+        let inactive = ChatStatus::inactive(Vec::new());
+        pool.write()
+            .await?
+            .with_transaction(async |txn| Chat::update_status(txn, chat_id, &inactive).await)
+            .await?;
+
+        pool.write()
+            .await?
+            .with_transaction(async |txn| handle_group_deleted(txn, &group_id, &deleted).await)
+            .await?;
+
+        let chat = load_chat(&pool, chat_id).await?;
+        assert_eq!(chat.status(), &inactive);
+        assert!(
+            deletion_message_times(&pool, chat_id, &deleted.deleter)
+                .await?
+                .is_empty()
+        );
+        assert_group_torn_down(&pool, &group_id, chat_id).await?;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_deleted_group_without_a_chat_creates_none() -> anyhow::Result<()> {
+        let (pool, group_id, chat_id, _owner) = setup_deleted_group().await?;
+        let deleted = group_deleted();
+        Chat::delete(pool.write().await?, chat_id).await?;
+        let group = Group::load(pool.read().await?, &group_id)
+            .await?
+            .context("group deleted with the chat")?;
+        let mut resync = Resync::for_group(chat_id, &group, ResyncReason::Onboarding);
+        resync.chat_id = None;
+        resync.enqueue(pool.write().await?).await?;
+        assert!(
+            Resync::status(pool.read().await?, &group_id)
+                .await?
+                .is_some()
+        );
+        let chats_before = Chat::load_ordered_ids(pool.read().await?).await?;
+
+        pool.write()
+            .await?
+            .with_transaction(async |txn| handle_group_deleted(txn, &group_id, &deleted).await)
+            .await?;
+
+        assert_eq!(
+            Chat::load_ordered_ids(pool.read().await?).await?,
+            chats_before
+        );
+        assert!(Group::load(pool.read().await?, &group_id).await?.is_none());
+        assert!(
+            Resync::status(pool.read().await?, &group_id)
+                .await?
+                .is_none()
+        );
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]

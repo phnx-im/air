@@ -816,6 +816,7 @@ mod derivation_tests {
                 is_self_group: false,
                 safe_aad_components: None,
                 profile: None,
+                deleted: None,
             }
             .to_extension()
             .unwrap(),

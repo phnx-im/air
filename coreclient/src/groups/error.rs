@@ -2,12 +2,22 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::crypto::errors::DecryptionError;
+use aircommon::{crypto::errors::DecryptionError, identifiers::UserId, time::TimeStamp};
 use openmls::group::{
     ConfirmMessageError, CreateMessageError, ExportSecretError, MlsGroupStateError,
     ProcessMessageError,
 };
 use thiserror::Error;
+
+/// The group context marks the group as deleted.
+#[derive(Debug, Error)]
+#[error("the group is deleted")]
+pub(crate) struct GroupDeleted {
+    pub(crate) deleter: UserId,
+    /// When the deleter built the delete commit, see
+    /// [`airprotos::client::component::AirComponent::deleted`].
+    pub(crate) deleted_at: TimeStamp,
+}
 
 #[derive(Error, Debug)]
 #[allow(clippy::enum_variant_names)]

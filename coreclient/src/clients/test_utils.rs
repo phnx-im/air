@@ -23,7 +23,7 @@ use crate::{
     ChatAttributes,
     groups::{openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
     job::{
-        chat_operation::DerivationEpoch,
+        chat_operation::{ChatOperation, DerivationEpoch},
         create_chat::CreateChat,
         pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     },
@@ -70,6 +70,15 @@ impl CoreUser {
             challenge,
         )
         .await
+    }
+
+    /// Legacy version of chat deletion that removes all other members.
+    pub async fn delete_chat_without_deleted_flag(
+        &self,
+        chat_id: ChatId,
+    ) -> Result<Vec<ChatMessage>> {
+        let job = ChatOperation::delete_chat_without_deleted_flag(chat_id);
+        Ok(self.execute_job(job).await?)
     }
 
     pub fn qs_user_id(&self) -> aircommon::identifiers::QsUserId {

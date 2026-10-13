@@ -66,7 +66,7 @@ use crate::{
         persistence::{delete_client_database, open_lock_file},
     },
 };
-use crate::{ChatId, key_stores::as_credentials::AsCredentials};
+use crate::{ChatId, ChatStatus, key_stores::as_credentials::AsCredentials};
 use crate::{ContactType, user_profiles::UserProfile};
 use crate::{
     MessageId,
@@ -717,15 +717,28 @@ impl CoreUser {
             .ok()
     }
 
+    /// The members of the chat from the room state of its group. An inactive
+    /// chat whose group is gone falls back to the members it had when it
+    /// became inactive.
+    ///
     /// Returns None if there is no chat with the given id.
     pub async fn chat_participants(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
-        Group::load_participants(self.db().read().await.ok()?.as_mut(), chat_id)
+        let participants = Group::load_participants(self.db().read().await.ok()?.as_mut(), chat_id)
             .await
             .inspect_err(|error| {
                 error!(%error, %chat_id, "Failed to load chat participants");
             })
             .ok()
-            .flatten()
+            .flatten();
+        if participants.is_some() {
+            return participants;
+        }
+        match self.chat(&chat_id).await?.status() {
+            ChatStatus::Inactive(inactive) => {
+                Some(inactive.past_members().iter().cloned().collect())
+            }
+            ChatStatus::Pending | ChatStatus::Active | ChatStatus::Blocked => None,
+        }
     }
 
     pub async fn pending_removes(&self, chat_id: ChatId) -> Option<Vec<UserId>> {
