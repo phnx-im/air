@@ -150,23 +150,23 @@ where
     }
 }
 
-pub(super) trait RunResultExt {
-    /// Logs fatal and recoverable errors and continues, aborts the run
-    /// otherwise.
-    fn or_abort(self, task: &'static str) -> Result<(), WorkAborted>;
+pub(super) trait RunResultExt<T> {
+    /// Logs fatal and recoverable errors and continues with the default
+    /// value, aborts the run otherwise.
+    fn or_abort(self, task: &'static str) -> Result<T, WorkAborted>;
 }
 
-impl RunResultExt for Result<(), OutboundServiceError> {
-    fn or_abort(self, task: &'static str) -> Result<(), WorkAborted> {
+impl<T: Default> RunResultExt<T> for Result<T, OutboundServiceError> {
+    fn or_abort(self, task: &'static str) -> Result<T, WorkAborted> {
         match self {
-            Ok(()) => Ok(()),
+            Ok(value) => Ok(value),
             Err(OutboundServiceError::Fatal(error)) => {
                 error!(%error, task, "Outbound service task failed");
-                Ok(())
+                Ok(T::default())
             }
             Err(OutboundServiceError::Recoverable(error)) => {
                 error!(%error, task, "Outbound service task failed");
-                Ok(())
+                Ok(T::default())
             }
             Err(OutboundServiceError::NetworkError) => {
                 info!(

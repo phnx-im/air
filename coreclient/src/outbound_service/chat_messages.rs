@@ -2,13 +2,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::time::Duration;
+use std::{collections::HashSet, time::Duration};
 
 use aircommon::time::TimeStamp;
 use anyhow::Context;
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use mimi_content::MessageStatus;
+use openmls::group::GroupId;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 use tracing::{debug, error, info};
@@ -124,9 +125,13 @@ impl OutboundService {
 }
 
 impl OutboundServiceContext {
+    /// Sends the queued messages. `stale_groups` holds the groups whose commit
+    /// the DS rejected as stale in this run, so a message in one of them waits
+    /// for the next run instead of staging another commit.
     pub(super) async fn send_queued_messages(
         &self,
         run_token: &CancellationToken,
+        stale_groups: &mut HashSet<GroupId>,
     ) -> Result<(), OutboundServiceError> {
         // Used to identify locked messages by this task
         let task_id = Uuid::new_v4();
@@ -158,7 +163,10 @@ impl OutboundServiceContext {
                 continue;
             }
 
-            match self.send_queued_message(run_token, dequeued).await? {
+            match self
+                .send_queued_message(run_token, dequeued, stale_groups)
+                .await?
+            {
                 RunControl::NextMessage => continue,
                 RunControl::EndRun => return Ok(()),
             }
@@ -181,12 +189,15 @@ impl OutboundServiceContext {
             message_id,
             attempts,
         }: DequeuedMessage,
+        stale_groups: &mut HashSet<GroupId>,
     ) -> Result<RunControl, OutboundServiceError> {
         let mut attempt = 0;
         loop {
             attempt += 1;
-            let result = RetryPolicy::MESSAGES
-                .fatal_when_exhausted(self.send_chat_message(message_id).await, attempts);
+            let result = RetryPolicy::MESSAGES.fatal_when_exhausted(
+                self.send_chat_message(message_id, stale_groups).await,
+                attempts,
+            );
             let error = match result {
                 Ok(SendOutcome::Sent) => {
                     self.db
@@ -269,6 +280,7 @@ impl OutboundServiceContext {
     async fn send_chat_message(
         &self,
         message_id: MessageId,
+        stale_groups: &mut HashSet<GroupId>,
     ) -> Result<SendOutcome, OutboundServiceError> {
         debug!(?message_id, "sending message");
 
@@ -307,7 +319,7 @@ impl OutboundServiceContext {
                 // normal state here and must not fail the send.
                 let has_pending_proposals = Group::load_with_chat_id(&mut *txn, chat_id)
                     .await?
-                    .is_some_and(|group| group.mls_group().has_pending_proposals());
+                    .is_some_and(|group| group.has_pending_proposals());
 
                 Ok(Some((chat, message, has_pending_proposals)))
             })
@@ -318,13 +330,21 @@ impl OutboundServiceContext {
         };
 
         if has_pending_proposals {
+            // A stale group is not committed to again in this run. Like a
+            // collision, the message stays queued and a later run retries it,
+            // once the missing proposals have been processed.
+            if stale_groups.contains(chat.group_id()) {
+                debug!(chat_id = ?chat.id(), "Not committing in a stale group");
+                return Ok(SendOutcome::Collided);
+            }
             match self.commit_pending_proposals(chat.id()).await? {
                 CommitOutcome::Committed => (),
                 // Nothing left to send in a blocked chat.
                 CommitOutcome::ChatBlocked => return Ok(SendOutcome::Sent),
-                // Like a collision: the message stays queued and a later run
-                // retries it, once the missing proposals have been processed.
-                CommitOutcome::Stale => return Ok(SendOutcome::Collided),
+                CommitOutcome::Stale => {
+                    stale_groups.insert(chat.group_id().clone());
+                    return Ok(SendOutcome::Collided);
+                }
             }
         }
 

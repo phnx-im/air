@@ -33,19 +33,20 @@ use crate::{
 };
 
 impl OutboundServiceContext {
+    /// Returns the groups whose commit the DS rejected as stale in this run.
+    /// They are not committed to again until the next run, from this stage or
+    /// the message queue, so the client can first process the proposals it is
+    /// missing.
     pub(super) async fn send_pending_chat_operations(
         &self,
         run_token: &CancellationToken,
-    ) -> Result<(), OutboundServiceError> {
+    ) -> Result<HashSet<GroupId>, OutboundServiceError> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
-        // Groups whose commit the DS rejected as stale in this run. They are
-        // not committed to again until the next run, so the client can first
-        // process the proposals it is missing.
         let mut stale_groups = HashSet::new();
         loop {
             if run_token.is_cancelled() {
-                return Ok(()); // the task is being stopped
+                return Ok(stale_groups); // the task is being stopped
             }
 
             // Turn pending self-group state into a commit when the self-group
@@ -72,7 +73,7 @@ impl OutboundServiceContext {
                 .await
                 .map_err(OutboundServiceError::fatal)?;
             let Some(pending_chat_operation) = pending_chat_operation else {
-                return Ok(());
+                return Ok(stale_groups);
             };
 
             let group_id = pending_chat_operation.group_id().clone();
