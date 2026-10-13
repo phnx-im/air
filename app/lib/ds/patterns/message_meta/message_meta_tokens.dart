@@ -44,10 +44,10 @@ abstract final class MessageMetaTokens {
   /// lays out takes this. The stamp sets its type tight, so a line box is the
   /// font size itself.
   static double heightOf(BuildContext context) =>
-      bubbleGap +
-      math.max(
-        iconSize,
-        MediaQuery.textScalerOf(context).scale(typeScale.body.mini.fontSize),
-      ) +
-      bottomPadding;
+      bubbleGap + lineHeightOf(context) + bottomPadding;
+
+  static double lineHeightOf(BuildContext context) => math.max(
+    iconSize,
+    MediaQuery.textScalerOf(context).scale(typeScale.body.mini.fontSize),
+  );
 }
