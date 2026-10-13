@@ -52,6 +52,9 @@ class GroupDetailsView extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    // Once the user is out of the chat, only reading and deleting are left.
+    final isInactive = chat.isInactive;
+
     return ModalBody(
       child: Column(
         crossAxisAlignment: .stretch,
@@ -60,21 +63,24 @@ class GroupDetailsView extends StatelessWidget {
             child: ChatAvatar(
               chatId: chat.id,
               size: 192,
-              onPressed: () => _selectAvatar(context, chat.id),
+              onPressed: isInactive
+                  ? null
+                  : () => _selectAvatar(context, chat.id),
             ),
           ),
 
           const SizedBox(height: S.s16),
 
-          _GroupTitle(chat: chat),
+          _GroupTitle(chat: chat, editable: !isInactive),
 
           const SizedBox(height: S.s24),
 
-          const Center(child: MuteButton()),
+          if (!isInactive) ...[
+            const Center(child: MuteButton()),
+            const SizedBox(height: S.s24),
+          ],
 
-          const SizedBox(height: S.s24),
-
-          _PeopleSection(memberIds: members),
+          _PeopleSection(memberIds: members, canAddPeople: !isInactive),
 
           const SizedBox(height: S.s24),
 
@@ -103,15 +109,16 @@ class GroupDetailsView extends StatelessWidget {
 }
 
 class _GroupTitle extends StatelessWidget {
-  const _GroupTitle({required this.chat});
+  const _GroupTitle({required this.chat, required this.editable});
 
   final UiChatDetails chat;
+  final bool editable;
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     return GestureDetector(
-      onTap: () => _changeGroupTitle(context),
+      onTap: editable ? () => _changeGroupTitle(context) : null,
       child: Text(
         chat.title(loc),
         textAlign: .center,
@@ -138,9 +145,10 @@ const _previewMemberCount = 8;
 
 /// The member count, a way into the full list, and the first few members.
 class _PeopleSection extends HookWidget {
-  const _PeopleSection({required this.memberIds});
+  const _PeopleSection({required this.memberIds, required this.canAddPeople});
 
   final List<UiUserId> memberIds;
+  final bool canAddPeople;
 
   @override
   Widget build(BuildContext context) {
@@ -204,10 +212,11 @@ class _PeopleSection extends HookWidget {
           color: ListGroup.noFill,
           radius: CornerRadius.px12,
           children: [
-            _AddPeopleRow(tokens: rowTokens),
-            for (final memberId in previewIds) ...[
+            if (canAddPeople) _AddPeopleRow(tokens: rowTokens),
+            for (final (index, memberId) in previewIds.indexed) ...[
               // The group has no fill, so a hairline gap separates the rows.
-              const SizedBox(height: StrokeWidth.px1),
+              if (canAddPeople || index > 0)
+                const SizedBox(height: StrokeWidth.px1),
               _MemberRow(tokens: rowTokens, memberId: memberId),
             ],
           ],
@@ -286,19 +295,22 @@ class _GroupActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final size = ButtonSize.current;
+    final canLeave = !chat.isInactive;
 
     return Row(
       children: [
-        Expanded(
-          child: Button(
-            onPressed: () => _leave(context),
-            size: size,
-            type: ButtonType.secondary,
-            label: loc.groupDetails_leaveChat,
+        if (canLeave) ...[
+          Expanded(
+            child: Button(
+              onPressed: () => _leave(context),
+              size: size,
+              type: ButtonType.secondary,
+              label: loc.groupDetails_leaveChat,
+            ),
           ),
-        ),
 
-        const SizedBox(width: S.s12),
+          const SizedBox(width: S.s12),
+        ],
 
         Expanded(
           child: Button(

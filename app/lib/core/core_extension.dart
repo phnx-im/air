@@ -65,10 +65,13 @@ extension UiChatDetailsExtension on UiChatDetails {
     UiChatType_PendingConnection() => false,
   };
 
+  /// Whether the user is no longer a member, e.g. after leaving the chat.
+  bool get isInactive => status is UiChatStatus_Inactive;
+
   /// Where the contact request behind this chat stands, or `null` if the chat
   /// is not a contact request.
   ContactRequestState? get requestState {
-    final closed = status is UiChatStatus_Inactive;
+    final closed = isInactive;
     return switch (chatType) {
       UiChatType_PendingConnection() =>
         closed ? ContactRequestState.closed : ContactRequestState.incoming,
