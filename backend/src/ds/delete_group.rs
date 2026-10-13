@@ -3,10 +3,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::utils::removed_clients;
+use airprotos::client::app_data::GroupAppData;
 use mls_assist::{
-    group::{ApqProcessedAssistedMessagePlus, ProcessedAssistedMessage, apq::ApqGroupRef},
+    group::{
+        ApqProcessedAssistedMessagePlus, ProcessedAssistedMessage,
+        apq::{ApqGroupRef, ApqRetainedWelcomeInfo},
+    },
     messages::{AssistedMessageIn, SerializedMlsMessage},
-    openmls::prelude::{ProcessedMessage, ProcessedMessageContent, Sender},
+    openmls::prelude::{LeafNodeIndex, ProcessedMessage, ProcessedMessageContent, Sender},
     provider_traits::MlsAssistProvider,
 };
 use tracing::warn;
@@ -26,6 +30,7 @@ enum MembershipCheck {
 }
 
 impl DsGroupState {
+    /// Deletes a group.
     pub(crate) fn delete_group(
         &mut self,
         commit: AssistedMessageIn,
@@ -46,11 +51,22 @@ impl DsGroupState {
             return Err(GroupDeletionError::InvalidMessage);
         };
 
-        self.validate_delete_commit(processed_message, MembershipCheck::MemberProfiles)?;
+        let removed_clients =
+            self.validate_delete_commit(processed_message, MembershipCheck::MemberProfiles)?;
 
         // Nobody is left to process the commit of a group's only member, so we
         // delete the group.
         self.marked_for_deletion = self.member_profiles.len() == 1;
+
+        let retained_welcome_info = self.group.accept_processed_message(
+            self.provider.storage(),
+            processed_assisted_message_plus.processed_assisted_message,
+        )?;
+        self.remove_profiles(removed_clients);
+        self.stage_welcome_info(retained_welcome_info);
+
+        #[cfg(debug_assertions)]
+        self.check_member_profiles("delete");
 
         Ok(processed_assisted_message_plus.serialized_mls_message)
     }
@@ -89,7 +105,7 @@ impl DsGroupState {
         // Perform DS-level validation on each leg against its own source of
         // truth for the group's membership.
         let apq_processed_message = &processed_assisted_message.processed_message;
-        t_group_state.validate_delete_commit(
+        let t_removed_clients = t_group_state.validate_delete_commit(
             &apq_processed_message.t_message,
             MembershipCheck::MemberProfiles,
         )?;
@@ -105,6 +121,22 @@ impl DsGroupState {
         t_group_state.marked_for_deletion = sole_member;
         pq_group_state.marked_for_deletion = sole_member;
 
+        let ApqRetainedWelcomeInfo {
+            t_retained_welcome_info,
+            pq_retained_welcome_info,
+        } = ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
+            .accept_apq_processed_message(
+                t_group_state.provider.storage(),
+                pq_group_state.provider.storage(),
+                processed_assisted_message,
+            )?;
+        t_group_state.remove_profiles(t_removed_clients);
+        t_group_state.stage_welcome_info(t_retained_welcome_info);
+        pq_group_state.stage_welcome_info_without_profile_keys(pq_retained_welcome_info);
+
+        #[cfg(debug_assertions)]
+        t_group_state.check_member_profiles("apq_delete");
+
         Ok(SerializedMlsMessage::combine_apq(
             t_serialized_message,
             pq_serialized_message,
@@ -112,12 +144,12 @@ impl DsGroupState {
     }
 
     /// Checks that the commit is a member commit that removes every member of
-    /// the group except its sender.
+    /// the group except its sender. Returns the removed leaves.
     fn validate_delete_commit(
         &self,
         processed_message: &ProcessedMessage,
         membership_check: MembershipCheck,
-    ) -> Result<(), GroupDeletionError> {
+    ) -> Result<Vec<LeafNodeIndex>, GroupDeletionError> {
         let Sender::Member(sender_index) = processed_message.sender() else {
             // Delete group should be a regular commit
             warn!("Invalid sender");
@@ -135,6 +167,15 @@ impl DsGroupState {
         if staged_commit.add_proposals().count() > 0 || staged_commit.update_proposals().count() > 0
         {
             warn!("Found add or update proposals in delete group commit");
+            return Err(GroupDeletionError::InvalidMessage);
+        }
+        // A delete commit may set the deleted flag, but the self-group flag is
+        // fixed at group creation.
+        let current_extensions = self.group().group_info().group_context().extensions();
+        if GroupAppData::is_self_group_context(staged_commit.group_context().extensions())
+            != GroupAppData::is_self_group_context(current_extensions)
+        {
+            warn!("Delete group commit would toggle the self-group flag");
             return Err(GroupDeletionError::InvalidMessage);
         }
         // Process remove proposals, but only non-inline ones.
@@ -167,19 +208,26 @@ impl DsGroupState {
             return Err(GroupDeletionError::InvalidMessage);
         }
 
-        Ok(())
+        Ok(removed_clients)
     }
 }
 
 #[cfg(test)]
 mod test {
     use aircommon::{
-        crypto::aead::keys::EncryptedUserProfileKey,
-        identifiers::{QsReference, SealedClientReference},
+        credentials::{
+            UserCredentialCsr, UserCredentialPayload, VerifiableUserCredential,
+            keys::AsIntermediateSignature,
+        },
+        crypto::{aead::keys::EncryptedUserProfileKey, hash::Hash},
+        identifiers::{QsReference, SealedClientReference, UserId},
+        messages::client_ds::{
+            AadMessage, AadPayload, GroupOperationParams, GroupOperationParamsAad,
+        },
         mls_group_config::default_leaf_node_capabilities,
         time::TimeStamp,
     };
-    use airprotos::client::{app_data::GroupAppData, component::AIR_COMPONENT_ID};
+    use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
     use apqmls::{
         ApqCiphersuite, ApqMlsGroup,
         authentication::{
@@ -197,7 +245,7 @@ mod test {
             prelude::{
                 AppDataUpdateProposal, Ciphersuite, Extensions, HpkeCiphertext, KeyPackage,
                 LeafNodeIndex, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
-                OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, Proposal,
+                OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, Proposal, SignatureScheme,
             },
         },
         openmls_rust_crypto::OpenMlsRustCrypto,
@@ -205,10 +253,16 @@ mod test {
     };
     use tls_codec::{Deserialize, DeserializeBytes, Serialize};
 
-    use crate::ds::{group_state::MemberProfile, process::Provider};
+    use crate::{
+        ds::{
+            group_operation::ProcessedGroupOperation, group_state::MemberProfile, process::Provider,
+        },
+        errors::GroupOperationError,
+    };
 
     use super::*;
 
+    const MAX_DEVICES: u32 = 5;
     const T_CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
     /// Both legs sign with Ed25519, since ML-DSA key generation would overflow
@@ -230,7 +284,15 @@ mod test {
         fn new() -> Self {
             let signer =
                 ApqSignatureKeyPair::new(ApqSignatureScheme::from(apq_ciphersuite())).unwrap();
-            let credential = ApqCredentialWithKey::new(b"client", &signer);
+            let user_id = UserId::random("example.com".parse().unwrap());
+            let (csr, _prelim_key) =
+                UserCredentialCsr::new(user_id, SignatureScheme::ED25519).unwrap();
+            let payload = UserCredentialPayload::new(csr, None, Hash::from_bytes([0; 32]));
+            // Unsigned, since the DS only parses the credential.
+            let identity = VerifiableUserCredential::new(payload, AsIntermediateSignature::empty())
+                .tls_serialize_detached()
+                .unwrap();
+            let credential = ApqCredentialWithKey::new(&identity, &signer);
             Self {
                 provider: OpenMlsRustCrypto::default(),
                 signer,
@@ -325,13 +387,24 @@ mod test {
             .unwrap()
     }
 
-    /// The Air component of the group context with the deleted flag set.
-    fn deleted_component_data(
+    /// A change a commit makes to the Air component of the group context.
+    type ComponentUpdate = fn(&mut AirComponent);
+
+    fn set_deleted(component: &mut AirComponent) {
+        component.deleted = Some(TimeStamp::now());
+    }
+
+    fn set_deleted_and_self_group(component: &mut AirComponent) {
+        set_deleted(component);
+        component.is_self_group = true;
+    }
+
+    fn updated_component_data(
         extensions: &Extensions<GroupContext>,
-        deleted: TimeStamp,
+        update: ComponentUpdate,
     ) -> ComponentData {
         let mut component = GroupAppData::air_component(extensions).unwrap();
-        component.deleted = Some(deleted);
+        update(&mut component);
         component.to_component_data().unwrap()
     }
 
@@ -344,16 +417,17 @@ mod test {
     }
 
     /// Stages a commit of the creator and returns it with the new group info.
-    /// With `deleted`, the commit sets the deleted flag like a delete commit.
+    /// With `update`, the commit changes the Air component like a delete
+    /// commit.
     fn t_commit(
         creator: &Client,
         group: &mut MlsGroup,
         adds: Vec<KeyPackage>,
         removals: Vec<LeafNodeIndex>,
-        deleted: Option<TimeStamp>,
+        update: Option<ComponentUpdate>,
     ) -> (MlsMessageOut, MlsMessageOut) {
         let component_data =
-            deleted.map(|deleted| deleted_component_data(group.extensions(), deleted));
+            update.map(|update| updated_component_data(group.extensions(), update));
         let mut builder = group
             .commit_builder()
             .force_self_update(true)
@@ -392,9 +466,12 @@ mod test {
         AssistedMessageIn::tls_deserialize_exact_bytes(&bytes).unwrap()
     }
 
-    /// Deletes a group of `size` members as its creator and returns whether
-    /// the DS marks the group state for deletion.
-    fn delete_t_group(size: usize, deleted: Option<TimeStamp>) -> bool {
+    /// Deletes a group of `size` members as its creator and returns the DS
+    /// group state afterwards.
+    fn delete_t_group(
+        size: usize,
+        update: Option<ComponentUpdate>,
+    ) -> Result<DsGroupState, GroupDeletionError> {
         let creator = Client::new();
         let mut group = new_t_group(&creator);
         let key_packages: Vec<_> = (1..size)
@@ -422,15 +499,17 @@ mod test {
         add_joiner_profiles(&mut state);
 
         let removed = others(&group);
-        let (commit, group_info) = t_commit(&creator, &mut group, Vec::new(), removed, deleted);
-        state.delete_group(assisted(commit, group_info)).unwrap();
-
-        state.is_marked_for_deletion()
+        let (commit, group_info) = t_commit(&creator, &mut group, Vec::new(), removed, update);
+        state.delete_group(assisted(commit, group_info))?;
+        Ok(state)
     }
 
-    /// The APQ counterpart of [`delete_t_group`]. Returns the marker of the T
-    /// and the PQ leg state.
-    fn delete_apq_group(size: usize, deleted: Option<TimeStamp>) -> (bool, bool) {
+    /// The APQ counterpart of [`delete_t_group`]. Returns the T and the PQ
+    /// leg state.
+    fn delete_apq_group(
+        size: usize,
+        update: Option<ComponentUpdate>,
+    ) -> Result<(DsGroupState, DsGroupState), GroupDeletionError> {
         let creator = Client::new();
         let mut group = ApqMlsGroup::builder()
             .with_ciphersuite(apq_ciphersuite())
@@ -475,7 +554,7 @@ mod test {
 
         let removed = others(&group.t_group);
         let component_data =
-            deleted.map(|deleted| deleted_component_data(group.t_group.extensions(), deleted));
+            update.map(|update| updated_component_data(group.t_group.extensions(), update));
         let mut builder = group
             .commit_builder()
             .force_self_update(true)
@@ -495,60 +574,93 @@ mod test {
             &mut pq_state,
             assisted(t_commit, t_group_info),
             assisted(pq_commit, pq_group_info),
-        )
-        .unwrap();
+        )?;
+        Ok((t_state, pq_state))
+    }
 
-        (
-            t_state.is_marked_for_deletion(),
-            pq_state.is_marked_for_deletion(),
+    fn is_deleted(state: &DsGroupState) -> bool {
+        GroupAppData::is_deleted_group_context(
+            state.group().group_info().group_context().extensions(),
         )
     }
 
-    /// Stages a self-update of the creator and returns whether the DS sees
-    /// the group flags unchanged by it. With `deleted`, the update sets the
-    /// deleted flag.
-    fn group_flags_unchanged_by_update(deleted: Option<TimeStamp>) -> bool {
+    /// Submits a self-update of the creator as a group operation. With
+    /// `update`, the self-update changes the Air component like a delete
+    /// commit.
+    async fn self_update_group_operation(
+        update: Option<ComponentUpdate>,
+    ) -> Result<ProcessedGroupOperation, GroupOperationError> {
         let creator = Client::new();
         let mut group = new_t_group(&creator);
-        let state = ds_group_state(&creator, &group, creator.signer.t_signer());
+        let mut state = ds_group_state(&creator, &group, creator.signer.t_signer());
 
-        let (commit, group_info) = t_commit(&creator, &mut group, Vec::new(), Vec::new(), deleted);
-        let processed = state
-            .group()
-            .process_assisted_message(state.provider.crypto(), assisted(commit, group_info))
-            .unwrap();
-        let ProcessedAssistedMessage::Commit(processed_message, _) =
-            &processed.processed_assisted_message
-        else {
-            panic!("expected a commit");
+        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
+            new_encrypted_user_profile_keys: Vec::new(),
+        }));
+        group.set_aad(aad.tls_serialize_detached().unwrap());
+        let (commit, group_info) = t_commit(&creator, &mut group, Vec::new(), Vec::new(), update);
+        let params = GroupOperationParams {
+            commit: assisted(commit, group_info),
+            add_users_info_option: None,
         };
-        let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
-            processed_message.content()
-        else {
-            panic!("expected a staged commit");
-        };
-        state.group_flags_unchanged(staged_commit)
+        state.process_group_operation(params, MAX_DEVICES).await
     }
 
     #[test]
     fn a_delete_by_the_only_member_deletes_the_group_state() {
-        for deleted in [None, Some(TimeStamp::now())] {
-            assert!(delete_t_group(1, deleted));
-            assert_eq!(delete_apq_group(1, deleted), (true, true));
+        for update in [None, Some(set_deleted as ComponentUpdate)] {
+            assert!(delete_t_group(1, update).unwrap().is_marked_for_deletion());
+            let (t_state, pq_state) = delete_apq_group(1, update).unwrap();
+            assert!(t_state.is_marked_for_deletion());
+            assert!(pq_state.is_marked_for_deletion());
         }
     }
 
     #[test]
     fn a_delete_that_removes_other_members_keeps_the_group_state() {
-        for deleted in [None, Some(TimeStamp::now())] {
-            assert!(!delete_t_group(2, deleted));
-            assert_eq!(delete_apq_group(2, deleted), (false, false));
+        for update in [None, Some(set_deleted as ComponentUpdate)] {
+            assert!(!delete_t_group(2, update).unwrap().is_marked_for_deletion());
+            let (t_state, pq_state) = delete_apq_group(2, update).unwrap();
+            assert!(!t_state.is_marked_for_deletion());
+            assert!(!pq_state.is_marked_for_deletion());
         }
     }
 
     #[test]
-    fn a_regular_commit_that_sets_the_deleted_flag_changes_the_group_flags() {
-        assert!(group_flags_unchanged_by_update(None));
-        assert!(!group_flags_unchanged_by_update(Some(TimeStamp::now())));
+    fn a_merged_delete_leaves_only_the_deleter_and_carries_the_flag_it_sets() {
+        for update in [None, Some(set_deleted as ComponentUpdate)] {
+            let state = delete_t_group(3, update).unwrap();
+            assert_eq!(state.group().members().count(), 1);
+            assert_eq!(state.member_profiles.len(), 1);
+            assert_eq!(is_deleted(&state), update.is_some());
+
+            let (t_state, pq_state) = delete_apq_group(3, update).unwrap();
+            assert_eq!(t_state.group().members().count(), 1);
+            assert_eq!(t_state.member_profiles.len(), 1);
+            assert_eq!(pq_state.group().members().count(), 1);
+            assert_eq!(is_deleted(&t_state), update.is_some());
+            assert!(!is_deleted(&pq_state));
+        }
+    }
+
+    #[test]
+    fn a_delete_that_sets_the_self_group_flag_is_rejected() {
+        let update = Some(set_deleted_and_self_group as ComponentUpdate);
+        let Err(GroupDeletionError::InvalidMessage) = delete_t_group(2, update) else {
+            panic!("the T delete is accepted");
+        };
+        let Err(GroupDeletionError::InvalidMessage) = delete_apq_group(2, update) else {
+            panic!("the APQ delete is accepted");
+        };
+    }
+
+    #[tokio::test]
+    async fn a_group_operation_that_sets_the_deleted_flag_is_rejected() {
+        self_update_group_operation(None).await.unwrap();
+        let Err(GroupOperationError::InvalidMessage) =
+            self_update_group_operation(Some(set_deleted)).await
+        else {
+            panic!("the group operation is accepted");
+        };
     }
 }
