@@ -99,6 +99,53 @@ void main() {
       ).called(1);
     });
 
+    testWidgets('launcher gets special characters percent-encoded', (
+      tester,
+    ) async {
+      final userCubit = MockUserCubit();
+      when(() => userCubit.uploadLogs())
+          .thenAnswer((_) async => 'https://logs.example/a?b=1&c=%20#d');
+
+      await tester.pumpWidget(
+        Builder(
+          builder: (context) => MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            home: BlocProvider<UserCubit>.value(
+              value: userCubit,
+              child: ContactUsModal(
+                initialSubject: "Other",
+                initialBody: "Tom & Jerry #1?\n100% broken",
+                launcher: launcher,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Share your logs (this helps Air fix bugs)'));
+      await tester.pumpAndSettle();
+
+      when(() => launcher.launchUrl(any())).thenAnswer((_) async {});
+
+      await tester.tap(find.byType(Button));
+
+      final uri =
+          verify(() => launcher.launchUrl(captureAny())).captured.single as Uri;
+      expect(uri.scheme, "mailto");
+      expect(uri.path, "help@air.ms");
+      expect(uri.query, isNot(contains('+')));
+      expect(uri.queryParameters, {
+        "subject": "Other",
+        "body":
+            "Tom & Jerry #1?\n100% broken\n\n"
+            "Here are some logs to help you debug my issue: "
+            "https://logs.example/a?b=1&c=%20#d",
+      });
+    });
+
     testWidgets('a failing log upload is reported in a snackbar', (
       tester,
     ) async {
