@@ -425,7 +425,10 @@ List<SingleChildWidget> _openChatProviders({
       isCommitted: any(named: "isCommitted"),
     ),
   ).thenAnswer((_) async => Future.value());
-  messageListCubit.setState(messages);
+  messageListCubit.setState(
+    messages,
+    isConnectionChat: chat.chatType is UiChatType_Connection,
+  );
   _stubAttachments(attachmentsRepository, attachmentImages);
   when(
     () => attachmentsRepository.statusStream(

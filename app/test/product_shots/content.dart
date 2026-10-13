@@ -52,7 +52,9 @@ final chats = _content.chats;
 
 final _privateChatKey = _content.shotChatKey('private_chat');
 final privateChat = _content.chat(_privateChatKey);
-final privateChatMembers = [_content.userId(_privateChatKey)];
+final privateChatMembers = [
+  (privateChat.chatType as UiChatType_Connection).field0.userId,
+];
 final privateChatMessages = _content.transcript(_privateChatKey);
 final privateChatAttachmentImages = _content.attachmentImages(_privateChatKey);
 
