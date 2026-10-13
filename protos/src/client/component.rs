@@ -2,9 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::codec::{self, PersistenceCodec};
+use aircommon::{
+    codec::{self, PersistenceCodec},
+    time::TimeStamp,
+};
 use airmacros::{DeserializeTaggedMap, SerializeTaggedMap};
-use mls_assist::openmls::component::ComponentId;
+use mls_assist::openmls::component::{ComponentData, ComponentId};
 
 /// The component id of the Air component.
 pub const AIR_COMPONENT_ID: ComponentId = 0x8000;
@@ -27,6 +30,13 @@ pub struct AirComponent {
     /// Only meaningful in the group context; always `false` in leaf nodes and key packages.
     #[tag(2)]
     pub is_self_group: bool,
+    /// When the group was deleted, if it was.
+    ///
+    /// Set by the commit that deletes the group, to the deleter's local time
+    /// when it built the commit. Only meaningful in the group context. Always
+    /// `None` in leaf nodes and key packages.
+    #[tag(3)]
+    pub deleted: Option<TimeStamp>,
 }
 
 /// List of features supported by the client.
@@ -62,6 +72,13 @@ impl AirComponent {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, codec::Error> {
         PersistenceCodec::from_slice(bytes)
     }
+
+    pub fn to_component_data(&self) -> Result<ComponentData, codec::Error> {
+        Ok(ComponentData::from_parts(
+            AIR_COMPONENT_ID,
+            self.to_bytes()?.into(),
+        ))
+    }
 }
 
 impl AirFeatures {
@@ -81,6 +98,7 @@ impl AirFeatures {
 
 #[cfg(test)]
 mod test {
+    use chrono::{TimeZone, Utc};
     use mls_assist::openmls::component::PrivateComponentId;
 
     use super::*;
@@ -88,5 +106,64 @@ mod test {
     #[test]
     fn air_component_id_is_private() {
         PrivateComponentId::new(AIR_COMPONENT_ID).expect("Should be private");
+    }
+
+    fn deleted_component() -> AirComponent {
+        AirComponent {
+            features: AirFeatures::default_leaf_or_key_package_features(),
+            is_self_group: false,
+            deleted: Some(Utc.with_ymd_and_hms(2026, 10, 13, 12, 0, 0).unwrap().into()),
+        }
+    }
+
+    #[test]
+    fn deleted_component_stability() {
+        let bytes = deleted_component().to_bytes().unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn deleted_component_round_trip() {
+        let component = deleted_component();
+        let bytes = component.to_bytes().unwrap();
+        assert_eq!(AirComponent::from_bytes(&bytes).unwrap(), component);
+    }
+
+    /// The component as it was before the `deleted` field existed.
+    #[derive(Debug, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+    struct LegacyAirComponent {
+        #[tag(1)]
+        features: AirFeatures,
+        #[tag(2)]
+        is_self_group: bool,
+    }
+
+    #[test]
+    fn deleted_field_encodes_as_before_when_unset_and_decodes_on_legacy_component() {
+        let features = AirFeatures::default_leaf_or_key_package_features();
+        let legacy = LegacyAirComponent {
+            features: features.clone(),
+            is_self_group: true,
+        };
+        let current = AirComponent {
+            features,
+            is_self_group: true,
+            deleted: None,
+        };
+        assert_eq!(
+            PersistenceCodec::to_vec(&legacy).unwrap(),
+            current.to_bytes().unwrap()
+        );
+
+        let bytes = deleted_component().to_bytes().unwrap();
+        let decoded: LegacyAirComponent = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            decoded,
+            LegacyAirComponent {
+                features: AirFeatures::default_leaf_or_key_package_features(),
+                is_self_group: false,
+            }
+        );
     }
 }

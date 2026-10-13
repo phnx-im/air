@@ -1,0 +1,18 @@
+---
+source: protos/src/client/component.rs
+expression: diag
+---
+a2                                             # map(2)
+   01                                          #   unsigned(1)
+   a4                                          #   map(4)
+      01                                       #     unsigned(1)
+      f5                                       #     true, simple(21)
+      02                                       #     unsigned(2)
+      f5                                       #     true, simple(21)
+      03                                       #     unsigned(3)
+      f5                                       #     true, simple(21)
+      04                                       #     unsigned(4)
+      f5                                       #     true, simple(21)
+   03                                          #   unsigned(3)
+   74                                          #   text(20)
+      323032362d31302d31335431323a30303a30305a #     "2026-10-13T12:00:00Z"
