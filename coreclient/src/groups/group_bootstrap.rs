@@ -22,16 +22,18 @@ use aircommon::{
     },
     identifiers::{UserId, Username},
     messages::client_as::ConnectionOfferHash,
+    time::TimeStamp,
 };
 use airprotos::client::group_bootstrap::{
     ConnectionContext, GroupBootstrap, GroupBootstrapBlob, GroupBootstrapCarrier,
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use openmls::{components::vc_derivation_info::EpochId, prelude::GroupId};
+use tracing::warn;
 use zeroize::Zeroizing;
 
 use crate::{
-    chats::outgoing_requests::OutgoingRequest,
+    chats::{connection_requests, outgoing_requests::OutgoingRequest},
     clients::connection_offer::FriendshipPackage,
     db::access::WriteDbTransaction,
     groups::{Group, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
@@ -202,6 +204,7 @@ impl TryFrom<ConnectionContext> for BootstrapConnection {
                     connection_offer_hash: context
                         .connection_offer_hash
                         .context("handle initiator context without a connection offer hash")?,
+                    sent_at: context.sent_at.and_then(sent_time),
                 }))
             }
             ConnectionContext::TargetedInitiator(context) => {
@@ -214,6 +217,7 @@ impl TryFrom<ConnectionContext> for BootstrapConnection {
                         "targeted initiator context without a friendship package ear key",
                     )?,
                     origin_group_id: context.origin_group_id,
+                    sent_at: context.sent_at.and_then(sent_time),
                 }))
             }
             ConnectionContext::Accept(context) => Ok(Self::Accept {
@@ -239,6 +243,16 @@ impl TryFrom<ConnectionContext> for BootstrapConnection {
             }
         }
     }
+}
+
+/// The time a sibling sent a request at. Without a valid one, as from an
+/// older sibling, the request counts from the DS time of the echo.
+fn sent_time(millis: u64) -> Option<TimeStamp> {
+    let sent_at = connection_requests::from_epoch_millis(millis);
+    if sent_at.is_none() {
+        warn!(%millis, "Ignoring the out-of-range send time of a request");
+    }
+    sent_at.map(TimeStamp::from)
 }
 
 fn bootstrap_key(secret: Vec<u8>) -> Result<GroupBootstrapKey> {
@@ -267,8 +281,11 @@ mod tests {
     };
     use airprotos::client::{
         group::GroupData,
-        group_bootstrap::{AcceptContext, HandleInitiatorContext, PeerUserId},
+        group_bootstrap::{
+            AcceptContext, HandleInitiatorContext, PeerUserId, TargetedInitiatorContext,
+        },
     };
+    use chrono::DateTime;
     use uuid::Uuid;
 
     use crate::{
@@ -469,13 +486,58 @@ mod tests {
         assert!(
             with_connection(ConnectionContext::HandleInitiator(HandleInitiatorContext {
                 username: None,
-                friendship_package_ear_key: Some(key(5)),
-                connection_offer_hash: Some(ConnectionOfferHash::from_bytes([6u8; 32])),
+                ..handle_initiator_context(None)
             }))
             .is_err()
         );
         // A context kind this version does not know cannot be installed.
         assert!(with_connection(ConnectionContext::Unknown).is_err());
+    }
+
+    fn handle_initiator_context(sent_at: Option<u64>) -> HandleInitiatorContext {
+        HandleInitiatorContext {
+            username: Some("ellie-03".to_owned()),
+            friendship_package_ear_key: Some(key(5)),
+            connection_offer_hash: Some(ConnectionOfferHash::from_bytes([6u8; 32])),
+            sent_at,
+        }
+    }
+
+    #[test]
+    fn an_initiator_context_carries_the_send_time() -> anyhow::Result<()> {
+        let sent_at = |connection| -> anyhow::Result<Option<TimeStamp>> {
+            let contents = GroupBootstrapContents::try_from(GroupBootstrap {
+                connection: Some(connection),
+                ..minimal_payload()
+            })?;
+            let Some(BootstrapConnection::Initiator(request)) = contents.connection else {
+                bail!("expected an initiator context");
+            };
+            let (OutgoingRequest::Username { sent_at, .. }
+            | OutgoingRequest::Targeted { sent_at, .. }) = request;
+            Ok(sent_at)
+        };
+        let contexts: [fn(Option<u64>) -> ConnectionContext; 2] = [
+            |sent_at| ConnectionContext::HandleInitiator(handle_initiator_context(sent_at)),
+            |sent_at| {
+                ConnectionContext::TargetedInitiator(TargetedInitiatorContext {
+                    user_id: Some(peer_user_id().into()),
+                    friendship_package_ear_key: Some(key(7)),
+                    origin_group_id: None,
+                    sent_at,
+                })
+            },
+        ];
+
+        let millis = 1_767_225_600_123;
+        let expected = DateTime::from_timestamp_millis(millis.try_into()?).map(TimeStamp::from);
+        for context in contexts {
+            assert_eq!(sent_at(context(Some(millis)))?, expected);
+            // From an older sibling, or out of range.
+            assert_eq!(sent_at(context(None))?, None);
+            assert_eq!(sent_at(context(Some(u64::MAX)))?, None);
+        }
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]

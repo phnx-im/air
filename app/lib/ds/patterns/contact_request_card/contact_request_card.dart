@@ -73,6 +73,7 @@ class ContactRequestCard extends StatefulWidget {
     this.message,
     this.messageLabel,
     this.messageRevealLabel,
+    this.expiresLabel,
     required this.actions,
   }) : assert(
          actions is! ContactRequestAnswers ||
@@ -123,6 +124,10 @@ class ContactRequestCard extends StatefulWidget {
   /// Prompt standing in for the covered note.
   final String? messageRevealLabel;
 
+  /// Countdown to the request's expiry, shown above the actions while the
+  /// request is open.
+  final String? expiresLabel;
+
   final ContactRequestCardActions actions;
 
   @override
@@ -140,6 +145,7 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
     final message = widget.message;
     final subtitle = widget.subtitle;
     final body = widget.body;
+    final expiresLabel = widget.expiresLabel;
 
     return Padding(
       padding: tokens.containerPadding,
@@ -176,6 +182,16 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
                   child: _avatar(palette),
                 ),
                 if (message != null) _note(palette, message),
+                if (expiresLabel != null) ...[
+                  const SizedBox(height: ContactRequestCardTokens.subtitleGap),
+                  Text(
+                    expiresLabel,
+                    textAlign: .center,
+                    style: typeScale.body.xs.style(
+                      color: palette.text.tertiary,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: ContactRequestCardTokens.actionsTopGap),
                 _actions(),
               ],

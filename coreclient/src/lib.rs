@@ -47,8 +47,9 @@ pub use crate::{
         linked_devices::{LinkedDevicesSetting, current_platform},
         safety_code::SafetyCode,
         user_settings::{
-            DefaultEmojiSkinToneSetting, DeveloperModeSetting, ExperimentalFeaturesSetting,
-            LimitAnimatedImagesLoopsSetting, ReadReceiptsSetting, UserSetting,
+            DefaultEmojiSkinToneSetting, DeleteExpiredContactRequestsSetting, DeveloperModeSetting,
+            ExperimentalFeaturesSetting, LimitAnimatedImagesLoopsSetting, ReadReceiptsSetting,
+            UserSetting,
         },
     },
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},

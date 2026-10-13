@@ -15,7 +15,8 @@
 //!
 //! Declining an incoming request, or finding it unavailable, travels through
 //! the self-group too. A declined request is remembered, so a late copy of it
-//! is dropped.
+//! is dropped. Expiry needs no message, since every device expires a request
+//! at the same time, see [`request_expiry`].
 
 use aircommon::{
     codec::PersistenceCodec,
@@ -38,7 +39,7 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, ChatType, Contact, SystemMessage,
-    chats::{PendingConnectionRequest, messages::TimestampedMessage, persistence},
+    chats::{PendingConnectionRequest, messages::TimestampedMessage, persistence, request_expiry},
     clients::{
         CoreUser,
         block_contact::BlockedContact,
@@ -269,6 +270,18 @@ pub(crate) async fn park_received(
     };
     park(txn, request_id, &ConnectionRequestEntry::Received(received)).await?;
     Ok(())
+}
+
+/// Time in milliseconds since the Unix epoch.
+pub(crate) fn to_epoch_millis(time: DateTime<Utc>) -> u64 {
+    time.timestamp_millis().max(0) as u64
+}
+
+/// DateTime in milliseconds since the Unix epoch, if it is in range.
+pub(crate) fn from_epoch_millis(millis: u64) -> Option<DateTime<Utc>> {
+    i64::try_from(millis)
+        .ok()
+        .and_then(DateTime::from_timestamp_millis)
 }
 
 fn declined_entry(request_id: ChatId, declined_at: DateTime<Utc>) -> ConnectionRequestEntry {
@@ -524,7 +537,8 @@ fn received_entry(
 }
 
 /// Stores a request from a sibling, unless there is nothing to add: it is
-/// known, its deletion is parked, or its sender is blocked or connected.
+/// known or expired, its deletion is parked, or its sender is blocked or
+/// connected.
 async fn store_received(
     txn: &mut WriteDbTransaction<'_>,
     received: &ConnectionRequestReceived,
@@ -534,7 +548,8 @@ async fn store_received(
     };
     let request_id = request.request_id()?;
     let group_id = &request.connection_info.connection_group_id;
-    if is_settled(&mut *txn, request_id, &request.sender).await?
+    if request_expiry::has_expired(*request.received_at, Utc::now())
+        || is_settled(&mut *txn, request_id, &request.sender).await?
         || persistence::is_deletion_staged(&mut *txn, group_id).await?
         || BlockedContact::check_blocked(&mut *txn, &request.sender).await?
     {
@@ -640,9 +655,27 @@ async fn remove_unavailable(
     };
     let removed = remove_request(txn, request).await?;
     if removed.remaining.is_none() {
-        close_unavailable_chat(txn, removed.chat_id).await?;
+        let record = SystemMessage::ConnectionRequestUnavailable;
+        close_incoming_chat(txn, removed.chat_id, record, TimeStamp::now()).await?;
     }
     Ok(Some(removed))
+}
+
+/// Removes a pending request whose deadline passed, including older ones.
+pub(crate) async fn expire_incoming(
+    txn: &mut WriteDbTransaction<'_>,
+    request_id: ChatId,
+) -> anyhow::Result<()> {
+    let Some(request) = PendingConnectionRequest::load(&mut *txn, request_id).await? else {
+        return Ok(());
+    };
+    let at = request_expiry::expires_at(*request.received_at).into();
+    let removed = remove_request(txn, request).await?;
+    if removed.remaining.is_none() {
+        let record = SystemMessage::ConnectionRequestExpired;
+        close_incoming_chat(txn, removed.chat_id, record, at).await?;
+    }
+    Ok(())
 }
 
 /// Declines a pending request of a chat that is about to be erased, and parks
@@ -724,11 +757,13 @@ pub(crate) async fn apply_blocked_sender(
     Ok(Some(chat_id))
 }
 
-/// Turns the chat of incoming requests that are all gone into a record of
-/// that.
-async fn close_unavailable_chat(
+/// Turns the chat of incoming requests that all ended into a `record` of how
+/// the last one ended.
+async fn close_incoming_chat(
     txn: &mut WriteDbTransaction<'_>,
     chat_id: ChatId,
+    record: SystemMessage,
+    at: TimeStamp,
 ) -> anyhow::Result<()> {
     let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
         return Ok(());
@@ -740,10 +775,7 @@ async fn close_unavailable_chat(
     }
     Group::delete_from_db(txn, chat.group_id()).await?;
     Chat::update_status(&mut *txn, chat_id, &ChatStatus::inactive(Vec::new())).await?;
-    let record = TimestampedMessage::system_message(
-        SystemMessage::ConnectionRequestUnavailable,
-        TimeStamp::now(),
-    );
+    let record = TimestampedMessage::system_message(record, at);
     CoreUser::store_new_messages(txn, chat_id, vec![record]).await?;
     Ok(())
 }
@@ -919,6 +951,8 @@ impl CoreUser {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::LazyLock;
+
     use aircommon::{
         credentials::{keys::UsernameSigningKey, test_utils::create_test_credentials},
         crypto::{
@@ -975,10 +1009,12 @@ mod tests {
         Ok(UserId::random("example.com".parse()?))
     }
 
+    /// Whole seconds from a day ago, so a forwarded request has not expired.
+    static RECENTLY: LazyLock<DateTime<Utc>> =
+        LazyLock::new(|| (Utc::now() - chrono::Duration::days(1)).trunc_subsecs(0));
+
     fn at(seconds: i64) -> TimeStamp {
-        DateTime::<Utc>::from_timestamp(1_767_225_600 + seconds, 0)
-            .unwrap()
-            .into()
+        (*RECENTLY + chrono::Duration::seconds(seconds)).into()
     }
 
     /// Stores an incoming request via `username`, as processing its offer
@@ -1335,6 +1371,24 @@ mod tests {
             }
             .store(&mut *txn)
             .await?;
+
+            let effects = apply_connection_requests_update(txn, &sent).await?;
+
+            assert!(effects.new_requests.is_empty());
+            assert!(Chat::load(&mut *txn, &stored.chat_id).await?.is_none());
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_forwarded_request_past_its_deadline_is_dropped() -> anyhow::Result<()> {
+        let db = linked_device().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let credential = sender_with_credential(txn).await?;
+            let received_at = *RECENTLY - request_expiry::REQUEST_LIFETIME;
+            let (stored, sent) = receive_and_park(txn, &credential, received_at.into()).await?;
+            Chat::delete(&mut *txn, stored.chat_id).await?;
 
             let effects = apply_connection_requests_update(txn, &sent).await?;
 

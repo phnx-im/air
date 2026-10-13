@@ -681,6 +681,11 @@ pub enum SystemMessage {
     /// A connection request we received can no longer be accepted, because
     /// its sender retracted it.
     ConnectionRequestUnavailable,
+    /// The connection requests we received from a sender expired before we
+    /// answered them.
+    ConnectionRequestExpired,
+    /// A connection request we sent expired before the recipient answered it.
+    SentConnectionRequestExpired,
 }
 
 impl EventMessage {
@@ -754,7 +759,9 @@ impl SystemMessage {
             | SystemMessage::ReceivedGroupConnectionRequest { .. }
             | SystemMessage::ReceivedAdditionalGroupConnectionRequest { .. }
             | SystemMessage::SentGroupConnectionRequest { .. }
-            | SystemMessage::ConnectionRequestUnavailable => None,
+            | SystemMessage::ConnectionRequestUnavailable
+            | SystemMessage::ConnectionRequestExpired
+            | SystemMessage::SentConnectionRequestExpired => None,
         }
     }
 
@@ -878,6 +885,10 @@ impl SystemMessage {
             SystemMessage::ConnectionRequestUnavailable => {
                 "The contact request is no longer available.".into()
             }
+            SystemMessage::ConnectionRequestExpired => "Contact request expired.".into(),
+            SystemMessage::SentConnectionRequestExpired => "Your contact request expired. If you \
+                still want to add this person as a contact, send them a new request."
+                .into(),
             SystemMessage::CreateGroup(user_id) => {
                 let user_display_name = core_user.user_profile(user_id).await.display_name;
                 format!("{user_display_name} created the group")

@@ -18,7 +18,10 @@ use chrono::Utc;
 use tracing::error;
 
 use crate::{
-    chats::connection_requests::{self, IncomingRequest, IncomingRequestSource, StoredRequest},
+    chats::{
+        connection_requests::{self, IncomingRequest, IncomingRequestSource, StoredRequest},
+        request_expiry,
+    },
     clients::{
         api_clients::ApiClients,
         block_contact::{BlockedContact, BlockedContactError},
@@ -164,7 +167,8 @@ impl CoreUser {
     /// Stores an incoming connection request as pending. A request via a
     /// username is also parked for the siblings.
     ///
-    /// Returns where it was stored, or `None` if the request is known already.
+    /// Returns where it was stored, or `None` if the request is known already
+    /// or expired.
     pub(crate) async fn process_connection_offer(
         context: &mut JobContext<'_, '_>,
         connection_info_source: ConnectionInfoSource,
@@ -188,6 +192,11 @@ impl CoreUser {
             .await?
         {
             bail!(BlockedContactError);
+        }
+
+        // A request that arrives after its deadline is never shown.
+        if request_expiry::has_expired(*message_timestamp, Utc::now()) {
+            return Ok(None);
         }
 
         // Idempotency: the request id is deterministic from the group id, so

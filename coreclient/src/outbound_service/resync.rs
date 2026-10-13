@@ -1308,6 +1308,7 @@ mod tests {
                 Uuid::new_v4(),
                 "example.com".parse()?,
             ))),
+            sent_at: Some(TimeStamp::now()),
         };
         resync.chat_id = None;
         resync.outgoing_request = Some(request.clone());

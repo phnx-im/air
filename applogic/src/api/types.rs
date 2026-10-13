@@ -107,6 +107,7 @@ pub struct UiChatDetails {
     pub muted_until: Option<UiChatMuted>,
     pub pending_commit_failed: bool,
     pub resync_failed: bool,
+    pub contact_request_expires_at: Option<DateTime<Utc>>,
 }
 
 impl UiChatDetails {
@@ -599,6 +600,8 @@ pub enum UiSystemMessage {
         origin_chat_id: ChatId,
     },
     ConnectionRequestUnavailable,
+    ConnectionRequestExpired,
+    SentConnectionRequestExpired,
 }
 
 /// The group chat a connection request came through.
@@ -699,6 +702,10 @@ impl From<SystemMessage> for UiSystemMessage {
             },
             SystemMessage::ConnectionRequestUnavailable => {
                 UiSystemMessage::ConnectionRequestUnavailable
+            }
+            SystemMessage::ConnectionRequestExpired => UiSystemMessage::ConnectionRequestExpired,
+            SystemMessage::SentConnectionRequestExpired => {
+                UiSystemMessage::SentConnectionRequestExpired
             }
         }
     }

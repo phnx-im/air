@@ -177,6 +177,27 @@ void main() {
         verifyNever(() => userSettingsCubit.setReadReceipts(value: true));
       });
 
+      testWidgets('the expired contact requests toggle submits the choice', (
+        tester,
+      ) async {
+        when(
+          () => userSettingsCubit.setDeleteExpiredContactRequests(
+            value: any(named: 'value'),
+          ),
+        ).thenAnswer((_) async {});
+
+        await pumpSection(tester, YouSection.preferences);
+        await tester.tap(find.text('Delete expired contact requests'));
+        await tester.pump(const Duration(milliseconds: 500));
+
+        verify(
+          () => userSettingsCubit.setDeleteExpiredContactRequests(value: true),
+        ).called(1);
+        verifyNever(
+          () => userSettingsCubit.setReadReceipts(value: any(named: 'value')),
+        );
+      });
+
       testWidgets('pending toggle is submitted when the screen closes', (
         tester,
       ) async {

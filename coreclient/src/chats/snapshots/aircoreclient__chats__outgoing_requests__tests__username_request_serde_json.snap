@@ -74,6 +74,7 @@ expression: "&*USERNAME_REQUEST"
       0,
       0,
       0
-    ]
+    ],
+    "sent_at": "2026-01-01T00:00:00Z"
   }
 }

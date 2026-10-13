@@ -39,8 +39,8 @@ use tls_codec::{DeserializeBytes, Serialize as _, VLBytes};
 
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, ChatType, SystemMessage,
-    chats::connection_requests,
-    clients::{CoreUser, connection_offer::FriendshipPackage},
+    chats::{connection_requests, messages::TimestampedMessage, request_expiry},
+    clients::{CoreUser, connection_offer::FriendshipPackage, own_client_info::OwnClientInfo},
     contacts::{PartialContact, PartialContactType, TargetedMessageContact, UsernameContact},
     db::access::{ReadDbTransaction, WriteDbTransaction},
     groups::{Group, client_auth_info::StorableUserCredential},
@@ -56,6 +56,10 @@ pub(crate) enum OutgoingRequest {
         /// Id and value of the connection-offer PSK the recipient's join
         /// references.
         connection_offer_hash: ConnectionOfferHash,
+        /// When the request was sent, which its expiry counts from. Absent
+        /// from older devices.
+        #[serde(default)]
+        sent_at: Option<TimeStamp>,
     },
     /// Sent as a targeted message in a group chat.
     Targeted {
@@ -63,6 +67,10 @@ pub(crate) enum OutgoingRequest {
         friendship_package_ear_key: FriendshipPackageEarKey,
         /// The group of that group chat. Absent if the sender did not keep it.
         origin_group_id: Option<GroupId>,
+        /// When the request was sent, which its expiry counts from. Absent
+        /// from older devices.
+        #[serde(default)]
+        sent_at: Option<TimeStamp>,
     },
 }
 
@@ -72,6 +80,9 @@ impl OutgoingRequest {
         txn: &mut ReadDbTransaction<'_>,
         chat: &Chat,
     ) -> sqlx::Result<Option<Self>> {
+        let sent_at = request_expiry::outgoing_sent_at(&mut *txn, chat.id())
+            .await?
+            .map(TimeStamp::from);
         let request = match chat.chat_type() {
             ChatType::HandleConnection(username) => UsernameContact::load(&mut *txn, username)
                 .await?
@@ -80,6 +91,7 @@ impl OutgoingRequest {
                     username: contact.username,
                     friendship_package_ear_key: contact.friendship_package_ear_key,
                     connection_offer_hash: contact.connection_offer_hash,
+                    sent_at,
                 }),
             ChatType::TargetedMessageConnection(user_id) => {
                 TargetedMessageContact::load(&mut *txn, user_id)
@@ -89,6 +101,7 @@ impl OutgoingRequest {
                         user_id: contact.user_id,
                         friendship_package_ear_key: contact.friendship_package_ear_key,
                         origin_group_id: contact.origin_group_id,
+                        sent_at,
                     })
             }
             ChatType::Group(_) | ChatType::Connection(_) | ChatType::PendingConnection(_) => None,
@@ -98,6 +111,10 @@ impl OutgoingRequest {
 
     /// Stores the chat of the request, whose connection group is `group`,
     /// with the partial contact the recipient's join completes.
+    ///
+    /// The announcement takes the request's `sent_at`, so its expiry counts
+    /// from the same time on every device. `timestamp` stands in for a request
+    /// without one.
     pub(crate) async fn store(
         self,
         txn: &mut WriteDbTransaction<'_>,
@@ -110,12 +127,13 @@ impl OutgoingRequest {
                 username,
                 friendship_package_ear_key,
                 connection_offer_hash,
+                sent_at,
             } => {
                 let chat = Chat::new_handle_chat(group_id, username.clone());
                 chat.store(&mut *txn).await?;
                 ChatMessage::new_system_message(
                     chat.id(),
-                    timestamp,
+                    sent_at.unwrap_or(timestamp),
                     SystemMessage::NewHandleConnectionChat(username.clone()),
                 )
                 .store(&mut *txn)
@@ -136,6 +154,7 @@ impl OutgoingRequest {
                 user_id,
                 friendship_package_ear_key,
                 origin_group_id,
+                sent_at,
             } => {
                 let system_message = match &origin_group_id {
                     Some(origin_group_id) => SystemMessage::SentGroupConnectionRequest {
@@ -148,9 +167,13 @@ impl OutgoingRequest {
                 };
                 let chat = Chat::new_targeted_message_chat(group_id, user_id.clone());
                 chat.store(&mut *txn).await?;
-                ChatMessage::new_system_message(chat.id(), timestamp, system_message)
-                    .store(&mut *txn)
-                    .await?;
+                ChatMessage::new_system_message(
+                    chat.id(),
+                    sent_at.unwrap_or(timestamp),
+                    system_message,
+                )
+                .store(&mut *txn)
+                .await?;
                 TargetedMessageContact::new(
                     user_id,
                     chat.id(),
@@ -164,6 +187,52 @@ impl OutgoingRequest {
         };
         Ok(chat)
     }
+}
+
+/// Turns the outgoing request `chat` stands for into a record that it expired
+/// `at`, and frees its username or user for a new request.
+///
+/// Does nothing if the chat is no outgoing request or was closed before, which
+/// the missing partial contact shows. Returns whether the request was closed.
+pub(crate) async fn close_expired(
+    txn: &mut WriteDbTransaction<'_>,
+    chat: &Chat,
+    at: TimeStamp,
+) -> anyhow::Result<bool> {
+    let contact = match chat.chat_type() {
+        ChatType::HandleConnection(_) => UsernameContact::load_by_chat_id(&mut *txn, chat.id())
+            .await?
+            .map(PartialContact::Username),
+        ChatType::TargetedMessageConnection(user_id) => {
+            TargetedMessageContact::load(&mut *txn, user_id)
+                .await?
+                .filter(|contact| contact.chat_id == chat.id())
+                .map(PartialContact::TargetedMessage)
+        }
+        ChatType::Group(_) | ChatType::Connection(_) | ChatType::PendingConnection(_) => {
+            return Ok(false);
+        }
+    };
+    let Some(contact) = contact else {
+        return Ok(false);
+    };
+    if !matches!(chat.status(), ChatStatus::Inactive(_)) {
+        let own_user_id = OwnClientInfo::load(&mut *txn).await?.user_id;
+        Chat::update_status(
+            &mut *txn,
+            chat.id(),
+            &ChatStatus::inactive(vec![own_user_id]),
+        )
+        .await?;
+    }
+    if let PartialContact::Username(contact) = &contact {
+        Group::delete_connection_offer_psk(&mut *txn, contact.connection_offer_hash)?;
+    }
+    contact.delete(&mut *txn).await?;
+    let record =
+        TimestampedMessage::system_message(SystemMessage::SentConnectionRequestExpired, at);
+    CoreUser::store_new_messages(txn, chat.id(), vec![record]).await?;
+    Ok(true)
 }
 
 /// Confirms the outgoing request `chat` stands for, now that `recipient` joined
@@ -446,11 +515,18 @@ mod tests {
         .unwrap()
     }
 
+    fn sent_at() -> TimeStamp {
+        chrono::DateTime::from_timestamp(1_767_225_600, 0)
+            .unwrap()
+            .into()
+    }
+
     static USERNAME_REQUEST: LazyLock<OutgoingRequest> =
         LazyLock::new(|| OutgoingRequest::Username {
             username: Username::new("ellie-".to_owned()).unwrap(),
             friendship_package_ear_key: friendship_package_ear_key(),
             connection_offer_hash: ConnectionOfferHash::new_for_test(vec![1, 2, 3]),
+            sent_at: Some(sent_at()),
         });
 
     static TARGETED_REQUEST: LazyLock<OutgoingRequest> =
@@ -458,6 +534,7 @@ mod tests {
             user_id: UserId::new(Uuid::from_u128(1), "localhost".parse().unwrap()),
             friendship_package_ear_key: friendship_package_ear_key(),
             origin_group_id: Some(GroupId::from_slice(b"origin-group")),
+            sent_at: Some(sent_at()),
         });
 
     #[test]
@@ -482,5 +559,31 @@ mod tests {
     #[test]
     fn targeted_request_serde_json() {
         insta::assert_json_snapshot!(&*TARGETED_REQUEST);
+    }
+
+    /// A request stored or provisioned by a version that did not keep
+    /// `sent_at`.
+    #[test]
+    fn a_request_without_sent_at_decodes() {
+        #[derive(Serialize)]
+        enum OutgoingRequestWithoutSentAt {
+            Username {
+                username: Username,
+                friendship_package_ear_key: FriendshipPackageEarKey,
+                connection_offer_hash: ConnectionOfferHash,
+            },
+        }
+
+        let old = OutgoingRequestWithoutSentAt::Username {
+            username: Username::new("ellie-".to_owned()).unwrap(),
+            friendship_package_ear_key: friendship_package_ear_key(),
+            connection_offer_hash: ConnectionOfferHash::new_for_test(vec![1, 2, 3]),
+        };
+        let bytes = PersistenceCodec::to_vec(&old).unwrap();
+        let decoded: OutgoingRequest = PersistenceCodec::from_slice(&bytes).unwrap();
+        let OutgoingRequest::Username { sent_at, .. } = decoded else {
+            panic!("expected a username request, got {decoded:?}");
+        };
+        assert_eq!(sent_at, None);
     }
 }

@@ -365,6 +365,7 @@ pub struct LinkedDevice {
 ///   ? linked_devices: [* LinkedDevice] .tag 2
 ///   ? default_emoji_skin_tone: uint .size 1 .tag 3
 ///   ? limit_animated_images_loops: bool .tag 4
+///   ? delete_expired_contact_requests: bool .tag 5
 /// }
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
@@ -380,6 +381,10 @@ pub struct SettingsUpdate {
     pub default_emoji_skin_tone: Option<u8>,
     #[tag(4)]
     pub limit_animated_images_loops: Option<bool>,
+    /// Whether contact requests that expired are deleted instead of kept as a
+    /// record.
+    #[tag(5)]
+    pub delete_expired_contact_requests: Option<bool>,
 }
 
 /// The contacts whose blocked state the sender just changed. This is a diff and
@@ -727,6 +732,7 @@ mod test {
                 "Laptop",
                 LinkedDevicePlatform::Linux,
             )]),
+            delete_expired_contact_requests: Some(true),
             ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&update).unwrap();
@@ -734,9 +740,9 @@ mod test {
         assert_eq!(update, decoded);
     }
 
-    /// An older client sends `SettingsUpdate` without tag 2. The field must
-    /// decode as absent, which means "the sender has no value", not "clear the
-    /// value".
+    /// An older client sends `SettingsUpdate` without tags 2 to 5. The fields
+    /// must decode as absent, which means "the sender has no value", not "clear
+    /// the value".
     #[test]
     fn settings_update_without_linked_devices_decodes_as_absent() {
         #[derive(Debug, Clone, Default, SerializeTaggedMap)]
@@ -827,6 +833,7 @@ mod test {
                 "Laptop",
                 LinkedDevicePlatform::Linux,
             )]),
+            delete_expired_contact_requests: Some(true),
             ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&update).unwrap();

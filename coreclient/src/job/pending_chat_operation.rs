@@ -1097,7 +1097,7 @@ impl PendingChatOperation {
     /// The exception is an open outgoing request. Its group has only the user
     /// as member until the recipient joins, and deleting it on the DS is what
     /// retracts the request.
-    pub(super) async fn create_delete(
+    pub(crate) async fn create_delete(
         txn: &mut WriteDbTransaction<'_>,
         signer: &UserSigningKey,
         chat_id: ChatId,

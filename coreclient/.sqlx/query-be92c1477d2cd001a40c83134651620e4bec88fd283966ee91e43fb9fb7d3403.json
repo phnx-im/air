@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT request_id AS \"request_id: ChatId\"\n        FROM pending_connection_request\n        WHERE received_at <= ?\n        ORDER BY received_at",
+  "describe": {
+    "columns": [
+      {
+        "name": "request_id: ChatId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_connection_request",
+            "name": "request_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "be92c1477d2cd001a40c83134651620e4bec88fd283966ee91e43fb9fb7d3403"
+}

@@ -272,6 +272,7 @@ pub enum ConnectionContext {
 ///   ? username: tstr .tag 1,
 ///   ? friendship_package_ear_key: bstr .size 32 .tag 2,
 ///   ? connection_offer_hash: bstr .size 32 .tag 3,
+///   ? sent_at: uint .tag 4,               ; unix epoch milliseconds (UTC)
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
@@ -284,6 +285,9 @@ pub struct HandleInitiatorContext {
     /// Id and value of the connection-offer PSK.
     #[tag(3)]
     pub connection_offer_hash: Option<ConnectionOfferHash>,
+    /// When the request was sent, which its expiry counts from.
+    #[tag(4)]
+    pub sent_at: Option<u64>,
 }
 
 /// The acting client initiated a connection via a targeted message.
@@ -295,6 +299,7 @@ pub struct HandleInitiatorContext {
 ///   ? user_id: PeerUserId .tag 1,
 ///   ? friendship_package_ear_key: bstr .size 32 .tag 2,
 ///   ? origin_group_id: bstr .tag 3,
+///   ? sent_at: uint .tag 4,               ; unix epoch milliseconds (UTC)
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
@@ -308,6 +313,10 @@ pub struct TargetedInitiatorContext {
     /// leg for APQ groups.
     #[tag(3, with = "group_id_as_bytes")]
     pub origin_group_id: Option<GroupId>,
+    /// When the request was sent, which its expiry counts from. Absent from
+    /// older clients.
+    #[tag(4)]
+    pub sent_at: Option<u64>,
 }
 
 /// The acting client accepted a connection request by externally joining the
@@ -595,11 +604,13 @@ mod test {
                 username: Some("alice".to_owned()),
                 friendship_package_ear_key: Some(key(1)),
                 connection_offer_hash: Some(ConnectionOfferHash::from_bytes([2u8; 32])),
+                sent_at: Some(1_767_225_600_123),
             }),
             ConnectionContext::TargetedInitiator(TargetedInitiatorContext {
                 user_id: Some(user_id().into()),
                 friendship_package_ear_key: Some(key(3)),
                 origin_group_id: Some(t_group_id()),
+                sent_at: Some(1_767_225_600_456),
             }),
         ];
         for context in contexts {
@@ -641,6 +652,7 @@ mod test {
             username: Some("alice".to_owned()),
             friendship_package_ear_key: Some(key(1)),
             connection_offer_hash: Some(ConnectionOfferHash::from_bytes([2u8; 32])),
+            sent_at: Some(1_767_225_600_123),
         });
         let bytes = PersistenceCodec::to_vec(&context).unwrap();
         let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();

@@ -2109,6 +2109,12 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                     SystemMessage::ConnectionRequestUnavailable => {
                         Some("The connection request is no longer available".to_owned())
                     }
+                    SystemMessage::ConnectionRequestExpired => {
+                        Some("The connection request expired".to_owned())
+                    }
+                    SystemMessage::SentConnectionRequestExpired => {
+                        Some("The sent connection request expired".to_owned())
+                    }
                 }
             } else {
                 None

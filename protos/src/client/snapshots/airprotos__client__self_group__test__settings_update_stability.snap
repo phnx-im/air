@@ -2,7 +2,7 @@
 source: protos/src/client/self_group.rs
 expression: diag
 ---
-a2                                           # map(2)
+a3                                           # map(3)
    01                                        #   unsigned(1)
    f5                                        #   true, simple(21)
    02                                        #   unsigned(2)
@@ -18,3 +18,5 @@ a2                                           # map(2)
          01                                  #       unsigned(1)
          04                                  #       unsigned(4)
          05                                  #       unsigned(5)
+   05                                        #   unsigned(5)
+   f5                                        #   true, simple(21)

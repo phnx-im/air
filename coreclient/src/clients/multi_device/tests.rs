@@ -15,6 +15,7 @@ use aircommon::crypto::signatures::keys::QsUserSigningKey;
 use aircommon::identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId, Username};
 use aircommon::messages::FriendshipToken;
 use aircommon::messages::client_as::ConnectionOfferHash;
+use aircommon::time::TimeStamp;
 use airprotos::auth_service::v1::OperationType;
 use airprotos::client::self_group::{
     BlockedContactEntry, ConnectionRequestDeclined, ConnectionRequestEntry, ConnectionRequestGroup,
@@ -128,6 +129,7 @@ fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
         username: Username::new("joel-03".to_owned())?,
         friendship_package_ear_key: FriendshipPackageEarKey::random()?,
         connection_offer_hash: ConnectionOfferHash::new_for_test(vec![0x66; 32]),
+        sent_at: Some(TimeStamp::now()),
     };
     package.groups.push(HigherLevelGroup {
         group_id: GroupId::from_slice(&[0x14; 8]),

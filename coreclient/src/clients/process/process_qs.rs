@@ -50,6 +50,7 @@ use crate::{
         },
         outgoing_requests, persistence,
         reactions::Reaction,
+        request_expiry,
     },
     clients::{
         attachment::MimiContentExt,
@@ -912,8 +913,9 @@ impl CoreUser {
             }
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
                 // Only our own devices are members of an unconfirmed connection
-                // group, so its deletion is a sibling retracting the request.
-                let retracted = we_were_removed && chat.is_unconfirmed();
+                // group, so its deletion is a sibling retracting the request,
+                // or closing it because it expired.
+                let ended = we_were_removed && chat.is_unconfirmed();
                 let sender_user_credential =
                     StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id)
                         .await?
@@ -938,8 +940,10 @@ impl CoreUser {
                     .await?;
                 log_processed_commit(&group, &sender);
 
-                if retracted {
-                    if let Some(chat) = Chat::load(&mut *txn, &chat_id).await? {
+                if ended {
+                    if let Some(chat) = Chat::load(&mut *txn, &chat_id).await?
+                        && !request_expiry::close_expired_by_sibling(txn, &chat).await?
+                    {
                         persistence::erase(txn, &chat).await?;
                     }
                     return Ok(QsMessageOutcome::empty());
