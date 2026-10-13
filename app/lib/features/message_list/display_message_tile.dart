@@ -305,6 +305,11 @@ TextSpan buildSystemMessageText(
       [user(creatorId)],
       nameStyle,
     ),
+    UiSystemMessage_DeleteGroup(field0: final deleterId) => emphasizedText(
+      (marks) => loc.systemMessage_userDeletedChat(marks[0]),
+      [user(deleterId)],
+      nameStyle,
+    ),
     UiSystemMessage_NewHandleConnectionChat(:final field0) => TextSpan(
       text: loc.systemMessage_newHandleConnectionChat(field0.plaintext),
     ),

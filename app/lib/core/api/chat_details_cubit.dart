@@ -131,9 +131,34 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   Future<UploadAttachmentError?> uploadAttachment({required String path});
 }
 
+class AirComponentDebugInfo {
+  final AirFeatures features;
+  final bool isSelfGroup;
+  final String? deleted;
+
+  const AirComponentDebugInfo({
+    required this.features,
+    required this.isSelfGroup,
+    this.deleted,
+  });
+
+  @override
+  int get hashCode =>
+      features.hashCode ^ isSelfGroup.hashCode ^ deleted.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AirComponentDebugInfo &&
+          runtimeType == other.runtimeType &&
+          features == other.features &&
+          isSelfGroup == other.isSelfGroup &&
+          deleted == other.deleted;
+}
+
 class AppDataDebugInfo {
   final List<String> components;
-  final AirComponent? airComponent;
+  final AirComponentDebugInfo? airComponent;
 
   const AppDataDebugInfo({required this.components, this.airComponent});
 
@@ -305,6 +330,7 @@ class GroupDebugInfo {
   final RequiredDebugCapabilities? requiredCapabilities;
   final Map<int, DebugCapabilities> members;
   final GroupDataDebugInfo? groupData;
+  final AppDataDebugInfo? appData;
   final BigInt sizeBytes;
   final PqGroupDebugInfo? pq;
   final ResyncDebugInfo? resync;
@@ -321,6 +347,7 @@ class GroupDebugInfo {
     this.requiredCapabilities,
     required this.members,
     this.groupData,
+    this.appData,
     required this.sizeBytes,
     this.pq,
     this.resync,
@@ -339,6 +366,7 @@ class GroupDebugInfo {
       requiredCapabilities.hashCode ^
       members.hashCode ^
       groupData.hashCode ^
+      appData.hashCode ^
       sizeBytes.hashCode ^
       pq.hashCode ^
       resync.hashCode;
@@ -359,6 +387,7 @@ class GroupDebugInfo {
           requiredCapabilities == other.requiredCapabilities &&
           members == other.members &&
           groupData == other.groupData &&
+          appData == other.appData &&
           sizeBytes == other.sizeBytes &&
           pq == other.pq &&
           resync == other.resync;

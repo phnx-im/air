@@ -9483,14 +9483,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AirComponent dco_decode_air_component(dynamic raw) {
+  AirComponentDebugInfo dco_decode_air_component_debug_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
-    return AirComponent(
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return AirComponentDebugInfo(
       features: dco_decode_air_features(arr[0]),
       isSelfGroup: dco_decode_bool(arr[1]),
+      deleted: dco_decode_opt_String(arr[2]),
     );
   }
 
@@ -9516,7 +9517,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
     return AppDataDebugInfo(
       components: dco_decode_list_String(arr[0]),
-      airComponent: dco_decode_opt_box_autoadd_air_component(arr[1]),
+      airComponent: dco_decode_opt_box_autoadd_air_component_debug_info(arr[1]),
     );
   }
 
@@ -9636,9 +9637,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AirComponent dco_decode_box_autoadd_air_component(dynamic raw) {
+  AirComponentDebugInfo dco_decode_box_autoadd_air_component_debug_info(
+    dynamic raw,
+  ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_air_component(raw);
+    return dco_decode_air_component_debug_info(raw);
   }
 
   @protected
@@ -10148,8 +10151,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   GroupDebugInfo dco_decode_group_debug_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 14)
-      throw Exception('unexpected arr length: expect 14 but see ${arr.length}');
+    if (arr.length != 15)
+      throw Exception('unexpected arr length: expect 15 but see ${arr.length}');
     return GroupDebugInfo(
       groupId: dco_decode_String(arr[0]),
       epoch: dco_decode_u_64(arr[1]),
@@ -10163,9 +10166,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           dco_decode_opt_box_autoadd_required_debug_capabilities(arr[8]),
       members: dco_decode_Map_u_32_debug_capabilities_None(arr[9]),
       groupData: dco_decode_opt_box_autoadd_group_data_debug_info(arr[10]),
-      sizeBytes: dco_decode_u_64(arr[11]),
-      pq: dco_decode_opt_box_autoadd_pq_group_debug_info(arr[12]),
-      resync: dco_decode_opt_box_autoadd_resync_debug_info(arr[13]),
+      appData: dco_decode_opt_box_autoadd_app_data_debug_info(arr[11]),
+      sizeBytes: dco_decode_u_64(arr[12]),
+      pq: dco_decode_opt_box_autoadd_pq_group_debug_info(arr[13]),
+      resync: dco_decode_opt_box_autoadd_resync_debug_info(arr[14]),
     );
   }
 
@@ -10808,9 +10812,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AirComponent? dco_decode_opt_box_autoadd_air_component(dynamic raw) {
+  AirComponentDebugInfo? dco_decode_opt_box_autoadd_air_component_debug_info(
+    dynamic raw,
+  ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw == null ? null : dco_decode_box_autoadd_air_component(raw);
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_air_component_debug_info(raw);
   }
 
   @protected
@@ -11864,29 +11872,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           dco_decode_box_autoadd_ui_user_id(raw[1]),
         );
       case 11:
-        return UiSystemMessage_Onboarded();
+        return UiSystemMessage_DeleteGroup(
+          dco_decode_box_autoadd_ui_user_id(raw[1]),
+        );
       case 12:
-        return UiSystemMessage_DeviceLinked(dco_decode_Uuid(raw[1]));
+        return UiSystemMessage_Onboarded();
       case 13:
-        return UiSystemMessage_DeviceUnlinked(dco_decode_Uuid(raw[1]));
+        return UiSystemMessage_DeviceLinked(dco_decode_Uuid(raw[1]));
       case 14:
+        return UiSystemMessage_DeviceUnlinked(dco_decode_Uuid(raw[1]));
+      case 15:
         return UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest(
           sender: dco_decode_box_autoadd_ui_user_id(raw[1]),
           username: dco_decode_box_autoadd_ui_username(raw[2]),
         );
-      case 15:
+      case 16:
         return UiSystemMessage_ReceivedAdditionalDirectConnectionRequest(
           sender: dco_decode_box_autoadd_ui_user_id(raw[1]),
           groupChat: dco_decode_box_autoadd_ui_request_group_chat(raw[2]),
         );
-      case 16:
-        return UiSystemMessage_SelfChatCreated();
       case 17:
+        return UiSystemMessage_SelfChatCreated();
+      case 18:
         return UiSystemMessage_SentDirectConnectionRequest(
           recipient: dco_decode_box_autoadd_ui_user_id(raw[1]),
           originChatId: dco_decode_box_autoadd_chat_id(raw[2]),
         );
-      case 18:
+      case 19:
         return UiSystemMessage_ConnectionRequestUnavailable();
       default:
         throw Exception("unreachable");
@@ -13037,11 +13049,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AirComponent sse_decode_air_component(SseDeserializer deserializer) {
+  AirComponentDebugInfo sse_decode_air_component_debug_info(
+    SseDeserializer deserializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_features = sse_decode_air_features(deserializer);
     var var_isSelfGroup = sse_decode_bool(deserializer);
-    return AirComponent(features: var_features, isSelfGroup: var_isSelfGroup);
+    var var_deleted = sse_decode_opt_String(deserializer);
+    return AirComponentDebugInfo(
+      features: var_features,
+      isSelfGroup: var_isSelfGroup,
+      deleted: var_deleted,
+    );
   }
 
   @protected
@@ -13065,7 +13084,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_components = sse_decode_list_String(deserializer);
-    var var_airComponent = sse_decode_opt_box_autoadd_air_component(
+    var var_airComponent = sse_decode_opt_box_autoadd_air_component_debug_info(
       deserializer,
     );
     return AppDataDebugInfo(
@@ -13195,11 +13214,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AirComponent sse_decode_box_autoadd_air_component(
+  AirComponentDebugInfo sse_decode_box_autoadd_air_component_debug_info(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_air_component(deserializer));
+    return (sse_decode_air_component_debug_info(deserializer));
   }
 
   @protected
@@ -13823,6 +13842,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_groupData = sse_decode_opt_box_autoadd_group_data_debug_info(
       deserializer,
     );
+    var var_appData = sse_decode_opt_box_autoadd_app_data_debug_info(
+      deserializer,
+    );
     var var_sizeBytes = sse_decode_u_64(deserializer);
     var var_pq = sse_decode_opt_box_autoadd_pq_group_debug_info(deserializer);
     var var_resync = sse_decode_opt_box_autoadd_resync_debug_info(deserializer);
@@ -13838,6 +13860,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       requiredCapabilities: var_requiredCapabilities,
       members: var_members,
       groupData: var_groupData,
+      appData: var_appData,
       sizeBytes: var_sizeBytes,
       pq: var_pq,
       resync: var_resync,
@@ -14730,13 +14753,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AirComponent? sse_decode_opt_box_autoadd_air_component(
+  AirComponentDebugInfo? sse_decode_opt_box_autoadd_air_component_debug_info(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_air_component(deserializer));
+      return (sse_decode_box_autoadd_air_component_debug_info(deserializer));
     } else {
       return null;
     }
@@ -16077,21 +16100,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
         return UiSystemMessage_CreateGroup(var_field0);
       case 11:
-        return UiSystemMessage_Onboarded();
+        var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
+        return UiSystemMessage_DeleteGroup(var_field0);
       case 12:
-        var var_field0 = sse_decode_Uuid(deserializer);
-        return UiSystemMessage_DeviceLinked(var_field0);
+        return UiSystemMessage_Onboarded();
       case 13:
         var var_field0 = sse_decode_Uuid(deserializer);
-        return UiSystemMessage_DeviceUnlinked(var_field0);
+        return UiSystemMessage_DeviceLinked(var_field0);
       case 14:
+        var var_field0 = sse_decode_Uuid(deserializer);
+        return UiSystemMessage_DeviceUnlinked(var_field0);
+      case 15:
         var var_sender = sse_decode_box_autoadd_ui_user_id(deserializer);
         var var_username = sse_decode_box_autoadd_ui_username(deserializer);
         return UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest(
           sender: var_sender,
           username: var_username,
         );
-      case 15:
+      case 16:
         var var_sender = sse_decode_box_autoadd_ui_user_id(deserializer);
         var var_groupChat = sse_decode_box_autoadd_ui_request_group_chat(
           deserializer,
@@ -16100,16 +16126,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sender: var_sender,
           groupChat: var_groupChat,
         );
-      case 16:
-        return UiSystemMessage_SelfChatCreated();
       case 17:
+        return UiSystemMessage_SelfChatCreated();
+      case 18:
         var var_recipient = sse_decode_box_autoadd_ui_user_id(deserializer);
         var var_originChatId = sse_decode_box_autoadd_chat_id(deserializer);
         return UiSystemMessage_SentDirectConnectionRequest(
           recipient: var_recipient,
           originChatId: var_originChatId,
         );
-      case 18:
+      case 19:
         return UiSystemMessage_ConnectionRequestUnavailable();
       default:
         throw UnimplementedError('');
@@ -17557,10 +17583,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_air_component(AirComponent self, SseSerializer serializer) {
+  void sse_encode_air_component_debug_info(
+    AirComponentDebugInfo self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_air_features(self.features, serializer);
     sse_encode_bool(self.isSelfGroup, serializer);
+    sse_encode_opt_String(self.deleted, serializer);
   }
 
   @protected
@@ -17579,7 +17609,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_String(self.components, serializer);
-    sse_encode_opt_box_autoadd_air_component(self.airComponent, serializer);
+    sse_encode_opt_box_autoadd_air_component_debug_info(
+      self.airComponent,
+      serializer,
+    );
   }
 
   @protected
@@ -17702,12 +17735,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_box_autoadd_air_component(
-    AirComponent self,
+  void sse_encode_box_autoadd_air_component_debug_info(
+    AirComponentDebugInfo self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_air_component(self, serializer);
+    sse_encode_air_component_debug_info(self, serializer);
   }
 
   @protected
@@ -18334,6 +18367,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       self.groupData,
       serializer,
     );
+    sse_encode_opt_box_autoadd_app_data_debug_info(self.appData, serializer);
     sse_encode_u_64(self.sizeBytes, serializer);
     sse_encode_opt_box_autoadd_pq_group_debug_info(self.pq, serializer);
     sse_encode_opt_box_autoadd_resync_debug_info(self.resync, serializer);
@@ -19142,15 +19176,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_opt_box_autoadd_air_component(
-    AirComponent? self,
+  void sse_encode_opt_box_autoadd_air_component_debug_info(
+    AirComponentDebugInfo? self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     sse_encode_bool(self != null, serializer);
     if (self != null) {
-      sse_encode_box_autoadd_air_component(self, serializer);
+      sse_encode_box_autoadd_air_component_debug_info(self, serializer);
     }
   }
 
@@ -20356,39 +20390,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case UiSystemMessage_CreateGroup(field0: final field0):
         sse_encode_i_32(10, serializer);
         sse_encode_box_autoadd_ui_user_id(field0, serializer);
-      case UiSystemMessage_Onboarded():
+      case UiSystemMessage_DeleteGroup(field0: final field0):
         sse_encode_i_32(11, serializer);
-      case UiSystemMessage_DeviceLinked(field0: final field0):
+        sse_encode_box_autoadd_ui_user_id(field0, serializer);
+      case UiSystemMessage_Onboarded():
         sse_encode_i_32(12, serializer);
+      case UiSystemMessage_DeviceLinked(field0: final field0):
+        sse_encode_i_32(13, serializer);
         sse_encode_Uuid(field0, serializer);
       case UiSystemMessage_DeviceUnlinked(field0: final field0):
-        sse_encode_i_32(13, serializer);
+        sse_encode_i_32(14, serializer);
         sse_encode_Uuid(field0, serializer);
       case UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest(
         sender: final sender,
         username: final username,
       ):
-        sse_encode_i_32(14, serializer);
+        sse_encode_i_32(15, serializer);
         sse_encode_box_autoadd_ui_user_id(sender, serializer);
         sse_encode_box_autoadd_ui_username(username, serializer);
       case UiSystemMessage_ReceivedAdditionalDirectConnectionRequest(
         sender: final sender,
         groupChat: final groupChat,
       ):
-        sse_encode_i_32(15, serializer);
+        sse_encode_i_32(16, serializer);
         sse_encode_box_autoadd_ui_user_id(sender, serializer);
         sse_encode_box_autoadd_ui_request_group_chat(groupChat, serializer);
       case UiSystemMessage_SelfChatCreated():
-        sse_encode_i_32(16, serializer);
+        sse_encode_i_32(17, serializer);
       case UiSystemMessage_SentDirectConnectionRequest(
         recipient: final recipient,
         originChatId: final originChatId,
       ):
-        sse_encode_i_32(17, serializer);
+        sse_encode_i_32(18, serializer);
         sse_encode_box_autoadd_ui_user_id(recipient, serializer);
         sse_encode_box_autoadd_chat_id(originChatId, serializer);
       case UiSystemMessage_ConnectionRequestUnavailable():
-        sse_encode_i_32(18, serializer);
+        sse_encode_i_32(19, serializer);
     }
   }
 
