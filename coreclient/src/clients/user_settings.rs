@@ -125,7 +125,6 @@ macro_rules! for_each_synced_setting {
         $f::<ReadReceiptsSetting>($($args),*).await?;
         $f::<crate::clients::linked_devices::LinkedDevicesSetting>($($args),*).await?;
         $f::<DefaultEmojiSkinToneSetting>($($args),*).await?;
-        $f::<SendOnEnterSetting>($($args),*).await?;
         $f::<LimitAnimatedImagesLoopsSetting>($($args),*).await?;
     };
 }
@@ -433,37 +432,6 @@ impl SyncedUserSetting for DefaultEmojiSkinToneSetting {
     }
 }
 
-pub struct SendOnEnterSetting(pub bool);
-
-impl UserSetting for SendOnEnterSetting {
-    const KEY: &'static str = "send_on_enter";
-
-    fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        Ok(vec![self.0 as u8])
-    }
-
-    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        match bytes.as_slice() {
-            [byte] => Ok(Self(*byte != 0)),
-            _ => bail!("invalid send_on_enter bytes"),
-        }
-    }
-}
-
-impl SyncedUserSetting for SendOnEnterSetting {
-    fn apply_to_update(&self, update: &mut SettingsUpdate) {
-        update.send_on_enter = Some(self.0);
-    }
-
-    fn from_update(update: &SettingsUpdate) -> Option<Self> {
-        update.send_on_enter.map(Self)
-    }
-
-    fn clear_in_update(update: &mut SettingsUpdate) {
-        update.send_on_enter = None;
-    }
-}
-
 pub struct LimitAnimatedImagesLoopsSetting(pub bool);
 
 impl UserSetting for LimitAnimatedImagesLoopsSetting {
@@ -722,7 +690,6 @@ mod tests {
             send_read_receipts: Some(false),
             linked_devices: Some(Vec::new()),
             default_emoji_skin_tone: Some(4),
-            send_on_enter: Some(true),
             limit_animated_images_loops: Some(true),
         };
         let collected = pool

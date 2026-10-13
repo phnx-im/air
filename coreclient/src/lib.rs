@@ -48,7 +48,7 @@ pub use crate::{
         safety_code::SafetyCode,
         user_settings::{
             DefaultEmojiSkinToneSetting, DeveloperModeSetting, ExperimentalFeaturesSetting,
-            LimitAnimatedImagesLoopsSetting, ReadReceiptsSetting, SendOnEnterSetting, UserSetting,
+            LimitAnimatedImagesLoopsSetting, ReadReceiptsSetting, UserSetting,
         },
     },
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},

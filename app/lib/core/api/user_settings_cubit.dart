@@ -15,7 +15,7 @@ import 'user.dart';
 part 'user_settings_cubit.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `f64_decode`, `f64_encode`, `reload_read_receipts`, `settings_listener`, `subscribe`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `DefaultEmojiSkinToneSetting`, `DismissedVersionExpirySetting`, `InterfaceScaleSetting`, `LimitAnimatedImagesLoopsSetting`, `LocaleSetting`, `SendOnEnterSetting`, `SidebarWidthSetting`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `DismissedVersionExpirySetting`, `InterfaceScaleSetting`, `LocaleSetting`, `SendOnEnterSetting`, `SidebarWidthSetting`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `decode`, `decode`, `decode`, `decode`, `decode`, `decode`, `decode`, `encode`, `encode`, `encode`, `encode`, `encode`, `encode`, `encode`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `default`
 

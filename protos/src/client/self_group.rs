@@ -363,8 +363,7 @@ pub struct LinkedDevice {
 ///   ? send_read_receipts: bool .tag 1
 ///   ? linked_devices: [* LinkedDevice] .tag 2
 ///   ? default_emoji_skin_tone: uint .size 1 .tag 3
-///   ? send_on_enter: bool .tag 4
-///   ? limit_animated_images_loops: bool .tag 5
+///   ? limit_animated_images_loops: bool .tag 4
 /// }
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
@@ -379,8 +378,6 @@ pub struct SettingsUpdate {
     #[tag(3)]
     pub default_emoji_skin_tone: Option<u8>,
     #[tag(4)]
-    pub send_on_enter: Option<bool>,
-    #[tag(5)]
     pub limit_animated_images_loops: Option<bool>,
 }
 
@@ -788,15 +785,14 @@ mod test {
     fn settings_update_display_settings_roundtrip_and_wire_shape() {
         let update = SettingsUpdate {
             default_emoji_skin_tone: Some(3),
-            send_on_enter: Some(true),
             limit_animated_images_loops: Some(false),
             ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&update).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
         assert_eq!(update, decoded);
-        // `{3: 3, 4: true, 5: false}`
-        assert_eq!(&bytes[1..], &[0xA3, 0x03, 0x03, 0x04, 0xF5, 0x05, 0xF4]);
+        // `{3: 3, 4: false}`
+        assert_eq!(&bytes[1..], &[0xA2, 0x03, 0x03, 0x04, 0xF4]);
     }
 
     #[test]

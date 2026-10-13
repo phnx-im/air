@@ -6,11 +6,11 @@ use std::sync::Arc;
 
 use aircoreclient::{
     DefaultEmojiSkinToneSetting, DeveloperModeSetting, ExperimentalFeaturesSetting,
-    LimitAnimatedImagesLoopsSetting, ReadReceiptsSetting, SendOnEnterSetting, UserSetting,
+    LimitAnimatedImagesLoopsSetting, ReadReceiptsSetting, UserSetting,
     clients::CoreUser,
     db::notification::{DbEntityId, DbNotification},
 };
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use chrono::{DateTime, Utc};
 use flutter_rust_bridge::frb;
 use tokio::sync::watch;
@@ -213,7 +213,7 @@ impl UserSettingsCubitBase {
             return Ok(());
         }
         self.core_user
-            .set_synced_user_setting(&SendOnEnterSetting(value))
+            .set_user_setting(&SendOnEnterSetting(value))
             .await?;
         self.core
             .state_tx()
@@ -349,10 +349,9 @@ async fn settings_listener(
     }
 }
 
-const SYNCED_SETTING_KEYS: [&str; 4] = [
+const SYNCED_SETTING_KEYS: [&str; 3] = [
     ReadReceiptsSetting::KEY,
     DefaultEmojiSkinToneSetting::KEY,
-    SendOnEnterSetting::KEY,
     LimitAnimatedImagesLoopsSetting::KEY,
 ];
 
@@ -370,10 +369,6 @@ async fn reload_synced_settings(core_user: &CoreUser, state_tx: &watch::Sender<U
         defaults.default_emoji_skin_tone,
         |DefaultEmojiSkinToneSetting(value)| value,
     );
-    let send_on_enter = core_user
-        .user_setting()
-        .await
-        .map_or(defaults.send_on_enter, |SendOnEnterSetting(value)| value);
     let limit_animated_images_loops = core_user.user_setting().await.map_or(
         defaults.limit_animated_images_loops,
         |LimitAnimatedImagesLoopsSetting(value)| value,
@@ -382,11 +377,9 @@ async fn reload_synced_settings(core_user: &CoreUser, state_tx: &watch::Sender<U
     state_tx.send_if_modified(|state| {
         let modified = state.read_receipts != read_receipts
             || state.default_emoji_skin_tone != default_emoji_skin_tone
-            || state.send_on_enter != send_on_enter
             || state.limit_animated_images_loops != limit_animated_images_loops;
         state.read_receipts = read_receipts;
         state.default_emoji_skin_tone = default_emoji_skin_tone;
-        state.send_on_enter = send_on_enter;
         state.limit_animated_images_loops = limit_animated_images_loops;
         modified
     });
@@ -465,5 +458,22 @@ impl UserSetting for LocaleSetting {
         let value =
             String::from_utf8(bytes).map_err(|error| anyhow!("invalid locale bytes: {error}"))?;
         Ok(Self(value))
+    }
+}
+
+struct SendOnEnterSetting(bool);
+
+impl UserSetting for SendOnEnterSetting {
+    const KEY: &'static str = "send_on_enter";
+
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(vec![self.0 as u8])
+    }
+
+    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
+        match bytes.as_slice() {
+            [byte] => Ok(Self(*byte != 0)),
+            _ => bail!("invalid send_on_enter bytes"),
+        }
     }
 }
