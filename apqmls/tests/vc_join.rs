@@ -21,10 +21,11 @@ use openmls::{
         VcGroupCreationJoinError,
     },
     prelude::{
-        AppDataDictionary, AppDataDictionaryExtension, Capabilities, Ciphersuite, Credential,
-        Extension, ExtensionType, Extensions, KeyPackage, LeafNode, LeafNodeParameters,
-        MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider, PreSharedKeyProposal,
-        ProcessedMessageContent, ProtocolMessage, group_info::VerifiableGroupInfo,
+        AppDataDictionary, AppDataDictionaryExtension, Capabilities, CapabilitiesBuilder,
+        Ciphersuite, Credential, CredentialType, Extension, ExtensionType, Extensions, KeyPackage,
+        LeafNode, LeafNodeParameters, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
+        OpenMlsProvider, PreSharedKeyProposal, ProcessedMessageContent, ProtocolMessage,
+        group_info::VerifiableGroupInfo,
     },
     schedule::{
         PreSharedKeyId,
@@ -55,9 +56,21 @@ fn join_config() -> MlsGroupJoinConfig {
 }
 
 /// A leaf sending virtual-client operations must declare `AppDataDictionary`.
-fn vc_capabilities() -> Capabilities {
+fn vc_capabilities_builder() -> CapabilitiesBuilder {
     Capabilities::builder()
         .extensions(vec![ExtensionType::AppDataDictionary])
+        .credentials(vec![CredentialType::Basic])
+}
+
+/// Capabilities for a virtual-client leaf of an APQMLS group, which adds the ciphersuites itself.
+fn vc_capabilities() -> Capabilities {
+    vc_capabilities_builder().build()
+}
+
+/// Capabilities for a virtual-client leaf of a plain MLS group on `ciphersuite`.
+fn plain_vc_capabilities(ciphersuite: Ciphersuite) -> Capabilities {
+    vc_capabilities_builder()
+        .ciphersuites(vec![ciphersuite])
         .build()
 }
 
@@ -90,7 +103,7 @@ fn setup_sibling_emulation_epoch(
     let emulator_config = MlsGroupCreateConfig::builder()
         .ciphersuite(ciphersuite)
         .wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
-        .capabilities(vc_capabilities())
+        .capabilities(plain_vc_capabilities(ciphersuite))
         .with_leaf_node_extensions(vc_leaf_extensions())
         .unwrap()
         .emulation_group(true)
@@ -110,7 +123,7 @@ fn setup_sibling_emulation_epoch(
         ciphersuite.signature_algorithm(),
     );
     let key_package_b = KeyPackage::builder()
-        .leaf_node_capabilities(vc_capabilities())
+        .leaf_node_capabilities(plain_vc_capabilities(ciphersuite))
         .leaf_node_extensions(vc_leaf_extensions())
         .build(ciphersuite, provider_b, &signer_b, credential_b)
         .unwrap()
@@ -770,7 +783,7 @@ fn creation_join_with_mismatched_ciphersuite_fails() {
 
     let create_config = MlsGroupCreateConfig::builder()
         .ciphersuite(ciphersuite.t_ciphersuite())
-        .capabilities(vc_capabilities())
+        .capabilities(plain_vc_capabilities(ciphersuite.t_ciphersuite()))
         .with_group_context_extensions(extensions)
         .build();
     let plain_group = |group_id: GroupId| {

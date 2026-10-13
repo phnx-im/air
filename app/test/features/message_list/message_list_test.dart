@@ -1233,21 +1233,41 @@ void main() {
         expect(find.text(stampLabel(1)), findsNothing);
       });
 
-      testWidgets('report a send nobody has received yet, without a time', (
-        tester,
-      ) async {
+      testWidgets('report sent only on the last of a run', (tester) async {
         messageListCubit.setState([
           stampFixture(1, sender: 1, status: UiMessageStatus.sent),
-          stampFixture(2, sender: 1),
+          stampFixture(2, sender: 1, status: UiMessageStatus.sent),
           stampFixture(3, sender: 2),
         ]);
 
         await tester.pumpWidget(buildSubject());
 
-        // The undelivered send, the reader's own last message, and the end of
-        // the chat.
-        expect(find.byType(MessageMeta), findsNWidgets(3));
-        expect(find.text(stampLabel(1)), findsNothing);
+        // Only the reader's own last message and the end of the chat.
+        expect(find.byType(MessageMeta), findsNWidgets(2));
+        expect(find.text('Sent'), findsOneWidget);
+      });
+
+      testWidgets('keep the stamp height whatever the status', (tester) async {
+        final heights = <double>[];
+        for (final status in [
+          UiMessageStatus.sending,
+          UiMessageStatus.sent,
+          UiMessageStatus.delivered,
+          UiMessageStatus.read,
+          UiMessageStatus.error,
+        ]) {
+          messageListCubit.setState([
+            stampFixture(1, sender: 2),
+            stampFixture(2, sender: 1, status: status),
+          ]);
+          await tester.pumpWidget(buildSubject());
+          heights.add(tester.getSize(find.byType(MessageMeta)).height);
+          // Past the in-flight delay, once the spinner shows.
+          await tester.pump(const Duration(seconds: 3));
+          heights.add(tester.getSize(find.byType(MessageMeta)).height);
+        }
+
+        expect(heights.toSet(), hasLength(1));
       });
 
       testWidgets('leave an edit halfway up the history unreported', (

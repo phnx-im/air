@@ -74,6 +74,13 @@ impl TimedTask {
     pub(crate) fn new(kind: TimedTaskKind) -> Self {
         Self { kind }
     }
+
+    pub(crate) async fn schedule_now(
+        connection: impl WriteConnection,
+        kind: TimedTaskKind,
+    ) -> sqlx::Result<()> {
+        Self::new(kind).into_operation().enqueue(connection).await
+    }
 }
 
 impl OperationData for TimedTask {

@@ -80,11 +80,9 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
 
   TapGestureRecognizer _devicesTapRecognizer() =>
       _devicesTap ??= TapGestureRecognizer()
-        ..onTap = () {
-          context.read<NavigationCubit>()
-            ..switchTab(HomeTab.profile)
-            ..openYouSection(YouSection.devices);
-        };
+        ..onTap = () => context.read<NavigationCubit>().openYouSectionOverChat(
+          YouSection.devices,
+        );
 
   @override
   Widget build(BuildContext context) {

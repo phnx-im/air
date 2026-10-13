@@ -8,8 +8,8 @@ use apqmls::{
 use openmls::{
     group::{GroupId, MlsGroup, MlsGroupJoinConfig},
     prelude::{
-        Capabilities, Credential, Extension, ExtensionType, Extensions, LeafNodeIndex,
-        LeafNodeParameters, MlsMessageIn, OpenMlsProvider, ProcessedMessageContent,
+        Capabilities, Credential, CredentialType, Extension, ExtensionType, Extensions,
+        LeafNodeIndex, LeafNodeParameters, MlsMessageIn, OpenMlsProvider, ProcessedMessageContent,
         UnknownExtension,
     },
 };
@@ -129,15 +129,15 @@ const TEST_MODE: [PqtMode; 2] = [PqtMode::ConfAndAuth, PqtMode::ConfOnly];
 
 const MARKER_EXTENSION_TYPE: u16 = 0xff00;
 
-// The commit builder adds the APQMLS-specific support, the marker extension must be advertised
-// here.
+// The commit builder adds the APQMLS-specific support, the marker extension and the credential
+// type must be advertised here.
 fn marker_capabilities() -> Capabilities {
     Capabilities::new(
         None,
         None,
         Some(&[ExtensionType::Unknown(MARKER_EXTENSION_TYPE)]),
         None,
-        None,
+        Some(&[CredentialType::Basic]),
     )
 }
 
