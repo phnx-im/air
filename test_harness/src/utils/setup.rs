@@ -1754,7 +1754,8 @@ impl TestBackend {
         assert_eq!(deleter_chat_before.status(), &ChatStatus::Active);
         let past_members = deleter.chat_participants(chat_id).await.unwrap();
 
-        deleter.delete_chat(chat_id).await.unwrap();
+        let messages = deleter.delete_chat(chat_id).await.unwrap();
+        assert_deletion_messages(&messages, deleter_id);
 
         let deleter_chat_after = deleter.chat(&chat_id).await.unwrap();
         if let ChatStatus::Inactive(inactive_status) = &deleter_chat_after.status() {
@@ -1779,7 +1780,8 @@ impl TestBackend {
 
             let qs_messages = group_member.qs_fetch_messages().await.unwrap();
 
-            group_member.fully_process_qs_messages(qs_messages).await;
+            let result = group_member.fully_process_qs_messages(qs_messages).await;
+            assert_deletion_messages(&result.new_messages, deleter_id);
 
             let group_member_chat_after = group_member.chat(&chat_id).await.unwrap();
             if let ChatStatus::Inactive(inactive_status) = &group_member_chat_after.status() {
@@ -1979,6 +1981,33 @@ impl CoreUSerExt for CoreUser {
         }
         chats
     }
+}
+
+/// Asserts that `messages` announce the deletion by `deleter` once and carry
+/// none of the removes the delete commit makes for clients without the flag.
+fn assert_deletion_messages(messages: &[ChatMessage], deleter: &UserId) {
+    let system_messages: Vec<_> = messages
+        .iter()
+        .filter_map(|message| match message.message() {
+            Message::Event(EventMessage::System(system_message)) => Some(system_message),
+            Message::Event(EventMessage::Error(_)) | Message::Content(_) => None,
+        })
+        .collect();
+    let deletion = SystemMessage::DeleteGroup(deleter.clone());
+    let deletions = system_messages
+        .iter()
+        .filter(|message| ***message == deletion)
+        .count();
+    assert_eq!(
+        deletions, 1,
+        "expected one deletion message by {deleter:?}, got {system_messages:?}"
+    );
+    assert!(
+        !system_messages
+            .iter()
+            .any(|message| matches!(message, SystemMessage::Remove(_remover, _removed))),
+        "the removes of the delete commit must not be reported: {system_messages:?}"
+    );
 }
 
 fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet<String> {

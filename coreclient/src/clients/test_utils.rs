@@ -27,7 +27,10 @@ use crate::{
         create_chat::CreateChat,
         pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     },
-    outbound_service::resync::{Resync, ResyncReason, ResyncStatus},
+    outbound_service::{
+        error::is_ds_not_found_error,
+        resync::{Resync, ResyncReason, ResyncStatus},
+    },
     usernames::connection_packages::ConnectionPackageRecord,
 };
 
@@ -224,6 +227,34 @@ impl CoreUser {
             .ok()
             .flatten()
             .map(|group| group.members().collect())
+    }
+
+    /// Whether the DS still serves the chat's group to an external joiner.
+    pub async fn ds_has_group(&self, chat_id: ChatId) -> anyhow::Result<bool> {
+        let group = Group::load_with_chat_id(self.db().read().await?, chat_id)
+            .await?
+            .context("group not found")?;
+        let qgid: QualifiedGroupId = group.group_id().try_into()?;
+        let result = self
+            .api_clients()
+            .get(qgid.owning_domain())?
+            .ds_external_commit_info(
+                group.group_id().clone(),
+                group.pq_group_id(),
+                group.group_state_ear_key(),
+            )
+            .await;
+        match result {
+            Ok(_) => Ok(true),
+            Err(error) => {
+                let error = anyhow::Error::from(error);
+                if is_ds_not_found_error(&error) {
+                    Ok(false)
+                } else {
+                    Err(error)
+                }
+            }
+        }
     }
 
     /// The users the DS lists in the room state it serves to an external joiner

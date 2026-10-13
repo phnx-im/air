@@ -17,7 +17,9 @@ use mimi_content::MimiContent;
 use tokio_stream::StreamExt;
 use tracing::info;
 
-use super::attachment::test_picture_bytes;
+use super::{
+    attachment::test_picture_bytes, contact_requests::system_messages, multi_device::discard_queue,
+};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Create group test", skip_all)]
@@ -200,6 +202,252 @@ async fn delete_apq_group_by_invitee() {
         .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
         .await;
     setup.delete_group(chat_id, &bob).await;
+}
+
+fn removals(messages: &[SystemMessage]) -> usize {
+    messages
+        .iter()
+        .filter(|message| matches!(message, SystemMessage::Remove(_remover, _removed)))
+        .count()
+}
+
+fn count(messages: &[SystemMessage], expected: &SystemMessage) -> usize {
+    messages
+        .iter()
+        .filter(|message| *message == expected)
+        .count()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Delete group as sole member", skip_all)]
+async fn delete_group_as_sole_member() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let chat_id = setup.create_group(&alice).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+    assert!(alice_user.ds_has_group(chat_id).await.unwrap());
+
+    alice_user.delete_chat(chat_id).await.unwrap();
+    let messages = system_messages(alice_user, chat_id).await;
+    assert_eq!(
+        count(&messages, &SystemMessage::DeleteGroup(alice.clone())),
+        1,
+        "got {messages:?}"
+    );
+    assert!(
+        alice_user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .status()
+            .is_inactive()
+    );
+    assert!(
+        !alice_user.ds_has_group(chat_id).await.unwrap(),
+        "the DS deletes the group of a sole member"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Missed delete commit then resync", skip_all)]
+async fn missed_delete_commit_then_resync() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+    alice_user.delete_chat(chat_id).await.unwrap();
+
+    // Bob misses the delete commit and only gets to it after the resync.
+    let bob_user = &setup.get_user(&bob).user;
+    let late_messages = bob_user.qs_fetch_messages().await.unwrap();
+    assert_eq!(
+        bob_user.chat(&chat_id).await.unwrap().status(),
+        &ChatStatus::Active
+    );
+    let participants = bob_user.chat_participants(chat_id).await.unwrap();
+
+    bob_user.enqueue_group_resync(chat_id).await.unwrap();
+    bob_user.outbound_service().run_once().await;
+
+    assert!(
+        bob_user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .status()
+            .is_inactive()
+    );
+    let messages = system_messages(bob_user, chat_id).await;
+    assert_eq!(
+        count(&messages, &SystemMessage::DeleteGroup(alice.clone())),
+        1,
+        "got {messages:?}"
+    );
+    assert_eq!(removals(&messages), 0, "got {messages:?}");
+    assert!(
+        bob_user.resync_status(chat_id).await.unwrap().is_none(),
+        "the resync entry is gone"
+    );
+    assert!(
+        bob_user.mls_members(chat_id).await.unwrap().is_none(),
+        "the MLS group is gone"
+    );
+    assert_eq!(
+        bob_user.chat_participants(chat_id).await,
+        Some(participants),
+        "the chat still lists its members"
+    );
+
+    bob_user.fully_process_qs_messages(late_messages).await;
+    let messages = system_messages(bob_user, chat_id).await;
+    assert_eq!(
+        count(&messages, &SystemMessage::DeleteGroup(alice.clone())),
+        1,
+        "the late delete commit adds nothing: {messages:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Missed removal then resync", skip_all)]
+async fn missed_removal_then_resync() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+    alice_user
+        .remove_users(chat_id, vec![bob.clone()])
+        .await
+        .unwrap();
+
+    let bob_user = &setup.get_user(&bob).user;
+    discard_queue(bob_user).await;
+    let participants = bob_user.chat_participants(chat_id).await.unwrap();
+    bob_user.enqueue_group_resync(chat_id).await.unwrap();
+    bob_user.outbound_service().run_once().await;
+
+    assert!(
+        bob_user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .status()
+            .is_inactive()
+    );
+    assert!(
+        bob_user.resync_status(chat_id).await.unwrap().is_none(),
+        "the resync entry is gone"
+    );
+    assert_eq!(
+        bob_user.chat_participants(chat_id).await,
+        Some(participants),
+        "the chat still lists its members"
+    );
+    let messages = system_messages(bob_user, chat_id).await;
+    assert_eq!(
+        count(&messages, &SystemMessage::DeleteGroup(alice.clone())),
+        0,
+        "got {messages:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(
+    name = "Missed deletion without the deleted flag then resync",
+    skip_all
+)]
+async fn missed_deletion_without_deleted_flag_then_resync() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+
+    let alice_user = &setup.get_user(&alice).user;
+    alice_user
+        .delete_chat_without_deleted_flag(chat_id)
+        .await
+        .unwrap();
+
+    let bob_user = &setup.get_user(&bob).user;
+    discard_queue(bob_user).await;
+    bob_user.enqueue_group_resync(chat_id).await.unwrap();
+    bob_user.outbound_service().run_once().await;
+
+    assert!(
+        bob_user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .status()
+            .is_inactive()
+    );
+    assert!(
+        bob_user.resync_status(chat_id).await.unwrap().is_none(),
+        "the resync entry is gone"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Delete group without the deleted flag", skip_all)]
+async fn delete_group_without_deleted_flag() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let bobs_removal = SystemMessage::Remove(Some(alice.clone()), bob.clone());
+    let deletions =
+        |messages: &[SystemMessage]| count(messages, &SystemMessage::DeleteGroup(alice.clone()));
+
+    // Alice deletes the group as clients before the flag do.
+    let alice_user = &setup.get_user(&alice).user;
+    alice_user
+        .delete_chat_without_deleted_flag(chat_id)
+        .await
+        .unwrap();
+    assert!(
+        alice_user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .status()
+            .is_inactive()
+    );
+    let messages = system_messages(alice_user, chat_id).await;
+    assert_eq!(count(&messages, &bobs_removal), 1, "got {messages:?}");
+    assert_eq!(deletions(&messages), 0, "got {messages:?}");
+
+    let bob_user = &setup.get_user(&bob).user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert!(
+        bob_user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .status()
+            .is_inactive()
+    );
+    let messages = system_messages(bob_user, chat_id).await;
+    assert_eq!(count(&messages, &bobs_removal), 1, "got {messages:?}");
+    assert_eq!(deletions(&messages), 0, "got {messages:?}");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
