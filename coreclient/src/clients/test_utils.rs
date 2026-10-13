@@ -279,6 +279,32 @@ impl CoreUser {
         Ok(())
     }
 
+    /// Fetches and acks all messages in the QS queue without processing them,
+    /// as if processing had failed. Returns the number of dropped messages.
+    pub async fn qs_drop_messages(&self) -> anyhow::Result<usize> {
+        let (mut stream, responder) = self.listen_queue().await?;
+        let mut messages: Vec<QueueMessage> = Vec::new();
+
+        while let Some(Ok(message)) = stream.next().await {
+            match message.event {
+                Some(listen_response::Event::Empty(_)) => break,
+                Some(listen_response::Event::Message(queue_message)) => {
+                    messages.push(queue_message.try_into()?);
+                }
+                Some(listen_response::Event::Payload(_))
+                | Some(listen_response::Event::VersionStatus(_))
+                | Some(listen_response::Event::SiblingClientState(_))
+                | None => {}
+            }
+        }
+
+        if let Some(last) = messages.last() {
+            responder.ack(last.sequence_number + 1).await;
+        }
+        responder.close(&mut stream).await;
+        Ok(messages.len())
+    }
+
     pub async fn resync_status(&self, chat_id: ChatId) -> anyhow::Result<Option<ResyncStatus>> {
         let connection = self.db().read().await?;
         Ok(Resync::status_for_chat(connection, &chat_id).await?)

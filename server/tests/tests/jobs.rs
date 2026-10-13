@@ -48,7 +48,7 @@
 use std::time::Duration;
 
 use aircommon::identifiers::UserId;
-use aircoreclient::{ChatId, ChatStatus};
+use aircoreclient::{ChatId, ChatStatus, ResyncStatus};
 use airserver_test_harness::utils::setup::TestBackend;
 use tokio::time::sleep;
 
@@ -539,6 +539,48 @@ async fn commit_that_ignores_a_pending_self_remove_is_rejected() {
     let chat_participants = bob_user.chat_participants(chat_id).await.unwrap();
     assert_eq!(chat_participants.len(), 1);
     assert!(!chat_participants.contains(&alice));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn repeated_stale_commits_resync_the_group() {
+    let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
+    let alice_user = &setup.get_user(&alice).user;
+    let bob_user = &setup.get_user(&bob).user;
+
+    alice_user.leave_chat(chat_id).await.unwrap();
+
+    // Bob acks the self-remove proposal without storing it, so no queue fetch
+    // can bring it back.
+    let dropped = bob_user.qs_drop_messages().await.unwrap();
+    assert!(dropped > 0, "Bob should have received the self-remove");
+
+    for attempt in 1..=3 {
+        assert_eq!(
+            bob_user.resync_status(chat_id).await.unwrap(),
+            None,
+            "no resync should be queued before attempt {attempt}"
+        );
+        bob_user
+            .update_key(chat_id)
+            .await
+            .expect_err("DS should reject a commit that ignores the pending self-remove");
+    }
+    assert_eq!(
+        bob_user.resync_status(chat_id).await.unwrap(),
+        Some(ResyncStatus::Pending)
+    );
+
+    bob_user.outbound_service().run_once().await;
+    assert_eq!(bob_user.resync_status(chat_id).await.unwrap(), None);
+
+    let chat_participants = bob_user.chat_participants(chat_id).await.unwrap();
+    assert_eq!(chat_participants.len(), 1);
+    assert!(!chat_participants.contains(&alice));
+
+    bob_user
+        .update_key(chat_id)
+        .await
+        .expect("commit after the resync should be accepted");
 }
 
 /// Connects Alice and Bob and has Alice delete their chat while the DS loses

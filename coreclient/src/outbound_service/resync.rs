@@ -60,6 +60,8 @@ pub(crate) enum ResyncReason {
     Manual,
     /// Onboarding a freshly linked device into a higher-level group.
     Onboarding,
+    /// The DS kept rejecting our commits as stale.
+    StaleCommit,
 }
 
 impl ResyncReason {
@@ -70,6 +72,7 @@ impl ResyncReason {
             Self::VirtualClientDesync => "virtual_client_desync",
             Self::Manual => "manual",
             Self::Onboarding => "onboarding",
+            Self::StaleCommit => "stale_commit",
         }
     }
 }
@@ -84,6 +87,7 @@ impl FromStr for ResyncReason {
             "virtual_client_desync" => Self::VirtualClientDesync,
             "manual" => Self::Manual,
             "onboarding" => Self::Onboarding,
+            "stale_commit" => Self::StaleCommit,
             _ => bail!("Invalid resync reason: {s}"),
         })
     }

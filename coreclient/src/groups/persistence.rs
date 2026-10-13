@@ -485,6 +485,37 @@ impl Group {
         Ok(())
     }
 
+    /// Counts a stale rejection of one of our commits and returns the number of
+    /// consecutive stale rejections.
+    pub(crate) async fn increment_stale_commits(
+        mut connection: impl WriteConnection,
+        group_id: &GroupId,
+    ) -> sqlx::Result<u32> {
+        let group_id = GroupIdRefWrapper::from(group_id);
+        query_scalar!(
+            r#"UPDATE "group" SET stale_commits = stale_commits + 1
+            WHERE group_id = ?
+            RETURNING stale_commits AS "stale_commits: u32""#,
+            group_id,
+        )
+        .fetch_one(connection.as_mut())
+        .await
+    }
+
+    pub(crate) async fn reset_stale_commits(
+        mut connection: impl WriteConnection,
+        group_id: &GroupId,
+    ) -> sqlx::Result<()> {
+        let group_id = GroupIdRefWrapper::from(group_id);
+        query!(
+            r#"UPDATE "group" SET stale_commits = 0 WHERE group_id = ?"#,
+            group_id,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        Ok(())
+    }
+
     pub(crate) async fn delete_from_db(
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,

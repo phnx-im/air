@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE \"group\" SET stale_commits = stale_commits + 1\n            WHERE group_id = ?\n            RETURNING stale_commits AS \"stale_commits: u32\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "stale_commits: u32",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "group",
+            "name": "stale_commits"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "cb11f16be44f33947733bd370522c5a8d995c943e3eb5213f2cbeadb82b8c935"
+}

@@ -57,6 +57,7 @@ use crate::{
         indexed_keys::StorableIndexedKey,
         key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
     },
+    outbound_service::resync::{Resync, ResyncReason},
     privacy_pass,
 };
 
@@ -70,6 +71,10 @@ const RETRY_INTERVAL: Duration = Duration::seconds(1);
 
 /// Failed attempts before a pending operation is given up on.
 const MAX_RETRIES: u32 = 5;
+
+/// Consecutive stale rejections of our commits before the group is resynced.
+/// A resync takes the DS's pending proposals, including any we lost locally.
+const MAX_STALE_COMMITS: u32 = 3;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(super) enum OperationType {
@@ -325,6 +330,7 @@ impl Job for PendingChatOperation {
                 ..
             })) => {
                 self.clean_up(context, false).await;
+                self.record_stale_commit(context).await;
                 error
             }
             // Update retry_due at on errors a later attempt may get past
@@ -444,6 +450,50 @@ impl PendingChatOperation {
         if let Some(operation) = Self::load_by_group_id(&mut *txn, group_id).await? {
             operation.complete_self_group_intent(txn).await?;
         }
+        Ok(())
+    }
+
+    async fn record_stale_commit(&self, context: &mut JobContext<'_, '_>) {
+        let Ok(mut connection) = context.db.write().await.inspect_err(|error| {
+            error!(%error, "Failed to record stale commit");
+        }) else {
+            return;
+        };
+        connection
+            .with_transaction(async |txn| self.record_stale_commit_in_transaction(txn).await)
+            .await
+            .inspect_err(|error| {
+                error!(%error, "Failed to record stale commit");
+            })
+            .ok();
+    }
+
+    /// Counts a stale rejection of our commit and enqueues a resync of the group
+    /// once [`MAX_STALE_COMMITS`] rejections in a row have been counted.
+    async fn record_stale_commit_in_transaction(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+    ) -> anyhow::Result<()> {
+        let group = self.group.group();
+        let stale_commits = Group::increment_stale_commits(&mut *txn, group.group_id()).await?;
+        if stale_commits < MAX_STALE_COMMITS {
+            return Ok(());
+        }
+        let Some(chat) = Chat::load_by_group_id(&mut *txn, group.group_id()).await? else {
+            warn!(
+                group_id = ?group.group_id(),
+                "Commits keep being stale, but there is no chat to resync"
+            );
+            return Ok(());
+        };
+        warn!(
+            chat_id = ?chat.id(),
+            stale_commits,
+            "Commits keep being stale, resyncing the group"
+        );
+        Resync::for_group(chat.id(), group, ResyncReason::StaleCommit)
+            .enqueue(&mut *txn)
+            .await?;
         Ok(())
     }
 
@@ -761,6 +811,9 @@ impl PendingChatOperation {
                     .group_mut()
                     .store_update(&mut *txn, t_self_update_at, pq_self_update_at)
                     .await?;
+                if is_commit {
+                    Group::reset_stale_commits(&mut *txn, self.group.group_id()).await?;
+                }
                 let messages =
                     CoreUser::store_new_messages(&mut *txn, chat.id(), group_messages).await?;
 
