@@ -7,9 +7,9 @@ use std::time::Duration;
 use sqlx::PgPool;
 use tracing::error;
 
-use super::{Allowance, RlConfig, RlKey, StorageProvider};
+use super::{RlConfig, RlKey, StorageProvider};
 
-pub(crate) const ALLOWANCE_SWEEP_INTERVAL: Duration = Duration::from_secs(60 * 60);
+pub(crate) const ALLOWANCE_SWEEP_INTERVAL: Duration = Duration::from_hours(1);
 
 /// Deletes expired allowances every `period`, so keys that stop sending
 /// requests do not keep their rows forever.
@@ -17,7 +17,7 @@ pub(crate) async fn sweep_expired_allowances(pool: PgPool, period: Duration) {
     let mut interval = tokio::time::interval(period);
     loop {
         interval.tick().await;
-        if let Err(error) = Allowance::delete_expired(&pool).await {
+        if let Err(error) = persistence::delete_expired(&pool).await {
             error!(%error, "Failed to delete expired allowances");
         }
     }
@@ -36,7 +36,7 @@ impl RlPostgresStorage {
 impl StorageProvider for RlPostgresStorage {
     async fn try_consume(&self, config: &RlConfig, key: &RlKey) -> bool {
         // Fails open, so an unreachable database does not lock users out.
-        Allowance::try_consume(&self.pool, config, key)
+        persistence::try_consume(&self.pool, config, key)
             .await
             .unwrap_or_else(|error| {
                 error!(%error, "Failed to consume allowance in Postgres");
@@ -46,190 +46,123 @@ impl StorageProvider for RlPostgresStorage {
 }
 
 pub(crate) mod persistence {
-
-    #[cfg(test)]
-    use chrono::SubsecRound;
     use sqlx::{PgExecutor, postgres::types::PgInterval, query};
-    #[cfg(test)]
-    use sqlx::{
-        query_as,
-        types::chrono::{DateTime, Utc},
-    };
 
     use crate::{
         errors::StorageError,
         rate_limiter::{RlConfig, RlKey},
     };
 
-    use super::Allowance;
-
-    impl Allowance {
-        pub(in crate::rate_limiter) async fn try_consume(
-            connection: impl PgExecutor<'_>,
-            config: &RlConfig,
-            key: &RlKey,
-        ) -> Result<bool, StorageError> {
-            if config.max_requests == 0 {
-                return Ok(false);
-            }
-            // Consumes one request from the allowance of `key` in a single
-            // statement, so concurrent requests serialize on the row lock. Returns
-            // whether the request is allowed.
-            let consumed = query!(
-                r#"INSERT INTO allowance_record AS a
-                    (key_value, remaining, valid_until)
-                    VALUES ($1, $2::bigint - 1, NOW() + $3::interval)
-                ON CONFLICT (key_value) DO UPDATE SET
-                    remaining = CASE WHEN a.valid_until < NOW()
-                        THEN EXCLUDED.remaining
-                        ELSE a.remaining - 1 END,
-                    valid_until = CASE WHEN a.valid_until < NOW()
-                        THEN EXCLUDED.valid_until
-                        ELSE a.valid_until END
-                WHERE a.valid_until < NOW() OR a.remaining > 0
-                RETURNING 1 AS "consumed!""#,
-                key.serialize(),
-                config.max_requests as i64,
-                PgInterval::try_from(config.time_window)?,
-            )
-            .fetch_optional(connection)
-            .await?;
-
-            // A row that is not updated returns nothing, which means denied.
-            Ok(consumed.is_some())
+    pub(super) async fn try_consume(
+        connection: impl PgExecutor<'_>,
+        config: &RlConfig,
+        key: &RlKey,
+    ) -> Result<bool, StorageError> {
+        if config.max_requests == 0 {
+            return Ok(false);
         }
+        // Consumes one request from the allowance of `key` in a single
+        // statement, so concurrent requests serialize on the row lock. Returns
+        // whether the request is allowed.
+        let consumed = query!(
+            r#"INSERT INTO allowance_record AS a
+                (key_value, remaining, valid_until)
+                VALUES ($1, $2::bigint - 1, NOW() + $3::interval)
+            ON CONFLICT (key_value) DO UPDATE SET
+                remaining = CASE WHEN a.valid_until < NOW()
+                    THEN EXCLUDED.remaining
+                    ELSE a.remaining - 1 END,
+                valid_until = CASE WHEN a.valid_until < NOW()
+                    THEN EXCLUDED.valid_until
+                    ELSE a.valid_until END
+            WHERE a.valid_until < NOW() OR a.remaining > 0
+            RETURNING 1 AS "consumed!""#,
+            key.serialize(),
+            config.max_requests as i64,
+            PgInterval::try_from(config.time_window)?,
+        )
+        .fetch_optional(connection)
+        .await?;
 
-        #[cfg(test)]
-        pub(in crate::rate_limiter) async fn load(
-            connection: impl PgExecutor<'_>,
-            key: &RlKey,
-        ) -> Result<Option<Allowance>, StorageError> {
-            struct AllowanceRecord {
-                remaining: i64,
-                valid_until: DateTime<Utc>,
-            }
+        // A row that is not updated returns nothing, which means denied.
+        Ok(consumed.is_some())
+    }
 
-            let record = query_as!(
-                AllowanceRecord,
-                r#"SELECT
-                    remaining AS "remaining: _",
-                    valid_until AS "valid_until: _"
-                FROM allowance_record
-                WHERE key_value = $1"#,
-                key.serialize(),
-            )
-            .fetch_optional(connection)
-            .await?;
-            Ok(record.map(|record| Allowance {
-                remaining: record.remaining as u64,
-                valid_until: record.valid_until,
-            }))
-        }
-
-        #[cfg(test)]
-        pub(in crate::rate_limiter) async fn store(
-            &self,
-            connection: impl PgExecutor<'_>,
-            key: &RlKey,
-        ) -> Result<(), StorageError> {
-            // Ensure valid_until is rounded to microseconds, since postgres
-            // only supports microsecond precision.
-            let valid_until = self.valid_until.round_subsecs(6);
-            query!(
-                "INSERT INTO allowance_record
-                    (key_value, remaining, valid_until)
-                    VALUES ($1, $2, $3)",
-                key.serialize(),
-                self.remaining as i64,
-                valid_until,
-            )
+    /// Delete all expired allowances.
+    pub(super) async fn delete_expired(connection: impl PgExecutor<'_>) -> Result<(), sqlx::Error> {
+        query!("DELETE FROM allowance_record WHERE valid_until < NOW()")
             .execute(connection)
             .await?;
-            Ok(())
-        }
-
-        /// Delete all expired allowances.
-        pub(in crate::rate_limiter) async fn delete_expired(
-            connection: impl PgExecutor<'_>,
-        ) -> Result<(), sqlx::Error> {
-            query!("DELETE FROM allowance_record WHERE valid_until < NOW()")
-                .execute(connection)
-                .await?;
-            Ok(())
-        }
+        Ok(())
     }
 
     #[cfg(test)]
-    pub(crate) mod tests {
+    mod tests {
         use std::time::Duration;
 
-        use chrono::TimeDelta;
-        use sqlx::PgPool;
+        use chrono::{DateTime, SubsecRound, TimeDelta, Utc};
+        use sqlx::{PgPool, query_as};
 
         use crate::rate_limiter::{
-            RateLimiter, RlConfig,
+            RateLimiter,
             provider::{RlPostgresStorage, sweep_expired_allowances},
         };
 
         use super::*;
 
-        pub async fn store_random_allowance(
-            pool: &PgPool,
-            key: &RlKey,
-        ) -> anyhow::Result<Allowance> {
-            let config = RlConfig {
-                max_requests: 10,
-                time_window: TimeDelta::hours(1),
-            };
-            let allowance = Allowance::new(&config);
-            allowance.store(pool, key).await?;
-            Ok(allowance)
+        /// A row of `allowance_record`.
+        #[derive(Debug, PartialEq)]
+        struct Allowance {
+            remaining: u64,
+            valid_until: DateTime<Utc>,
         }
 
-        #[sqlx::test]
-        async fn load_allowance(pool: PgPool) -> anyhow::Result<()> {
-            let key = RlKey::new(b"test_service", b"test_rpc", &[]);
-            let allowance = store_random_allowance(&pool, &key).await?;
+        impl Allowance {
+            fn expiring_in(time_window: TimeDelta) -> Self {
+                Allowance {
+                    remaining: 0,
+                    // Postgres only stores microseconds
+                    valid_until: (Utc::now() + time_window).round_subsecs(6),
+                }
+            }
 
-            let loaded = Allowance::load(&pool, &key)
-                .await?
-                .expect("missing allowance record");
-            assert_eq!(loaded, allowance);
+            async fn load(pool: &PgPool, key: &RlKey) -> Option<Self> {
+                struct AllowanceRecord {
+                    remaining: i64,
+                    valid_until: DateTime<Utc>,
+                }
 
-            Ok(())
-        }
+                let record = query_as!(
+                    AllowanceRecord,
+                    r#"SELECT
+                        remaining AS "remaining: _",
+                        valid_until AS "valid_until: _"
+                    FROM allowance_record
+                    WHERE key_value = $1"#,
+                    key.serialize(),
+                )
+                .fetch_optional(pool)
+                .await
+                .unwrap();
+                record.map(|record| Allowance {
+                    remaining: record.remaining as u64,
+                    valid_until: record.valid_until,
+                })
+            }
 
-        #[sqlx::test]
-        async fn delete_expired_allowances(pool: PgPool) -> anyhow::Result<()> {
-            // First, store an allowance that is valid
-            let key = RlKey::new(b"test_service", b"test_rpc", &[]);
-            let allowance = store_random_allowance(&pool, &key).await?;
-
-            // Then, delete expired allowances (should not delete the valid one)
-            Allowance::delete_expired(&pool).await?;
-
-            // Load the valid allowance to ensure it still exists
-            let loaded = Allowance::load(&pool, &key)
-                .await?
-                .expect("missing allowance record");
-            assert_eq!(loaded, allowance);
-
-            // Now, store an expired allowance
-            let expired_key = RlKey::new(b"expired_service", b"expired_rpc", &[]);
-            let expired_allowance = Allowance {
-                remaining: 0,
-                valid_until: Utc::now() - TimeDelta::weeks(1), // already expired
-            };
-            expired_allowance.store(&pool, &expired_key).await?;
-
-            // Delete expired allowances again
-            Allowance::delete_expired(&pool).await?;
-
-            // Ensure the expired allowance is deleted
-            let loaded_expired = Allowance::load(&pool, &expired_key).await?;
-            assert!(loaded_expired.is_none());
-
-            Ok(())
+            async fn store(&self, pool: &PgPool, key: &RlKey) {
+                query!(
+                    "INSERT INTO allowance_record
+                        (key_value, remaining, valid_until)
+                        VALUES ($1, $2, $3)",
+                    key.serialize(),
+                    self.remaining as i64,
+                    self.valid_until,
+                )
+                .execute(pool)
+                .await
+                .unwrap();
+            }
         }
 
         fn limiter(pool: &PgPool, max_requests: u64) -> RateLimiter<RlPostgresStorage> {
@@ -238,6 +171,23 @@ pub(crate) mod persistence {
                 time_window: TimeDelta::hours(1),
             };
             RateLimiter::new(config, RlPostgresStorage::new(pool.clone()))
+        }
+
+        #[sqlx::test]
+        async fn delete_expired_allowances(pool: PgPool) {
+            let live_key = RlKey::new(b"live_service", b"live_rpc", &[]);
+            let live = Allowance::expiring_in(TimeDelta::hours(1));
+            live.store(&pool, &live_key).await;
+
+            let expired_key = RlKey::new(b"expired_service", b"expired_rpc", &[]);
+            Allowance::expiring_in(-TimeDelta::weeks(1))
+                .store(&pool, &expired_key)
+                .await;
+
+            delete_expired(&pool).await.unwrap();
+
+            assert_eq!(Allowance::load(&pool, &live_key).await, Some(live));
+            assert_eq!(Allowance::load(&pool, &expired_key).await, None);
         }
 
         #[sqlx::test]
@@ -277,13 +227,9 @@ pub(crate) mod persistence {
         #[sqlx::test]
         async fn a_stale_window_starts_over(pool: PgPool) {
             let key = RlKey::new(b"test_service", b"test_rpc", &[]);
-            Allowance {
-                remaining: 0,
-                valid_until: Utc::now() - TimeDelta::minutes(1),
-            }
-            .store(&pool, &key)
-            .await
-            .unwrap();
+            Allowance::expiring_in(-TimeDelta::minutes(1))
+                .store(&pool, &key)
+                .await;
 
             let rl = limiter(&pool, 2);
             assert!(rl.allowed(key.clone()).await);
@@ -294,20 +240,16 @@ pub(crate) mod persistence {
         #[sqlx::test]
         async fn the_sweep_deletes_expired_allowances(pool: PgPool) {
             let key = RlKey::new(b"test_service", b"test_rpc", &[]);
-            Allowance {
-                remaining: 0,
-                valid_until: Utc::now() - TimeDelta::minutes(1),
-            }
-            .store(&pool, &key)
-            .await
-            .unwrap();
+            Allowance::expiring_in(-TimeDelta::minutes(1))
+                .store(&pool, &key)
+                .await;
 
             let sweep = tokio::spawn(sweep_expired_allowances(
                 pool.clone(),
                 Duration::from_millis(10),
             ));
             tokio::time::timeout(Duration::from_secs(5), async {
-                while Allowance::load(&pool, &key).await.unwrap().is_some() {
+                while Allowance::load(&pool, &key).await.is_some() {
                     tokio::time::sleep(Duration::from_millis(10)).await;
                 }
             })

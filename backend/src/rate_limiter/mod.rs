@@ -4,11 +4,8 @@
 
 //! Rate Limiter
 
-#[cfg(test)]
-use chrono::SubsecRound;
 use chrono::TimeDelta;
 use sha2::{Digest, Sha256};
-use sqlx::types::chrono::{DateTime, Utc};
 
 pub(crate) mod provider;
 
@@ -47,41 +44,6 @@ impl RlKey {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Allowance {
-    remaining: u64,
-    valid_until: DateTime<Utc>,
-}
-
-#[cfg(test)]
-impl Allowance {
-    pub(crate) fn new(config: &RlConfig) -> Self {
-        Allowance {
-            remaining: config.max_requests,
-            valid_until: Utc::now().round_subsecs(6) + config.time_window,
-        }
-    }
-
-    fn reset(&mut self, config: &RlConfig) {
-        self.remaining = config.max_requests;
-        self.valid_until = Utc::now() + config.time_window;
-    }
-
-    fn allowed(&mut self, config: &RlConfig) -> bool {
-        // Check if the time window has passed
-        if self.valid_until < Utc::now() {
-            self.reset(config);
-        }
-
-        if self.remaining == 0 {
-            false
-        } else {
-            self.remaining -= 1;
-            true
-        }
-    }
-}
-
 pub(crate) trait StorageProvider {
     /// Atomically consumes one request from the allowance of `key` and reports
     /// whether it is allowed.
@@ -100,67 +62,5 @@ impl<S: StorageProvider> RateLimiter<S> {
 
     pub(crate) async fn allowed(&self, key: RlKey) -> bool {
         self.storage.try_consume(&self.config, &key).await
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::HashMap;
-
-    use chrono::TimeDelta;
-    use tokio::sync::Mutex;
-
-    use crate::rate_limiter::{RateLimiter, RlConfig};
-
-    use super::{Allowance, RlKey, StorageProvider};
-
-    #[derive(Default)]
-    pub struct InMemoryStorage {
-        data: Mutex<HashMap<Vec<u8>, Allowance>>,
-    }
-
-    impl InMemoryStorage {
-        pub fn new() -> Self {
-            InMemoryStorage {
-                data: Mutex::new(HashMap::new()),
-            }
-        }
-    }
-
-    impl StorageProvider for InMemoryStorage {
-        async fn try_consume(&self, config: &RlConfig, key: &RlKey) -> bool {
-            self.data
-                .lock()
-                .await
-                .entry(key.serialize().to_owned())
-                .or_insert_with(|| Allowance::new(config))
-                .allowed(config)
-        }
-    }
-
-    #[tokio::test]
-    async fn test_rate_limiter() {
-        let config = RlConfig {
-            max_requests: 5,
-            time_window: TimeDelta::milliseconds(100),
-        };
-        let storage = InMemoryStorage::new();
-        let rate_limiter = RateLimiter::new(config.clone(), storage);
-
-        let key = RlKey::new(b"test_service", b"test_rpc", &[]);
-
-        // First 5 requests should succeed
-        for _ in 0..config.max_requests {
-            assert!(rate_limiter.allowed(key.clone()).await);
-        }
-
-        // 6th request should fail
-        assert!(!rate_limiter.allowed(key.clone()).await);
-
-        // Wait for the time window to reset
-        tokio::time::sleep(config.time_window.to_std().unwrap()).await;
-
-        // Now it should succeed again
-        assert!(rate_limiter.allowed(key).await);
     }
 }
