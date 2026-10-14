@@ -3,7 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::utils::removed_clients;
-use airprotos::client::app_data::GroupAppData;
+use airprotos::client::{
+    app_data::GroupAppData,
+    component::{GroupTombstone, TombstoneContext},
+};
 use mls_assist::{
     group::{
         ApqProcessedAssistedMessagePlus, ProcessedAssistedMessage,
@@ -169,14 +172,27 @@ impl DsGroupState {
             warn!("Found add or update proposals in delete group commit");
             return Err(GroupDeletionError::InvalidMessage);
         }
-        // A delete commit may set the deleted flag, but the self-group flag is
+        // A delete commit may set the tombstone, but the self-group flag is
         // fixed at group creation.
         let current_extensions = self.group().group_info().group_context().extensions();
-        if GroupAppData::is_self_group_context(staged_commit.group_context().extensions())
+        let staged_extensions = staged_commit.group_context().extensions();
+        if GroupAppData::is_self_group_context(staged_extensions)
             != GroupAppData::is_self_group_context(current_extensions)
         {
             warn!("Delete group commit would toggle the self-group flag");
             return Err(GroupDeletionError::InvalidMessage);
+        }
+        // Legacy delete commits set no tombstone.
+        match GroupAppData::tombstone(staged_extensions) {
+            None
+            | Some(GroupTombstone {
+                timestamp: Some(_),
+                context: TombstoneContext::Deleted,
+            }) => {}
+            Some(tombstone) => {
+                warn!(?tombstone, "Delete group commit sets an invalid tombstone");
+                return Err(GroupDeletionError::InvalidMessage);
+            }
         }
         // Process remove proposals, but only non-inline ones.
 
@@ -261,6 +277,7 @@ mod test {
     };
 
     use super::*;
+    use crate::ds::create_group::ensure_created_without_tombstone;
 
     const MAX_DEVICES: u32 = 5;
     const T_CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
@@ -364,21 +381,31 @@ mod test {
 
     /// The group context of a T group as the client creates it.
     fn t_group_context_extensions() -> Extensions<GroupContext> {
+        t_group_context_extensions_with(None)
+    }
+
+    fn t_group_context_extensions_with(
+        tombstone: Option<GroupTombstone>,
+    ) -> Extensions<GroupContext> {
         let app_data = GroupAppData {
             is_self_group: false,
             safe_aad_components: None,
             profile: None,
-            deleted: None,
+            tombstone,
         };
         Extensions::from_vec(vec![app_data.to_extension().unwrap()]).unwrap()
     }
 
     fn new_t_group(creator: &Client) -> MlsGroup {
+        new_t_group_with(creator, t_group_context_extensions())
+    }
+
+    fn new_t_group_with(creator: &Client, extensions: Extensions<GroupContext>) -> MlsGroup {
         MlsGroup::builder()
             .ciphersuite(T_CIPHERSUITE)
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
             .with_capabilities(default_leaf_node_capabilities())
-            .with_group_context_extensions(t_group_context_extensions())
+            .with_group_context_extensions(extensions)
             .build(
                 &creator.provider,
                 creator.signer.t_signer(),
@@ -391,7 +418,21 @@ mod test {
     type ComponentUpdate = fn(&mut AirComponent);
 
     fn set_deleted(component: &mut AirComponent) {
-        component.deleted = Some(TimeStamp::now());
+        component.tombstone = Some(GroupTombstone::deleted(TimeStamp::now()));
+    }
+
+    fn set_tombstone_with_unknown_context(component: &mut AirComponent) {
+        component.tombstone = Some(GroupTombstone {
+            timestamp: Some(TimeStamp::now()),
+            context: TombstoneContext::Unknown,
+        });
+    }
+
+    fn set_tombstone_without_timestamp(component: &mut AirComponent) {
+        component.tombstone = Some(GroupTombstone {
+            timestamp: None,
+            context: TombstoneContext::Deleted,
+        });
     }
 
     fn set_deleted_and_self_group(component: &mut AirComponent) {
@@ -578,12 +619,6 @@ mod test {
         Ok((t_state, pq_state))
     }
 
-    fn is_deleted(state: &DsGroupState) -> bool {
-        GroupAppData::is_deleted_group_context(
-            state.group().group_info().group_context().extensions(),
-        )
-    }
-
     /// Submits a self-update of the creator as a group operation. With
     /// `update`, the self-update changes the Air component like a delete
     /// commit.
@@ -627,19 +662,19 @@ mod test {
     }
 
     #[test]
-    fn a_merged_delete_leaves_only_the_deleter_and_carries_the_flag_it_sets() {
+    fn a_merged_delete_leaves_only_the_deleter_and_carries_the_tombstone_it_sets() {
         for update in [None, Some(set_deleted as ComponentUpdate)] {
             let state = delete_t_group(3, update).unwrap();
             assert_eq!(state.group().members().count(), 1);
             assert_eq!(state.member_profiles.len(), 1);
-            assert_eq!(is_deleted(&state), update.is_some());
+            assert_eq!(state.has_tombstone(), update.is_some());
 
             let (t_state, pq_state) = delete_apq_group(3, update).unwrap();
             assert_eq!(t_state.group().members().count(), 1);
             assert_eq!(t_state.member_profiles.len(), 1);
             assert_eq!(pq_state.group().members().count(), 1);
-            assert_eq!(is_deleted(&t_state), update.is_some());
-            assert!(!is_deleted(&pq_state));
+            assert_eq!(t_state.has_tombstone(), update.is_some());
+            assert!(!pq_state.has_tombstone());
         }
     }
 
@@ -654,8 +689,48 @@ mod test {
         };
     }
 
+    #[test]
+    fn a_delete_that_sets_an_invalid_tombstone_is_rejected() {
+        for update in [
+            set_tombstone_with_unknown_context as ComponentUpdate,
+            set_tombstone_without_timestamp,
+        ] {
+            let Err(GroupDeletionError::InvalidMessage) = delete_t_group(2, Some(update)) else {
+                panic!("the T delete is accepted");
+            };
+            let Err(GroupDeletionError::InvalidMessage) = delete_apq_group(2, Some(update)) else {
+                panic!("the APQ delete is accepted");
+            };
+        }
+    }
+
+    #[test]
+    fn a_group_created_with_a_tombstone_is_rejected() {
+        let creator = Client::new();
+        let group = new_t_group(&creator);
+        let state = ds_group_state(&creator, &group, creator.signer.t_signer());
+        ensure_created_without_tombstone(state.group()).unwrap();
+
+        for tombstone in [
+            GroupTombstone::deleted(TimeStamp::now()),
+            GroupTombstone {
+                timestamp: None,
+                context: TombstoneContext::Deleted,
+            },
+            GroupTombstone {
+                timestamp: Some(TimeStamp::now()),
+                context: TombstoneContext::Unknown,
+            },
+        ] {
+            let extensions = t_group_context_extensions_with(Some(tombstone));
+            let group = new_t_group_with(&creator, extensions);
+            let state = ds_group_state(&creator, &group, creator.signer.t_signer());
+            assert!(ensure_created_without_tombstone(state.group()).is_err());
+        }
+    }
+
     #[tokio::test]
-    async fn a_group_operation_that_sets_the_deleted_flag_is_rejected() {
+    async fn a_group_operation_that_sets_a_tombstone_is_rejected() {
         self_update_group_operation(None).await.unwrap();
         let Err(GroupOperationError::InvalidMessage) =
             self_update_group_operation(Some(set_deleted)).await

@@ -9505,7 +9505,7 @@ const _: fn() = || {
             None::<crate::api::chat_details_cubit::AirComponentDebugInfo>.unwrap();
         let _: crate::api::types::AirFeatures = AirComponentDebugInfo.features;
         let _: bool = AirComponentDebugInfo.is_self_group;
-        let _: Option<String> = AirComponentDebugInfo.deleted;
+        let _: Option<String> = AirComponentDebugInfo.tombstone;
     }
     {
         let AirFeatures = None::<crate::api::types::AirFeatures>.unwrap();
@@ -10623,11 +10623,11 @@ impl SseDecode for crate::api::chat_details_cubit::AirComponentDebugInfo {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_features = <crate::api::types::AirFeatures>::sse_decode(deserializer);
         let mut var_isSelfGroup = <bool>::sse_decode(deserializer);
-        let mut var_deleted = <Option<String>>::sse_decode(deserializer);
+        let mut var_tombstone = <Option<String>>::sse_decode(deserializer);
         return crate::api::chat_details_cubit::AirComponentDebugInfo {
             features: var_features,
             is_self_group: var_isSelfGroup,
-            deleted: var_deleted,
+            tombstone: var_tombstone,
         };
     }
 }
@@ -14490,7 +14490,7 @@ impl flutter_rust_bridge::IntoDart
         [
             self.0.features.into_into_dart().into_dart(),
             self.0.is_self_group.into_into_dart().into_dart(),
-            self.0.deleted.into_into_dart().into_dart(),
+            self.0.tombstone.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -17838,7 +17838,7 @@ impl SseEncode for crate::api::chat_details_cubit::AirComponentDebugInfo {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <crate::api::types::AirFeatures>::sse_encode(self.features, serializer);
         <bool>::sse_encode(self.is_self_group, serializer);
-        <Option<String>>::sse_encode(self.deleted, serializer);
+        <Option<String>>::sse_encode(self.tombstone, serializer);
     }
 }
 

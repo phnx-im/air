@@ -15,7 +15,7 @@ use aircommon::{
     },
 };
 use airprotos::client::component::{
-    AIR_COMPONENT_ID, AIR_GROUP_PROFILE_COMPONENT_ID, AirComponent, AirFeatures,
+    AIR_COMPONENT_ID, AIR_GROUP_PROFILE_COMPONENT_ID, AirComponent, AirFeatures, GroupTombstone,
 };
 use airprotos::client::group::{EncryptedGroupTitle, ExternalGroupProfile, GroupData};
 use anyhow::Context as _;
@@ -117,12 +117,12 @@ pub struct AppDataDebugInfo {
     pub air_component: Option<AirComponentDebugInfo>,
 }
 
-/// An [`AirComponent`] with the deleted timestamp rendered as a string.
+/// An [`AirComponent`] with the tombstone rendered as a string.
 #[derive(Debug, Clone)]
 pub struct AirComponentDebugInfo {
     pub features: AirFeatures,
     pub is_self_group: bool,
-    pub deleted: Option<String>,
+    pub tombstone: Option<String>,
 }
 
 impl From<AirComponent> for AirComponentDebugInfo {
@@ -130,7 +130,15 @@ impl From<AirComponent> for AirComponentDebugInfo {
         Self {
             features: component.features,
             is_self_group: component.is_self_group,
-            deleted: component.deleted.map(|deleted| deleted.to_rfc3339()),
+            tombstone: component
+                .tombstone
+                .map(|GroupTombstone { timestamp, context }| {
+                    let timestamp = timestamp.map_or_else(
+                        || "no timestamp".to_owned(),
+                        |timestamp| timestamp.to_rfc3339(),
+                    );
+                    format!("{context:?} at {timestamp}")
+                }),
         }
     }
 }

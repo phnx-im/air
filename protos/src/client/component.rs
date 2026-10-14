@@ -6,7 +6,9 @@ use aircommon::{
     codec::{self, PersistenceCodec},
     time::TimeStamp,
 };
-use airmacros::{DeserializeTaggedMap, SerializeTaggedMap};
+use airmacros::{
+    DeserializeTaggedMap, DeserializeTaggedUnion, SerializeTaggedMap, SerializeTaggedUnion,
+};
 use mls_assist::openmls::component::{ComponentData, ComponentId};
 
 /// The component id of the Air component.
@@ -30,13 +32,65 @@ pub struct AirComponent {
     /// Only meaningful in the group context; always `false` in leaf nodes and key packages.
     #[tag(2)]
     pub is_self_group: bool,
-    /// When the group was deleted, if it was.
+    /// Marks the group as closed. No further operations are accepted on a
+    /// group with a tombstone, whatever its context.
     ///
-    /// Set by the commit that deletes the group, to the deleter's local time
-    /// when it built the commit. Only meaningful in the group context. Always
-    /// `None` in leaf nodes and key packages.
+    /// Only meaningful in the group context. Always `None` in leaf nodes and
+    /// key packages.
     #[tag(3)]
-    pub deleted: Option<TimeStamp>,
+    pub tombstone: Option<GroupTombstone>,
+}
+
+/// When and why a group was closed.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// GroupTombstone = {
+///   ? timestamp: tstr .tag 1,
+///   ? context: TombstoneContext .tag 2,
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Hash, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct GroupTombstone {
+    /// The closing client's local time when it built the commit that set the
+    /// tombstone. Always set, the DS rejects a tombstone without it.
+    #[tag(1)]
+    pub timestamp: Option<TimeStamp>,
+    #[tag(2)]
+    pub context: TombstoneContext,
+}
+
+/// Why a group was closed.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// TombstoneContext = {
+///   1: null   ; the group was deleted by a member
+/// }
+/// ```
+#[derive(
+    Debug, Clone, Default, PartialEq, Eq, Hash, SerializeTaggedUnion, DeserializeTaggedUnion,
+)]
+pub enum TombstoneContext {
+    /// A member deleted the group.
+    #[tag(1)]
+    Deleted,
+    /// A context this client does not understand, or none at all.
+    #[default]
+    #[unknown]
+    Unknown,
+}
+
+impl GroupTombstone {
+    /// The tombstone a member sets when deleting the group at `timestamp`.
+    pub fn deleted(timestamp: TimeStamp) -> Self {
+        Self {
+            timestamp: Some(timestamp),
+            context: TombstoneContext::Deleted,
+        }
+    }
 }
 
 /// List of features supported by the client.
@@ -112,7 +166,9 @@ mod test {
         AirComponent {
             features: AirFeatures::default_leaf_or_key_package_features(),
             is_self_group: false,
-            deleted: Some(Utc.with_ymd_and_hms(2026, 10, 13, 12, 0, 0).unwrap().into()),
+            tombstone: Some(GroupTombstone::deleted(
+                Utc.with_ymd_and_hms(2026, 10, 13, 12, 0, 0).unwrap().into(),
+            )),
         }
     }
 
@@ -130,7 +186,7 @@ mod test {
         assert_eq!(AirComponent::from_bytes(&bytes).unwrap(), component);
     }
 
-    /// The component as it was before the `deleted` field existed.
+    /// The component as it was before the `tombstone` field existed.
     #[derive(Debug, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
     struct LegacyAirComponent {
         #[tag(1)]
@@ -140,7 +196,7 @@ mod test {
     }
 
     #[test]
-    fn deleted_field_encodes_as_before_when_unset_and_decodes_on_legacy_component() {
+    fn tombstone_encodes_as_before_when_unset_and_decodes_on_legacy_component() {
         let features = AirFeatures::default_leaf_or_key_package_features();
         let legacy = LegacyAirComponent {
             features: features.clone(),
@@ -149,7 +205,7 @@ mod test {
         let current = AirComponent {
             features,
             is_self_group: true,
-            deleted: None,
+            tombstone: None,
         };
         assert_eq!(
             PersistenceCodec::to_vec(&legacy).unwrap(),
@@ -164,6 +220,53 @@ mod test {
                 features: AirFeatures::default_leaf_or_key_package_features(),
                 is_self_group: false,
             }
+        );
+    }
+
+    /// A tombstone context a later version might add.
+    #[derive(SerializeTaggedUnion, DeserializeTaggedUnion)]
+    enum FutureTombstoneContext {
+        #[tag(9)]
+        Archived,
+        #[unknown]
+        Unknown,
+    }
+
+    #[derive(SerializeTaggedMap, DeserializeTaggedMap)]
+    struct FutureTombstone {
+        #[tag(1)]
+        timestamp: Option<TimeStamp>,
+        #[tag(2)]
+        context: Option<FutureTombstoneContext>,
+    }
+
+    #[derive(SerializeTaggedMap, DeserializeTaggedMap)]
+    struct FutureAirComponent {
+        #[tag(1)]
+        features: AirFeatures,
+        #[tag(3)]
+        tombstone: Option<FutureTombstone>,
+    }
+
+    #[test]
+    fn tombstone_with_an_unknown_context_decodes() {
+        let timestamp = TimeStamp::from(Utc.with_ymd_and_hms(2026, 10, 13, 12, 0, 0).unwrap());
+        let future = FutureAirComponent {
+            features: AirFeatures::default_leaf_or_key_package_features(),
+            tombstone: Some(FutureTombstone {
+                timestamp: Some(timestamp),
+                context: Some(FutureTombstoneContext::Archived),
+            }),
+        };
+        let bytes = PersistenceCodec::to_vec(&future).unwrap();
+
+        let decoded = AirComponent::from_bytes(&bytes).unwrap();
+        assert_eq!(
+            decoded.tombstone,
+            Some(GroupTombstone {
+                timestamp: Some(timestamp),
+                context: TombstoneContext::Unknown,
+            })
         );
     }
 }

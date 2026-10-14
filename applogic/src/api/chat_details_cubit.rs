@@ -1057,7 +1057,7 @@ pub struct _AppDataDebugInfo {
 pub struct _AirComponentDebugInfo {
     pub features: AirFeatures,
     pub is_self_group: bool,
-    pub deleted: Option<String>,
+    pub tombstone: Option<String>,
 }
 
 #[frb(mirror(DebugCapabilities))]

@@ -77,7 +77,7 @@ impl DsGroupState {
 
         if !t.group_flags_unchanged(t_staged_commit) || !pq.group_flags_unchanged(pq_staged_commit)
         {
-            error!("Commit would change the self-group or deleted flag");
+            error!("Commit would change the self-group flag or the tombstone");
             return Err(InvalidApqExternalCommit);
         }
 

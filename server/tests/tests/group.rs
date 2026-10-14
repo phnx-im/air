@@ -360,11 +360,8 @@ async fn missed_removal_then_resync() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(
-    name = "Missed deletion without the deleted flag then resync",
-    skip_all
-)]
-async fn missed_deletion_without_deleted_flag_then_resync() {
+#[tracing::instrument(name = "Missed deletion without a tombstone then resync", skip_all)]
+async fn missed_deletion_without_tombstone_then_resync() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
@@ -378,7 +375,7 @@ async fn missed_deletion_without_deleted_flag_then_resync() {
 
     let alice_user = &setup.get_user(&alice).user;
     alice_user
-        .delete_chat_without_deleted_flag(chat_id)
+        .delete_chat_without_tombstone(chat_id)
         .await
         .unwrap();
 
@@ -402,8 +399,8 @@ async fn missed_deletion_without_deleted_flag_then_resync() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Delete group without the deleted flag", skip_all)]
-async fn delete_group_without_deleted_flag() {
+#[tracing::instrument(name = "Delete group without a tombstone", skip_all)]
+async fn delete_group_without_tombstone() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
@@ -415,10 +412,10 @@ async fn delete_group_without_deleted_flag() {
     let deletions =
         |messages: &[SystemMessage]| count(messages, &SystemMessage::DeleteGroup(alice.clone()));
 
-    // Alice deletes the group as clients before the flag do.
+    // Alice deletes the group as clients before the tombstone do.
     let alice_user = &setup.get_user(&alice).user;
     alice_user
-        .delete_chat_without_deleted_flag(chat_id)
+        .delete_chat_without_tombstone(chat_id)
         .await
         .unwrap();
     assert!(

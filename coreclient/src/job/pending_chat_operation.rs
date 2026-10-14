@@ -1092,7 +1092,7 @@ impl PendingChatOperation {
 
     /// Creates and stores a PendingChatOperation for deleting a chat.
     ///
-    /// `deleted` is recorded in the group context by the delete commit, see
+    /// `deleted` is recorded in the tombstone the delete commit sets, see
     /// [`Group::stage_delete`].
     pub(super) async fn create_delete(
         txn: &mut WriteDbTransaction<'_>,
@@ -1821,7 +1821,10 @@ pub(crate) mod tests {
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
     };
-    use airprotos::client::app_data::{ClientAppData, GroupAppData};
+    use airprotos::client::{
+        app_data::{ClientAppData, GroupAppData},
+        component::GroupTombstone,
+    };
     use chrono::{Duration, TimeZone, Utc};
     use openmls::{group::GroupContext, prelude::Extensions};
     use uuid::Uuid;
@@ -2487,8 +2490,8 @@ pub(crate) mod tests {
         Utc.with_ymd_and_hms(2026, 10, 13, 12, 0, 0).unwrap().into()
     }
 
-    fn deleted_in(extensions: &Extensions<GroupContext>) -> Option<TimeStamp> {
-        GroupAppData::from_group_context(extensions).and_then(|data| data.deleted)
+    fn tombstone_in(extensions: &Extensions<GroupContext>) -> Option<GroupTombstone> {
+        GroupAppData::tombstone(extensions)
     }
 
     async fn setup_apq_group() -> anyhow::Result<(DbAccess, VerifiedGroup, UserSigningKey)> {
@@ -2511,10 +2514,10 @@ pub(crate) mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn delete_records_the_deleted_flag_in_the_group_context() -> anyhow::Result<()> {
+    async fn delete_records_the_tombstone_in_the_group_context() -> anyhow::Result<()> {
         let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
         let mut connection = pool.write().await?;
-        assert_eq!(deleted_in(group.group().mls_group().extensions()), None);
+        assert_eq!(tombstone_in(group.group().mls_group().extensions()), None);
 
         Box::pin(
             connection.with_transaction(async |txn| -> anyhow::Result<()> {
@@ -2533,14 +2536,14 @@ pub(crate) mod tests {
             .pending_commit()
             .expect("delete commit staged");
         assert_eq!(
-            deleted_in(staged.group_context().extensions()),
-            Some(deleted_at())
+            tombstone_in(staged.group_context().extensions()),
+            Some(GroupTombstone::deleted(deleted_at()))
         );
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn delete_without_deleted_flag_leaves_the_group_context_alone() -> anyhow::Result<()> {
+    async fn delete_without_tombstone_leaves_the_group_context_alone() -> anyhow::Result<()> {
         let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
         let mut connection = pool.write().await?;
 
@@ -2560,13 +2563,12 @@ pub(crate) mod tests {
             .mls_group()
             .pending_commit()
             .expect("delete commit staged");
-        assert_eq!(deleted_in(staged.group_context().extensions()), None);
+        assert_eq!(tombstone_in(staged.group_context().extensions()), None);
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn apq_delete_records_the_deleted_flag_in_the_t_group_context_only() -> anyhow::Result<()>
-    {
+    async fn apq_delete_records_the_tombstone_in_the_t_group_context_only() -> anyhow::Result<()> {
         let (pool, mut group, signing_key) = setup_apq_group().await?;
         let mut connection = pool.write().await?;
 
@@ -2587,8 +2589,8 @@ pub(crate) mod tests {
             .pending_commit()
             .expect("T delete commit staged");
         assert_eq!(
-            deleted_in(t_staged.group_context().extensions()),
-            Some(deleted_at())
+            tombstone_in(t_staged.group_context().extensions()),
+            Some(GroupTombstone::deleted(deleted_at()))
         );
         let pq_staged = group
             .group()
@@ -2597,7 +2599,7 @@ pub(crate) mod tests {
             .mls_group
             .pending_commit()
             .expect("PQ delete commit staged");
-        assert_eq!(deleted_in(pq_staged.group_context().extensions()), None);
+        assert_eq!(tombstone_in(pq_staged.group_context().extensions()), None);
         Ok(())
     }
 
@@ -2631,8 +2633,8 @@ pub(crate) mod tests {
             )))
         );
         assert_eq!(
-            deleted_in(group.group().mls_group().extensions()),
-            Some(deleted_at())
+            tombstone_in(group.group().mls_group().extensions()),
+            Some(GroupTombstone::deleted(deleted_at()))
         );
         Ok(())
     }

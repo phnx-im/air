@@ -9491,7 +9491,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return AirComponentDebugInfo(
       features: dco_decode_air_features(arr[0]),
       isSelfGroup: dco_decode_bool(arr[1]),
-      deleted: dco_decode_opt_String(arr[2]),
+      tombstone: dco_decode_opt_String(arr[2]),
     );
   }
 
@@ -13055,11 +13055,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_features = sse_decode_air_features(deserializer);
     var var_isSelfGroup = sse_decode_bool(deserializer);
-    var var_deleted = sse_decode_opt_String(deserializer);
+    var var_tombstone = sse_decode_opt_String(deserializer);
     return AirComponentDebugInfo(
       features: var_features,
       isSelfGroup: var_isSelfGroup,
-      deleted: var_deleted,
+      tombstone: var_tombstone,
     );
   }
 
@@ -17590,7 +17590,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_air_features(self.features, serializer);
     sse_encode_bool(self.isSelfGroup, serializer);
-    sse_encode_opt_String(self.deleted, serializer);
+    sse_encode_opt_String(self.tombstone, serializer);
   }
 
   @protected

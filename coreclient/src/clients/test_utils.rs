@@ -76,11 +76,8 @@ impl CoreUser {
     }
 
     /// Legacy version of chat deletion that removes all other members.
-    pub async fn delete_chat_without_deleted_flag(
-        &self,
-        chat_id: ChatId,
-    ) -> Result<Vec<ChatMessage>> {
-        let job = ChatOperation::delete_chat_without_deleted_flag(chat_id);
+    pub async fn delete_chat_without_tombstone(&self, chat_id: ChatId) -> Result<Vec<ChatMessage>> {
+        let job = ChatOperation::delete_chat_without_tombstone(chat_id);
         Ok(self.execute_job(job).await?)
     }
 

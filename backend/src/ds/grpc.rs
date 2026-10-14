@@ -147,7 +147,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     /// the state on success.
     ///
     /// If the group state has expired, it has already been deleted; the transaction is committed to
-    /// persist the deletion and [`Status::not_found()`] is returned. A group marked as deleted
+    /// persist the deletion and [`Status::not_found()`] is returned. A group with a tombstone
     /// takes no further updates and returns [`Status::not_found()`] as well.
     async fn load_for_update_or_not_found<'a>(
         &self,
@@ -160,7 +160,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .await
         {
             Ok((group_data, group_state)) => {
-                ensure_not_deleted(&group_state)?;
+                ensure_no_tombstone(&group_state)?;
                 Ok((txn, group_state, group_data))
             }
             Err(LoadGroupStateError::Expired) => {
@@ -668,17 +668,17 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     }
 }
 
-/// Resolves the PQ leg's group id from the T group's `ApqInfo`, `None` for a T group.
-/// Rejects an operation on a group whose context marks it as deleted. Reads
-/// stay possible, so that members that missed the deletion still learn about
+/// Rejects an operation on a group whose context carries a tombstone. Reads
+/// stay possible, so that members that missed the tombstone still learn about
 /// it when they resync.
-fn ensure_not_deleted(group_state: &DsGroupState) -> Result<(), Status> {
-    if group_state.is_deleted() {
-        return Err(Status::not_found("Group is deleted"));
+fn ensure_no_tombstone(group_state: &DsGroupState) -> Result<(), Status> {
+    if group_state.has_tombstone() {
+        return Err(Status::not_found("Group is closed"));
     }
     Ok(())
 }
 
+/// Resolves the PQ leg's group id from the T group's `ApqInfo`, `None` for a T group.
 fn apq_pq_qgid(group_state: &DsGroupState) -> Result<Option<QualifiedGroupId>, Status> {
     group_state
         .apq_info()
@@ -959,6 +959,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             error!(%error, "failed to create group");
             Status::internal("failed to create group")
         })?;
+        super::create_group::ensure_created_without_tombstone(&group)?;
 
         let credential =
             Self::creator_credential(&group, payload.creator_user_credential.as_ref())?;
@@ -1972,7 +1973,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .load_group_state_immutable(&qgid, &ear_key)
             .await
             .map_err(to_status)?;
-        ensure_not_deleted(&group_state)?;
+        ensure_no_tombstone(&group_state)?;
 
         // verify signature
         let sender_key = sender_verifying_key(&group_state, sender_index)?;
@@ -2476,7 +2477,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .load_group_state_immutable(&qgid, &ear_key)
                     .await
                     .map_err(to_status)?;
-                ensure_not_deleted(&group_state)?;
+                ensure_no_tombstone(&group_state)?;
 
                 let sender_key = sender_verifying_key(&group_state, sender_index)?;
 
@@ -2624,7 +2625,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .load_group_state_immutable(&qgid, &ear_key)
             .await
             .map_err(to_status)?;
-        ensure_not_deleted(&group_state)?;
+        ensure_no_tombstone(&group_state)?;
 
         // verify signature
         let sender_key = sender_verifying_key(&group_state, sender_index)?;

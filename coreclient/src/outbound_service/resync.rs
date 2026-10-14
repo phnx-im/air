@@ -36,7 +36,7 @@ use crate::{
     },
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
-        DecryptedProfileInfos, Group, GroupDeleted, ProfileInfo, handle_group_not_found_on_ds,
+        DecryptedProfileInfos, Group, GroupClosed, ProfileInfo, handle_group_not_found_on_ds,
         self_group::SelfGroup,
     },
     job::{operation::OperationData, profile::FetchUserProfileOperation, recoverable::Recoverable},
@@ -47,20 +47,21 @@ use crate::{
     },
 };
 
-/// Tears down a group whose group context is marked as deleted as if the DS
-/// returns "group not found". Also announces the deletion in the chat.
-async fn handle_group_deleted(
+/// Tears down a group whose group context carries a tombstone as if the DS
+/// returns "group not found". Also announces the deletion in the chat,
+/// whatever the tombstone's context.
+async fn handle_group_closed(
     txn: &mut WriteDbTransaction<'_>,
     group_id: &GroupId,
-    deleted: &GroupDeleted,
+    closed: &GroupClosed,
 ) -> Result<()> {
     if let Some(chat) = Chat::load_by_group_id(&mut *txn, group_id).await?
         && !chat.status().is_inactive()
     {
         ChatMessage::new_system_message(
             chat.id(),
-            deleted.deleted_at,
-            SystemMessage::DeleteGroup(deleted.deleter.clone()),
+            closed.tombstone.timestamp.unwrap_or_else(TimeStamp::now),
+            SystemMessage::DeleteGroup(closed.closer.clone()),
         )
         .store(&mut *txn)
         .await?;
@@ -365,11 +366,11 @@ impl OutboundServiceContext {
                 return Err(error);
             }
             Err(OutboundServiceError::Fatal(error)) => {
-                if let Some(deleted) = error.downcast_ref::<GroupDeleted>() {
-                    info!("Group was deleted while out of sync; tearing down its MLS state");
+                if let Some(closed) = error.downcast_ref::<GroupClosed>() {
+                    info!("Group was closed while out of sync; tearing down its MLS state");
                     self.db
                         .with_write_transaction(async |txn| {
-                            handle_group_deleted(txn, &group_id, deleted).await
+                            handle_group_closed(txn, &group_id, closed).await
                         })
                         .await
                         .map_err(OutboundServiceError::fatal)?;
@@ -480,11 +481,11 @@ impl Resync {
         .await;
 
         let Some(original_leaf_index) = original_leaf_index else {
-            // If we don't have a leaf in that group anymore, either the group was deleted, or we
+            // If we don't have a leaf in that group anymore, either the group was closed, or we
             // were removed. As soon as OpenMLS allows us to verify the group info prior to actually
-            // joining, we can check for deletion before actually trying to join.
+            // joining, we can check for the tombstone before actually trying to join.
             if let Err(error) = joined
-                && error.is::<GroupDeleted>()
+                && error.is::<GroupClosed>()
             {
                 return Err(OutboundServiceError::fatal(error));
             }
@@ -1272,6 +1273,7 @@ mod tests {
     use std::assert_matches;
 
     use aircommon::crypto::aead::keys::FriendshipPackageEarKey;
+    use airprotos::client::component::{GroupTombstone, TombstoneContext};
     use chrono::{TimeDelta, TimeZone};
 
     use crate::{
@@ -1346,10 +1348,12 @@ mod tests {
             .context("chat not found")
     }
 
-    fn group_deleted() -> GroupDeleted {
-        GroupDeleted {
-            deleter: UserId::random("example.com".parse().unwrap()),
-            deleted_at: Utc.with_ymd_and_hms(2026, 10, 13, 12, 0, 0).unwrap().into(),
+    fn group_deleted() -> GroupClosed {
+        GroupClosed {
+            closer: UserId::random("example.com".parse().unwrap()),
+            tombstone: GroupTombstone::deleted(
+                Utc.with_ymd_and_hms(2026, 10, 13, 12, 0, 0).unwrap().into(),
+            ),
         }
     }
 
@@ -1395,15 +1399,45 @@ mod tests {
 
         pool.write()
             .await?
-            .with_transaction(async |txn| handle_group_deleted(txn, &group_id, &deleted).await)
+            .with_transaction(async |txn| handle_group_closed(txn, &group_id, &deleted).await)
             .await?;
 
         let chat = load_chat(&pool, chat_id).await?;
         assert_eq!(chat.status(), &ChatStatus::inactive(vec![owner]));
         assert_eq!(
-            deletion_message_times(&pool, chat_id, &deleted.deleter).await?,
-            [*deleted.deleted_at.as_ref()]
+            deletion_message_times(&pool, chat_id, &deleted.closer).await?,
+            [*deleted.tombstone.timestamp.unwrap().as_ref()]
         );
+        assert_group_torn_down(&pool, &group_id, chat_id).await?;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_unknown_tombstone_without_timestamp_announces_the_deletion_now()
+    -> anyhow::Result<()> {
+        let (pool, group_id, chat_id, owner) = setup_deleted_group().await?;
+        let closed = GroupClosed {
+            closer: UserId::random("example.com".parse().unwrap()),
+            tombstone: GroupTombstone {
+                timestamp: None,
+                context: TombstoneContext::Unknown,
+            },
+        };
+
+        let before = Utc::now();
+        pool.write()
+            .await?
+            .with_transaction(async |txn| handle_group_closed(txn, &group_id, &closed).await)
+            .await?;
+        let after = Utc::now();
+
+        let chat = load_chat(&pool, chat_id).await?;
+        assert_eq!(chat.status(), &ChatStatus::inactive(vec![owner]));
+        let [time] = deletion_message_times(&pool, chat_id, &closed.closer).await?[..] else {
+            panic!("expected one deletion message");
+        };
+        assert!(before <= time && time <= after);
         assert_group_torn_down(&pool, &group_id, chat_id).await?;
 
         Ok(())
@@ -1421,13 +1455,13 @@ mod tests {
 
         pool.write()
             .await?
-            .with_transaction(async |txn| handle_group_deleted(txn, &group_id, &deleted).await)
+            .with_transaction(async |txn| handle_group_closed(txn, &group_id, &deleted).await)
             .await?;
 
         let chat = load_chat(&pool, chat_id).await?;
         assert_eq!(chat.status(), &inactive);
         assert!(
-            deletion_message_times(&pool, chat_id, &deleted.deleter)
+            deletion_message_times(&pool, chat_id, &deleted.closer)
                 .await?
                 .is_empty()
         );
@@ -1456,7 +1490,7 @@ mod tests {
 
         pool.write()
             .await?
-            .with_transaction(async |txn| handle_group_deleted(txn, &group_id, &deleted).await)
+            .with_transaction(async |txn| handle_group_closed(txn, &group_id, &deleted).await)
             .await?;
 
         assert_eq!(

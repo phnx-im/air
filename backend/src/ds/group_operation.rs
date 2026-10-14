@@ -122,7 +122,7 @@ impl DsGroupState {
         };
 
         if !self.group_flags_unchanged(staged_commit) {
-            warn!("Commit would change the self-group or deleted flag");
+            warn!("Commit would change the self-group flag or the tombstone");
             return Err(GroupOperationError::InvalidMessage);
         }
 
@@ -464,7 +464,7 @@ impl DsGroupState {
                 return Err(GroupOperationError::InvalidMessage);
             };
             if !pq_group_state.group_flags_unchanged(pq_staged_commit) {
-                warn!("PQ commit would change the self-group or deleted flag");
+                warn!("PQ commit would change the self-group flag or the tombstone");
                 return Err(GroupOperationError::InvalidMessage);
             }
             // See the T leg. Self-removes need to be committed on both legs.

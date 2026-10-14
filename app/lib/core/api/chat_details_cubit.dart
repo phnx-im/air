@@ -134,17 +134,17 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
 class AirComponentDebugInfo {
   final AirFeatures features;
   final bool isSelfGroup;
-  final String? deleted;
+  final String? tombstone;
 
   const AirComponentDebugInfo({
     required this.features,
     required this.isSelfGroup,
-    this.deleted,
+    this.tombstone,
   });
 
   @override
   int get hashCode =>
-      features.hashCode ^ isSelfGroup.hashCode ^ deleted.hashCode;
+      features.hashCode ^ isSelfGroup.hashCode ^ tombstone.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -153,7 +153,7 @@ class AirComponentDebugInfo {
           runtimeType == other.runtimeType &&
           features == other.features &&
           isSelfGroup == other.isSelfGroup &&
-          deleted == other.deleted;
+          tombstone == other.tombstone;
 }
 
 class AppDataDebugInfo {

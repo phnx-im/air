@@ -82,7 +82,7 @@ use aircommon::{
 };
 use airprotos::client::{
     app_data::{ClientAppData, GroupAppData, GroupAppDataExt},
-    component::{AIR_COMPONENT_ID, AIR_GROUP_PROFILE_COMPONENT_ID},
+    component::{AIR_COMPONENT_ID, AIR_GROUP_PROFILE_COMPONENT_ID, GroupTombstone},
     group::GroupData,
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
@@ -1178,14 +1178,9 @@ impl Group {
             GroupAppData::is_self_group_context(mls_group.extensions()) == is_self_group,
             "self-group flag does not match the recorded self-group"
         );
-        if let Some(deleted_at) =
-            GroupAppData::from_group_context(mls_group.extensions()).and_then(|data| data.deleted)
-        {
-            let deleter = deleter(group_info_signer.as_ref(), signer.credential().user_id())?;
-            bail!(GroupDeleted {
-                deleter,
-                deleted_at
-            });
+        if let Some(tombstone) = GroupAppData::tombstone(mls_group.extensions()) {
+            let closer = closer(group_info_signer.as_ref(), signer.credential().user_id())?;
+            bail!(GroupClosed { closer, tombstone });
         }
 
         // Phase 3: Verify the user credentials. Self-group leaves carry a self-group credential,
@@ -1373,14 +1368,9 @@ impl Group {
                 && GroupAppData::is_self_group_context(pq_group.extensions()) == is_self_group,
             "self-group flag does not match the recorded self-group"
         );
-        if let Some(deleted_at) =
-            GroupAppData::from_group_context(t_group.extensions()).and_then(|data| data.deleted)
-        {
-            let deleter = deleter(group_info_signer.as_ref(), own_user_id)?;
-            bail!(GroupDeleted {
-                deleter,
-                deleted_at
-            });
+        if let Some(tombstone) = GroupAppData::tombstone(t_group.extensions()) {
+            let closer = closer(group_info_signer.as_ref(), own_user_id)?;
+            bail!(GroupClosed { closer, tombstone });
         }
         // The self group must be rejoined with the per-device self-group key, other groups with
         // the user key. A mismatch means the caller resolved the signer for the wrong group.
@@ -1790,8 +1780,8 @@ impl Group {
     }
 
     /// Stages the commit that deletes the group. The commit removes every other
-    /// member. If `deleted` is Some, deletion is recorded in the Air component
-    /// of the group's context.
+    /// member. If `deleted` is Some, the commit also sets a tombstone recording
+    /// the deletion in the Air component of the group's context.
     pub(super) async fn stage_delete(
         &mut self,
         mut connection: impl WriteConnection,
@@ -1899,8 +1889,9 @@ impl Group {
         Ok(bundle)
     }
 
-    /// The Air component of the T group context with `deleted` set, ready
-    /// for an app data update. `None` if no flag is to be set.
+    /// The Air component of the T group context with a tombstone marking the
+    /// group as deleted at `deleted`, ready for an app data update. `None` if
+    /// no tombstone is to be set.
     fn deleted_air_component(
         &self,
         deleted: Option<TimeStamp>,
@@ -1911,11 +1902,11 @@ impl Group {
         let Some(mut component) = GroupAppData::air_component(self.mls_group.extensions()) else {
             warn!(
                 group_id = ?self.group_id(),
-                "Group context has no Air component, deleting without the deleted flag"
+                "Group context has no Air component, deleting without a tombstone"
             );
             return Ok(None);
         };
-        component.deleted = Some(deleted);
+        component.tombstone = Some(GroupTombstone::deleted(deleted));
         Ok(Some(component.to_component_data()?))
     }
 
@@ -2841,7 +2832,7 @@ impl NewGroupContext {
             is_self_group,
             safe_aad_components: is_self_group.then(|| vec![VC_COMPONENT_ID]),
             profile: None,
-            deleted: None,
+            tombstone: None,
         }
     }
 
@@ -3082,11 +3073,11 @@ fn group_info_signer_credential(
         .map(|(_, leaf)| leaf.credential().clone())
 }
 
-/// The user that deleted a group, from the verified credential of the member
-/// that signed its group info. Since the DS doesn't allow any group operations
-/// after a group was deleted, the creator of the group info must be the one
-/// that deleted the group.
-fn deleter(group_info_signer: Option<&Credential>, own_user_id: &UserId) -> Result<UserId> {
+/// The user that set a group's tombstone, from the verified credential of the
+/// member that signed its group info. Since the DS doesn't allow any group
+/// operations on a group with a tombstone, the creator of the group info must
+/// be the one that set it.
+fn closer(group_info_signer: Option<&Credential>, own_user_id: &UserId) -> Result<UserId> {
     let credential = group_info_signer.context("group info signer has no leaf")?;
     Ok(LeafCredential::from_credential(credential)?
         .user_id(own_user_id)
@@ -3428,10 +3419,10 @@ impl TimestampedMessage {
         staged_commit: &StagedCommit,
         ds_timestamp: TimeStamp,
     ) -> Result<Vec<Self>> {
-        // A commit that sets the deleted flag deletes the group. Its removes
-        // are only there for legacy clients.
-        if GroupAppData::is_deleted_group_context(staged_commit.group_context().extensions())
-            && !GroupAppData::is_deleted_group_context(group.mls_group().extensions())
+        // A commit that sets the tombstone closes the group. Its removes are
+        // only there for legacy clients.
+        if GroupAppData::has_tombstone(staged_commit.group_context().extensions())
+            && !GroupAppData::has_tombstone(group.mls_group().extensions())
         {
             let leaf_node = staged_commit
                 .update_path_leaf_node()

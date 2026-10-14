@@ -105,7 +105,7 @@ impl DsGroupState {
         };
 
         if !self.group_flags_unchanged(staged_commit_message) {
-            error!("Commit would change the self-group or deleted flag");
+            error!("Commit would change the self-group flag or the tombstone");
             return Err(ResyncClientError::InvalidMessage);
         }
 

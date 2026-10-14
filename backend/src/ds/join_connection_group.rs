@@ -148,7 +148,7 @@ impl DsGroupState {
         self.ensure_self_removes_committed(staged_commit)?;
         if !self.group_flags_unchanged(staged_commit) {
             return Err(JoinConnectionGroupError::InvalidMessage(
-                "commit would change the self-group or deleted flag",
+                "commit would change the self-group flag or the tombstone",
             ));
         }
         let joiner_leaf = staged_commit.update_path_leaf_node().ok_or(

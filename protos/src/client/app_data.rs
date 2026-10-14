@@ -15,7 +15,7 @@
 //!    `Extensions<GroupContext>`. Holds the third layer next to unrelated things: the QS client
 //!    reference in leaves, required capabilities and group data extension in the group context.
 
-use aircommon::{codec, time::TimeStamp};
+use aircommon::codec;
 use mls_assist::components::ComponentsList;
 use openmls::{
     component::{ComponentId, ComponentType},
@@ -29,7 +29,9 @@ use tls_codec::{DeserializeBytes, Serialize};
 use tracing::error;
 
 use crate::client::{
-    component::{AIR_COMPONENT_ID, AIR_GROUP_PROFILE_COMPONENT_ID, AirComponent, AirFeatures},
+    component::{
+        AIR_COMPONENT_ID, AIR_GROUP_PROFILE_COMPONENT_ID, AirComponent, AirFeatures, GroupTombstone,
+    },
     group::GroupProfileComponent,
 };
 
@@ -63,8 +65,8 @@ pub struct GroupAppData {
     ///
     /// Missing for legacy groups where the group profile is stored in a group context extension.
     pub profile: Option<GroupProfileComponent>,
-    /// When the group was deleted, if it was. See [`AirComponent::deleted`].
-    pub deleted: Option<TimeStamp>,
+    /// See [`AirComponent::tombstone`].
+    pub tombstone: Option<GroupTombstone>,
 }
 
 impl ClientAppData {
@@ -139,7 +141,7 @@ impl ClientAppData {
                 // In a leaf node or a key package, these fields have no meaning
                 // => they must be unset.
                 is_self_group: false,
-                deleted: None,
+                tombstone: None,
             },
         );
     }
@@ -201,7 +203,7 @@ impl GroupAppData {
             is_self_group: component.is_self_group,
             safe_aad_components,
             profile,
-            deleted: component.deleted,
+            tombstone: component.tombstone,
         })
     }
 
@@ -230,7 +232,7 @@ impl GroupAppData {
             &AirComponent {
                 features: AirFeatures::default_leaf_or_key_package_features(),
                 is_self_group: self.is_self_group,
-                deleted: self.deleted,
+                tombstone: self.tombstone.clone(),
             },
         );
         Ok(dict)
@@ -251,9 +253,14 @@ impl GroupAppData {
         air_component(extensions.app_data_dictionary()?.dictionary())
     }
 
-    /// Whether the group context marks the group as deleted.
-    pub fn is_deleted_group_context(extensions: &Extensions<GroupContext>) -> bool {
-        Self::from_group_context(extensions).is_some_and(|data| data.deleted.is_some())
+    /// Whether the group context carries a tombstone, whatever its context.
+    pub fn has_tombstone(extensions: &Extensions<GroupContext>) -> bool {
+        Self::from_group_context(extensions).is_some_and(|data| data.tombstone.is_some())
+    }
+
+    /// The tombstone of the group context, if any.
+    pub fn tombstone(extensions: &Extensions<GroupContext>) -> Option<GroupTombstone> {
+        Self::from_group_context(extensions).and_then(|data| data.tombstone)
     }
 
     pub fn group_profile(extensions: &Extensions<GroupContext>) -> Option<GroupProfileComponent> {
@@ -323,11 +330,14 @@ fn is_virtual_client(dict: &AppDataDictionary) -> bool {
 
 #[cfg(test)]
 mod test {
-    use aircommon::codec::PersistenceCodec;
+    use aircommon::{codec::PersistenceCodec, time::TimeStamp};
     use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
     use uuid::uuid;
 
-    use crate::client::group::{EncryptedGroupTitle, ExternalGroupProfile};
+    use crate::client::{
+        component::TombstoneContext,
+        group::{EncryptedGroupTitle, ExternalGroupProfile},
+    };
 
     use super::*;
 
@@ -450,7 +460,7 @@ mod test {
                     is_self_group,
                     safe_aad_components: None,
                     profile: None,
-                    deleted: None,
+                    tombstone: None,
                 }
                 .to_extension()
                 .unwrap(),
@@ -476,19 +486,19 @@ mod test {
                 is_self_group: true,
                 safe_aad_components: Some(vec![0x8042]),
                 profile: Some(test_profile()),
-                deleted: None,
+                tombstone: None,
             },
             GroupAppData {
                 is_self_group: false,
                 safe_aad_components: None,
                 profile: None,
-                deleted: None,
+                tombstone: None,
             },
             GroupAppData {
                 is_self_group: false,
                 safe_aad_components: None,
                 profile: None,
-                deleted: Some(TimeStamp::now()),
+                tombstone: Some(GroupTombstone::deleted(TimeStamp::now())),
             },
         ] {
             let extensions = Extensions::from_vec(vec![data.to_extension().unwrap()]).unwrap();
@@ -497,14 +507,14 @@ mod test {
     }
 
     #[test]
-    fn deleted_flag_is_read_from_group_context_extensions() {
-        let group_context_extensions = |deleted| {
+    fn tombstone_is_read_from_group_context_extensions() {
+        let group_context_extensions = |tombstone| {
             Extensions::from_vec(vec![
                 GroupAppData {
                     is_self_group: false,
                     safe_aad_components: None,
                     profile: None,
-                    deleted,
+                    tombstone,
                 }
                 .to_extension()
                 .unwrap(),
@@ -512,13 +522,23 @@ mod test {
             .unwrap()
         };
 
-        assert!(GroupAppData::is_deleted_group_context(
-            &group_context_extensions(Some(TimeStamp::now()))
-        ));
-        assert!(!GroupAppData::is_deleted_group_context(
-            &group_context_extensions(None)
-        ));
-        assert!(!GroupAppData::is_deleted_group_context(&Extensions::empty()));
+        let deleted = GroupTombstone::deleted(TimeStamp::now());
+        let extensions = group_context_extensions(Some(deleted.clone()));
+        assert!(GroupAppData::has_tombstone(&extensions));
+        assert_eq!(GroupAppData::tombstone(&extensions), Some(deleted));
+
+        let unknown = GroupTombstone {
+            timestamp: None,
+            context: TombstoneContext::Unknown,
+        };
+        assert!(GroupAppData::has_tombstone(&group_context_extensions(
+            Some(unknown)
+        )));
+
+        assert!(!GroupAppData::has_tombstone(&group_context_extensions(
+            None
+        )));
+        assert!(!GroupAppData::has_tombstone(&Extensions::empty()));
     }
 
     #[test]
@@ -535,7 +555,7 @@ mod test {
                 is_self_group: false,
                 safe_aad_components: None,
                 profile: Some(test_profile()),
-                deleted: None,
+                tombstone: None,
             }
             .to_extension()
             .unwrap(),
@@ -548,7 +568,7 @@ mod test {
                 is_self_group: false,
                 safe_aad_components: None,
                 profile: None,
-                deleted: None,
+                tombstone: None,
             }
             .to_extension()
             .unwrap(),
@@ -565,7 +585,7 @@ mod test {
             is_self_group: false,
             safe_aad_components: None,
             profile: Some(test_profile()),
-            deleted: None,
+            tombstone: None,
         }
         .to_dictionary()
         .unwrap();
@@ -586,7 +606,7 @@ mod test {
                 is_self_group: false,
                 safe_aad_components: Some(vec![REQUIRED_SAFE_AAD_COMPONENT_ID]),
                 profile: None,
-                deleted: None,
+                tombstone: None,
             }
             .to_extension()
             .unwrap(),
@@ -621,7 +641,7 @@ mod test {
                 is_self_group: false,
                 safe_aad_components: None,
                 profile: None,
-                deleted: None,
+                tombstone: None,
             }
             .to_extension()
             .unwrap(),

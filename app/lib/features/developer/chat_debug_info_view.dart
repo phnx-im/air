@@ -280,8 +280,8 @@ class _GroupDebugInfoBody extends StatelessWidget {
                 value: appData.airComponent?.isSelfGroup == true ? 'yes' : 'no',
               ),
               DeveloperInfoRow(
-                label: 'Deleted',
-                value: appData.airComponent?.deleted ?? '—',
+                label: 'Tombstone',
+                value: appData.airComponent?.tombstone ?? '—',
               ),
             ],
           ),

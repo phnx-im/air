@@ -37,8 +37,8 @@ enum ChatOperationType {
         device: LinkedDevice,
     },
     Leave,
-    /// Deletes the group. `deleted` is recorded in the group context by the
-    /// delete commit, see [`Group::stage_delete`].
+    /// Deletes the group. `deleted` is recorded in the tombstone the delete
+    /// commit sets, see [`Group::stage_delete`].
     Delete {
         deleted: Option<TimeStamp>,
     },
@@ -209,10 +209,10 @@ impl ChatOperation {
         }
     }
 
-    /// Deletes the chat as clients before the deleted flag do: the commit
-    /// only removes the other members.
+    /// Deletes the chat as clients before the tombstone do: the commit only
+    /// removes the other members.
     #[cfg(any(test, feature = "test_utils"))]
-    pub(crate) fn delete_chat_without_deleted_flag(chat_id: ChatId) -> Self {
+    pub(crate) fn delete_chat_without_tombstone(chat_id: ChatId) -> Self {
         ChatOperation {
             chat_id,
             operation: ChatOperationType::Delete { deleted: None },
