@@ -107,7 +107,7 @@ pub(crate) mod persistence {
         use chrono::TimeDelta;
         use sqlx::PgPool;
 
-        use crate::rate_limiter::RlConfig;
+        use crate::rate_limiter::{RateLimiter, RlConfig, provider::RlPostgresStorage};
 
         use super::*;
 
@@ -168,6 +168,65 @@ pub(crate) mod persistence {
             assert!(loaded_expired.is_none());
 
             Ok(())
+        }
+
+        fn limiter(pool: &PgPool, max_requests: u64) -> RateLimiter<RlPostgresStorage> {
+            let config = RlConfig {
+                max_requests,
+                time_window: TimeDelta::hours(1),
+            };
+            RateLimiter::new(config, RlPostgresStorage::new(pool.clone()))
+        }
+
+        #[sqlx::test]
+        async fn requests_over_the_limit_are_denied(pool: PgPool) {
+            const LIMIT: u64 = 3;
+            let rl = limiter(&pool, LIMIT);
+            let key = RlKey::new(b"test_service", b"test_rpc", &[]);
+
+            for _ in 0..LIMIT {
+                assert!(rl.allowed(key.clone()).await);
+            }
+            assert!(!rl.allowed(key).await);
+        }
+
+        #[sqlx::test]
+        async fn concurrent_requests_spend_the_allowance_once_each(pool: PgPool) {
+            const REQUESTS: usize = 20;
+            const LIMIT: u64 = 5;
+            let key = RlKey::new(b"test_service", b"test_rpc", &[]);
+
+            let mut requests = Vec::with_capacity(REQUESTS);
+            for _ in 0..REQUESTS {
+                let rl = limiter(&pool, LIMIT);
+                let key = key.clone();
+                requests.push(tokio::spawn(async move { rl.allowed(key).await }));
+            }
+
+            let mut allowed: u64 = 0;
+            for request in requests {
+                if request.await.expect("request task panicked") {
+                    allowed += 1;
+                }
+            }
+            assert_eq!(allowed, LIMIT);
+        }
+
+        #[sqlx::test]
+        async fn a_stale_window_starts_over(pool: PgPool) {
+            let key = RlKey::new(b"test_service", b"test_rpc", &[]);
+            Allowance {
+                remaining: 0,
+                valid_until: Utc::now() - TimeDelta::minutes(1),
+            }
+            .store(&pool, &key)
+            .await
+            .unwrap();
+
+            let rl = limiter(&pool, 2);
+            assert!(rl.allowed(key.clone()).await);
+            assert!(rl.allowed(key.clone()).await);
+            assert!(!rl.allowed(key).await);
         }
     }
 }
