@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::collections::HashSet;
+
 use aircommon::credentials::keys::SelfGroupSigningKey;
 use airprotos::client::self_group::{
     BlockedContactsUpdate, ConnectionRequestsUpdate, SelfGroupMessage, SettingsUpdate,
@@ -9,7 +11,7 @@ use airprotos::client::self_group::{
 use anyhow::Context as _;
 use openmls::group::GroupId;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -21,31 +23,43 @@ use crate::{
     },
     db::access::WriteDbTransaction,
     groups::{Group, VerifiedGroup},
-    job::{JobError, pending_chat_operation::PendingChatOperation},
+    job::{
+        JobError,
+        pending_chat_operation::PendingChatOperation,
+        recoverable::{Recoverable, RecoverableCause},
+    },
     outbound_service::{OutboundServiceContext, error::OutboundServiceError},
     privacy_pass,
 };
 
 impl OutboundServiceContext {
+    /// Returns the groups whose commit the DS rejected as stale in this run.
+    /// They are not committed to again until the next run, from this stage or
+    /// the message queue, so the client can first process the proposals it is
+    /// missing.
     pub(super) async fn send_pending_chat_operations(
         &self,
         run_token: &CancellationToken,
-    ) -> Result<(), OutboundServiceError> {
+    ) -> Result<HashSet<GroupId>, OutboundServiceError> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
+        let mut stale_groups = HashSet::new();
         loop {
             if run_token.is_cancelled() {
-                return Ok(()); // the task is being stopped
+                return Ok(stale_groups); // the task is being stopped
             }
 
             // Turn pending self-group state into a commit when the self-group
             // is free. Runs every iteration: when an operation completes with
             // work left parked (the user re-toggled a setting while the commit
             // was in flight), the next iteration issues a fresh commit.
-            if let Err(error) = self.ensure_self_group_messages_operation().await {
+            if let Err(error) = self
+                .ensure_self_group_messages_operation(&stale_groups)
+                .await
+            {
                 error!(%error, "Failed to stage the parked self-group messages");
             }
-            if let Err(error) = self.ensure_token_seed_operation().await {
+            if let Err(error) = self.ensure_token_seed_operation(&stale_groups).await {
                 error!(%error, "Failed to stage pending token seeds");
             }
 
@@ -59,7 +73,7 @@ impl OutboundServiceContext {
                 .await
                 .map_err(OutboundServiceError::fatal)?;
             let Some(pending_chat_operation) = pending_chat_operation else {
-                return Ok(());
+                return Ok(stale_groups);
             };
 
             let group_id = pending_chat_operation.group_id().clone();
@@ -68,6 +82,16 @@ impl OutboundServiceContext {
             // The job manages its own retry count and deletion upon success.
             // We're just executing it here.
             match self.execute_job(pending_chat_operation).await {
+                Err(JobError::Recoverable(
+                    error @ Recoverable {
+                        cause: RecoverableCause::Stale,
+                        ..
+                    },
+                )) => {
+                    info!(%error, ?group_id, "Pending chat operation is stale, deferring the group");
+                    stale_groups.insert(group_id);
+                    continue;
+                }
                 Err(error @ (JobError::Fatal(_) | JobError::Domain(_))) => {
                     error!(%error, ?group_id, "Failed to execute pending chat operation");
                     // This job has a fatal error. Continue with the next one.
@@ -92,10 +116,16 @@ impl OutboundServiceContext {
     /// All kinds travel in the same commit, so a setting change and a block
     /// parked together reach the siblings in one round trip instead of taking
     /// turns at the self-group's single operation slot.
-    async fn ensure_self_group_messages_operation(&self) -> anyhow::Result<()> {
+    async fn ensure_self_group_messages_operation(
+        &self,
+        stale_groups: &HashSet<GroupId>,
+    ) -> anyhow::Result<()> {
         let Some((self_group_id, signer)) = self.self_group_signer().await? else {
             return Ok(());
         };
+        if stale_groups.contains(&self_group_id) {
+            return Ok(());
+        }
 
         self.db
             .with_write_transaction(async |txn| {
@@ -121,10 +151,16 @@ impl OutboundServiceContext {
     /// re-broadcast so the sibling holding the losing seed converges. A device
     /// gets no tokens under a key until its seed is agreed, so this runs on
     /// every outbound wake until the commit lands.
-    async fn ensure_token_seed_operation(&self) -> anyhow::Result<()> {
+    async fn ensure_token_seed_operation(
+        &self,
+        stale_groups: &HashSet<GroupId>,
+    ) -> anyhow::Result<()> {
         let Some((self_group_id, signer)) = self.self_group_signer().await? else {
             return Ok(());
         };
+        if stale_groups.contains(&self_group_id) {
+            return Ok(());
+        }
 
         self.db
             .with_write_transaction(async |txn| {

@@ -138,18 +138,6 @@ impl DsRequestError {
         }
     }
 
-    pub fn is_wrong_epoch(&self) -> bool {
-        if let Self::Tonic(status) = self
-            && status.code() == tonic::Code::InvalidArgument
-            && let Some(details) = StatusDetails::from_status(status)
-            && let StatusDetailsCode::WrongEpoch = details.code()
-        {
-            true
-        } else {
-            false
-        }
-    }
-
     pub fn is_not_found(&self) -> bool {
         if let Self::Tonic(status) = self {
             matches!(status.code(), Code::NotFound)

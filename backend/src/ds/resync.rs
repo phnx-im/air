@@ -109,6 +109,10 @@ impl DsGroupState {
             return Err(ResyncClientError::InvalidMessage);
         }
 
+        // The external commit info handed the resyncing client the pending
+        // self-remove proposals, so its commit has to carry them.
+        self.ensure_self_removes_committed(staged_commit_message)?;
+
         // Check if it's an external commit.
         if !matches!(processed_message.sender(), Sender::NewMemberCommit) {
             return Err(ResyncClientError::InvalidMessage);
@@ -232,6 +236,11 @@ impl DsGroupState {
             pq_group_state,
             &processed_assisted_message_plus.processed_assisted_message,
         )?;
+
+        // See the T-only variant. Both legs park their own copy of a
+        // self-remove proposal, so both have to see it committed.
+        t_group_state.ensure_self_removes_committed(t_staged_commit)?;
+        pq_group_state.ensure_self_removes_committed(pq_staged_commit)?;
 
         // The resyncing sender's fresh T leaf must match the group kind. The PQ leaf is bound to it
         // by the shared signature key.

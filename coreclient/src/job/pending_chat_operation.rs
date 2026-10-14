@@ -289,9 +289,13 @@ impl Job for PendingChatOperation {
             .execute_internal(context)
             .await
             .map_err(|error| match error {
-                // A recoverable error spends an attempt, unless the database was busy
+                // A recoverable error spends an attempt, unless the database was
+                // busy or the commit was stale and the job is dropped anyway
                 JobError::Recoverable(recoverable)
-                    if recoverable.cause != RecoverableCause::Busy =>
+                    if !matches!(
+                        recoverable.cause,
+                        RecoverableCause::Busy | RecoverableCause::Stale
+                    ) =>
                 {
                     self.number_of_attempts += 1;
                     if self.number_of_attempts >= MAX_RETRIES {
@@ -305,6 +309,25 @@ impl Job for PendingChatOperation {
                 e => e,
             });
         match result {
+            // Clean up after an error which is not recoverable
+            error @ Err(
+                JobError::Fatal(_)
+                | JobError::Domain(ChatOperationError::DeviceLimitReached { .. }),
+            ) => {
+                self.clean_up(context, true).await;
+                error
+            }
+            // The staged commit is stale, so only a new commit can carry its
+            // operation. A self-group intent stays parked and goes out with the
+            // next commit. Any other operation is dropped, as after a lost
+            // epoch race.
+            error @ Err(JobError::Recoverable(Recoverable {
+                cause: RecoverableCause::Stale,
+                ..
+            })) => {
+                self.clean_up(context, false).await;
+                error
+            }
             // Update retry_due at on errors a later attempt may get past
             Err(
                 error @ (JobError::NetworkError
@@ -337,33 +360,46 @@ impl Job for PendingChatOperation {
                     .await?;
                 Err(JobError::NotFound)
             }
-            error @ (Err(JobError::Fatal(_))
-            | Err(JobError::Domain(ChatOperationError::DeviceLimitReached { .. }))) => {
-                // Clean up job after an error which is not recoverable
-                context
-                    .db
-                    .write()
-                    .await?
-                    .with_transaction(async |txn| -> anyhow::Result<()> {
-                        self.roll_back_self_group_intent(txn).await?;
-                        let group = self.group.group_mut();
-                        group.discard_pending_commit(&mut *txn).await?;
-                        Self::delete(txn, self.group.group_id()).await?;
-                        Ok(())
-                    })
-                    .await
-                    .inspect_err(|error| {
-                        error!(%error, "Failed to delete pending chat operation");
-                    })
-                    .ok();
-                error
-            }
             res => res,
         }
     }
 }
 
 impl PendingChatOperation {
+    /// Drops the operation and its staged commit. With `roll_back_intent`, the
+    /// parked self-group changes it carried are given up as well, otherwise
+    /// they stay parked for the next commit.
+    async fn clean_up(&mut self, context: &mut JobContext<'_, '_>, roll_back_intent: bool) {
+        let Ok(mut connection) = context.db.write().await.inspect_err(|error| {
+            error!(%error, "Failed to delete pending chat operation");
+        }) else {
+            return;
+        };
+        connection
+            .with_transaction(async |txn| self.clean_up_in_transaction(txn, roll_back_intent).await)
+            .await
+            .inspect_err(|error| {
+                error!(%error, "Failed to delete pending chat operation");
+            })
+            .ok();
+    }
+
+    async fn clean_up_in_transaction(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        roll_back_intent: bool,
+    ) -> anyhow::Result<()> {
+        if roll_back_intent {
+            self.roll_back_self_group_intent(txn).await?;
+        }
+        self.group
+            .group_mut()
+            .discard_pending_commit(&mut *txn)
+            .await?;
+        Self::delete(txn, self.group.group_id()).await?;
+        Ok(())
+    }
+
     pub(super) fn new(group: VerifiedGroup, operation: OperationType) -> Self {
         Self {
             group,
@@ -849,7 +885,7 @@ impl PendingChatOperation {
         let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
         let params = group
             .group_mut()
-            .apq_update(txn, &signer, derivation_epoch)
+            .apq_update(txn, &signer, None, derivation_epoch)
             .await?;
         let job = Self::new(group, OperationType::apq_other(params));
         job.store(txn).await?;
@@ -1032,15 +1068,23 @@ impl PendingChatOperation {
             .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
 
         let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
-        let params = group
-            .group_mut()
-            .update(&mut *txn, &signer, new_group_data, derivation_epoch)
-            .await?;
 
-        let job = Self::new(
-            group,
-            OperationType::other_with_picture(params, new_chat_picture),
-        );
+        // If there is a pending proposal, we have to do a full APQ update.
+        let operation_type = if group.is_apq() && group.group().has_pending_proposals() {
+            let params = group
+                .group_mut()
+                .apq_update(&mut *txn, &signer, new_group_data, derivation_epoch)
+                .await?;
+            OperationType::apq_other_with_picture(params, new_chat_picture)
+        } else {
+            let params = group
+                .group_mut()
+                .update(&mut *txn, &signer, new_group_data, derivation_epoch)
+                .await?;
+            OperationType::other_with_picture(params, new_chat_picture)
+        };
+
+        let job = Self::new(group, operation_type);
         job.store(txn).await?;
 
         Ok(job)
@@ -1789,8 +1833,11 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        ChatAttributes, clients::own_client_info::OwnClientInfo, db::access::DbAccess,
-        groups::NewGroupContext, utils::persistence::open_db_in_memory,
+        ChatAttributes,
+        clients::{own_client_info::OwnClientInfo, user_settings::ReadReceiptsSetting},
+        db::access::DbAccess,
+        groups::NewGroupContext,
+        utils::persistence::open_db_in_memory,
     };
 
     use super::*;
@@ -1863,6 +1910,64 @@ mod tests {
             .await?;
 
         Ok((pool, job, signing_key))
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn stale_clean_up_keeps_the_settings_intent() -> anyhow::Result<()> {
+        let (pool, mut pending, _signer) = setup_self_group_settings_op().await?;
+        let group_id = pending.group.group_id().clone();
+
+        let mut connection = pool.write().await?;
+        connection
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                // Record the local change the staged commit carries, so there
+                // is an intent a rollback could destroy.
+                SettingChanges::record(txn, &ReadReceiptsSetting(true)).await?;
+                assert!(SettingChanges::has_pending(&mut *txn).await?);
+
+                pending.clean_up_in_transaction(txn, false).await?;
+
+                assert!(
+                    PendingChatOperation::load_by_group_id(&mut *txn, &group_id)
+                        .await?
+                        .is_none()
+                );
+                assert!(pending.group.mls_group().pending_commit().is_none());
+                assert!(
+                    SettingChanges::has_pending(&mut *txn).await?,
+                    "a stale clean up must keep the setting change parked"
+                );
+                Ok(())
+            })
+            .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn fatal_clean_up_rolls_back_the_settings_intent() -> anyhow::Result<()> {
+        let (pool, mut pending, _signer) = setup_self_group_settings_op().await?;
+        let group_id = pending.group.group_id().clone();
+
+        let mut connection = pool.write().await?;
+        connection
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                SettingChanges::record(txn, &ReadReceiptsSetting(true)).await?;
+                assert!(SettingChanges::has_pending(&mut *txn).await?);
+
+                pending.clean_up_in_transaction(txn, true).await?;
+
+                assert!(
+                    PendingChatOperation::load_by_group_id(&mut *txn, &group_id)
+                        .await?
+                        .is_none()
+                );
+                assert!(pending.group.mls_group().pending_commit().is_none());
+                assert!(
+                    !SettingChanges::has_pending(&mut *txn).await?,
+                    "a fatal clean up must drop the setting change"
+                );
+                Ok(())
+            })
+            .await
     }
 
     /// Any incoming commit deletes a pending settings operation, parked or

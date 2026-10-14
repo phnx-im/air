@@ -5,6 +5,8 @@
 use std::time::Duration;
 
 use airapiclient::{ClassifyRequestError, RequestErrorKind, ds_api::DsRequestError};
+use airprotos::common::v1::{StatusDetails, StatusDetailsCode};
+use tonic::Code;
 
 #[derive(Debug, thiserror::Error)]
 #[error("{cause:?}: {error}")]
@@ -20,6 +22,9 @@ pub(crate) enum RecoverableCause {
     WrongEpoch,
     Busy,
     Deferred,
+    /// The DS rejected the commit for missing proposals we have not processed
+    /// yet, so only a new commit can succeed.
+    Stale,
 }
 
 impl Recoverable {
@@ -47,6 +52,13 @@ impl Recoverable {
     pub(crate) fn deferred(error: impl Into<anyhow::Error>) -> Self {
         Self {
             cause: RecoverableCause::Deferred,
+            error: error.into(),
+        }
+    }
+
+    pub(crate) fn stale(error: impl Into<anyhow::Error>) -> Self {
+        Self {
+            cause: RecoverableCause::Stale,
             error: error.into(),
         }
     }
@@ -82,11 +94,23 @@ impl RequestFailure {
         }
     }
 
-    /// The queue resolves a wrong epoch, so a later attempt may succeed.
+    /// The queue resolves a wrong epoch or a missing self-remove proposal, so a
+    /// later attempt may succeed.
     pub(crate) fn classify_ds(error: DsRequestError) -> Self {
-        if error.is_wrong_epoch() {
-            return Self::Recoverable(Recoverable::wrong_epoch(error));
+        let code = match &error {
+            DsRequestError::Tonic(status) if status.code() == Code::InvalidArgument => {
+                StatusDetails::from_status(status).map(|details| details.code())
+            }
+            _ => None,
+        };
+        match code {
+            Some(StatusDetailsCode::WrongEpoch) => {
+                Self::Recoverable(Recoverable::wrong_epoch(error))
+            }
+            Some(StatusDetailsCode::UncommittedSelfRemove) => {
+                Self::Recoverable(Recoverable::stale(error))
+            }
+            _ => Self::classify(error),
         }
-        Self::classify(error)
     }
 }
