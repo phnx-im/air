@@ -875,12 +875,21 @@ impl CoreUser {
 
         let chat_id = chat.id();
 
+        // Until another member commits our self-remove, we still receive the
+        // group's messages. Drop them, but keep the MLS state in sync.
+        let left_group =
+            chat.chat_type().is_group() && matches!(chat.status(), ChatStatus::Inactive(_));
+
         let HandledMessages {
             new_messages,
             updated_messages,
             reaction_notifications,
             mut changed_chats,
         } = match processed_message.into_content() {
+            ProcessedMessageContent::ApplicationMessage(_) if left_group => {
+                debug!("Dropping application message in a group we left");
+                HandledMessages::default()
+            }
             ProcessedMessageContent::ApplicationMessage(application_message) => {
                 // Drop messages in 1:1 blocked chats Note: In group chats, messages
                 // from blocked users are still received and processed.
@@ -906,7 +915,7 @@ impl CoreUser {
                     .store_update(&mut *txn, None, None)
                     .await?;
                 HandledMessages {
-                    new_messages,
+                    new_messages: if left_group { Vec::new() } else { new_messages },
                     ..Default::default()
                 }
             }
@@ -945,7 +954,7 @@ impl CoreUser {
                     return Ok(QsMessageOutcome::empty());
                 }
                 HandledMessages {
-                    new_messages,
+                    new_messages: if left_group { Vec::new() } else { new_messages },
                     ..Default::default()
                 }
             }

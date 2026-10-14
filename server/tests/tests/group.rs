@@ -152,6 +152,50 @@ async fn leave_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "No messages after leaving test", skip_all)]
+async fn no_messages_after_leaving_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+
+    // Bob leaves, but nobody commits his removal yet, so he still receives
+    // group messages.
+    let bob_user = &setup.get_user(&bob).user;
+    bob_user.leave_chat(chat_id).await.unwrap();
+    let bob_messages_before = bob_user.messages(chat_id, 1024).await.unwrap();
+
+    let alice_user = &setup.get_user(&alice).user;
+    let content = MimiContent::simple_markdown_message("Hello".to_owned(), [0; 16]);
+    alice_user
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+
+    let charlie_user = &setup.get_user(&charlie).user;
+    charlie_user.leave_chat(chat_id).await.unwrap();
+
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert!(
+        result.new_messages.is_empty(),
+        "Bob should not get messages after leaving: {:?}",
+        result.new_messages
+    );
+    assert_eq!(
+        bob_user.messages(chat_id, 1024).await.unwrap(),
+        bob_messages_before
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Delete non-APQ group test", skip_all)]
 async fn delete_non_apq_group() {
     let mut setup = TestBackend::single().await;
