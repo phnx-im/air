@@ -8,7 +8,7 @@ use futures_util::{Stream, stream::BoxStream};
 use tokio_stream::{StreamExt, wrappers::ReceiverStream};
 use tokio_util::sync::CancellationToken;
 use tonic::{Status, Streaming};
-use tracing::error;
+use tracing::{Instrument, error};
 
 use crate::util::StatusExt;
 
@@ -61,7 +61,7 @@ where
     const OUT_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
     let (out_tx, out_rx) = tokio::sync::mpsc::channel(OUT_CHANNEL_BUFFER_SIZE);
 
-    tokio::spawn(async move {
+    let session = async move {
         let mut responses = pin!(responses);
 
         // Process incoming requests and responses to deliver sequentially
@@ -125,7 +125,8 @@ where
                 }
             }
         }
-    });
+    };
+    tokio::spawn(session.in_current_span());
 
     Box::pin(ReceiverStream::new(out_rx))
 }

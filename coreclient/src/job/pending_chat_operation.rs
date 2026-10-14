@@ -57,7 +57,10 @@ use crate::{
         indexed_keys::StorableIndexedKey,
         key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
     },
-    outbound_service::resync::{Resync, ResyncReason},
+    outbound_service::{
+        resync::{Resync, ResyncReason},
+        timed_tasks::{TimedTask, TimedTaskKind},
+    },
     privacy_pass,
 };
 
@@ -435,6 +438,10 @@ impl PendingChatOperation {
             }
             OperationType::TokenSeeds { seeds, .. } => {
                 privacy_pass::complete_sent_seeds(txn, seeds).await
+            }
+            OperationType::SelfGroupAdd { .. } => {
+                TimedTask::schedule_now(txn, TimedTaskKind::KeyPackageUpload).await?;
+                Ok(())
             }
             _ => Ok(()),
         }
@@ -1937,7 +1944,7 @@ mod tests {
 
                 let update = SettingsUpdate {
                     send_read_receipts: Some(true),
-                    linked_devices: None,
+                    ..Default::default()
                 };
                 let messages = vec![SelfGroupMessage::SettingsUpdate(update)];
                 let params = group

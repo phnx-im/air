@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::{
-    collections::HashSet,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -139,7 +138,10 @@ impl OutboundService<OutboundServiceContext> {
     /// the failure lands on, which a full run does not guarantee.
     pub async fn send_queued_messages_once(&self) -> anyhow::Result<()> {
         self.context
-            .send_queued_messages(&CancellationToken::new(), &mut HashSet::new())
+            .send_queued_messages(
+                &CancellationToken::new(),
+                &mut std::collections::HashSet::new(),
+            )
             .await?;
         Ok(())
     }
@@ -219,9 +221,19 @@ impl<C: OutboundServiceWork> OutboundService<C> {
         self.notify_work()
     }
 
+    /// Wakes the outbound service to run freshly enqueued profile fetches.
+    pub(crate) fn notify_profile_fetches(&self) -> WaitForDoneFuture {
+        self.notify_work()
+    }
+
     /// Wakes the outbound service to onboard a freshly linked device into the
     /// virtual client's existing groups.
     pub(crate) fn notify_vc_onboarding(&self) -> WaitForDoneFuture {
+        self.notify_work()
+    }
+
+    /// Wakes the outbound service to run a key package upload that was made due.
+    pub(crate) fn notify_key_package_upload(&self) -> WaitForDoneFuture {
         self.notify_work()
     }
 

@@ -22,7 +22,9 @@ use thiserror::Error;
 use crate::{
     ApqCiphersuite, ApqGroupId, ApqMlsGroup,
     authentication::{ApqCredentialWithKey, ApqSigner},
-    extension::{ApqInfo, PqtMode, ensure_component_support, ensure_extension_support},
+    extension::{
+        ApqInfo, PqtMode, capabilities_policy, ensure_component_support, ensure_extension_support,
+    },
     key_package::ensure_ciphersuite_support,
     validation::{ApqValidationError, validate_ciphersuites},
 };
@@ -63,7 +65,7 @@ pub struct GroupBuilder {
     group_ids: Option<ApqGroupId>,
     mode: PqtMode,
     ciphersuite: Option<ApqCiphersuite>,
-    capabilities: Capabilities,
+    capabilities: Option<Capabilities>,
     emulation_group: bool,
     vc_emulation_group_id: Option<GroupId>,
     t_extensions: Extensions<GroupContext>,
@@ -142,8 +144,10 @@ impl GroupBuilder {
         validate_ciphersuites(ciphersuite, self.mode)?;
 
         // Add extension to capabilities.
+        let policy = capabilities_policy(self.capabilities.as_ref());
         let capabilities = self
             .capabilities
+            .unwrap_or_default()
             .pipe(ensure_extension_support)?
             .pipe(|c| ensure_ciphersuite_support(c, ciphersuite))?;
 
@@ -188,6 +192,7 @@ impl GroupBuilder {
                 .with_group_context_extensions(self.t_extensions)
                 .with_group_id(apq_group_id.t_group_id.clone())
                 .with_capabilities(capabilities.clone())
+                .with_capabilities_policy(policy)
                 .with_leaf_node_extensions(self.t_leaf_extensions)?
                 .vc_emulation(emulation_group_id);
             let pq_builder = self
@@ -196,6 +201,7 @@ impl GroupBuilder {
                 .with_group_context_extensions(self.pq_extensions)
                 .with_group_id(apq_group_id.pq_group_id.clone())
                 .with_capabilities(capabilities)
+                .with_capabilities_policy(policy)
                 .with_leaf_node_extensions(self.pq_leaf_extensions)?
                 .vc_emulation(emulation_group_id);
             let t_group = t_builder.build(
@@ -217,6 +223,7 @@ impl GroupBuilder {
                 .ciphersuite(ciphersuite.t_ciphersuite)
                 .with_group_context_extensions(self.t_extensions)
                 .capabilities(capabilities.clone())
+                .capabilities_policy(policy)
                 .with_leaf_node_extensions(self.t_leaf_extensions)?
                 .emulation_group(self.emulation_group)
                 .build();
@@ -232,6 +239,7 @@ impl GroupBuilder {
                 .ciphersuite(ciphersuite.pq_ciphersuite)
                 .with_group_context_extensions(self.pq_extensions)
                 .capabilities(capabilities)
+                .capabilities_policy(policy)
                 .with_leaf_node_extensions(self.pq_leaf_extensions)?
                 .build();
             let pq_group = MlsGroup::new_with_group_id(
@@ -400,9 +408,12 @@ impl GroupBuilder {
         Ok(self)
     }
 
-    /// Sets the group creator's [`Capabilities`]
+    /// Sets the group creator's [`Capabilities`].
+    ///
+    /// Besides what APQMLS adds, they must cover the creator's credential type and leaf node
+    /// extensions. If never set, they are derived from the creator's leaf.
     pub fn with_capabilities(mut self, capabilities: Capabilities) -> Self {
-        self.capabilities = capabilities.clone();
+        self.capabilities = Some(capabilities);
         // We set the capabilities for both groups in `build`.
         self
     }

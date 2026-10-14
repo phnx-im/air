@@ -25,9 +25,10 @@ use openmls::{
         PURE_PLAINTEXT_WIRE_FORMAT_POLICY, ProposalStore,
     },
     prelude::{
-        AppEphemeralProposal, Capabilities, Credential, LeafNodeIndex, LeafNodeParameters,
-        MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider, PreSharedKeyProposal,
-        ProcessedMessageContent, Proposal, ProposalType, PublicGroup, PublicMessageIn,
+        AppEphemeralProposal, Capabilities, Credential, CredentialType, LeafNodeIndex,
+        LeafNodeParameters, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
+        PreSharedKeyProposal, ProcessedMessageContent, Proposal, ProposalType, PublicGroup,
+        PublicMessageIn,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
 };
@@ -64,7 +65,7 @@ fn test_capabilities() -> Capabilities {
         None,
         None,
         Some(&[ProposalType::SelfRemove, ProposalType::AppEphemeral]),
-        None,
+        Some(&[CredentialType::Basic]),
     )
 }
 

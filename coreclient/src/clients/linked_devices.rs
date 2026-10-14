@@ -559,6 +559,7 @@ mod tests {
                 device(2, "b", LinkedDevicePlatform::Android),
                 device(1, "a", LinkedDevicePlatform::Linux),
             ]),
+            ..Default::default()
         };
         let setting = LinkedDevicesSetting::from_update(&update).unwrap();
         assert_eq!(setting.devices()[0].client_id, Uuid::from_u128(1));

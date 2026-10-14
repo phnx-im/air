@@ -118,6 +118,7 @@ class DeveloperSettingsView extends HookWidget {
         const _SettingsCard(),
         _SessionCard(user: user),
         _DiagnosticsCard(
+          user: user,
           isMobile: isMobile,
           deviceToken: deviceToken,
           onRefreshPushToken: onRefreshPushToken,
@@ -238,6 +239,7 @@ class _InterfaceScaleRow extends HookWidget {
 /// What the app will tell you about itself.
 class _DiagnosticsCard extends StatelessWidget {
   const _DiagnosticsCard({
+    required this.user,
     required this.isMobile,
     required this.deviceToken,
     required this.onRefreshPushToken,
@@ -245,6 +247,7 @@ class _DiagnosticsCard extends StatelessWidget {
     required this.error,
   });
 
+  final User? user;
   final bool isMobile;
   final String? deviceToken;
   final VoidCallback onRefreshPushToken;
@@ -259,6 +262,7 @@ class _DiagnosticsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final info = this.info;
     final error = this.error;
+    final user = this.user;
 
     return DeveloperCard(
       caption: 'Diagnostics',
@@ -270,6 +274,14 @@ class _DiagnosticsCard extends StatelessWidget {
           trailing: const AppIcon.fileText(size: developerRowIconSize),
           onTap: () => showLogs(context),
         ),
+        if (user != null)
+          ListRow(
+            tokens: ListRowTokens.current,
+            label: 'Refresh all profiles',
+            separator: false,
+            trailing: const AppIcon.refreshCw(size: developerRowIconSize),
+            onTap: () => _refreshAllProfiles(user),
+          ),
         if (isMobile)
           DeveloperInfoRow(
             label: 'Push token',
@@ -304,6 +316,11 @@ class _DiagnosticsCard extends StatelessWidget {
           DeveloperInfoRow(label: 'Debug info error', value: error.toString()),
       ],
     );
+  }
+
+  Future<void> _refreshAllProfiles(User user) async {
+    await user.refreshAllProfiles();
+    showSnackBarStandalone((loc) => 'Profile refresh started', tone: .success);
   }
 }
 
