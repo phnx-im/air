@@ -275,14 +275,10 @@ class _GroupDebugInfoBody extends StatelessWidget {
             caption: 'App Data',
             children: [
               _ChipListRow(label: 'Components', values: appData.components),
-              DeveloperInfoRow(
-                label: 'Self Group',
-                value: appData.airComponent?.isSelfGroup == true ? 'yes' : 'no',
-              ),
-              DeveloperInfoRow(
-                label: 'Tombstone',
-                value: appData.airComponent?.tombstone ?? '—',
-              ),
+              if (appData.airComponent?.isSelfGroup == true)
+                const DeveloperInfoRow(label: 'Self Group', value: 'yes'),
+              if (appData.airComponent?.tombstone case final tombstone?)
+                DeveloperInfoRow(label: 'Tombstone', value: tombstone),
             ],
           ),
         if (info.requiredCapabilities case final caps?)

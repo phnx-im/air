@@ -1765,6 +1765,11 @@ impl TestBackend {
         } else {
             panic!("chat should be inactive.")
         }
+        assert_eq!(
+            deleter.chat_participants(chat_id).await,
+            Some(past_members),
+            "the deleter's chat lists its past members, not its remaining group"
+        );
 
         for group_member_id in self.groups.get(&chat_id).unwrap().iter() {
             // Skip the deleter
@@ -1791,6 +1796,11 @@ impl TestBackend {
             } else {
                 panic!("chat should be inactive.")
             }
+            assert_eq!(
+                group_member.chat_participants(chat_id).await,
+                Some(past_members),
+                "the chat lists its past members"
+            );
         }
         self.groups.remove(&chat_id);
     }

@@ -717,28 +717,27 @@ impl CoreUser {
             .ok()
     }
 
-    /// The members of the chat from the room state of its group. An inactive
-    /// chat whose group is gone falls back to the members it had when it
-    /// became inactive.
+    /// The members the chat had when it became inactive, if it recorded any,
+    /// otherwise the members from the room state of its group.
     ///
     /// Returns None if there is no chat with the given id.
     pub async fn chat_participants(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
-        let participants = Group::load_participants(self.db().read().await.ok()?.as_mut(), chat_id)
+        match self.chat(&chat_id).await?.status() {
+            ChatStatus::Inactive(inactive) if !inactive.past_members().is_empty() => {
+                return Some(inactive.past_members().iter().cloned().collect());
+            }
+            ChatStatus::Inactive(_)
+            | ChatStatus::Pending
+            | ChatStatus::Active
+            | ChatStatus::Blocked => {}
+        }
+        Group::load_participants(self.db().read().await.ok()?.as_mut(), chat_id)
             .await
             .inspect_err(|error| {
                 error!(%error, %chat_id, "Failed to load chat participants");
             })
             .ok()
-            .flatten();
-        if participants.is_some() {
-            return participants;
-        }
-        match self.chat(&chat_id).await?.status() {
-            ChatStatus::Inactive(inactive) => {
-                Some(inactive.past_members().iter().cloned().collect())
-            }
-            ChatStatus::Pending | ChatStatus::Active | ChatStatus::Blocked => None,
-        }
+            .flatten()
     }
 
     pub async fn pending_removes(&self, chat_id: ChatId) -> Option<Vec<UserId>> {
