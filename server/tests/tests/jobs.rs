@@ -623,6 +623,50 @@ async fn queued_message_waits_for_the_resync() {
     assert!(stored.is_sent(), "message should be sent after the resync");
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn commit_confirmed_through_the_queue_resets_stale_commits() {
+    let (setup, alice, bob, charlie, chat_id) = setup_group_with_charlie_member().await;
+    let alice_user = &setup.get_user(&alice).user;
+    let bob_user = &setup.get_user(&bob).user;
+    let charlie_user = &setup.get_user(&charlie).user;
+
+    // Bob leaves the self-remove in his queue for two stale commits.
+    alice_user.leave_chat(chat_id).await.unwrap();
+    for _ in 0..2 {
+        bob_user
+            .update_key(chat_id)
+            .await
+            .expect_err("DS should reject a commit that ignores the pending self-remove");
+    }
+
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+
+    // The DS accepts the commit, but only the queue tells Bob.
+    setup.listener_control_handle().set_drop_next_response();
+    bob_user
+        .update_key(chat_id)
+        .await
+        .expect_err("expected the update to fail due to a lost response");
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    let chat_participants = bob_user.chat_participants(chat_id).await.unwrap();
+    assert!(!chat_participants.contains(&alice));
+
+    // One more stale commit starts a new count instead of reaching three.
+    let qs_messages = charlie_user.qs_fetch_messages().await.unwrap();
+    let result = charlie_user.fully_process_qs_messages(qs_messages).await;
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    charlie_user.leave_chat(chat_id).await.unwrap();
+    bob_user
+        .update_key(chat_id)
+        .await
+        .expect_err("DS should reject a commit that ignores the pending self-remove");
+    assert_eq!(bob_user.resync_status(chat_id).await.unwrap(), None);
+}
+
 /// Connects Alice and Bob and has Alice delete their chat while the DS loses
 /// either her request or its response. Returns what the retry needs.
 async fn delete_chat_with_a_network_error(

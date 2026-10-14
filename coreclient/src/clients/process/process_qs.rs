@@ -423,6 +423,8 @@ impl CoreUser {
             .await?;
         }
 
+        Group::reset_stale_commits(&mut *txn, group.group_id()).await?;
+
         // Complete the pending chat operation
         PendingChatOperation::complete_own_commit(
             txn,
