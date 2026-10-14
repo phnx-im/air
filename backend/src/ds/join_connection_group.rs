@@ -37,7 +37,9 @@ use crate::errors::CborMlsAssistStorage;
 
 use super::{
     apq::ApqExternalCommit,
-    group_state::{DsGroupState, MemberProfile, leaf_credential_matches_flag},
+    group_state::{
+        DsGroupState, MemberProfile, SelfRemoveCheckError, leaf_credential_matches_flag,
+    },
 };
 
 /// Reject any proposal an external commit joining a connection group must not
@@ -141,6 +143,9 @@ impl DsGroupState {
                 "expected new member commit",
             ));
         }
+        // A join cannot carry a remove, so a pending self-remove of the inviter
+        // rejects the join instead of being forgotten with the merge.
+        self.ensure_self_removes_committed(staged_commit)?;
         if !self.self_group_flag_unchanged(staged_commit) {
             return Err(JoinConnectionGroupError::InvalidMessage(
                 "commit would toggle the self-group flag",
@@ -211,6 +216,10 @@ impl DsGroupState {
             pq,
             &processed_assisted_message_plus.processed_assisted_message,
         )?;
+        // See the T-only variant. Both legs park their own copy of a
+        // self-remove proposal.
+        t.ensure_self_removes_committed(t_staged_commit)?;
+        pq.ensure_self_removes_committed(pq_staged_commit)?;
         t.validate_connection_group_join(t_staged_commit, &joiner_credential, true)?;
         validate_join_proposals(pq_staged_commit, true)?;
         if bootstrap_requested {
@@ -358,6 +367,8 @@ pub(crate) enum JoinConnectionGroupError {
     #[error("Error processing APQ message: {0}")]
     ApqProcessingError(#[from] ProcessApqAssistedMessageError),
     #[error(transparent)]
+    SelfRemoveCheck(#[from] SelfRemoveCheckError),
+    #[error(transparent)]
     LibraryError(#[from] LibraryError),
     #[error("Error merging commit: {0}")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
@@ -370,6 +381,7 @@ impl From<JoinConnectionGroupError> for Status {
             InvalidMessage(_) | NotAConnectionGroup | InvalidCredential(_) | InvalidAad(_) => {
                 Status::invalid_argument(error.to_string())
             }
+            SelfRemoveCheck(error) => error.into(),
             ProcessingError(_) | ApqProcessingError(_) | LibraryError(_) | MergeCommitError(_) => {
                 error!(%error, "Failed to join connection group");
                 Status::internal("Failed to join connection group")

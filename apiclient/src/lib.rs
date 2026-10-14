@@ -206,6 +206,7 @@ pub(crate) fn classify_status(status: &Status) -> RequestErrorKind {
                         Detail::VersionUnsupported(_)
                         | Detail::AttachmentTooLarge(_)
                         | Detail::WrongEpoch(_)
+                        | Detail::UncommittedSelfRemove(_)
                         | Detail::GenerationCollision(_),
                     ) => RequestErrorKind::Rejected,
                     // Details we cannot decode, e.g. from a newer server

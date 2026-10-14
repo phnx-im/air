@@ -2052,8 +2052,6 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
                 let group_message = group_state.delete_group(commit)?;
 
-                group_state.proposals.clear();
-
                 let timestamp = self
                     .fan_out_message_without_notifications(
                         group_message,
@@ -2110,9 +2108,6 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     t_message,
                     pq_message,
                 )?;
-
-                t_group_state.proposals.clear();
-                pq_group_state.proposals.clear();
 
                 let timestamp = TimeStamp::now();
                 let apq_payload =

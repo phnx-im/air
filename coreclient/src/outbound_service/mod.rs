@@ -138,7 +138,10 @@ impl OutboundService<OutboundServiceContext> {
     /// the failure lands on, which a full run does not guarantee.
     pub async fn send_queued_messages_once(&self) -> anyhow::Result<()> {
         self.context
-            .send_queued_messages(&CancellationToken::new())
+            .send_queued_messages(
+                &CancellationToken::new(),
+                &mut std::collections::HashSet::new(),
+            )
             .await?;
         Ok(())
     }
@@ -400,7 +403,7 @@ impl OutboundServiceContext {
             .await
             .or_abort("queued resyncs")?;
 
-        Box::pin(self.send_pending_chat_operations(run_token))
+        let mut stale_groups = Box::pin(self.send_pending_chat_operations(run_token))
             .await
             .or_abort("pending chat operations")?;
 
@@ -420,7 +423,7 @@ impl OutboundServiceContext {
             .await
             .or_abort("recover interrupted attachment uploads")?;
 
-        self.send_queued_messages(run_token)
+        self.send_queued_messages(run_token, &mut stale_groups)
             .await
             .or_abort("queued messages")?;
 

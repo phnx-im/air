@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use airprotos::common::v1::{
-    DeviceLimitReachedDetail, StatusDetails, StatusDetailsCode, WrongEpochDetail,
+    DeviceLimitReachedDetail, StatusDetails, StatusDetailsCode, UncommittedSelfRemoveDetail,
+    WrongEpochDetail,
     status_details::{self, Detail},
 };
 use apqmls::processing::ApqProcessPublicMessageError;
@@ -23,6 +24,8 @@ use tonic::{Code, Status};
 use tracing::{error, warn};
 
 use aircommon::codec::PersistenceCodec;
+
+use crate::ds::group_state::SelfRemoveCheckError;
 
 pub(crate) mod auth_service;
 pub(crate) mod qs;
@@ -130,6 +133,8 @@ pub(crate) enum GroupOperationError {
     /// Incomplete Welcome message.
     #[error("Incomplete Welcome message.")]
     IncompleteWelcome,
+    #[error(transparent)]
+    SelfRemoveCheck(#[from] SelfRemoveCheckError),
     #[error("Error merging commit")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
     #[error("Max devices exceeded")]
@@ -232,8 +237,9 @@ impl From<GroupOperationError> for Status {
                 Status::invalid_argument(msg)
             }
             GroupOperationError::ApqMembershipChange => Status::failed_precondition(msg),
-            GroupOperationError::MergeCommitError(merge_commit_error) => {
-                error!(%merge_commit_error, "failed merging commit");
+            GroupOperationError::SelfRemoveCheck(error) => error.into(),
+            GroupOperationError::MergeCommitError(error) => {
+                error!(%error, "Failed merging commit");
                 Status::internal(msg)
             }
             GroupOperationError::MaxDevicesExceeded { max_devices } => {
@@ -280,8 +286,8 @@ impl From<GroupDeletionError> for Status {
                 error!(%error, "Failed to process APQ assisted message");
                 Status::internal(msg)
             }
-            GroupDeletionError::MergeCommitError(merge_commit_error) => {
-                error!(%merge_commit_error, "failed merging commit");
+            GroupDeletionError::MergeCommitError(error) => {
+                error!(%error, "Failed merging commit");
                 Status::internal(msg)
             }
         }
@@ -301,16 +307,27 @@ pub(crate) enum ClientSelfRemovalError {
 }
 
 fn wrong_epoch_status(msg: String) -> Status {
-    Status::with_details(
-        Code::InvalidArgument,
-        msg,
-        StatusDetails {
-            code: StatusDetailsCode::WrongEpoch.into(),
-            detail: Some(Detail::WrongEpoch(WrongEpochDetail {})),
+    StatusDetails {
+        code: StatusDetailsCode::WrongEpoch.into(),
+        detail: Some(Detail::WrongEpoch(WrongEpochDetail {})),
+    }
+    .to_status(Code::InvalidArgument, msg)
+}
+
+impl From<SelfRemoveCheckError> for Status {
+    fn from(error: SelfRemoveCheckError) -> Self {
+        let msg = error.to_string();
+        match error {
+            SelfRemoveCheckError::ProposalStore => Status::internal(msg),
+            SelfRemoveCheckError::Uncommitted => StatusDetails {
+                code: StatusDetailsCode::UncommittedSelfRemove.into(),
+                detail: Some(Detail::UncommittedSelfRemove(
+                    UncommittedSelfRemoveDetail {},
+                )),
+            }
+            .to_status(Code::InvalidArgument, msg),
         }
-        .encode_to_vec()
-        .into(),
-    )
+    }
 }
 
 impl From<ClientSelfRemovalError> for Status {
@@ -321,8 +338,8 @@ impl From<ClientSelfRemovalError> for Status {
             ClientSelfRemovalError::ProcessingError(error) => {
                 ProcessErrorKind::from(&error).into_status(&error, Status::invalid_argument)
             }
-            ClientSelfRemovalError::MergeCommitError(merge_commit_error) => {
-                error!(%merge_commit_error, "failed merging commit");
+            ClientSelfRemovalError::MergeCommitError(error) => {
+                error!(%error, "Failed merging commit");
                 Status::internal(msg)
             }
         }
@@ -339,6 +356,8 @@ pub(crate) enum ResyncClientError {
     ProcessingError(#[from] ProcessAssistedMessageError),
     #[error("Error processing message")]
     ApqProcessingError(#[from] ProcessApqAssistedMessageError),
+    #[error("Self-remove check error")]
+    SelfRemoveCheck(#[from] SelfRemoveCheckError),
     #[error("Error merging commit")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
 }
@@ -356,8 +375,12 @@ impl From<ResyncClientError> for Status {
                 error!(%error, "Failed to process APQ assisted message");
                 Status::internal(msg)
             }
-            ResyncClientError::MergeCommitError(merge_commit_error) => {
-                error!(%merge_commit_error, "failed merging commit");
+            ResyncClientError::SelfRemoveCheck(error) => {
+                error!(%error, "Failed self-remove check");
+                error.into()
+            }
+            ResyncClientError::MergeCommitError(error) => {
+                error!(%error, "Failed merging commit");
                 Status::internal(msg)
             }
         }

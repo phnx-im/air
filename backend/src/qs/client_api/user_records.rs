@@ -32,8 +32,8 @@ impl Qs {
         let user_record =
             UserRecord::new_and_store(&self.db_pool, user_record_auth_key, friendship_token)
                 .await
-                .map_err(|e| {
-                    tracing::error!("Error creating and storing new user record: {:?}", e);
+                .map_err(|error| {
+                    tracing::error!(%error, "Error creating and storing new user record");
                     QsCreateUserError::StorageError
                 })?;
 
@@ -70,14 +70,14 @@ impl Qs {
             friendship_token,
         } = params;
 
-        let mut transaction = self.db_pool.begin().await.map_err(|e| {
-            tracing::error!("Error starting transaction: {:?}", e);
+        let mut transaction = self.db_pool.begin().await.map_err(|error| {
+            tracing::error!(%error, "Error starting transaction");
             QsUpdateUserError::StorageError
         })?;
         let mut user_record = UserRecord::load(&mut *transaction, &sender)
             .await
-            .map_err(|e| {
-                tracing::error!("Error loading user record: {:?}", e);
+            .map_err(|error| {
+                tracing::error!(%error, "Error loading user record");
                 QsUpdateUserError::StorageError
             })?
             .ok_or(QsUpdateUserError::UnknownUser)?;
@@ -85,13 +85,13 @@ impl Qs {
         user_record.friendship_token = friendship_token;
         user_record.verifying_key = user_record_auth_key;
 
-        user_record.update(&mut *transaction).await.map_err(|e| {
-            tracing::error!("Error updating user record: {:?}", e);
+        user_record.update(&mut *transaction).await.map_err(|error| {
+            tracing::error!(%error, "Error updating user record");
             QsUpdateUserError::StorageError
         })?;
 
-        transaction.commit().await.map_err(|e| {
-            tracing::error!("Error committing transaction: {:?}", e);
+        transaction.commit().await.map_err(|error| {
+            tracing::error!(%error, "Error committing transaction");
             QsUpdateUserError::StorageError
         })?;
         Ok(())
@@ -107,8 +107,8 @@ impl Qs {
 
         UserRecord::delete(&self.db_pool, sender)
             .await
-            .map_err(|e| {
-                tracing::error!("Error deleting user record: {:?}", e);
+            .map_err(|error| {
+                tracing::error!(%error, "Error deleting user record");
                 QsDeleteUserError::StorageError
             })?;
 

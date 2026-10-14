@@ -113,8 +113,8 @@ impl Qs {
     ) -> Result<(), QsUpdateClientRecordError> {
         QsClientRecord::soft_delete(&self.db_pool, &params.sender)
             .await
-            .map_err(|e| {
-                error!("Error deleting client record: {:?}", e);
+            .map_err(|error| {
+                error!(%error, "Error deleting client record");
                 QsUpdateClientRecordError::StorageError
             })?;
 
