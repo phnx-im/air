@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO allowance_record AS a\n                    (key_value, remaining, valid_until)\n                    VALUES ($1, $2::bigint - 1, NOW() + $3::interval)\n                ON CONFLICT (key_value) DO UPDATE SET\n                    remaining = CASE WHEN a.valid_until < NOW()\n                        THEN EXCLUDED.remaining\n                        ELSE a.remaining - 1 END,\n                    valid_until = CASE WHEN a.valid_until < NOW()\n                        THEN EXCLUDED.valid_until\n                        ELSE a.valid_until END\n                WHERE a.valid_until < NOW() OR a.remaining > 0\n                RETURNING 1 AS \"consumed!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "consumed!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int8",
+        "Interval"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "ba4c7e3312ea61151f966a135059ddd54e59347fbdbd0a1b173d77c72d23a45f"
+}

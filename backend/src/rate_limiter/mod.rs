@@ -4,7 +4,9 @@
 
 //! Rate Limiter
 
-use chrono::{SubsecRound, TimeDelta};
+#[cfg(test)]
+use chrono::SubsecRound;
+use chrono::TimeDelta;
 use sha2::{Digest, Sha256};
 use sqlx::types::chrono::{DateTime, Utc};
 
@@ -51,6 +53,7 @@ pub struct Allowance {
     valid_until: DateTime<Utc>,
 }
 
+#[cfg(test)]
 impl Allowance {
     pub(crate) fn new(config: &RlConfig) -> Self {
         Allowance {
@@ -80,8 +83,9 @@ impl Allowance {
 }
 
 pub(crate) trait StorageProvider {
-    async fn get(&self, key: &RlKey) -> Option<Allowance>;
-    async fn set(&self, key: RlKey, allowance: Allowance);
+    /// Atomically consumes one request from the allowance of `key` and reports
+    /// whether it is allowed.
+    async fn try_consume(&self, config: &RlConfig, key: &RlKey) -> bool;
 }
 
 pub(crate) struct RateLimiter<S: StorageProvider> {
@@ -95,18 +99,7 @@ impl<S: StorageProvider> RateLimiter<S> {
     }
 
     pub(crate) async fn allowed(&self, key: RlKey) -> bool {
-        let mut allowance = self
-            .storage
-            .get(&key)
-            .await
-            .unwrap_or_else(|| Allowance::new(&self.config));
-
-        if allowance.allowed(&self.config) {
-            self.storage.set(key, allowance.clone()).await;
-            true
-        } else {
-            false
-        }
+        self.storage.try_consume(&self.config, &key).await
     }
 }
 
@@ -135,15 +128,13 @@ mod tests {
     }
 
     impl StorageProvider for InMemoryStorage {
-        async fn get(&self, key: &RlKey) -> Option<Allowance> {
-            self.data.lock().await.get(key.serialize()).cloned()
-        }
-
-        async fn set(&self, key: RlKey, allowance: Allowance) {
+        async fn try_consume(&self, config: &RlConfig, key: &RlKey) -> bool {
             self.data
                 .lock()
                 .await
-                .insert(key.serialize().to_owned(), allowance);
+                .entry(key.serialize().to_owned())
+                .or_insert_with(|| Allowance::new(config))
+                .allowed(config)
         }
     }
 

@@ -2,9 +2,26 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use sqlx::PgPool;
+use std::time::Duration;
 
-use super::{Allowance, RlKey, StorageProvider};
+use sqlx::PgPool;
+use tracing::error;
+
+use super::{Allowance, RlConfig, RlKey, StorageProvider};
+
+pub(crate) const ALLOWANCE_SWEEP_INTERVAL: Duration = Duration::from_secs(60 * 60);
+
+/// Deletes expired allowances every `period`, so keys that stop sending
+/// requests do not keep their rows forever.
+pub(crate) async fn sweep_expired_allowances(pool: PgPool, period: Duration) {
+    let mut interval = tokio::time::interval(period);
+    loop {
+        interval.tick().await;
+        if let Err(error) = Allowance::delete_expired(&pool).await {
+            error!(%error, "Failed to delete expired allowances");
+        }
+    }
+}
 
 pub(crate) struct RlPostgresStorage {
     pool: PgPool,
@@ -17,31 +34,72 @@ impl RlPostgresStorage {
 }
 
 impl StorageProvider for RlPostgresStorage {
-    async fn get(&self, key: &RlKey) -> Option<Allowance> {
-        Allowance::load(&self.pool, key).await.ok().flatten()
-    }
-
-    async fn set(&self, key: RlKey, allowance: Allowance) {
-        if let Err(error) = allowance.store(&self.pool, &key).await {
-            tracing::error!(%error, "Failed to store allowance in Postgres");
-        }
+    async fn try_consume(&self, config: &RlConfig, key: &RlKey) -> bool {
+        // Fails open, so an unreachable database does not lock users out.
+        Allowance::try_consume(&self.pool, config, key)
+            .await
+            .unwrap_or_else(|error| {
+                error!(%error, "Failed to consume allowance in Postgres");
+                true
+            })
     }
 }
 
 pub(crate) mod persistence {
 
+    #[cfg(test)]
     use chrono::SubsecRound;
+    use sqlx::{PgExecutor, postgres::types::PgInterval, query};
+    #[cfg(test)]
     use sqlx::{
-        PgExecutor, query, query_as,
+        query_as,
         types::chrono::{DateTime, Utc},
     };
 
-    use crate::{errors::StorageError, rate_limiter::RlKey};
+    use crate::{
+        errors::StorageError,
+        rate_limiter::{RlConfig, RlKey},
+    };
 
     use super::Allowance;
 
     impl Allowance {
-        /// Load an Allowance from the database by its key.
+        pub(in crate::rate_limiter) async fn try_consume(
+            connection: impl PgExecutor<'_>,
+            config: &RlConfig,
+            key: &RlKey,
+        ) -> Result<bool, StorageError> {
+            if config.max_requests == 0 {
+                return Ok(false);
+            }
+            // Consumes one request from the allowance of `key` in a single
+            // statement, so concurrent requests serialize on the row lock. Returns
+            // whether the request is allowed.
+            let consumed = query!(
+                r#"INSERT INTO allowance_record AS a
+                    (key_value, remaining, valid_until)
+                    VALUES ($1, $2::bigint - 1, NOW() + $3::interval)
+                ON CONFLICT (key_value) DO UPDATE SET
+                    remaining = CASE WHEN a.valid_until < NOW()
+                        THEN EXCLUDED.remaining
+                        ELSE a.remaining - 1 END,
+                    valid_until = CASE WHEN a.valid_until < NOW()
+                        THEN EXCLUDED.valid_until
+                        ELSE a.valid_until END
+                WHERE a.valid_until < NOW() OR a.remaining > 0
+                RETURNING 1 AS "consumed!""#,
+                key.serialize(),
+                config.max_requests as i64,
+                PgInterval::try_from(config.time_window)?,
+            )
+            .fetch_optional(connection)
+            .await?;
+
+            // A row that is not updated returns nothing, which means denied.
+            Ok(consumed.is_some())
+        }
+
+        #[cfg(test)]
         pub(in crate::rate_limiter) async fn load(
             connection: impl PgExecutor<'_>,
             key: &RlKey,
@@ -68,7 +126,7 @@ pub(crate) mod persistence {
             }))
         }
 
-        /// Store an Allowance in the database.
+        #[cfg(test)]
         pub(in crate::rate_limiter) async fn store(
             &self,
             connection: impl PgExecutor<'_>,
@@ -91,7 +149,6 @@ pub(crate) mod persistence {
         }
 
         /// Delete all expired allowances.
-        #[allow(dead_code)]
         pub(in crate::rate_limiter) async fn delete_expired(
             connection: impl PgExecutor<'_>,
         ) -> Result<(), sqlx::Error> {
@@ -104,10 +161,15 @@ pub(crate) mod persistence {
 
     #[cfg(test)]
     pub(crate) mod tests {
+        use std::time::Duration;
+
         use chrono::TimeDelta;
         use sqlx::PgPool;
 
-        use crate::rate_limiter::{RateLimiter, RlConfig, provider::RlPostgresStorage};
+        use crate::rate_limiter::{
+            RateLimiter, RlConfig,
+            provider::{RlPostgresStorage, sweep_expired_allowances},
+        };
 
         use super::*;
 
@@ -227,6 +289,31 @@ pub(crate) mod persistence {
             assert!(rl.allowed(key.clone()).await);
             assert!(rl.allowed(key.clone()).await);
             assert!(!rl.allowed(key).await);
+        }
+
+        #[sqlx::test]
+        async fn the_sweep_deletes_expired_allowances(pool: PgPool) {
+            let key = RlKey::new(b"test_service", b"test_rpc", &[]);
+            Allowance {
+                remaining: 0,
+                valid_until: Utc::now() - TimeDelta::minutes(1),
+            }
+            .store(&pool, &key)
+            .await
+            .unwrap();
+
+            let sweep = tokio::spawn(sweep_expired_allowances(
+                pool.clone(),
+                Duration::from_millis(10),
+            ));
+            tokio::time::timeout(Duration::from_secs(5), async {
+                while Allowance::load(&pool, &key).await.unwrap().is_some() {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .expect("the sweep did not delete the expired allowance");
+            sweep.abort();
         }
     }
 }
