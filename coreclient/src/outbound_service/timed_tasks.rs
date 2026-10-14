@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::collections::HashSet;
+
 use airapiclient::{ClassifyRequestError, RequestErrorKind};
 use aircommon::{
     identifiers::{USERNAME_REFRESH_THRESHOLD, UsernameHash},
@@ -11,6 +13,7 @@ use aircommon::{
 use airprotos::{auth_service::v1::OperationType, client::app_data::GroupAppData};
 use anyhow::bail;
 use chrono::{DateTime, Duration, NaiveDate, Utc};
+use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
@@ -246,9 +249,12 @@ struct TimedTaskContext {
 }
 
 impl OutboundServiceContext {
+    /// Executes the due timed tasks. `stale_groups` holds the groups whose
+    /// commit the DS rejected as stale in this run, which are not self-updated.
     pub(super) async fn execute_timed_tasks(
         &self,
         run_token: &CancellationToken,
+        stale_groups: &HashSet<GroupId>,
     ) -> Result<(), OutboundServiceError> {
         self.ensure_timed_tasks_exist()
             .await
@@ -278,7 +284,13 @@ impl OutboundServiceContext {
             };
             debug!(kind = ?op.data.kind, "dequeued task");
 
-            let res = Box::pin(self.handle_task(run_token, &mut op, &mut timed_task_context)).await;
+            let res = Box::pin(self.handle_task(
+                run_token,
+                &mut op,
+                &mut timed_task_context,
+                stale_groups,
+            ))
+            .await;
 
             let interval = match res {
                 Ok(interval) => interval,
@@ -354,6 +366,7 @@ impl OutboundServiceContext {
         run_token: &CancellationToken,
         op: &mut Operation<TimedTask>,
         context: &mut TimedTaskContext,
+        stale_groups: &HashSet<GroupId>,
     ) -> Result<Option<Duration>, OutboundServiceError> {
         debug!(kind = ?op.data.kind, "handling task");
 
@@ -366,7 +379,7 @@ impl OutboundServiceContext {
                     .await
                     .map_err(OutboundServiceError::fatal)?,
             )),
-            TimedTaskKind::SelfUpdate => self.self_update(run_token).await.map(Some),
+            TimedTaskKind::SelfUpdate => self.self_update(run_token, stale_groups).await.map(Some),
             TimedTaskKind::TokenReplenishment { operation_type } => Ok(Some(
                 self.replenish_tokens(*operation_type, &mut context.loaded_credentials)
                     .await
@@ -508,6 +521,7 @@ impl OutboundServiceContext {
     async fn self_update(
         &self,
         run_token: &CancellationToken,
+        stale_groups: &HashSet<GroupId>,
     ) -> Result<Duration, OutboundServiceError> {
         const PARTIAL_UPDATE_INTERVAL: Duration = Duration::minutes(5);
         const BATCH_SIZE: usize = 5;
@@ -535,7 +549,7 @@ impl OutboundServiceContext {
                 );
                 return Ok(PARTIAL_UPDATE_INTERVAL); // Continue after a partial batch
             }
-            match self.self_update_in_chat(chat_id).await {
+            match self.self_update_in_chat(chat_id, stale_groups).await {
                 Ok(SelfUpdateOutcome::Updated) => num_updated += 1,
                 Ok(SelfUpdateOutcome::Skipped) => (),
                 Err(
@@ -567,6 +581,7 @@ impl OutboundServiceContext {
     async fn self_update_in_chat(
         &self,
         chat_id: ChatId,
+        stale_groups: &HashSet<GroupId>,
     ) -> Result<SelfUpdateOutcome, OutboundServiceError> {
         debug!(?chat_id, "Self-update in chat");
 
@@ -587,6 +602,13 @@ impl OutboundServiceContext {
                 }
                 Err(error) => return Err(OutboundServiceError::fatal(error)),
             };
+
+            // Another commit would only be stale again before the queue is
+            // drained.
+            if stale_groups.contains(group.group_id()) {
+                debug!(?chat_id, "Skipping self-update in a stale group");
+                return Ok(SelfUpdateOutcome::Skipped);
+            }
 
             if group.mls_group().pending_commit().is_some()
                 || group

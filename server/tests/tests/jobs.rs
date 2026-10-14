@@ -50,6 +50,7 @@ use std::time::Duration;
 use aircommon::identifiers::UserId;
 use aircoreclient::{ChatId, ChatStatus, ResyncStatus, clients::MarkChatAsRead};
 use airserver_test_harness::utils::setup::TestBackend;
+use chrono::DateTime;
 use mimi_content::MimiContent;
 use tokio::time::sleep;
 
@@ -660,6 +661,44 @@ async fn commit_confirmed_through_the_queue_resets_stale_commits() {
     let result = charlie_user.fully_process_qs_messages(qs_messages).await;
     assert!(result.errors.is_empty(), "{:?}", result.errors);
     charlie_user.leave_chat(chat_id).await.unwrap();
+    bob_user
+        .update_key(chat_id)
+        .await
+        .expect_err("DS should reject a commit that ignores the pending self-remove");
+    assert_eq!(bob_user.resync_status(chat_id).await.unwrap(), None);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn stale_group_is_not_self_updated_in_the_same_run() {
+    let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
+    let alice_user = &setup.get_user(&alice).user;
+    let bob_user = &setup.get_user(&bob).user;
+
+    // Bob's commit never reaches the DS and is parked for retry, with the
+    // self-remove left in his queue.
+    alice_user.leave_chat(chat_id).await.unwrap();
+    setup.listener_control_handle().set_drop_next_request();
+    bob_user
+        .update_key(chat_id)
+        .await
+        .expect_err("expected the update to fail due to a network error");
+
+    bob_user
+        .set_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    bob_user
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+
+    // We have to sleep here until we can input `now` into the operation
+    sleep(Duration::from_secs(2)).await;
+
+    // The retried commit is stale. The self-update must not add a second
+    // stale commit in the same run.
+    bob_user.outbound_service().run_once().await;
     bob_user
         .update_key(chat_id)
         .await

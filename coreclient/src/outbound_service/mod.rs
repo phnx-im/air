@@ -435,7 +435,7 @@ impl OutboundServiceContext {
             .await
             .or_abort("push token updates")?;
 
-        Box::pin(self.execute_timed_tasks(run_token))
+        Box::pin(self.execute_timed_tasks(run_token, &stale_groups))
             .await
             .or_abort("timed tasks")?;
 

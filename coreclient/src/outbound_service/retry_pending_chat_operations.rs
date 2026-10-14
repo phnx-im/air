@@ -34,9 +34,9 @@ use crate::{
 
 impl OutboundServiceContext {
     /// Returns the groups whose commit the DS rejected as stale in this run.
-    /// They are not committed to again until the next run, from this stage or
-    /// the message queue, so the client can first process the proposals it is
-    /// missing.
+    /// They are not committed to again until the next run, from this stage,
+    /// the message queue or the periodic self-update, so the client can first
+    /// process the proposals it is missing.
     pub(super) async fn send_pending_chat_operations(
         &self,
         run_token: &CancellationToken,
