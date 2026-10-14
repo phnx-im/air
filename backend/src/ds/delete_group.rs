@@ -8,6 +8,7 @@ use airprotos::client::{
     component::{AIR_COMPONENT_ID, AirComponent, GroupTombstone, TombstoneContext},
 };
 use apqmls::extension::APQMLS_COMPONENT_ID;
+use chrono::{TimeDelta, Utc};
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::{
@@ -212,11 +213,11 @@ impl DsGroupState {
         }
         // Legacy delete commits set no tombstone.
         match GroupAppData::tombstone(staged_extensions) {
-            None
-            | Some(GroupTombstone {
-                timestamp: Some(_),
+            None => {}
+            Some(GroupTombstone {
+                timestamp: Some(timestamp),
                 context: TombstoneContext::Deleted,
-            }) => {}
+            }) if (*timestamp.as_ref() - Utc::now()).abs() <= TOMBSTONE_TIMESTAMP_TOLERANCE => {}
             Some(tombstone) => {
                 warn!(?tombstone, "Delete group commit sets an invalid tombstone");
                 return Err(GroupDeletionError::InvalidMessage);
@@ -283,6 +284,10 @@ impl DsGroupState {
         Ok(())
     }
 }
+
+/// How far a tombstone's timestamp, the deleter's local time, may be from the
+/// DS's time.
+const TOMBSTONE_TIMESTAMP_TOLERANCE: TimeDelta = TimeDelta::days(1);
 
 struct ValidatedDelete {
     sender_index: LeafNodeIndex,
@@ -566,6 +571,21 @@ mod test {
             timestamp: None,
             context: TombstoneContext::Deleted,
         });
+    }
+
+    fn set_tombstone_two_days_ago(component: &mut AirComponent) {
+        let timestamp = Utc::now() - TimeDelta::days(2);
+        component.tombstone = Some(GroupTombstone::deleted(timestamp.into()));
+    }
+
+    fn set_tombstone_in_two_days(component: &mut AirComponent) {
+        let timestamp = Utc::now() + TimeDelta::days(2);
+        component.tombstone = Some(GroupTombstone::deleted(timestamp.into()));
+    }
+
+    fn set_tombstone_almost_a_day_ago(component: &mut AirComponent) {
+        let timestamp = Utc::now() - TimeDelta::hours(23);
+        component.tombstone = Some(GroupTombstone::deleted(timestamp.into()));
     }
 
     fn set_deleted_and_change_features(component: &mut AirComponent) {
@@ -913,6 +933,8 @@ mod test {
         for update in [
             set_tombstone_with_unknown_context as ComponentUpdate,
             set_tombstone_without_timestamp,
+            set_tombstone_two_days_ago,
+            set_tombstone_in_two_days,
         ] {
             let Err(GroupDeletionError::InvalidMessage) = delete_t_group(2, Some(update)) else {
                 panic!("the T delete is accepted");
@@ -921,6 +943,14 @@ mod test {
                 panic!("the APQ delete is accepted");
             };
         }
+    }
+
+    #[test]
+    fn a_delete_within_the_timestamp_tolerance_is_accepted() {
+        let update = Some(set_tombstone_almost_a_day_ago as ComponentUpdate);
+        assert!(delete_t_group(2, update).unwrap().has_tombstone());
+        let (t_state, _pq_state) = delete_apq_group(2, update).unwrap();
+        assert!(t_state.has_tombstone());
     }
 
     #[test]

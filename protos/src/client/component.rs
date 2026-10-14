@@ -54,7 +54,8 @@ pub struct AirComponent {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct GroupTombstone {
     /// The closing client's local time when it built the commit that set the
-    /// tombstone. Always set, the DS rejects a tombstone without it.
+    /// tombstone. Always set, the DS rejects a tombstone without it or more
+    /// than a day away from its own time.
     #[tag(1)]
     pub timestamp: Option<TimeStamp>,
     #[tag(2)]
