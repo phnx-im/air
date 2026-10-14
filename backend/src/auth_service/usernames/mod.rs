@@ -4,12 +4,13 @@
 use aircommon::{
     credentials::keys::UsernameVerifyingKey,
     identifiers::{
-        USERNAME_VALIDITY_PERIOD, Username, UsernameHash, UsernameHashError,
-        UsernameValidationError,
+        USERNAME_REFRESH_THRESHOLD, USERNAME_VALIDITY_PERIOD, Username, UsernameHash,
+        UsernameHashError, UsernameValidationError,
     },
-    time::ExpirationData,
+    time::{Duration, ExpirationData, TimeStamp},
 };
 use airprotos::auth_service::v1::OperationType;
+use chrono::Utc;
 use displaydoc::Display;
 use privacypass::{
     amortized_tokens::{AmortizedBatchTokenRequest, AmortizedBatchTokenResponse, AmortizedToken},
@@ -113,13 +114,8 @@ impl AuthService {
         &self,
         hash: UsernameHash,
         token: Option<AmortizedToken<Ristretto255>>,
-    ) -> Result<(), RefreshUsernameError> {
+    ) -> Result<UsernameRefresh, RefreshUsernameError> {
         let mut txn = self.db_pool.begin().await?;
-
-        if let Some(token) = token {
-            self.as_redeem_token(&mut txn, token, OperationType::AddUsername)
-                .await?;
-        }
 
         let Some(expiration_data) =
             UsernameRecord::load_expiration_data_for_update(txn.as_mut(), &hash).await?
@@ -131,13 +127,42 @@ impl AuthService {
             return Err(RefreshUsernameError::UsernameAlreadyExpired);
         }
 
+        // We only refresh the username and consume a token if it is due
+        if !is_refresh_due(&expiration_data) {
+            return Ok(UsernameRefresh::Skipped {
+                expires_at: expiration_data.not_after(),
+            });
+        }
+
+        if let Some(token) = token {
+            self.as_redeem_token(&mut txn, token, OperationType::AddUsername)
+                .await?;
+        }
+
         let new_expiration_data = ExpirationData::new(USERNAME_VALIDITY_PERIOD);
+        let expires_at = new_expiration_data.not_after();
 
         UsernameRecord::update_expiration_data(txn.as_mut(), &hash, new_expiration_data).await?;
 
         txn.commit().await?;
-        Ok(())
+        Ok(UsernameRefresh::Refreshed { expires_at })
     }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum UsernameRefresh {
+    Refreshed { expires_at: TimeStamp },
+    Skipped { expires_at: TimeStamp },
+}
+
+/// Leeway on top of the client's refresh threshold.
+const REFRESH_LEEWAY: Duration = Duration::weeks(1);
+
+/// Whether a client following [`USERNAME_REFRESH_THRESHOLD`] could have a
+/// reason to refresh the username.
+fn is_refresh_due(expiration_data: &ExpirationData) -> bool {
+    let due_within = USERNAME_VALIDITY_PERIOD - USERNAME_REFRESH_THRESHOLD + REFRESH_LEEWAY;
+    *expiration_data.not_after() <= Utc::now() + due_within
 }
 
 #[derive(Debug, Error, Display)]
@@ -537,38 +562,58 @@ mod tests {
 
     // as_refresh_username
 
+    /// Stores a username that expires in `remaining`.
+    async fn store_username_expiring_in(
+        pool: &PgPool,
+        hash: UsernameHash,
+        remaining: Duration,
+    ) -> anyhow::Result<()> {
+        UsernameRecord {
+            username_hash: hash,
+            verifying_key: make_verifying_key(),
+            expiration_data: ExpirationData::new(remaining),
+        }
+        .store(pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn expires_at(pool: &PgPool, hash: &UsernameHash) -> anyhow::Result<TimeStamp> {
+        let expiration_data = UsernameRecord::load_expiration_data_for_update(pool, hash)
+            .await?
+            .expect("the username is stored");
+        Ok(expiration_data.not_after())
+    }
+
     #[sqlx::test]
     async fn refresh_username_success(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
+        store_username_expiring_in(&pool, HASH, Duration::days(30)).await?;
 
-        service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
-            .await?;
+        let refresh = service.as_refresh_username(HASH, None).await?;
 
-        service.as_refresh_username(HASH, None).await?;
+        let expires_at = expires_at(&pool, &HASH).await?;
+        assert_eq!(refresh, UsernameRefresh::Refreshed { expires_at });
+        assert!(*expires_at > Utc::now() + Duration::days(179));
         Ok(())
     }
 
     #[sqlx::test]
     async fn refresh_username_success_with_token(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
-
-        service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
-            .await?;
+        store_username_expiring_in(&pool, HASH, Duration::days(30)).await?;
 
         let token = issue_token(&service, &pool).await?;
-        service.as_refresh_username(HASH, Some(token)).await?;
+        let refresh = service.as_refresh_username(HASH, Some(token)).await?;
+        assert!(matches!(refresh, UsernameRefresh::Refreshed { .. }));
         Ok(())
     }
 
     #[sqlx::test]
     async fn refresh_username_token_redemption_fails(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
-
-        service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
-            .await?;
+        store_username_expiring_in(&pool, HASH, Duration::days(30)).await?;
+        let expires_before = expires_at(&pool, &HASH).await?;
 
         // Spend the token first so it cannot be reused.
         let token = issue_token(&service, &pool).await?;
@@ -585,6 +630,82 @@ mod tests {
             result,
             Err(RefreshUsernameError::TokenRedemption(_))
         ));
+        assert_eq!(expires_at(&pool, &HASH).await?, expires_before);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn a_refresh_that_is_not_due_keeps_the_username_and_the_token(
+        pool: PgPool,
+    ) -> anyhow::Result<()> {
+        let service = setup(&pool).await?;
+        service
+            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
+            .await?;
+        let expires_before = expires_at(&pool, &HASH).await?;
+
+        let token = issue_token(&service, &pool).await?;
+        let refresh = service
+            .as_refresh_username(HASH, Some(token.clone()))
+            .await?;
+
+        assert_eq!(
+            refresh,
+            UsernameRefresh::Skipped {
+                expires_at: expires_before
+            }
+        );
+        assert_eq!(expires_at(&pool, &HASH).await?, expires_before);
+        // The token was not redeemed, so it is still good.
+        service
+            .as_redeem_token(
+                pool.acquire().await?.as_mut(),
+                token,
+                OperationType::AddUsername,
+            )
+            .await?;
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn a_refresh_is_due_from_a_week_before_the_client_threshold(
+        pool: PgPool,
+    ) -> anyhow::Result<()> {
+        let service = setup(&pool).await?;
+        let early = UsernameHash::new([2; 32]);
+
+        // Refreshed 83 days ago, the first day the leeway allows.
+        store_username_expiring_in(&pool, HASH, Duration::days(97)).await?;
+        // Refreshed 82 days ago, by a sibling the requesting device missed.
+        store_username_expiring_in(&pool, early, Duration::days(98)).await?;
+
+        let refresh = service.as_refresh_username(HASH, None).await?;
+        assert!(matches!(refresh, UsernameRefresh::Refreshed { .. }));
+        let refresh = service.as_refresh_username(early, None).await?;
+        assert!(matches!(refresh, UsernameRefresh::Skipped { .. }));
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn concurrent_refreshes_extend_the_username_once(pool: PgPool) -> anyhow::Result<()> {
+        let service = setup(&pool).await?;
+        store_username_expiring_in(&pool, HASH, Duration::days(30)).await?;
+
+        let (first, second) = tokio::join!(
+            service.as_refresh_username(HASH, None),
+            service.as_refresh_username(HASH, None),
+        );
+        let mut refreshes = [first?, second?];
+        refreshes.sort_by_key(|refresh| matches!(refresh, UsernameRefresh::Skipped { .. }));
+
+        let expires_at = expires_at(&pool, &HASH).await?;
+        assert_eq!(
+            refreshes,
+            [
+                UsernameRefresh::Refreshed { expires_at },
+                UsernameRefresh::Skipped { expires_at },
+            ]
+        );
         Ok(())
     }
 
