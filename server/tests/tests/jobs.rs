@@ -48,8 +48,9 @@
 use std::time::Duration;
 
 use aircommon::identifiers::UserId;
-use aircoreclient::{ChatId, ChatStatus, ResyncStatus};
+use aircoreclient::{ChatId, ChatStatus, ResyncStatus, clients::MarkChatAsRead};
 use airserver_test_harness::utils::setup::TestBackend;
+use mimi_content::MimiContent;
 use tokio::time::sleep;
 
 async fn setup_group_with_contacts() -> (TestBackend, UserId, UserId, UserId, ChatId) {
@@ -541,16 +542,20 @@ async fn commit_that_ignores_a_pending_self_remove_is_rejected() {
     assert!(!chat_participants.contains(&alice));
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn repeated_stale_commits_resync_the_group() {
-    let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
-    let alice_user = &setup.get_user(&alice).user;
-    let bob_user = &setup.get_user(&bob).user;
+/// Has Alice leave while Bob acks her self-remove without storing it, so no
+/// queue fetch can bring it back, and lets Bob's commits go stale until a
+/// resync is queued.
+async fn lose_self_remove_until_resync(
+    setup: &TestBackend,
+    alice: &UserId,
+    bob: &UserId,
+    chat_id: ChatId,
+) {
+    let alice_user = &setup.get_user(alice).user;
+    let bob_user = &setup.get_user(bob).user;
 
     alice_user.leave_chat(chat_id).await.unwrap();
 
-    // Bob acks the self-remove proposal without storing it, so no queue fetch
-    // can bring it back.
     let dropped = bob_user.qs_drop_messages().await.unwrap();
     assert!(dropped > 0, "Bob should have received the self-remove");
 
@@ -569,6 +574,14 @@ async fn repeated_stale_commits_resync_the_group() {
         bob_user.resync_status(chat_id).await.unwrap(),
         Some(ResyncStatus::Pending)
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn repeated_stale_commits_resync_the_group() {
+    let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
+    let bob_user = &setup.get_user(&bob).user;
+
+    lose_self_remove_until_resync(&setup, &alice, &bob, chat_id).await;
 
     bob_user.outbound_service().run_once().await;
     assert_eq!(bob_user.resync_status(chat_id).await.unwrap(), None);
@@ -581,6 +594,33 @@ async fn repeated_stale_commits_resync_the_group() {
         .update_key(chat_id)
         .await
         .expect("commit after the resync should be accepted");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn queued_message_waits_for_the_resync() {
+    let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
+    let bob_user = &setup.get_user(&bob).user;
+
+    lose_self_remove_until_resync(&setup, &alice, &bob, chat_id).await;
+
+    let content = MimiContent::simple_markdown_message("after the resync".to_owned(), [7; 16]);
+    let message = bob_user
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+
+    bob_user
+        .outbound_service()
+        .send_queued_messages_once()
+        .await
+        .unwrap();
+    let stored = bob_user.message(message.id()).await.unwrap().unwrap();
+    assert!(!stored.is_sent(), "message should wait for the resync");
+
+    bob_user.outbound_service().run_once().await;
+    assert_eq!(bob_user.resync_status(chat_id).await.unwrap(), None);
+    let stored = bob_user.message(message.id()).await.unwrap().unwrap();
+    assert!(stored.is_sent(), "message should be sent after the resync");
 }
 
 /// Connects Alice and Bob and has Alice delete their chat while the DS loses

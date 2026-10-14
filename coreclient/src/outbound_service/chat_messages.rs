@@ -284,35 +284,37 @@ impl OutboundServiceContext {
     ) -> Result<SendOutcome, OutboundServiceError> {
         debug!(?message_id, "sending message");
 
-        // load chat and message
-        let Some((chat, mut message, has_pending_proposals)) = self
+        // load chat and message, or the outcome if there is nothing to send now
+        let loaded = self
             .db
             .with_read_transaction(async |txn| -> anyhow::Result<_> {
                 // A message deleted locally in the meantime has nothing left to
                 // send.
                 let Some(message) = ChatMessage::load(&mut *txn, message_id).await? else {
-                    return Ok(None);
+                    return Ok(Err(SendOutcome::Sent));
                 };
 
                 // A sibling client may have sent the message already.
                 if message.is_sent() {
-                    return Ok(None);
+                    return Ok(Err(SendOutcome::Sent));
                 }
 
                 let chat_id = message.chat_id();
                 let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
-                    return Ok(None);
+                    return Ok(Err(SendOutcome::Sent));
                 };
 
                 // Don't send messages for blocked chats
                 if let ChatStatus::Blocked = chat.status() {
-                    return Ok(None);
+                    return Ok(Err(SendOutcome::Sent));
                 }
 
-                // Don't send messages for chats with pending or failed resync
+                // A chat with a pending or failed resync can't take messages
+                // until the resync succeeds. Like a collision, the message
+                // stays queued for a later run.
                 if let Some(status) = Resync::status_for_chat(&mut *txn, &chat_id).await? {
-                    debug!(?chat_id, ?status, "Skipping sending message due to resync");
-                    return Ok(None);
+                    debug!(?chat_id, ?status, "Deferring message due to resync");
+                    return Ok(Err(SendOutcome::Collided));
                 }
 
                 // The group is loaded as-is: a parked pending commit is a
@@ -321,12 +323,13 @@ impl OutboundServiceContext {
                     .await?
                     .is_some_and(|group| group.has_pending_proposals());
 
-                Ok(Some((chat, message, has_pending_proposals)))
+                Ok(Ok((chat, message, has_pending_proposals)))
             })
             .await
-            .map_err(OutboundServiceError::fatal)?
-        else {
-            return Ok(SendOutcome::Sent);
+            .map_err(OutboundServiceError::fatal)?;
+        let (chat, mut message, has_pending_proposals) = match loaded {
+            Ok(loaded) => loaded,
+            Err(outcome) => return Ok(outcome),
         };
 
         if has_pending_proposals {
