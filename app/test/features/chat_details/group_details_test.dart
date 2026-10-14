@@ -59,14 +59,16 @@ void main() {
       List<UiUserId> members = const [],
       List<UiUserProfile> profiles = const [],
       bool developerMode = false,
+      UiChatDetails? chat,
     }) {
       when(() => userSettingsCubit.state)
           .thenReturn(UserSettings(developerMode: developerMode));
       when(() => usersCubit.state).thenReturn(
         MockUsersState(profiles: profiles.isEmpty ? userProfiles : profiles),
       );
-      when(() => chatDetailsCubit.state)
-          .thenReturn(ChatDetailsState(chat: chats[2], members: members));
+      when(
+        () => chatDetailsCubit.state,
+      ).thenReturn(ChatDetailsState(chat: chat ?? chats[2], members: members));
 
       return MultiBlocProvider(
         providers: [
@@ -198,6 +200,40 @@ void main() {
       await tester.pumpWidget(buildSubject(developerMode: true));
 
       expect(find.text('Debug info'), findsOneWidget);
+    });
+
+    testWidgets('offers muting, adding people and leaving an active chat', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildSubject());
+
+      expect(find.byType(MuteButton), findsOneWidget);
+      expect(find.text('Add people'), findsOneWidget);
+      expect(find.text('Leave'), findsOneWidget);
+      expect(find.text('Delete'), findsOneWidget);
+    });
+
+    testWidgets('offers only deleting once the chat is inactive', (
+      tester,
+    ) async {
+      final group = chats[2];
+      final inactive = UiChatDetails(
+        id: group.id,
+        status: const UiChatStatus.inactive(UiInactiveChat(pastMembers: [])),
+        chatType: group.chatType,
+        lastUsed: group.lastUsed,
+        unreadMessages: group.unreadMessages,
+        isApq: group.isApq,
+        isSelfChat: group.isSelfChat,
+        pendingCommitFailed: group.pendingCommitFailed,
+        resyncFailed: group.resyncFailed,
+      );
+      await tester.pumpWidget(buildSubject(chat: inactive));
+
+      expect(find.byType(MuteButton), findsNothing);
+      expect(find.text('Add people'), findsNothing);
+      expect(find.text('Leave'), findsNothing);
+      expect(find.text('Delete'), findsOneWidget);
     });
 
     group('delete', () {
