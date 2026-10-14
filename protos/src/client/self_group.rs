@@ -32,6 +32,7 @@ use aircommon::{
 use airmacros::{
     DeserializeTaggedMap, DeserializeTaggedUnion, SerializeTaggedMap, SerializeTaggedUnion,
 };
+use chrono::{DateTime, Utc};
 use mimi_content::{Disposition, MimiContent, NestedPart, content_container::ExtensionName};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use openmls::group::GroupId;
@@ -560,8 +561,8 @@ pub struct ConnectionRequestReceived {
     /// Only present for a request via a username.
     #[tag(5)]
     pub connection_package_hash: Option<ConnectionPackageHash>,
-    #[tag(6)]
-    pub received_at: u64,
+    #[tag(6, with = "chrono::serde::ts_milliseconds")]
+    pub received_at: DateTime<Utc>,
 }
 
 /// How a connection request reached the user.
@@ -620,8 +621,8 @@ pub struct ConnectionRequestGroup {
 pub struct ConnectionRequestDeclined {
     #[tag(1)]
     pub chat_id: Uuid,
-    #[tag(2)]
-    pub declined_at: u64,
+    #[tag(2, with = "chrono::serde::ts_milliseconds")]
+    pub declined_at: DateTime<Utc>,
 }
 
 /// An incoming connection request turned out to be gone when the user tried
@@ -1145,7 +1146,7 @@ mod test {
                     source: ConnectionRequestSource::Username("alice".to_owned()),
                     connection_offer_hash: Some(ConnectionOfferHash::from_bytes([0x13; 32])),
                     connection_package_hash: Some(ConnectionPackageHash::from_bytes([0x14; 32])),
-                    received_at: 1_767_225_600_123,
+                    received_at: DateTime::from_timestamp_millis(1_767_225_600_123).unwrap(),
                 }),
                 ConnectionRequestEntry::Received(ConnectionRequestReceived {
                     connection_info: vec![0x15; 8],
@@ -1153,14 +1154,14 @@ mod test {
                     source: ConnectionRequestSource::Group(sample_connection_request_group()),
                     connection_offer_hash: None,
                     connection_package_hash: None,
-                    received_at: 1_767_225_600_456,
+                    received_at: DateTime::from_timestamp_millis(1_767_225_600_456).unwrap(),
                 }),
                 ConnectionRequestEntry::Unavailable(ConnectionRequestUnavailable {
                     chat_id: Uuid::from_u128(0x19),
                 }),
                 ConnectionRequestEntry::Declined(ConnectionRequestDeclined {
                     chat_id: Uuid::from_u128(0x1a),
-                    declined_at: 1_767_225_600_789,
+                    declined_at: DateTime::from_timestamp_millis(1_767_225_600_789).unwrap(),
                 }),
             ],
         }
@@ -1254,7 +1255,7 @@ mod test {
             source: ConnectionRequestSource::Group(sample_connection_request_group()),
             connection_offer_hash: None,
             connection_package_hash: None,
-            received_at: 1_767_225_600_123,
+            received_at: DateTime::from_timestamp_millis(1_767_225_600_123).unwrap(),
         };
         let newer = vec![
             ConnectionRequestEntryV2::Later(ConnectionRequestLater {

@@ -120,8 +120,12 @@ async fn apply_self_group_payload(
     if own_echo {
         chats::persistence::remove_staged_deletion(txn, &payload.deleted_chats).await?;
     } else {
-        chats::persistence::apply_deleted_chats(txn, &payload.deleted_chats, &effects.kept_chats)
-            .await?;
+        chats::persistence::apply_deleted_chats(
+            txn,
+            &payload.deleted_chats,
+            &effects.accepted_locally,
+        )
+        .await?;
     }
 
     Ok(effects)
@@ -1337,7 +1341,9 @@ mod tests {
     /// We declined a request that a sibling accepted meanwhile. Another
     /// sibling's decline of it arrives after the accept.
     #[sqlx::test]
-    async fn a_kept_connection_drops_our_parked_deletion(pool: SqlitePool) -> anyhow::Result<()> {
+    async fn an_accepted_connection_drops_our_parked_deletion(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
         let group_id: GroupId =
             QualifiedGroupId::new(Uuid::from_u128(7), "localhost".parse()?).into();
@@ -1347,7 +1353,7 @@ mod tests {
             chat.store(&mut *txn).await?;
             let declined = ConnectionRequestEntry::Declined(ConnectionRequestDeclined {
                 chat_id: chat.id().uuid(),
-                declined_at: 1_767_225_600_000,
+                declined_at: DateTime::from_timestamp_millis(1_767_225_600_000).unwrap(),
             });
             self_group_outbox::stage(
                 &mut *txn,
@@ -1374,7 +1380,7 @@ mod tests {
                 chats::persistence::staged_deletions(&mut *txn)
                     .await?
                     .is_empty(),
-                "a parked deletion of the kept chat would erase it on the siblings"
+                "a parked deletion of the accepted chat would erase it on the siblings"
             );
             Ok(())
         })

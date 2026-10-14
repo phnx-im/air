@@ -249,8 +249,9 @@ pub(crate) struct ConnectionRequestEffects {
     /// Chats whose notifications are stale, because a newer request moved
     /// them or their request was declined or turned out to be unavailable.
     pub(crate) stale_chats: Vec<ChatId>,
-    /// Groups of requests a sibling declined after this device accepted them.
-    pub(crate) kept_chats: Vec<GroupId>,
+    /// Groups of requests a sibling declined that are already accepted on this
+    /// device.
+    pub(crate) accepted_locally: Vec<GroupId>,
 }
 
 /// Parks a stored request via a username for the next self-group commit, so
@@ -270,31 +271,10 @@ pub(crate) async fn park_received(
     Ok(())
 }
 
-/// Time in milliseconds since the Unix epoch.
-fn to_epoch_millis(time: DateTime<Utc>) -> u64 {
-    time.timestamp_millis().max(0) as u64
-}
-
-/// DateTime in milliseconds since the Unix epoch, if it is in range.
-fn from_epoch_millis(millis: u64) -> Option<DateTime<Utc>> {
-    i64::try_from(millis)
-        .ok()
-        .and_then(DateTime::from_timestamp_millis)
-}
-
 fn declined_entry(request_id: ChatId, declined_at: DateTime<Utc>) -> ConnectionRequestEntry {
     ConnectionRequestEntry::Declined(ConnectionRequestDeclined {
         chat_id: request_id.uuid(),
-        declined_at: to_epoch_millis(declined_at),
-    })
-}
-
-/// The time of a sibling's decline. An out-of-range time counts as now.
-fn decline_time(declined: &ConnectionRequestDeclined) -> DateTime<Utc> {
-    let declined_at = declined.declined_at;
-    from_epoch_millis(declined_at).unwrap_or_else(|| {
-        warn!(%declined_at, "Recording a decline with an out-of-range time as now");
-        Utc::now()
+        declined_at,
     })
 }
 
@@ -408,7 +388,7 @@ pub(crate) async fn apply_connection_requests_update(
                 }
             },
             ConnectionRequestEntry::Declined(declined) => {
-                apply_declined(txn, request_id, decline_time(declined), &mut effects).await?;
+                apply_declined(txn, request_id, declined.declined_at, &mut effects).await?;
             }
             ConnectionRequestEntry::Unavailable(_) => {
                 if let Some(removed) = remove_unavailable(txn, request_id).await? {
@@ -429,17 +409,22 @@ async fn drop_replaced_parked(
     request_id: ChatId,
 ) -> anyhow::Result<()> {
     let key = request_id.uuid();
-    if matches!(entry, ConnectionRequestEntry::Received(_)) {
-        let Some(parked) =
-            self_group_outbox::load(&mut *txn, OutboxKind::ConnectionRequest, key.as_bytes())
-                .await?
-        else {
-            return Ok(());
-        };
-        let parked: ConnectionRequestEntry = PersistenceCodec::from_slice(&parked.payload)?;
-        if !matches!(parked, ConnectionRequestEntry::Received(_)) {
-            return Ok(());
+    match entry {
+        ConnectionRequestEntry::Received(_) => {
+            let Some(parked) =
+                self_group_outbox::load(&mut *txn, OutboxKind::ConnectionRequest, key.as_bytes())
+                    .await?
+            else {
+                return Ok(());
+            };
+            let parked: ConnectionRequestEntry = PersistenceCodec::from_slice(&parked.payload)?;
+            let ConnectionRequestEntry::Received(_) = parked else {
+                return Ok(());
+            };
         }
+        ConnectionRequestEntry::Declined(_)
+        | ConnectionRequestEntry::Unavailable(_)
+        | ConnectionRequestEntry::Unknown => {}
     }
     self_group_outbox::remove(&mut *txn, OutboxKind::ConnectionRequest, key.as_bytes()).await?;
     Ok(())
@@ -457,7 +442,7 @@ pub(crate) async fn store_provisioned_requests(
             }
             ConnectionRequestEntry::Declined(declined) => {
                 let request_id = ChatId::new(declined.chat_id);
-                remember_declined(&mut *txn, request_id, decline_time(declined)).await?;
+                remember_declined(&mut *txn, request_id, declined.declined_at).await?;
             }
             ConnectionRequestEntry::Unavailable(_) | ConnectionRequestEntry::Unknown => {
                 debug!("Skipping a provisioned connection request this client cannot read");
@@ -534,7 +519,7 @@ fn received_entry(
         source,
         connection_offer_hash: request.connection_offer_hash,
         connection_package_hash: request.connection_package_hash,
-        received_at: to_epoch_millis(*request.received_at),
+        received_at: *request.received_at,
     }))
 }
 
@@ -605,15 +590,11 @@ fn parse_received(
             return None;
         }
     };
-    let Some(received_at) = from_epoch_millis(received.received_at) else {
-        warn!("Skipping a request with an invalid timestamp");
-        return None;
-    };
     let request = IncomingRequest {
         connection_info,
         sender: credential.user_id().clone(),
         source,
-        received_at: received_at.into(),
+        received_at: received.received_at.into(),
     };
     Some((request, credential))
 }
@@ -692,7 +673,7 @@ async fn apply_declined(
         if let Some(chat) = Chat::load(&mut *txn, &request_id).await?
             && !matches!(chat.chat_type(), ChatType::PendingConnection(_))
         {
-            effects.kept_chats.push(chat.group_id().clone());
+            effects.accepted_locally.push(chat.group_id().clone());
         }
         return Ok(());
     };
@@ -1941,7 +1922,7 @@ mod tests {
                     .await?;
 
             assert_eq!(effects.stale_chats, vec![stored.chat_id]);
-            assert!(effects.kept_chats.is_empty());
+            assert!(effects.accepted_locally.is_empty());
             assert!(Chat::load(&mut *txn, &stored.chat_id).await?.is_none());
             assert!(request_ids(txn, stored.chat_id).await?.is_empty());
 
@@ -1992,7 +1973,7 @@ mod tests {
                 apply_connection_requests_update(txn, &[declined_entry(stored.chat_id, *at(120))])
                     .await?;
 
-            assert_eq!(effects.kept_chats, vec![chat.group_id().clone()]);
+            assert_eq!(effects.accepted_locally, vec![chat.group_id().clone()]);
             assert!(effects.stale_chats.is_empty());
             assert!(Chat::load(&mut *txn, &stored.chat_id).await?.is_some());
             Ok(())

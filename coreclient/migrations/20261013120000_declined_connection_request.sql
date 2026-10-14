@@ -4,8 +4,8 @@
 --
 -- Incoming connection requests the user declined, by request id. Copies of a
 -- declined request that arrives later are dropped.
-CREATE TABLE declined_connection_request(
+CREATE TABLE declined_connection_request (
     request_id BLOB NOT NULL PRIMARY KEY,
-    declined_at text NOT NULL
+    declined_at TEXT NOT NULL
 );
 

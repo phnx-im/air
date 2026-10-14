@@ -126,18 +126,19 @@ pub(crate) async fn remove_staged_deletion(
     Ok(())
 }
 
-/// Erases the chats a sibling deleted, except the ones of the `kept` groups.
+/// Erases the chats a sibling deleted, except the connections accepted on this
+/// device.
 pub(crate) async fn apply_deleted_chats(
     txn: &mut WriteDbTransaction<'_>,
     deleted: &[DeletedChat],
-    kept: &[GroupId],
+    accepted_locally: &[GroupId],
 ) -> anyhow::Result<()> {
     for DeletedChat { group_id } in deleted {
         let Some(group_id) = group_id else {
             warn!("Skipping a deleted chat without a group id");
             continue;
         };
-        if kept.contains(group_id) {
+        if accepted_locally.contains(group_id) {
             continue;
         }
         if let Some(chat) = Chat::load_by_group_id(&mut *txn, group_id).await? {

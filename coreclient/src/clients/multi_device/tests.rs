@@ -20,6 +20,7 @@ use airprotos::client::self_group::{
     BlockedContactEntry, ConnectionRequestDeclined, ConnectionRequestEntry, ConnectionRequestGroup,
     ConnectionRequestReceived, ConnectionRequestSource, ContactBlocked, RedeemedTokens, TokenSeed,
 };
+use chrono::DateTime;
 use openmls::group::GroupId;
 use uuid::Uuid;
 
@@ -109,7 +110,7 @@ fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
     let connection_requests = vec![
         ConnectionRequestEntry::Declined(ConnectionRequestDeclined {
             chat_id: Uuid::from_u128(0x15),
-            declined_at: 1_767_225_600_789,
+            declined_at: DateTime::from_timestamp_millis(1_767_225_600_789).unwrap(),
         }),
         ConnectionRequestEntry::Received(ConnectionRequestReceived {
             connection_info: vec![0x11; 8],
@@ -119,7 +120,7 @@ fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
             }),
             connection_offer_hash: None,
             connection_package_hash: None,
-            received_at: 1_767_225_600_123,
+            received_at: DateTime::from_timestamp_millis(1_767_225_600_123).unwrap(),
         }),
     ];
     package.connection_requests = connection_requests.clone();
