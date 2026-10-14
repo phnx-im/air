@@ -7,8 +7,9 @@ import 'dart:typed_data';
 
 import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
+import 'package:air/l10n/language_options.dart';
 import 'package:crypto/crypto.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -32,19 +33,28 @@ const _contentYamlPath = String.fromEnvironment(
 );
 
 /// Override with `--dart-define=IMAGES_DIR=path/to/dir`. May be absolute.
-const _imagesDir = String.fromEnvironment(
-  'IMAGES_DIR',
-  defaultValue: 'test/assets/images',
-);
+/// Takes precedence over `content.yaml`'s `images`.
+const _imagesDirOverride = String.fromEnvironment('IMAGES_DIR');
 
 final _content = _Content.load();
+
+/// The locale the app is rendered in, from `content.yaml`'s `locale`.
+final contentLocale = _content.locale;
+
+typedef ShotCopy = ({String title, String subtitle});
+
+/// The marketing headline and subtitle of [shot] (a golden prefix such as
+/// `chat_list`), from `content.yaml`'s `shots`.
+ShotCopy shotCopy(String shot) => _content.shotCopy(shot);
 
 final userProfiles = _content.userProfiles;
 final chats = _content.chats;
 
 final _privateChatKey = _content.shotChatKey('private_chat');
 final privateChat = _content.chat(_privateChatKey);
-final privateChatMembers = [_content.userId(_privateChatKey)];
+final privateChatMembers = [
+  (privateChat.chatType as UiChatType_Connection).field0.userId,
+];
 final privateChatMessages = _content.transcript(_privateChatKey);
 final privateChatAttachmentImages = _content.attachmentImages(_privateChatKey);
 
@@ -70,11 +80,15 @@ class ImageDataWithSize {
 /// `content.yaml` and turns them into the FRB types the product shot tests
 /// pump into the app's widgets.
 class _Content {
-  _Content._(this._yaml);
+  _Content._(this._yaml, {required String yamlDir})
+    : _imagesDir = _resolveImagesDir(_yaml, yamlDir);
 
   factory _Content.load() {
-    final text = getProjectFile(_contentYamlPath).readAsStringSync();
-    final content = _Content._(loadYaml(text) as YamlMap);
+    final file = getProjectFile(_contentYamlPath);
+    final content = _Content._(
+      loadYaml(file.readAsStringSync()) as YamlMap,
+      yamlDir: file.parent.path,
+    );
     // Order matters: chats and transcripts reference user profiles by key.
     content.userProfiles = content._loadUserProfiles();
     content.chats = content._loadChats();
@@ -83,6 +97,15 @@ class _Content {
   }
 
   final YamlMap _yaml;
+  final String _imagesDir;
+
+  /// `images` is relative to the yaml file. Without it, the images are air's.
+  static String _resolveImagesDir(YamlMap yaml, String yamlDir) {
+    if (_imagesDirOverride.isNotEmpty) return _imagesDirOverride;
+    final images = yaml['images'] as String?;
+    if (images == null) return 'test/assets/images';
+    return p.normalize(p.join(yamlDir, images));
+  }
 
   final Map<String, UiUserId> _userIds = {};
   final Map<String, UiUserProfile> _profiles = {};
@@ -125,8 +148,21 @@ class _Content {
 
   UiChatDetails chat(String key) => _chatsByKey[key]!;
 
-  String shotChatKey(String shot) =>
-      (_yaml['shots'] as YamlMap)[shot] as String;
+  Locale get locale =>
+      localeFromTag(_yaml['locale'] as String?) ?? const Locale('en', 'US');
+
+  String shotChatKey(String shot) => _shotField(shot, 'chat');
+
+  ShotCopy shotCopy(String shot) => (
+    title: _shotField(shot, 'title'),
+    subtitle: _shotField(shot, 'subtitle'),
+  );
+
+  String _shotField(String shot, String field) {
+    final map = (_yaml['shots'] as YamlMap)[shot] as YamlMap?;
+    return map?[field] as String? ??
+        (throw FormatException('Missing shots.$shot.$field in content.yaml'));
+  }
 
   List<UiUserProfile> _loadUserProfiles() {
     final own = _yaml['own'] as YamlMap;

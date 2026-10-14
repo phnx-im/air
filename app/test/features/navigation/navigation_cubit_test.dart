@@ -269,6 +269,40 @@ void main() {
       expect(_home(cubit).youSection, isNull);
       expect(_home(cubit).chatDetails, [const ChatDetailsPage.details()]);
     });
+
+    test('a section opened over a chat goes back to the chat', () async {
+      final cubit = subject();
+      cubit.openHome();
+      await cubit.openChat(_chatId);
+      cubit.openYouSectionOverChat(YouSection.devices);
+
+      expect(cubit.pop(), isTrue);
+
+      expect(
+        _home(cubit),
+        HomeNavigationState(chatOpen: true, chatId: _chatId),
+      );
+    });
+
+    test('moving on from a section opened over a chat goes back to the '
+        'profile', () async {
+      final cubit = subject();
+      cubit.openHome();
+      await cubit.openChat(_chatId);
+      cubit.openYouSectionOverChat(YouSection.devices);
+      cubit.openYouSection(YouSection.help);
+
+      expect(cubit.pop(), isTrue);
+
+      expect(
+        _home(cubit),
+        HomeNavigationState(
+          chatOpen: true,
+          chatId: _chatId,
+          activeTab: HomeTab.profile,
+        ),
+      );
+    });
   });
 
   group('NavigationCubit share handoff', () {
@@ -499,6 +533,17 @@ void main() {
           cubit.switchTab(HomeTab.chats);
         }),
         const NotificationPolicy.suppressAll(),
+      );
+    });
+
+    test('allows everything while a section covers the open chat', () {
+      expect(
+        policyAfter((cubit) {
+          cubit.openHome();
+          cubit.openChat(_chatId);
+          cubit.openYouSectionOverChat(YouSection.devices);
+        }),
+        const NotificationPolicy.allowAll(),
       );
     });
 

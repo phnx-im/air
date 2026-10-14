@@ -7,8 +7,8 @@ use openmls::{
     group::{GroupContext, GroupEpoch, GroupId},
     prelude::{
         AppDataDictionary, AppDataDictionaryExtension, AppDataUpdateProposal, Capabilities,
-        Ciphersuite, Extension, ExtensionType, Extensions, LeafNode, LeafNodeParameters,
-        ProposalType,
+        CapabilitiesPolicy, Ciphersuite, Extension, ExtensionType, Extensions, LeafNode,
+        LeafNodeParameters, ProposalType,
     },
 };
 use tap::Pipe;
@@ -245,6 +245,16 @@ impl ApqInfoUpdates {
     }
 }
 
+/// The policy under which OpenMLS treats leaf capabilities that APQMLS changed.
+pub(super) fn capabilities_policy(
+    caller_capabilities: Option<&Capabilities>,
+) -> CapabilitiesPolicy {
+    match caller_capabilities {
+        Some(_) => CapabilitiesPolicy::Reject,
+        None => CapabilitiesPolicy::Widen,
+    }
+}
+
 pub(super) fn ensure_extension_support(
     capabilities: Capabilities,
 ) -> Result<Capabilities, tls_codec::Error> {
@@ -311,7 +321,8 @@ pub(super) fn ensure_leaf_node_component_support(
 /// Augments the capabilities and extensions of the given leaf node parameters with the support
 /// required in an APQMLS group.
 ///
-/// Unset capabilities and extensions are taken from `own_leaf`, if any.
+/// Unset capabilities and extensions are taken from `own_leaf`, if any. Capabilities that are
+/// unset and have no `own_leaf` to come from are widened to cover the new leaf.
 pub(super) fn ensure_leaf_node_parameters(
     params: &LeafNodeParameters,
     own_leaf: Option<&LeafNode>,
@@ -319,13 +330,11 @@ pub(super) fn ensure_leaf_node_parameters(
 ) -> Result<LeafNodeParameters, tls_codec::Error> {
     let capabilities = params
         .capabilities()
+        .or_else(|| own_leaf.map(LeafNode::capabilities));
+    let policy = capabilities_policy(capabilities);
+    let capabilities = capabilities
         .cloned()
-        .unwrap_or_else(|| {
-            own_leaf
-                .map(LeafNode::capabilities)
-                .cloned()
-                .unwrap_or_default()
-        })
+        .unwrap_or_default()
         .pipe(ensure_extension_support)?
         .pipe(|c| ensure_ciphersuite_support(c, apq_ciphersuite))?;
     let ln_extensions = params
@@ -340,6 +349,7 @@ pub(super) fn ensure_leaf_node_parameters(
         .pipe(ensure_leaf_node_component_support)?;
     let mut builder = LeafNodeParameters::builder()
         .with_capabilities(capabilities)
+        .with_capabilities_policy(policy)
         .with_extensions(ln_extensions);
     if let Some(credential_with_key) = params.credential_with_key() {
         builder = builder.with_credential_with_key(credential_with_key.clone());

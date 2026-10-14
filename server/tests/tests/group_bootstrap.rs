@@ -36,6 +36,11 @@ pub(crate) async fn link_sibling(
     let device_a = setup.get_user(user_id).user().clone();
     drain_queue(&device_a).await;
     drain_queue(&device_b).await;
+    // Linking makes device a upload key packages, which completes only once it
+    // fetches its own commit.
+    device_a.outbound_service().run_once().await;
+    drain_queue(&device_a).await;
+    drain_queue(&device_b).await;
     (device_a, device_b, tmp)
 }
 

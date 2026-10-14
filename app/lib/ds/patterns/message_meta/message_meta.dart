@@ -98,14 +98,17 @@ class MessageMeta extends StatelessWidget {
         child: FittedBox(
           fit: .scaleDown,
           alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
-          child: Row(
-            mainAxisSize: .min,
-            children: [
-              for (final (index, part) in parts.indexed) ...[
-                if (index > 0) const _Dot(),
-                part,
+          child: SizedBox(
+            height: MessageMetaTokens.lineHeightOf(context),
+            child: Row(
+              mainAxisSize: .min,
+              children: [
+                for (final (index, part) in parts.indexed) ...[
+                  if (index > 0) const _Dot(),
+                  part,
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

@@ -9,6 +9,7 @@ use airapiclient::{
     ds_api::{DsAttachmentTarget, DsRequestError},
 };
 use aircommon::{
+    DEFAULT_MAX_ATTACHMENT_SIZE,
     crypto::{
         aead::{AeadCiphertext, AeadDecryptable, keys::AttachmentEarKey},
         errors::DecryptionError,
@@ -292,7 +293,9 @@ impl CoreUser {
         };
 
         let bytes_total = size.try_into()?;
-        let mut bytes = Vec::with_capacity(bytes_total);
+        // `size` is declared by the sender, so don't trust it for preallocation.
+        let capacity = size.min(DEFAULT_MAX_ATTACHMENT_SIZE).try_into()?;
+        let mut bytes = Vec::with_capacity(capacity);
         while let Some(chunk) = bytes_stream.next().await.transpose()? {
             bytes.extend_from_slice(&chunk);
             progress_tx.report(bytes_total, bytes.len());

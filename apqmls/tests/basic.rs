@@ -8,9 +8,9 @@ use apqmls::{
 use openmls::{
     group::{GroupId, MlsGroup, MlsGroupJoinConfig},
     prelude::{
-        Capabilities, Credential, Extension, ExtensionType, Extensions, GroupContext,
-        LeafNodeIndex, LeafNodeParameters, MlsMessageIn, OpenMlsProvider, ProcessedMessageContent,
-        RequiredCapabilitiesExtension, UnknownExtension,
+        Capabilities, Credential, CredentialType, Extension, ExtensionType, Extensions,
+        GroupContext, LeafNodeIndex, LeafNodeParameters, MlsMessageIn, OpenMlsProvider,
+        ProcessedMessageContent, RequiredCapabilitiesExtension, UnknownExtension,
     },
 };
 use openmls_rust_crypto::OpenMlsRustCrypto;
@@ -129,15 +129,15 @@ const TEST_MODE: [PqtMode; 2] = [PqtMode::ConfAndAuth, PqtMode::ConfOnly];
 
 const MARKER_EXTENSION_TYPE: u16 = 0xff00;
 
-// The commit builder adds the APQMLS-specific support, the marker extension must be advertised
-// here.
+// The commit builder adds the APQMLS-specific support, the marker extension and the credential
+// type must be advertised here.
 fn marker_capabilities() -> Capabilities {
     Capabilities::new(
         None,
         None,
         Some(&[ExtensionType::Unknown(MARKER_EXTENSION_TYPE)]),
         None,
-        None,
+        Some(&[CredentialType::Basic]),
     )
 }
 
@@ -374,7 +374,7 @@ fn commit_with_t_group_context_extensions() {
             None,
             Some(&[ExtensionType::Unknown(APP_EXTENSION_TYPE)]),
             None,
-            None,
+            Some(&[CredentialType::Basic]),
         )
     }
 

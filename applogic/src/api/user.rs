@@ -218,6 +218,11 @@ impl User {
     pub async fn danger_reset_self_group(&self) -> Result<()> {
         self.user.danger_reset_self_group().await
     }
+
+    /// Re-fetch the profiles of all groups and contacts in the background.
+    pub async fn refresh_all_profiles(&self) {
+        self.user.spawn_refresh_all_profiles();
+    }
 }
 
 #[frb(mirror(UserDebugInfo))]

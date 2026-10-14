@@ -29,7 +29,9 @@ use crate::{
     qs::{PushNotificationError, queue::Queues},
 };
 
-use super::{PushNotificationProvider, errors::EnqueueError};
+use super::{
+    PushNotificationProvider, client_pseudonym::ClientPseudonymizer, errors::EnqueueError,
+};
 
 /// An enum defining the different kind of messages that are stored in an QS
 /// queue.
@@ -559,10 +561,16 @@ impl QsClientRecord {
     ///
     /// Returns a QS client record if a push notification should be sent to the client, otherwise
     /// `None`.
+    #[tracing::instrument(
+        level = "info",
+        skip_all,
+        fields(qs_client = %pseudonymizer.pseudonym(&client_id))
+    )]
     pub(crate) async fn enqueue(
         txn: &mut PgTransaction<'_>,
         client_id: QsClientId,
         queues: &Queues,
+        pseudonymizer: &ClientPseudonymizer,
         msg: &DsFanOutPayload,
     ) -> Result<Option<QsClientRecord>, EnqueueError> {
         match msg {
@@ -600,9 +608,15 @@ impl QsClientRecord {
     /// If the token is invalid, the push notification token stored for the client is deleted.
     ///
     /// The operation is infallible, all errors are handled inside and logged.
+    #[tracing::instrument(
+        level = "info",
+        skip_all,
+        fields(qs_client = %pseudonymizer.pseudonym(&self.client_id))
+    )]
     pub(crate) async fn send_push_notification(
         &self,
         pool: &PgPool,
+        pseudonymizer: &ClientPseudonymizer,
         push_notification_provider: &impl PushNotificationProvider,
         push_token_key: Option<&PushTokenEarKey>,
     ) {
