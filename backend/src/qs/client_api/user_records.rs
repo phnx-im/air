@@ -85,10 +85,13 @@ impl Qs {
         user_record.friendship_token = friendship_token;
         user_record.verifying_key = user_record_auth_key;
 
-        user_record.update(&mut *transaction).await.map_err(|error| {
-            tracing::error!(%error, "Error updating user record");
-            QsUpdateUserError::StorageError
-        })?;
+        user_record
+            .update(&mut *transaction)
+            .await
+            .map_err(|error| {
+                tracing::error!(%error, "Error updating user record");
+                QsUpdateUserError::StorageError
+            })?;
 
         transaction.commit().await.map_err(|error| {
             tracing::error!(%error, "Error committing transaction");
