@@ -43,8 +43,8 @@ use tonic::{Request, Status};
 use tonic::{service::InterceptorLayer, transport::server::Connected};
 use tonic_health::pb::health_server::{Health, HealthServer};
 use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
-use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer};
-use tracing::{Level, enabled, error, info};
+use tower_http::trace::{DefaultOnRequest, DefaultOnResponse, MakeSpan, TraceLayer};
+use tracing::{Level, Span, enabled, error, field, info, info_span};
 
 use crate::{connect_info::ClientIpExtractor, grpc_metrics::GrpcMetricsLayer};
 use tower_http::classify::{GrpcCode, GrpcErrorsAsFailures, SharedClassifier};
@@ -231,11 +231,7 @@ pub async fn run<
                     .with_success(GrpcCode::Unauthenticated)
                     .with_success(GrpcCode::Aborted),
             ))
-            .make_span_with(
-                DefaultMakeSpan::new()
-                    .level(Level::INFO)
-                    .include_headers(enabled!(Level::DEBUG)),
-            )
+            .make_span_with(MakeRequestSpan)
             .on_request(DefaultOnRequest::new().level(Level::INFO))
             .on_response(
                 DefaultOnResponse::new()
@@ -250,6 +246,28 @@ pub async fn run<
         .add_service(QueueServiceServer::new(grpc_qs))
         .add_service(RelayServiceServer::new(grpc_rs))
         .serve_with_incoming_shutdown(listener.into_stream(), shutdown.cancelled_owned())
+}
+
+/// Like `DefaultMakeSpan`, plus a `client_version` field the services record
+/// once they have read the client metadata in `verify_client_version`.
+#[derive(Clone)]
+struct MakeRequestSpan;
+
+impl<B> MakeSpan<B> for MakeRequestSpan {
+    fn make_span(&mut self, request: &tonic::codegen::http::Request<B>) -> Span {
+        let span = info_span!(
+            "request",
+            method = %request.method(),
+            uri = %request.uri(),
+            version = ?request.version(),
+            client_version = field::Empty,
+            headers = field::Empty,
+        );
+        if enabled!(Level::DEBUG) {
+            span.record("headers", field::debug(request.headers()));
+        }
+        span
+    }
 }
 
 fn serve_metrics(metrics_listener: Option<TcpListener>) {
