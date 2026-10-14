@@ -1178,15 +1178,15 @@ impl Group {
             GroupAppData::is_self_group_context(mls_group.extensions()) == is_self_group,
             "self-group flag does not match the recorded self-group"
         );
-        if let Some(tombstone) = GroupAppData::tombstone(mls_group.extensions()) {
-            let closer = closer(group_info_signer.as_ref(), signer.credential().user_id())?;
-            bail!(GroupClosed { closer, tombstone });
-        }
 
         // Phase 3: Verify the user credentials. Self-group leaves carry a self-group credential,
         // which is only accepted inside our own self group.
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &mls_group, is_self_group).await?;
+        if let Some(tombstone) = GroupAppData::tombstone(mls_group.extensions()) {
+            let closer = closer(group_info_signer.as_ref(), signer.credential().user_id())?;
+            bail!(GroupClosed { closer, tombstone });
+        }
         if let Some(join) = connection_group {
             add_joiner_to_room_state(&mut room_state, join.inviter, signer.credential().user_id())?;
         }
@@ -1368,10 +1368,6 @@ impl Group {
                 && GroupAppData::is_self_group_context(pq_group.extensions()) == is_self_group,
             "self-group flag does not match the recorded self-group"
         );
-        if let Some(tombstone) = GroupAppData::tombstone(t_group.extensions()) {
-            let closer = closer(group_info_signer.as_ref(), own_user_id)?;
-            bail!(GroupClosed { closer, tombstone });
-        }
         // The self group must be rejoined with the per-device self-group key, other groups with
         // the user key. A mismatch means the caller resolved the signer for the wrong group.
         ensure!(
@@ -1383,6 +1379,10 @@ impl Group {
         // only accepted inside our own self group.
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &t_group, is_self_group).await?;
+        if let Some(tombstone) = GroupAppData::tombstone(t_group.extensions()) {
+            let closer = closer(group_info_signer.as_ref(), own_user_id)?;
+            bail!(GroupClosed { closer, tombstone });
+        }
         if let Some(join) = connection_group {
             add_joiner_to_room_state(&mut room_state, join.inviter, own_user_id)?;
         }
@@ -3073,8 +3073,7 @@ fn group_info_signer_credential(
         .map(|(_, leaf)| leaf.credential().clone())
 }
 
-/// The user that set a group's tombstone, from the verified credential of the
-/// member that signed its group info. Since the DS doesn't allow any group
+/// The user that set a group's tombstone. Since the DS doesn't allow any group
 /// operations on a group with a tombstone, the creator of the group info must
 /// be the one that set it.
 fn closer(group_info_signer: Option<&Credential>, own_user_id: &UserId) -> Result<UserId> {

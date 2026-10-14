@@ -5,15 +5,23 @@
 use aircommon::utils::removed_clients;
 use airprotos::client::{
     app_data::GroupAppData,
-    component::{GroupTombstone, TombstoneContext},
+    component::{AIR_COMPONENT_ID, AirComponent, GroupTombstone, TombstoneContext},
 };
+use apqmls::extension::APQMLS_COMPONENT_ID;
+use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::{
         ApqProcessedAssistedMessagePlus, ProcessedAssistedMessage,
         apq::{ApqGroupRef, ApqRetainedWelcomeInfo},
     },
     messages::{AssistedMessageIn, SerializedMlsMessage},
-    openmls::prelude::{LeafNodeIndex, ProcessedMessage, ProcessedMessageContent, Sender},
+    openmls::{
+        group::GroupContext,
+        prelude::{
+            AppDataDictionaryExtension, Extension, Extensions, LeafNodeIndex, ProcessedMessage,
+            ProcessedMessageContent, Sender,
+        },
+    },
     provider_traits::MlsAssistProvider,
 };
 use tracing::warn;
@@ -54,8 +62,11 @@ impl DsGroupState {
             return Err(GroupDeletionError::InvalidMessage);
         };
 
-        let removed_clients =
-            self.validate_delete_commit(processed_message, MembershipCheck::MemberProfiles)?;
+        let ValidatedDelete {
+            sender_index,
+            removed_clients,
+        } = self.validate_delete_commit(processed_message, MembershipCheck::MemberProfiles)?;
+        self.remove_from_room_state(sender_index, &removed_clients)?;
 
         // Nobody is left to process the commit of a group's only member, so we
         // delete the group.
@@ -108,7 +119,10 @@ impl DsGroupState {
         // Perform DS-level validation on each leg against its own source of
         // truth for the group's membership.
         let apq_processed_message = &processed_assisted_message.processed_message;
-        let t_removed_clients = t_group_state.validate_delete_commit(
+        let ValidatedDelete {
+            sender_index,
+            removed_clients: t_removed_clients,
+        } = t_group_state.validate_delete_commit(
             &apq_processed_message.t_message,
             MembershipCheck::MemberProfiles,
         )?;
@@ -116,6 +130,8 @@ impl DsGroupState {
             &apq_processed_message.pq_message,
             MembershipCheck::RatchetTree,
         )?;
+        // The room state is kept on the T leg only.
+        t_group_state.remove_from_room_state(sender_index, &t_removed_clients)?;
 
         // The T leg of the group is the source of truth for the DS member
         // profiles, so we only mark the group for deletion if the T leg is the
@@ -147,12 +163,13 @@ impl DsGroupState {
     }
 
     /// Checks that the commit is a member commit that removes every member of
-    /// the group except its sender. Returns the removed leaves.
+    /// the group except its sender, keeps the sender's credential and changes
+    /// nothing in the group context but the tombstone.
     fn validate_delete_commit(
         &self,
         processed_message: &ProcessedMessage,
         membership_check: MembershipCheck,
-    ) -> Result<Vec<LeafNodeIndex>, GroupDeletionError> {
+    ) -> Result<ValidatedDelete, GroupDeletionError> {
         let Sender::Member(sender_index) = processed_message.sender() else {
             // Delete group should be a regular commit
             warn!("Invalid sender");
@@ -172,14 +189,25 @@ impl DsGroupState {
             warn!("Found add or update proposals in delete group commit");
             return Err(GroupDeletionError::InvalidMessage);
         }
-        // A delete commit may set the tombstone, but the self-group flag is
-        // fixed at group creation.
+        // A deleting client shouldn't change its credential.
+        if let Some(leaf_node) = staged_commit.update_path_leaf_node() {
+            let current_credential = self
+                .group()
+                .leaf(*sender_index)
+                .map(|leaf| leaf.credential());
+            if current_credential != Some(leaf_node.credential()) {
+                warn!("Delete group commit changes the sender's credential");
+                return Err(GroupDeletionError::InvalidMessage);
+            }
+        }
+        // The DS keeps the merged state, so a delete commit may set the
+        // tombstone and nothing else in the group context.
         let current_extensions = self.group().group_info().group_context().extensions();
         let staged_extensions = staged_commit.group_context().extensions();
-        if GroupAppData::is_self_group_context(staged_extensions)
-            != GroupAppData::is_self_group_context(current_extensions)
+        if extensions_besides_tombstone(staged_extensions)
+            != extensions_besides_tombstone(current_extensions)
         {
-            warn!("Delete group commit would toggle the self-group flag");
+            warn!("Delete group commit changes the group context beyond the tombstone");
             return Err(GroupDeletionError::InvalidMessage);
         }
         // Legacy delete commits set no tombstone.
@@ -224,15 +252,76 @@ impl DsGroupState {
             return Err(GroupDeletionError::InvalidMessage);
         }
 
-        Ok(removed_clients)
+        Ok(ValidatedDelete {
+            sender_index: *sender_index,
+            removed_clients,
+        })
     }
+
+    /// Removes the users of `removed_clients` from the room state, just like on
+    /// the sender side.
+    fn remove_from_room_state(
+        &mut self,
+        sender_index: LeafNodeIndex,
+        removed_clients: &[LeafNodeIndex],
+    ) -> Result<(), GroupDeletionError> {
+        let sender_identity = self
+            .leaf_credential(sender_index)
+            .ok_or(GroupDeletionError::InvalidMessage)?
+            .room_policy_identity();
+        for &removed_index in removed_clients {
+            let removed_identity = self
+                .leaf_credential(removed_index)
+                .ok_or(GroupDeletionError::InvalidMessage)?
+                .room_policy_identity();
+            if removed_identity == sender_identity {
+                continue;
+            }
+            self.room_state_change_role(&sender_identity, &removed_identity, RoleIndex::Outsider)
+                .ok_or(GroupDeletionError::InvalidMessage)?;
+        }
+        Ok(())
+    }
+}
+
+struct ValidatedDelete {
+    sender_index: LeafNodeIndex,
+    removed_clients: Vec<LeafNodeIndex>,
+}
+
+/// The group context extensions with the tombstone cleared and the APQ info
+/// left out, since every APQ commit updates the latter. Sorted by type, since
+/// an app data update can move the dictionary within the list.
+fn extensions_besides_tombstone(extensions: &Extensions<GroupContext>) -> Vec<Extension> {
+    let mut extensions: Vec<_> = extensions
+        .iter()
+        .map(|extension| {
+            let Extension::AppDataDictionary(dictionary_extension) = extension else {
+                return extension.clone();
+            };
+            let mut dictionary = dictionary_extension.dictionary().clone();
+            dictionary.remove(&APQMLS_COMPONENT_ID);
+            let component = dictionary
+                .get(&AIR_COMPONENT_ID)
+                .and_then(|bytes| AirComponent::from_bytes(bytes).ok());
+            if let Some(mut component) = component {
+                component.tombstone = None;
+                if let Ok(bytes) = component.to_bytes() {
+                    dictionary.insert(AIR_COMPONENT_ID, bytes);
+                }
+            }
+            Extension::AppDataDictionary(AppDataDictionaryExtension::new(dictionary))
+        })
+        .collect();
+    extensions.sort_by_key(Extension::extension_type);
+    extensions
 }
 
 #[cfg(test)]
 mod test {
     use aircommon::{
         credentials::{
-            UserCredentialCsr, UserCredentialPayload, VerifiableUserCredential,
+            LeafCredential, UserCredentialCsr, UserCredentialPayload, VerifiableUserCredential,
             keys::AsIntermediateSignature,
         },
         crypto::{aead::keys::EncryptedUserProfileKey, hash::Hash},
@@ -259,9 +348,10 @@ mod test {
             component::ComponentData,
             group::GroupContext,
             prelude::{
-                AppDataUpdateProposal, Ciphersuite, Extensions, HpkeCiphertext, KeyPackage,
-                LeafNodeIndex, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
-                OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, Proposal, SignatureScheme,
+                AppDataUpdateProposal, Ciphersuite, Credential, Extensions, HpkeCiphertext,
+                KeyPackage, LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsMessageBodyIn,
+                MlsMessageIn, MlsMessageOut, OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY,
+                Proposal, SignatureScheme,
             },
         },
         openmls_rust_crypto::OpenMlsRustCrypto,
@@ -295,27 +385,52 @@ mod test {
         provider: OpenMlsRustCrypto,
         signer: ApqSignatureKeyPair,
         credential: ApqCredentialWithKey,
+        user_id: UserId,
     }
 
     impl Client {
         fn new() -> Self {
+            Self::of(UserId::random("example.com".parse().unwrap()))
+        }
+
+        /// Another client of the same user.
+        fn sibling(&self) -> Self {
+            Self::of(self.user_id.clone())
+        }
+
+        fn of(user_id: UserId) -> Self {
             let signer =
                 ApqSignatureKeyPair::new(ApqSignatureScheme::from(apq_ciphersuite())).unwrap();
-            let user_id = UserId::random("example.com".parse().unwrap());
-            let (csr, _prelim_key) =
-                UserCredentialCsr::new(user_id, SignatureScheme::ED25519).unwrap();
-            let payload = UserCredentialPayload::new(csr, None, Hash::from_bytes([0; 32]));
-            // Unsigned, since the DS only parses the credential.
-            let identity = VerifiableUserCredential::new(payload, AsIntermediateSignature::empty())
-                .tls_serialize_detached()
-                .unwrap();
-            let credential = ApqCredentialWithKey::new(&identity, &signer);
+            let credential = ApqCredentialWithKey::new(&user_identity(&user_id), &signer);
             Self {
                 provider: OpenMlsRustCrypto::default(),
                 signer,
                 credential,
+                user_id,
             }
         }
+    }
+
+    fn user_identity(user_id: &UserId) -> Vec<u8> {
+        let (csr, _prelim_key) =
+            UserCredentialCsr::new(user_id.clone(), SignatureScheme::ED25519).unwrap();
+        let payload = UserCredentialPayload::new(csr, None, Hash::from_bytes([0; 32]));
+        // Unsigned, since the DS only parses the credential.
+        VerifiableUserCredential::new(payload, AsIntermediateSignature::empty())
+            .tls_serialize_detached()
+            .unwrap()
+    }
+
+    fn room_identity(credential: &Credential) -> Option<Vec<u8>> {
+        LeafCredential::from_credential(credential)
+            .ok()?
+            .room_policy_identity()
+            .to_bytes()
+            .ok()
+    }
+
+    fn room_users(state: &DsGroupState) -> Vec<Vec<u8>> {
+        state.room_state.users().keys().cloned().collect()
     }
 
     fn qs_reference() -> QsReference {
@@ -346,8 +461,12 @@ mod test {
         let provider = Provider::default();
         let ds_group =
             Group::new(&provider, group_info, group.export_ratchet_tree().into()).unwrap();
+        let creator_identity = group
+            .own_leaf_node()
+            .and_then(|leaf| room_identity(leaf.credential()))
+            .unwrap_or_else(|| b"creator".to_vec());
         let room_state =
-            VerifiedRoomState::new(b"creator".to_vec(), RoomPolicy::default_trusted_private())
+            VerifiedRoomState::new(creator_identity, RoomPolicy::default_trusted_private())
                 .unwrap();
         DsGroupState::new(
             provider,
@@ -358,8 +477,12 @@ mod test {
         )
     }
 
-    /// Adds the member profiles the DS records when members join.
+    /// Adds the member profiles and room roles the DS records when the
+    /// creator adds members.
     fn add_joiner_profiles(state: &mut DsGroupState) {
+        let creator = state
+            .leaf_credential(LeafNodeIndex::new(0))
+            .map(|credential| credential.room_policy_identity());
         let epoch = state.group().epoch();
         let joiners: Vec<_> = state
             .group()
@@ -376,6 +499,16 @@ mod test {
                 encrypted_user_profile_key: EncryptedUserProfileKey::dummy(),
             };
             state.member_profiles.insert(leaf_index, profile);
+            let joiner = state
+                .leaf_credential(leaf_index)
+                .map(|credential| credential.room_policy_identity());
+            if let (Some(creator), Some(joiner)) = (&creator, joiner)
+                && *creator != joiner
+            {
+                state
+                    .room_state_change_role(creator, &joiner, RoleIndex::Regular)
+                    .unwrap();
+            }
         }
     }
 
@@ -433,6 +566,11 @@ mod test {
             timestamp: None,
             context: TombstoneContext::Deleted,
         });
+    }
+
+    fn set_deleted_and_change_features(component: &mut AirComponent) {
+        set_deleted(component);
+        component.features.pq_groups = !component.features.pq_groups;
     }
 
     fn set_deleted_and_self_group(component: &mut AirComponent) {
@@ -513,11 +651,19 @@ mod test {
         size: usize,
         update: Option<ComponentUpdate>,
     ) -> Result<DsGroupState, GroupDeletionError> {
-        let creator = Client::new();
+        let joiners = (1..size).map(|_| Client::new()).collect();
+        delete_t_group_with(Client::new(), joiners, update)
+    }
+
+    fn delete_t_group_with(
+        creator: Client,
+        joiners: Vec<Client>,
+        update: Option<ComponentUpdate>,
+    ) -> Result<DsGroupState, GroupDeletionError> {
         let mut group = new_t_group(&creator);
-        let key_packages: Vec<_> = (1..size)
-            .map(|_| {
-                let joiner = Client::new();
+        let key_packages: Vec<_> = joiners
+            .into_iter()
+            .map(|joiner| {
                 KeyPackage::builder()
                     .leaf_node_capabilities(default_leaf_node_capabilities())
                     .build(
@@ -687,6 +833,79 @@ mod test {
         let Err(GroupDeletionError::InvalidMessage) = delete_apq_group(2, update) else {
             panic!("the APQ delete is accepted");
         };
+    }
+
+    #[test]
+    fn a_delete_that_changes_the_group_context_beyond_the_tombstone_is_rejected() {
+        let update = Some(set_deleted_and_change_features as ComponentUpdate);
+        let Err(GroupDeletionError::InvalidMessage) = delete_t_group(2, update) else {
+            panic!("the T delete is accepted");
+        };
+        let Err(GroupDeletionError::InvalidMessage) = delete_apq_group(2, update) else {
+            panic!("the APQ delete is accepted");
+        };
+    }
+
+    #[test]
+    fn a_delete_that_changes_the_senders_credential_is_rejected() {
+        let creator = Client::new();
+        let mut group = new_t_group(&creator);
+        let mut state = ds_group_state(&creator, &group, creator.signer.t_signer());
+
+        let other_user = UserId::random("example.com".parse().unwrap());
+        let credential =
+            ApqCredentialWithKey::new(&user_identity(&other_user), &creator.signer).t_credential;
+        let (commit, _welcome, group_info) = group
+            .commit_builder()
+            .force_self_update(true)
+            .leaf_node_parameters(
+                LeafNodeParameters::builder()
+                    .with_credential_with_key(credential)
+                    .build(),
+            )
+            .load_psks(creator.provider.storage())
+            .unwrap()
+            .create_group_info(true)
+            .build(
+                creator.provider.rand(),
+                creator.provider.crypto(),
+                creator.signer.t_signer(),
+                |_| true,
+            )
+            .unwrap()
+            .stage_commit(&creator.provider)
+            .unwrap()
+            .into_contents();
+
+        let Err(GroupDeletionError::InvalidMessage) =
+            state.delete_group(assisted(commit, group_info.unwrap().into()))
+        else {
+            panic!("the delete is accepted");
+        };
+    }
+
+    #[test]
+    fn a_merged_delete_removes_the_others_from_the_room_state() {
+        for update in [None, Some(set_deleted as ComponentUpdate)] {
+            let state = delete_t_group(3, update).unwrap();
+            let deleter = room_identity(&state.group().members().next().unwrap().credential);
+            assert_eq!(room_users(&state), Vec::from_iter(deleter));
+
+            let (t_state, _pq_state) = delete_apq_group(3, update).unwrap();
+            let deleter = room_identity(&t_state.group().members().next().unwrap().credential);
+            assert_eq!(room_users(&t_state), Vec::from_iter(deleter));
+        }
+    }
+
+    #[test]
+    fn a_delete_that_removes_the_deleters_other_devices_keeps_the_deleter_in_the_room() {
+        let creator = Client::new();
+        let joiners = vec![creator.sibling(), Client::new()];
+        let state = delete_t_group_with(creator, joiners, Some(set_deleted)).unwrap();
+
+        assert_eq!(state.group().members().count(), 1);
+        let deleter = room_identity(&state.group().members().next().unwrap().credential);
+        assert_eq!(room_users(&state), Vec::from_iter(deleter));
     }
 
     #[test]
