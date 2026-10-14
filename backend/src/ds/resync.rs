@@ -82,8 +82,7 @@ impl DsGroupState {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
             .group()
-            .process_assisted_message(self.provider.crypto(), external_commit)
-            .map_err(|_| ResyncClientError::ProcessingError)?;
+            .process_assisted_message(self.provider.crypto(), external_commit)?;
 
         // Perform DS-level validation
         // Make sure that we have the right message type.
@@ -213,11 +212,7 @@ impl DsGroupState {
                     t_message,
                     pq_message,
                     |_, _| true,
-                )
-                .map_err(|error| {
-                    error!(%error, "Failed to process APQ message");
-                    ResyncClientError::ProcessingError
-                })?;
+                )?;
 
         let ApqExternalCommit {
             t_staged_commit,

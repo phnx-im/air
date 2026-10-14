@@ -45,7 +45,7 @@ use sqlx::{PgConnection, PgTransaction};
 use thiserror::Error;
 use tokio::task::{JoinError, JoinSet};
 use tonic::{Request, Response, Status, async_trait};
-use tracing::{error, warn};
+use tracing::{Span, error, field::Empty, warn};
 
 use crate::{
     auth_service::AsConnector,
@@ -97,6 +97,12 @@ fn to_status(e: LoadGroupStateError) -> Status {
 const MAX_CONCURRENT_FANOUTS: usize = 128;
 
 impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
+    /// Records the pseudonym of the group on the current span.
+    fn record_group(&self, qgid: &QualifiedGroupId) {
+        let group = self.ds.pseudonymizer.group(&qgid.group_uuid());
+        Span::current().record("group", tracing::field::display(group));
+    }
+
     pub fn new(ds: Ds, qs_connector: Qep, as_connector: As) -> Self {
         Self {
             ds,
@@ -325,12 +331,15 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 
     /// The same as `update_group_state`, but does not perform any verification
     /// of the request.
+    #[tracing::instrument(level = "info", skip_all, fields(group = Empty))]
     async fn update_group_state_without_verification<T: Send>(
         &self,
         qgid: &QualifiedGroupId,
         ear_key: &GroupStateEarKey,
         f: impl AsyncFnOnce(&mut DsGroupState, &mut StorableDsGroupData<true>) -> Result<T, Status>,
     ) -> Result<T, Status> {
+        self.record_group(qgid);
+
         let txn = self.ds.db_pool.begin().await.map_err(|error| {
             error!(%error, "Failed to start transaction");
             Status::internal("Failed to start transaction")
@@ -422,6 +431,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     /// `Err`.
     ///
     /// If the group state has expired, it is deleted and not found is returned.
+    #[tracing::instrument(level = "info", skip_all, fields(group = Empty, sender = Empty))]
     async fn update_group_state<R, P, T: Send, const TAG: u32>(
         &self,
         request: SignedRequest<R, TAG>,
@@ -435,6 +445,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         let ear_key = request.inner().ear_key()?;
         let message = request.inner().message()?;
         let qgid = message.validated_qgid(self.ds.own_domain())?;
+        self.record_group(&qgid);
 
         let txn = self.ds.db_pool.begin().await.map_err(|error| {
             error!(%error, "Failed to start transaction");
@@ -445,6 +456,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .await?;
 
         let (payload, sender_index, message) = verify_message(request, &group_state, sender_index)?;
+        Span::current().record("sender", sender_index.u32());
 
         let verification_data = LeafVerificationData {
             ear_key: &ear_key,
@@ -479,6 +491,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     /// rolled back if the function returns `Err`.
     ///
     /// If the group state has expired, it is deleted and [`Status::not_found()`] is returned.
+    #[tracing::instrument(level = "info", skip_all, fields(group = Empty, sender = Empty))]
     async fn update_apq_group_state<R, P, T: Send, const TAG: u32>(
         &self,
         request: SignedRequest<R, TAG>,
@@ -494,6 +507,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 
         let t_qgid = t_message.validated_qgid(self.ds.own_domain())?;
         let pq_qgid = pq_message.validated_qgid(self.ds.own_domain())?;
+        self.record_group(&t_qgid);
 
         let txn = self.ds.db_pool.begin().await.map_err(|error| {
             error!(%error, "Failed to start transaction");
@@ -510,6 +524,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 
         let (payload, t_sender_index) =
             resolve_and_verify(request, &t_message, &t_group_state, sender_index)?;
+        Span::current().record("sender", t_sender_index.u32());
 
         // Check that the T/PQ indices and signature keys match
         let pq_sender_index = match sender_index {
@@ -600,6 +615,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     ///
     /// Both qualified group ids are taken from the messages, which are then handed to `f` together
     /// with the loaded group states.
+    #[tracing::instrument(level = "info", skip_all, fields(group = Empty))]
     async fn update_apq_group_state_without_verification<T: Send>(
         &self,
         ear_key: &GroupStateEarKey,
@@ -614,6 +630,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     ) -> Result<T, Status> {
         let t_qgid = t_message.validated_qgid(self.ds.own_domain())?;
         let pq_qgid = pq_message.validated_qgid(self.ds.own_domain())?;
+        self.record_group(&t_qgid);
 
         let txn = self.ds.db_pool.begin().await.map_err(|error| {
             error!(%error, "Failed to start transaction");

@@ -53,7 +53,7 @@ where
                 .qs
                 .load_user_verifying_key(&qs_user_id)
                 .await
-                .map_err(|_| QsEnqueueError::StorageError)
+                .map_err(QsEnqueueError::StorageError)
         }
     }
 }

@@ -688,11 +688,7 @@ impl DsGroupState {
             // regular-group Welcome targets a virtual client and must fan out
             // to all of the user's device queues.
             let fan_out_message = DsFanOutMessage {
-                payload: DsFanOutPayload::QueueMessage(
-                    welcome_bundle
-                        .try_into()
-                        .map_err(|_| GroupOperationError::LibraryError)?,
-                ),
+                payload: DsFanOutPayload::QueueMessage(welcome_bundle.try_into()?),
                 client_reference: client_queue_config,
                 suppress_notifications: false.into(),
                 broadcast_to_all_client_queues: self.broadcast_to_all_client_queues().into(),
@@ -745,11 +741,7 @@ impl DsGroupState {
             // See `generate_fan_out_messages`: broadcast only for
             // regular-group Welcomes.
             let fan_out_message = DsFanOutMessage {
-                payload: DsFanOutPayload::QueueMessage(
-                    welcome_bundle
-                        .try_into()
-                        .map_err(|_| GroupOperationError::LibraryError)?,
-                ),
+                payload: DsFanOutPayload::QueueMessage(welcome_bundle.try_into()?),
                 client_reference: client_queue_config,
                 suppress_notifications: false.into(),
                 broadcast_to_all_client_queues: self.broadcast_to_all_client_queues().into(),
@@ -805,11 +797,7 @@ impl DsGroupState {
             (self.group.epoch().as_u64() - 1).into(),
             timestamp,
             key_package_batch,
-        )
-        .map_err(|e| {
-            warn!(error = %e, "Error serializing commit response");
-            GroupOperationError::LibraryError
-        })?;
+        )?;
         let payload = DsFanOutPayload::QueueMessage(commit_response);
         let sender_client_reference = self
             .member_profiles

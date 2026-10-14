@@ -22,6 +22,7 @@ use crate::{
         },
         storage::Storage,
     },
+    pseudonym::Pseudonymizer,
     version::VersionPolicy,
 };
 pub use grpc::GrpcDs;
@@ -63,6 +64,7 @@ pub struct Ds {
     storage: Option<Storage>,
     version_policy: VersionPolicy,
     max_devices: MaxDevices,
+    pseudonymizer: Pseudonymizer,
 }
 
 #[derive(Debug)]
@@ -90,6 +92,7 @@ impl BackendService for Ds {
             storage: None,
             version_policy,
             max_devices: MaxDevices::new(max_devices),
+            pseudonymizer: Pseudonymizer::random(),
         };
 
         Ok(ds)
