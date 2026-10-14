@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::{
-    collections::HashSet,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -139,7 +138,10 @@ impl OutboundService<OutboundServiceContext> {
     /// the failure lands on, which a full run does not guarantee.
     pub async fn send_queued_messages_once(&self) -> anyhow::Result<()> {
         self.context
-            .send_queued_messages(&CancellationToken::new(), &mut HashSet::new())
+            .send_queued_messages(
+                &CancellationToken::new(),
+                &mut std::collections::HashSet::new(),
+            )
             .await?;
         Ok(())
     }
