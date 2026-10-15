@@ -45,15 +45,12 @@ int _roundUp(Duration duration, Duration unit) =>
 
 /// [expiresLabel] for now, kept current while the widget is shown.
 String? useExpiresLabel(AppLocalizations loc, DateTime? expiresAt) {
-  final now = useState(DateTime.now());
+  final tick = useState(0);
   useEffect(() {
     if (expiresAt == null) return null;
-    final timer = Timer.periodic(
-      _countdownTick,
-      (_) => now.value = DateTime.now(),
-    );
+    final timer = Timer.periodic(_countdownTick, (_) => tick.value++);
     return timer.cancel;
   }, [expiresAt]);
   if (expiresAt == null) return null;
-  return expiresLabel(loc, expiresAt, now.value);
+  return expiresLabel(loc, expiresAt, DateTime.now());
 }

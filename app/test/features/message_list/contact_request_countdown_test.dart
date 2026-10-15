@@ -4,6 +4,8 @@
 
 import 'package:air/features/message_list/contact_request_countdown.dart';
 import 'package:air/l10n/app_localizations_en.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -41,5 +43,44 @@ void main() {
   test('shows nothing once the deadline passed', () {
     expect(label(Duration.zero), isNull);
     expect(label(const Duration(seconds: -5)), isNull);
+  });
+
+  /// Shows the countdown to [expiresAt] and returns how often it was built.
+  Future<int Function()> showCountdown(
+    WidgetTester tester,
+    DateTime? expiresAt,
+  ) async {
+    var builds = 0;
+    await tester.pumpWidget(
+      HookBuilder(
+        builder: (context) {
+          builds++;
+          return Text(
+            useExpiresLabel(loc, expiresAt) ?? 'no deadline',
+            textDirection: TextDirection.ltr,
+          );
+        },
+      ),
+    );
+    return () => builds;
+  }
+
+  testWidgets('the countdown is rebuilt on every tick', (tester) async {
+    final builds = await showCountdown(
+      tester,
+      DateTime.now().add(const Duration(days: 30)),
+    );
+    expect(find.text('Expires in 30 days'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 20));
+    expect(builds(), 2);
+  });
+
+  testWidgets('without a deadline nothing ticks', (tester) async {
+    final builds = await showCountdown(tester, null);
+    expect(find.text('no deadline'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 20));
+    expect(builds(), 1);
   });
 }
