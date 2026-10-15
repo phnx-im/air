@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     api::user::User,
-    background_execution::{IncomingNotificationContent, IncomingNotificationDismissal, stack},
+    background_execution::{IncomingNotificationContent, IncomingNotificationDismissal},
     logging::{LogKind, init_logger},
     messages::FetchAndProcessAllMessagesError,
     notifications::{NotificationContent, NotificationId},
