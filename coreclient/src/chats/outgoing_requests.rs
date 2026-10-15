@@ -196,7 +196,7 @@ impl OutgoingRequest {
 /// its expiry record shows. Returns whether the request was closed.
 pub(crate) async fn close_expired(
     txn: &mut WriteDbTransaction<'_>,
-    chat: &Chat,
+    chat: &mut Chat,
     at: TimeStamp,
 ) -> anyhow::Result<bool> {
     let contact = match chat.chat_type() {
@@ -218,12 +218,8 @@ pub(crate) async fn close_expired(
     }
     if !matches!(chat.status(), ChatStatus::Inactive(_)) {
         let own_user_id = OwnClientInfo::load(&mut *txn).await?.user_id;
-        Chat::update_status(
-            &mut *txn,
-            chat.id(),
-            &ChatStatus::inactive(vec![own_user_id]),
-        )
-        .await?;
+        chat.set_status(&mut *txn, ChatStatus::inactive(vec![own_user_id]))
+            .await?;
     }
     if let Some(contact) = contact {
         if let PartialContact::Username(contact) = &contact {

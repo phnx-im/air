@@ -416,9 +416,17 @@ impl OutboundServiceContext {
     /// their groups on the DS go out with the pending chat operations of the
     /// next run.
     async fn expire_connection_requests(&self) -> anyhow::Result<()> {
+        let now = Utc::now();
+        let is_due = self
+            .db
+            .with_read_transaction(async |txn| request_expiry::is_due(txn, now).await)
+            .await?;
+        if !is_due {
+            return Ok(());
+        }
         self.db
             .with_write_transaction(async |txn| {
-                request_expiry::expire_due(txn, &self.key_store.signing_key, Utc::now()).await
+                request_expiry::expire_due(txn, &self.key_store.signing_key, now).await
             })
             .await
     }

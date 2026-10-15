@@ -29,7 +29,7 @@ use crate::{
         CoreUser,
         user_settings::{DeleteExpiredContactRequestsSetting, UserSetting, UserSettingRecord},
     },
-    db::access::{ReadConnection, ReadDbTransaction, WriteDbTransaction},
+    db::access::{ReadConnection, ReadTransaction, WriteDbTransaction},
     job::pending_chat_operation::PendingChatOperation,
 };
 
@@ -60,7 +60,7 @@ pub(crate) async fn outgoing_sent_at(
 /// before.
 pub(crate) async fn close_if_expired(
     txn: &mut WriteDbTransaction<'_>,
-    chat: &Chat,
+    chat: &mut Chat,
     now: DateTime<Utc>,
 ) -> anyhow::Result<bool> {
     let Some(sent_at) = outgoing_sent_at(&mut *txn, chat.id()).await? else {
@@ -90,14 +90,14 @@ pub(crate) async fn expire_due(
     }
 
     for chat_id in Chat::load_open_outgoing_request_ids(&mut *txn, cutoff).await? {
-        let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
+        let Some(mut chat) = Chat::load(&mut *txn, &chat_id).await? else {
             continue;
         };
         let Some(sent_at) = outgoing_sent_at(&mut *txn, chat_id).await? else {
             continue;
         };
         let at = expires_at(sent_at).into();
-        if outgoing_requests::close_expired(txn, &chat, at).await? {
+        if outgoing_requests::close_expired(txn, &mut chat, at).await? {
             stage_group_delete(txn, signer, chat_id).await?;
         }
     }
@@ -105,9 +105,31 @@ pub(crate) async fn expire_due(
     DeclinedConnectionRequest::delete_declined_until(&mut *txn, cutoff).await?;
 
     if delete_expired_enabled(&mut *txn).await? {
-        delete_expired_records(txn).await?;
+        for chat in deletable_expired_records(&mut *txn).await? {
+            persistence::erase(txn, &chat).await?;
+        }
     }
     Ok(())
+}
+
+/// Whether [`expire_due`] has anything to do at `now`.
+pub(crate) async fn is_due(
+    mut txn: impl ReadTransaction,
+    now: DateTime<Utc>,
+) -> anyhow::Result<bool> {
+    let cutoff = now - REQUEST_LIFETIME;
+    let due = !PendingConnectionRequest::load_ids_received_until(&mut txn, cutoff)
+        .await?
+        .is_empty()
+        || !Chat::load_open_outgoing_request_ids(&mut txn, cutoff)
+            .await?
+            .is_empty()
+        || DeclinedConnectionRequest::exists_declined_until(&mut txn, cutoff).await?;
+    if due {
+        return Ok(true);
+    }
+    Ok(delete_expired_enabled(&mut txn).await?
+        && !deletable_expired_records(&mut txn).await?.is_empty())
 }
 
 /// Parks the deletion of the group of an expired outgoing request, so a late
@@ -142,22 +164,22 @@ async fn delete_expired_enabled(connection: impl ReadConnection) -> anyhow::Resu
     Ok(setting.is_some_and(|DeleteExpiredContactRequestsSetting(enabled)| enabled))
 }
 
-/// Deletes the chats of requests that expired. A sent one whose group is still
-/// being deleted on the DS stays until that is done, since erasing the chat
+/// The chats of requests that expired. A sent one whose group is still being
+/// deleted on the DS is left out until that is done, since erasing the chat
 /// would drop the parked delete.
-async fn delete_expired_records(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<()> {
-    for chat_id in Chat::load_closed_request_ids(&mut *txn).await? {
-        let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
+async fn deletable_expired_records(mut txn: impl ReadTransaction) -> anyhow::Result<Vec<Chat>> {
+    let mut records = Vec::new();
+    for chat_id in Chat::load_closed_request_ids(&mut txn).await? {
+        let Some(chat) = Chat::load(&mut txn, &chat_id).await? else {
             continue;
         };
-        if !is_expired_record(&mut *txn, &chat).await?
-            || PendingChatOperation::is_pending_for_chat(&mut *txn, chat_id).await?
+        if is_expired_record(&mut txn, &chat).await?
+            && !PendingChatOperation::is_pending_for_chat(&mut txn, chat_id).await?
         {
-            continue;
+            records.push(chat);
         }
-        persistence::erase(txn, &chat).await?;
     }
-    Ok(())
+    Ok(records)
 }
 
 pub(crate) async fn is_expired_record(
@@ -183,7 +205,7 @@ pub(crate) async fn is_expired_record(
 /// When the open contact request the chat shows expires, if it shows one. For
 /// incoming requests, that is the sender's newest request.
 async fn open_request_expires_at(
-    txn: &mut ReadDbTransaction<'_>,
+    connection: impl ReadConnection,
     chat: &Chat,
 ) -> anyhow::Result<Option<DateTime<Utc>>> {
     let ChatStatus::Active = chat.status() else {
@@ -191,13 +213,13 @@ async fn open_request_expires_at(
     };
     let sent_at = match chat.chat_type() {
         ChatType::PendingConnection(_) => {
-            PendingConnectionRequest::load_for_chat(&mut *txn, chat.id())
+            PendingConnectionRequest::load_for_chat(connection, chat.id())
                 .await?
                 .first()
                 .map(|newest| *newest.received_at)
         }
         ChatType::HandleConnection(_) | ChatType::TargetedMessageConnection(_) => {
-            outgoing_sent_at(&mut *txn, chat.id()).await?
+            outgoing_sent_at(connection, chat.id()).await?
         }
         ChatType::Group(_) | ChatType::Connection(_) => None,
     };
@@ -209,16 +231,9 @@ impl CoreUser {
     /// For incoming requests, that is the sender's newest request.
     pub async fn contact_request_expires_at(
         &self,
-        chat_id: ChatId,
+        chat: &Chat,
     ) -> anyhow::Result<Option<DateTime<Utc>>> {
-        self.db()
-            .with_read_transaction(async |txn| {
-                let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
-                    return Ok(None);
-                };
-                open_request_expires_at(txn, &chat).await
-            })
-            .await
+        open_request_expires_at(self.db().read().await?, chat).await
     }
 }
 
@@ -301,13 +316,14 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
+        ChatAttributes,
         chats::connection_requests::{IncomingRequest, IncomingRequestSource, StoredRequest},
         clients::{
             connection_offer::{FriendshipPackage, payload::ConnectionInfo},
             own_client_info::OwnClientInfo,
         },
         contacts::{TargetedMessageContact, UsernameContact},
-        db::access::DbAccess,
+        db::access::{DbAccess, ReadDbTransaction},
         utils::persistence::open_db_in_memory,
     };
 
@@ -510,15 +526,27 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn a_card_counts_down_to_the_newest_request() -> anyhow::Result<()> {
         let db = db().await?;
-        let (received, sent, expired) = db
+        let (received, sent, expired, group) = db
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 let sender = UserId::random("example.com".parse()?);
                 receive(txn, &sender, "ellie-03", at(0)).await?;
                 let received = receive(txn, &sender, "ellie-04", at(3600)).await?;
                 let sent = send(txn, &Username::new("joel-03".to_owned())?, at(60)).await?;
                 let expired = send(txn, &Username::new("joel-04".to_owned())?, at(0)).await?;
+                let group = Chat::new_group_chat(
+                    group_id(),
+                    ChatAttributes::new("Design Team".to_owned(), None),
+                );
+                group.store(&mut *txn).await?;
+                ChatMessage::new_system_message(
+                    group.id(),
+                    at(0).into(),
+                    SystemMessage::Add(None, sender.clone()),
+                )
+                .store(&mut *txn)
+                .await?;
                 expire_due(txn, &signer(), at(30) + REQUEST_LIFETIME).await?;
-                Ok((received.chat_id, sent.id(), expired.id()))
+                Ok((received.chat_id, sent.id(), expired.id(), group.id()))
             })
             .await?;
         db.with_read_transaction(async |txn| -> anyhow::Result<()> {
@@ -528,6 +556,7 @@ mod tests {
             );
             assert_eq!(expiry(txn, sent).await?, Some(at(60) + REQUEST_LIFETIME));
             assert_eq!(expiry(txn, expired).await?, None);
+            assert_eq!(expiry(txn, group).await?, None);
             Ok(())
         })
         .await
@@ -652,12 +681,13 @@ mod tests {
     async fn a_sibling_deletion_is_an_expiry_only_past_the_deadline() -> anyhow::Result<()> {
         let db = db().await?;
         db.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            let open = send(txn, &Username::new("joel-03".to_owned())?, at(60)).await?;
-            let expired = send(txn, &Username::new("joel-04".to_owned())?, at(0)).await?;
+            let mut open = send(txn, &Username::new("joel-03".to_owned())?, at(60)).await?;
+            let mut expired = send(txn, &Username::new("joel-04".to_owned())?, at(0)).await?;
 
             let deadline = at(0) + REQUEST_LIFETIME;
-            assert!(!close_if_expired(txn, &open, deadline).await?);
-            assert!(close_if_expired(txn, &expired, deadline).await?);
+            assert!(!close_if_expired(txn, &mut open, deadline).await?);
+            assert!(close_if_expired(txn, &mut expired, deadline).await?);
+            assert!(matches!(expired.status(), ChatStatus::Inactive(_)));
 
             assert_eq!(status(txn, open.id()).await?, ChatStatus::Active);
             assert!(matches!(
@@ -687,11 +717,11 @@ mod tests {
             send_targeted(txn, &user_id, at(0)).await?;
             // The removal commit marks the chat inactive before it is closed.
             Chat::update_status(&mut *txn, own.id(), &ChatStatus::inactive(Vec::new())).await?;
-            let own = Chat::load(&mut *txn, &own.id()).await?.context("no chat")?;
+            let mut own = Chat::load(&mut *txn, &own.id()).await?.context("no chat")?;
 
             let deadline = at(0) + REQUEST_LIFETIME;
-            assert!(close_if_expired(txn, &own, deadline).await?);
-            assert!(close_if_expired(txn, &own, deadline).await?);
+            assert!(close_if_expired(txn, &mut own, deadline).await?);
+            assert!(close_if_expired(txn, &mut own, deadline).await?);
 
             assert!(matches!(
                 last_system_message(txn, own.id()).await?,
@@ -703,6 +733,49 @@ mod tests {
                     .fetch_one(txn.as_mut())
                     .await?;
             assert_eq!(messages, 2);
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn work_is_due_from_a_deadline_until_it_is_done() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let deadline = at(0) + REQUEST_LIFETIME;
+            assert!(!is_due(&mut *txn, deadline).await?);
+
+            let sender = UserId::random("example.com".parse()?);
+            receive(txn, &sender, "ellie-03", at(0)).await?;
+            assert!(!is_due(&mut *txn, deadline - Duration::seconds(1)).await?);
+            assert!(is_due(&mut *txn, deadline).await?);
+            expire_due(txn, &signer(), deadline).await?;
+            assert!(!is_due(&mut *txn, deadline).await?);
+
+            send(txn, &Username::new("joel-03".to_owned())?, at(0)).await?;
+            assert!(is_due(&mut *txn, deadline).await?);
+            expire_due(txn, &signer(), deadline).await?;
+            assert!(!is_due(&mut *txn, deadline).await?);
+
+            DeclinedConnectionRequest {
+                request_id: ChatId::new(Uuid::new_v4()),
+                declined_at: at(0),
+            }
+            .store(&mut *txn)
+            .await?;
+            assert!(is_due(&mut *txn, deadline).await?);
+            expire_due(txn, &signer(), deadline).await?;
+            assert!(!is_due(&mut *txn, deadline).await?);
+
+            UserSettingRecord::store(
+                &mut *txn,
+                DeleteExpiredContactRequestsSetting::KEY,
+                DeleteExpiredContactRequestsSetting(true).encode()?,
+            )
+            .await?;
+            assert!(is_due(&mut *txn, deadline).await?);
+            expire_due(txn, &signer(), deadline).await?;
+            assert!(!is_due(&mut *txn, deadline).await?);
             Ok(())
         })
         .await

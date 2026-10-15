@@ -9,7 +9,7 @@ use aircoreclient::{
     DisplayName, SystemMessage, UserProfile, UsernameRecord, clients::CoreUser,
 };
 use airserver_test_harness::utils::setup::TestBackend;
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use tokio::time::timeout;
 use tokio_stream::StreamExt;
 
@@ -440,12 +440,9 @@ async fn linked_device_gets_open_outgoing_requests(acceptance: Acceptance) {
         );
         // The requests expire at the same time on both devices.
         for chat_id in [username_chat_id, group_request_chat_id] {
-            let expires_at = device_a.contact_request_expires_at(chat_id).await.unwrap();
+            let expires_at = request_expires_at(&device_a, chat_id).await;
             assert!(expires_at.is_some());
-            assert_eq!(
-                device_b.contact_request_expires_at(chat_id).await.unwrap(),
-                expires_at
-            );
+            assert_eq!(request_expires_at(&device_b, chat_id).await, expires_at);
         }
     }
 
@@ -1015,14 +1012,19 @@ async fn send_mirrored_request(
         .unwrap();
     drain_expecting_success(device_b, "the sibling failed to mirror the request").await;
     drain_expecting_success(device_a, "the sender failed to take its own echo").await;
-    let expires_at = device_a.contact_request_expires_at(chat_id).await.unwrap();
+    let expires_at = request_expires_at(device_a, chat_id).await;
     assert!(expires_at.is_some());
     assert_eq!(
-        device_b.contact_request_expires_at(chat_id).await.unwrap(),
+        request_expires_at(device_b, chat_id).await,
         expires_at,
         "the request should expire at the same time on both devices"
     );
     chat_id
+}
+
+async fn request_expires_at(device: &CoreUser, chat_id: ChatId) -> Option<DateTime<Utc>> {
+    let chat = device.chat(&chat_id).await.unwrap();
+    device.contact_request_expires_at(&chat).await.unwrap()
 }
 
 /// Runs the expiry of connection requests on `device` now.

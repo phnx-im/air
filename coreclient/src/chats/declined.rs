@@ -68,6 +68,20 @@ mod persistence {
             .await
         }
 
+        pub(crate) async fn exists_declined_until(
+            mut connection: impl ReadConnection,
+            cutoff: DateTime<Utc>,
+        ) -> sqlx::Result<bool> {
+            query_scalar!(
+                r#"SELECT EXISTS(
+                    SELECT 1 FROM declined_connection_request WHERE declined_at <= ?
+                ) AS "declined!: bool""#,
+                cutoff,
+            )
+            .fetch_one(connection.as_mut())
+            .await
+        }
+
         /// Deletes the declines made at or before `cutoff`.
         pub(crate) async fn delete_declined_until(
             mut connection: impl WriteConnection,

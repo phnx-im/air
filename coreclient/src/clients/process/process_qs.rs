@@ -941,8 +941,8 @@ impl CoreUser {
                 log_processed_commit(&group, &sender);
 
                 if ended {
-                    if let Some(chat) = Chat::load(&mut *txn, &chat_id).await?
-                        && !request_expiry::close_if_expired(txn, &chat, *ds_timestamp).await?
+                    if let Some(mut chat) = Chat::load(&mut *txn, &chat_id).await?
+                        && !request_expiry::close_if_expired(txn, &mut chat, *ds_timestamp).await?
                     {
                         persistence::erase(txn, &chat).await?;
                     }

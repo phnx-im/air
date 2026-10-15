@@ -13,8 +13,8 @@ pub use aircoreclient::{
     RequiredDebugCapabilities, ResyncDebugInfo,
 };
 use aircoreclient::{
-    AttachmentId, AttachmentProgress, AttachmentStatus, Chat, ChatId, ChatMessage, ChatType,
-    MarkChatAsRead, MessageId, ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
+    AttachmentId, AttachmentProgress, AttachmentStatus, Chat, ChatId, ChatMessage, MarkChatAsRead,
+    MessageId, ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
 };
 use airprotos::client::component::AirComponent;
 use anyhow::{Context as _, bail};
@@ -875,22 +875,12 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         None => None,
     };
 
-    let is_request = matches!(
-        chat.chat_type,
-        ChatType::PendingConnection(_)
-            | ChatType::HandleConnection(_)
-            | ChatType::TargetedMessageConnection(_)
-    );
-    let contact_request_expires_at = if is_request {
-        core_user
-            .contact_request_expires_at(chat.id)
-            .await
-            .inspect_err(|error| error!(%error, "Failed to load the expiry of a contact request"))
-            .ok()
-            .flatten()
-    } else {
-        None
-    };
+    let contact_request_expires_at = core_user
+        .contact_request_expires_at(&chat)
+        .await
+        .inspect_err(|error| error!(%error, "Failed to load the expiry of a contact request"))
+        .ok()
+        .flatten();
 
     let group_id = chat.group_id;
     let chat_type = UiChatType::load_from_chat_type(core_user, chat.chat_type).await;
