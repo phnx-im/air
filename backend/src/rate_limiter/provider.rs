@@ -4,6 +4,7 @@
 
 use std::time::Duration;
 
+use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use tracing::error;
 
@@ -17,7 +18,7 @@ pub(crate) async fn sweep_expired_allowances(pool: PgPool, period: Duration) {
     let mut interval = tokio::time::interval(period);
     loop {
         interval.tick().await;
-        if let Err(error) = persistence::delete_expired(&pool).await {
+        if let Err(error) = persistence::delete_expired(&pool, Utc::now()).await {
             error!(%error, "Failed to delete expired allowances");
         }
     }
@@ -34,9 +35,9 @@ impl RlPostgresStorage {
 }
 
 impl StorageProvider for RlPostgresStorage {
-    async fn try_consume(&self, config: &RlConfig, key: &RlKey) -> bool {
+    async fn try_consume(&self, config: &RlConfig, key: &RlKey, now: DateTime<Utc>) -> bool {
         // Fails open, so an unreachable database does not lock users out.
-        persistence::try_consume(&self.pool, config, key)
+        persistence::try_consume(&self.pool, config, key, now)
             .await
             .unwrap_or_else(|error| {
                 error!(%error, "Failed to consume allowance in Postgres");
@@ -46,7 +47,8 @@ impl StorageProvider for RlPostgresStorage {
 }
 
 pub(crate) mod persistence {
-    use sqlx::{PgExecutor, postgres::types::PgInterval, query};
+    use chrono::{DateTime, Utc};
+    use sqlx::{PgExecutor, query};
 
     use crate::{
         errors::StorageError,
@@ -57,6 +59,7 @@ pub(crate) mod persistence {
         connection: impl PgExecutor<'_>,
         config: &RlConfig,
         key: &RlKey,
+        now: DateTime<Utc>,
     ) -> Result<bool, StorageError> {
         if config.max_requests == 0 {
             return Ok(false);
@@ -67,19 +70,20 @@ pub(crate) mod persistence {
         let consumed = query!(
             r#"INSERT INTO allowance_record AS a
                 (key_value, remaining, valid_until)
-                VALUES ($1, $2::bigint - 1, NOW() + $3::interval)
+                VALUES ($1, $2::bigint - 1, $4)
             ON CONFLICT (key_value) DO UPDATE SET
-                remaining = CASE WHEN a.valid_until < NOW()
+                remaining = CASE WHEN a.valid_until < $3
                     THEN EXCLUDED.remaining
                     ELSE a.remaining - 1 END,
-                valid_until = CASE WHEN a.valid_until < NOW()
+                valid_until = CASE WHEN a.valid_until < $3
                     THEN EXCLUDED.valid_until
                     ELSE a.valid_until END
-            WHERE a.valid_until < NOW() OR a.remaining > 0
+            WHERE a.valid_until < $3 OR a.remaining > 0
             RETURNING 1 AS "consumed!""#,
             key.serialize(),
             config.max_requests as i64,
-            PgInterval::try_from(config.time_window)?,
+            now,
+            now + config.time_window,
         )
         .fetch_optional(connection)
         .await?;
@@ -88,9 +92,12 @@ pub(crate) mod persistence {
         Ok(consumed.is_some())
     }
 
-    /// Delete all expired allowances.
-    pub(super) async fn delete_expired(connection: impl PgExecutor<'_>) -> Result<(), sqlx::Error> {
-        query!("DELETE FROM allowance_record WHERE valid_until < NOW()")
+    /// Delete all allowances expired at `now`.
+    pub(super) async fn delete_expired(
+        connection: impl PgExecutor<'_>,
+        now: DateTime<Utc>,
+    ) -> Result<(), sqlx::Error> {
+        query!("DELETE FROM allowance_record WHERE valid_until < $1", now)
             .execute(connection)
             .await?;
         Ok(())
@@ -100,15 +107,17 @@ pub(crate) mod persistence {
     mod tests {
         use std::time::Duration;
 
-        use chrono::{DateTime, SubsecRound, TimeDelta, Utc};
+        use chrono::{SubsecRound, TimeDelta};
         use sqlx::{PgPool, query_as};
 
         use crate::rate_limiter::{
-            RateLimiter,
+            RateLimiter, RlOperation,
             provider::{RlPostgresStorage, sweep_expired_allowances},
         };
 
         use super::*;
+
+        const TIME_WINDOW: TimeDelta = TimeDelta::hours(1);
 
         /// A row of `allowance_record`.
         #[derive(Debug, PartialEq)]
@@ -168,23 +177,27 @@ pub(crate) mod persistence {
         fn limiter(pool: &PgPool, max_requests: u64) -> RateLimiter<RlPostgresStorage> {
             let config = RlConfig {
                 max_requests,
-                time_window: TimeDelta::hours(1),
+                time_window: TIME_WINDOW,
             };
             RateLimiter::new(config, RlPostgresStorage::new(pool.clone()))
         }
 
+        fn test_key(custom: &[u8]) -> RlKey {
+            RlKey::new(RlOperation::ReserveGroupId, &[custom])
+        }
+
         #[sqlx::test]
         async fn delete_expired_allowances(pool: PgPool) {
-            let live_key = RlKey::new(b"live_service", b"live_rpc", &[]);
+            let live_key = test_key(b"live");
             let live = Allowance::expiring_in(TimeDelta::hours(1));
             live.store(&pool, &live_key).await;
 
-            let expired_key = RlKey::new(b"expired_service", b"expired_rpc", &[]);
+            let expired_key = test_key(b"expired");
             Allowance::expiring_in(-TimeDelta::weeks(1))
                 .store(&pool, &expired_key)
                 .await;
 
-            delete_expired(&pool).await.unwrap();
+            delete_expired(&pool, Utc::now()).await.unwrap();
 
             assert_eq!(Allowance::load(&pool, &live_key).await, Some(live));
             assert_eq!(Allowance::load(&pool, &expired_key).await, None);
@@ -194,25 +207,27 @@ pub(crate) mod persistence {
         async fn requests_over_the_limit_are_denied(pool: PgPool) {
             const LIMIT: u64 = 3;
             let rl = limiter(&pool, LIMIT);
-            let key = RlKey::new(b"test_service", b"test_rpc", &[]);
+            let key = test_key(b"test");
+            let now = Utc::now();
 
             for _ in 0..LIMIT {
-                assert!(rl.allowed(key.clone()).await);
+                assert!(rl.allowed(key.clone(), now).await);
             }
-            assert!(!rl.allowed(key).await);
+            assert!(!rl.allowed(key, now).await);
         }
 
         #[sqlx::test]
         async fn concurrent_requests_spend_the_allowance_once_each(pool: PgPool) {
             const REQUESTS: usize = 20;
             const LIMIT: u64 = 5;
-            let key = RlKey::new(b"test_service", b"test_rpc", &[]);
+            let key = test_key(b"test");
+            let now = Utc::now();
 
             let mut requests = Vec::with_capacity(REQUESTS);
             for _ in 0..REQUESTS {
                 let rl = limiter(&pool, LIMIT);
                 let key = key.clone();
-                requests.push(tokio::spawn(async move { rl.allowed(key).await }));
+                requests.push(tokio::spawn(async move { rl.allowed(key, now).await }));
             }
 
             let mut allowed: u64 = 0;
@@ -226,20 +241,20 @@ pub(crate) mod persistence {
 
         #[sqlx::test]
         async fn a_stale_window_starts_over(pool: PgPool) {
-            let key = RlKey::new(b"test_service", b"test_rpc", &[]);
-            Allowance::expiring_in(-TimeDelta::minutes(1))
-                .store(&pool, &key)
-                .await;
+            let key = test_key(b"test");
+            let rl = limiter(&pool, 1);
+            let now = Utc::now();
+            assert!(rl.allowed(key.clone(), now).await);
+            assert!(!rl.allowed(key.clone(), now).await);
 
-            let rl = limiter(&pool, 2);
-            assert!(rl.allowed(key.clone()).await);
-            assert!(rl.allowed(key.clone()).await);
-            assert!(!rl.allowed(key).await);
+            let later = now + TIME_WINDOW + TimeDelta::seconds(1);
+            assert!(rl.allowed(key.clone(), later).await);
+            assert!(!rl.allowed(key, later).await);
         }
 
         #[sqlx::test]
         async fn the_sweep_deletes_expired_allowances(pool: PgPool) {
-            let key = RlKey::new(b"test_service", b"test_rpc", &[]);
+            let key = test_key(b"test");
             Allowance::expiring_in(-TimeDelta::minutes(1))
                 .store(&pool, &key)
                 .await;

@@ -55,7 +55,7 @@ use crate::{
     },
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
     qs::QsConnector,
-    rate_limiter::{RateLimiter, RlConfig, RlKey, provider::RlPostgresStorage},
+    rate_limiter::{RateLimiter, RlConfig, RlKey, RlOperation, provider::RlPostgresStorage},
 };
 
 use super::{
@@ -957,8 +957,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         // Configure the rate-limiting. Only after verification, so a forged
         // request cannot spend another user's allowance.
         let rl_key = RlKey::new(
-            b"ds",
-            b"reserve_group_id",
+            RlOperation::ReserveGroupId,
             &[b"user_uuid", credential.user_id().uuid().as_bytes()],
         );
         let config = RlConfig {
@@ -969,7 +968,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let rl = RateLimiter::new(config, rl_storage);
 
         // Apply the rate-limiting
-        if !rl.allowed(rl_key).await {
+        if !rl.allowed(rl_key, Utc::now()).await {
             return Err(Status::resource_exhausted(
                 "Too many requests, please try again later",
             ));
@@ -1110,8 +1109,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         // Configure and apply rate-limiting. Only after verification, so a
         // forged request cannot spend another user's allowance.
         let rl_key = RlKey::new(
-            b"ds",
-            b"reserve_group_id",
+            RlOperation::ReserveGroupId,
             &[b"user_uuid", t_user_credential.user_id().uuid().as_bytes()],
         );
         let config = RlConfig {
@@ -1120,7 +1118,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         };
         let rl_storage = RlPostgresStorage::new(self.ds.db_pool.clone());
         let rl = RateLimiter::new(config, rl_storage);
-        if !rl.allowed(rl_key).await {
+        if !rl.allowed(rl_key, Utc::now()).await {
             return Err(Status::resource_exhausted(
                 "Too many requests, please try again later",
             ));

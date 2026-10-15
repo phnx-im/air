@@ -4,7 +4,7 @@
 
 //! Rate Limiter
 
-use chrono::TimeDelta;
+use chrono::{DateTime, TimeDelta, Utc};
 use sha2::{Digest, Sha256};
 
 pub(crate) mod provider;
@@ -15,17 +15,38 @@ pub(crate) struct RlConfig {
     pub(crate) time_window: TimeDelta,
 }
 
+/// A rate-limited operation. Operations sharing a variant share an allowance.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum RlOperation {
+    /// Creating a group, which claims a reserved group id.
+    ReserveGroupId,
+}
+
+impl RlOperation {
+    fn service_name(self) -> &'static [u8] {
+        match self {
+            RlOperation::ReserveGroupId => b"ds",
+        }
+    }
+
+    fn rpc_name(self) -> &'static [u8] {
+        match self {
+            RlOperation::ReserveGroupId => b"reserve_group_id",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct RlKey {
     key: [u8; 32],
 }
 
 impl RlKey {
-    pub(crate) fn new(service_name: &[u8], rpc_name: &[u8], custom: &[&[u8]]) -> Self {
+    pub(crate) fn new(operation: RlOperation, custom: &[&[u8]]) -> Self {
         let key = {
             let mut hasher = Sha256::new();
 
-            for part in [service_name, rpc_name]
+            for part in [operation.service_name(), operation.rpc_name()]
                 .into_iter()
                 .chain(custom.iter().copied())
             {
@@ -45,9 +66,9 @@ impl RlKey {
 }
 
 pub(crate) trait StorageProvider {
-    /// Atomically consumes one request from the allowance of `key` and reports
-    /// whether it is allowed.
-    async fn try_consume(&self, config: &RlConfig, key: &RlKey) -> bool;
+    /// Atomically consumes one request from the allowance of `key` at `now` and
+    /// reports whether it is allowed.
+    async fn try_consume(&self, config: &RlConfig, key: &RlKey, now: DateTime<Utc>) -> bool;
 }
 
 pub(crate) struct RateLimiter<S: StorageProvider> {
@@ -60,7 +81,7 @@ impl<S: StorageProvider> RateLimiter<S> {
         RateLimiter { config, storage }
     }
 
-    pub(crate) async fn allowed(&self, key: RlKey) -> bool {
-        self.storage.try_consume(&self.config, &key).await
+    pub(crate) async fn allowed(&self, key: RlKey, now: DateTime<Utc>) -> bool {
+        self.storage.try_consume(&self.config, &key, now).await
     }
 }
