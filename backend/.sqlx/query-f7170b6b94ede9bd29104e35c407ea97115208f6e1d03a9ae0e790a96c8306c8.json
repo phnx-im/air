@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM allowance_record WHERE valid_until < $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f7170b6b94ede9bd29104e35c407ea97115208f6e1d03a9ae0e790a96c8306c8"
+}
