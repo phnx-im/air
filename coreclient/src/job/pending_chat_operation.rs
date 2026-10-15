@@ -38,6 +38,7 @@ use crate::{
         api_clients::ApiClients,
         block_contact,
         linked_devices::merge_device_entry_locally,
+        multi_device::device_link::{DeviceLink, DeviceLinkFailure},
         own_client_info::OwnClientInfo,
         update_key::update_chat_attributes,
         user_settings::{SettingChanges, SettingsUpdateExt},
@@ -123,6 +124,10 @@ pub(super) enum OperationType {
     },
     SelfGroupAdd {
         params: Box<ApqGroupOperationParamsOut>,
+        /// The device being added, so a terminal failure reaches its
+        /// device link.
+        #[serde(default)]
+        client_id: Option<Uuid>,
     },
 }
 
@@ -317,7 +322,15 @@ impl Job for PendingChatOperation {
                 JobError::Fatal(_)
                 | JobError::Domain(ChatOperationError::DeviceLimitReached { .. }),
             ) => {
-                self.clean_up(context, true).await;
+                let failure = match &error {
+                    Err(JobError::Domain(ChatOperationError::DeviceLimitReached {
+                        max_devices,
+                    })) => DeviceLinkFailure::DeviceLimitReached {
+                        max_devices: *max_devices,
+                    },
+                    _ => DeviceLinkFailure::Rejected,
+                };
+                self.clean_up(context, Some(failure)).await;
                 error
             }
             // The staged commit is stale, so only a new commit can carry its
@@ -328,7 +341,7 @@ impl Job for PendingChatOperation {
                 cause: RecoverableCause::Stale,
                 ..
             })) => {
-                self.clean_up(context, false).await;
+                self.clean_up(context, None).await;
                 error
             }
             // Update retry_due at on errors a later attempt may get past
@@ -357,7 +370,8 @@ impl Job for PendingChatOperation {
                     .write()
                     .await?
                     .with_transaction(async |txn| {
-                        self.roll_back_self_group_intent(txn).await?;
+                        self.roll_back_self_group_intent(txn, DeviceLinkFailure::Rejected)
+                            .await?;
                         handle_group_not_found_on_ds(txn, &group_id).await
                     })
                     .await?;
@@ -371,7 +385,8 @@ impl Job for PendingChatOperation {
                     .write()
                     .await?
                     .with_transaction(async |txn| {
-                        self.clean_up_in_transaction(txn, true).await?;
+                        self.clean_up_in_transaction(txn, Some(DeviceLinkFailure::Rejected))
+                            .await?;
                         handle_group_closed_on_ds(txn, &group_id).await
                     })
                     .await?;
@@ -383,17 +398,22 @@ impl Job for PendingChatOperation {
 }
 
 impl PendingChatOperation {
-    /// Drops the operation and its staged commit. With `roll_back_intent`, the
-    /// parked self-group changes it carried are given up as well, otherwise
-    /// they stay parked for the next commit.
-    async fn clean_up(&mut self, context: &mut JobContext<'_, '_>, roll_back_intent: bool) {
+    /// Drops the operation and its staged commit. With a `roll_back` failure,
+    /// the parked self-group changes it carried are given up as well, and a
+    /// device add reports that failure to its device link. Otherwise they stay
+    /// parked for the next commit.
+    async fn clean_up(
+        &mut self,
+        context: &mut JobContext<'_, '_>,
+        roll_back: Option<DeviceLinkFailure>,
+    ) {
         let Ok(mut connection) = context.db.write().await.inspect_err(|error| {
             error!(%error, "Failed to delete pending chat operation");
         }) else {
             return;
         };
         connection
-            .with_transaction(async |txn| self.clean_up_in_transaction(txn, roll_back_intent).await)
+            .with_transaction(async |txn| self.clean_up_in_transaction(txn, roll_back).await)
             .await
             .inspect_err(|error| {
                 error!(%error, "Failed to delete pending chat operation");
@@ -404,10 +424,10 @@ impl PendingChatOperation {
     async fn clean_up_in_transaction(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
-        roll_back_intent: bool,
+        roll_back: Option<DeviceLinkFailure>,
     ) -> anyhow::Result<()> {
-        if roll_back_intent {
-            self.roll_back_self_group_intent(txn).await?;
+        if let Some(failure) = roll_back {
+            self.roll_back_self_group_intent(txn, failure).await?;
         }
         self.group
             .group_mut()
@@ -473,6 +493,7 @@ impl PendingChatOperation {
     async fn roll_back_self_group_intent(
         &self,
         txn: &mut WriteDbTransaction<'_>,
+        failure: DeviceLinkFailure,
     ) -> anyhow::Result<()> {
         match &self.operation {
             OperationType::SelfGroupMessages { messages, .. } => {
@@ -483,6 +504,11 @@ impl PendingChatOperation {
             OperationType::TokenSeeds { seeds, .. } => {
                 privacy_pass::roll_back_sent_seeds(txn, seeds).await
             }
+            // The linking flow learns of the failure through the device link.
+            OperationType::SelfGroupAdd {
+                client_id: Some(client_id),
+                ..
+            } => Ok(DeviceLink::fail_add(txn, *client_id, failure).await?),
             _ => Ok(()),
         }
     }
@@ -629,7 +655,7 @@ impl PendingChatOperation {
             OperationType::SelfGroupMessages { params, .. }
             | OperationType::TokenSeeds { params, .. }
             | OperationType::SelfGroupRemove { params }
-            | OperationType::SelfGroupAdd { params }
+            | OperationType::SelfGroupAdd { params, .. }
             | OperationType::SelfGroupKeyPackageUpload { params, .. } => {
                 let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
                 let own_encrypted_user_profile_key =
@@ -1047,13 +1073,14 @@ impl PendingChatOperation {
     ///
     /// The commit also carries the device's metadata entry, so the siblings
     /// learn it without a second commit advancing the epoch behind our back.
-    pub(super) async fn create_add_client(
+    pub(crate) async fn create_add_client(
         txn: &mut WriteDbTransaction<'_>,
         signer: &UserSigningKey,
         wai_key: &WelcomeAttributionInfoEarKey,
         key_package: ApqKeyPackage,
         device: LinkedDevice,
     ) -> anyhow::Result<Self> {
+        let client_id = device.client_id;
         let own_info = OwnClientInfo::load(&mut *txn).await?;
         let self_group_id = own_info.self_group_id.context("no self group")?;
         let self_group_signer = own_info
@@ -1108,6 +1135,7 @@ impl PendingChatOperation {
             group,
             OperationType::SelfGroupAdd {
                 params: Box::new(params),
+                client_id: Some(client_id),
             },
         );
         job.store(txn).await?;
@@ -2000,7 +2028,7 @@ pub(crate) mod tests {
                 SettingChanges::record(txn, &ReadReceiptsSetting(true)).await?;
                 assert!(SettingChanges::has_pending(&mut *txn).await?);
 
-                pending.clean_up_in_transaction(txn, false).await?;
+                pending.clean_up_in_transaction(txn, None).await?;
 
                 assert!(
                     PendingChatOperation::load_by_group_id(&mut *txn, &group_id)
@@ -2028,7 +2056,9 @@ pub(crate) mod tests {
                 SettingChanges::record(txn, &ReadReceiptsSetting(true)).await?;
                 assert!(SettingChanges::has_pending(&mut *txn).await?);
 
-                pending.clean_up_in_transaction(txn, true).await?;
+                pending
+                    .clean_up_in_transaction(txn, Some(DeviceLinkFailure::Rejected))
+                    .await?;
 
                 assert!(
                     PendingChatOperation::load_by_group_id(&mut *txn, &group_id)
@@ -2406,6 +2436,59 @@ pub(crate) mod tests {
             "the staged add commit should block a clean load"
         );
 
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_failed_add_marks_its_device_link_failed() -> anyhow::Result<()> {
+        use aircommon::crypto::signatures::keys::QsClientSigningKey;
+
+        use crate::clients::multi_device::device_link::{
+            DeviceLinkState, ProvisionedQueue, SelfGroupJoinRequest,
+        };
+
+        let (pool, user_id, signing_key, _group_id) = setup_self_group().await?;
+        let wai_key = WelcomeAttributionInfoEarKey::random()?;
+        let client_id = Uuid::new_v4();
+        let queue = ProvisionedQueue {
+            qs_client_id: Uuid::new_v4().into(),
+            qs_client_signing_key: QsClientSigningKey::generate()?,
+        };
+        let deadline = Utc::now() + Duration::minutes(10);
+
+        let link_id = pool
+            .write()
+            .await?
+            .with_transaction(async |txn| -> anyhow::Result<Uuid> {
+                let link_id = DeviceLink::create(&mut *txn, queue, deadline).await?;
+                let key_package = linked_device_key_package(txn, &user_id, client_id).await?;
+                let request = SelfGroupJoinRequest {
+                    key_package: key_package.clone(),
+                    device: linked_device(client_id),
+                };
+                DeviceLink::request_add(&mut *txn, link_id, request, deadline).await?;
+                let job = PendingChatOperation::create_add_client(
+                    txn,
+                    &signing_key,
+                    &wai_key,
+                    key_package,
+                    linked_device(client_id),
+                )
+                .await?;
+                let failure = DeviceLinkFailure::DeviceLimitReached { max_devices: 2 };
+                job.roll_back_self_group_intent(txn, failure).await?;
+                Ok(link_id)
+            })
+            .await?;
+
+        let link = DeviceLink::load(pool.read().await?, link_id)
+            .await?
+            .expect("the link should be stored");
+        assert_eq!(link.state, DeviceLinkState::Failed);
+        assert_eq!(
+            link.failure,
+            Some(DeviceLinkFailure::DeviceLimitReached { max_devices: 2 })
+        );
         Ok(())
     }
 

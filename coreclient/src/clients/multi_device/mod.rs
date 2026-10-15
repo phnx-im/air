@@ -79,10 +79,6 @@ use crate::{
         Group, client_auth_info::StorableUserCredential, client_reference_extension,
         openmls_provider::AirOpenMlsProvider,
     },
-    job::{
-        JobError,
-        chat_operation::{ChatOperation, ChatOperationError},
-    },
     key_stores::{
         MemoryUserKeyStore, indexed_keys::StorableIndexedKey,
         queue_ratchets::StorableQsQueueRatchet,
@@ -96,7 +92,7 @@ use crate::{
     },
 };
 
-use device_link::{DeviceLink, ProvisionedQueue};
+use device_link::{DeviceLink, DeviceLinkFailure, DeviceLinkState, ProvisionedQueue};
 
 pub(crate) use payloads::{ConnectionContact, HigherLevelGroup};
 use payloads::{ProvisioningPackage, SelfGroupJoinRequest};
@@ -126,6 +122,13 @@ const WELCOME_TIMEOUT: Duration = Duration::from_secs(120);
 /// How long the existing device waits for the new device to confirm the
 /// join after the add committed.
 const COMPLETION_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// How long the existing device waits for the outbound service to add the
+/// new device to the self group.
+const ADD_TIMEOUT: Duration = Duration::from_secs(90);
+
+/// Pause between two looks for the new device in the self group.
+const ADD_POLL_INTERVAL: Duration = Duration::from_millis(250);
 
 /// How long a device link may stay unfinished before the outbound service
 /// undoes it.
@@ -864,8 +867,8 @@ impl CoreUser {
         linked
     }
 
-    /// Hands over the provisioning package, adds the new device to the self
-    /// group, and waits for the new device to confirm.
+    /// Hands over the provisioning package, has the outbound service add the
+    /// new device to the self group, and waits for the new device to confirm.
     async fn complete_link(
         &self,
         link_id: Uuid,
@@ -875,35 +878,30 @@ impl CoreUser {
         rx: &mut Streaming<RelayFrame>,
     ) -> Result<(), LinkingError> {
         let request = exchange_provisioning(package, cipher, tx, rx).await?;
+        let new_client_id = request.device.client_id;
         DeviceLink::request_add(
             self.db().write().await.context("open the client store")?,
             link_id,
-            request.device.client_id,
+            request,
             link_deadline(),
         )
         .await?;
-        match self.add_client_to_self_group(request).await {
-            Ok(()) => (),
-            Err(JobError::Domain(ChatOperationError::DeviceLimitReached { max_devices })) => {
-                return Err(LinkingError::DeviceLimitReached { max_devices });
-            }
-            Err(error) => {
-                return Err(LinkingError::Protocol(
-                    anyhow::Error::from(error).context("add the new device to the self group"),
-                ));
-            }
-        }
+        self.outbound_service().notify_pending_chat_operations();
+        let early_confirmation = self.await_device_added(link_id, new_client_id, rx).await?;
         info!("added new device to self group");
         self.outbound_service().notify_key_package_upload();
 
         // The new device confirms once it has processed the Welcome from
         // its queue. Without the confirmation it is taken out again, so the
         // user's retry starts clean.
-        let confirmation = tokio::time::timeout(COMPLETION_TIMEOUT, next_frame(rx))
-            .await
-            .unwrap_or(Err(LinkingError::TimedOut(
-                "the new device to confirm the join",
-            )))?;
+        let confirmation = match early_confirmation {
+            Some(frame) => frame,
+            None => tokio::time::timeout(COMPLETION_TIMEOUT, next_frame(rx))
+                .await
+                .unwrap_or(Err(LinkingError::TimedOut(
+                    "the new device to confirm the join",
+                )))?,
+        };
         let LinkingComplete = LinkingMessage::open(confirmation.as_slice(), cipher)?;
         DeviceLink::complete(
             self.db().write().await.context("open the client store")?,
@@ -915,38 +913,65 @@ impl CoreUser {
         Ok(())
     }
 
-    /// Adds the new device's leaf to the self group.
+    /// Waits for the outbound service to add the new device to the self
+    /// group.
     ///
-    /// The entry already carries the name the confirming user chose: it travelled
-    /// to the new device in the provisioning package, so both sides agree without
-    /// this side substituting anything.
-    ///
-    /// The commit is staged and sent by the job system, so a failed send leaves
-    /// the self group either retryable or clean, never stuck on a dead staged
-    /// commit.
-    async fn add_client_to_self_group(
+    /// Returns the new device's confirmation if it arrived early. The new
+    /// device confirms as soon as it processed the Welcome, which can be
+    /// before this device sees its own add.
+    async fn await_device_added(
         &self,
-        request: SelfGroupJoinRequest,
-    ) -> Result<(), JobError<ChatOperationError>> {
-        let SelfGroupJoinRequest {
-            key_package,
-            device,
-        } = request;
+        link_id: Uuid,
+        client_id: Uuid,
+        rx: &mut Streaming<RelayFrame>,
+    ) -> Result<Option<RelayFrame>, LinkingError> {
+        let wait = async {
+            let mut early_confirmation = None;
+            loop {
+                if self.self_group_client_ids().await?.contains(&client_id) {
+                    return Ok(early_confirmation);
+                }
+                let link = DeviceLink::load(
+                    self.db().read().await.context("open the client store")?,
+                    link_id,
+                )
+                .await?
+                .context("the device link is gone")?;
+                match link.state {
+                    DeviceLinkState::Adding => (),
+                    DeviceLinkState::Failed => {
+                        return Err(match link.failure {
+                            Some(DeviceLinkFailure::DeviceLimitReached { max_devices }) => {
+                                LinkingError::DeviceLimitReached { max_devices }
+                            }
+                            Some(DeviceLinkFailure::Rejected) | None => LinkingError::Protocol(
+                                anyhow!("the DS refused to add the new device"),
+                            ),
+                        });
+                    }
+                    DeviceLinkState::Provisioned | DeviceLinkState::Abandoned => {
+                        return Err(LinkingError::Protocol(anyhow!(
+                            "the device link was abandoned"
+                        )));
+                    }
+                }
 
-        // Sibling commits (e.g. the key-package upload cycle) may have advanced
-        // the self group. Catch up on queued messages, so that the add commit
-        // is built at the current epoch.
-        let messages = self.qs_fetch_messages().await?;
-        let processed = self.fully_process_qs_messages(messages).await;
-        if let Some(error) = processed.errors.first() {
-            warn!(%error, "failed to process queued messages before self-group add");
-        }
-
-        let chat_id = self.self_chat_id().await?.context("no self group")?;
-        self.execute_job(ChatOperation::add_client(chat_id, key_package, device))
-            .await?;
-
-        Ok(())
+                // The confirmation is the only frame the new device sends
+                // from here on.
+                if early_confirmation.is_some() {
+                    tokio::time::sleep(ADD_POLL_INTERVAL).await;
+                    continue;
+                }
+                tokio::select! {
+                    biased;
+                    frame = next_frame(rx) => early_confirmation = Some(frame?),
+                    () = tokio::time::sleep(ADD_POLL_INTERVAL) => {}
+                }
+            }
+        };
+        tokio::time::timeout(ADD_TIMEOUT, wait)
+            .await
+            .unwrap_or(Err(LinkingError::TimedOut("the self-group add")))
     }
 
     /// Leaves an unfinished link to the outbound service to undo.
