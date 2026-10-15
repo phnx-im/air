@@ -119,10 +119,24 @@ final _unavailableRequest = UiChatDetails(
   resyncFailed: false,
 );
 
+/// The chat of an open contact request from Bob.
+final _receivedRequest = UiChatDetails(
+  id: 10.chatId(),
+  status: const UiChatStatus.active(),
+  chatType: UiChatType_PendingConnection(userProfiles[1]),
+  lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+  unreadMessages: 0,
+  isApq: false,
+  isSelfChat: false,
+  pendingCommitFailed: false,
+  resyncFailed: false,
+);
+
 void main() {
   setUpAll(() {
     registerFallbackValue(0.messageId());
     registerFallbackValue(0.userId());
+    registerFallbackValue(0.chatId());
   });
 
   group('ChatScreenView', () {
@@ -540,8 +554,6 @@ void main() {
         ]);
       });
 
-      setUpAll(() => registerFallbackValue(0.chatId()));
-
       testWidgets('retracts the request from its card once confirmed', (
         tester,
       ) async {
@@ -596,6 +608,99 @@ void main() {
       });
     });
 
+    group('received request', () {
+      final receivedRequest = _receivedRequest;
+
+      setUp(() {
+        when(() => navigationCubit.state).thenReturn(
+          NavigationState.home(
+            home: HomeNavigationState(chatId: receivedRequest.id),
+          ),
+        );
+        when(() => chatDetailsCubit.state).thenReturn(
+          ChatDetailsState(chat: receivedRequest, members: const []),
+        );
+        when(() => userCubit.declineContactRequest(any()))
+            .thenAnswer((_) async {});
+        when(() => userCubit.blockContact(any())).thenAnswer((_) async {});
+        messageListCubit.setState([
+          _systemMsg(
+            1,
+            receivedRequest.id,
+            UiSystemMessage.receivedHandleConnectionRequest(
+              sender: userProfiles[1].userId,
+              username: const UiUsername(plaintext: 'eve_03'),
+            ),
+          ),
+        ]);
+      });
+
+      Finder onCard(String text) => find.descendant(
+        of: find.byType(ContactRequestCard),
+        matching: find.text(text),
+      );
+
+      testWidgets('declines the request from its card without asking', (
+        tester,
+      ) async {
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+
+        expect(onCard('Later'), findsNothing);
+        await tester.tap(onCard('Decline'));
+        await tester.pumpAndSettle();
+
+        verify(() => userCubit.declineContactRequest(receivedRequest.id))
+            .called(1);
+        verify(() => navigationCubit.closeChat()).called(1);
+      });
+
+      testWidgets('keeps the chat open when declining fails', (tester) async {
+        when(() => userCubit.declineContactRequest(any()))
+            .thenAnswer((_) async => throw Exception('database'));
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+
+        await tester.tap(onCard('Decline'));
+        await tester.pumpAndSettle();
+
+        verify(() => userCubit.declineContactRequest(receivedRequest.id))
+            .called(1);
+        verifyNever(() => navigationCubit.closeChat());
+      });
+
+      testWidgets('blocks the sender once confirmed', (tester) async {
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+
+        await tester.tap(onCard('Block'));
+        await tester.pumpAndSettle();
+        expect(find.text('Block Bob?'), findsOneWidget);
+        // The dialog's confirm button sits above the card's button.
+        await tester.tap(find.text('Block').last);
+        await tester.pumpAndSettle();
+
+        verify(() => userCubit.blockContact(userProfiles[1].userId)).called(1);
+        verifyNever(() => userCubit.declineContactRequest(any()));
+        verify(() => navigationCubit.closeChat()).called(1);
+      });
+
+      testWidgets('keeps the request when blocking is cancelled', (
+        tester,
+      ) async {
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+
+        await tester.tap(onCard('Block'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+
+        verifyNever(() => userCubit.blockContact(any()));
+        verifyNever(() => navigationCubit.closeChat());
+      });
+    });
+
     group('closed request', () {
       final closedRequest = _unavailableRequest;
 
@@ -625,8 +730,6 @@ void main() {
           ),
         ]);
       });
-
-      setUpAll(() => registerFallbackValue(0.chatId()));
 
       testWidgets('offers no answer', (tester) async {
         await tester.pumpWidget(buildSubject());

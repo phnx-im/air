@@ -77,6 +77,10 @@ abstract class UserCubitBase implements RustOpaqueInterface {
 
   Future<List<UiContact>> get contacts;
 
+  /// Declines the incoming contact requests of the chat and erases the chat.
+  /// Their sender is not told.
+  Future<void> declineContactRequest(ChatId chatId);
+
   Future<void> deleteAccount({
     required String dbPath,
     required String confirmationText,

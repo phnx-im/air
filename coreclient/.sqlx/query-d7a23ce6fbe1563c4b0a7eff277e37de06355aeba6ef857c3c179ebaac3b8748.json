@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n            request_id AS \"request_id: ChatId\",\n            declined_at AS \"declined_at: DateTime<Utc>\"\n        FROM declined_connection_request\n        ORDER BY request_id",
+  "describe": {
+    "columns": [
+      {
+        "name": "request_id: ChatId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "declined_connection_request",
+            "name": "request_id"
+          }
+        }
+      },
+      {
+        "name": "declined_at: DateTime<Utc>",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "declined_connection_request",
+            "name": "declined_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "d7a23ce6fbe1563c4b0a7eff277e37de06355aeba6ef857c3c179ebaac3b8748"
+}
