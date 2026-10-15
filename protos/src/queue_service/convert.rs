@@ -3,9 +3,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::{self, aead::AEAD_KEY_SIZE, signatures},
+    crypto::{
+        self,
+        aead::AEAD_KEY_SIZE,
+        signatures::{self, private_keys::SIGNATURE_PUBLIC_KEY_SIZE},
+    },
     identifiers,
-    messages::{self, push_token},
+    messages::{
+        self, FRIENDSHIP_TOKEN_SIZE,
+        push_token::{self, MAX_ENCRYPTED_PUSH_TOKEN_SIZE},
+    },
 };
 use openmls::key_packages;
 use tls_codec::{DeserializeBytes, Serialize};
@@ -15,7 +22,7 @@ use uuid::Uuid;
 use crate::{
     common::convert::InvalidNonceLen,
     queue_service::v1::ApqKeyPackage,
-    validation::{MissingFieldError, MissingFieldExt},
+    validation::{InvalidFieldLength, MissingFieldError, MissingFieldExt},
 };
 
 use super::v1::{
@@ -61,9 +68,16 @@ impl TryFrom<QsClientId> for identifiers::QsClientId {
     }
 }
 
-impl From<QsUserVerifyingKey> for signatures::keys::QsUserVerifyingKey {
-    fn from(proto: QsUserVerifyingKey) -> Self {
-        Self::from_bytes(proto.bytes)
+impl TryFrom<QsUserVerifyingKey> for signatures::keys::QsUserVerifyingKey {
+    type Error = InvalidFieldLength;
+
+    fn try_from(proto: QsUserVerifyingKey) -> Result<Self, Self::Error> {
+        InvalidFieldLength::check(
+            "QS user verifying key",
+            &proto.bytes,
+            SIGNATURE_PUBLIC_KEY_SIZE,
+        )?;
+        Ok(Self::from_bytes(proto.bytes))
     }
 }
 
@@ -75,9 +89,12 @@ impl From<signatures::keys::QsUserVerifyingKey> for QsUserVerifyingKey {
     }
 }
 
-impl From<FriendshipToken> for messages::FriendshipToken {
-    fn from(proto: FriendshipToken) -> Self {
-        Self::from_bytes(proto.bytes)
+impl TryFrom<FriendshipToken> for messages::FriendshipToken {
+    type Error = InvalidFieldLength;
+
+    fn try_from(proto: FriendshipToken) -> Result<Self, Self::Error> {
+        InvalidFieldLength::check("friendship token", &proto.bytes, FRIENDSHIP_TOKEN_SIZE)?;
+        Ok(Self::from_bytes(proto.bytes))
     }
 }
 
@@ -89,9 +106,16 @@ impl From<messages::FriendshipToken> for FriendshipToken {
     }
 }
 
-impl From<QsClientVerifyingKey> for signatures::keys::QsClientVerifyingKey {
-    fn from(proto: QsClientVerifyingKey) -> Self {
-        Self::from_bytes(proto.bytes)
+impl TryFrom<QsClientVerifyingKey> for signatures::keys::QsClientVerifyingKey {
+    type Error = InvalidFieldLength;
+
+    fn try_from(proto: QsClientVerifyingKey) -> Result<Self, Self::Error> {
+        InvalidFieldLength::check(
+            "QS client verifying key",
+            &proto.bytes,
+            SIGNATURE_PUBLIC_KEY_SIZE,
+        )?;
+        Ok(Self::from_bytes(proto.bytes))
     }
 }
 
@@ -103,11 +127,33 @@ impl From<signatures::keys::QsClientVerifyingKey> for QsClientVerifyingKey {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum InvalidEncryptedPushToken {
+    #[error(transparent)]
+    InvalidNonceLen(#[from] InvalidNonceLen),
+    #[error(
+        "encrypted push token too long: at most {MAX_ENCRYPTED_PUSH_TOKEN_SIZE} bytes, got {0}"
+    )]
+    TooLong(usize),
+}
+
+impl From<InvalidEncryptedPushToken> for Status {
+    fn from(e: InvalidEncryptedPushToken) -> Self {
+        Status::invalid_argument(e.to_string())
+    }
+}
+
 impl TryFrom<EncryptedPushToken> for push_token::EncryptedPushToken {
-    type Error = InvalidNonceLen;
+    type Error = InvalidEncryptedPushToken;
 
     fn try_from(proto: EncryptedPushToken) -> Result<Self, Self::Error> {
-        proto.ciphertext.unwrap_or_default().try_into()
+        let ciphertext = proto.ciphertext.unwrap_or_default();
+        if ciphertext.ciphertext.len() > MAX_ENCRYPTED_PUSH_TOKEN_SIZE {
+            return Err(InvalidEncryptedPushToken::TooLong(
+                ciphertext.ciphertext.len(),
+            ));
+        }
+        Ok(ciphertext.try_into()?)
     }
 }
 
@@ -220,5 +266,102 @@ impl From<messages::QueueMessage> for QueueMessage {
             sequence_number: value.sequence_number,
             ciphertext: Some(value.ciphertext.into()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::crypto::{aead::AEAD_NONCE_SIZE, signatures::keys::QsUserSigningKey};
+
+    use crate::common::v1::Ciphertext;
+
+    use super::*;
+
+    fn assert_exact_size<T, E>(size: usize, convert: impl Fn(Vec<u8>) -> Result<T, E>) {
+        assert!(convert(vec![1; size]).is_ok());
+        assert!(convert(vec![1; size - 1]).is_err());
+        assert!(convert(vec![1; size + 1]).is_err());
+        assert!(convert(Vec::new()).is_err());
+    }
+
+    #[test]
+    fn qs_user_verifying_key_requires_exact_size() {
+        assert_exact_size(SIGNATURE_PUBLIC_KEY_SIZE, |bytes| {
+            signatures::keys::QsUserVerifyingKey::try_from(QsUserVerifyingKey { bytes })
+        });
+    }
+
+    #[test]
+    fn qs_client_verifying_key_requires_exact_size() {
+        assert_exact_size(SIGNATURE_PUBLIC_KEY_SIZE, |bytes| {
+            signatures::keys::QsClientVerifyingKey::try_from(QsClientVerifyingKey { bytes })
+        });
+    }
+
+    #[test]
+    fn friendship_token_requires_exact_size() {
+        assert_exact_size(FRIENDSHIP_TOKEN_SIZE, |bytes| {
+            messages::FriendshipToken::try_from(FriendshipToken { bytes })
+        });
+    }
+
+    #[test]
+    fn generated_values_pass_size_checks() {
+        let signing_key = QsUserSigningKey::generate().unwrap();
+        let bytes = signing_key.verifying_key().as_slice().to_vec();
+        assert!(
+            signatures::keys::QsUserVerifyingKey::try_from(QsUserVerifyingKey { bytes }).is_ok()
+        );
+
+        let token = messages::FriendshipToken::random().unwrap();
+        assert!(messages::FriendshipToken::try_from(FriendshipToken::from(token)).is_ok());
+    }
+
+    fn encrypted_push_token(
+        ciphertext_len: usize,
+    ) -> Result<push_token::EncryptedPushToken, InvalidEncryptedPushToken> {
+        EncryptedPushToken {
+            ciphertext: Some(Ciphertext {
+                ciphertext: vec![1; ciphertext_len],
+                nonce: vec![2; AEAD_NONCE_SIZE],
+            }),
+        }
+        .try_into()
+    }
+
+    #[test]
+    fn encrypted_push_token_is_bounded() {
+        assert!(encrypted_push_token(0).is_ok());
+        assert!(encrypted_push_token(MAX_ENCRYPTED_PUSH_TOKEN_SIZE).is_ok());
+        assert!(matches!(
+            encrypted_push_token(MAX_ENCRYPTED_PUSH_TOKEN_SIZE + 1),
+            Err(InvalidEncryptedPushToken::TooLong(len)) if len == MAX_ENCRYPTED_PUSH_TOKEN_SIZE + 1
+        ));
+    }
+
+    #[test]
+    fn encrypted_push_token_still_checks_nonce() {
+        let result = push_token::EncryptedPushToken::try_from(EncryptedPushToken {
+            ciphertext: Some(Ciphertext {
+                ciphertext: vec![1; 16],
+                nonce: vec![2; AEAD_NONCE_SIZE - 1],
+            }),
+        });
+        assert!(matches!(
+            result,
+            Err(InvalidEncryptedPushToken::InvalidNonceLen(_))
+        ));
+    }
+
+    #[test]
+    fn invalid_sizes_map_to_invalid_argument() {
+        let error = signatures::keys::QsUserVerifyingKey::try_from(QsUserVerifyingKey {
+            bytes: Vec::new(),
+        })
+        .unwrap_err();
+        assert_eq!(Status::from(error).code(), tonic::Code::InvalidArgument);
+
+        let error = encrypted_push_token(MAX_ENCRYPTED_PUSH_TOKEN_SIZE + 1).unwrap_err();
+        assert_eq!(Status::from(error).code(), tonic::Code::InvalidArgument);
     }
 }

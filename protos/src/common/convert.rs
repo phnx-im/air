@@ -9,6 +9,7 @@ use aircommon::{
     crypto::{
         self,
         aead::{self, AeadCiphertext},
+        hpke::HPKE_PUBLIC_KEY_SIZE,
         indexed_aead,
         kdf::KDF_KEY_SIZE,
         secrets::Secret,
@@ -27,7 +28,7 @@ use crate::{
     client::component,
     common::v1::{ExpirationData, Version},
     convert::{FromRef, TryFromRef, TryRefInto},
-    validation::{MissingFieldError, MissingFieldExt},
+    validation::{InvalidFieldLength, MissingFieldError, MissingFieldExt},
 };
 
 use super::v1::{
@@ -338,9 +339,12 @@ impl From<Signature> for AsSignature {
     }
 }
 
-impl From<RatchetEncryptionKey> for crypto::RatchetEncryptionKey {
-    fn from(proto: RatchetEncryptionKey) -> Self {
-        Self::from_bytes(proto.bytes)
+impl TryFrom<RatchetEncryptionKey> for crypto::RatchetEncryptionKey {
+    type Error = InvalidFieldLength;
+
+    fn try_from(proto: RatchetEncryptionKey) -> Result<Self, Self::Error> {
+        InvalidFieldLength::check("ratchet encryption key", &proto.bytes, HPKE_PUBLIC_KEY_SIZE)?;
+        Ok(Self::from_bytes(proto.bytes))
     }
 }
 
@@ -533,6 +537,22 @@ mod test {
     use uuid::uuid;
 
     use super::*;
+
+    #[test]
+    fn ratchet_encryption_key_requires_exact_size() {
+        let convert =
+            |bytes| crypto::RatchetEncryptionKey::try_from(RatchetEncryptionKey { bytes });
+        assert!(convert(vec![1; HPKE_PUBLIC_KEY_SIZE]).is_ok());
+        assert!(convert(vec![1; HPKE_PUBLIC_KEY_SIZE - 1]).is_err());
+        assert!(convert(vec![1; HPKE_PUBLIC_KEY_SIZE + 1]).is_err());
+        assert!(convert(Vec::new()).is_err());
+
+        let generated = crypto::RatchetDecryptionKey::generate()
+            .unwrap()
+            .encryption_key()
+            .clone();
+        assert!(convert(generated.into_bytes()).is_ok());
+    }
 
     #[test]
     fn uuid_conversion() {

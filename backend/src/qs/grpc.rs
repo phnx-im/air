@@ -13,10 +13,13 @@ use airprotos::{
 
 use aircommon::{
     identifiers,
-    messages::client_qs::{
-        CreateClientRecordParams, CreateUserRecordParams, DeleteClientRecordParams,
-        DeleteUserRecordParams, KeyPackageParams, PublishKeyPackagesParams,
-        UpdateClientRecordParams, UpdateUserRecordParams,
+    messages::{
+        self,
+        client_qs::{
+            CreateClientRecordParams, CreateUserRecordParams, DeleteClientRecordParams,
+            DeleteUserRecordParams, KeyPackageParams, PublishKeyPackagesParams,
+            UpdateClientRecordParams, UpdateUserRecordParams,
+        },
     },
     time::TimeStamp,
     virtual_client::KeyPackageBatchId,
@@ -107,19 +110,19 @@ impl QueueService for GrpcQs {
             user_record_auth_key: request
                 .user_record_auth_key
                 .ok_or_missing_field("user_record_auth_key")?
-                .into(),
+                .try_into()?,
             friendship_token: request
                 .friendship_token
                 .ok_or_missing_field("friendship_token")?
-                .into(),
+                .try_into()?,
             client_record_auth_key: request
                 .client_record_auth_key
                 .ok_or_missing_field("client_record_auth_key")?
-                .into(),
+                .try_into()?,
             queue_encryption_key: request
                 .queue_encryption_key
                 .ok_or_missing_field("queue_encryption_key")?
-                .into(),
+                .try_into()?,
             encrypted_push_token: request
                 .encrypted_push_token
                 .map(|token| token.try_into())
@@ -170,10 +173,10 @@ impl QueueService for GrpcQs {
             sender: sender.ok_or_missing_field("sender")?.try_into()?,
             user_record_auth_key: user_record_auth_key
                 .ok_or_missing_field("user_record_auth_key")?
-                .into(),
+                .try_into()?,
             friendship_token: friendship_token
                 .ok_or_missing_field("friendship_token")?
-                .into(),
+                .try_into()?,
         };
         self.qs
             .qs_update_user_record(params)
@@ -236,10 +239,10 @@ impl QueueService for GrpcQs {
             sender: sender.ok_or_missing_field("sender")?.try_into()?,
             client_record_auth_key: client_record_auth_key
                 .ok_or_missing_field("client_record_auth_key")?
-                .into(),
+                .try_into()?,
             queue_encryption_key: queue_encryption_key
                 .ok_or_missing_field("queue_encryption_key")?
-                .into(),
+                .try_into()?,
             encrypted_push_token: encrypted_push_token
                 .map(|token| token.try_into())
                 .transpose()?,
@@ -277,10 +280,10 @@ impl QueueService for GrpcQs {
             sender: sender.ok_or_missing_field("sender")?.try_into()?,
             client_record_auth_key: client_record_auth_key
                 .ok_or_missing_field("client_record_auth_key")?
-                .into(),
+                .try_into()?,
             queue_encryption_key: queue_encryption_key
                 .ok_or_missing_field("queue_encryption_key")?
-                .into(),
+                .try_into()?,
             encrypted_push_token: encrypted_push_token
                 .map(|token| token.try_into())
                 .transpose()?,
@@ -394,7 +397,9 @@ impl QueueService for GrpcQs {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
         let params = KeyPackageParams {
-            sender: request.sender.ok_or_missing_field("sender")?.into(),
+            sender: messages::FriendshipToken::from_bytes(
+                request.sender.ok_or_missing_field("sender")?.bytes,
+            ),
         };
         let response = self.qs.qs_key_package(params).await?;
         Ok(Response::new(KeyPackageResponse {
@@ -437,7 +442,9 @@ impl QueueService for GrpcQs {
     ) -> Result<Response<ApqKeyPackageResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
-        let friendship_token = request.sender.ok_or_missing_field("sender")?.into();
+        let friendship_token = messages::FriendshipToken::from_bytes(
+            request.sender.ok_or_missing_field("sender")?.bytes,
+        );
         let key_package = self.qs.qs_apq_key_package(friendship_token).await?;
         Ok(Response::new(ApqKeyPackageResponse {
             key_package: Some(key_package.try_into().tls_failed("key_package")?),
@@ -610,5 +617,97 @@ enum ListenQueueProtocolViolation {
 impl From<ListenQueueProtocolViolation> for Status {
     fn from(error: ListenQueueProtocolViolation) -> Self {
         Status::failed_precondition(error.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::{
+        crypto::aead::AEAD_NONCE_SIZE, messages::push_token::MAX_ENCRYPTED_PUSH_TOKEN_SIZE,
+    };
+    use airprotos::common::v1::{Ciphertext, RatchetEncryptionKey, RatchetSecret};
+    use sqlx::PgPool;
+    use tokio_util::sync::CancellationToken;
+
+    use crate::air_service::BackendService;
+
+    use super::*;
+
+    fn valid_create_user_request() -> CreateUserRequest {
+        CreateUserRequest {
+            client_metadata: None,
+            user_record_auth_key: Some(QsUserVerifyingKey { bytes: vec![1; 32] }),
+            friendship_token: Some(FriendshipToken { bytes: vec![2; 32] }),
+            client_record_auth_key: Some(QsClientVerifyingKey { bytes: vec![3; 32] }),
+            queue_encryption_key: Some(RatchetEncryptionKey { bytes: vec![4; 32] }),
+            encrypted_push_token: Some(EncryptedPushToken {
+                ciphertext: Some(Ciphertext {
+                    ciphertext: vec![5; 64],
+                    nonce: vec![6; AEAD_NONCE_SIZE],
+                }),
+            }),
+            initial_ratched_secret: Some(RatchetSecret { bytes: vec![7; 32] }),
+        }
+    }
+
+    async fn record_counts(pool: &PgPool) -> sqlx::Result<(i64, i64)> {
+        let users = sqlx::query_scalar("SELECT COUNT(*) FROM qs_user_record")
+            .fetch_one(pool)
+            .await?;
+        let clients = sqlx::query_scalar("SELECT COUNT(*) FROM qs_client_record")
+            .fetch_one(pool)
+            .await?;
+        Ok((users, clients))
+    }
+
+    #[sqlx::test]
+    async fn create_user_rejects_oversized_fields(pool: PgPool) -> anyhow::Result<()> {
+        let qs = Qs::initialize(
+            pool.clone(),
+            "example.com".parse()?,
+            Default::default(),
+            0,
+            CancellationToken::new(),
+        )
+        .await?;
+        let grpc_qs = GrpcQs::new(qs);
+
+        let oversize: [fn(&mut CreateUserRequest); 5] = [
+            |request| {
+                request.user_record_auth_key = Some(QsUserVerifyingKey { bytes: vec![1; 33] })
+            },
+            |request| request.friendship_token = Some(FriendshipToken { bytes: vec![2; 33] }),
+            |request| {
+                request.client_record_auth_key = Some(QsClientVerifyingKey { bytes: vec![3; 33] })
+            },
+            |request| {
+                request.queue_encryption_key = Some(RatchetEncryptionKey { bytes: vec![4; 33] })
+            },
+            |request| {
+                request.encrypted_push_token = Some(EncryptedPushToken {
+                    ciphertext: Some(Ciphertext {
+                        ciphertext: vec![5; MAX_ENCRYPTED_PUSH_TOKEN_SIZE + 1],
+                        nonce: vec![6; AEAD_NONCE_SIZE],
+                    }),
+                })
+            },
+        ];
+        for apply in oversize {
+            let mut request = valid_create_user_request();
+            apply(&mut request);
+            let status = grpc_qs
+                .create_user(Request::new(request))
+                .await
+                .unwrap_err();
+            assert_eq!(status.code(), tonic::Code::InvalidArgument);
+        }
+        assert_eq!(record_counts(&pool).await?, (0, 0));
+
+        grpc_qs
+            .create_user(Request::new(valid_create_user_request()))
+            .await?;
+        assert_eq!(record_counts(&pool).await?, (1, 1));
+
+        Ok(())
     }
 }
