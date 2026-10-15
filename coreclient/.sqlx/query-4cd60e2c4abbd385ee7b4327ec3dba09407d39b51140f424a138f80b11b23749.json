@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                link_id AS \"link_id: _\",\n                state,\n                queue AS \"queue: _\",\n                client_id AS \"client_id: _\",\n                join_request AS \"join_request: _\",\n                failure AS \"failure: _\"\n            FROM device_link\n            WHERE state IN (?1, ?2)",
+  "describe": {
+    "columns": [
+      {
+        "name": "link_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "device_link",
+            "name": "link_id"
+          }
+        }
+      },
+      {
+        "name": "state",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "device_link",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "name": "queue: _",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "device_link",
+            "name": "queue"
+          }
+        }
+      },
+      {
+        "name": "client_id: _",
+        "ordinal": 3,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "device_link",
+            "name": "client_id"
+          }
+        }
+      },
+      {
+        "name": "join_request: _",
+        "ordinal": 4,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "device_link",
+            "name": "join_request"
+          }
+        }
+      },
+      {
+        "name": "failure: _",
+        "ordinal": 5,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "device_link",
+            "name": "failure"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "4cd60e2c4abbd385ee7b4327ec3dba09407d39b51140f424a138f80b11b23749"
+}

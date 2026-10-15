@@ -2,11 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+pub(crate) mod device_link;
 mod payloads;
 #[cfg(test)]
 mod tests;
 
-use airapiclient::rs_api::RsRequestError;
+use airapiclient::{qs_api::QsListenResponder, rs_api::RsRequestError};
 use aircommon::codec::PersistenceCodec;
 use aircommon::credentials::keys::SelfGroupSigningKey;
 use aircommon::crypto::RatchetDecryptionKey;
@@ -25,10 +26,11 @@ use airprotos::client::app_data::ClientAppData;
 use airprotos::client::self_group::SettingsUpdate;
 use airprotos::relay_service::mdl::{MdlMessage, SessionAssigned};
 use airprotos::relay_service::v1::{RelayFrame, RendezVousId};
-use anyhow::{Context, anyhow, bail};
+use anyhow::{Context, anyhow};
 use apqmls::authentication::ApqCredentialWithKey;
 use apqmls::messages::ApqKeyPackage;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
+use openmls::group::GroupId;
 use openmls::prelude::{Credential, CredentialType, SignaturePublicKey};
 use openmls::{
     group::{MlsGroup, MlsGroupCreateConfig, MlsGroupJoinConfig, StagedWelcome},
@@ -43,9 +45,10 @@ use openmls_traits::OpenMlsProvider;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::time::Duration;
 use tls_codec::{Deserialize as _, DeserializeBytes, Serialize as _};
-use tokio::{sync::oneshot, time::timeout};
-use tokio_stream::StreamExt;
+use tokio::sync::{mpsc, oneshot};
+use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
+use tonic::Streaming;
 use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
@@ -57,7 +60,7 @@ use crate::{
         outgoing_requests::OutgoingRequest,
     },
     clients::{
-        CIPHERSUITE, CoreUser,
+        CIPHERSUITE, CoreUser, ListenResponse,
         api_clients::ApiClients,
         block_contact::persistence::{apply_blocked_contacts_update, blocked_contacts_snapshot},
         create_user::QsRegisteredUserState,
@@ -72,10 +75,6 @@ use crate::{
     groups::{
         Group, client_auth_info::StorableUserCredential, openmls_provider::AirOpenMlsProvider,
     },
-    job::{
-        JobError,
-        chat_operation::{ChatOperation, ChatOperationError},
-    },
     key_stores::{
         MemoryUserKeyStore, indexed_keys::StorableIndexedKey,
         queue_ratchets::StorableQsQueueRatchet,
@@ -84,19 +83,44 @@ use crate::{
     utils::persistence::{open_air_db, open_client_db, open_lock_file},
 };
 
+use device_link::{DeviceLink, DeviceLinkFailure, DeviceLinkState, ProvisionedQueue};
+
 pub(crate) use payloads::{ConnectionContact, HigherLevelGroup};
 use payloads::{ProvisioningPackage, SelfGroupJoinRequest};
 
 const EXPORTER_LABEL: &str = "multi-device-linking";
 
-/// How long to wait for the new device to disconnect after sending it an
-/// abort.
-const LINKING_ABORT_GRACE: Duration = Duration::from_secs(5);
+/// How long a device waits for the relay to let go of the call after the
+/// device's last frame, before giving up on it.
+const TEARDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
-#[derive(Debug, Serialize, Deserialize)]
-pub(crate) enum LinkingAbort {
-    DeviceLimitReached { max_devices: u32 },
-}
+/// Pause before the new device reopens its queue stream after it failed
+/// while waiting for the self-group Welcome.
+const QUEUE_REOPEN_DELAY: Duration = Duration::from_secs(1);
+
+/// How long the new device waits for the self-group Welcome after sending
+/// its join request.
+const WELCOME_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// How long the existing device waits for the new device to confirm the
+/// join after the add committed.
+const COMPLETION_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// How long the existing device waits for the outbound service to add the
+/// new device to the self group.
+const ADD_TIMEOUT: Duration = Duration::from_secs(90);
+
+/// Pause between two looks for the new device in the self group.
+const ADD_POLL_INTERVAL: Duration = Duration::from_millis(250);
+
+/// How long a device link may stay unfinished before the outbound service
+/// undoes it.
+const LINK_DEADLINE: Duration = Duration::from_secs(10 * 60);
+
+/// What the new device sends once it joined the self group. Without it the
+/// existing device takes the new device out again.
+#[derive(Serialize, Deserialize)]
+struct LinkingComplete;
 
 #[derive(Debug)]
 pub struct EncryptedLinkingMessageCtype;
@@ -188,10 +212,105 @@ pub enum MultiDeviceLinkClientError {
     DeviceLimitReached { max_devices: u32 },
 }
 
+/// Why a linking session ended badly.
 #[derive(Debug, thiserror::Error)]
-pub enum MultiDeviceProvisionClientError {
+pub(crate) enum LinkingError {
+    #[error("linking protocol error")]
+    Protocol(#[source] anyhow::Error),
+    /// The peer did not take its next step in time.
+    #[error("timed out waiting for {0}")]
+    TimedOut(&'static str),
+    /// The relay call ended under us, so there is nobody left to tell.
+    #[error("the linking session closed")]
+    SessionClosed(#[source] anyhow::Error),
+    /// The DS refused to grow the self group.
     #[error("device limit reached: max = {max_devices}")]
     DeviceLimitReached { max_devices: u32 },
+    /// The existing device took back the queue it had created for this
+    /// device, so it gave up on the link.
+    #[error("the existing device deleted this device's queue")]
+    QueueDeleted,
+}
+
+impl From<anyhow::Error> for LinkingError {
+    fn from(error: anyhow::Error) -> Self {
+        Self::Protocol(error)
+    }
+}
+
+/// When a device link started now counts as abandoned.
+fn link_deadline() -> DateTime<Utc> {
+    Utc::now() + LINK_DEADLINE
+}
+
+/// Reads the next frame off the relay stream.
+async fn next_frame(rx: &mut Streaming<RelayFrame>) -> Result<RelayFrame, LinkingError> {
+    match rx.next().await {
+        Some(Ok(frame)) => Ok(frame),
+        Some(Err(status)) => Err(LinkingError::SessionClosed(
+            anyhow::Error::from(status).context("the linking stream failed"),
+        )),
+        None => Err(LinkingError::SessionClosed(anyhow!(
+            "the relay closed the linking session"
+        ))),
+    }
+}
+
+/// Hands a frame to the relay call. A refused frame means the call is over.
+async fn send_frame(
+    tx: &mpsc::Sender<RelayFrame>,
+    frame: RelayFrame,
+    what: &'static str,
+) -> Result<(), LinkingError> {
+    tx.send(frame)
+        .await
+        .map_err(|_| LinkingError::SessionClosed(anyhow!("could not {what}")))
+}
+
+/// The error for a relay frame, or the relay's loss, that arrived while the
+/// peer was meant to stay quiet.
+fn relay_interrupted(frame: Result<RelayFrame, LinkingError>) -> LinkingError {
+    match frame {
+        Ok(_) => LinkingError::Protocol(anyhow!("unexpected linking message")),
+        Err(error) => error,
+    }
+}
+
+/// Closes the request stream and waits for the relay to end the call.
+async fn close_and_drain(tx: mpsc::Sender<RelayFrame>, rx: &mut Streaming<RelayFrame>) {
+    drop(tx);
+    let drained = async { while rx.next().await.is_some() {} };
+    if tokio::time::timeout(TEARDOWN_TIMEOUT, drained)
+        .await
+        .is_err()
+    {
+        debug!("the relay did not end the linking call in time");
+    }
+}
+
+/// Reads the next frame off the relay stream and opens it under the linking
+/// key.
+async fn receive_sealed<T: DeserializeOwned>(
+    cipher: &MultiDeviceLinkingKey,
+    rx: &mut Streaming<RelayFrame>,
+) -> Result<T, LinkingError> {
+    let frame = next_frame(rx).await?;
+    Ok(LinkingMessage::open(frame.as_slice(), cipher)?)
+}
+
+/// Hands the new device the provisioning package and reads back its
+/// self-group join request.
+async fn exchange_provisioning(
+    package: &ProvisioningPackage,
+    cipher: &MultiDeviceLinkingKey,
+    tx: &mpsc::Sender<RelayFrame>,
+    rx: &mut Streaming<RelayFrame>,
+) -> Result<SelfGroupJoinRequest, LinkingError> {
+    let frame = LinkingMessage::seal(package, cipher)?;
+    send_frame(tx, frame, "send the provisioning package").await?;
+    info!("sent provisioning package to new device");
+
+    receive_sealed(cipher, rx).await
 }
 
 impl CoreUser {
@@ -206,9 +325,9 @@ impl CoreUser {
         db_path: &str,
         domain: Fqdn,
         server_url: Option<Url>,
-        session_tx: tokio::sync::mpsc::Sender<MultiDeviceProvisionStep>,
+        session_tx: mpsc::Sender<MultiDeviceProvisionStep>,
         cancellation_token: CancellationToken,
-    ) -> anyhow::Result<Result<CoreUser, MultiDeviceProvisionClientError>> {
+    ) -> anyhow::Result<CoreUser> {
         // Opened up front, the cleanup below requires air.db to exist.
         let air_db = open_air_db(db_path).await?;
         let client_record_id = Uuid::new_v4();
@@ -225,12 +344,9 @@ impl CoreUser {
             ) => result,
         };
 
-        if !matches!(result, Ok(Ok(_))) {
+        if result.is_err() {
             warn!("multi-device linking failed, deleting new client database");
-            delete_client_database(db_path, client_record_id)
-                .await
-                .inspect_err(|error| error!(%error, "failed to delete client database"))
-                .ok();
+            Self::roll_back(db_path, client_record_id).await;
         }
         result
     }
@@ -241,8 +357,49 @@ impl CoreUser {
         client_record_id: Uuid,
         domain: Fqdn,
         server_url: Option<Url>,
-        session_tx: tokio::sync::mpsc::Sender<MultiDeviceProvisionStep>,
-    ) -> anyhow::Result<Result<CoreUser, MultiDeviceProvisionClientError>> {
+        session_tx: mpsc::Sender<MultiDeviceProvisionStep>,
+    ) -> anyhow::Result<CoreUser> {
+        let api_clients = ApiClients::new(domain, server_url);
+        let (tx, mut rx) = api_clients
+            .default_client()?
+            .rs_multi_device_provision_client()
+            .await?;
+
+        let session = Self::provision_session(
+            api_clients,
+            db_path,
+            air_db,
+            client_record_id,
+            &tx,
+            &mut rx,
+            &session_tx,
+        );
+        let core_user = Box::pin(session).await?;
+        // The confirmation is still queued. Let it out before the call goes
+        // away, or the existing device takes us out again.
+        close_and_drain(tx, &mut rx).await;
+        Ok(core_user)
+    }
+
+    /// Deletes the client database of a device whose linking failed.
+    async fn roll_back(db_path: &str, client_record_id: Uuid) {
+        delete_client_database(db_path, client_record_id)
+            .await
+            .inspect_err(|error| {
+                error!(%error, "failed to delete client database");
+            })
+            .ok();
+    }
+
+    async fn provision_session(
+        api_clients: ApiClients,
+        db_path: &str,
+        air_db: &DbAccess,
+        client_record_id: Uuid,
+        tx: &mpsc::Sender<RelayFrame>,
+        rx: &mut Streaming<RelayFrame>,
+        session_tx: &mpsc::Sender<MultiDeviceProvisionStep>,
+    ) -> Result<CoreUser, LinkingError> {
         let (provider, credential_with_key, signature_keys) =
             make_provider_and_credential(b"initiator")?;
 
@@ -253,26 +410,21 @@ impl CoreUser {
             .to_bytes()
             .context("serialize key package")?;
 
-        let api_clients = ApiClients::new(domain, server_url);
-
-        let (tx, mut rx) = api_clients
-            .default_client()?
-            .rs_multi_device_provision_client()
-            .await?;
-
         // The relay answers the provisioning request with the session's
         // rendezvous ID, which is the code the user types on the existing
         // device.
-        let frame = rx.next().await.context("relay connection closed")??;
+        let frame = next_frame(rx).await?;
         let MdlMessage::SessionAssigned(SessionAssigned { rendezvous_id }) =
             MdlMessage::from_frame(&frame).context("malformed linking message")?
         else {
-            bail!("expected a session assignment from the relay");
+            return Err(LinkingError::Protocol(anyhow!(
+                "expected a session assignment from the relay"
+            )));
         };
 
         // The relay holds the key package back until the existing device
         // answers the code.
-        tx.send(key_package_bytes.into()).await?;
+        send_frame(tx, key_package_bytes.into(), "send the key package").await?;
 
         session_tx
             .send(MultiDeviceProvisionStep::Code(rendezvous_id))
@@ -280,7 +432,7 @@ impl CoreUser {
             .map_err(|_| anyhow!("reporting stream dropped"))?;
 
         // wait for the existing (old) client to send us the welcome
-        let welcome_bytes = rx.next().await.context("relay connection closed")??;
+        let welcome_bytes = next_frame(rx).await?;
 
         session_tx
             .send(MultiDeviceProvisionStep::Linking)
@@ -291,7 +443,11 @@ impl CoreUser {
             .context("failed to deserialize welcome")?;
         let welcome = match welcome_msg.extract() {
             MlsMessageBodyIn::Welcome(w) => w,
-            _ => bail!("expected a Welcome message"),
+            _ => {
+                return Err(LinkingError::Protocol(anyhow!(
+                    "expected a Welcome message"
+                )));
+            }
         };
 
         let join_config = MlsGroupJoinConfig::builder()
@@ -308,9 +464,8 @@ impl CoreUser {
 
         // The old device creates our queue and sends us everything we need to
         // bootstrap a working client.
-        let frame = rx.next().await.context("relay connection closed")??;
-        let package: ProvisioningPackage = LinkingMessage::open(frame.as_slice(), &cipher)?;
-        info!("received provisioning package");
+        let package: ProvisioningPackage = receive_sealed(&cipher, rx).await?;
+        info!("received the provisioning package");
 
         // Join the self group:
         // 1. mint a new signing key to use for self-group commits
@@ -324,58 +479,174 @@ impl CoreUser {
             Self::link_new_device(api_clients, db_path, client_record_id, package).await?;
         info!("bootstrapped linked client");
 
-        let outcome: anyhow::Result<Result<(), MultiDeviceProvisionClientError>> = async {
-            // Prepare a key-package for the old device to add us to its self-group.
-            let key_package = core_user.generate_self_group_key_package().await?;
+        // The existing device takes the device out of the self group again
+        // if it never hears that the join went through.
+        Self::join_self_group(&core_user, &device_name, &cipher, tx, rx).await?;
 
-            // Store our own entry locally and hand a copy to the old device, which
-            // publishes it on the add commit.
-            let device = core_user
-                .store_own_device_entry(Utc::now(), Some(&device_name))
-                .await?;
-
-            tx.send(LinkingMessage::seal(
-                &SelfGroupJoinRequest {
-                    key_package,
-                    device,
-                },
-                &cipher,
-            )?)
+        // Only now does the account become loadable.
+        let mut client_record = ClientRecord::new(core_user.user_id().clone(), client_record_id);
+        client_record.finish();
+        client_record
+            .store(air_db.write().await.context("open the air database")?)
             .await
-            .context("send self-group join request")?;
-            info!("sent self-group key package and device entry to old device");
+            .context("finish the client record")?;
+        core_user.outbound_service().notify_vc_onboarding();
 
-            let abort = async {
-                let frame = rx.next().await?.ok()?;
-                LinkingMessage::open::<LinkingAbort>(frame.as_slice(), &cipher).ok()
-            };
-            tokio::select! {
-                biased;
-                Some(LinkingAbort::DeviceLimitReached { max_devices }) = abort => {
-                    return Ok(Err(MultiDeviceProvisionClientError::DeviceLimitReached {
-                        max_devices,
-                    }));
+        Ok(core_user)
+    }
+
+    /// Hands the existing device a self-group KeyPackage, waits for the
+    /// Welcome of the add commit, and confirms the join.
+    async fn join_self_group(
+        core_user: &CoreUser,
+        device_name: &str,
+        cipher: &MultiDeviceLinkingKey,
+        tx: &mpsc::Sender<RelayFrame>,
+        rx: &mut Streaming<RelayFrame>,
+    ) -> Result<(), LinkingError> {
+        Self::send_self_group_join_request(core_user, device_name, cipher, tx).await?;
+        core_user.await_self_group_welcome(rx).await?;
+        info!("joined self group");
+
+        // Without this the existing device removes us again, so failing to
+        // deliver it fails the link.
+        let frame = LinkingMessage::seal(&LinkingComplete, cipher)?;
+        send_frame(tx, frame, "confirm the join").await?;
+        Ok(())
+    }
+
+    /// Hands the existing device a self-group KeyPackage and this device's
+    /// entry for the linked-device list.
+    async fn send_self_group_join_request(
+        core_user: &CoreUser,
+        device_name: &str,
+        cipher: &MultiDeviceLinkingKey,
+        tx: &mpsc::Sender<RelayFrame>,
+    ) -> Result<(), LinkingError> {
+        let key_package = core_user.generate_self_group_key_package().await?;
+        // Store our own entry locally and hand a copy to the old device, which
+        // publishes it on the add commit.
+        let device = core_user
+            .store_own_device_entry(Utc::now(), Some(device_name))
+            .await?;
+        let frame = LinkingMessage::seal(
+            &SelfGroupJoinRequest {
+                key_package,
+                device,
+            },
+            cipher,
+        )?;
+        send_frame(tx, frame, "send the self-group join request").await?;
+        info!("sent self-group key package and device entry to old device");
+        Ok(())
+    }
+    /// Waits for the self-group Welcome to show up in this device's queue
+    /// while the relay session stays up.
+    async fn await_self_group_welcome(
+        &self,
+        rx: &mut Streaming<RelayFrame>,
+    ) -> Result<(), LinkingError> {
+        let self_group_id = OwnClientInfo::load_self_group_id(
+            self.db().read().await.context("open the client store")?,
+        )
+        .await
+        .context("load the self group id")?
+        .context("no self group id")?;
+
+        let wait = async {
+            loop {
+                match self.listen_queue().await {
+                    Ok((stream, responder)) => {
+                        if self
+                            .watch_queue_for_welcome(&self_group_id, stream, responder, rx)
+                            .await?
+                        {
+                            return Ok(());
+                        }
+                    }
+                    Err(error) if error.is_unknown_client() => {
+                        return Err(LinkingError::QueueDeleted);
+                    }
+                    Err(error) => {
+                        warn!(%error, "could not listen to the queue while waiting for the welcome");
+                    }
                 }
-                result = core_user.join_self_group_from_queue() => result?,
+                tokio::select! {
+                    biased;
+                    frame = next_frame(rx) => return Err(relay_interrupted(frame)),
+                    () = tokio::time::sleep(QUEUE_REOPEN_DELAY) => {}
+                }
             }
-            Ok(Ok(()))
-        }
-        .await;
+        };
+        tokio::time::timeout(WELCOME_TIMEOUT, wait)
+            .await
+            .unwrap_or(Err(LinkingError::TimedOut("the self-group welcome")))
+    }
 
-        match outcome {
-            Ok(Ok(())) => {
-                info!("joined self group");
-                // Only now does the account become loadable.
-                let mut client_record =
-                    ClientRecord::new(core_user.user_id().clone(), client_record_id);
-                client_record.finish();
-                client_record.store(air_db.write().await?).await?;
-                core_user.outbound_service().notify_vc_onboarding();
-                Ok(Ok(core_user))
+    /// Processes the queue as it fills until the self group shows up.
+    ///
+    /// Returns whether this device joined. `false` means the queue stream
+    /// ended and has to be reopened.
+    async fn watch_queue_for_welcome(
+        &self,
+        self_group_id: &GroupId,
+        mut stream: impl Stream<Item = Result<ListenResponse, tonic::Status>> + Unpin,
+        responder: QsListenResponder,
+        rx: &mut Streaming<RelayFrame>,
+    ) -> Result<bool, LinkingError> {
+        let mut messages: Vec<QueueMessage> = Vec::new();
+        loop {
+            // The existing device sends nothing more until it has our
+            // confirmation, so anything on the relay ends the session.
+            let event = tokio::select! {
+                biased;
+                frame = next_frame(rx) => return Err(relay_interrupted(frame)),
+                event = stream.next() => event,
+            };
+            let event = match event {
+                Some(Ok(response)) => response.event,
+                Some(Err(error)) => {
+                    warn!(%error, "qs listen stream failed while waiting for the welcome");
+                    return Ok(false);
+                }
+                None => return Ok(false),
+            };
+            match event {
+                Some(listen_response::Event::Message(queue_message)) => {
+                    if let Ok(queue_message) = queue_message.try_into() {
+                        messages.push(queue_message);
+                    }
+                }
+                // Empty event is the sentinel: everything queued so far is here.
+                Some(listen_response::Event::Empty(_)) => {
+                    let processed = self
+                        .process_and_ack_qs_messages(std::mem::take(&mut messages), &responder)
+                        .await;
+                    for error in &processed.errors {
+                        warn!(%error, "error while processing self-group queue message");
+                    }
+                    if self.has_joined_self_group(self_group_id).await? {
+                        // Wait for the server to apply the acks.
+                        responder.close(&mut stream).await;
+                        return Ok(true);
+                    }
+                }
+                Some(listen_response::Event::Payload(_))
+                | Some(listen_response::Event::VersionStatus(_))
+                | Some(listen_response::Event::SiblingClientState(_))
+                | None => {}
             }
-            Ok(Err(error)) => Ok(Err(error)),
-            Err(error) => Err(error),
         }
+    }
+
+    /// Whether the self group is in the store. Processing its Welcome puts it
+    /// there.
+    async fn has_joined_self_group(&self, self_group_id: &GroupId) -> anyhow::Result<bool> {
+        Ok(self
+            .db()
+            .with_read_transaction(async |txn| Group::load(txn, self_group_id).await)
+            .await?
+            .is_some())
     }
 
     /// Establishes a session with the new device that shows the linking
@@ -392,6 +663,13 @@ impl CoreUser {
             warn!("rejected a malformed linking code");
             return Ok(Err(MultiDeviceLinkClientError::InvalidCode));
         };
+        let max_devices = self.max_devices().await?;
+        let devices = u32::try_from(self.self_group_client_ids().await?.len()).unwrap_or(u32::MAX);
+        if max_devices > 0 && devices >= max_devices {
+            return Ok(Err(MultiDeviceLinkClientError::DeviceLimitReached {
+                max_devices,
+            }));
+        }
 
         let client = self.api_client()?;
         let qs_user_id = self.inner.qs_user_id;
@@ -401,17 +679,35 @@ impl CoreUser {
             .rs_multi_device_link_client(qs_user_id, &qs_user_signing_key, rendezvous_id)
             .await
         {
-            Ok((tx, rx)) => (tx, rx),
+            Ok(streams) => streams,
             Err(RsRequestError::SessionNotFound) => {
                 return Ok(Err(MultiDeviceLinkClientError::SessionNotFound));
             }
-            Err(e) => return Err(e.into()),
+            Err(error) => return Err(error.into()),
         };
 
         // Signal that we're connected to the relay
         let _ = connected_tx.send(());
 
-        let key_package_bytes = rx.next().await.context("relay connection closed")??;
+        let session = self.link_session(&tx, &mut rx, confirmation_rx);
+        match Box::pin(session).await {
+            Ok(()) => Ok(Ok(())),
+            Err(LinkingError::DeviceLimitReached { max_devices }) => {
+                Ok(Err(MultiDeviceLinkClientError::DeviceLimitReached {
+                    max_devices,
+                }))
+            }
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    async fn link_session(
+        &self,
+        tx: &mpsc::Sender<RelayFrame>,
+        rx: &mut Streaming<RelayFrame>,
+        confirmation_rx: oneshot::Receiver<String>,
+    ) -> Result<(), LinkingError> {
+        let key_package_bytes = next_frame(rx).await?;
 
         let (provider, credential_with_key, signature_keys) =
             make_provider_and_credential(b"existing-client")?;
@@ -421,10 +717,14 @@ impl CoreUser {
                 .context("deserialize key package")?
                 .extract()
             {
-                MlsMessageBodyIn::KeyPackage(kp) => {
-                    kp.validate(provider.crypto(), ProtocolVersion::Mls10)?
+                MlsMessageBodyIn::KeyPackage(kp) => kp
+                    .validate(provider.crypto(), ProtocolVersion::Mls10)
+                    .context("validate key package")?,
+                _ => {
+                    return Err(LinkingError::Protocol(anyhow!(
+                        "expected a KeyPackage in first relay frame"
+                    )));
                 }
-                _ => bail!("expected a KeyPackage in first relay frame"),
             };
 
         let group_config = MlsGroupCreateConfig::builder()
@@ -443,11 +743,14 @@ impl CoreUser {
         let (_commit, welcome, _group_info) = group
             .commit_builder()
             .propose_adds([candidate_key_package])
-            .load_psks(provider.storage())?
+            .load_psks(provider.storage())
+            .context("load psks")?
             .build(provider.rand(), provider.crypto(), &signature_keys, |_| {
                 true
-            })?
-            .stage_commit(&provider)?
+            })
+            .context("build commit")?
+            .stage_commit(&provider)
+            .context("stage commit")?
             .into_messages();
         let welcome = welcome.context("no welcome after add")?;
 
@@ -456,9 +759,7 @@ impl CoreUser {
             .context("merge pending commit")?;
 
         let welcome_bytes = welcome.to_bytes().context("serialize welcome")?;
-        tx.send(welcome_bytes.into())
-            .await
-            .context("send welcome")?;
+        send_frame(tx, welcome_bytes.into(), "send the welcome").await?;
 
         // Wait for the user to approve the link on this (existing) device.
         let device_name = confirmation_rx
@@ -468,62 +769,146 @@ impl CoreUser {
         let cipher = export_aead_key(group, provider)?;
         info!("secure linking channel established, AEAD key exported");
 
-        // Build the provisioning package (creates a fresh queue for the new
-        // device) and hand it over the secure channel.
+        // Build the provisioning package (this creates a fresh queue for the
+        // new device). From here on the device link undoes everything if the
+        // link does not complete, even if this device goes away meanwhile.
         let package = self.build_provisioning_package(device_name).await?;
-        tx.send(LinkingMessage::seal(&package, &cipher)?)
-            .await
-            .context("send provisioning package")?;
-        info!("sent provisioning package to new device");
+        let queue = ProvisionedQueue {
+            qs_client_id: package.qs_client_id,
+            qs_client_signing_key: package.qs_client_signing_key.clone(),
+        };
+        let link_id = DeviceLink::create(
+            self.db().write().await.context("open the client store")?,
+            queue,
+            link_deadline(),
+        )
+        .await
+        .context("record the device link")?;
 
-        // Receive the new device's self-group KeyPackage and its metadata entry,
-        // and add it to the self group via the DS.
-        let frame = rx.next().await.context("relay connection closed")??;
-        let request: SelfGroupJoinRequest = LinkingMessage::open(frame.as_slice(), &cipher)?;
-        match self.add_client_to_self_group(request).await {
-            Ok(()) => (),
-            Err(JobError::Domain(ChatOperationError::DeviceLimitReached { max_devices })) => {
-                match LinkingMessage::seal(
-                    &LinkingAbort::DeviceLimitReached { max_devices },
-                    &cipher,
-                ) {
-                    Ok(frame) => {
-                        if let Err(error) = tx.send(frame).await {
-                            error!(%error, "failed to send linking abort");
-                        }
-                    }
-                    Err(error) => {
-                        error!(%error, "failed to seal linking abort");
-                    }
-                }
-
-                // Delete the new device's QS client only after it disconnected. Otherwise its queue
-                // polling fails before it reads the abort.
-                let disconnected = async { while rx.next().await.is_some() {} };
-                if timeout(LINKING_ABORT_GRACE, disconnected).await.is_err() {
-                    warn!("new device did not disconnect after linking abort");
-                }
-                self.api_client()?
-                    .qs_delete_client(package.qs_client_id, &package.qs_client_signing_key)
-                    .await
-                    .inspect_err(|error| {
-                        error!(%error, "failed to delete client of rejected device from QS");
-                    })
-                    .ok();
-
-                return Ok(Err(MultiDeviceLinkClientError::DeviceLimitReached {
-                    max_devices,
-                }));
-            }
-            Err(error) => return Err(error.into()),
+        let linked = self.complete_link(link_id, &package, &cipher, tx, rx).await;
+        if linked.is_err() {
+            self.abandon_link(link_id).await;
         }
+        linked
+    }
+
+    /// Hands over the provisioning package, has the outbound service add the
+    /// new device to the self group, and waits for the new device to confirm.
+    async fn complete_link(
+        &self,
+        link_id: Uuid,
+        package: &ProvisioningPackage,
+        cipher: &MultiDeviceLinkingKey,
+        tx: &mpsc::Sender<RelayFrame>,
+        rx: &mut Streaming<RelayFrame>,
+    ) -> Result<(), LinkingError> {
+        let request = exchange_provisioning(package, cipher, tx, rx).await?;
+        let new_client_id = request.device.client_id;
+        DeviceLink::request_add(
+            self.db().write().await.context("open the client store")?,
+            link_id,
+            request,
+            link_deadline(),
+        )
+        .await?;
+        self.outbound_service().notify_pending_chat_operations();
+        let early_confirmation = self.await_device_added(link_id, new_client_id, rx).await?;
         info!("added new device to self group");
 
-        // Keep the RPC alive until the relay closes our stream, which happens
-        // once the new device has finished and disconnected.
-        while rx.next().await.is_some() {}
+        // The new device confirms once it has processed the Welcome from
+        // its queue. Without the confirmation it is taken out again, so the
+        // user's retry starts clean.
+        let confirmation = match early_confirmation {
+            Some(frame) => frame,
+            None => tokio::time::timeout(COMPLETION_TIMEOUT, next_frame(rx))
+                .await
+                .unwrap_or(Err(LinkingError::TimedOut(
+                    "the new device to confirm the join",
+                )))?,
+        };
+        let LinkingComplete = LinkingMessage::open(confirmation.as_slice(), cipher)?;
+        DeviceLink::complete(
+            self.db().write().await.context("open the client store")?,
+            link_id,
+        )
+        .await?;
+        info!("linking completed");
 
-        Ok(Ok(()))
+        Ok(())
+    }
+
+    /// Waits for the outbound service to add the new device to the self
+    /// group.
+    ///
+    /// Returns the new device's confirmation if it arrived early. The new
+    /// device confirms as soon as it processed the Welcome, which can be
+    /// before this device sees its own add.
+    async fn await_device_added(
+        &self,
+        link_id: Uuid,
+        client_id: Uuid,
+        rx: &mut Streaming<RelayFrame>,
+    ) -> Result<Option<RelayFrame>, LinkingError> {
+        let wait = async {
+            let mut early_confirmation = None;
+            loop {
+                if self.self_group_client_ids().await?.contains(&client_id) {
+                    return Ok(early_confirmation);
+                }
+                let link = DeviceLink::load(
+                    self.db().read().await.context("open the client store")?,
+                    link_id,
+                )
+                .await?
+                .context("the device link is gone")?;
+                match link.state {
+                    DeviceLinkState::Adding => (),
+                    DeviceLinkState::Failed => {
+                        return Err(match link.failure {
+                            Some(DeviceLinkFailure::DeviceLimitReached { max_devices }) => {
+                                LinkingError::DeviceLimitReached { max_devices }
+                            }
+                            Some(DeviceLinkFailure::Rejected) | None => LinkingError::Protocol(
+                                anyhow!("the DS refused to add the new device"),
+                            ),
+                        });
+                    }
+                    DeviceLinkState::Provisioned | DeviceLinkState::Abandoned => {
+                        return Err(LinkingError::Protocol(anyhow!(
+                            "the device link was abandoned"
+                        )));
+                    }
+                }
+
+                // The confirmation is the only frame the new device sends
+                // from here on.
+                if early_confirmation.is_some() {
+                    tokio::time::sleep(ADD_POLL_INTERVAL).await;
+                    continue;
+                }
+                tokio::select! {
+                    biased;
+                    frame = next_frame(rx) => early_confirmation = Some(frame?),
+                    () = tokio::time::sleep(ADD_POLL_INTERVAL) => {}
+                }
+            }
+        };
+        tokio::time::timeout(ADD_TIMEOUT, wait)
+            .await
+            .unwrap_or(Err(LinkingError::TimedOut("the self-group add")))
+    }
+
+    /// Leaves an unfinished link to the outbound service to undo.
+    async fn abandon_link(&self, link_id: Uuid) {
+        let abandoned = async {
+            DeviceLink::abandon(self.db().write().await?, link_id).await?;
+            anyhow::Ok(())
+        };
+        // The link's deadline still catches a link that could not be marked.
+        if let Err(error) = abandoned.await {
+            error!(%error, "failed to abandon the device link");
+        }
+        self.outbound_service().notify_pending_chat_operations();
     }
 
     /// Create a fresh QS queue for a new device and gather all the key material
@@ -737,102 +1122,13 @@ impl CoreUser {
             .await
     }
 
-    /// Adds the new device's leaf to the self group.
-    ///
-    /// The entry already carries the name the confirming user chose: it travelled
-    /// to the new device in the provisioning package, so both sides agree without
-    /// this side substituting anything.
-    ///
-    /// The commit is staged and sent by the job system, so a failed send leaves
-    /// the self group either retryable or clean, never stuck on a dead staged
-    /// commit.
-    async fn add_client_to_self_group(
+    /// Fully processes `messages` and ACKs them once all of them went
+    /// through.
+    async fn process_and_ack_qs_messages(
         &self,
-        request: SelfGroupJoinRequest,
-    ) -> Result<(), JobError<ChatOperationError>> {
-        let SelfGroupJoinRequest {
-            key_package,
-            device,
-        } = request;
-
-        // Sibling commits (e.g. the key-package upload cycle) may have advanced
-        // the self group. Catch up on queued messages, so that the add commit
-        // is built at the current epoch.
-        let messages = self.qs_fetch_messages().await?;
-        let processed = self.fully_process_qs_messages(messages).await;
-        if let Some(error) = processed.errors.first() {
-            warn!(%error, "failed to process queued messages before self-group add");
-        }
-
-        let chat_id = self.self_chat_id().await?.context("no self group")?;
-        self.execute_job(ChatOperation::add_client(chat_id, key_package, device))
-            .await?;
-
-        Ok(())
-    }
-
-    /// Poll our QS queue until the self-group Welcome arrives.
-    async fn join_self_group_from_queue(&self) -> anyhow::Result<()> {
-        let self_group_id = OwnClientInfo::load_self_group_id(self.db().read().await?)
-            .await?
-            .context("no self group id")?;
-
-        for _ in 0..500 {
-            let already_joined = self
-                .db()
-                .with_read_transaction(async |txn| Group::load(txn, &self_group_id).await)
-                .await?
-                .is_some();
-            if already_joined {
-                // The emulation epoch was registered while processing the
-                // self-group Welcome.
-                return Ok(());
-            }
-
-            let processed = self.drain_and_process_qs_queue().await?;
-            for error in &processed.errors {
-                warn!(%error, "error while processing self-group queue message");
-            }
-
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-
-        anyhow::bail!("timed out waiting for the self-group welcome");
-    }
-
-    /// Fetches messages from the QS queue, fully processes and ACKs them.
-    ///
-    /// Unlike [`CoreUser::qs_fetch_messages`], this ACKs the processed messages
-    /// via the responder, so it is safe to use outside of integration tests.
-    async fn drain_and_process_qs_queue(&self) -> anyhow::Result<ProcessedQsMessages> {
-        let (mut stream, responder) = self.listen_queue().await?;
-        let mut messages: Vec<QueueMessage> = Vec::new();
-
-        let drained = loop {
-            match stream.next().await {
-                Some(Ok(message)) => match message.event {
-                    // Empty event is the sentinel: the queue is drained.
-                    Some(listen_response::Event::Empty(_)) => break true,
-                    Some(listen_response::Event::Message(queue_message)) => {
-                        if let Ok(queue_message) = queue_message.try_into() {
-                            messages.push(queue_message);
-                        }
-                    }
-                    Some(listen_response::Event::Payload(_))
-                    | Some(listen_response::Event::VersionStatus(_))
-                    | Some(listen_response::Event::SiblingClientState(_))
-                    | None => {}
-                },
-                // Terminal status => stream is over, acks cannot be confirmed
-                Some(Err(error)) => {
-                    warn!(%error, "qs listen stream failed during drain");
-                    break false;
-                }
-                // EOF without our half-close (old server) => stream is over
-                None => break false,
-            }
-        };
-
+        messages: Vec<QueueMessage>,
+        responder: &QsListenResponder,
+    ) -> ProcessedQsMessages {
         let num_messages = messages.len();
         let max_sequence_number = messages.last().map(|m| m.sequence_number);
         let processed = self.fully_process_qs_messages(messages).await;
@@ -841,10 +1137,6 @@ impl CoreUser {
             if let Some(max_sequence_number) = max_sequence_number {
                 // Acks all messages before max_sequence_number + 1 (exclusive).
                 responder.ack(max_sequence_number + 1).await;
-                if drained {
-                    // half-close the request stream, then wait for the server to apply the ack
-                    responder.close(&mut stream).await;
-                }
             }
         } else {
             error!(
@@ -852,8 +1144,7 @@ impl CoreUser {
                 num_messages, "failed to fully process self-group queue messages"
             );
         }
-
-        Ok(processed)
+        processed
     }
 
     /// Bootstrap a [`CoreUser`] on a freshly linked device from the

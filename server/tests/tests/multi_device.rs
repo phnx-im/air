@@ -13,9 +13,7 @@ use aircoreclient::{
     UserProfile,
     clients::{
         CoreUser, ListenResponse, MarkChatAsRead, listen_response,
-        multi_device::{
-            MultiDeviceLinkClientError, MultiDeviceProvisionClientError, MultiDeviceProvisionStep,
-        },
+        multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
         store::ClientRecord,
     },
 };
@@ -26,7 +24,10 @@ use airprotos::{
 use airserver_test_harness::utils::setup::{RelaySettings, TestBackend, TestBackendParams};
 use chrono::{DateTime, Utc};
 use mimi_content::{MessageStatus, MimiContent};
-use std::time::Duration;
+use std::{
+    sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
+};
 use tempfile::TempDir;
 use tokio::time::sleep;
 use tokio_stream::{Stream, StreamExt};
@@ -140,6 +141,39 @@ async fn recv_linking_code(
     }
 }
 
+/// Answers a linking session on `existing`, which is kept in the
+/// foreground meanwhile. Its outbound service adds the new device to the self
+/// group.
+async fn link_client(
+    existing: &CoreUser,
+    code: String,
+    connected_tx: tokio::sync::oneshot::Sender<()>,
+    confirmation_rx: tokio::sync::oneshot::Receiver<String>,
+) -> anyhow::Result<Result<(), MultiDeviceLinkClientError>> {
+    let link = existing.multi_device_link_client(code, connected_tx, confirmation_rx);
+    in_foreground(existing, link).await
+}
+
+/// Drives `existing` until `task` finishes, the way the app does while it is
+/// in the foreground: it processes its queue and runs its outbound service.
+async fn in_foreground<T>(existing: &CoreUser, task: impl Future<Output = T>) -> T {
+    let done = AtomicBool::new(false);
+    let task = async {
+        let output = task.await;
+        done.store(true, Ordering::SeqCst);
+        output
+    };
+    let outbound = async {
+        while !done.load(Ordering::SeqCst) {
+            drain_queue(existing).await;
+            existing.outbound_service().run_once().await;
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    };
+    let (output, ()) = tokio::join!(task, outbound);
+    output
+}
+
 /// Provisions a fresh device and links it to `user_id`'s existing device,
 /// returning the new device. The [`TempDir`] holds the new device's database
 /// and must stay alive as long as the device is used.
@@ -170,20 +204,21 @@ async fn link_new_device_named(
             CancellationToken::new(),
         )
         .await
-        .unwrap()
         .unwrap();
         (new_device, tmp)
     });
 
     let session_id = recv_linking_code(&mut session_rx).await;
 
-    setup
-        .get_user(user_id)
-        .user()
-        .multi_device_link_client(session_id, ignore_connected(), confirm_with_name(name))
-        .await
-        .unwrap()
-        .unwrap();
+    link_client(
+        setup.get_user(user_id).user(),
+        session_id,
+        ignore_connected(),
+        confirm_with_name(name),
+    )
+    .await
+    .unwrap()
+    .unwrap();
 
     new_device_task.await.unwrap()
 }
@@ -595,11 +630,13 @@ async fn multi_device_link_with_nonexistent_session_id() {
     let alice = setup.add_user().await;
 
     // A well-formed code for a session that was never opened.
-    let result = setup
-        .get_user(&alice)
-        .user()
-        .multi_device_link_client("999".to_owned(), ignore_connected(), auto_confirm())
-        .await;
+    let result = link_client(
+        setup.get_user(&alice).user(),
+        "999".to_owned(),
+        ignore_connected(),
+        auto_confirm(),
+    )
+    .await;
 
     assert!(matches!(
         result,
@@ -630,29 +667,32 @@ async fn multi_device_second_link_attempt_returns_error() {
             CancellationToken::new(),
         )
         .await
-        .unwrap()
         .unwrap();
         (new_device, tmp)
     });
 
     let session_id = recv_linking_code(&mut session_rx).await;
 
-    setup
-        .get_user(&alice)
-        .user()
-        .multi_device_link_client(session_id.clone(), ignore_connected(), auto_confirm())
-        .await
-        .unwrap()
-        .unwrap();
+    link_client(
+        setup.get_user(&alice).user(),
+        session_id.clone(),
+        ignore_connected(),
+        auto_confirm(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
 
     new_device_task.await.unwrap();
 
     // Session was already consumed — a second attempt must fail.
-    let second_result = setup
-        .get_user(&alice)
-        .user()
-        .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
-        .await;
+    let second_result = link_client(
+        setup.get_user(&alice).user(),
+        session_id,
+        ignore_connected(),
+        auto_confirm(),
+    )
+    .await;
 
     assert!(matches!(
         second_result,
@@ -687,7 +727,6 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
             CancellationToken::new(),
         )
         .await
-        .unwrap()
         .unwrap();
         (new_device, tmp)
     });
@@ -705,7 +744,6 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
             CancellationToken::new(),
         )
         .await
-        .unwrap()
         .unwrap();
         (new_device, tmp)
     });
@@ -717,21 +755,25 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
     // distinct codes.
     assert_ne!(alice_session_id, bob_session_id);
 
-    setup
-        .get_user(&alice)
-        .user()
-        .multi_device_link_client(alice_session_id, ignore_connected(), auto_confirm())
-        .await
-        .unwrap()
-        .unwrap();
+    link_client(
+        setup.get_user(&alice).user(),
+        alice_session_id,
+        ignore_connected(),
+        auto_confirm(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
 
-    setup
-        .get_user(&bob)
-        .user()
-        .multi_device_link_client(bob_session_id, ignore_connected(), auto_confirm())
-        .await
-        .unwrap()
-        .unwrap();
+    link_client(
+        setup.get_user(&bob).user(),
+        bob_session_id,
+        ignore_connected(),
+        auto_confirm(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
 
     // Each new device must be linked to the correct existing virtual client.
     let (alice_device, _a_tmp) = alice_new_device.await.unwrap();
@@ -1356,8 +1398,13 @@ async fn multi_device_new_device_skips_redeemed_tokens() {
     );
 }
 
-/// Links a fresh device to `user_id` and asserts that both sides fail with the
-/// device limit error and that the rejected device removed its local client.
+/// Links a fresh device to `user_id` and asserts that the existing device
+/// fails with the device limit error and that the rejected device removed its
+/// local client.
+///
+/// Tests don't learn the limit from the QS listen stream, so the existing
+/// device does not refuse early: the DS rejects the add, and the existing
+/// device takes the new device's queue back.
 async fn assert_link_rejected_at_limit(
     setup: &TestBackend,
     user_id: &UserId,
@@ -1383,22 +1430,25 @@ async fn assert_link_rejected_at_limit(
     });
     let session_id = recv_linking_code(&mut session_rx).await;
 
-    let linked = setup
-        .get_user(user_id)
-        .user()
-        .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
-        .await?;
+    let linked = link_client(
+        setup.get_user(user_id).user(),
+        session_id,
+        ignore_connected(),
+        auto_confirm(),
+    )
+    .await?;
     assert_matches!(
         linked,
         Err(MultiDeviceLinkClientError::DeviceLimitReached { max_devices: max })
             if max == max_devices
     );
 
-    let provisioned = new_device_task.await??;
-    assert_matches!(
-        provisioned,
-        Err(MultiDeviceProvisionClientError::DeviceLimitReached { max_devices: max })
-            if max == max_devices
+    // The existing device gives up on the link and takes the new device's
+    // queue back, which ends the new device's wait for the self group.
+    let provisioned = in_foreground(setup.get_user(user_id).user(), new_device_task).await?;
+    assert!(
+        provisioned.is_err(),
+        "the rejected device must not finish linking"
     );
 
     assert!(
@@ -3149,7 +3199,7 @@ async fn provision_device(
             session_tx,
             CancellationToken::new(),
         )
-        .await??;
+        .await?;
         Ok((device, tmp))
     });
 
@@ -3195,13 +3245,15 @@ async fn multi_device_rendezvous_id_is_not_reused() {
     let alice = setup.add_user().await;
 
     let (first_code, first_task, _first_rx) = provision_device(&setup).await;
-    setup
-        .get_user(&alice)
-        .user()
-        .multi_device_link_client(first_code.clone(), ignore_connected(), auto_confirm())
-        .await
-        .unwrap()
-        .unwrap();
+    link_client(
+        setup.get_user(&alice).user(),
+        first_code.clone(),
+        ignore_connected(),
+        auto_confirm(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
     let (_first_device, _first_tmp) = first_task.await.unwrap().unwrap();
 
     let (second_code, second_task, _second_rx) = provision_device(&setup).await;
