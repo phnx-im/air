@@ -24,14 +24,22 @@ pub enum QsEnqueueError<N: NetworkProvider> {
     #[error("An error occurred while sending a message to the network")]
     NetworkError(N::NetworkError),
     /// Storage provider error
-    #[error("Storage provider error")]
-    StorageError,
+    #[error("Storage provider error: {0}")]
+    StorageError(#[from] StorageError),
+    #[error("Error serializing message: {0}")]
+    SerializationError(#[from] tls_codec::Error),
     /// Unrecoverable implementation error
     #[error("Library Error")]
     LibraryError,
     /// Invalid response
     #[error("Invalid response")]
     InvalidResponse,
+}
+
+impl<N: NetworkProvider> From<sqlx::Error> for QsEnqueueError<N> {
+    fn from(error: sqlx::Error) -> Self {
+        Self::StorageError(error.into())
+    }
 }
 
 /// Error communicating with the As.
