@@ -29,11 +29,10 @@ use airprotos::client::group_bootstrap::{
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use openmls::{components::vc_derivation_info::EpochId, prelude::GroupId};
-use tracing::warn;
 use zeroize::Zeroizing;
 
 use crate::{
-    chats::{connection_requests, outgoing_requests::OutgoingRequest},
+    chats::outgoing_requests::OutgoingRequest,
     clients::connection_offer::FriendshipPackage,
     db::access::WriteDbTransaction,
     groups::{Group, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
@@ -204,7 +203,7 @@ impl TryFrom<ConnectionContext> for BootstrapConnection {
                     connection_offer_hash: context
                         .connection_offer_hash
                         .context("handle initiator context without a connection offer hash")?,
-                    sent_at: context.sent_at.and_then(sent_time),
+                    sent_at: context.sent_at.map(TimeStamp::from),
                 }))
             }
             ConnectionContext::TargetedInitiator(context) => {
@@ -217,7 +216,7 @@ impl TryFrom<ConnectionContext> for BootstrapConnection {
                         "targeted initiator context without a friendship package ear key",
                     )?,
                     origin_group_id: context.origin_group_id,
-                    sent_at: context.sent_at.and_then(sent_time),
+                    sent_at: context.sent_at.map(TimeStamp::from),
                 }))
             }
             ConnectionContext::Accept(context) => Ok(Self::Accept {
@@ -243,16 +242,6 @@ impl TryFrom<ConnectionContext> for BootstrapConnection {
             }
         }
     }
-}
-
-/// The time a sibling sent a request at. Without a valid one, as from an
-/// older sibling, the request counts from the DS time of the echo.
-fn sent_time(millis: u64) -> Option<TimeStamp> {
-    let sent_at = connection_requests::from_epoch_millis(millis);
-    if sent_at.is_none() {
-        warn!(%millis, "Ignoring the out-of-range send time of a request");
-    }
-    sent_at.map(TimeStamp::from)
 }
 
 fn bootstrap_key(secret: Vec<u8>) -> Result<GroupBootstrapKey> {
@@ -285,7 +274,7 @@ mod tests {
             AcceptContext, HandleInitiatorContext, PeerUserId, TargetedInitiatorContext,
         },
     };
-    use chrono::DateTime;
+    use chrono::{DateTime, Utc};
     use uuid::Uuid;
 
     use crate::{
@@ -494,7 +483,7 @@ mod tests {
         assert!(with_connection(ConnectionContext::Unknown).is_err());
     }
 
-    fn handle_initiator_context(sent_at: Option<u64>) -> HandleInitiatorContext {
+    fn handle_initiator_context(sent_at: Option<DateTime<Utc>>) -> HandleInitiatorContext {
         HandleInitiatorContext {
             username: Some("ellie-03".to_owned()),
             friendship_package_ear_key: Some(key(5)),
@@ -517,25 +506,20 @@ mod tests {
             | OutgoingRequest::Targeted { sent_at, .. }) = request;
             Ok(sent_at)
         };
-        let contexts: [fn(Option<u64>) -> ConnectionContext; 2] = [
-            |sent_at| ConnectionContext::HandleInitiator(handle_initiator_context(sent_at)),
-            |sent_at| {
-                ConnectionContext::TargetedInitiator(TargetedInitiatorContext {
-                    user_id: Some(peer_user_id().into()),
-                    friendship_package_ear_key: Some(key(7)),
-                    origin_group_id: None,
-                    sent_at,
-                })
-            },
-        ];
+        let targeted_context = |sent_at| {
+            ConnectionContext::TargetedInitiator(TargetedInitiatorContext {
+                user_id: Some(peer_user_id().into()),
+                friendship_package_ear_key: Some(key(7)),
+                origin_group_id: None,
+                sent_at,
+            })
+        };
 
-        let millis = 1_767_225_600_123;
-        let expected = DateTime::from_timestamp_millis(millis.try_into()?).map(TimeStamp::from);
-        for context in contexts {
-            assert_eq!(sent_at(context(Some(millis)))?, expected);
-            // From an older sibling, or out of range.
-            assert_eq!(sent_at(context(None))?, None);
-            assert_eq!(sent_at(context(Some(u64::MAX)))?, None);
+        for time in [DateTime::from_timestamp_millis(1_767_225_600_123), None] {
+            let expected = time.map(TimeStamp::from);
+            let handle_context = ConnectionContext::HandleInitiator(handle_initiator_context(time));
+            assert_eq!(sent_at(handle_context)?, expected);
+            assert_eq!(sent_at(targeted_context(time))?, expected);
         }
         Ok(())
     }

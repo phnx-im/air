@@ -48,6 +48,7 @@ use aircommon::{
 use airmacros::{
     DeserializeTaggedMap, DeserializeTaggedUnion, SerializeTaggedMap, SerializeTaggedUnion,
 };
+use chrono::{DateTime, Utc};
 use openmls::{
     components::{vc_application_secret::VcApplicationSecretInfo, vc_derivation_info::EpochId},
     prelude::{GroupId, LeafNodeIndex},
@@ -286,8 +287,8 @@ pub struct HandleInitiatorContext {
     #[tag(3)]
     pub connection_offer_hash: Option<ConnectionOfferHash>,
     /// When the request was sent, which its expiry counts from.
-    #[tag(4)]
-    pub sent_at: Option<u64>,
+    #[tag(4, with = "chrono::serde::ts_milliseconds")]
+    pub sent_at: Option<DateTime<Utc>>,
 }
 
 /// The acting client initiated a connection via a targeted message.
@@ -315,8 +316,8 @@ pub struct TargetedInitiatorContext {
     pub origin_group_id: Option<GroupId>,
     /// When the request was sent, which its expiry counts from. Absent from
     /// older clients.
-    #[tag(4)]
-    pub sent_at: Option<u64>,
+    #[tag(4, with = "chrono::serde::ts_milliseconds")]
+    pub sent_at: Option<DateTime<Utc>>,
 }
 
 /// The acting client accepted a connection request by externally joining the
@@ -604,13 +605,13 @@ mod test {
                 username: Some("alice".to_owned()),
                 friendship_package_ear_key: Some(key(1)),
                 connection_offer_hash: Some(ConnectionOfferHash::from_bytes([2u8; 32])),
-                sent_at: Some(1_767_225_600_123),
+                sent_at: DateTime::from_timestamp_millis(1_767_225_600_123),
             }),
             ConnectionContext::TargetedInitiator(TargetedInitiatorContext {
                 user_id: Some(user_id().into()),
                 friendship_package_ear_key: Some(key(3)),
                 origin_group_id: Some(t_group_id()),
-                sent_at: Some(1_767_225_600_456),
+                sent_at: DateTime::from_timestamp_millis(1_767_225_600_456),
             }),
         ];
         for context in contexts {
@@ -652,7 +653,7 @@ mod test {
             username: Some("alice".to_owned()),
             friendship_package_ear_key: Some(key(1)),
             connection_offer_hash: Some(ConnectionOfferHash::from_bytes([2u8; 32])),
-            sent_at: Some(1_767_225_600_123),
+            sent_at: DateTime::from_timestamp_millis(1_767_225_600_123),
         });
         let bytes = PersistenceCodec::to_vec(&context).unwrap();
         let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();

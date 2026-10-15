@@ -30,13 +30,12 @@ use airprotos::{
     },
 };
 use anyhow::{Context, bail};
-use chrono::{SubsecRound, Utc};
 use openmls::group::GroupId;
 use tracing::{error, info, warn};
 
 use crate::{
     Chat, ChatId,
-    chats::{PendingConnectionRequest, connection_requests, outgoing_requests::OutgoingRequest},
+    chats::{PendingConnectionRequest, outgoing_requests::OutgoingRequest},
     clients::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
         targeted_message::TargetedMessageContent,
@@ -427,12 +426,6 @@ struct LocalGroup<Payload = AnyConnectionPackage> {
     payload: Payload,
 }
 
-/// The time a request is sent at. The siblings get it in milliseconds.
-/// Dropping the rest keeps our deadline equal to the ones of the siblings.
-fn request_sent_at() -> TimeStamp {
-    Utc::now().trunc_subsecs(3).into()
-}
-
 impl LocalGroup<AnyConnectionPackage> {
     async fn create_username_contact(
         self,
@@ -480,7 +473,7 @@ impl LocalGroup<AnyConnectionPackage> {
 
         let connection_offer_hash = connection_offer.hash();
 
-        let sent_at = request_sent_at();
+        let sent_at = TimeStamp::now_millis();
         let request = OutgoingRequest::Username {
             username: username.clone(),
             friendship_package_ear_key: friendship_package_ear_key.clone(),
@@ -499,7 +492,7 @@ impl LocalGroup<AnyConnectionPackage> {
                 username: Some(username.plaintext().to_owned()),
                 friendship_package_ear_key: Some(friendship_package_ear_key.clone()),
                 connection_offer_hash: Some(connection_offer_hash),
-                sent_at: Some(connection_requests::to_epoch_millis(*sent_at)),
+                sent_at: Some(*sent_at),
             });
             params.group_bootstrap = Some(self_group.seal_group_bootstrap_param(
                 txn,
@@ -555,7 +548,7 @@ impl LocalGroup<UserId> {
                 .context("Can't find group to send targeted message in")?;
         let origin_group_id = targeted_message_group.group_id().clone();
 
-        let sent_at = request_sent_at();
+        let sent_at = TimeStamp::now_millis();
         let request = OutgoingRequest::Targeted {
             user_id: user_id.clone(),
             friendship_package_ear_key: friendship_package_ear_key.clone(),
@@ -574,7 +567,7 @@ impl LocalGroup<UserId> {
                 user_id: Some(user_id.clone().into()),
                 friendship_package_ear_key: Some(friendship_package_ear_key.clone()),
                 origin_group_id: Some(origin_group_id),
-                sent_at: Some(connection_requests::to_epoch_millis(*sent_at)),
+                sent_at: Some(*sent_at),
             });
             params.group_bootstrap = Some(self_group.seal_group_bootstrap_param(
                 txn,

@@ -22,6 +22,7 @@ use apqmls::{
     messages::ApqProtocolMessage,
     processing::{ApqProcessMessageError, ApqProcessedMessage, resolve_partial_commit},
 };
+use chrono::Utc;
 use mimi_room_policy::RoleIndex;
 use openmls::{
     components::vc_derivation_info::VirtualClientsError,
@@ -109,6 +110,7 @@ async fn apply_self_group_payload(
         let mut effects = connection_requests::apply_connection_requests_update(
             txn,
             &payload.connection_requests,
+            Utc::now(),
         )
         .await?;
         effects.stale_chats.extend(declined_chats);

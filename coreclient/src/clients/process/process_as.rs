@@ -195,7 +195,7 @@ impl CoreUser {
         }
 
         // A request that arrives after its deadline is never shown.
-        if request_expiry::has_expired(*message_timestamp, Utc::now()) {
+        if request_expiry::has_expired(*message_timestamp, context.now) {
             return Ok(None);
         }
 
