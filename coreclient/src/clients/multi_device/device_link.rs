@@ -2,12 +2,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The device links this device drives, kept in the database so they survive
-//! the linking flow.
+//! The self-group changes a device link wants to make, kept in the database so
+//! they survive the linking flow.
 //!
-//! The linking flow records each step of a link. A link left unfinished past
-//! its deadline counts as abandoned, and the outbound service undoes it, so a
-//! crash on the existing device does not leave a half-linked device behind.
+//! The linking flow records each step of a link. The outbound service turns the
+//! record into self-group commits. A link left unfinished past its deadline
+//! counts as abandoned, so a crash on the existing device does not leave a
+//! half-linked device behind.
 
 use aircommon::{
     codec::{BlobDecoded, BlobEncoded},
@@ -21,14 +22,18 @@ use uuid::Uuid;
 
 use crate::db::access::{ReadConnection, WriteConnection};
 
+pub(crate) use super::payloads::SelfGroupJoinRequest;
+
 /// How far a device link has got.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DeviceLinkState {
     /// The new device's queue exists, but the new device has not asked to
     /// join the self group yet.
     Provisioned,
-    /// The new device asked to join the self group, so it may be in it.
+    /// The outbound service adds the new device to the self group.
     Adding,
+    /// The add failed for good.
+    Failed,
     /// The link will not complete. The outbound service takes the new device
     /// out of the self group if it got in, and deletes its queue.
     Abandoned,
@@ -39,6 +44,7 @@ impl DeviceLinkState {
         match self {
             Self::Provisioned => "provisioned",
             Self::Adding => "adding",
+            Self::Failed => "failed",
             Self::Abandoned => "abandoned",
         }
     }
@@ -47,10 +53,18 @@ impl DeviceLinkState {
         Ok(match state {
             "provisioned" => Self::Provisioned,
             "adding" => Self::Adding,
+            "failed" => Self::Failed,
             "abandoned" => Self::Abandoned,
             other => bail!("unknown device link state {other}"),
         })
     }
+}
+
+/// Why the DS refused the add for good.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub(crate) enum DeviceLinkFailure {
+    DeviceLimitReached { max_devices: u32 },
+    Rejected,
 }
 
 /// The queue the existing device created for the new device.
@@ -65,6 +79,8 @@ pub(crate) struct DeviceLink {
     pub(crate) state: DeviceLinkState,
     pub(crate) queue: ProvisionedQueue,
     pub(crate) client_id: Option<Uuid>,
+    pub(crate) join_request: Option<SelfGroupJoinRequest>,
+    pub(crate) failure: Option<DeviceLinkFailure>,
 }
 
 struct SqlDeviceLink {
@@ -72,6 +88,8 @@ struct SqlDeviceLink {
     state: String,
     queue: BlobDecoded<ProvisionedQueue>,
     client_id: Option<Uuid>,
+    join_request: Option<BlobDecoded<SelfGroupJoinRequest>>,
+    failure: Option<BlobDecoded<DeviceLinkFailure>>,
 }
 
 impl TryFrom<SqlDeviceLink> for DeviceLink {
@@ -83,6 +101,8 @@ impl TryFrom<SqlDeviceLink> for DeviceLink {
             state: DeviceLinkState::parse(&row.state)?,
             queue: row.queue.into_inner(),
             client_id: row.client_id,
+            join_request: row.join_request.map(BlobDecoded::into_inner),
+            failure: row.failure.map(BlobDecoded::into_inner),
         })
     }
 }
@@ -110,7 +130,6 @@ impl DeviceLink {
         Ok(link_id)
     }
 
-    #[cfg(test)]
     pub(crate) async fn load(
         mut connection: impl ReadConnection,
         link_id: Uuid,
@@ -121,7 +140,9 @@ impl DeviceLink {
                 link_id AS "link_id: _",
                 state,
                 queue AS "queue: _",
-                client_id AS "client_id: _"
+                client_id AS "client_id: _",
+                join_request AS "join_request: _",
+                failure AS "failure: _"
             FROM device_link
             WHERE link_id = ?1"#,
             link_id,
@@ -135,6 +156,7 @@ impl DeviceLink {
     pub(crate) async fn load_actionable(
         mut connection: impl ReadConnection,
     ) -> anyhow::Result<Vec<Self>> {
+        let adding = DeviceLinkState::Adding.as_str();
         let abandoned = DeviceLinkState::Abandoned.as_str();
         let rows = query_as!(
             SqlDeviceLink,
@@ -142,9 +164,12 @@ impl DeviceLink {
                 link_id AS "link_id: _",
                 state,
                 queue AS "queue: _",
-                client_id AS "client_id: _"
+                client_id AS "client_id: _",
+                join_request AS "join_request: _",
+                failure AS "failure: _"
             FROM device_link
-            WHERE state = ?1"#,
+            WHERE state IN (?1, ?2)"#,
+            adding,
             abandoned,
         )
         .fetch_all(connection.as_mut())
@@ -152,24 +177,26 @@ impl DeviceLink {
         rows.into_iter().map(DeviceLink::try_from).collect()
     }
 
-    /// Records the new device that asked to join the self group, before
-    /// the add is sent.
+    /// Hands the outbound service the new device's join request.
     ///
     /// Fails if the link was abandoned in the meantime.
     pub(crate) async fn request_add(
         mut connection: impl WriteConnection,
         link_id: Uuid,
-        client_id: Uuid,
+        request: SelfGroupJoinRequest,
         expires_at: DateTime<Utc>,
     ) -> anyhow::Result<()> {
         let adding = DeviceLinkState::Adding.as_str();
         let provisioned = DeviceLinkState::Provisioned.as_str();
+        let client_id = request.device.client_id;
+        let request = BlobEncoded(request);
         let updated = query!(
             "UPDATE device_link
-            SET state = ?1, client_id = ?2, expires_at = ?3
-            WHERE link_id = ?4 AND state = ?5",
+            SET state = ?1, client_id = ?2, join_request = ?3, expires_at = ?4
+            WHERE link_id = ?5 AND state = ?6",
             adding,
             client_id,
+            request,
             expires_at,
             link_id,
             provisioned,
@@ -179,6 +206,28 @@ impl DeviceLink {
         if updated.rows_affected() == 0 {
             bail!("the device link was abandoned before the add was requested");
         }
+        Ok(())
+    }
+
+    /// Records that the DS refused to add the device with `client_id`.
+    pub(crate) async fn fail_add(
+        mut connection: impl WriteConnection,
+        client_id: Uuid,
+        failure: DeviceLinkFailure,
+    ) -> sqlx::Result<()> {
+        let failed = DeviceLinkState::Failed.as_str();
+        let adding = DeviceLinkState::Adding.as_str();
+        let failure = BlobEncoded(failure);
+        query!(
+            "UPDATE device_link SET state = ?1, failure = ?2
+            WHERE client_id = ?3 AND state = ?4",
+            failed,
+            failure,
+            client_id,
+            adding,
+        )
+        .execute(connection.as_mut())
+        .await?;
         Ok(())
     }
 

@@ -141,16 +141,17 @@ async fn recv_linking_code(
     }
 }
 
-/// Answers a linking session on `existing`.
+/// Answers a linking session on `existing`, which is kept in the
+/// foreground meanwhile. Its outbound service adds the new device to the self
+/// group.
 async fn link_client(
     existing: &CoreUser,
     code: String,
     connected_tx: tokio::sync::oneshot::Sender<()>,
     confirmation_rx: tokio::sync::oneshot::Receiver<String>,
 ) -> anyhow::Result<Result<(), MultiDeviceLinkClientError>> {
-    existing
-        .multi_device_link_client(code, connected_tx, confirmation_rx)
-        .await
+    let link = existing.multi_device_link_client(code, connected_tx, confirmation_rx);
+    in_foreground(existing, link).await
 }
 
 /// Drives `existing` until `task` finishes, the way the app does while it is

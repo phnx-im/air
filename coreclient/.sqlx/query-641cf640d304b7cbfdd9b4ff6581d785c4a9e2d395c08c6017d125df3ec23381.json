@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                link_id AS \"link_id: _\",\n                state,\n                queue AS \"queue: _\",\n                client_id AS \"client_id: _\"\n            FROM device_link\n            WHERE link_id = ?1",
+  "query": "SELECT\n                link_id AS \"link_id: _\",\n                state,\n                queue AS \"queue: _\",\n                client_id AS \"client_id: _\",\n                join_request AS \"join_request: _\",\n                failure AS \"failure: _\"\n            FROM device_link\n            WHERE link_id = ?1",
   "describe": {
     "columns": [
       {
@@ -46,6 +46,28 @@
             "name": "client_id"
           }
         }
+      },
+      {
+        "name": "join_request: _",
+        "ordinal": 4,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "device_link",
+            "name": "join_request"
+          }
+        }
+      },
+      {
+        "name": "failure: _",
+        "ordinal": 5,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "device_link",
+            "name": "failure"
+          }
+        }
       }
     ],
     "parameters": {
@@ -55,8 +77,10 @@
       false,
       false,
       false,
+      true,
+      true,
       true
     ]
   },
-  "hash": "9ecdd62dc6c17218251e0831bdc1838da5c5caa230c8bb4637f4ddc344b8e8a1"
+  "hash": "641cf640d304b7cbfdd9b4ff6581d785c4a9e2d395c08c6017d125df3ec23381"
 }
