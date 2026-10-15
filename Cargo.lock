@@ -121,7 +121,6 @@ dependencies = [
  "image",
  "indexmap",
  "jni",
- "libc",
  "memmap2",
  "mimi-room-policy",
  "mimi_content",
