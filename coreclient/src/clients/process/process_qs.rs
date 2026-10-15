@@ -942,7 +942,7 @@ impl CoreUser {
 
                 if ended {
                     if let Some(chat) = Chat::load(&mut *txn, &chat_id).await?
-                        && !request_expiry::close_expired_by_sibling(txn, &chat).await?
+                        && !request_expiry::close_if_expired(txn, &chat, *ds_timestamp).await?
                     {
                         persistence::erase(txn, &chat).await?;
                     }

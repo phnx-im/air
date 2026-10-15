@@ -890,6 +890,19 @@ impl ChatMessage {
         .await
     }
 
+    /// The time of the oldest message in the chat.
+    pub(crate) async fn first_timestamp(
+        mut connection: impl ReadConnection,
+        chat_id: ChatId,
+    ) -> sqlx::Result<Option<DateTime<Utc>>> {
+        query_scalar!(
+            r#"SELECT MIN(timestamp) AS "timestamp: DateTime<Utc>" FROM message WHERE chat_id = ?"#,
+            chat_id
+        )
+        .fetch_one(connection.as_mut())
+        .await
+    }
+
     /// Get the last content message in the chat which is owned by the given user.
     pub(crate) async fn last_content_message_by_user(
         mut connection: impl ReadConnection,

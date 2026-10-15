@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT EXISTS(\n            SELECT 1 FROM declined_connection_request WHERE request_id = ?\n        ) AS \"declined!: bool\"",
+  "query": "SELECT EXISTS(\n                    SELECT 1 FROM declined_connection_request WHERE request_id = ?\n                ) AS \"declined!: bool\"",
   "describe": {
     "columns": [
       {
@@ -17,5 +17,5 @@
       false
     ]
   },
-  "hash": "da8952a8e06201fbe7a632af91084961ceff9863b050cb7a60ad62a4e0838757"
+  "hash": "909d1d2447d1848ab787e33c6207da104244d7488e567e777e6da342fc1cc392"
 }

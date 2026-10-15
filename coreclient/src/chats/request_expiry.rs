@@ -16,13 +16,12 @@
 
 use aircommon::credentials::keys::UserSigningKey;
 use chrono::{DateTime, Duration, Utc};
-use sqlx::{query, query_scalar};
 use tracing::warn;
 
 use crate::{
     Chat, ChatId, ChatStatus, ChatType, SystemMessage,
     chats::{
-        PendingConnectionRequest, connection_requests,
+        DeclinedConnectionRequest, PendingConnectionRequest, connection_requests,
         messages::{ChatMessage, EventMessage, Message},
         outgoing_requests, persistence,
     },
@@ -48,30 +47,26 @@ pub(crate) fn has_expired(sent_at: DateTime<Utc>, now: DateTime<Utc>) -> bool {
 /// When the outgoing request of the chat was sent, which is the time of its
 /// announcement, the oldest message of the chat.
 pub(crate) async fn outgoing_sent_at(
-    mut connection: impl ReadConnection,
+    connection: impl ReadConnection,
     chat_id: ChatId,
 ) -> sqlx::Result<Option<DateTime<Utc>>> {
-    query_scalar!(
-        r#"SELECT MIN(timestamp) AS "sent_at: DateTime<Utc>" FROM message WHERE chat_id = ?"#,
-        chat_id
-    )
-    .fetch_one(connection.as_mut())
-    .await
+    ChatMessage::first_timestamp(connection, chat_id).await
 }
 
-/// Closes the outgoing request `chat` stands for as expired, if a sibling
-/// deleted its group past its deadline.
+/// Closes the outgoing request `chat` stands for as expired, if its deadline
+/// passed at `now`.
 ///
-/// Returns false if the deadline is still ahead, which makes the deletion a
-/// retraction.
-pub(crate) async fn close_expired_by_sibling(
+/// Returns whether the deadline passed, also for a request that was closed
+/// before.
+pub(crate) async fn close_if_expired(
     txn: &mut WriteDbTransaction<'_>,
     chat: &Chat,
+    now: DateTime<Utc>,
 ) -> anyhow::Result<bool> {
     let Some(sent_at) = outgoing_sent_at(&mut *txn, chat.id()).await? else {
         return Ok(false);
     };
-    if !has_expired(sent_at, Utc::now()) {
+    if !has_expired(sent_at, now) {
         return Ok(false);
     }
     outgoing_requests::close_expired(txn, chat, expires_at(sent_at).into()).await?;
@@ -90,11 +85,11 @@ pub(crate) async fn expire_due(
 ) -> anyhow::Result<()> {
     let cutoff = now - REQUEST_LIFETIME;
 
-    for request_id in incoming_requests_received_before(&mut *txn, cutoff).await? {
+    for request_id in PendingConnectionRequest::load_ids_received_until(&mut *txn, cutoff).await? {
         connection_requests::expire_incoming(txn, request_id).await?;
     }
 
-    for chat_id in open_outgoing_requests_sent_before(&mut *txn, cutoff).await? {
+    for chat_id in Chat::load_open_outgoing_request_ids(&mut *txn, cutoff).await? {
         let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
             continue;
         };
@@ -107,53 +102,12 @@ pub(crate) async fn expire_due(
         }
     }
 
-    query!(
-        "DELETE FROM declined_connection_request WHERE declined_at <= ?",
-        cutoff
-    )
-    .execute(txn.as_mut())
-    .await?;
+    DeclinedConnectionRequest::delete_declined_until(&mut *txn, cutoff).await?;
 
     if delete_expired_enabled(&mut *txn).await? {
         delete_expired_records(txn).await?;
     }
     Ok(())
-}
-
-async fn incoming_requests_received_before(
-    mut connection: impl ReadConnection,
-    cutoff: DateTime<Utc>,
-) -> sqlx::Result<Vec<ChatId>> {
-    query_scalar!(
-        r#"SELECT request_id AS "request_id: ChatId"
-        FROM pending_connection_request
-        WHERE received_at <= ?
-        ORDER BY received_at"#,
-        cutoff
-    )
-    .fetch_all(connection.as_mut())
-    .await
-}
-
-async fn open_outgoing_requests_sent_before(
-    mut connection: impl ReadConnection,
-    cutoff: DateTime<Utc>,
-) -> sqlx::Result<Vec<ChatId>> {
-    // An outgoing request is a chat with a username, or with a user that is
-    // neither a contact nor a sender. Status 1 is active, see `SqlChatStatus`.
-    query_scalar!(
-        r#"SELECT c.chat_id AS "chat_id: ChatId"
-        FROM chat c
-        WHERE (c.connection_user_handle IS NOT NULL
-                OR (c.connection_user_uuid IS NOT NULL
-                    AND c.is_confirmed_connection = 0
-                    AND c.is_incoming = 0))
-            AND c.status = 1
-            AND (SELECT MIN(m.timestamp) FROM message m WHERE m.chat_id = c.chat_id) <= ?"#,
-        cutoff
-    )
-    .fetch_all(connection.as_mut())
-    .await
 }
 
 /// Parks the deletion of the group of an expired outgoing request, so a late
@@ -177,8 +131,8 @@ async fn stage_group_delete(
     Ok(())
 }
 
-async fn delete_expired_enabled(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<bool> {
-    let setting = UserSettingRecord::load(&mut *txn, DeleteExpiredContactRequestsSetting::KEY)
+async fn delete_expired_enabled(connection: impl ReadConnection) -> anyhow::Result<bool> {
+    let setting = UserSettingRecord::load(connection, DeleteExpiredContactRequestsSetting::KEY)
         .await?
         .map(DeleteExpiredContactRequestsSetting::decode)
         .transpose()
@@ -192,17 +146,7 @@ async fn delete_expired_enabled(txn: &mut WriteDbTransaction<'_>) -> anyhow::Res
 /// being deleted on the DS stays until that is done, since erasing the chat
 /// would drop the parked delete.
 async fn delete_expired_records(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<()> {
-    // Status 2 is inactive, see `SqlChatStatus`.
-    let closed = query_scalar!(
-        r#"SELECT chat_id AS "chat_id: ChatId"
-        FROM chat
-        WHERE (connection_user_handle IS NOT NULL
-                OR (connection_user_uuid IS NOT NULL AND is_confirmed_connection = 0))
-            AND status = 2"#
-    )
-    .fetch_all(txn.as_mut())
-    .await?;
-    for chat_id in closed {
+    for chat_id in Chat::load_closed_request_ids(&mut *txn).await? {
         let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
             continue;
         };
@@ -217,7 +161,7 @@ async fn delete_expired_records(txn: &mut WriteDbTransaction<'_>) -> anyhow::Res
 }
 
 pub(crate) async fn is_expired_record(
-    txn: &mut WriteDbTransaction<'_>,
+    connection: impl ReadConnection,
     chat: &Chat,
 ) -> anyhow::Result<bool> {
     let expected = match chat.chat_type() {
@@ -227,7 +171,7 @@ pub(crate) async fn is_expired_record(
         }
         ChatType::Group(_) | ChatType::Connection(_) => return Ok(false),
     };
-    let last = ChatMessage::last_message(&mut *txn, chat.id()).await?;
+    let last = ChatMessage::last_message(connection, chat.id()).await?;
     Ok(last.is_some_and(|message| {
         matches!(
             message.into_message(),
@@ -242,9 +186,9 @@ async fn open_request_expires_at(
     txn: &mut ReadDbTransaction<'_>,
     chat: &Chat,
 ) -> anyhow::Result<Option<DateTime<Utc>>> {
-    if !matches!(chat.status(), ChatStatus::Active) {
+    let ChatStatus::Active = chat.status() else {
         return Ok(None);
-    }
+    };
     let sent_at = match chat.chat_type() {
         ChatType::PendingConnection(_) => {
             PendingConnectionRequest::load_for_chat(&mut *txn, chat.id())
@@ -708,22 +652,12 @@ mod tests {
     async fn a_sibling_deletion_is_an_expiry_only_past_the_deadline() -> anyhow::Result<()> {
         let db = db().await?;
         db.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            let now = Utc::now();
-            let open = send(
-                txn,
-                &Username::new("joel-03".to_owned())?,
-                now - REQUEST_LIFETIME + Duration::minutes(1),
-            )
-            .await?;
-            let expired = send(
-                txn,
-                &Username::new("joel-04".to_owned())?,
-                now - REQUEST_LIFETIME,
-            )
-            .await?;
+            let open = send(txn, &Username::new("joel-03".to_owned())?, at(60)).await?;
+            let expired = send(txn, &Username::new("joel-04".to_owned())?, at(0)).await?;
 
-            assert!(!close_expired_by_sibling(txn, &open).await?);
-            assert!(close_expired_by_sibling(txn, &expired).await?);
+            let deadline = at(0) + REQUEST_LIFETIME;
+            assert!(!close_if_expired(txn, &open, deadline).await?);
+            assert!(close_if_expired(txn, &expired, deadline).await?);
 
             assert_eq!(status(txn, open.id()).await?, ChatStatus::Active);
             assert!(matches!(
@@ -736,7 +670,7 @@ mod tests {
             ));
             assert_eq!(
                 last_system_message(txn, expired.id()).await?,
-                Some((SystemMessage::SentConnectionRequestExpired, now))
+                Some((SystemMessage::SentConnectionRequestExpired, deadline))
             );
             Ok(())
         })
@@ -749,24 +683,25 @@ mod tests {
         let db = db().await?;
         db.with_write_transaction(async |txn| -> anyhow::Result<()> {
             let user_id = UserId::random("example.com".parse()?);
-            let sent_at = Utc::now() - REQUEST_LIFETIME;
-            let own = send_targeted(txn, &user_id, sent_at).await?;
-            send_targeted(txn, &user_id, sent_at).await?;
+            let own = send_targeted(txn, &user_id, at(0)).await?;
+            send_targeted(txn, &user_id, at(0)).await?;
             // The removal commit marks the chat inactive before it is closed.
             Chat::update_status(&mut *txn, own.id(), &ChatStatus::inactive(Vec::new())).await?;
             let own = Chat::load(&mut *txn, &own.id()).await?.context("no chat")?;
 
-            assert!(close_expired_by_sibling(txn, &own).await?);
-            assert!(close_expired_by_sibling(txn, &own).await?);
+            let deadline = at(0) + REQUEST_LIFETIME;
+            assert!(close_if_expired(txn, &own, deadline).await?);
+            assert!(close_if_expired(txn, &own, deadline).await?);
 
             assert!(matches!(
                 last_system_message(txn, own.id()).await?,
                 Some((SystemMessage::SentConnectionRequestExpired, _))
             ));
-            let messages: i64 = query_scalar("SELECT COUNT(*) FROM message WHERE chat_id = ?")
-                .bind(own.id())
-                .fetch_one(txn.as_mut())
-                .await?;
+            let messages: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM message WHERE chat_id = ?")
+                    .bind(own.id())
+                    .fetch_one(txn.as_mut())
+                    .await?;
             assert_eq!(messages, 2);
             Ok(())
         })

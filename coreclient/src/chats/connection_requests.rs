@@ -32,14 +32,16 @@ use airprotos::client::self_group::{
 use anyhow::{Context, ensure};
 use chrono::{DateTime, Utc};
 use openmls::group::GroupId;
-use sqlx::{query, query_scalar};
 use tls_codec::{DeserializeBytes, Serialize as _};
 use tracing::{debug, warn};
 use uuid::Uuid;
 
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, ChatType, Contact, SystemMessage,
-    chats::{PendingConnectionRequest, messages::TimestampedMessage, persistence, request_expiry},
+    chats::{
+        DeclinedConnectionRequest, PendingConnectionRequest, messages::TimestampedMessage,
+        persistence, request_expiry,
+    },
     clients::{
         CoreUser,
         block_contact::BlockedContact,
@@ -47,9 +49,7 @@ use crate::{
         own_client_info::OwnClientInfo,
         self_group_outbox::{self, OutboxKind},
     },
-    db::access::{
-        ReadConnection, ReadDbTransaction, ReadTransaction, WriteConnection, WriteDbTransaction,
-    },
+    db::access::{ReadDbTransaction, ReadTransaction, WriteDbTransaction},
     groups::{Group, client_auth_info::StorableUserCredential},
     usernames::connection_packages::ConnectionPackageRecord,
     utils::persistence::GroupIdWrapper,
@@ -212,7 +212,7 @@ pub(crate) async fn is_known(
         .await?
         .is_some()
         || Chat::load(&mut txn, &request_id).await?.is_some()
-        || was_declined(txn, request_id).await?)
+        || DeclinedConnectionRequest::exists(txn, request_id).await?)
 }
 
 /// Returns true if `sender` is a contact with a live connection chat.
@@ -270,18 +270,6 @@ pub(crate) async fn park_received(
     };
     park(txn, request_id, &ConnectionRequestEntry::Received(received)).await?;
     Ok(())
-}
-
-/// Time in milliseconds since the Unix epoch.
-fn to_epoch_millis(time: DateTime<Utc>) -> u64 {
-    time.timestamp_millis().max(0) as u64
-}
-
-/// DateTime in milliseconds since the Unix epoch, if it is in range.
-fn from_epoch_millis(millis: u64) -> Option<DateTime<Utc>> {
-    i64::try_from(millis)
-        .ok()
-        .and_then(DateTime::from_timestamp_millis)
 }
 
 fn declined_entry(request_id: ChatId, declined_at: DateTime<Utc>) -> ConnectionRequestEntry {
@@ -459,7 +447,7 @@ pub(crate) async fn store_provisioned_requests(
             }
             ConnectionRequestEntry::Declined(declined) => {
                 let request_id = ChatId::new(declined.chat_id);
-                remember_declined(&mut *txn, request_id, declined.declined_at).await?;
+                store_declined_request(&mut *txn, request_id, declined.declined_at).await?;
             }
             ConnectionRequestEntry::Unavailable(_) | ConnectionRequestEntry::Unknown => {
                 debug!("Skipping a provisioned connection request this client cannot read");
@@ -474,7 +462,11 @@ pub(crate) async fn store_provisioned_requests(
 pub(crate) async fn requests_snapshot(
     txn: &mut ReadDbTransaction<'_>,
 ) -> anyhow::Result<Vec<ConnectionRequestEntry>> {
-    let mut entries = declined_entries(&mut *txn).await?;
+    let mut entries: Vec<_> = DeclinedConnectionRequest::load_all(&mut *txn)
+        .await?
+        .into_iter()
+        .map(|declined| declined_entry(declined.request_id, declined.declined_at))
+        .collect();
     let requests = PendingConnectionRequest::load_all(&mut *txn).await?;
     entries.reserve(requests.len());
     for request in requests {
@@ -693,7 +685,7 @@ pub(crate) async fn decline(
     // The entry carries milliseconds. Dropping the rest keeps our record equal
     // to the ones of the siblings.
     let declined_at = *TimeStamp::now_millis();
-    remember_declined(&mut *txn, request_id, declined_at).await?;
+    store_declined_request(&mut *txn, request_id, declined_at).await?;
     park(txn, request_id, &declined_entry(request_id, declined_at)).await?;
     discard_request_state(txn, request).await
 }
@@ -706,7 +698,7 @@ async fn apply_declined(
     declined_at: DateTime<Utc>,
     effects: &mut ConnectionRequestEffects,
 ) -> anyhow::Result<()> {
-    remember_declined(&mut *txn, request_id, declined_at).await?;
+    store_declined_request(&mut *txn, request_id, declined_at).await?;
     let Some(request) = PendingConnectionRequest::load(&mut *txn, request_id).await? else {
         if let Some(chat) = Chat::load(&mut *txn, &request_id).await?
             && !matches!(chat.chat_type(), ChatType::PendingConnection(_))
@@ -753,7 +745,7 @@ pub(crate) async fn apply_blocked_sender(
         return Ok(None);
     };
     for request in PendingConnectionRequest::load_for_chat(&mut *txn, chat_id).await? {
-        remember_declined(&mut *txn, request.request_id, blocked_at).await?;
+        store_declined_request(&mut *txn, request.request_id, blocked_at).await?;
         discard_request_state(txn, request).await?;
     }
     if let Some(chat) = Chat::load(&mut *txn, &chat_id).await? {
@@ -840,56 +832,17 @@ async fn discard_request_state(
     Ok(())
 }
 
-/// Whether the user declined the request.
-async fn was_declined(
-    mut connection: impl ReadConnection,
-    request_id: ChatId,
-) -> sqlx::Result<bool> {
-    query_scalar!(
-        r#"SELECT EXISTS(
-            SELECT 1 FROM declined_connection_request WHERE request_id = ?
-        ) AS "declined!: bool""#,
-        request_id,
-    )
-    .fetch_one(connection.as_mut())
-    .await
-}
-
-/// The entries of the requests the user declined, sorted by request id.
-async fn declined_entries(
-    mut connection: impl ReadConnection,
-) -> sqlx::Result<Vec<ConnectionRequestEntry>> {
-    let declines = query!(
-        r#"SELECT
-            request_id AS "request_id: ChatId",
-            declined_at AS "declined_at: DateTime<Utc>"
-        FROM declined_connection_request
-        ORDER BY request_id"#,
-    )
-    .fetch_all(connection.as_mut())
-    .await?;
-    Ok(declines
-        .into_iter()
-        .map(|decline| declined_entry(decline.request_id, decline.declined_at))
-        .collect())
-}
-
-/// Records a decline. A later decline of the same request replaces the time.
-/// Only a sibling's entry can meet a record, and every device applies those in
-/// the same order, so all devices end up with the same time.
-async fn remember_declined(
-    mut connection: impl WriteConnection,
+/// Store declined request
+async fn store_declined_request(
+    txn: &mut WriteDbTransaction<'_>,
     request_id: ChatId,
     declined_at: DateTime<Utc>,
-) -> sqlx::Result<()> {
-    query!(
-        "INSERT INTO declined_connection_request (request_id, declined_at)
-        VALUES (?, ?)
-        ON CONFLICT (request_id) DO UPDATE SET declined_at = excluded.declined_at",
+) -> anyhow::Result<()> {
+    DeclinedConnectionRequest {
         request_id,
         declined_at,
-    )
-    .execute(connection.as_mut())
+    }
+    .store(&mut *txn)
     .await?;
     Ok(())
 }
@@ -2191,7 +2144,7 @@ mod tests {
                 declined_ids(&staged_entries(txn).await?),
                 vec![stored.chat_id]
             );
-            assert!(was_declined(&mut *txn, stored.chat_id).await?);
+            assert!(DeclinedConnectionRequest::exists(&mut *txn, stored.chat_id).await?);
             Ok(())
         })
         .await

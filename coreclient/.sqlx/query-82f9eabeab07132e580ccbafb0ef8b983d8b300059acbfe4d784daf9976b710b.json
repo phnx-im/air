@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT request_id AS \"request_id: ChatId\"\n        FROM pending_connection_request\n        WHERE received_at <= ?\n        ORDER BY received_at",
+  "query": "SELECT request_id AS \"request_id: ChatId\"\n                FROM pending_connection_request\n                WHERE received_at <= ?\n                ORDER BY received_at",
   "describe": {
     "columns": [
       {
@@ -22,5 +22,5 @@
       false
     ]
   },
-  "hash": "be92c1477d2cd001a40c83134651620e4bec88fd283966ee91e43fb9fb7d3403"
+  "hash": "82f9eabeab07132e580ccbafb0ef8b983d8b300059acbfe4d784daf9976b710b"
 }
