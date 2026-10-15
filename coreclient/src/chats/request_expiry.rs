@@ -216,7 +216,10 @@ async fn delete_expired_records(txn: &mut WriteDbTransaction<'_>) -> anyhow::Res
     Ok(())
 }
 
-async fn is_expired_record(txn: &mut WriteDbTransaction<'_>, chat: &Chat) -> anyhow::Result<bool> {
+pub(crate) async fn is_expired_record(
+    txn: &mut WriteDbTransaction<'_>,
+    chat: &Chat,
+) -> anyhow::Result<bool> {
     let expected = match chat.chat_type() {
         ChatType::PendingConnection(_) => SystemMessage::ConnectionRequestExpired,
         ChatType::HandleConnection(_) | ChatType::TargetedMessageConnection(_) => {
@@ -642,6 +645,37 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn crossed_requests_through_a_group_both_expire() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let user_id = UserId::random("example.com".parse()?);
+            // The sibling's request takes over the targeted contact of the user.
+            let own = send_targeted(txn, &user_id, at(0)).await?;
+            let sibling = send_targeted(txn, &user_id, at(1)).await?;
+
+            expire_due(txn, &signer(), at(1) + REQUEST_LIFETIME).await?;
+
+            for chat_id in [own.id(), sibling.id()] {
+                assert!(matches!(
+                    status(txn, chat_id).await?,
+                    ChatStatus::Inactive(_)
+                ));
+                assert!(matches!(
+                    last_system_message(txn, chat_id).await?,
+                    Some((SystemMessage::SentConnectionRequestExpired, _))
+                ));
+            }
+            assert!(
+                TargetedMessageContact::load(&mut *txn, &user_id)
+                    .await?
+                    .is_none()
+            );
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn expired_records_go_when_the_user_chose_so() -> anyhow::Result<()> {
         let db = db().await?;
         db.with_write_transaction(async |txn| -> anyhow::Result<()> {
@@ -704,6 +738,36 @@ mod tests {
                 last_system_message(txn, expired.id()).await?,
                 Some((SystemMessage::SentConnectionRequestExpired, now))
             );
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_sibling_deletion_records_the_expiry_of_a_crossed_request_once() -> anyhow::Result<()>
+    {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let user_id = UserId::random("example.com".parse()?);
+            let sent_at = Utc::now() - REQUEST_LIFETIME;
+            let own = send_targeted(txn, &user_id, sent_at).await?;
+            send_targeted(txn, &user_id, sent_at).await?;
+            // The removal commit marks the chat inactive before it is closed.
+            Chat::update_status(&mut *txn, own.id(), &ChatStatus::inactive(Vec::new())).await?;
+            let own = Chat::load(&mut *txn, &own.id()).await?.context("no chat")?;
+
+            assert!(close_expired_by_sibling(txn, &own).await?);
+            assert!(close_expired_by_sibling(txn, &own).await?);
+
+            assert!(matches!(
+                last_system_message(txn, own.id()).await?,
+                Some((SystemMessage::SentConnectionRequestExpired, _))
+            ));
+            let messages: i64 = query_scalar("SELECT COUNT(*) FROM message WHERE chat_id = ?")
+                .bind(own.id())
+                .fetch_one(txn.as_mut())
+                .await?;
+            assert_eq!(messages, 2);
             Ok(())
         })
         .await

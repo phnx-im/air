@@ -193,7 +193,7 @@ impl OutgoingRequest {
 /// `at`, and frees its username or user for a new request.
 ///
 /// Does nothing if the chat is no outgoing request or was closed before, which
-/// the missing partial contact shows. Returns whether the request was closed.
+/// its expiry record shows. Returns whether the request was closed.
 pub(crate) async fn close_expired(
     txn: &mut WriteDbTransaction<'_>,
     chat: &Chat,
@@ -213,9 +213,9 @@ pub(crate) async fn close_expired(
             return Ok(false);
         }
     };
-    let Some(contact) = contact else {
+    if request_expiry::is_expired_record(&mut *txn, chat).await? {
         return Ok(false);
-    };
+    }
     if !matches!(chat.status(), ChatStatus::Inactive(_)) {
         let own_user_id = OwnClientInfo::load(&mut *txn).await?.user_id;
         Chat::update_status(
@@ -225,10 +225,12 @@ pub(crate) async fn close_expired(
         )
         .await?;
     }
-    if let PartialContact::Username(contact) = &contact {
-        Group::delete_connection_offer_psk(&mut *txn, contact.connection_offer_hash)?;
+    if let Some(contact) = contact {
+        if let PartialContact::Username(contact) = &contact {
+            Group::delete_connection_offer_psk(&mut *txn, contact.connection_offer_hash)?;
+        }
+        contact.delete(&mut *txn).await?;
     }
-    contact.delete(&mut *txn).await?;
     let record =
         TimestampedMessage::system_message(SystemMessage::SentConnectionRequestExpired, at);
     CoreUser::store_new_messages(txn, chat.id(), vec![record]).await?;
