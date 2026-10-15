@@ -79,23 +79,10 @@ where
     F: FnOnce() -> Fut + Send + 'static,
     Fut: Future<Output = anyhow::Result<T>>,
 {
-    // Log stack size and remaining bytes
-    info!(
-        stack_size = stack::size(),
-        remaining_bytes = stack::remaining(),
-        "Stack info in original thread"
-    );
-
     let thread = match std::thread::Builder::new()
         .stack_size(SECOND_THREAD_STACK_SIZE)
-        .spawn(move || {
-            info!(
-                stack_size = stack::size(),
-                remaining_bytes = stack::remaining(),
-                "Stack info in second thread"
-            );
-            block_on_runtime(task, make_future())
-        }) {
+        .spawn(move || block_on_runtime(task, make_future()))
+    {
         Ok(thread) => thread,
         Err(error) => {
             error!(%error, "Failed to spawn thread with increased stack size");
@@ -125,14 +112,6 @@ where
         .enable_all()
         .thread_stack_size(TOKIO_THREAD_STACK_SIZE)
         .worker_threads(TOKIO_WORKER_THREADS)
-        .on_thread_start(|| {
-            // Log stack size and remaining bytes
-            info!(
-                stack_size = stack::size(),
-                remaining_bytes = stack::remaining(),
-                "Stack info in worker thread"
-            );
-        })
         .build()
         .context("Failed to initialize tokio runtime")?;
     panic::catch_unwind(AssertUnwindSafe(|| runtime.block_on(Box::pin(future))))

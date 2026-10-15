@@ -838,6 +838,24 @@ impl ChatMessage {
         Ok(())
     }
 
+    pub(super) async fn update_edited_at(
+        mut connection: impl WriteConnection,
+        message_id: MessageId,
+        edited_at: TimeStamp,
+    ) -> sqlx::Result<()> {
+        let res = query!(
+            "UPDATE message SET edited_at = ? WHERE message_id = ?",
+            edited_at,
+            message_id,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        if res.rows_affected() == 1 {
+            connection.notifier().update(message_id);
+        }
+        Ok(())
+    }
+
     /// Get the last message in the chat.
     pub(crate) async fn last_message(
         mut connection: impl ReadConnection,
