@@ -295,7 +295,6 @@ async fn consumed_session_cannot_be_linked_again() {
         CoreUser::new_linked_ephemeral(domain, server_url, session_tx)
             .await
             .unwrap()
-            .unwrap()
     });
 
     let session_id = recv_linking_code(&mut session_rx).await;
@@ -337,7 +336,6 @@ async fn concurrent_linking_sessions_stay_separate() {
         CoreUser::new_linked_ephemeral(alice_domain, alice_server_url, alice_session_tx)
             .await
             .unwrap()
-            .unwrap()
     });
 
     let bob_domain = domain.clone();
@@ -345,7 +343,6 @@ async fn concurrent_linking_sessions_stay_separate() {
     let bob2_task = tokio::spawn(async move {
         CoreUser::new_linked_ephemeral(bob_domain, bob_server_url, bob_session_tx)
             .await
-            .unwrap()
             .unwrap()
     });
 
@@ -748,7 +745,7 @@ async fn provision_device(
     let (session_tx, mut session_rx) = tokio::sync::mpsc::channel(1);
 
     let task = tokio::spawn(async move {
-        anyhow::Ok(CoreUser::new_linked_ephemeral(domain, server_url, session_tx).await??)
+        CoreUser::new_linked_ephemeral(domain, server_url, session_tx).await
     });
 
     let code = recv_linking_code(&mut session_rx).await;

@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                link_id AS \"link_id: _\",\n                state,\n                queue AS \"queue: _\",\n                client_id AS \"client_id: _\"\n            FROM device_link\n            WHERE link_id = ?1",
+  "describe": {
+    "columns": [
+      {
+        "name": "link_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "device_link",
+            "name": "link_id"
+          }
+        }
+      },
+      {
+        "name": "state",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "device_link",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "name": "queue: _",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "device_link",
+            "name": "queue"
+          }
+        }
+      },
+      {
+        "name": "client_id: _",
+        "ordinal": 3,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "device_link",
+            "name": "client_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "9ecdd62dc6c17218251e0831bdc1838da5c5caa230c8bb4637f4ddc344b8e8a1"
+}

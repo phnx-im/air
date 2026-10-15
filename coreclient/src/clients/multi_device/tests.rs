@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::assert_matches;
-
 use aircommon::credentials::keys::{UserSigningKey, UsernameSigningKey};
 use aircommon::credentials::test_utils::create_test_credentials;
 use aircommon::crypto::aead::keys::{
@@ -85,15 +83,6 @@ fn sample_redeemed() -> Vec<RedeemedTokens> {
         allowance_epoch: 679,
         token_indices: vec![0, 4],
     }]
-}
-
-#[test]
-fn linking_abort_roundtrips_through_linking_channel() -> anyhow::Result<()> {
-    let key = MultiDeviceLinkingKey::random()?;
-    let frame = LinkingMessage::seal(&LinkingAbort::DeviceLimitReached { max_devices: 2 }, &key)?;
-    let decoded: LinkingAbort = LinkingMessage::open(frame.as_slice(), &key)?;
-    assert_matches!(decoded, LinkingAbort::DeviceLimitReached { max_devices: 2 });
-    Ok(())
 }
 
 #[test]

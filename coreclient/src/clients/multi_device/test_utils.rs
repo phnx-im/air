@@ -8,7 +8,7 @@ use tokio::sync::{mpsc, oneshot};
 use url::Url;
 use uuid::Uuid;
 
-use super::{MultiDeviceProvisionClientError, MultiDeviceProvisionStep};
+use super::MultiDeviceProvisionStep;
 use crate::{
     clients::CoreUser,
     db::{access::DbAccess, notification::DbNotificationsSender},
@@ -25,7 +25,7 @@ impl CoreUser {
         domain: Fqdn,
         server_url: Url,
         session_tx: mpsc::Sender<MultiDeviceProvisionStep>,
-    ) -> anyhow::Result<Result<CoreUser, MultiDeviceProvisionClientError>> {
+    ) -> anyhow::Result<CoreUser> {
         let notifier_tx = DbNotificationsSender::new();
         let air_db =
             DbAccess::with_single_pool(open_air_db_in_memory().await?, notifier_tx.clone());
@@ -67,9 +67,7 @@ impl CoreUser {
             .clone();
 
         let (session_tx, mut session_rx) = mpsc::channel(1);
-        let new_device = async {
-            anyhow::Ok(Self::new_linked_ephemeral(domain, server_url, session_tx).await??)
-        };
+        let new_device = async { Self::new_linked_ephemeral(domain, server_url, session_tx).await };
         let link = async {
             let code = match session_rx
                 .recv()

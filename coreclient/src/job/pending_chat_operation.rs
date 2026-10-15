@@ -1006,7 +1006,7 @@ impl PendingChatOperation {
     }
 
     /// Stages a self-group commit removing the given devices' leaves.
-    pub(super) async fn create_remove_clients(
+    pub(crate) async fn create_remove_clients(
         txn: &mut WriteDbTransaction<'_>,
         client_ids: Vec<Uuid>,
     ) -> anyhow::Result<Self> {
