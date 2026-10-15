@@ -222,7 +222,10 @@ impl From<GroupOperationError> for Status {
     fn from(e: GroupOperationError) -> Self {
         let msg = e.to_string();
         match e {
-            GroupOperationError::InvalidMessage => Status::internal(msg),
+            GroupOperationError::InvalidMessage => {
+                error!("Invalid message");
+                Status::internal(msg)
+            }
             GroupOperationError::SerializationError(error) => {
                 error!(%error, "Failed to serialize message");
                 Status::internal(msg)
