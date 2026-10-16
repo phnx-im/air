@@ -19,9 +19,9 @@ import 'types.dart';
 import 'user.dart';
 part 'user_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `core_user`, `emit_stored_notifications`, `new`, `notification_service`, `reload_account_unlinked`, `show_notifications`, `spawn_emit_stored_notifications`, `spawn_load`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CubitContext`, `UiUserInner`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `drop`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `core_user`, `emit_stored_notifications`, `new`, `notification_service`, `reload_account_unlinked`, `should_notify`, `show_notifications`, `spawn_emit_stored_notifications`, `spawn_load`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CubitContext`, `Delivery`, `UiUserInner`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `drop`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 class intArray12 extends NonGrowableListView<int> {
   static const arraySize = 12;

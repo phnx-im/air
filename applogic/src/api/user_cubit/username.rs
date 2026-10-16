@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::HashMap, convert::identity, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use aircommon::identifiers::Username;
 use aircoreclient::{
@@ -12,7 +12,7 @@ use aircoreclient::{
 use anyhow::{Context, bail};
 use flutter_rust_bridge::frb;
 use tokio::sync::{RwLock, watch};
-use tokio_stream::{Stream, StreamExt};
+use tokio_stream::Stream;
 use tokio_util::sync::{CancellationToken, DropGuard};
 use tracing::{debug, error};
 use uuid::Uuid;
@@ -22,7 +22,7 @@ use crate::{
     util::{BackgroundStreamContext, BackgroundStreamTask, spawn_from_sync},
 };
 
-use super::{AppState, CubitContext};
+use super::{AppState, CubitContext, Delivery};
 
 /// The context of the background task that listens to a username.
 #[derive(Debug, Clone)]
@@ -31,6 +31,7 @@ pub(super) struct UsernameContext {
     cubit_context: CubitContext,
     username_record: Arc<UsernameRecord>,
     responder: Arc<RwLock<Option<AsListenUsernameResponder>>>,
+    initial_backlog_drained: bool,
 }
 
 impl UsernameContext {
@@ -39,6 +40,7 @@ impl UsernameContext {
             cubit_context,
             username_record: Arc::new(username_record),
             responder: Default::default(),
+            initial_backlog_drained: false,
         }
     }
 
@@ -71,7 +73,7 @@ impl UsernameContext {
         self,
         cancel: CancellationToken,
         background_tasks: &UsernameBackgroundTasks,
-    ) -> BackgroundStreamTask<Self, UsernameQueueMessage> {
+    ) -> BackgroundStreamTask<Self, Option<UsernameQueueMessage>> {
         let username = self.username_record.username.clone();
         let name = format!("username-{}", username.truncated_plaintext());
         background_tasks.insert(username, cancel.clone());
@@ -96,7 +98,8 @@ impl UsernameContext {
     }
 }
 
-impl BackgroundStreamContext<UsernameQueueMessage> for UsernameContext {
+/// `None` is the server's sentinel for an empty queue.
+impl BackgroundStreamContext<Option<UsernameQueueMessage>> for UsernameContext {
     async fn in_foreground(&self) {
         let _ = self
             .cubit_context
@@ -122,7 +125,7 @@ impl BackgroundStreamContext<UsernameQueueMessage> for UsernameContext {
 
     async fn create_stream(
         &mut self,
-    ) -> anyhow::Result<impl Stream<Item = UsernameQueueMessage> + 'static> {
+    ) -> anyhow::Result<impl Stream<Item = Option<UsernameQueueMessage>> + 'static> {
         let (stream, responder) = match self
             .cubit_context
             .core_user
@@ -154,10 +157,20 @@ impl BackgroundStreamContext<UsernameQueueMessage> for UsernameContext {
             Err(error) => return Err(error.into()),
         };
         self.responder.write().await.replace(responder);
-        Ok(stream.filter_map(identity))
+        self.initial_backlog_drained = false;
+        Ok(stream)
     }
 
-    async fn handle_event(&mut self, message: UsernameQueueMessage) -> bool {
+    async fn handle_event(&mut self, message: Option<UsernameQueueMessage>) -> bool {
+        let Some(message) = message else {
+            self.initial_backlog_drained = true;
+            return true;
+        };
+        let delivery = if self.initial_backlog_drained {
+            Delivery::Live
+        } else {
+            Delivery::InitialBacklog
+        };
         let message_id = message.message_id.map(From::from);
         match self
             .cubit_context
@@ -170,7 +183,9 @@ impl BackgroundStreamContext<UsernameQueueMessage> for UsernameContext {
                 let mut notifications = Vec::with_capacity(1);
                 user.new_connection_request_notifications(&[stored.chat_id], &mut notifications)
                     .await;
-                self.cubit_context.show_notifications(notifications).await;
+                self.cubit_context
+                    .show_notifications(notifications, delivery)
+                    .await;
                 if let Some(moved_from) = stored.moved_from {
                     self.cubit_context
                         .notification_service

@@ -25,7 +25,7 @@ use crate::api::types::UiContact;
 use crate::{
     StreamSink,
     notifications::NotificationService,
-    util::{Cubit, CubitCore, spawn_from_sync},
+    util::{Cubit, CubitCore, IS_DESKTOP, spawn_from_sync},
 };
 
 use super::{
@@ -649,12 +649,43 @@ impl CubitContext {
     }
 }
 
-impl CubitContext {
-    /// Show OS notifications, as far as the UI's policy and the app state allow.
-    async fn show_notifications(&self, mut notifications: Vec<NotificationContent>) {
-        let policy = *self.notification_policy.borrow();
+/// Whether notifications come from the catch-up right after a queue stream
+/// (re)opened or from live delivery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Delivery {
+    InitialBacklog,
+    Live,
+}
 
-        debug!(?notifications, ?policy, "send_notification");
+impl CubitContext {
+    /// Whether notifications of this delivery are shown at all, regardless of
+    /// their content.
+    fn should_notify(&self, delivery: Delivery) -> bool {
+        !IS_DESKTOP
+            || delivery == Delivery::Live
+            || *self.app_state.borrow() == AppState::DesktopBackground
+    }
+
+    /// Show OS notifications, as far as the UI's policy and the app state allow.
+    async fn show_notifications(
+        &self,
+        mut notifications: Vec<NotificationContent>,
+        delivery: Delivery,
+    ) {
+        let policy = *self.notification_policy.borrow();
+        let app_state = *self.app_state.borrow();
+
+        debug!(
+            ?notifications,
+            ?policy,
+            ?app_state,
+            ?delivery,
+            "send_notification"
+        );
+
+        if !self.should_notify(delivery) {
+            return;
+        }
 
         match policy {
             NotificationPolicy::SuppressAll => return,
@@ -662,7 +693,7 @@ impl CubitContext {
                 // We don't want to show notifications when
                 // - we are on mobile and the notification belongs to the currently open chat
                 // - we are on desktop, the app is in the foreground, and the notification belongs to the currently open chat
-                if *self.app_state.borrow() != AppState::DesktopBackground {
+                if app_state != AppState::DesktopBackground {
                     notifications.retain(|notification| notification.chat_id != chat_id);
                 }
             }

@@ -23,9 +23,18 @@ class AppLifecycleHandler with WidgetsBindingObserver {
   final CoreClient _coreClient;
   final StreamController<AppState> _appStateController =
       StreamController<AppState>.broadcast();
+  AppState _appState = AppState.foreground;
   int? _backgroundTaskId;
 
-  Stream<AppState> get appStateStream => _appStateController.stream;
+  /// Emits the current app state on listen, then every change.
+  Stream<AppState> get appStateStream => Stream.multi((controller) {
+    controller.add(_appState);
+    final subscription = _appStateController.stream.listen(
+      controller.add,
+      onDone: controller.close,
+    );
+    controller.onCancel = subscription.cancel;
+  });
 
   void start() {
     WidgetsBinding.instance.addObserver(this);
@@ -49,13 +58,13 @@ class AppLifecycleHandler with WidgetsBindingObserver {
       // On desktop platforms, the inactive state is entered when the user
       // switches to another app. In that case, we want to treat it as
       // background state.
-      _appStateController.sink.add(AppState.desktopBackground);
+      _setAppState(AppState.desktopBackground);
       return;
     }
     if (DeviceType.isPhone && state == AppLifecycleState.paused) {
       // On mobile platforms, the paused state is entered when the app
       // is closed. In that case, we want to treat it as background state.
-      _appStateController.sink.add(AppState.mobileBackground);
+      _setAppState(AppState.mobileBackground);
 
       if (Platform.isAndroid) {
         // Drop the keyboard focus. Otherwise Android tries to restore the
@@ -82,9 +91,14 @@ class AppLifecycleHandler with WidgetsBindingObserver {
     // Detect foreground transitions
 
     if (state == AppLifecycleState.resumed) {
-      _appStateController.sink.add(AppState.foreground);
+      _setAppState(AppState.foreground);
       unawaited(_coreClient.refreshPushToken());
     }
+  }
+
+  void _setAppState(AppState appState) {
+    _appState = appState;
+    _appStateController.sink.add(appState);
   }
 
   Future<void> _prepareForBackground() async {
