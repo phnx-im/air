@@ -55,6 +55,11 @@ abstract class MultiDeviceLinkConfirmation implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MultiDeviceProvisionedUser>>
 abstract class MultiDeviceProvisionedUser implements RustOpaqueInterface {
+  /// Aborts a running provisioning session and discards its local database.
+  ///
+  /// Has no effect once linking has finished.
+  void cancel();
+
   factory MultiDeviceProvisionedUser() =>
       RustLib.instance.api.crateApiMultiDeviceMultiDeviceProvisionedUserNew();
 
@@ -78,6 +83,11 @@ sealed class MultiDeviceLinkEvent with _$MultiDeviceLinkEvent {
       MultiDeviceLinkEvent_Failed;
   const factory MultiDeviceLinkEvent.sessionNotFound() =
       MultiDeviceLinkEvent_SessionNotFound;
+
+  /// Device limit reached
+  const factory MultiDeviceLinkEvent.deviceLimitReached({
+    required int maxDevices,
+  }) = MultiDeviceLinkEvent_DeviceLimitReached;
 }
 
 @freezed
@@ -102,4 +112,9 @@ sealed class MultiDeviceProvisionEvent with _$MultiDeviceProvisionEvent {
   /// The session ended without linking.
   const factory MultiDeviceProvisionEvent.failed(String field0) =
       MultiDeviceProvisionEvent_Failed;
+
+  /// The device limit was reached.
+  const factory MultiDeviceProvisionEvent.deviceLimitReached({
+    required int maxDevices,
+  }) = MultiDeviceProvisionEvent_DeviceLimitReached;
 }

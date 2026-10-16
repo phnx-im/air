@@ -5,20 +5,26 @@
 use std::{convert::Infallible, ops::ControlFlow, time::Duration};
 
 use chrono::{DateTime, Utc};
+use serde::de::DeserializeOwned;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 use crate::{
     job::{
         Job, JobError,
         operation::{Operation, OperationData},
-        profile::{FetchGroupProfileOperation, FetchUserProfileOperation},
+        profile::{
+            FetchGroupProfileOperation, FetchRequestSenderProfileOperation,
+            FetchUserProfileOperation,
+        },
     },
-    outbound_service::OutboundServiceContext,
+    outbound_service::{
+        OutboundServiceContext,
+        retry::{RetryDecision, RetryPolicy},
+    },
 };
 
-const NUM_RETRIES: usize = 5;
 const RETRY_AFTER: Duration = Duration::from_secs(5);
 
 impl OutboundServiceContext {
@@ -47,13 +53,33 @@ impl OutboundServiceContext {
     async fn try_fetch_profiles(self) -> anyhow::Result<()> {
         let task_id = Uuid::new_v4();
         let now = Utc::now();
+        self.fetch_queued_profiles::<FetchUserProfileOperation>(task_id, now)
+            .await?;
+        self.fetch_queued_profiles::<FetchRequestSenderProfileOperation>(task_id, now)
+            .await?;
+        self.fetch_queued_profiles::<FetchGroupProfileOperation>(task_id, now)
+            .await?;
+        Ok(())
+    }
 
-        // fetch user profiles
+    /// Runs the queued profile fetches of one kind, until the queue is empty or
+    /// a fetch is rescheduled.
+    async fn fetch_queued_profiles<T>(
+        &self,
+        task_id: Uuid,
+        now: DateTime<Utc>,
+    ) -> anyhow::Result<()>
+    where
+        T: OperationData
+            + Job<Output = (), DomainError = Infallible>
+            + DeserializeOwned
+            + Unpin
+            + Send
+            + 'static,
+    {
         while let Some(op) = self
             .db
-            .with_write_transaction(async |txn| {
-                Operation::<FetchUserProfileOperation>::dequeue(txn, task_id, now).await
-            })
+            .with_write_transaction(async |txn| Operation::<T>::dequeue(txn, task_id, now).await)
             .await?
         {
             match self.fetch_profile(op, now).await? {
@@ -61,21 +87,6 @@ impl OutboundServiceContext {
                 ControlFlow::Break(_) => break,
             }
         }
-
-        // fetch group profiles
-        while let Some(op) = self
-            .db
-            .with_write_transaction(async |txn| {
-                Operation::<FetchGroupProfileOperation>::dequeue(txn, task_id, now).await
-            })
-            .await?
-        {
-            match self.fetch_profile(op, now).await? {
-                ControlFlow::Continue(_) => (),
-                ControlFlow::Break(_) => break,
-            }
-        }
-
         Ok(())
     }
 
@@ -97,23 +108,44 @@ impl OutboundServiceContext {
                 debug!(?operation_id, "fetched profile");
                 op.delete(self.db.write().await?).await?;
             }
-            Err(JobError::NetworkError) => {
-                debug!(
-                    ?operation_id,
-                    "Failed to fetch profile due to network error"
-                );
-                if op.retries + 1 < NUM_RETRIES {
-                    op.reschedule(self.db.write().await?, now + RETRY_AFTER)
-                        .await?;
-                    return Ok(ControlFlow::Break(()));
-                } else {
-                    let retries = op.retries;
-                    error!(
-                        ?operation_id,
-                        retries, "Reached max number of retries; giving up"
-                    );
-                    op.delete(self.db.write().await?).await?;
-                    return Ok(ControlFlow::Continue(()));
+            // Never give up, these failures are not specific to the profile
+            Err(error @ (JobError::NetworkError | JobError::RateLimited { .. })) => {
+                let retry_after = match &error {
+                    JobError::RateLimited {
+                        retry_after: Some(retry_after),
+                    } => (*retry_after).max(RETRY_AFTER),
+                    _ => RETRY_AFTER,
+                };
+                warn!(?operation_id, %error, ?retry_after, "Failed to fetch profile; retrying later");
+                op.postpone(self.db.write().await?, now + retry_after)
+                    .await?;
+                return Ok(ControlFlow::Break(()));
+            }
+            Err(JobError::Recoverable(error)) => {
+                let attempts = u32::try_from(op.retries).unwrap_or(u32::MAX);
+                match RetryPolicy::PROFILE_FETCHES.decide(error.cause, attempts) {
+                    RetryDecision::Retry => {
+                        warn!(?operation_id, %error, "Failed to fetch profile; retrying later");
+                        op.postpone(self.db.write().await?, now + RETRY_AFTER)
+                            .await?;
+                        return Ok(ControlFlow::Break(()));
+                    }
+                    RetryDecision::Backoff { attempts, retry_in } => {
+                        warn!(
+                            ?operation_id,
+                            attempts,
+                            %error,
+                            ?retry_in,
+                            "Failed to fetch profile; retrying later"
+                        );
+                        op.reschedule(self.db.write().await?, now + retry_in)
+                            .await?;
+                        return Ok(ControlFlow::Break(()));
+                    }
+                    RetryDecision::GiveUp => {
+                        error!(?operation_id, %error, "Failed to fetch profile; giving up");
+                        op.delete(self.db.write().await?).await?;
+                    }
                 }
             }
             Err(

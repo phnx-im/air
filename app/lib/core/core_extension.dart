@@ -21,17 +21,19 @@ extension UiChatDetailsExtension on UiChatDetails {
     UiChatType_PendingConnection(field0: final profile) => profile.userId,
   };
 
-  /// Title of the chat
-  String get title => switch (chatType) {
-    UiChatType_HandleConnection(field0: final handle) =>
-      "⏳ ${handle.plaintext}",
-    UiChatType_Connection(field0: final profile) => profile.displayName,
-    UiChatType_TargetedMessageConnection(field0: final profile) =>
-      "⏳${profile.displayName}",
-    UiChatType_Group(field0: final attributes) => attributes.title,
-    UiChatType_PendingConnection(field0: final profile) =>
-      "⏳${profile.displayName}",
-  };
+  /// Title of the chat (hardcoded if self-chat)
+  String title(AppLocalizations loc) => isSelfChat
+      ? loc.selfChatTitle
+      : switch (chatType) {
+          UiChatType_HandleConnection(field0: final handle) =>
+            "⏳ ${handle.plaintext}",
+          UiChatType_Connection(field0: final profile) => profile.displayName,
+          UiChatType_TargetedMessageConnection(field0: final profile) =>
+            "⏳ ${profile.displayName}",
+          UiChatType_Group(field0: final attributes) => attributes.title,
+          UiChatType_PendingConnection(field0: final profile) =>
+            "⏳ ${profile.displayName}",
+        };
 
   /// Display name of the user if this is a 1:1 chat
   String? get displayName => switch (chatType) {
@@ -63,10 +65,39 @@ extension UiChatDetailsExtension on UiChatDetails {
     UiChatType_PendingConnection() => false,
   };
 
+  /// Whether the user is no longer a member, e.g. after leaving the chat.
+  bool get isInactive => status is UiChatStatus_Inactive;
+
+  /// Where the contact request behind this chat stands, or `null` if the chat
+  /// is not a contact request.
+  ContactRequestState? get requestState {
+    final closed = isInactive;
+    return switch (chatType) {
+      UiChatType_PendingConnection() =>
+        closed ? ContactRequestState.closed : ContactRequestState.incoming,
+      UiChatType_HandleConnection() || UiChatType_TargetedMessageConnection() =>
+        closed ? ContactRequestState.closed : ContactRequestState.outgoing,
+      UiChatType_Connection() || UiChatType_Group() => null,
+    };
+  }
+
   bool get isMuted => mutedUntil.isMuted;
 
   /// Whether the chat takes shared content, i.e. the user can send into it.
   bool get canShareInto => status == const UiChatStatus.active() && isConfirmed;
+}
+
+/// Where a contact request stands, see [UiChatDetailsExtension.requestState].
+enum ContactRequestState {
+  /// Someone asked to connect, and the user has not answered yet.
+  incoming,
+
+  /// The user asked to connect, and the recipient has not answered yet.
+  outgoing,
+
+  /// The request ended without a connection, for example because its sender
+  /// retracted it before the user could accept.
+  closed,
 }
 
 extension UiChatMutedExtension on UiChatMuted? {

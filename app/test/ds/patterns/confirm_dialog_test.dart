@@ -82,5 +82,98 @@ void main() {
         matchesGoldenFile('goldens/confirm_dialog_destructive.png'),
       );
     });
+
+    testWidgets('a dialog shown by onConfirm stays open', (tester) async {
+      await tester.pumpWidget(
+        Builder(
+          builder: (context) => MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => ElevatedButton(
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (_) => ConfirmDialog(
+                      title: 'Unlink device',
+                      confirm: 'Unlink',
+                      onConfirm: () => showErrorDialog(
+                        context,
+                        message: (_) => 'Unlinking failed.',
+                      ),
+                    ),
+                  ),
+                  child: const Text('Open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Unlink'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Unlink device'), findsNothing);
+      expect(find.text('Unlinking failed.'), findsOneWidget);
+    });
+  });
+
+  group('showErrorDialog', () {
+    Widget buildHost({String Function(AppLocalizations)? title}) => Builder(
+      builder: (context) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => showErrorDialog(
+                context,
+                title: title,
+                message: (_) => 'Try again later.',
+              ),
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Future<void> open(WidgetTester tester, {String? title}) async {
+      await tester.pumpWidget(
+        buildHost(title: title == null ? null : (_) => title),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('shows the default title, message and confirm', (tester) async {
+      await open(tester);
+
+      expect(find.byType(ConfirmDialog), findsOneWidget);
+      expect(find.text('Something went wrong'), findsOneWidget);
+      expect(find.text('Try again later.'), findsOneWidget);
+      expect(find.text('Okay'), findsOneWidget);
+    });
+
+    testWidgets('a custom title replaces the default', (tester) async {
+      await open(tester, title: 'Renaming failed.');
+
+      expect(find.text('Renaming failed.'), findsOneWidget);
+      expect(find.text('Something went wrong'), findsNothing);
+    });
+
+    testWidgets('confirming dismisses the dialog', (tester) async {
+      await open(tester);
+
+      await tester.tap(find.text('Okay'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ConfirmDialog), findsNothing);
+    });
   });
 }

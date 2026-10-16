@@ -2,15 +2,20 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/app.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
+import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/you/contact_us_modal.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../helpers.dart';
+import '../../mocks.dart';
 
 class MockUrlLauncher extends Mock implements UrlLauncher {}
 
@@ -92,6 +97,104 @@ void main() {
           ),
         ),
       ).called(1);
+    });
+
+    testWidgets('launcher gets special characters percent-encoded', (
+      tester,
+    ) async {
+      final userCubit = MockUserCubit();
+      when(() => userCubit.uploadLogs())
+          .thenAnswer((_) async => 'https://logs.example/a?b=1&c=%20#d');
+
+      await tester.pumpWidget(
+        Builder(
+          builder: (context) => MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            home: BlocProvider<UserCubit>.value(
+              value: userCubit,
+              child: ContactUsModal(
+                initialSubject: "Other",
+                initialBody: "Tom & Jerry #1?\n100% broken",
+                launcher: launcher,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Share your logs (this helps Air fix bugs)'));
+      await tester.pumpAndSettle();
+
+      when(() => launcher.launchUrl(any())).thenAnswer((_) async {});
+
+      await tester.tap(find.byType(Button));
+
+      final uri =
+          verify(() => launcher.launchUrl(captureAny())).captured.single as Uri;
+      expect(uri.scheme, "mailto");
+      expect(uri.path, "help@air.ms");
+      expect(uri.query, isNot(contains('+')));
+      expect(uri.queryParameters, {
+        "subject": "Other",
+        "body":
+            "Tom & Jerry #1?\n100% broken\n\n"
+            "Here are some logs to help you debug my issue: "
+            "https://logs.example/a?b=1&c=%20#d",
+      });
+    });
+
+    testWidgets('a failing log upload is reported in a snackbar', (
+      tester,
+    ) async {
+      scaffoldMessengerKey.currentState?.clearSnackBars();
+      final userCubit = MockUserCubit();
+      when(() => userCubit.uploadLogs())
+          .thenAnswer((_) async => throw Exception('offline'));
+
+      await tester.pumpWidget(
+        Builder(
+          builder: (context) => MaterialApp(
+            debugShowCheckedModeBanner: false,
+            scaffoldMessengerKey: scaffoldMessengerKey,
+            theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            builder: (context, child) => RootScaffold(child: child!),
+            home: BlocProvider<UserCubit>.value(
+              value: userCubit,
+              child: ContactUsModal(launcher: launcher),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Share your logs (this helps Air fix bugs)'));
+      await tester.pumpAndSettle();
+
+      verify(() => userCubit.uploadLogs()).called(1);
+      expect(find.text("Couldn't upload logs"), findsOneWidget);
+
+      scaffoldMessengerKey.currentState?.removeCurrentSnackBar();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a failing launcher is reported in a dialog', (tester) async {
+      await tester.pumpWidget(
+        buildSubject(initialSubject: "Other", initialBody: "Fire! Fire! Fire!"),
+      );
+      await tester.pumpAndSettle();
+
+      when(() => launcher.launchUrl(any())).thenThrow(Exception('no client'));
+
+      await tester.tap(find.byType(Button));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ConfirmDialog), findsOneWidget);
+      expect(find.text('Something went wrong'), findsOneWidget);
+      expect(find.text("Couldn't launch email client"), findsOneWidget);
     });
   });
 

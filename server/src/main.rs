@@ -89,6 +89,7 @@ async fn main() -> anyhow::Result<()> {
         &configuration.database,
         domain.clone(),
         version_policy.clone(),
+        configuration.application.max_devices,
         shutdown.clone(),
     )
     .await;
@@ -106,6 +107,7 @@ async fn main() -> anyhow::Result<()> {
             &configuration.database,
             domain.clone(),
             version_policy.clone(),
+            configuration.application.max_devices,
             shutdown.clone(),
         )
         .await;
@@ -123,6 +125,7 @@ async fn main() -> anyhow::Result<()> {
         &configuration.database,
         domain.clone(),
         version_policy.clone(),
+        configuration.application.max_devices,
         shutdown.clone(),
     )
     .await
@@ -136,6 +139,7 @@ async fn main() -> anyhow::Result<()> {
         &configuration.database,
         domain.clone(),
         version_policy.clone(),
+        configuration.application.max_devices,
         shutdown.clone(),
     )
     .await

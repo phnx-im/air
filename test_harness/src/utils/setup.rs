@@ -11,6 +11,7 @@ use std::{
 };
 
 use airbackend::{
+    air_service::MaxDevices,
     settings::{RateLimitsSettings, RegistrationPolicy, RegistrationSettings},
     version::VersionPolicy,
 };
@@ -23,7 +24,7 @@ use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, *};
 use airserver::network_provider::MockNetworkProvider;
 use anyhow::Context;
 use mimi_content::{
-    MimiContent, NestedPart,
+    MessageStatus, MimiContent, NestedPart,
     content_container::{EncryptionAlgorithm, HashAlgorithm},
 };
 use rand::{Rng, RngExt, distr::Alphanumeric, seq::IteratorRandom};
@@ -67,6 +68,8 @@ impl TestUser {
             .unwrap();
         // Run outbound service to upload KeyPackages
         user.user.outbound_service().run_once().await;
+        user.user.ensure_self_group().await.unwrap();
+
         user
     }
 
@@ -106,6 +109,7 @@ impl TestUser {
         )
         .await
         .unwrap();
+        user.ensure_self_group().await.unwrap();
         Self {
             user,
             db_dir: Some(db_dir.to_owned()),
@@ -165,6 +169,13 @@ enum TestKind {
     SingleBackend(String), // url of the single backend
 }
 
+enum GroupKind {
+    /// Plain or APQ group with the profile in the group data extension.
+    Apq(bool),
+    /// Plain or APQ group with the profile in the group profile component.
+    ProfileComponent(bool),
+}
+
 pub struct TestBackend {
     pub users: HashMap<UserId, TestUser>,
     pub groups: HashMap<ChatId, HashSet<UserId>>,
@@ -176,6 +187,8 @@ pub struct TestBackend {
     temp_dir: TempDir,
     /// Present only if we spawned a local server.
     listener_control_handle: Option<ControlHandle>,
+    /// Present only if we spawned a local server.
+    max_devices: Option<[MaxDevices; 3]>,
     /// Whether to create APQ groups by default
     ///
     /// Read from the `TEST_WITH_APQ_GROUPS` environment variable.
@@ -196,6 +209,8 @@ pub struct TestBackendParams {
     pub registration: RegistrationSettings,
     pub unredeemable_code: Option<String>,
     pub max_attachment_size: u64,
+    /// Overrides the configured device limit.
+    pub max_devices: Option<u32>,
 }
 
 impl TestBackendParams {
@@ -221,6 +236,7 @@ impl Default for TestBackendParams {
             },
             unredeemable_code: None,
             max_attachment_size: DEFAULT_MAX_ATTACHMENT_SIZE,
+            max_devices: None,
         }
     }
 }
@@ -260,6 +276,7 @@ impl TestBackend {
             listener_control_handle,
             invitation_codes,
             sent_challenges,
+            max_devices,
             _cleanup,
         ) = if let Ok(value) = std::env::var("TEST_SERVER_URL") {
             let url: Url = value.parse().unwrap();
@@ -272,6 +289,7 @@ impl TestBackend {
                 Vec::new(),
                 SentChallenges::default(),
                 None,
+                None,
             )
         } else {
             let network_provider = MockNetworkProvider::new();
@@ -281,6 +299,7 @@ impl TestBackend {
             let control_handle = app.control_handle.clone();
             let codes = app.codes.clone();
             let sent_challenges = app.sent_challenges.clone();
+            let max_devices = app.max_devices.clone();
             info!(%listen_addr, "using spawned test server");
             let cleanup: Box<dyn Any> = Box::new(app);
             (
@@ -289,6 +308,7 @@ impl TestBackend {
                 Some(control_handle),
                 codes,
                 sent_challenges,
+                Some(max_devices),
                 Some(cleanup),
             )
         };
@@ -309,11 +329,23 @@ impl TestBackend {
             domain,
             temp_dir: tempfile::tempdir().unwrap(),
             listener_control_handle,
+            max_devices,
             invitation_codes,
             sent_challenges,
             apq_groups,
             _guard: Some(_guard),
             _cleanup,
+        }
+    }
+
+    /// Changes the device limit of the spawned server at runtime.
+    pub fn set_max_devices(&self, max_devices: u32) {
+        let handles = self
+            .max_devices
+            .as_ref()
+            .expect("device limit can only be changed on a spawned server");
+        for handle in handles {
+            handle.set(max_devices);
         }
     }
 
@@ -494,7 +526,28 @@ impl TestBackend {
         }
     }
 
+    /// Connects two users through an APQ connection group, regardless of [`Self::apq_groups`].
+    pub async fn connect_users_apq(&mut self, user1_id: &UserId, user2_id: &UserId) -> ChatId {
+        self.connect_users_inner(user1_id, user2_id, true).await
+    }
+
+    /// Connects two users through a plain (non-APQ) connection group, regardless of
+    /// [`Self::apq_groups`].
+    pub async fn connect_users_non_apq(&mut self, user1_id: &UserId, user2_id: &UserId) -> ChatId {
+        self.connect_users_inner(user1_id, user2_id, false).await
+    }
+
     pub async fn connect_users(&mut self, user1_id: &UserId, user2_id: &UserId) -> ChatId {
+        self.connect_users_inner(user1_id, user2_id, self.apq_groups)
+            .await
+    }
+
+    async fn connect_users_inner(
+        &mut self,
+        user1_id: &UserId,
+        user2_id: &UserId,
+        prefer_apq: bool,
+    ) -> ChatId {
         info!("Connecting users {user1_id:?} and {user2_id:?}");
 
         let test_user2 = self.users.get_mut(user2_id).unwrap();
@@ -512,7 +565,7 @@ impl TestBackend {
         .await
         .unwrap();
         let chat_id = user1
-            .add_contact(user2_username.clone(), username_hash)
+            .add_contact(user2_username.clone(), username_hash, prefer_apq)
             .await
             .expect("fatal error")
             .expect("non-fatal error");
@@ -702,6 +755,17 @@ impl TestBackend {
             .unread_messages_count(user1_chat_id)
             .await;
         assert_eq!(user1_unread_messages, 0);
+
+        // Both users run the current client, so the connection group is APQ iff requested, and
+        // both sides agree on it.
+        for user_id in [user1_id, &user2_id] {
+            let is_apq = self.users[user_id].user.chat_is_apq(user1_chat_id).await;
+            assert_eq!(
+                is_apq,
+                Some(prefer_apq),
+                "unexpected connection group kind for {user_id:?}"
+            );
+        }
 
         // Send messages both ways to ensure it works.
         self.send_message(user1_chat_id, user1_id, vec![&user2_id], None)
@@ -951,11 +1015,22 @@ impl TestBackend {
             // new message.
             assert!(messages.new_messages.is_empty());
             assert!(messages.chats_with_changed_notifications.contains(&chat_id));
+            // Send out delivery receipts
+            recipient_user.outbound_service().run_once().await;
 
             // The edited message keeps its timestamp, so it is still the last message.
             let message = recipient_user.last_message(chat_id).await.unwrap().unwrap();
             assert_eq!(message.message(), target_message.message());
         }
+
+        // Fetch and process delivery receipts. An edit resets the delivery
+        // state, so the recipients must report on the edited version.
+        let sender = self.users.get_mut(sender_id).unwrap().user.clone();
+        let delivery_receipts = sender.qs_fetch_messages().await.unwrap();
+        sender.fully_process_qs_messages(delivery_receipts).await;
+        let message = sender.message(message.id()).await.unwrap().unwrap();
+        assert_eq!(message.status(), MessageStatus::Delivered);
+
         message.id()
     }
 
@@ -980,7 +1055,7 @@ impl TestBackend {
 
         test_sender
             .user
-            .delete_message(chat_id, message_id)
+            .delete_message_for_everyone(chat_id, message_id)
             .await
             .unwrap();
         test_sender.user.outbound_service().run_once().await;
@@ -1163,28 +1238,44 @@ impl TestBackend {
     }
 
     pub async fn create_apq_group(&mut self, user_id: &UserId) -> ChatId {
-        self.create_group_inner(user_id, true).await
+        self.create_group_inner(user_id, GroupKind::Apq(true)).await
     }
 
     /// Creates a plain (non-APQ) group, regardless of [`Self::apq_groups`].
     pub async fn create_non_apq_group(&mut self, user_id: &UserId) -> ChatId {
-        self.create_group_inner(user_id, false).await
+        self.create_group_inner(user_id, GroupKind::Apq(false))
+            .await
     }
 
     pub async fn create_group(&mut self, user_id: &UserId) -> ChatId {
-        self.create_group_inner(user_id, self.apq_groups).await
+        self.create_group_inner(user_id, GroupKind::Apq(self.apq_groups))
+            .await
     }
 
-    async fn create_group_inner(&mut self, user_id: &UserId, is_apq: bool) -> ChatId {
+    /// Creates a group whose profile is stored in the group profile component.
+    pub async fn create_group_with_profile_component(
+        &mut self,
+        user_id: &UserId,
+        is_apq: bool,
+    ) -> ChatId {
+        self.create_group_inner(user_id, GroupKind::ProfileComponent(is_apq))
+            .await
+    }
+
+    async fn create_group_inner(&mut self, user_id: &UserId, kind: GroupKind) -> ChatId {
         let test_user = self.users.get_mut(user_id).unwrap();
         let user = &mut test_user.user;
         let user_chats_before = user.chats().await;
 
         let group_name = Uuid::new_v4().to_string();
-        let chat_id = user
-            .create_chat(group_name.clone(), None, is_apq)
-            .await
-            .unwrap();
+        let chat_id = match kind {
+            GroupKind::Apq(is_apq) => user.create_chat(group_name.clone(), None, is_apq).await,
+            GroupKind::ProfileComponent(is_apq) => {
+                user.create_chat_with_profile_component(group_name.clone(), is_apq)
+                    .await
+            }
+        }
+        .unwrap();
         let mut user_chats_after = user.chats().await;
         let new_chat_position = user_chats_after
             .iter()
@@ -1973,6 +2064,51 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                     SystemMessage::Onboarded => Some(
                         "This client has been onboarded into the group after linking".to_owned(),
                     ),
+                    SystemMessage::DeviceLinked(uuid) => {
+                        Some(format!("You linked a new device with UUID {uuid}"))
+                    }
+                    SystemMessage::DeviceUnlinked(uuid) => {
+                        Some(format!("You unlinked a device with UUID {uuid}"))
+                    }
+                    SystemMessage::ReceivedAdditionalUsernameConnectionRequest {
+                        sender,
+                        username,
+                    } => Some(format!(
+                        "User {sender:?} requested another connection to your username {}",
+                        username.plaintext()
+                    )),
+                    SystemMessage::ReceivedAdditionalDirectConnectionRequest {
+                        sender,
+                        chat_name,
+                    } => Some(format!(
+                        "User {sender:?} requested another connection through the chat \
+                            {chat_name}"
+                    )),
+                    SystemMessage::SelfChatCreated => Some("The self-chat was created".to_owned()),
+                    SystemMessage::ReceivedGroupConnectionRequest {
+                        sender,
+                        origin_chat_id,
+                    } => Some(format!(
+                        "User {sender:?} requested a direct connection to your contact \
+                            through the chat {origin_chat_id}"
+                    )),
+                    SystemMessage::ReceivedAdditionalGroupConnectionRequest {
+                        sender,
+                        origin_chat_id,
+                    } => Some(format!(
+                        "User {sender:?} requested another connection through the chat \
+                            {origin_chat_id}"
+                    )),
+                    SystemMessage::SentGroupConnectionRequest {
+                        recipient,
+                        origin_chat_id,
+                    } => Some(format!(
+                        "You requested a connection with {recipient:?} through the chat \
+                            {origin_chat_id}"
+                    )),
+                    SystemMessage::ConnectionRequestUnavailable => {
+                        Some("The connection request is no longer available".to_owned())
+                    }
                 }
             } else {
                 None

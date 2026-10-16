@@ -67,6 +67,10 @@ struct UiUserInner {
     version_status: VersionStatus,
     /// Another device of this user removed this one from the self group.
     account_unlinked: bool,
+    /// The maximum number of devices that can be linked.
+    ///
+    /// Communicated by the server at connection establishment. 0 means unlimited.
+    max_devices: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -103,6 +107,22 @@ impl UiUser {
             // The flag is durable, so a device that was unlinked while it was
             // not running still reports it on the next launch.
             Self::reload_account_unlinked(&state_tx, &core_user).await;
+
+            // Load the max_devices from local storage.
+            match core_user.max_devices().await {
+                Ok(max_devices) => {
+                    state_tx.send_if_modified(|state| {
+                        if state.inner.max_devices == max_devices {
+                            return false;
+                        }
+                        Arc::make_mut(&mut state.inner).max_devices = max_devices;
+                        true
+                    });
+                }
+                Err(error) => {
+                    error!(%error, "failed to load max_devices");
+                }
+            }
         });
     }
 
@@ -152,6 +172,11 @@ impl UiUser {
     pub fn account_unlinked(&self) -> bool {
         self.inner.account_unlinked
     }
+
+    #[frb(getter, sync)]
+    pub fn max_devices(&self) -> u32 {
+        self.inner.max_devices
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -190,6 +215,7 @@ impl UserCubitBase {
             usernames: Vec::new(),
             version_status: VersionStatus::Supported,
             account_unlinked: false,
+            max_devices: 0,
         })));
 
         UiUser::spawn_load(core.state_tx().clone(), core_user.clone());
@@ -324,18 +350,31 @@ impl UserCubitBase {
         Ok(())
     }
 
+    /// Deletes the chat on the server and erases it on all of the user's
+    /// devices. Fails without a change if the server cannot be reached.
     #[frb(positional)]
     pub async fn delete_chat(&self, chat_id: ChatId) -> anyhow::Result<()> {
+        self.context.core_user.delete_and_erase_chat(chat_id).await
+    }
+
+    /// Retracts the outgoing contact request of the chat, so its recipient can
+    /// no longer accept it, and erases the chat.
+    #[frb(positional)]
+    pub async fn retract_contact_request(&self, chat_id: ChatId) -> anyhow::Result<()> {
         self.context
             .core_user
-            .delete_chat(chat_id)
+            .retract_contact_request(chat_id)
             .await
-            .inspect_err(|error| {
-                error!(%error, "failed to delete conversion; skipping");
-            })
-            .ok();
-        self.context.core_user.erase_chat(chat_id).await?;
-        Ok(())
+    }
+
+    /// Declines the incoming contact requests of the chat and erases the chat.
+    /// Their sender is not told.
+    #[frb(positional)]
+    pub async fn decline_contact_request(&self, chat_id: ChatId) -> anyhow::Result<()> {
+        self.context
+            .core_user
+            .decline_contact_request(chat_id)
+            .await
     }
 
     /// Only delete the local chat data, do not delete the chat on the server or try to leave it.
@@ -472,10 +511,11 @@ impl UserCubitBase {
         &self,
         chat_id: ChatId,
         user_id: UiUserId,
+        prefer_apq: bool,
     ) -> anyhow::Result<ChatId> {
         self.context
             .core_user
-            .add_contact_from_group(chat_id, user_id.into())
+            .add_contact_from_group(chat_id, user_id.into(), prefer_apq)
             .await
     }
 

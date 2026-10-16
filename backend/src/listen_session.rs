@@ -8,7 +8,7 @@ use futures_util::{Stream, stream::BoxStream};
 use tokio_stream::{StreamExt, wrappers::ReceiverStream};
 use tokio_util::sync::CancellationToken;
 use tonic::{Status, Streaming};
-use tracing::error;
+use tracing::{Instrument, error};
 
 use crate::util::StatusExt;
 
@@ -46,7 +46,7 @@ enum Event<Req, Resp> {
 /// - `stop` is cancelled: the client is told an UNAVAILABLE status.
 /// - `handler` fails: its error is terminal status.
 ///
-/// `name` identifies the session in logs.
+/// `name` identifies the session in logs. `handler` is dropped when the session ends.
 pub(crate) fn spawn_listen_session<Req, Resp>(
     mut requests: Streaming<Req>,
     responses: impl Stream<Item = Resp> + Send + 'static,
@@ -61,7 +61,7 @@ where
     const OUT_CHANNEL_BUFFER_SIZE: usize = 16; // not too big for applying backpressure
     let (out_tx, out_rx) = tokio::sync::mpsc::channel(OUT_CHANNEL_BUFFER_SIZE);
 
-    tokio::spawn(async move {
+    let session = async move {
         let mut responses = pin!(responses);
 
         // Process incoming requests and responses to deliver sequentially
@@ -125,7 +125,8 @@ where
                 }
             }
         }
-    });
+    };
+    tokio::spawn(session.in_current_span());
 
     Box::pin(ReceiverStream::new(out_rx))
 }

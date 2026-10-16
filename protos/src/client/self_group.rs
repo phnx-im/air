@@ -5,25 +5,43 @@
 //! Wire format for data synchronized across a user's own clients through the
 //! self-group.
 //!
-//! Settings updates, Privacy Pass token seeds and blocked-contact updates
-//! travel as `AppEphemeral` proposals with component id
-//! `AIR_COMPONENT_ID` inside self-group commits. The proposal data decodes to
-//! an [`AppEphemeralPayload`], whose [`EncryptedSelfGroupMessages`] variant
-//! carries a padded-AEAD-encrypted [`SelfGroupMessages`] payload. Every enum in
-//! this module is a tagged union with an `#[unknown]` catch-all, so a client can
-//! adopt new tags before all of a user's devices understand them.
+//! [`SelfGroupMessage`] travels on self-group commits as `AppEphemeral`
+//! proposals with component id `AIR_COMPONENT_ID`. The proposal data decodes
+//! to an [`AppEphemeralPayload`], whose [`EncryptedSelfGroupMessages`] variant
+//! carries a padded-AEAD-encrypted [`SelfGroupMessages`] payload. Updates that
+//! need the commit order go here.
+//!
+//! [`SelfGroupAppMessage`] travels on plain MLS application messages under a
+//! MIMI content extension. Updates that commute go here and save the commit.
+//!
+//! Every enum in this module is a tagged union with an `#[unknown]` catch-all,
+//! so a client can adopt new tags before all of a user's devices understand
+//! them.
 
-use aircommon::crypto::aead::{
-    Ciphertext, PaddedAeadDecryptable, PaddedAeadEncryptable, keys::SelfGroupMessageKey,
+use aircommon::{
+    crypto::{
+        aead::{
+            Ciphertext, PaddedAeadDecryptable, PaddedAeadEncryptable, keys::SelfGroupMessageKey,
+        },
+        errors::RandomnessError,
+        secrets::Secret,
+    },
+    identifiers::MimiId,
+    messages::{client_as::ConnectionOfferHash, connection_package::ConnectionPackageHash},
 };
 use airmacros::{
     DeserializeTaggedMap, DeserializeTaggedUnion, SerializeTaggedMap, SerializeTaggedUnion,
 };
+use chrono::{DateTime, Utc};
+use mimi_content::{Disposition, MimiContent, NestedPart, content_container::ExtensionName};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use openmls::group::GroupId;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use tracing::warn;
 use uuid::Uuid;
 
-use super::group_bootstrap::PeerUserId;
+use super::group_bootstrap::{PeerUserId, group_id_as_bytes};
+use crate::auth_service::v1::OperationType;
 
 /// Marker for the ciphertext of [`SelfGroupMessages`].
 #[derive(Debug)]
@@ -75,6 +93,8 @@ impl PaddedAeadDecryptable<SelfGroupMessageKey, SelfGroupMessagesCtype> for Self
 ///   1: SettingsUpdate                ; tagged union; unknown tags are skipped
 ///   2: TokenSeed
 ///   3: BlockedContactsUpdate
+///   4: DeletedChat
+///   6: ConnectionRequestsUpdate
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
@@ -85,9 +105,87 @@ pub enum SelfGroupMessage {
     TokenSeed(TokenSeed),
     #[tag(3)]
     BlockedContactsUpdate(BlockedContactsUpdate),
+    #[tag(4)]
+    DeletedChat(DeletedChat),
+    #[tag(6)]
+    ConnectionRequestsUpdate(ConnectionRequestsUpdate),
     /// A message kind this client does not understand; skipped on receive.
     #[unknown]
     Unknown,
+}
+
+/// Key of the MIMI content extension that carries a [`SelfGroupAppMessage`].
+///
+/// draft-ietf-mimi-content reserves negative keys for private use.
+pub const SELF_GROUP_APP_MESSAGE_EXTENSION: i64 = -1;
+
+/// A message carried as a plain MLS application message in the self group.
+///
+/// Sent as a body-less [`MimiContent`] with the message as the value of the
+/// [`SELF_GROUP_APP_MESSAGE_EXTENSION`] extension. draft-ietf-mimi-content
+/// section 6.3 gives an extension value three nested levels. The union map
+/// and the payload map take two, so a payload field is a scalar, a byte
+/// string, or a flat array or map of scalars.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// SelfGroupAppMessage = {
+///   1: RedeemedTokens
+///   2: DeletedMessages
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
+pub enum SelfGroupAppMessage {
+    #[tag(1)]
+    RedeemedTokens(RedeemedTokens),
+    #[tag(2)]
+    DeletedMessages(DeletedMessages),
+    /// A message kind this client does not understand, skipped on receive.
+    #[unknown]
+    Unknown,
+}
+
+impl SelfGroupAppMessage {
+    /// Wraps the message into the MIMI content that carries it.
+    pub fn to_mimi_content(&self) -> Result<MimiContent, SelfGroupAppMessageError> {
+        let content = MimiContent {
+            salt: Secret::<16>::random()?.secret().to_vec(),
+            // Explicit, since older siblings render a body-less message as nothing.
+            nested_part: NestedPart::NullPart {
+                disposition: Disposition::Unspecified,
+                language: Default::default(),
+            },
+            ..Default::default()
+        };
+        Ok(content.with_extension(
+            ExtensionName::Number(SELF_GROUP_APP_MESSAGE_EXTENSION),
+            self,
+        )?)
+    }
+
+    /// Extracts the message from a [`MimiContent`], or `None` if the content
+    /// is not a self-group application message.
+    pub fn from_mimi_content(content: &MimiContent) -> Option<Self> {
+        if !matches!(content.nested_part, NestedPart::NullPart { .. }) {
+            return None;
+        }
+        content
+            .extension(&ExtensionName::Number(SELF_GROUP_APP_MESSAGE_EXTENSION))
+            .unwrap_or_else(|error| {
+                warn!(%error, "undecodable self group application message");
+                Some(Self::Unknown)
+            })
+    }
+}
+
+/// Error converting a [`SelfGroupAppMessage`] to or from its MIMI content.
+#[derive(Debug, thiserror::Error)]
+pub enum SelfGroupAppMessageError {
+    #[error(transparent)]
+    Salt(#[from] RandomnessError),
+    #[error(transparent)]
+    Extension(#[from] mimi_content::Error),
 }
 
 /// The Privacy Pass token seed of one (operation type, VOPRF key).
@@ -106,7 +204,7 @@ pub enum SelfGroupMessage {
 ///
 /// ```cddl
 /// TokenSeed = {
-///   1: uint,           ; operation_type, the proto enum value
+///   1: int,            ; operation_type, the proto enum value
 ///   2: bstr .size 32,  ; key_fingerprint, SHA-256 of the serialized public key
 ///   3: bstr .size 32,  ; seed
 /// }
@@ -114,11 +212,59 @@ pub enum SelfGroupMessage {
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct TokenSeed {
     #[tag(1)]
-    pub operation_type: u32,
+    pub operation_type: OperationType,
     #[tag(2)]
     pub key_fingerprint: [u8; 32],
     #[tag(3)]
     pub seed: [u8; 32],
+}
+
+/// The positions of the Privacy Pass tokens the sender redeemed at the AS.
+///
+/// Travels as a [`SelfGroupAppMessage`] since the redeemed set only grows and
+/// needs no commit order.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// RedeemedTokens = {
+///   1: int,            ; operation_type, the proto enum value
+///   2: bstr .size 32,  ; key_fingerprint, SHA-256 of the serialized public key
+///   3: uint,           ; allowance_epoch
+///   4: [* uint],       ; token_indices, ascending, no duplicates
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct RedeemedTokens {
+    #[tag(1)]
+    pub operation_type: OperationType,
+    #[tag(2)]
+    pub key_fingerprint: [u8; 32],
+    #[tag(3)]
+    pub allowance_epoch: u32,
+    #[tag(4)]
+    pub token_indices: Vec<u16>,
+}
+
+/// Upper bound of Mimi IDs in one [`DeletedMessages`].
+pub const MAX_DELETED_MESSAGES_PER_MESSAGE: usize = 64;
+
+/// The messages the sender deleted locally, so that siblings delete them too.
+///
+/// A Mimi ID names one version of a message. The receiver also resolves the
+/// IDs of versions an edit replaced.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// DeletedMessages = {
+///   1: [* bstr .size 32],  ; mimi_ids, at most 64
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct DeletedMessages {
+    #[tag(1)]
+    pub mimi_ids: Vec<MimiId>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
@@ -217,6 +363,8 @@ pub struct LinkedDevice {
 /// SettingsUpdate = {
 ///   ? send_read_receipts: bool .tag 1
 ///   ? linked_devices: [* LinkedDevice] .tag 2
+///   ? default_emoji_skin_tone: uint .size 1 .tag 3
+///   ? limit_animated_images_loops: bool .tag 4
 /// }
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
@@ -226,6 +374,12 @@ pub struct SettingsUpdate {
     /// Sorted by `client_id` so the encoding is canonical.
     #[tag(2)]
     pub linked_devices: Option<Vec<LinkedDevice>>,
+    /// 0 is no modifier, 1 to 5 are the Fitzpatrick modifiers U+1F3FB to
+    /// U+1F3FF in order. Receivers clamp unknown values.
+    #[tag(3)]
+    pub default_emoji_skin_tone: Option<u8>,
+    #[tag(4)]
+    pub limit_animated_images_loops: Option<bool>,
 }
 
 /// The contacts whose blocked state the sender just changed. This is a diff and
@@ -316,8 +470,181 @@ pub struct ContactUnblocked {
     pub user_id: PeerUserId,
 }
 
+/// A chat the sender deleted locally. Receivers erase their copy of it.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// DeletedChat = {
+///   group_id: bstr .tag 1,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct DeletedChat {
+    /// Group id of the chat's group, the T leg for APQ groups.
+    #[tag(1, with = "group_id_as_bytes")]
+    pub group_id: Option<GroupId>,
+}
+
+/// Update to a connection request. This is a diff and not a snapshot.
+///
+/// A received request is only carried if it came via a username. A request
+/// via a group chat reaches every device of the user on its own.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ConnectionRequestsUpdate = {
+///   requests: [* ConnectionRequestEntry] .tag 1,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ConnectionRequestsUpdate {
+    #[tag(1)]
+    pub requests: Vec<ConnectionRequestEntry>,
+}
+
+/// The new state of one connection request.
+///
+/// A request is identified by the chat id derived from the id of its
+/// connection group, which is the same on every device.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ConnectionRequestEntry = {
+///   1: ConnectionRequestReceived //
+///   2: ConnectionRequestDeclined //
+///   3: ConnectionRequestUnavailable
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedUnion, DeserializeTaggedUnion)]
+pub enum ConnectionRequestEntry {
+    #[tag(1)]
+    Received(ConnectionRequestReceived),
+    #[tag(2)]
+    Declined(ConnectionRequestDeclined),
+    #[tag(3)]
+    Unavailable(ConnectionRequestUnavailable),
+    /// A state this client does not understand. The entry is ignored on
+    /// receive.
+    #[unknown]
+    Unknown,
+}
+
+/// A pending incoming connection request, as a sibling forwards it or as the
+/// provisioning device hands it to a new device.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ConnectionRequestReceived = {
+///   connection_info: bstr .tag 1,          ; TLS-encoded ConnectionInfo
+///   sender_credential: bstr .tag 2,        ; TLS-encoded UserCredential
+///   source: ConnectionRequestSource .tag 3,
+///   ? connection_offer_hash: bstr .size 32 .tag 4,
+///   ? connection_package_hash: bstr .size 32 .tag 5,
+///   received_at: uint .tag 6,              ; unix epoch milliseconds (UTC)
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ConnectionRequestReceived {
+    #[tag(1)]
+    pub connection_info: Vec<u8>,
+    #[tag(2)]
+    pub sender_credential: Vec<u8>,
+    #[tag(3)]
+    pub source: ConnectionRequestSource,
+    /// Only present for a request via a username.
+    #[tag(4)]
+    pub connection_offer_hash: Option<ConnectionOfferHash>,
+    /// Only present for a request via a username.
+    #[tag(5)]
+    pub connection_package_hash: Option<ConnectionPackageHash>,
+    #[tag(6, with = "chrono::serde::ts_milliseconds")]
+    pub received_at: DateTime<Utc>,
+}
+
+/// How a connection request reached the user.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ConnectionRequestSource = {
+///   1: tstr //                  ; the own username the offer was sent to
+///   2: ConnectionRequestGroup   ; the group chat a targeted request came from
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedUnion, DeserializeTaggedUnion)]
+pub enum ConnectionRequestSource {
+    #[tag(1)]
+    Username(String),
+    /// Only handed to a new device, never forwarded.
+    #[tag(2)]
+    Group(ConnectionRequestGroup),
+    /// A source this client does not understand, or none at all. The entry is
+    /// ignored on receive.
+    #[default]
+    #[unknown]
+    Unknown,
+}
+
+/// The group chat a targeted connection request came from.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ConnectionRequestGroup = {
+///   group_id: bstr .tag 1,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ConnectionRequestGroup {
+    /// Group id of the chat's group, the T leg for APQ groups. Always set, a
+    /// receiver skips an entry without it.
+    #[tag(1, with = "group_id_as_bytes")]
+    pub group_id: Option<GroupId>,
+}
+
+/// The user declined an incoming connection request. Its sender is not told.
+/// Siblings record the decline time as-is, so all devices hold the same time.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ConnectionRequestDeclined = {
+///   chat_id: bstr .size 16 .tag 1,
+///   declined_at: uint .tag 2,              ; unix epoch milliseconds (UTC)
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ConnectionRequestDeclined {
+    #[tag(1)]
+    pub chat_id: Uuid,
+    #[tag(2, with = "chrono::serde::ts_milliseconds")]
+    pub declined_at: DateTime<Utc>,
+}
+
+/// An incoming connection request turned out to be gone when the user tried
+/// to accept it, because its sender retracted it.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ConnectionRequestUnavailable = {
+///   chat_id: bstr .size 16 .tag 1,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ConnectionRequestUnavailable {
+    #[tag(1)]
+    pub chat_id: Uuid,
+}
+
 #[cfg(test)]
 mod test {
+    use std::collections::BTreeMap;
+
     use aircommon::{
         codec::PersistenceCodec,
         crypto::{
@@ -325,6 +652,7 @@ mod test {
             kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
         },
     };
+    use mimi_content::{Disposition, cbor::Value};
 
     use super::*;
 
@@ -346,7 +674,7 @@ mod test {
     fn sample_messages() -> SelfGroupMessages {
         SelfGroupMessages(vec![SelfGroupMessage::SettingsUpdate(SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         })])
     }
 
@@ -399,6 +727,7 @@ mod test {
                 "Laptop",
                 LinkedDevicePlatform::Linux,
             )]),
+            ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&update).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
@@ -421,8 +750,13 @@ mod test {
         };
         let bytes = PersistenceCodec::to_vec(&old).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
-        assert_eq!(decoded.send_read_receipts, Some(false));
-        assert_eq!(decoded.linked_devices, None);
+        assert_eq!(
+            decoded,
+            SettingsUpdate {
+                send_read_receipts: Some(false),
+                ..Default::default()
+            }
+        );
     }
 
     #[test]
@@ -431,7 +765,7 @@ mod test {
         struct SettingsUpdateV3 {
             #[tag(1)]
             send_read_receipts: Option<bool>,
-            #[tag(3)]
+            #[tag(99)]
             something_new: Option<u64>,
         }
 
@@ -451,7 +785,7 @@ mod test {
     fn settings_update_roundtrip_and_wire_shape() {
         let set = SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&set).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
@@ -461,13 +795,27 @@ mod test {
 
         let empty = SettingsUpdate {
             send_read_receipts: None,
-            linked_devices: None,
+            ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&empty).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
         assert_eq!(empty, decoded);
         // `{}`: map(0).
         assert_eq!(&bytes[1..], &[0xA0]);
+    }
+
+    #[test]
+    fn settings_update_display_settings_roundtrip_and_wire_shape() {
+        let update = SettingsUpdate {
+            default_emoji_skin_tone: Some(3),
+            limit_animated_images_loops: Some(false),
+            ..Default::default()
+        };
+        let bytes = PersistenceCodec::to_vec(&update).unwrap();
+        let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(update, decoded);
+        // `{3: 3, 4: false}`
+        assert_eq!(&bytes[1..], &[0xA2, 0x03, 0x03, 0x04, 0xF4]);
     }
 
     #[test]
@@ -479,6 +827,7 @@ mod test {
                 "Laptop",
                 LinkedDevicePlatform::Linux,
             )]),
+            ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&update).unwrap();
         let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
@@ -489,7 +838,7 @@ mod test {
 
     fn sample_seed() -> TokenSeed {
         TokenSeed {
-            operation_type: 1,
+            operation_type: OperationType::AddUsername,
             key_fingerprint: [0xab; 32],
             seed: [0xcd; 32],
         }
@@ -513,20 +862,22 @@ mod test {
         insta::assert_snapshot!(diag);
     }
 
+    /// The wire shape of a [`TokenSeed`] without the checks its field types
+    /// make on decode.
+    #[derive(Debug, Clone, SerializeTaggedMap)]
+    struct LooseTokenSeed {
+        #[tag(1)]
+        operation_type: u32,
+        #[tag(2)]
+        key_fingerprint: Vec<u8>,
+        #[tag(3)]
+        seed: Vec<u8>,
+    }
+
     /// The fixed-size fields are length-checked on decode, so a seed of the
     /// wrong length is a decode error rather than a silently truncated seed.
     #[test]
     fn token_seed_rejects_wrong_length() {
-        #[derive(Debug, Clone, SerializeTaggedMap)]
-        struct LooseTokenSeed {
-            #[tag(1)]
-            operation_type: u32,
-            #[tag(2)]
-            key_fingerprint: Vec<u8>,
-            #[tag(3)]
-            seed: Vec<u8>,
-        }
-
         let loose = LooseTokenSeed {
             operation_type: 1,
             key_fingerprint: vec![0xab; 32],
@@ -534,6 +885,21 @@ mod test {
         };
         let bytes = PersistenceCodec::to_vec(&loose).unwrap();
         assert!(PersistenceCodec::from_slice::<TokenSeed>(&bytes).is_err());
+    }
+
+    /// A newer sibling may send an operation type this version does not know.
+    /// It decodes rather than failing the batch it travels in, and the caller
+    /// rejects `Unspecified`.
+    #[test]
+    fn token_seed_with_a_newer_operation_type_decodes_to_unspecified() {
+        let newer = LooseTokenSeed {
+            operation_type: 99,
+            key_fingerprint: vec![0xab; 32],
+            seed: vec![0xcd; 32],
+        };
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+        let decoded: TokenSeed = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(decoded.operation_type, OperationType::Unspecified);
     }
 
     #[test]
@@ -559,7 +925,7 @@ mod test {
 
         let update = SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         };
         let newer = vec![
             SelfGroupMessage::TokenSeed(sample_seed()),
@@ -641,7 +1007,7 @@ mod test {
 
         let update = SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         };
         let newer = vec![
             SelfGroupMessage::BlockedContactsUpdate(sample_blocked_contacts_update()),
@@ -699,7 +1065,260 @@ mod test {
         );
     }
 
-    // 2. `SelfGroupMessage` forward compatibility: an unknown tag decodes to
+    // 1d. `RedeemedTokens` encode/decode and wire shape.
+
+    fn sample_redeemed() -> RedeemedTokens {
+        RedeemedTokens {
+            operation_type: OperationType::AddUsername,
+            key_fingerprint: [0xab; 32],
+            allowance_epoch: 679,
+            token_indices: vec![0, 3, 7],
+        }
+    }
+
+    #[test]
+    fn redeemed_tokens_roundtrip_and_wire_shape() {
+        let redeemed = sample_redeemed();
+        let bytes = PersistenceCodec::to_vec(&redeemed).unwrap();
+        let decoded: RedeemedTokens = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(redeemed, decoded);
+
+        // The first byte is the persistence codec version, then a 4-entry map.
+        assert_eq!(bytes[1], 0xA4);
+    }
+
+    #[test]
+    fn redeemed_tokens_stability() {
+        let bytes = PersistenceCodec::to_vec(&sample_redeemed()).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    fn sample_deleted(count: usize) -> DeletedMessages {
+        DeletedMessages {
+            mimi_ids: (0..count).map(|i| MimiId::from([i as u8; 32])).collect(),
+        }
+    }
+
+    #[test]
+    fn deleted_messages_roundtrip() {
+        let deleted = sample_deleted(3);
+        let bytes = PersistenceCodec::to_vec(&deleted).unwrap();
+        let decoded: DeletedMessages = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(deleted, decoded);
+    }
+
+    #[test]
+    fn deleted_messages_stability() {
+        let bytes = PersistenceCodec::to_vec(&sample_deleted(2)).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    /// The Mimi IDs are byte strings, so a full batch stays within the
+    /// extension depth limit.
+    #[test]
+    fn a_full_batch_of_deleted_messages_survives_the_mimi_encoding() {
+        let message =
+            SelfGroupAppMessage::DeletedMessages(sample_deleted(MAX_DELETED_MESSAGES_PER_MESSAGE));
+        let bytes = message.to_mimi_content().unwrap().serialize().unwrap();
+        let decoded = MimiContent::deserialize(&bytes).unwrap();
+        assert_eq!(
+            SelfGroupAppMessage::from_mimi_content(&decoded),
+            Some(message)
+        );
+    }
+
+    // 1e. `ConnectionRequestsUpdate` encode/decode and forward compatibility.
+
+    fn sample_connection_request_group() -> ConnectionRequestGroup {
+        ConnectionRequestGroup {
+            group_id: Some(GroupId::from_slice(&[0x17; 8])),
+        }
+    }
+
+    fn sample_connection_requests_update() -> ConnectionRequestsUpdate {
+        ConnectionRequestsUpdate {
+            requests: vec![
+                ConnectionRequestEntry::Received(ConnectionRequestReceived {
+                    connection_info: vec![0x11; 8],
+                    sender_credential: vec![0x12; 8],
+                    source: ConnectionRequestSource::Username("alice".to_owned()),
+                    connection_offer_hash: Some(ConnectionOfferHash::from_bytes([0x13; 32])),
+                    connection_package_hash: Some(ConnectionPackageHash::from_bytes([0x14; 32])),
+                    received_at: DateTime::from_timestamp_millis(1_767_225_600_123).unwrap(),
+                }),
+                ConnectionRequestEntry::Received(ConnectionRequestReceived {
+                    connection_info: vec![0x15; 8],
+                    sender_credential: vec![0x16; 8],
+                    source: ConnectionRequestSource::Group(sample_connection_request_group()),
+                    connection_offer_hash: None,
+                    connection_package_hash: None,
+                    received_at: DateTime::from_timestamp_millis(1_767_225_600_456).unwrap(),
+                }),
+                ConnectionRequestEntry::Unavailable(ConnectionRequestUnavailable {
+                    chat_id: Uuid::from_u128(0x19),
+                }),
+                ConnectionRequestEntry::Declined(ConnectionRequestDeclined {
+                    chat_id: Uuid::from_u128(0x1a),
+                    declined_at: DateTime::from_timestamp_millis(1_767_225_600_789).unwrap(),
+                }),
+            ],
+        }
+    }
+
+    #[test]
+    fn connection_requests_update_roundtrip() {
+        let update = sample_connection_requests_update();
+        let bytes = PersistenceCodec::to_vec(&update).unwrap();
+        let decoded: ConnectionRequestsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(update, decoded);
+    }
+
+    #[test]
+    fn connection_requests_update_stability() {
+        let bytes = PersistenceCodec::to_vec(&sample_connection_requests_update()).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn connection_requests_update_travels_as_a_self_group_message() {
+        let messages = SelfGroupMessages(vec![SelfGroupMessage::ConnectionRequestsUpdate(
+            sample_connection_requests_update(),
+        )]);
+        let key = message_key_from([17u8; 32]);
+        let encrypted = messages.encrypt_padded(&key).unwrap();
+        let decrypted = SelfGroupMessages::decrypt_padded(&key, &encrypted).unwrap();
+        assert_eq!(messages, decrypted);
+    }
+
+    /// A client that predates tag 6 skips it and still reads the settings
+    /// update next to it.
+    #[test]
+    fn connection_requests_are_skipped_by_an_older_client() {
+        #[derive(Debug, Clone, PartialEq, DeserializeTaggedUnion)]
+        enum SelfGroupMessageV3 {
+            #[tag(1)]
+            SettingsUpdate(SettingsUpdate),
+            #[tag(2)]
+            TokenSeed(TokenSeed),
+            #[tag(3)]
+            BlockedContactsUpdate(BlockedContactsUpdate),
+            #[tag(4)]
+            DeletedChat(DeletedChat),
+            #[unknown]
+            Unknown,
+        }
+
+        let update = SettingsUpdate {
+            send_read_receipts: Some(true),
+            ..Default::default()
+        };
+        let newer = vec![
+            SelfGroupMessage::ConnectionRequestsUpdate(sample_connection_requests_update()),
+            SelfGroupMessage::SettingsUpdate(update.clone()),
+        ];
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+
+        let decoded: Vec<SelfGroupMessageV3> = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            decoded,
+            vec![
+                SelfGroupMessageV3::Unknown,
+                SelfGroupMessageV3::SettingsUpdate(update),
+            ]
+        );
+    }
+
+    /// A request state added after this client shipped decodes to `Unknown`
+    /// and leaves the other entries readable.
+    #[test]
+    fn connection_request_entry_with_unknown_tag_decodes_to_unknown() {
+        #[derive(Debug, Clone, PartialEq, SerializeTaggedMap)]
+        struct ConnectionRequestLater {
+            #[tag(1)]
+            chat_id: Uuid,
+        }
+
+        #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion)]
+        enum ConnectionRequestEntryV2 {
+            #[tag(1)]
+            Received(ConnectionRequestReceived),
+            #[tag(99)]
+            Later(ConnectionRequestLater),
+        }
+
+        let received = ConnectionRequestReceived {
+            connection_info: vec![0x11; 8],
+            sender_credential: vec![0x12; 8],
+            source: ConnectionRequestSource::Group(sample_connection_request_group()),
+            connection_offer_hash: None,
+            connection_package_hash: None,
+            received_at: DateTime::from_timestamp_millis(1_767_225_600_123).unwrap(),
+        };
+        let newer = vec![
+            ConnectionRequestEntryV2::Later(ConnectionRequestLater {
+                chat_id: Uuid::from_u128(1),
+            }),
+            ConnectionRequestEntryV2::Received(received.clone()),
+        ];
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+
+        let decoded: Vec<ConnectionRequestEntry> = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            decoded,
+            vec![
+                ConnectionRequestEntry::Unknown,
+                ConnectionRequestEntry::Received(received),
+            ]
+        );
+    }
+
+    /// A client that only knows received requests skips the unavailable and
+    /// declined ones.
+    #[test]
+    fn later_request_states_are_skipped_by_an_older_client() {
+        #[derive(Debug, Clone, PartialEq, DeserializeTaggedUnion)]
+        enum ConnectionRequestEntryV1 {
+            #[tag(1)]
+            Received(ConnectionRequestReceived),
+            #[unknown]
+            Unknown,
+        }
+
+        let bytes =
+            PersistenceCodec::to_vec(&sample_connection_requests_update().requests).unwrap();
+        let decoded: Vec<ConnectionRequestEntryV1> = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert!(matches!(
+            decoded.as_slice(),
+            [
+                ConnectionRequestEntryV1::Received(_),
+                ConnectionRequestEntryV1::Received(_),
+                ConnectionRequestEntryV1::Unknown,
+                ConnectionRequestEntryV1::Unknown,
+            ]
+        ));
+    }
+
+    /// A request source added after this client shipped decodes to `Unknown`
+    /// instead of failing the whole entry list.
+    #[test]
+    fn connection_request_source_with_unknown_tag_decodes_to_unknown() {
+        #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion)]
+        enum ConnectionRequestSourceV2 {
+            #[tag(99)]
+            ContactLink(String),
+        }
+
+        let bytes =
+            PersistenceCodec::to_vec(&ConnectionRequestSourceV2::ContactLink("x".to_owned()))
+                .unwrap();
+        let decoded: ConnectionRequestSource = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(decoded, ConnectionRequestSource::Unknown);
+    }
+
+    // 2a. `SelfGroupMessage` forward compatibility: an unknown tag decodes to
     //    `Unknown`.
 
     /// A "newer" message enum with a variant unknown to [`SelfGroupMessage`].
@@ -722,6 +1341,155 @@ mod test {
         let bytes = PersistenceCodec::to_vec(&newer).unwrap();
         let decoded: SelfGroupMessage = PersistenceCodec::from_slice(&bytes).unwrap();
         assert_eq!(decoded, SelfGroupMessage::Unknown);
+    }
+
+    // 2b. `SelfGroupAppMessage` forward compatibility: an unknown tag decodes
+    //     to `Unknown`.
+
+    /// A "newer" message enum with a variant unknown to
+    /// [`SelfGroupAppMessage`].
+    #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
+    enum SelfGroupAppMessageV2 {
+        #[tag(99)]
+        Something(u64),
+        #[unknown]
+        Unknown,
+    }
+
+    #[test]
+    fn self_group_app_message_unknown_tag_decodes_to_unknown() {
+        let newer = SelfGroupAppMessageV2::Something(42);
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+        let decoded: SelfGroupAppMessage = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(decoded, SelfGroupAppMessage::Unknown);
+    }
+
+    // 2c. The MIMI content framing around a [`SelfGroupAppMessage`].
+
+    fn content_with_extension(value: Value) -> MimiContent {
+        MimiContent {
+            extensions: BTreeMap::from([(
+                ExtensionName::Number(SELF_GROUP_APP_MESSAGE_EXTENSION),
+                value,
+            )]),
+            ..Default::default()
+        }
+    }
+
+    /// A [`SelfGroupAppMessageV2`] variant this version does not know.
+    fn a_newer_kind() -> Value {
+        Value::from_serde(SelfGroupAppMessageV2::Something(42)).unwrap()
+    }
+
+    #[test]
+    fn self_group_app_message_stability() {
+        let mut content = SelfGroupAppMessage::RedeemedTokens(sample_redeemed())
+            .to_mimi_content()
+            .unwrap();
+        content.salt = vec![0; 16];
+        let diag = cbor_diag::parse_bytes(content.serialize().unwrap())
+            .unwrap()
+            .to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn a_message_roundtrips_through_its_mimi_content() {
+        let message = SelfGroupAppMessage::RedeemedTokens(sample_redeemed());
+        let content = message.to_mimi_content().unwrap();
+        assert_eq!(
+            SelfGroupAppMessage::from_mimi_content(&content),
+            Some(message)
+        );
+    }
+
+    #[test]
+    fn a_message_survives_the_mimi_encoding() {
+        let message = SelfGroupAppMessage::RedeemedTokens(sample_redeemed());
+        let bytes = message.to_mimi_content().unwrap().serialize().unwrap();
+        let decoded = MimiContent::deserialize(&bytes).unwrap();
+        assert_eq!(
+            SelfGroupAppMessage::from_mimi_content(&decoded),
+            Some(message)
+        );
+    }
+
+    /// Distinct salts keep equal payloads from sharing a Mimi ID.
+    #[test]
+    fn each_message_gets_a_fresh_salt() {
+        let message = SelfGroupAppMessage::RedeemedTokens(sample_redeemed());
+        assert_ne!(
+            message.to_mimi_content().unwrap().salt,
+            message.to_mimi_content().unwrap().salt
+        );
+    }
+
+    /// `Some(Unknown)` rather than `None`, so it is not stored as a chat
+    /// message.
+    #[test]
+    fn a_kind_from_a_newer_sibling_is_unknown() {
+        assert_eq!(
+            SelfGroupAppMessage::from_mimi_content(&content_with_extension(a_newer_kind())),
+            Some(SelfGroupAppMessage::Unknown)
+        );
+    }
+
+    #[test]
+    fn the_envelope_survives_the_mimi_encoding() {
+        let bytes = content_with_extension(a_newer_kind()).serialize().unwrap();
+        let decoded = MimiContent::deserialize(&bytes).unwrap();
+        assert_eq!(
+            SelfGroupAppMessage::from_mimi_content(&decoded),
+            Some(SelfGroupAppMessage::Unknown)
+        );
+    }
+
+    /// A known tag with a payload of the wrong shape.
+    #[test]
+    fn an_undecodable_payload_is_unknown() {
+        let value = Value::Map(BTreeMap::from([(
+            Value::Int(1),
+            Value::Text("garbage".into()),
+        )]));
+        assert_eq!(
+            SelfGroupAppMessage::from_mimi_content(&content_with_extension(value)),
+            Some(SelfGroupAppMessage::Unknown)
+        );
+    }
+
+    #[test]
+    fn a_value_that_is_not_a_map_is_unknown() {
+        for value in [
+            Value::Int(7),
+            Value::Bytes(b"garbage".to_vec()),
+            Value::Null,
+        ] {
+            assert_eq!(
+                SelfGroupAppMessage::from_mimi_content(&content_with_extension(value)),
+                Some(SelfGroupAppMessage::Unknown)
+            );
+        }
+    }
+
+    /// A body makes it a chat message, whatever its extensions.
+    #[test]
+    fn a_message_with_a_body_is_not_ours() {
+        let mut content = SelfGroupAppMessage::RedeemedTokens(sample_redeemed())
+            .to_mimi_content()
+            .unwrap();
+        content.nested_part = NestedPart::SinglePart {
+            disposition: Disposition::Render,
+            language: Default::default(),
+            content_type: "text/markdown".to_owned(),
+            content: b"hello".to_vec(),
+        };
+        assert_eq!(SelfGroupAppMessage::from_mimi_content(&content), None);
+    }
+
+    #[test]
+    fn other_content_is_not_ours() {
+        let note = MimiContent::simple_markdown_message("a note to self".to_owned(), [0; 16]);
+        assert_eq!(SelfGroupAppMessage::from_mimi_content(&note), None);
     }
 
     // 3. `SelfGroupMessages` encrypt/decrypt roundtrip with exact padded length.
@@ -796,11 +1564,11 @@ mod test {
     fn vec_of_messages_with_unknown_element() {
         let known_a = SelfGroupMessageV2::SettingsUpdate(SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         });
         let known_b = SelfGroupMessageV2::SettingsUpdate(SettingsUpdate {
             send_read_receipts: Some(false),
-            linked_devices: None,
+            ..Default::default()
         });
         let newer = vec![known_a, SelfGroupMessageV2::Something(9), known_b];
         let bytes = PersistenceCodec::to_vec(&newer).unwrap();
@@ -811,12 +1579,12 @@ mod test {
             vec![
                 SelfGroupMessage::SettingsUpdate(SettingsUpdate {
                     send_read_receipts: Some(true),
-                    linked_devices: None,
+                    ..Default::default()
                 }),
                 SelfGroupMessage::Unknown,
                 SelfGroupMessage::SettingsUpdate(SettingsUpdate {
                     send_read_receipts: Some(false),
-                    linked_devices: None,
+                    ..Default::default()
                 }),
             ]
         );

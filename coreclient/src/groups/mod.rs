@@ -80,7 +80,11 @@ use aircommon::{
     time::TimeStamp,
     utils::removed_client,
 };
-use airprotos::client::app_data::{ClientAppData, GroupAppData};
+use airprotos::client::{
+    app_data::{ClientAppData, GroupAppData, GroupAppDataExt},
+    component::AIR_GROUP_PROFILE_COMPONENT_ID,
+    group::GroupData,
+};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use hkdf::Hkdf;
 use mimi_content::{MessageStatus, MessageStatusReport, MimiContent, PerMessageStatus};
@@ -97,9 +101,10 @@ use uuid::Uuid;
 
 use crate::{
     ChatId, ChatStatus, SystemMessage,
-    chats::messages::TimestampedMessage,
+    chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{
         api_clients::ApiClients,
+        attachment::MimiContentExt,
         block_contact::{BlockedContact, BlockedContactError},
         own_client_info::OwnClientInfo,
         targeted_message::TargetedMessageContent,
@@ -113,18 +118,19 @@ use crate::{
 };
 
 use openmls::{
-    components::vc_derivation_info::GenerationId,
+    component::ComponentData,
+    components::vc_derivation_info::{GenerationId, VC_COMPONENT_ID},
     group::{
-        CreateCommitError, ExportSecretError, ExternalCommitBuilder, GroupEpoch, JoinBuilder,
-        ProcessedWelcome, ProposalValidationError, UnconfirmedMessage,
+        CreateCommitError, ExportSecretError, ExternalCommitBuilder, GroupContext, GroupEpoch,
+        JoinBuilder, ProcessedWelcome, ProposalValidationError, UnconfirmedMessage,
         VcDerivationEpochRetentionPolicy,
     },
     prelude::{
-        AppDataDictionaryExtension, Capabilities, Credential, CredentialType, CredentialWithKey,
-        Extension, Extensions, GroupId, LeafNode, LeafNodeIndex, LeafNodeParameters, MlsGroup,
-        MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
-        PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal, ProposalType,
-        ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
+        AppDataDictionaryExtension, AppDataUpdateProposal, Capabilities, Credential,
+        CredentialType, CredentialWithKey, Extension, Extensions, GroupId, LeafNode, LeafNodeIndex,
+        LeafNodeParameters, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
+        OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal,
+        ProposalType, ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
         UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
@@ -227,36 +233,6 @@ pub(crate) struct PreparedInvitee {
     pub(crate) user_credential: UserCredential,
 }
 
-/// Bytes stored in the group data extension.
-#[derive(Debug, PartialEq, Clone)]
-pub(crate) struct GroupDataBytes {
-    bytes: Vec<u8>,
-}
-
-impl GroupDataBytes {
-    pub(crate) fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    fn from_staged_commit(staged_commit: &StagedCommit) -> Option<Self> {
-        staged_commit.queued_proposals().find_map(|p| {
-            if let Proposal::GroupContextExtensions(extensions) = p.proposal()
-                && let Some(ext) = extensions.extensions().unknown(GROUP_DATA_EXTENSION_TYPE)
-            {
-                Some(GroupDataBytes::from(ext.0.clone()))
-            } else {
-                None
-            }
-        })
-    }
-}
-
-impl From<Vec<u8>> for GroupDataBytes {
-    fn from(bytes: Vec<u8>) -> Self {
-        Self { bytes }
-    }
-}
-
 #[derive(Debug)]
 struct SendMessageCollisionKey {
     // The group epoch this secret key was exported from.
@@ -351,6 +327,14 @@ pub(crate) struct Group {
     own_user_id: UserId,
 }
 
+/// What an external join into a connection group needs beyond the group itself.
+pub(super) struct ConnectionGroupJoin<'a> {
+    /// The sole member of the group, whose invitation admits us to its room state.
+    pub(super) inviter: &'a UserId,
+    /// Set when the join answers a connection offer, `None` for the from-group flow.
+    pub(super) connection_offer_hash: Option<ConnectionOfferHash>,
+}
+
 impl Group {
     pub(crate) fn is_apq(&self) -> bool {
         self.pq.is_some()
@@ -381,13 +365,6 @@ impl Group {
 
     pub(crate) fn pq_mut(&mut self) -> Option<&mut PqGroup> {
         self.pq.as_mut()
-    }
-
-    /// Whether the group has a commit that the DS rejected and that has not
-    /// been reconciled yet.
-    #[cfg(test)]
-    pub(crate) fn commit_failed(&self) -> bool {
-        self.pending_commit_failed
     }
 
     pub(crate) async fn mark_commit_failed(
@@ -436,16 +413,17 @@ impl Group {
         Ok((mls_group, &mut pq.mls_group))
     }
 
-    /// Consumes this group and returns its room state. Used by callers
-    /// that no longer need the rest of the group.
-    pub(crate) fn into_room_state(self) -> VerifiedRoomState {
-        self.room_state
+    /// Whether either leg holds a proposal that has not been committed yet.
+    pub(crate) fn has_pending_proposals(&self) -> bool {
+        self.mls_group.pending_proposals().next().is_some()
+            || self
+                .pq
+                .as_ref()
+                .is_some_and(|pq| pq.mls_group.pending_proposals().next().is_some())
     }
 
     /// Errors if this group (or its PQ counterpart, for APQ groups) has a
-    /// pending commit. Used by clean loaders to refuse to hand out a
-    /// `Group` whose MLS state has an in-flight commit, since further
-    /// staging on top of one is a logic error.
+    /// pending commit.
     pub(crate) fn ensure_clean(&self) -> Result<()> {
         ensure!(
             self.mls_group.pending_commit().is_none(),
@@ -474,12 +452,13 @@ impl Group {
     }
 
     /// Create a group.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn create_group(
         mut connection: impl WriteConnection,
         signer: &UserSigningKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         group_id: GroupId,
-        group_data_bytes: GroupDataBytes,
+        context: NewGroupContext,
         vc_group_id: Option<&GroupId>,
     ) -> Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
@@ -488,12 +467,9 @@ impl Group {
         let required_capabilities =
             Extension::RequiredCapabilities(default_group_required_extensions());
 
-        let group_data_extension = Extension::Unknown(
-            GROUP_DATA_EXTENSION_TYPE,
-            UnknownExtension(group_data_bytes.bytes),
-        );
-        let gc_extensions =
-            Extensions::from_vec(vec![group_data_extension, required_capabilities])?;
+        let mut gc_extensions = Extensions::empty();
+        gc_extensions.add(required_capabilities)?;
+        context.add_to_t_extensions(&mut gc_extensions)?;
 
         let credential_with_key = CredentialWithKey {
             credential: signer.credential().try_into()?,
@@ -1079,11 +1055,8 @@ impl Group {
         group_state_ear_key: GroupStateEarKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         aad: AadMessage,
-        // Should be Some if this join is in response to a connection offer.
-        connection_offer_hash: Option<ConnectionOfferHash>,
-        // Should be Some if we are joining a connection group: the sole member of
-        // that group, whose invitation admits us to its room state.
-        inviter: Option<&UserId>,
+        // Should be Some if we are joining a connection group.
+        connection_group: Option<ConnectionGroupJoin<'_>>,
         // Should be Some if we act as a virtual client emulated from that self
         // group, whether joining anew or resyncing an existing membership.
         vc_group_id: Option<GroupId>,
@@ -1126,7 +1099,9 @@ impl Group {
         let (mls_group, commit, group_info, encrypted_profile_keys_fallback) = {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
             // Prepare PSK proposal if we have a connection offer hash.
-            let psk_proposal = connection_offer_hash
+            let psk_proposal = connection_group
+                .as_ref()
+                .and_then(|join| join.connection_offer_hash)
                 .map(|co_hash| {
                     store_connection_offer_psk(
                         &provider,
@@ -1205,8 +1180,8 @@ impl Group {
         // which is only accepted inside our own self group.
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &mls_group, is_self_group).await?;
-        if let Some(inviter) = inviter {
-            add_joiner_to_room_state(&mut room_state, inviter, signer.credential().user_id())?;
+        if let Some(join) = connection_group {
+            add_joiner_to_room_state(&mut room_state, join.inviter, signer.credential().user_id())?;
         }
         ensure_room_state_matches_members(&room_state, &mls_group)?;
 
@@ -1248,6 +1223,7 @@ impl Group {
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         aad: AadMessage,
         vc_group_id: Option<GroupId>,
+        connection_group: Option<ConnectionGroupJoin<'_>>,
     ) -> anyhow::Result<
         Result<(Self, ApqCommitMessageBundle, DecryptedProfileInfos), LeafNodeValidationError>,
     > {
@@ -1272,7 +1248,7 @@ impl Group {
             ratchet_tree_in: t_ratchet_tree,
             encrypted_user_profile_keys,
             indexed_encrypted_user_profile_keys,
-            room_state,
+            mut room_state,
             proposals: t_proposals,
             pq:
                 Some(PqExternalCommitInfoIn {
@@ -1305,6 +1281,7 @@ impl Group {
             })
             .collect();
 
+        let t_ciphersuite = t_group_info.ciphersuite();
         let group_info = VerifiableApqGroupInfo::new(t_group_info, pq_group_info);
 
         let encrypted_profile_keys_fallback = Self::encrypted_profile_keys_fallback(
@@ -1347,6 +1324,13 @@ impl Group {
         if let Some(group_id) = vc_group_id {
             builder = builder.vc_emulation(group_id);
         }
+        if let Some(hash) = connection_group
+            .as_ref()
+            .and_then(|join| join.connection_offer_hash)
+        {
+            let psk_id = store_connection_offer_psk(&provider, t_ciphersuite, hash)?;
+            builder = builder.add_t_psk_proposal(PreSharedKeyProposal::new(psk_id));
+        }
         // As in the welcome path, the PQ leaf carries an empty credential.
         let res = builder.build(
             &provider,
@@ -1387,6 +1371,9 @@ impl Group {
         // only accepted inside our own self group.
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &t_group, is_self_group).await?;
+        if let Some(join) = connection_group {
+            add_joiner_to_room_state(&mut room_state, join.inviter, own_user_id)?;
+        }
         ensure_room_state_matches_members(&room_state, &t_group)?;
 
         // Store the group, credentials and member profile infos
@@ -1913,7 +1900,7 @@ impl Group {
         verified: &impl GroupStorageWitness,
         staged_commit_option: impl Into<Option<StagedCommit>>,
         ds_timestamp: TimeStamp,
-    ) -> Result<(Vec<TimestampedMessage>, Option<GroupDataBytes>)> {
+    ) -> Result<(Vec<TimestampedMessage>, Option<GroupData>)> {
         let staged_commit_option: Option<StagedCommit> = staged_commit_option.into();
         let provider = AirOpenMlsProvider::new(txn.as_mut());
 
@@ -1929,7 +1916,7 @@ impl Group {
                 ds_timestamp,
             )?;
 
-            let group_data = GroupDataBytes::from_staged_commit(&staged_commit);
+            let group_data = self.group_data_from_staged_commit(&staged_commit)?;
 
             self.mls_group
                 .merge_staged_commit(&provider, staged_commit)?;
@@ -1945,7 +1932,7 @@ impl Group {
             // create a notification message.
             let (staged_commit_messages, group_data) =
                 if let Some(staged_commit) = self.mls_group.pending_commit() {
-                    let group_data = GroupDataBytes::from_staged_commit(staged_commit);
+                    let group_data = self.group_data_from_staged_commit(staged_commit)?;
                     let messages = TimestampedMessage::from_staged_commit(
                         self,
                         verified,
@@ -2157,7 +2144,7 @@ impl Group {
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         signer: &LeafSigningKey,
-        new_group_data: Option<GroupDataBytes>,
+        new_group_data: Option<GroupData>,
         derivation_epoch: DerivationEpoch,
     ) -> Result<GroupOperationParamsOut> {
         // We don't expect there to be a welcome.
@@ -2166,15 +2153,7 @@ impl Group {
         }))
         .tls_serialize_detached()?;
 
-        let extensions = new_group_data
-            .map(|gd| -> Result<_> {
-                let group_data_extension =
-                    Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, UnknownExtension(gd.bytes));
-                let mut exts = self.mls_group().extensions().clone();
-                exts.add_or_replace(group_data_extension)?;
-                Ok(exts)
-            })
-            .transpose()?;
+        let (component_data, extensions) = self.group_data_update(new_group_data)?;
 
         let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
         let leaf_node_parameters = Self::update_leaf_node_extensions(
@@ -2204,8 +2183,24 @@ impl Group {
                 builder = builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?;
             }
 
+            if let Some(component_data) = &component_data {
+                builder = builder.add_proposal(Proposal::AppDataUpdate(Box::new(
+                    AppDataUpdateProposal::update(
+                        AIR_GROUP_PROFILE_COMPONENT_ID,
+                        component_data.data().to_vec(),
+                    ),
+                )));
+            }
+
+            let mut builder = builder.load_psks(provider.storage())?;
+
+            if let Some(component_data) = component_data {
+                let mut updater = builder.app_data_dictionary_updater();
+                updater.set(component_data);
+                builder.with_app_data_dictionary_updates(updater.changes());
+            }
+
             let (mls_message, _welcome_option, group_info_option) = builder
-                .load_psks(provider.storage())?
                 .create_group_info(true)
                 .build(provider.rand(), provider.crypto(), signer, |_| true)?
                 .stage_commit(&provider)?
@@ -2224,6 +2219,29 @@ impl Group {
         })
     }
 
+    /// If the group has a group profile component, `new_group_data` goes there.
+    /// Otherwise it goes into the group context extension.
+    fn group_data_update(
+        &self,
+        new_group_data: Option<GroupData>,
+    ) -> Result<(Option<ComponentData>, Option<Extensions<GroupContext>>)> {
+        let Some(group_data) = new_group_data else {
+            return Ok((None, None));
+        };
+        if self.mls_group.extensions().has_group_profile_component() {
+            let component_data = group_data.into_component().to_component_data()?;
+            Ok((Some(component_data), None))
+        } else {
+            let bytes = group_data.encode()?;
+            let mut extensions = self.mls_group().extensions().clone();
+            extensions.add_or_replace(Extension::Unknown(
+                GROUP_DATA_EXTENSION_TYPE,
+                UnknownExtension(bytes),
+            ))?;
+            Ok((None, Some(extensions)))
+        }
+    }
+
     /// APQ self-update on both the T and PQ groups.
     ///
     /// Produces a single combined commit via apqmls that forces a self-update of the key material
@@ -2233,6 +2251,7 @@ impl Group {
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         signer: &LeafSigningKey,
+        new_group_data: Option<GroupData>,
         derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<ApqGroupOperationParamsOut> {
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
@@ -2240,6 +2259,8 @@ impl Group {
         }))
         .tls_serialize_detached()?;
         self.mls_group.set_aad(aad);
+
+        let (component_data, group_context_extensions) = self.group_data_update(new_group_data)?;
 
         let t_own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
         let t_leaf_node_parameters = Self::update_leaf_node_extensions(
@@ -2269,6 +2290,12 @@ impl Group {
                 .create_group_info(true);
         if let Some(group_id) = vc_group_id {
             builder = builder.vc_emulation(group_id);
+        }
+        if let Some(extensions) = group_context_extensions {
+            builder = builder.propose_t_group_context_extensions(extensions);
+        }
+        if let Some(component_data) = component_data {
+            builder = builder.update_t_app_data(component_data);
         }
         let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
 
@@ -2468,13 +2495,6 @@ impl Group {
         pending_removes
     }
 
-    /// Returns the `GroupData` of a pending GroupContextExtension change proposal, if any.
-    #[expect(dead_code)]
-    pub(crate) fn pending_group_data_update(&self) -> Option<GroupDataBytes> {
-        let pending_commit = self.mls_group().pending_commit()?;
-        GroupDataBytes::from_staged_commit(pending_commit)
-    }
-
     fn user_id_at_index(&self, index: LeafNodeIndex) -> Option<UserId> {
         self.mls_group().member_at(index).and_then(|m| {
             LeafCredential::from_credential(&m.credential)
@@ -2585,13 +2605,52 @@ impl Group {
         Ok(self.room_state.users().get(&identity).cloned())
     }
 
-    pub(crate) fn group_data(&self) -> Option<GroupDataBytes> {
-        self.mls_group().extensions().iter().find_map(|e| match e {
-            Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, extension_bytes) => {
-                Some(GroupDataBytes::from(extension_bytes.0.clone()))
-            }
+    pub(crate) fn group_data(&self) -> anyhow::Result<Option<GroupData>> {
+        // First try to get the group data from the group profile component.
+        if let Some(group_profile) = GroupAppData::group_profile(self.mls_group().extensions()) {
+            return Ok(Some(group_profile.into()));
+        }
+        // Otherwise fall back to the group data extension.
+        let Some(bytes) = self.mls_group().extensions().iter().find_map(|e| match e {
+            Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, extension) => Some(&extension.0),
             _ => None,
-        })
+        }) else {
+            return Ok(None);
+        };
+        Ok(Some(GroupData::decode(bytes)?))
+    }
+
+    /// Group data changed by `staged_commit` if any.
+    ///
+    /// If the staged group context carries a group profile component, only a change of that
+    /// component counts. A legacy group data extension in the same commit is ignored. Without a
+    /// component, the legacy extension of a group context extensions proposal is returned.
+    fn group_data_from_staged_commit(
+        &self,
+        staged_commit: &StagedCommit,
+    ) -> anyhow::Result<Option<GroupData>> {
+        if let Some(staged) =
+            GroupAppData::group_profile(staged_commit.group_context().extensions())
+        {
+            let current = GroupAppData::group_profile(self.mls_group().extensions());
+            return Ok((current.as_ref() != Some(&staged)).then(|| staged.into()));
+        }
+
+        // Fallback
+        staged_commit
+            .queued_proposals()
+            .find_map(|p| {
+                if let Proposal::GroupContextExtensions(extensions) = p.proposal()
+                    && let Some(extension) =
+                        extensions.extensions().unknown(GROUP_DATA_EXTENSION_TYPE)
+                {
+                    Some(GroupData::decode(&extension.0))
+                } else {
+                    None
+                }
+            })
+            .transpose()
+            .map_err(From::from)
     }
 
     pub(crate) fn own_index(&self) -> LeafNodeIndex {
@@ -2698,6 +2757,54 @@ impl Group {
             return Ok(None);
         };
         Ok(Some(credential.user_id(self.own_user_id()).clone()))
+    }
+}
+
+/// Group context contents of a new group
+pub(crate) enum NewGroupContext {
+    /// Profile in the legacy group data extension
+    LegacyChat(GroupData),
+    /// Profile in the group profile component
+    Chat(GroupData),
+    /// Self group: profile in the group profile component, SafeAAD for the VC component
+    SelfGroup(GroupData),
+}
+
+impl NewGroupContext {
+    fn app_data(&self) -> GroupAppData {
+        let is_self_group = matches!(self, Self::SelfGroup(_));
+        GroupAppData {
+            is_self_group,
+            safe_aad_components: is_self_group.then(|| vec![VC_COMPONENT_ID]),
+            profile: None,
+        }
+    }
+
+    fn add_to_t_extensions(self, extensions: &mut Extensions<GroupContext>) -> anyhow::Result<()> {
+        let mut app_data = self.app_data();
+        let group_data = match self {
+            Self::Chat(data) | Self::SelfGroup(data) => {
+                app_data.profile = Some(data.into_component());
+                None
+            }
+            Self::LegacyChat(data) => Some(data.encode()?),
+        };
+        extensions.add(app_data.to_extension()?)?;
+        if let Some(group_data) = group_data {
+            extensions.add(Extension::Unknown(
+                GROUP_DATA_EXTENSION_TYPE,
+                UnknownExtension(group_data),
+            ))?;
+        }
+        Ok(())
+    }
+
+    fn add_to_pq_extensions(
+        &self,
+        extensions: &mut Extensions<GroupContext>,
+    ) -> anyhow::Result<()> {
+        extensions.add(self.app_data().to_extension()?)?;
+        Ok(())
     }
 }
 
@@ -3134,7 +3241,6 @@ mod handle_group_not_found_tests {
         Chat, ChatStatus,
         clients::{block_contact::BlockedContact, own_client_info::OwnClientInfo},
         db::access::DbAccess,
-        groups::GroupDataBytes,
         utils::persistence::open_db_in_memory,
     };
 
@@ -3158,7 +3264,7 @@ mod handle_group_not_found_tests {
             &user_signing_key,
             IdentityLinkWrapperKey::random()?,
             group_id.clone(),
-            GroupDataBytes::from(b"test-group-data".to_vec()),
+            NewGroupContext::LegacyChat(GroupData::empty()),
             None,
         )?;
         group.store(&mut connection).await?;
@@ -3233,6 +3339,7 @@ impl TimestampedMessage {
     ) -> Result<Vec<Self>> {
         // Collect the remover/removed pairs into a set to avoid duplicates.
         let mut removed_set = HashSet::new();
+        let mut devices_unlinked_set = HashSet::new();
         let remove_proposals = staged_commit.queued_proposals().filter(|&p| {
             matches!(
                 p.proposal().proposal_type(),
@@ -3261,16 +3368,23 @@ impl TimestampedMessage {
                 continue;
             };
 
-            let removed = group
-                .user_id_at(removed_index, verified)?
-                .context("Could not find user credential of removed")?;
+            let removed_credential = group
+                .unverified_credential_at(removed_index)?
+                .context("Could not find credential of removed")?;
 
-            if remover == removed {
-                // A system message for this proposal was already made when it was proposed
-                continue;
+            match &removed_credential {
+                LeafCredential::SelfGroup(self_group_credential) => {
+                    devices_unlinked_set.insert(self_group_credential.client_id());
+                }
+                LeafCredential::User(_) => {
+                    let removed = removed_credential.user_id(group.own_user_id()).clone();
+                    if remover == removed {
+                        // A system message for this proposal was already made when it was proposed
+                        continue;
+                    }
+                    removed_set.insert((remover, removed));
+                }
             }
-
-            removed_set.insert((remover, removed));
         }
         let remove_messages = removed_set.into_iter().map(|(remover, removed)| {
             TimestampedMessage::system_message(
@@ -3278,9 +3392,16 @@ impl TimestampedMessage {
                 ds_timestamp,
             )
         });
+        let device_unlinked_messages = devices_unlinked_set.into_iter().map(|client_id| {
+            TimestampedMessage::system_message(
+                SystemMessage::DeviceUnlinked(client_id),
+                ds_timestamp,
+            )
+        });
 
         // Collect adder and addee names and filter out duplicates
         let mut adds_set = HashSet::new();
+        let mut devices_linked_set = HashSet::new();
         for staged_add_proposal in staged_commit.add_proposals() {
             let Sender::Member(sender_index) = staged_add_proposal.sender() else {
                 // We don't support non-member adds.
@@ -3291,22 +3412,36 @@ impl TimestampedMessage {
                 .user_id_at(*sender_index, verified)?
                 .context("Could not find user credential of sender")?;
 
-            // Get the user id of the added member from the proposal key package
+            // Get the credential of the added member from the proposal key package
             let credential = staged_add_proposal
                 .add_proposal()
                 .key_package()
                 .leaf_node()
                 .credential();
             let credential = LeafCredential::from_credential(credential)?;
-            let addee_id = credential.user_id(group.own_user_id()).clone();
 
-            adds_set.insert((sender_id, addee_id));
+            match &credential {
+                LeafCredential::SelfGroup(self_group_credential) => {
+                    devices_linked_set.insert(self_group_credential.client_id());
+                }
+                LeafCredential::User(_) => {
+                    let addee_id = credential.user_id(group.own_user_id()).clone();
+                    adds_set.insert((sender_id, addee_id));
+                }
+            }
         }
         let add_messages = adds_set.into_iter().map(|(adder, added)| {
             TimestampedMessage::system_message(SystemMessage::Add(Some(adder), added), ds_timestamp)
         });
+        let device_linked_messages = devices_linked_set.into_iter().map(|client_id| {
+            TimestampedMessage::system_message(SystemMessage::DeviceLinked(client_id), ds_timestamp)
+        });
 
-        let event_messages = remove_messages.chain(add_messages).collect();
+        let event_messages = remove_messages
+            .chain(device_unlinked_messages)
+            .chain(add_messages)
+            .chain(device_linked_messages)
+            .collect();
 
         // Emit log messages for updates.
         for staged_update_proposal in staged_commit.update_proposals() {
@@ -3333,6 +3468,10 @@ impl TimestampedMessage {
 pub fn suppress_notifications(content: &MimiContent) -> bool {
     if content.is_status_update() {
         // Status updates should never trigger notifications.
+        return true;
+    }
+    if content.self_group_message().is_some() {
+        // Bookkeeping among the user's own devices, never shown.
         return true;
     }
     if content.replaces.is_some() {

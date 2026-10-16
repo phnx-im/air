@@ -18,6 +18,21 @@ void main() {
       expect(localeFromTag('pt_PT'), const Locale('pt', 'PT'));
     });
 
+    test('parses a script, with or without a region', () {
+      expect(
+        localeFromTag('zh-Hant'),
+        const Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
+      );
+      expect(
+        localeFromTag('zh_Hant_TW'),
+        const Locale.fromSubtags(
+          languageCode: 'zh',
+          scriptCode: 'Hant',
+          countryCode: 'TW',
+        ),
+      );
+    });
+
     test('returns null for nothing to parse', () {
       expect(localeFromTag(null), isNull);
       expect(localeFromTag(''), isNull);
@@ -35,6 +50,15 @@ void main() {
     test('omits an absent region', () {
       expect(localeToTag(const Locale('sv')), 'sv');
       expect(localeToTag(const Locale('pt', 'PT')), 'pt-PT');
+    });
+
+    test('keeps the script', () {
+      expect(
+        localeToTag(
+          const Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
+        ),
+        'zh-Hant',
+      );
     });
   });
 
@@ -59,6 +83,42 @@ void main() {
 
     test('resolves a bare language to its supported entry', () {
       expect(resolveSupportedLocale(const Locale('de')), const Locale('de'));
+    });
+
+    test('prefers a script match over a language match', () {
+      const traditional = Locale.fromSubtags(
+        languageCode: 'zh',
+        scriptCode: 'Hant',
+      );
+      expect(
+        resolveSupportedLocale(
+          const Locale.fromSubtags(
+            languageCode: 'zh',
+            scriptCode: 'Hant',
+            countryCode: 'TW',
+          ),
+        ),
+        traditional,
+      );
+      expect(resolveSupportedLocale(const Locale('zh', 'HK')), traditional);
+    });
+
+    test('resolves Simplified Chinese regions to the base locale', () {
+      expect(resolveSupportedLocale(const Locale('zh')), const Locale('zh'));
+      expect(
+        resolveSupportedLocale(const Locale('zh', 'CN')),
+        const Locale('zh'),
+      );
+      expect(
+        resolveSupportedLocale(
+          const Locale.fromSubtags(
+            languageCode: 'zh',
+            scriptCode: 'Hans',
+            countryCode: 'SG',
+          ),
+        ),
+        const Locale('zh'),
+      );
     });
 
     test('always returns a supported locale', () {

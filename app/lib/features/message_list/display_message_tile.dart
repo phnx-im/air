@@ -2,7 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/core/core.dart';
+import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/system_message/system_message.dart';
@@ -11,12 +13,16 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/emphasized_text.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:air/features/message_list/contact_request_dialog.dart';
+import 'package:air/features/message_list/sent_contact_request_card.dart';
 import 'package:air/features/message_list/timestamp.dart';
+import 'package:uuid/uuid_value.dart';
 
 class DisplayMessageTile extends StatelessWidget {
   final UiEventMessage eventMessage;
@@ -40,7 +46,7 @@ class DisplayMessageTile extends StatelessWidget {
   }
 }
 
-class _SystemMessageContent extends StatefulWidget {
+class _SystemMessageContent extends StatefulHookWidget {
   const _SystemMessageContent({required this.message, required this.timestamp});
 
   final UiSystemMessage message;
@@ -53,12 +59,14 @@ class _SystemMessageContent extends StatefulWidget {
 class _SystemMessageContentState extends State<_SystemMessageContent> {
   /// One recognizer per person
   final Map<UiUserId, TapGestureRecognizer> _profileTaps = {};
+  TapGestureRecognizer? _devicesTap;
 
   @override
   void dispose() {
     for (final recognizer in _profileTaps.values) {
       recognizer.dispose();
     }
+    _devicesTap?.dispose();
     super.dispose();
   }
 
@@ -70,37 +78,76 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
               context.read<NavigationCubit>().openMemberDetails(userId),
   );
 
+  TapGestureRecognizer _devicesTapRecognizer() =>
+      _devicesTap ??= TapGestureRecognizer()
+        ..onTap = () => context.read<NavigationCubit>().openYouSectionOverChat(
+          YouSection.devices,
+        );
+
   @override
   Widget build(BuildContext context) {
-    final isConfirmed = context.select(
-      (ChatDetailsCubit cubit) => cubit.state.chat?.isConfirmed ?? false,
+    final (chatId, requestState) = context.select(
+      (ChatDetailsCubit cubit) =>
+          (cubit.state.chat?.id, cubit.state.chat?.requestState),
     );
+    // An open request brings its card. Once it is answered or retracted, the
+    // message that announced it reads as a plain record.
+    final incomingChatId = requestState == ContactRequestState.incoming
+        ? chatId
+        : null;
+    final outgoingChatId = requestState == ContactRequestState.outgoing
+        ? chatId
+        : null;
 
     final ownUserId = context.read<UserCubit>().state.userId;
     GestureRecognizer? profileTap(UiUserId userId) =>
         userId == ownUserId ? null : _profileTap(userId);
+    final groupChatTitle = useRequestGroupChatTitle(widget.message);
 
     return switch (widget.message) {
-      UiSystemMessage_ReceivedDirectConnectionRequest(
-        :final sender,
-        :final chatName,
-      )
-          when !isConfirmed =>
+      UiSystemMessage_ReceivedDirectConnectionRequest(:final sender)
+          when incomingChatId != null =>
         _request(
           ContactRequestDialog(
+            chatId: incomingChatId,
             sender: sender,
-            source: .targetedMessage(originChatTitle: chatName),
+            source: .targetedMessage(originChatTitle: groupChatTitle),
           ),
         ),
       UiSystemMessage_ReceivedHandleConnectionRequest(
         :final sender,
         :final username,
       )
-          when !isConfirmed =>
+          when incomingChatId != null =>
         _request(
           ContactRequestDialog(
+            chatId: incomingChatId,
             sender: sender,
             source: .username(username: username),
+          ),
+        ),
+      UiSystemMessage_NewHandleConnectionChat(:final field0)
+          when outgoingChatId != null =>
+        _request(
+          SentContactRequestCard(
+            chatId: outgoingChatId,
+            recipient: .username(field0),
+          ),
+        ),
+      UiSystemMessage_NewDirectConnectionChat(:final field0)
+          when outgoingChatId != null =>
+        _request(
+          SentContactRequestCard(
+            chatId: outgoingChatId,
+            recipient: .user(field0),
+          ),
+        ),
+      UiSystemMessage_SentDirectConnectionRequest(:final recipient)
+          when outgoingChatId != null =>
+        _request(
+          SentContactRequestCard(
+            chatId: outgoingChatId,
+            recipient: .user(recipient, groupChatTitle: groupChatTitle),
           ),
         ),
       _ => SystemMessage(
@@ -108,7 +155,9 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
         content: buildSystemMessageText(
           context,
           widget.message,
+          groupChatTitle: groupChatTitle,
           recognizerFor: profileTap,
+          devicesTap: _devicesTapRecognizer,
         ),
         timestamp: Timestamp(widget.timestamp),
       ),
@@ -127,19 +176,67 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
   );
 }
 
+/// The title of the group chat the contact request [message] went through,
+/// kept current as that chat changes. Null when [message] is no such request,
+/// or when the group chat is not on this device, because it was deleted or has
+/// not synced yet.
+String? useRequestGroupChatTitle(UiSystemMessage? message) {
+  final groupChat = switch (message) {
+    UiSystemMessage_ReceivedDirectConnectionRequest(:final groupChat) ||
+    UiSystemMessage_ReceivedAdditionalDirectConnectionRequest(
+      :final groupChat,
+    ) => groupChat,
+    UiSystemMessage_SentDirectConnectionRequest(:final originChatId) =>
+      UiRequestGroupChat.chat(originChatId),
+    _ => null,
+  };
+  final chatId = switch (groupChat) {
+    UiRequestGroupChat_Chat(:final field0) => field0,
+    _ => null,
+  };
+  final context = useContext();
+  final changes = useMemoized(
+    () => chatId == null
+        ? null
+        : context.read<ChatsRepository>().watchChat(chatId),
+    [chatId],
+  );
+  // The stream only triggers the rebuild. We read the chat from the repository,
+  // which holds the change before the stream reports it and also covers the
+  // build before the stream's first event.
+  useStream(changes);
+  final chat = chatId == null
+      ? null
+      : context.read<ChatsRepository>().getChat(chatId);
+  return switch (groupChat) {
+    UiRequestGroupChat_Title(:final field0) => field0,
+    UiRequestGroupChat_Chat() => switch (chat?.chatType) {
+      UiChatType_Group(field0: final attributes) => attributes.title,
+      _ => null,
+    },
+    null => null,
+  };
+}
+
 /// Builds the sentence describing [message], with the names and titles it
 /// mentions resolved and emphasized.
 ///
 /// The spans carry no base style: [SystemMessage] applies it to whatever it is
 /// handed, so only the emphasized runs need one of their own.
 ///
-/// [recognizerFor] makes the people the sentence names tappable. A caller that
-/// leaves it out, such as the chat list reading the sentence back as plain
-/// text, gets the same words with nothing attached.
+/// [groupChatTitle] names the group chat of a contact request, from
+/// [useRequestGroupChatTitle].
+///
+/// [recognizerFor] makes the people the sentence names tappable, and
+/// [devicesTap] the link to the device list. A caller that leaves them out,
+/// such as the chat list reading the sentence back as plain text, gets the
+/// same words with nothing attached.
 TextSpan buildSystemMessageText(
   BuildContext context,
   UiSystemMessage message, {
+  required String? groupChatTitle,
   GestureRecognizer? Function(UiUserId userId)? recognizerFor,
+  GestureRecognizer Function()? devicesTap,
 }) {
   final loc = AppLocalizations.of(context);
   final nameStyle = SystemMessage.emphasisOf(
@@ -150,8 +247,21 @@ TextSpan buildSystemMessageText(
   String nameOf(UiUserId id) =>
       context.select((UsersCubit c) => c.state.profile(userId: id).displayName);
 
+  String? deviceNameOf(UuidValue clientId) => context.select(
+    (LinkedDevicesCubit c) => c.state.devices
+        .firstWhereOrNull((device) => device.clientId == clientId)
+        ?.name,
+  );
+
   EmphasizedValue user(UiUserId id) =>
       EmphasizedValue(nameOf(id), recognizer: recognizerFor?.call(id));
+
+  EmphasizedValue viewDevicesAction() => EmphasizedValue(
+    DeviceType.isDesktop
+        ? loc.systemMessage_viewDevicesAction_desktop
+        : loc.systemMessage_viewDevicesAction,
+    recognizer: devicesTap?.call(),
+  );
 
   return switch (message) {
     UiSystemMessage_Add(field0: final adder, field1: final added) =>
@@ -224,19 +334,89 @@ TextSpan buildSystemMessageText(
           username.plaintext,
         ),
       ),
-    UiSystemMessage_ReceivedDirectConnectionRequest(
-      :final sender,
-      :final chatName,
-    ) =>
-      TextSpan(
-        text: loc.systemMessage_receivedDirectConnectionRequest(
+    UiSystemMessage_ReceivedDirectConnectionRequest(:final sender) => TextSpan(
+      text: switch (groupChatTitle) {
+        final String title => loc.systemMessage_receivedDirectConnectionRequest(
           nameOf(sender),
-          chatName,
+          title,
         ),
-      ),
+        null => loc.systemMessage_receivedDirectConnectionRequestUnknownGroup(
+          nameOf(sender),
+        ),
+      },
+    ),
     UiSystemMessage_NewDirectConnectionChat(:final field0) => TextSpan(
       text: loc.systemMessage_newDirectConnectionChat(nameOf(field0)),
     ),
+    UiSystemMessage_SentDirectConnectionRequest(:final recipient) => TextSpan(
+      text: switch (groupChatTitle) {
+        final String title => loc.systemMessage_sentDirectConnectionRequest(
+          nameOf(recipient),
+          title,
+        ),
+        null => loc.systemMessage_sentDirectConnectionRequestUnknownGroup(
+          nameOf(recipient),
+        ),
+      },
+    ),
+    UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest(
+      :final sender,
+      :final username,
+    ) =>
+      TextSpan(
+        text: loc.systemMessage_receivedAdditionalUsernameConnectionRequest(
+          nameOf(sender),
+          username.plaintext,
+        ),
+      ),
+    UiSystemMessage_ReceivedAdditionalDirectConnectionRequest(:final sender) =>
+      TextSpan(
+        text: switch (groupChatTitle) {
+          final String title =>
+            loc.systemMessage_receivedAdditionalDirectConnectionRequest(
+              nameOf(sender),
+              title,
+            ),
+          null =>
+            loc.systemMessage_receivedAdditionalDirectConnectionRequestUnknownGroup(
+              nameOf(sender),
+            ),
+        },
+      ),
     UiSystemMessage_Onboarded() => TextSpan(text: loc.systemMessage_onboarded),
+    UiSystemMessage_DeviceLinked(:final field0) => switch (deviceNameOf(
+      field0,
+    )) {
+      final String deviceName => emphasizedText(
+        (marks) => loc.systemMessage_deviceLinked(marks[0], marks[1]),
+        [EmphasizedValue(deviceName), viewDevicesAction()],
+        nameStyle,
+      ),
+      null => emphasizedText(
+        (marks) => loc.systemMessage_deviceLinkedUnknown(marks[0]),
+        [viewDevicesAction()],
+        nameStyle,
+      ),
+    },
+    UiSystemMessage_DeviceUnlinked(:final field0) => switch (deviceNameOf(
+      field0,
+    )) {
+      final String deviceName => emphasizedText(
+        (marks) => loc.systemMessage_deviceUnlinked(marks[0], marks[1]),
+        [EmphasizedValue(deviceName), viewDevicesAction()],
+        nameStyle,
+      ),
+      null => emphasizedText(
+        (marks) => loc.systemMessage_deviceUnlinkedUnknown(marks[0]),
+        [viewDevicesAction()],
+        nameStyle,
+      ),
+    },
+    UiSystemMessage_SelfChatCreated() => TextSpan(
+      text: loc.systemMessage_selfChatCreated,
+    ),
+    UiSystemMessage_ConnectionRequestUnavailable() => TextSpan(
+      text: loc.systemMessage_connectionRequestUnavailable,
+    ),
   };
 }

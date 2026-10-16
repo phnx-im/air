@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT r.chat_id AS \"chat_id: ChatId\"\n                FROM pending_connection_request r\n                INNER JOIN chat c ON c.chat_id = r.chat_id\n                WHERE c.is_incoming = 1\n                    AND c.is_confirmed_connection = 0\n                    AND c.connection_user_uuid = ?\n                    AND c.connection_user_domain = ?\n                LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "chat_id: ChatId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_connection_request",
+            "name": "chat_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f77e3bf4f3d75f743c43bfe53512133ab887877794064f47f69fe1ab966eff71"
+}

@@ -14,6 +14,7 @@ use mls_assist::{
     messages::{AssistedMessageIn, AssistedWelcome, SerializedMlsMessage},
     openmls::{
         group::StagedCommit,
+        messages::proposals::Proposal,
         prelude::{
             Extension, KeyPackage, LeafNodeIndex, OpenMlsProvider, ProcessedMessage,
             ProcessedMessageContent, Sender,
@@ -41,7 +42,7 @@ use aircommon::{
     },
     mls_group_config::QS_CLIENT_REFERENCE_EXTENSION_TYPE,
     time::TimeStamp,
-    utils::removed_clients,
+    utils::{removed_client, removed_clients},
 };
 use tls_codec::DeserializeBytes;
 use tracing::{error, warn};
@@ -98,6 +99,7 @@ impl DsGroupState {
         add_users_info: Option<AddUsersInfo>,
         pq_group_state: Option<&DsGroupState>,
         pq_staged_commit: Option<&StagedCommit>,
+        max_devices: u32,
     ) -> Result<TCommitValidation, GroupOperationError> {
         // Validate that the AAD includes enough encrypted credential chains
         let aad_message = AadMessage::tls_deserialize_exact_bytes(processed_message.tail_aad())
@@ -124,14 +126,20 @@ impl DsGroupState {
             return Err(GroupOperationError::InvalidMessage);
         }
 
+        // A member that proposed its own removal relies on the next committer
+        // to carry the proposal, so a commit must not leave one behind.
+        self.ensure_self_removes_committed(staged_commit)?;
+
         // A traditional commit on an APQ group can only be a PARTIAL
-        // self-update. Membership changes must go through the APQ endpoint so
-        // that both legs stay in sync. External commits are caught by the
-        // remove proposal they must carry.
+        // self-update. Membership changes (including self-removes) must go
+        // through the APQ endpoint so that both legs stay in sync. External
+        // commits are caught by the remove proposal they must carry.
         if pq_group_state.is_none()
             && self.is_apq()
             && (staged_commit.add_proposals().next().is_some()
-                || staged_commit.remove_proposals().next().is_some())
+                || staged_commit
+                    .queued_proposals()
+                    .any(|proposal| removed_client(proposal).is_some()))
         {
             warn!("Traditional membership change on an APQ group");
             return Err(GroupOperationError::ApqMembershipChange);
@@ -173,6 +181,25 @@ impl DsGroupState {
                 return Err(GroupOperationError::InvalidMessage);
             }
         };
+
+        // Enforce max_devices on self-group growth. Commits that don't grow the group stay allowed,
+        // even if they are over the limit.
+        if self.is_self_group() && max_devices > 0 {
+            let current = self.group().members().count();
+            let joined = staged_commit.add_proposals().count()
+                + usize::from(matches!(sender_index, SenderIndex::External(_)));
+            let left = staged_commit
+                .queued_proposals()
+                .filter(|p| matches!(p.proposal(), Proposal::Remove(_) | Proposal::SelfRemove))
+                .count();
+            if joined > left {
+                let members_after = current + joined - left;
+                let max = usize::try_from(max_devices).unwrap_or(usize::MAX);
+                if members_after > max {
+                    return Err(GroupOperationError::MaxDevicesExceeded { max_devices });
+                }
+            }
+        }
 
         let sender = self
             .leaf_credential(sender_index.leaf_index())
@@ -332,6 +359,7 @@ impl DsGroupState {
     pub(super) async fn process_group_operation(
         &mut self,
         params: GroupOperationParams,
+        max_devices: u32,
     ) -> Result<ProcessedGroupOperation, GroupOperationError> {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
@@ -355,7 +383,13 @@ impl DsGroupState {
             added_users_state,
             external_sender_information,
             removed_clients,
-        } = self.validate_t_commit(processed_message, params.add_users_info_option, None, None)?;
+        } = self.validate_t_commit(
+            processed_message,
+            params.add_users_info_option,
+            None,
+            None,
+            max_devices,
+        )?;
 
         // Everything seems to be okay.
         // Now we have to update the group state and distribute.
@@ -408,11 +442,13 @@ impl DsGroupState {
         pq_message: AssistedMessageIn,
         t_add_users_info: Option<AddUsersInfo>,
         pq_add_users_info: Option<AddUsersInfo>,
+        max_devices: u32,
     ) -> Result<ProcessedApqGroupOperation, GroupOperationError> {
         let crypto = t_group_state.provider.crypto();
         let ApqProcessedAssistedMessagePlus {
             processed_assisted_message,
-            serialized_apq_message,
+            t_serialized_message,
+            pq_serialized_message,
         } = ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
             .process_apq_assisted_message(crypto, t_message, pq_message, |_, _| true)?;
 
@@ -431,6 +467,8 @@ impl DsGroupState {
                 warn!("PQ commit would toggle the self-group flag");
                 return Err(GroupOperationError::InvalidMessage);
             }
+            // See the T leg. Self-removes need to be committed on both legs.
+            pq_group_state.ensure_self_removes_committed(pq_staged_commit)?;
             let pq_sender_index = match processed_assisted_message
                 .processed_message
                 .pq_message
@@ -477,6 +515,7 @@ impl DsGroupState {
             t_add_users_info,
             Some(pq_group_state),
             Some(pq_staged_commit),
+            max_devices,
         )?;
 
         // Extract the virtual client hint if present
@@ -527,7 +566,10 @@ impl DsGroupState {
         }
 
         Ok(ProcessedApqGroupOperation {
-            serialized_message: serialized_apq_message,
+            serialized_message: SerializedMlsMessage::combine_apq(
+                t_serialized_message,
+                pq_serialized_message,
+            ),
             t_add_users_state,
             pq_welcome,
             virtual_client_hint,
@@ -538,6 +580,7 @@ impl DsGroupState {
         &mut self,
         params: GroupOperationParams,
         group_state_ear_key: &GroupStateEarKey,
+        max_devices: u32,
     ) -> Result<
         (
             SerializedMlsMessage,
@@ -550,7 +593,7 @@ impl DsGroupState {
             serialized_message,
             added_users_state,
             virtual_client_hint,
-        } = self.process_group_operation(params).await?;
+        } = self.process_group_operation(params, max_devices).await?;
 
         let fan_out_messages = added_users_state
             .map(
@@ -653,11 +696,7 @@ impl DsGroupState {
             // regular-group Welcome targets a virtual client and must fan out
             // to all of the user's device queues.
             let fan_out_message = DsFanOutMessage {
-                payload: DsFanOutPayload::QueueMessage(
-                    welcome_bundle
-                        .try_into()
-                        .map_err(|_| GroupOperationError::LibraryError)?,
-                ),
+                payload: DsFanOutPayload::QueueMessage(welcome_bundle.try_into()?),
                 client_reference: client_queue_config,
                 suppress_notifications: false.into(),
                 broadcast_to_all_client_queues: self.broadcast_to_all_client_queues().into(),
@@ -710,11 +749,7 @@ impl DsGroupState {
             // See `generate_fan_out_messages`: broadcast only for
             // regular-group Welcomes.
             let fan_out_message = DsFanOutMessage {
-                payload: DsFanOutPayload::QueueMessage(
-                    welcome_bundle
-                        .try_into()
-                        .map_err(|_| GroupOperationError::LibraryError)?,
-                ),
+                payload: DsFanOutPayload::QueueMessage(welcome_bundle.try_into()?),
                 client_reference: client_queue_config,
                 suppress_notifications: false.into(),
                 broadcast_to_all_client_queues: self.broadcast_to_all_client_queues().into(),
@@ -770,11 +805,7 @@ impl DsGroupState {
             (self.group.epoch().as_u64() - 1).into(),
             timestamp,
             key_package_batch,
-        )
-        .map_err(|e| {
-            warn!(error = %e, "Error serializing commit response");
-            GroupOperationError::LibraryError
-        })?;
+        )?;
         let payload = DsFanOutPayload::QueueMessage(commit_response);
         let sender_client_reference = self
             .member_profiles

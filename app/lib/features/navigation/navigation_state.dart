@@ -59,8 +59,7 @@ sealed class NavigationState with _$NavigationState {
   /// only part of navigation Rust reads, derived here and pushed across.
   NotificationPolicy get notificationPolicy {
     if (this case HomeState(:final home)) {
-      final chatId = home.chatId;
-      if (chatId != null) {
+      if (home.visibleChatId case final chatId?) {
         return NotificationPolicy.suppressChat(chatId: chatId);
       }
       // A phone's chat list already shows all activity, so notifications over
@@ -80,6 +79,8 @@ sealed class NavigationState with _$NavigationState {
 /// is an open flag, the chat details have levels and are a stack.
 @freezed
 abstract class HomeNavigationState with _$HomeNavigationState {
+  const HomeNavigationState._();
+
   const factory HomeNavigationState({
     /// Whether a chat is open, independently of [chatId]: a chat can close
     /// without dropping which chat it was.
@@ -90,6 +91,10 @@ abstract class HomeNavigationState with _$HomeNavigationState {
     /// The open section of the profile tab. `null` is the section list, for
     /// which the two-pane layout substitutes [YouSection.profile].
     YouSection? youSection,
+
+    /// Whether [youSection] was opened from the open chat, so going back
+    /// returns to it.
+    @Default(false) bool youSectionOverChat,
 
     /// The chat details drill-down, bottom level first. Empty means closed.
     @Default(<ChatDetailsPage>[]) List<ChatDetailsPage> chatDetails,
@@ -102,6 +107,10 @@ abstract class HomeNavigationState with _$HomeNavigationState {
     /// The destination picker, shown when the share named no chat.
     @Default(false) bool shareDestinationOpen,
   }) = _HomeNavigationState;
+
+  /// The chat on screen: open, and its tab is active.
+  ChatId? get visibleChatId =>
+      chatOpen && activeTab == HomeTab.chats ? chatId : null;
 }
 
 /// One level of the chat details drill-down.

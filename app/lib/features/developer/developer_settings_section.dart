@@ -19,6 +19,7 @@ import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/platform/method_channel.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart' show Slider;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -117,6 +118,7 @@ class DeveloperSettingsView extends HookWidget {
         const _SettingsCard(),
         _SessionCard(user: user),
         _DiagnosticsCard(
+          user: user,
           isMobile: isMobile,
           deviceToken: deviceToken,
           onRefreshPushToken: onRefreshPushToken,
@@ -237,6 +239,7 @@ class _InterfaceScaleRow extends HookWidget {
 /// What the app will tell you about itself.
 class _DiagnosticsCard extends StatelessWidget {
   const _DiagnosticsCard({
+    required this.user,
     required this.isMobile,
     required this.deviceToken,
     required this.onRefreshPushToken,
@@ -244,6 +247,7 @@ class _DiagnosticsCard extends StatelessWidget {
     required this.error,
   });
 
+  final User? user;
   final bool isMobile;
   final String? deviceToken;
   final VoidCallback onRefreshPushToken;
@@ -258,6 +262,7 @@ class _DiagnosticsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final info = this.info;
     final error = this.error;
+    final user = this.user;
 
     return DeveloperCard(
       caption: 'Diagnostics',
@@ -269,6 +274,14 @@ class _DiagnosticsCard extends StatelessWidget {
           trailing: const AppIcon.fileText(size: developerRowIconSize),
           onTap: () => showLogs(context),
         ),
+        if (user != null)
+          ListRow(
+            tokens: ListRowTokens.current,
+            label: 'Refresh all profiles',
+            separator: false,
+            trailing: const AppIcon.refreshCw(size: developerRowIconSize),
+            onTap: () => _refreshAllProfiles(user),
+          ),
         if (isMobile)
           DeveloperInfoRow(
             label: 'Push token',
@@ -294,11 +307,20 @@ class _DiagnosticsCard extends StatelessWidget {
             label: 'Invite-code tokens',
             value: info.invitationCodeTokenCount.toString(),
           ),
+          DeveloperInfoRow(
+            label: 'Connection-request tokens',
+            value: info.connectUsernameTokenCount.toString(),
+          ),
         ],
         if (error != null)
           DeveloperInfoRow(label: 'Debug info error', value: error.toString()),
       ],
     );
+  }
+
+  Future<void> _refreshAllProfiles(User user) async {
+    await user.refreshAllProfiles();
+    showSnackBarStandalone((loc) => 'Profile refresh started', tone: .success);
   }
 }
 
@@ -355,6 +377,14 @@ class _DangerZoneCard extends StatelessWidget {
       children: [
         if (user != null)
           DeveloperDangerRow(
+            label: 'Reset self-group',
+            icon: AppIconType.trash,
+            confirmMessage: 'Are you sure you want to reset the self-group?',
+            confirmLabel: 'Reset',
+            onConfirm: () => _resetSelfGroup(user),
+          ),
+        if (user != null)
+          DeveloperDangerRow(
             label: 'Erase this database',
             sublabel: profile?.displayName ?? user.userId.uuid.toString(),
             icon: AppIconType.trash,
@@ -374,6 +404,18 @@ class _DangerZoneCard extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _resetSelfGroup(User user) async {
+    try {
+      await user.dangerResetSelfGroup();
+      showSnackBarStandalone((loc) => 'Reset self-group', tone: .danger);
+    } catch (error) {
+      showSnackBarStandalone(
+        (loc) => 'Failed to reset self-group: $error',
+        tone: .danger,
+      );
+    }
   }
 }
 

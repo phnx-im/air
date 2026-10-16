@@ -12,6 +12,7 @@ import 'package:air/features/chat/share_target_publisher.dart';
 import 'package:air/features/chat/chats_repository.dart' as chats_repository;
 import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/core/core.dart';
+import 'package:air/ds/foundations/breakpoint.dart';
 import 'package:air/features/home/home_screen.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
@@ -160,6 +161,36 @@ void main() {
       );
     }, variant: desktopPlatform);
 
+    testWidgets('desktop layout update reminder', (tester) async {
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      binding.platformDispatcher.views.first.physicalSize = const Size(
+        3840,
+        2160,
+      );
+      addTearDown(() {
+        binding.platformDispatcher.views.first.resetPhysicalSize();
+      });
+
+      when(() => userCubit.state).thenReturn(
+        MockUiUser(
+          id: 1,
+          versionStatus: VersionStatus.expiresAt(DateTime.utc(2026, 8, 1, 12)),
+        ),
+      );
+      when(() => navigationCubit.state)
+          .thenReturn(const NavigationState.home());
+      when(() => chatDetailsCubit.state)
+          .thenReturn(ChatDetailsState(chat: chats[2], members: members));
+      messageListCubit.setState(messages);
+
+      await tester.pumpWidget(buildSubject(chats: chats));
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/home_screen_desktop_update_reminder.png'),
+      );
+    }, variant: desktopPlatform);
+
     testWidgets('desktop layout selected chat', (tester) async {
       final binding = TestWidgetsFlutterBinding.ensureInitialized();
       binding.platformDispatcher.views.first.physicalSize = const Size(
@@ -247,5 +278,37 @@ void main() {
         matchesGoldenFile('goldens/home_screen_desktop_you.png'),
       );
     }, variant: desktopPlatform);
+
+    // The narrowest width that still gets the desktop layout, and the minimum
+    // window width the desktop runners enforce.
+    for (final width in [Breakpoint.smallMaxWidth, 768.0]) {
+      testWidgets('keeps the chat wide enough to lay out at $width', (
+        tester,
+      ) async {
+        tester.view.physicalSize = Size(width, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+
+        when(() => userSettingsCubit.state)
+            .thenReturn(const UserSettings(sidebarWidth: 600));
+        when(() => navigationCubit.state).thenReturn(
+          NavigationState.home(
+            home: HomeNavigationState(chatOpen: true, chatId: chats[2].id),
+          ),
+        );
+        when(() => chatDetailsCubit.state)
+            .thenReturn(ChatDetailsState(chat: chats[2], members: members));
+        messageListCubit.setState(messages);
+
+        await tester.pumpWidget(buildSubject(chats: chats));
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(
+          tester.getSize(find.byType(ChatScreenView)).width,
+          greaterThanOrEqualTo(400),
+        );
+      }, variant: desktopPlatform);
+    }
   });
 }

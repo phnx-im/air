@@ -72,10 +72,12 @@ const REQUIRED_EXTENSIONS: &[ExtensionType] = &[
     ExtensionType::Unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE),
     ExtensionType::Unknown(GROUP_DATA_EXTENSION_TYPE),
     ExtensionType::LastResort,
+    ExtensionType::AppDataDictionary,
 ];
 const REQUIRED_PROPOSALS: &[ProposalType] = &[
     ProposalType::Custom(FRIENDSHIP_PACKAGE_PROPOSAL_TYPE),
     ProposalType::SelfRemove,
+    ProposalType::AppDataUpdate,
 ];
 const REQUIRED_CREDENTIALS: &[CredentialType] = &[CredentialType::Basic];
 
@@ -94,12 +96,12 @@ pub const SUPPORTED_EXTENSIONS: &[ExtensionType] = &[
     ExtensionType::Unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE), // Also in REQUIRED_EXTENSIONS
     ExtensionType::Unknown(GROUP_DATA_EXTENSION_TYPE),          // Also in REQUIRED_EXTENSIONS
     ExtensionType::LastResort,                                  // Also in REQUIRED_EXTENSIONS
-    ExtensionType::AppDataDictionary,
+    ExtensionType::AppDataDictionary,                           // Also in REQUIRED_EXTENSIONS
 ];
 pub const SUPPORTED_PROPOSALS: &[ProposalType] = &[
     ProposalType::Custom(FRIENDSHIP_PACKAGE_PROPOSAL_TYPE), // Also in REQUIRED_PROPOSALS
     ProposalType::SelfRemove,                               // Also in REQUIRED_PROPOSALS
-    ProposalType::AppDataUpdate,
+    ProposalType::AppDataUpdate,                            // Also in REQUIRED_PROPOSALS
     ProposalType::AppEphemeral,
 ];
 pub const SUPPORTED_CREDENTIALS: &[CredentialType] = REQUIRED_CREDENTIALS;

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT token_index FROM privacy_pass_redeemed\n         WHERE operation_type = ? AND key_fingerprint = ? AND allowance_epoch = ?\n         ORDER BY token_index",
+  "describe": {
+    "columns": [
+      {
+        "name": "token_index",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_redeemed",
+            "name": "token_index"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1872b404d52287943ab2d533a62f7c03761f4b0acbb9343c7e6f7e1dd44e2ff6"
+}

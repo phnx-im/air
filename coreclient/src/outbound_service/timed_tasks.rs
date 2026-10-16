@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use airapiclient::{ClassifyRequestError, RequestErrorKind};
 use aircommon::{
     identifiers::{USERNAME_REFRESH_THRESHOLD, UsernameHash},
     messages::connection_package::ConnectionPackageHash,
@@ -24,6 +25,7 @@ use crate::{
         chat_operation::{ChatOperation, DerivationEpoch},
         operation::{Operation, OperationData, OperationId, OperationKind},
         pending_chat_operation::PendingChatOperation,
+        recoverable::Recoverable,
     },
     usernames::{
         SignedConnectionPackages, UsernameRecord, connection_packages::ConnectionPackageRecord,
@@ -71,6 +73,13 @@ pub(crate) struct TimedTask {
 impl TimedTask {
     pub(crate) fn new(kind: TimedTaskKind) -> Self {
         Self { kind }
+    }
+
+    pub(crate) async fn schedule_now(
+        connection: impl WriteConnection,
+        kind: TimedTaskKind,
+    ) -> sqlx::Result<()> {
+        Self::new(kind).into_operation().enqueue(connection).await
     }
 }
 
@@ -124,6 +133,7 @@ impl TimedTaskKind {
                 OperationType::Unspecified => Duration::MAX,
                 OperationType::AddUsername => Duration::minutes(5),
                 OperationType::GetInviteCode => Duration::minutes(5),
+                OperationType::ConnectUsername => Duration::minutes(5),
             },
             TimedTaskKind::SignedConnectionPackageUpload { .. } => Duration::minutes(5),
         }
@@ -239,8 +249,10 @@ impl OutboundServiceContext {
     pub(super) async fn execute_timed_tasks(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<()> {
-        self.ensure_timed_tasks_exist().await?;
+    ) -> Result<(), OutboundServiceError> {
+        self.ensure_timed_tasks_exist()
+            .await
+            .map_err(OutboundServiceError::fatal)?;
 
         let mut timed_task_context = TimedTaskContext {
             loaded_credentials: false,
@@ -270,6 +282,11 @@ impl OutboundServiceContext {
 
             let interval = match res {
                 Ok(interval) => interval,
+                // Leave the task due so it is the first one retried in the next run
+                Err(
+                    error @ (OutboundServiceError::NetworkError
+                    | OutboundServiceError::RateLimited { .. }),
+                ) => return Err(error),
                 Err(error) => {
                     error!(%error, "Failed to execute timed task");
                     Some(op.data.kind.default_retry_interval())
@@ -337,21 +354,29 @@ impl OutboundServiceContext {
         run_token: &CancellationToken,
         op: &mut Operation<TimedTask>,
         context: &mut TimedTaskContext,
-    ) -> anyhow::Result<Option<Duration>> {
+    ) -> Result<Option<Duration>, OutboundServiceError> {
         debug!(kind = ?op.data.kind, "handling task");
 
         match &op.data.kind {
-            TimedTaskKind::KeyPackageUpload => Box::pin(self.upload_key_packages()).await.map(Some),
-            TimedTaskKind::UsernameRefresh => self.refresh_usernames().await.map(Some),
+            TimedTaskKind::KeyPackageUpload => {
+                Ok(Some(Box::pin(self.upload_key_packages()).await?))
+            }
+            TimedTaskKind::UsernameRefresh => Ok(Some(
+                self.refresh_usernames()
+                    .await
+                    .map_err(OutboundServiceError::fatal)?,
+            )),
             TimedTaskKind::SelfUpdate => self.self_update(run_token).await.map(Some),
-            TimedTaskKind::TokenReplenishment { operation_type } => self
-                .replenish_tokens(*operation_type, &mut context.loaded_credentials)
-                .await
-                .map(Some),
+            TimedTaskKind::TokenReplenishment { operation_type } => Ok(Some(
+                self.replenish_tokens(*operation_type, &mut context.loaded_credentials)
+                    .await
+                    .map_err(OutboundServiceError::fatal)?,
+            )),
             TimedTaskKind::SignedConnectionPackageUpload { pending_usernames } => {
                 let pending_usernames = pending_usernames.clone();
                 self.upload_signed_connection_packages(op, pending_usernames)
-                    .await?;
+                    .await
+                    .map_err(OutboundServiceError::fatal)?;
                 Ok(None)
             }
         }
@@ -372,13 +397,13 @@ impl OutboundServiceContext {
         if !usernames.is_empty() {
             let api_client = self.api_clients.default_client()?;
             for username_record in usernames {
-                let token = match privacy_pass::consume_token(
+                let consumed = match privacy_pass::consume_token(
                     self.db.write().await?,
                     OperationType::AddUsername,
                 )
                 .await
                 {
-                    Ok(Some(t)) => t,
+                    Ok(Some(consumed)) => consumed,
                     Ok(None) => {
                         info!("skipping username refresh: no tokens available");
                         break;
@@ -390,7 +415,11 @@ impl OutboundServiceContext {
                 };
                 info!("refreshing username");
                 let result = api_client
-                    .as_refresh_username(username_record.hash, &username_record.signing_key, token)
+                    .as_refresh_username(
+                        username_record.hash,
+                        &username_record.signing_key,
+                        consumed.token,
+                    )
                     .await;
 
                 if let Err(e) = &result {
@@ -413,12 +442,17 @@ impl OutboundServiceContext {
                     result?;
                 }
 
-                UsernameRecord::update_refreshed_at(
-                    self.db.write().await?,
-                    &username_record.hash,
-                    now,
-                )
-                .await?;
+                // The redemption and the refresh should be atomic
+                self.db
+                    .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                        if let Some(position) = &consumed.position {
+                            privacy_pass::mark_redeemed(&mut *txn, position).await?;
+                        }
+                        UsernameRecord::update_refreshed_at(&mut *txn, &username_record.hash, now)
+                            .await?;
+                        Ok(())
+                    })
+                    .await?;
             }
         }
 
@@ -471,7 +505,10 @@ impl OutboundServiceContext {
         })
     }
 
-    async fn self_update(&self, run_token: &CancellationToken) -> anyhow::Result<Duration> {
+    async fn self_update(
+        &self,
+        run_token: &CancellationToken,
+    ) -> Result<Duration, OutboundServiceError> {
         const PARTIAL_UPDATE_INTERVAL: Duration = Duration::minutes(5);
         const BATCH_SIZE: usize = 5;
 
@@ -501,11 +538,14 @@ impl OutboundServiceContext {
             match self.self_update_in_chat(chat_id).await {
                 Ok(SelfUpdateOutcome::Updated) => num_updated += 1,
                 Ok(SelfUpdateOutcome::Skipped) => (),
-                Err(OutboundServiceError::Fatal(error)) => {
+                Err(
+                    OutboundServiceError::Fatal(error)
+                    | OutboundServiceError::Recoverable(Recoverable { error, .. }),
+                ) => {
                     num_failed += 1;
                     warn!(?chat_id, %error, "Skipping self-update in chat due to unexpected error");
                 }
-                Err(OutboundServiceError::Recoverable(error)) => return Err(error),
+                Err(error) => return Err(error),
             }
         }
 
@@ -520,10 +560,10 @@ impl OutboundServiceContext {
     /// Performs the self-update in a single chat.
     ///
     /// Failures that only concern this chat are reported as
-    /// [`OutboundServiceError::Fatal`], so that the batch can continue with the
-    /// next chat. [`OutboundServiceError::Recoverable`] is reserved for failures
-    /// that affect every chat, e.g. an unreachable database or network, where
-    /// retrying the whole task is the only useful thing to do.
+    /// [`OutboundServiceError::Fatal`], so that the batch can continue with
+    /// the next chat. All other errors are reserved for failures that affect
+    /// every chat, e.g. an unreachable database or network, where retrying the
+    /// whole task is the only useful thing to do.
     async fn self_update_in_chat(
         &self,
         chat_id: ChatId,
@@ -531,15 +571,8 @@ impl OutboundServiceContext {
         debug!(?chat_id, "Self-update in chat");
 
         let (mut group, pq_due) = {
-            let mut read = self
-                .db
-                .read()
-                .await
-                .map_err(OutboundServiceError::recoverable)?;
-            let mut read_txn = read
-                .begin()
-                .await
-                .map_err(OutboundServiceError::recoverable)?;
+            let mut read = self.db.read().await?;
+            let mut read_txn = read.begin().await?;
 
             // Loading can fail for a single chat, e.g. when its persisted group state can no
             // longer be decoded. Such a chat must not hold up the rest of the batch.
@@ -645,15 +678,9 @@ impl OutboundServiceContext {
         };
         match self.execute_job(job).await {
             Ok(_messages) => Ok(SelfUpdateOutcome::Updated),
-            // A network error is likely something transient that would affect
-            // all chats, so we retry the whole task with backoff.
-            Err(error @ JobError::NetworkError) => Err(OutboundServiceError::recoverable(error)),
-            // The operation is no longer applicable to this chat, so we skip
-            // it.
+            // The operation is no longer applicable to this chat, so we skip it.
             Err(JobError::NotFound | JobError::Blocked) => Ok(SelfUpdateOutcome::Skipped),
-            Err(error @ (JobError::Domain(_) | JobError::Fatal(_))) => {
-                Err(OutboundServiceError::fatal(error))
-            }
+            Err(error) => Err(error.into()),
         }
     }
 
@@ -729,6 +756,9 @@ impl OutboundServiceContext {
                     if error.is_not_found() {
                         // The username does not exist on the server anymore
                         warn!(username, %error, "Username not found; skipping upload");
+                    } else if matches!(error.kind(), RequestErrorKind::RateLimited { .. }) {
+                        // Further uploads would be rate limited as well
+                        return Err(error.into());
                     } else {
                         error!(username, %error, "Failed to upload signed connection packages");
                         failed += 1;

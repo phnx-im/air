@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:air/core/core.dart';
 import 'package:air/features/chat/chats_repository.dart';
+import 'package:air/features/developer/chat_debug_info_view.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/message_list/message_list_view.dart';
 import 'package:air/features/message_list/message_composer.dart';
@@ -26,6 +27,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/ds/components/button/button.dart';
 
 import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/features/chat/contact_request_actions.dart';
 import 'package:air/features/chat_details/delete_contact_button.dart';
 import 'package:air/features/chat_details/report_spam_button.dart';
 import 'package:air/features/chat_details/unblock_contact_button.dart';
@@ -194,6 +196,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
       :members,
       :isGroupChat,
       :isConfirmed,
+      :requestState,
     ) = context.select((ChatDetailsCubit cubit) {
       final chat = cubit.state.chat;
       final status = chat?.status;
@@ -213,6 +216,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
           _ => false,
         },
         isConfirmed: chat?.isConfirmed ?? false,
+        requestState: chat?.requestState,
       );
     });
 
@@ -246,7 +250,9 @@ class _ChatScreenViewState extends State<ChatScreenView> {
       scrollToBottomController: _scrollToBottomController,
       textEditingController: widget.textEditingController,
     );
-    if (showInactiveFooter) {
+    if (requestState == ContactRequestState.closed) {
+      footer = _ClosedRequestFooter(chatId: chatId);
+    } else if (showInactiveFooter) {
       footer = const _InactiveChatFooter();
     } else if (showBlockedFooter) {
       footer = _BlockedChatFooter(
@@ -305,17 +311,31 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final developerMode = context.select(
+      (UserSettingsCubit cubit) => cubit.state.developerMode,
+    );
     final (chatId, title, hasDetails) = context.select((
       ChatDetailsCubit cubit,
     ) {
       final chat = cubit.state.chat;
       // Currently, only confirmed chats have a chat details page.
+      // The self-chat for multi-device is also excluded.
       final hasDetails = switch (chat?.chatType) {
-        UiChatType_Group() || UiChatType_Connection() => true,
+        UiChatType_Group() ||
+        UiChatType_Connection() => !(chat?.isSelfChat ?? false),
         _ => false,
       };
-      return (chat?.id, chat?.title, hasDetails);
+
+      return (chat?.id, chat?.title(loc), hasDetails);
     });
+
+    VoidCallback? onTap;
+    if (hasDetails) {
+      onTap = () => context.read<NavigationCubit>().openChatDetails();
+    } else if (developerMode) {
+      onTap = () => showChatDebugInfo(context);
+    }
 
     final tokens = ChatHeaderBarTokens.current;
     return SafeArea(
@@ -324,9 +344,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
         tokens: tokens,
         name: title ?? "",
         avatar: ChatAvatar(chatId: chatId, size: tokens.avatarSize),
-        onTap: hasDetails
-            ? () => context.read<NavigationCubit>().openChatDetails()
-            : null,
+        onTap: onTap,
         onBack: context.breakpoint.isSmall ? () => _back(context) : null,
       ),
     );
@@ -466,6 +484,31 @@ class _PendingCommitFailedBanner extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Replaces the composer in the chat of a contact request that ended without a
+/// connection. The chat is only a record by then, so the one thing left to do
+/// with it is to delete it.
+class _ClosedRequestFooter extends StatelessWidget {
+  const _ClosedRequestFooter({required this.chatId});
+
+  final ChatId chatId;
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    return Container(
+      padding: const EdgeInsets.all(S.s16),
+      alignment: .center,
+      child: Button(
+        onPressed: () => deleteClosedContactRequest(context, chatId),
+        size: ButtonSize.current,
+        type: ButtonType.secondary,
+        tone: ButtonTone.danger,
+        label: loc.closedContactRequest_delete,
       ),
     );
   }

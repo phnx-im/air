@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/l10n/intl_locale.dart';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
 import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
@@ -29,7 +30,7 @@ class TimeFormats {
   /// equally where there is no scope at all -- a widget test pumping a subtree
   /// of its own.
   factory TimeFormats.of(BuildContext context) {
-    final locale = Localizations.localeOf(context).toString();
+    final locale = intlLocaleName(Localizations.localeOf(context));
     // Asked for by widget: the scope's own accessor throws where it is absent,
     // rather than reporting it, and the widget is the only public way to look.
     final patterns = context.findAncestorWidgetOfExactType<SDTFScope>() != null
@@ -55,8 +56,10 @@ class TimeFormats {
   final String datePattern;
 
   /// The clock alone: `14:32`, or `2:32 PM` on a 12-hour device.
-  String clock(DateTime at) =>
-      _cached('c|$timePattern', () => DateFormat(timePattern)).format(at);
+  String clock(DateTime at) => _cached(
+    'c|$timePattern|$locale',
+    () => DateFormat(timePattern, locale),
+  ).format(at);
 
   /// Abbreviated weekday, e.g. `Mon`.
   String weekdayShort(DateTime at) =>
@@ -67,13 +70,15 @@ class TimeFormats {
       _cached('EEEE|$locale', () => DateFormat.EEEE(locale)).format(at);
 
   /// Numeric date, e.g. `5/20/26`.
-  String date(DateTime at) =>
-      _cached('d|$datePattern', () => DateFormat(datePattern)).format(at);
+  String date(DateTime at) => _cached(
+    'd|$datePattern|$locale',
+    () => DateFormat(datePattern, locale),
+  ).format(at);
 
   /// Numeric date with the year dropped, e.g. `5/20`.
   String dateWithoutYear(DateTime at) => _cached(
-    'dy|$datePattern',
-    () => DateFormat(_withoutYear(datePattern)),
+    'dy|$datePattern|$locale',
+    () => DateFormat(_withoutYear(datePattern), locale),
   ).format(at);
 
   /// Weekday, month and day, e.g. `Wed, May 20`.
@@ -97,17 +102,18 @@ class TimeFormats {
 
 /// [DateFormat] re-parses its pattern on every fresh instance, and these are
 /// asked for once per visible row on every clock tick, so instances are kept.
-/// Keyed by pattern and locale; the ambient default locale is appended for
-/// the pattern-only constructors, which resolve their symbols through it.
+/// Every key carries the locale, because the same pattern writes `PM` in
+/// English and `下午` in Chinese.
 final _dateFormats = <String, DateFormat>{};
 
 DateFormat _cached(String key, DateFormat Function() create) =>
-    _dateFormats['$key|${Intl.getCurrentLocale()}'] ??= create();
+    _dateFormats[key] ??= create();
 
-final _yearInPattern = RegExp(r"[/.\-,\s]*[yY]+[/.\-,\s]*");
+final _yearInPattern = RegExp(r"[/.\-,\s]*[yY]+[年년]?[/.\-,\s]*");
 
-/// Strips the year and any separator left stranded beside it, so `M/d/yy`
-/// reads `M/d` and `dd.MM.yyyy` reads `dd.MM`.
+/// Strips the year, the unit some locales write after it, and any separator
+/// left stranded beside it, so `M/d/yy` reads `M/d`, `dd.MM.yyyy` reads
+/// `dd.MM` and `y年M月d日` reads `M月d日`.
 String _withoutYear(String pattern) =>
     pattern.replaceAll(_yearInPattern, '').trim();
 

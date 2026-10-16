@@ -19,6 +19,7 @@ pub mod client_as_out;
 pub mod client_ds;
 pub mod client_ds_out;
 pub mod client_qs;
+pub mod client_state;
 pub mod connection_package;
 pub mod connection_package_v1;
 pub mod push_token;

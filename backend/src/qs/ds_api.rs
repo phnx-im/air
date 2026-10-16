@@ -50,9 +50,7 @@ impl Qs {
                 recipient: message.client_reference.client_homeserver_domain.clone(),
                 payload: QsToQsPayload::FanOutMessageRequest(message.clone()),
             };
-            let serialized_message = qs_to_qs_message
-                .tls_serialize_detached()
-                .map_err(|_| QsEnqueueError::LibraryError)?;
+            let serialized_message = qs_to_qs_message.tls_serialize_detached()?;
             network_provider
                 .deliver(
                     serialized_message,
@@ -70,8 +68,7 @@ impl Qs {
         } else {
             // Local message
             let decryption_key = StorableClientIdDecryptionKey::load(&self.db_pool)
-                .await
-                .map_err(|_| QsEnqueueError::StorageError)?
+                .await?
                 // There should always be a decryption key in the database.
                 .ok_or(QsEnqueueError::LibraryError)?;
             let client_config = ClientConfig::decrypt(
@@ -93,9 +90,8 @@ impl Qs {
             // When broadcasting, fan out to all of the user's emulator clients.
             // Otherwise, deliver only to the requested clients.
             let client_ids = if message.broadcast_to_all_client_queues.into() {
-                QsClientRecord::load_client_ids(&self.db_pool, &client_config.client_id)
-                    .await
-                    .map_err(|_| QsEnqueueError::StorageError)?
+                QsClientRecord::load_user_client_ids(&self.db_pool, &client_config.client_id)
+                    .await?
                     .ok_or(EnqueueError::ClientNotFound)?
             } else {
                 vec![client_config.client_id]
@@ -111,11 +107,7 @@ impl Qs {
                 // Note: Self-group commits are never broadcast, so in practice this transaction
                 // covers only a single enqueue.
                 Some(QsVirtualClientHint::PromoteStagedKeyPackages(batch_id)) => {
-                    let mut txn = self
-                        .db_pool
-                        .begin()
-                        .await
-                        .map_err(|_| QsEnqueueError::StorageError)?;
+                    let mut txn = self.db_pool.begin().await?;
 
                     // Promote before the fan-out: the user record lock taken by the promote is the
                     // root of this transaction's lock order.
@@ -127,6 +119,7 @@ impl Qs {
                             &mut txn,
                             qs_client_id,
                             self.queues(),
+                            &self.pseudonymizer,
                             &message.payload,
                         )
                         .await
@@ -147,9 +140,7 @@ impl Qs {
                         }
                     }
 
-                    txn.commit()
-                        .await
-                        .map_err(|_| QsEnqueueError::StorageError)?;
+                    txn.commit().await?;
                 }
                 // The usual fan-out: enqueue message for each client in its own transaction.
                 None => {
@@ -178,6 +169,7 @@ impl Qs {
                 client_record
                     .send_push_notification(
                         &self.db_pool,
+                        &self.pseudonymizer,
                         push_notification_provider,
                         push_token_ear_key.as_ref(),
                     )
@@ -194,8 +186,14 @@ impl Qs {
         payload: &DsFanOutPayload,
     ) -> Result<Option<QsClientRecord>, EnqueueError> {
         let mut txn = self.db_pool.begin().await?;
-        let client_record =
-            QsClientRecord::enqueue(&mut txn, client_id, self.queues(), payload).await?;
+        let client_record = QsClientRecord::enqueue(
+            &mut txn,
+            client_id,
+            self.queues(),
+            &self.pseudonymizer,
+            payload,
+        )
+        .await?;
         txn.commit().await?;
         Ok(client_record)
     }
@@ -274,6 +272,7 @@ mod tests {
             pool.clone(),
             domain.clone(),
             Default::default(),
+            0,
             CancellationToken::new(),
         )
         .await?;

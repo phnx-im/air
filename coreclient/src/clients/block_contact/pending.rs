@@ -7,16 +7,9 @@
 //! Blocking is device-local state that is mirrored to the user's other devices
 //! through the self-group.
 use aircommon::identifiers::UserId;
-use airprotos::client::{
-    group_bootstrap::PeerUserId,
-    self_group::{BlockedContactEntry, ContactBlocked, ContactUnblocked},
-};
+use airprotos::client::self_group::{BlockedContactEntry, ContactBlocked, ContactUnblocked};
 use chrono::DateTime;
-use sqlx::{query, query_as};
 use tracing::{debug, warn};
-use uuid::Uuid;
-
-use crate::db::access::{ReadConnection, WriteConnection, WriteDbTransaction};
 
 use super::BlockedContact;
 
@@ -59,7 +52,7 @@ impl BlockedState {
     /// The state an incoming entry asserts.
     ///
     /// `None` for an entry this client cannot make sense of.
-    fn from_entry(entry: &BlockedContactEntry) -> Option<Self> {
+    pub(super) fn from_entry(entry: &BlockedContactEntry) -> Option<Self> {
         match entry {
             BlockedContactEntry::Blocked(ContactBlocked {
                 user_id,
@@ -100,206 +93,11 @@ impl BlockedState {
             }
         }
     }
-
-    /// Writes this state to `blocked_contact`, emitting the same per-user
-    /// change notification the local block and unblock paths emit.
-    pub(crate) async fn apply(&self, connection: impl WriteConnection) -> sqlx::Result<()> {
-        match self {
-            Self::Blocked(contact) => contact.store(connection).await,
-            Self::Unblocked { user_id } => {
-                BlockedContact::delete_by_id(connection, user_id.clone()).await
-            }
-        }
-    }
-}
-
-/// Applies the entries of a sibling's accepted blocked-contacts update.
-///
-/// Entries apply in order, so the last entry for a contact wins. An entry this
-/// client cannot make sense of is skipped, see [`BlockedState::from_entry`].
-pub(crate) async fn apply_blocked_contacts_update(
-    txn: &mut WriteDbTransaction<'_>,
-    entries: &[BlockedContactEntry],
-) -> sqlx::Result<()> {
-    for entry in entries {
-        let Some(state) = BlockedState::from_entry(entry) else {
-            continue;
-        };
-        state.apply(&mut *txn).await?;
-    }
-    Ok(())
-}
-
-/// Every stored block, as the entries a provisioning package carries.
-///
-/// A device joining the self group through a Welcome cannot decrypt the commits
-/// from before its join, so the blocks made until then have to travel in the
-/// linking payload rather than as a diff.
-pub(crate) async fn blocked_contacts_snapshot(
-    connection: impl ReadConnection,
-) -> sqlx::Result<Vec<BlockedContactEntry>> {
-    Ok(BlockedContact::load_all(connection)
-        .await?
-        .iter()
-        .map(BlockedContactEntry::from)
-        .collect())
-}
-
-struct SqlOutgoingEntry {
-    user_uuid: Uuid,
-    user_domain: String,
-    blocked_at: Option<i64>,
-    last_display_name: Option<String>,
-}
-
-impl From<SqlOutgoingEntry> for BlockedContactEntry {
-    fn from(
-        SqlOutgoingEntry {
-            user_uuid,
-            user_domain,
-            blocked_at,
-            last_display_name,
-        }: SqlOutgoingEntry,
-    ) -> Self {
-        let user_id = PeerUserId {
-            uuid: Some(user_uuid),
-            domain: Some(user_domain),
-        };
-        match blocked_at.zip(last_display_name) {
-            Some((blocked_at, last_display_name)) => Self::Blocked(ContactBlocked {
-                user_id,
-                blocked_at: blocked_at.max(0) as u64,
-                last_display_name,
-            }),
-            None => Self::Unblocked(ContactUnblocked { user_id }),
-        }
-    }
-}
-
-/// Parks a locally applied change for the next self-group commit.
-pub(crate) async fn store_outgoing_entry(
-    mut connection: impl WriteConnection,
-    entry: &BlockedContactEntry,
-) -> sqlx::Result<()> {
-    let (user_id, blocked_at, last_display_name) = match entry {
-        BlockedContactEntry::Blocked(ContactBlocked {
-            user_id,
-            blocked_at,
-            last_display_name,
-        }) => (
-            user_id,
-            Some(*blocked_at as i64),
-            Some(last_display_name.as_str()),
-        ),
-        BlockedContactEntry::Unblocked(ContactUnblocked { user_id }) => (user_id, None, None),
-        BlockedContactEntry::Unknown => return Ok(()),
-    };
-    let uuid = user_id.uuid;
-    let domain = &user_id.domain;
-    query!(
-        "INSERT INTO blocked_contact_change (
-            user_uuid,
-            user_domain,
-            blocked_at,
-            last_display_name
-        ) VALUES (?1, ?2, ?3, ?4)
-        ON CONFLICT (user_uuid, user_domain) DO UPDATE SET
-            blocked_at = excluded.blocked_at,
-            last_display_name = excluded.last_display_name",
-        uuid,
-        domain,
-        blocked_at,
-        last_display_name,
-    )
-    .execute(connection.as_mut())
-    .await?;
-    Ok(())
-}
-
-/// The parked entries a commit carries, sorted by user id so the encoding is
-/// canonical.
-pub(crate) async fn entries_to_broadcast(
-    mut connection: impl ReadConnection,
-) -> sqlx::Result<Vec<BlockedContactEntry>> {
-    let records = query_as!(
-        SqlOutgoingEntry,
-        r#"SELECT
-            user_uuid AS "user_uuid: _",
-            user_domain,
-            blocked_at,
-            last_display_name
-        FROM blocked_contact_change
-        ORDER BY user_uuid, user_domain"#
-    )
-    .fetch_all(connection.as_mut())
-    .await?;
-
-    Ok(records.into_iter().map(From::from).collect())
-}
-
-/// Drops the parked entries that have been committed into the self-group.
-pub(crate) async fn complete_sent_entries(
-    txn: &mut WriteDbTransaction<'_>,
-    sent: &[BlockedContactEntry],
-) -> sqlx::Result<()> {
-    for entry in sent {
-        let Some(user_id) = entry.user_id() else {
-            continue;
-        };
-        if load_outgoing_entry(&mut *txn, user_id).await?.as_ref() == Some(entry) {
-            delete_outgoing_entry(&mut *txn, user_id).await?;
-        }
-    }
-    Ok(())
-}
-
-async fn load_outgoing_entry(
-    mut connection: impl ReadConnection,
-    user_id: &PeerUserId,
-) -> sqlx::Result<Option<BlockedContactEntry>> {
-    let (Some(uuid), Some(domain)) = (user_id.uuid, user_id.domain.as_deref()) else {
-        return Ok(None);
-    };
-    query_as!(
-        SqlOutgoingEntry,
-        r#"SELECT
-            user_uuid AS "user_uuid: _",
-            user_domain,
-            blocked_at,
-            last_display_name
-        FROM blocked_contact_change
-        WHERE user_uuid = ?1 AND user_domain = ?2"#,
-        uuid,
-        domain,
-    )
-    .fetch_optional(connection.as_mut())
-    .await
-    .map(|record| record.map(From::from))
-}
-
-async fn delete_outgoing_entry(
-    mut connection: impl WriteConnection,
-    user_id: &PeerUserId,
-) -> sqlx::Result<()> {
-    let (Some(uuid), Some(domain)) = (user_id.uuid, user_id.domain.as_deref()) else {
-        return Ok(());
-    };
-    query!(
-        "DELETE FROM blocked_contact_change
-        WHERE user_uuid = ?1 AND user_domain = ?2",
-        uuid,
-        domain,
-    )
-    .execute(connection.as_mut())
-    .await?;
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use sqlx::SqlitePool;
-
-    use crate::db::access::DbAccess;
+    use uuid::Uuid;
 
     use super::*;
 
@@ -324,12 +122,6 @@ mod tests {
             user_id: user_id.clone().into(),
             blocked_at,
             last_display_name: last_display_name.to_owned(),
-        })
-    }
-
-    fn unblocked_entry(user_id: &UserId) -> BlockedContactEntry {
-        BlockedContactEntry::Unblocked(ContactUnblocked {
-            user_id: user_id.clone().into(),
         })
     }
 
@@ -364,124 +156,5 @@ mod tests {
             BlockedState::from_entry(&BlockedContactEntry::Unknown),
             None
         );
-    }
-
-    #[sqlx::test]
-    async fn entries_to_broadcast_is_sorted_by_user_id(pool: SqlitePool) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-        let first = user(1);
-        let second = user(2);
-
-        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            store_outgoing_entry(&mut *txn, &unblocked_entry(&second)).await?;
-            store_outgoing_entry(&mut *txn, &blocked_entry(&first, 20, "Bob")).await?;
-
-            assert_eq!(
-                entries_to_broadcast(&mut *txn).await?,
-                vec![blocked_entry(&first, 20, "Bob"), unblocked_entry(&second)]
-            );
-            Ok(())
-        })
-        .await
-    }
-
-    #[sqlx::test]
-    async fn a_retoggle_folds_into_one_row(pool: SqlitePool) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-        let user = user(1);
-
-        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            store_outgoing_entry(&mut *txn, &blocked_entry(&user, 10, "Alice")).await?;
-            store_outgoing_entry(&mut *txn, &unblocked_entry(&user)).await?;
-            store_outgoing_entry(&mut *txn, &blocked_entry(&user, 20, "Alice B")).await?;
-
-            assert_eq!(
-                entries_to_broadcast(&mut *txn).await?,
-                vec![blocked_entry(&user, 20, "Alice B")]
-            );
-            Ok(())
-        })
-        .await
-    }
-
-    #[sqlx::test]
-    async fn complete_sent_removes_a_matching_entry(pool: SqlitePool) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-        let user = user(1);
-
-        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            store_outgoing_entry(&mut *txn, &blocked_entry(&user, 10, "Alice")).await?;
-            let sent = entries_to_broadcast(&mut *txn).await?;
-
-            complete_sent_entries(txn, &sent).await?;
-
-            assert!(entries_to_broadcast(&mut *txn).await?.is_empty());
-            Ok(())
-        })
-        .await
-    }
-
-    #[sqlx::test]
-    async fn complete_sent_keeps_a_retoggled_contact(pool: SqlitePool) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-        let user = user(1);
-
-        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            store_outgoing_entry(&mut *txn, &blocked_entry(&user, 10, "Alice")).await?;
-            let sent = entries_to_broadcast(&mut *txn).await?;
-            store_outgoing_entry(&mut *txn, &unblocked_entry(&user)).await?;
-
-            complete_sent_entries(txn, &sent).await?;
-
-            assert_eq!(
-                entries_to_broadcast(&mut *txn).await?,
-                vec![unblocked_entry(&user)],
-                "the re-toggled contact must stay parked"
-            );
-            Ok(())
-        })
-        .await
-    }
-
-    #[sqlx::test]
-    async fn complete_sent_ignores_an_unknown_entry(pool: SqlitePool) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-        let user = user(1);
-
-        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            store_outgoing_entry(&mut *txn, &blocked_entry(&user, 10, "Alice")).await?;
-
-            complete_sent_entries(txn, &[BlockedContactEntry::Unknown]).await?;
-
-            assert_eq!(
-                entries_to_broadcast(&mut *txn).await?,
-                vec![blocked_entry(&user, 10, "Alice")],
-                "an unknown entry names no contact, so it completes nothing"
-            );
-            Ok(())
-        })
-        .await
-    }
-
-    #[sqlx::test]
-    async fn apply_writes_and_clears_the_stored_block(pool: SqlitePool) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-        let user = user(1);
-
-        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            BlockedState::Blocked(contact(&user, 10, "Alice"))
-                .apply(&mut *txn)
-                .await?;
-            assert!(BlockedContact::check_blocked(&mut *txn, &user).await?);
-
-            BlockedState::Unblocked {
-                user_id: user.clone(),
-            }
-            .apply(&mut *txn)
-            .await?;
-            assert!(!BlockedContact::check_blocked(&mut *txn, &user).await?);
-            Ok(())
-        })
-        .await
     }
 }

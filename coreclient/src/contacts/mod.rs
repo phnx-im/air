@@ -15,7 +15,7 @@ use aircommon::{
 };
 use airprotos::client::component::AirFeatures;
 use apqmls::messages::ApqKeyPackage;
-use openmls::{prelude::KeyPackage, versions::ProtocolVersion};
+use openmls::{group::GroupId, prelude::KeyPackage, versions::ProtocolVersion};
 use openmls_rust_crypto::RustCrypto;
 
 use crate::{
@@ -187,6 +187,9 @@ pub struct TargetedMessageContact {
     pub user_id: UserId,
     pub chat_id: ChatId,
     pub friendship_package_ear_key: FriendshipPackageEarKey,
+    /// The group of the group chat the targeted message went through. Absent
+    /// for requests sent before it was kept, and for those of older siblings.
+    pub origin_group_id: Option<GroupId>,
 }
 
 impl TargetedMessageContact {
@@ -194,11 +197,13 @@ impl TargetedMessageContact {
         user_id: UserId,
         chat_id: ChatId,
         friendship_package_ear_key: FriendshipPackageEarKey,
+        origin_group_id: Option<GroupId>,
     ) -> Self {
         Self {
             user_id,
             chat_id,
             friendship_package_ear_key,
+            origin_group_id,
         }
     }
 }

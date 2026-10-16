@@ -41,6 +41,9 @@ extend-exclude = [
 
     # Exclude vendored code
     "vendor/",
+
+    # Snapshots contain hex dumps of encoded protocol messages
+    "protos/src/client/snapshots/",
 ]
 
 [default]

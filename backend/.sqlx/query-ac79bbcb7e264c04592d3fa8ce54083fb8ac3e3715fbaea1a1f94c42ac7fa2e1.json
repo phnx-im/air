@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO allowance_record\n                        (key_value, remaining, valid_until)\n                        VALUES ($1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int8",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ac79bbcb7e264c04592d3fa8ce54083fb8ac3e3715fbaea1a1f94c42ac7fa2e1"
+}

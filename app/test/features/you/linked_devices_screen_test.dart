@@ -6,6 +6,7 @@ import 'package:air/core/core.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/icon_badge/app_icon_badge.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/features/you/linked_devices_screen.dart';
 import 'package:air/features/you/linking_device_dialog.dart';
@@ -19,6 +20,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../helpers.dart';
+import '../../mocks.dart';
 
 class MockLinkedDevicesCubit extends MockCubit<LinkedDevicesState>
     implements LinkedDevicesCubit {}
@@ -105,6 +107,7 @@ LinkedDevicesState _withSibling() => LinkedDevicesState(
 void main() {
   group('LinkedDevicesView', () {
     late MockLinkedDevicesCubit cubit;
+    late MockUserCubit userCubit;
 
     setUpAll(() {
       registerFallbackValue(0.clientRecordId());
@@ -112,13 +115,18 @@ void main() {
 
     setUp(() {
       cubit = MockLinkedDevicesCubit();
+      userCubit = MockUserCubit();
     });
 
     Future<void> pumpView(
       WidgetTester tester, {
       LinkedDevicesState? state,
+      int maxDevices = 0,
+      Locale locale = const Locale('en', 'US'),
     }) async {
       when(() => cubit.state).thenReturn(state ?? _singleDevice());
+      when(() => userCubit.state)
+          .thenReturn(MockUiUser(id: 1, maxDevices: maxDevices));
       tester.view.physicalSize = _testSize;
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -133,6 +141,8 @@ void main() {
               debugShowCheckedModeBanner: false,
               theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
               localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: [locale],
+              locale: locale,
               home: Builder(
                 builder: (context) => AppScaffold(
                   title: AppLocalizations.of(context)
@@ -140,9 +150,12 @@ void main() {
                   backgroundColor: SemanticPalette.of(context)
                       .backgroundBase
                       .primary,
-                  child: BlocProvider<LinkedDevicesCubit>.value(
-                    value: cubit,
-                    child: const LinkedDevicesView(),
+                  child: MultiBlocProvider(
+                    providers: [
+                      BlocProvider<UserCubit>.value(value: userCubit),
+                      BlocProvider<LinkedDevicesCubit>.value(value: cubit),
+                    ],
+                    child: const LinkedDevicesSection(),
                   ),
                 ),
               ),
@@ -216,6 +229,49 @@ void main() {
       await expectGolden(tester, 'linked_devices_screen');
     });
 
+    testWidgets('shows the device count against the limit', (tester) async {
+      await pumpView(tester, state: _mockDevices(), maxDevices: 10);
+
+      expect(find.text('4 of 10 devices linked.'), findsOneWidget);
+      expect(find.text('Link a device'), findsOneWidget);
+    });
+
+    testWidgets('replaces the link button at the device limit', (tester) async {
+      await pumpView(tester, state: _mockDevices(), maxDevices: 4);
+
+      expect(find.text('4 of 4 devices linked.'), findsOneWidget);
+      expect(find.text('Link a device'), findsNothing);
+      expect(
+        find.text(
+          'You’ve reached the limit of 4 linked devices. '
+          'Unlink a device if you want to link a new one.',
+        ),
+        findsOneWidget,
+      );
+
+      await expectGolden(tester, 'linked_devices_screen_limit_reached');
+    });
+
+    testWidgets('writes the linking date and time in the app locale', (
+      tester,
+    ) async {
+      await pumpView(tester);
+      // CLDR puts a narrow no-break space before the day period.
+      expect(
+        find.text('Linked on January 15, 2026 at 2:45\u202fAM'),
+        findsOneWidget,
+      );
+
+      await pumpView(
+        tester,
+        locale: const Locale.fromSubtags(
+          languageCode: 'zh',
+          scriptCode: 'Hant',
+        ),
+      );
+      expect(find.text('連結於 2026年1月15日 上午2:45'), findsOneWidget);
+    });
+
     testWidgets('renders link modal chooser page', (tester) async {
       await pumpDialog(tester, (_) => const LinkDeviceModal());
 
@@ -283,6 +339,26 @@ void main() {
       ).called(1);
     });
 
+    testWidgets('a failed rename reports it in a dialog', (tester) async {
+      when(
+        () => cubit.renameDevice(
+          clientId: any(named: 'clientId'),
+          name: any(named: 'name'),
+        ),
+      ).thenThrow(Exception('offline'));
+
+      await pumpView(tester);
+
+      await tester.tap(find.text('iOS'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Work phone');
+      await tester.tap(find.text('Change'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Renaming failed.'), findsOneWidget);
+      expect(find.text('Okay'), findsOneWidget);
+    });
+
     /// A device is unlinked from one of its siblings, so only sibling rows offer
     /// it. Offering it on this device would be a footgun.
     testWidgets('offers unlink only for sibling devices', (tester) async {
@@ -320,6 +396,25 @@ void main() {
           ),
         ),
       ).called(1);
+    });
+
+    testWidgets('a failed unlink reports it in a dialog', (tester) async {
+      when(() => cubit.unlinkDevice(clientId: any(named: 'clientId')))
+          .thenAnswer((_) async => throw Exception('offline'));
+
+      await pumpView(tester, state: _withSibling());
+
+      await tester.tap(
+        find.byWidgetPredicate(
+          (widget) => widget is AppIcon && widget.type == AppIconType.trash,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Unlink'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Unlinking failed.'), findsOneWidget);
+      expect(find.text('Okay'), findsOneWidget);
     });
 
     testWidgets('renders unlink confirm dialog', (tester) async {

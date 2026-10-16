@@ -55,9 +55,10 @@ sealed class RegistrationState with _$RegistrationState {
     DateTime? admissionExpiresAt,
   }) = _RegistrationState;
 
-  /// Whether the flow has to answer a challenge at all. True before the server
-  /// has answered, since a gated server is the case to be ready for.
-  bool get challengeRequired => registrationInfo?.challengeRequired ?? true;
+  /// Whether the flow has to answer a challenge at all. A server that has not
+  /// answered is taken to be open. If it is gated after all, the sign-up ends
+  /// in ChallengeRequired, which reroutes the flow.
+  bool get challengeRequired => registrationInfo?.challengeRequired ?? false;
 
   bool _serverTakes(ChallengeKind kind) =>
       registrationInfo?.acceptedChallenges.contains(kind) ?? false;
@@ -79,13 +80,12 @@ sealed class RegistrationState with _$RegistrationState {
   /// to without a session in hand.
   bool get invitationCodeRequired {
     if (!challengeRequired || hasAdmissionSession) return false;
-    if (registrationInfo == null) return true;
     return _serverTakes(ChallengeKind.invitationCode);
   }
 
   /// Whether the server asks for something this flow has no way to supply.
   bool get challengeUnsupported {
-    if (!challengeRequired || registrationInfo == null) return false;
+    if (!challengeRequired) return false;
     return !hasAdmissionSession && !_serverTakes(ChallengeKind.invitationCode);
   }
 
@@ -99,7 +99,7 @@ sealed class RegistrationState with _$RegistrationState {
 /// How long typing settles before the new server is asked about.
 const _domainSettleDelay = Duration(milliseconds: 500);
 
-/// How long the server gets to answer before the flow goes with its fallback.
+/// How long the server gets to answer before the flow opens without an answer.
 const _registrationInfoTimeout = Duration(seconds: 3);
 
 class RegistrationCubit extends Cubit<RegistrationState> {
@@ -143,10 +143,10 @@ class RegistrationCubit extends Cubit<RegistrationState> {
   /// Asks the server what signing up with it needs, so the flow knows which
   /// steps to draw.
   ///
-  /// A server that cannot answer leaves the flow asking for an invitation code,
-  /// which is what such a server registers users with. A half-typed domain is
-  /// not asked at all, and one that takes too long counts as one that could not
-  /// answer.
+  /// A server that cannot be reached leaves the question open, so the flow
+  /// opens on the profile and learns of a challenge from the sign-up itself. A
+  /// half-typed domain is not asked at all, and one that takes too long counts
+  /// as one that could not be reached.
   Future<void> loadRegistrationInfo() async {
     if (!state.isDomainValid) return;
     final domain = state.domain;

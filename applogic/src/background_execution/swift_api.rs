@@ -60,7 +60,7 @@ pub unsafe extern "C" fn init_background_logger(path: *const c_char) {
         return;
     };
 
-    let _ = crate::logging::init_logger(path);
+    let _ = crate::logging::init_logger(path, crate::logging::LogKind::Background);
 }
 
 /// Write a log line into the Rust logger from the iOS NSE.

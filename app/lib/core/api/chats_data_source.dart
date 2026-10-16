@@ -29,6 +29,7 @@ abstract class ChatsDataSource implements RustOpaqueInterface {
   Future<AddUsernameContactError?> createContactChat({
     required UiUsername username,
     required UsernameHash hash,
+    required bool preferApq,
   });
 
   Future<ChatId> createGroupChat({

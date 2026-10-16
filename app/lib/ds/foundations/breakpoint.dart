@@ -15,7 +15,10 @@ enum Breakpoint {
   large;
 
   /// Upper bound of the small tier: tab bar layout below, sidebar above.
-  static const double smallMaxWidth = 576;
+  ///
+  /// The two-pane home layout needs about 690 at its narrowest: the rail, the
+  /// list at its minimum and a chat wide enough to lay out.
+  static const double smallMaxWidth = 720;
 
   /// Upper bound of the medium tier.
   static const double mediumMaxWidth = 1024;

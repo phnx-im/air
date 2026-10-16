@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM epoch_key_pairs WHERE group_id = ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "4563f9a963a6dc6f59988bc6a6b1164c9924d23e5a0b63d0788fdd763224dd10"
+}

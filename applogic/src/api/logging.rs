@@ -11,7 +11,6 @@ use std::{
 };
 
 use anyhow::Context;
-use anyhow::bail;
 use bytes::Buf;
 use chrono::{DateTime, Utc};
 use flate2::{Compression, write::GzEncoder};
@@ -20,7 +19,9 @@ use regex::Regex;
 
 use crate::{
     StreamSink,
-    logging::{LOG_FILE_RING_BUFFER, LOG_FILE_RING_BUFFER_SIZE, init_logger},
+    logging::{
+        LOG_FILE_RING_BUFFER_SIZE, LogKind, app_log_buffer, background_log_buffer, init_logger,
+    },
     util::{FileRingBuffer, FileRingBufferLock},
 };
 
@@ -33,15 +34,13 @@ use crate::{
 /// The returned [`LogWriter`] can be used to write logs to the file from the Flutter side.
 #[frb(sync)]
 pub fn init_rust_logging(log_file: String) -> LogWriter {
-    let buffer = init_logger(log_file);
+    let buffer = init_logger(log_file, LogKind::App);
     LogWriter { buffer }
 }
 
 /// Reads the application logs from the file currently used for writing logs (if any).
 pub fn read_app_logs() -> anyhow::Result<String> {
-    let buffer = LOG_FILE_RING_BUFFER
-        .get()
-        .context("No application buffer found")?;
+    let buffer = app_log_buffer().context("No application buffer found")?;
     read_logs_from_buffer(&buffer.lock())
 }
 
@@ -49,16 +48,16 @@ pub fn read_app_logs() -> anyhow::Result<String> {
 ///
 /// The file is truncated to zero length, but is is kept open.
 pub fn clear_app_logs() -> anyhow::Result<()> {
-    let Some(buffer) = LOG_FILE_RING_BUFFER.get() else {
-        bail!("No application buffer found");
-    };
-    buffer.lock().clear();
+    if let Some(buffer) = app_log_buffer() {
+        buffer.lock().clear();
+    }
     Ok(())
 }
 
 /// Reads the background logs from the file: `<cache_dir>/background.log`.
 pub fn read_background_logs(cache_dir: String) -> anyhow::Result<String> {
     let buffer = open_background_logs_file(cache_dir)?;
+    let buffer = buffer.lock();
     read_logs_from_buffer(&buffer)
 }
 
@@ -66,23 +65,20 @@ pub fn read_background_logs(cache_dir: String) -> anyhow::Result<String> {
 ///
 /// The file is truncated to zero length, but is not deleted.
 pub fn clear_background_logs(cache_dir: String) -> anyhow::Result<()> {
-    open_background_logs_file(cache_dir)?.clear();
+    open_background_logs_file(cache_dir)?.lock().clear();
     Ok(())
 }
 
 /// Creates a Zlib compressed tar archive of the logs
 pub fn tar_logs(cache_dir: String) -> anyhow::Result<Vec<u8>> {
-    tar_logs_impl(
-        LOG_FILE_RING_BUFFER
-            .get()
-            .context("No application buffer found")?,
-        || open_background_logs_file(cache_dir),
-    )
+    let app_buffer = app_log_buffer().context("No application buffer found")?;
+    let background_buffer = open_background_logs_file(cache_dir)?;
+    tar_logs_impl(&app_buffer, &background_buffer)
 }
 
 fn tar_logs_impl(
     app_buffer: &Arc<FileRingBufferLock>,
-    background_buffer: impl FnOnce() -> anyhow::Result<FileRingBuffer>,
+    background_buffer: &Arc<FileRingBufferLock>,
 ) -> anyhow::Result<Vec<u8>> {
     let mut data = Vec::with_capacity(2 * LOG_FILE_RING_BUFFER_SIZE);
     let enc = GzEncoder::new(&mut data, Compression::default());
@@ -109,7 +105,7 @@ fn tar_logs_impl(
     append_data("logs/app.log", &mut app_buffer.lock().buf().reader())?;
     append_data(
         "logs/background.log",
-        &mut background_buffer()?.buf().reader(),
+        &mut background_buffer.lock().buf().reader(),
     )?;
 
     tar.finish()?;
@@ -118,12 +114,15 @@ fn tar_logs_impl(
     Ok(data)
 }
 
-fn open_background_logs_file(cache_dir: String) -> anyhow::Result<FileRingBuffer> {
+fn open_background_logs_file(cache_dir: String) -> anyhow::Result<Arc<FileRingBufferLock>> {
+    if let Some(buffer) = background_log_buffer() {
+        return Ok(buffer);
+    }
     let log_file_path = Path::new(&cache_dir).join("background.log");
-    Ok(FileRingBuffer::open(
+    Ok(Arc::new(FileRingBufferLock::new(FileRingBuffer::open(
         log_file_path,
         LOG_FILE_RING_BUFFER_SIZE,
-    )?)
+    )?)))
 }
 
 // Note: this function is not memory-allocations optimized.
@@ -229,9 +228,10 @@ mod tests {
         writeln!(background_buffer, "background logs")?;
         writeln!(background_buffer, "Hello, world!")?;
 
-        let tar_data = tar_logs_impl(&Arc::new(FileRingBufferLock::new(app_buffer)), || {
-            Ok(background_buffer)
-        })?;
+        let tar_data = tar_logs_impl(
+            &Arc::new(FileRingBufferLock::new(app_buffer)),
+            &Arc::new(FileRingBufferLock::new(background_buffer)),
+        )?;
 
         let decoder = GzDecoder::new(&*tar_data);
         let mut tar = tar::Archive::new(decoder);

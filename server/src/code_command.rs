@@ -21,6 +21,7 @@ pub async fn run_code_command(
         &configuration.database,
         domain,
         VersionPolicy::new(configuration.application.version_expirations),
+        configuration.application.max_devices,
         CancellationToken::new(),
     )
     .await

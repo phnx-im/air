@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/l10n/app_localizations.dart';
+import 'package:air/l10n/supported_locales.dart';
 import 'package:flutter/material.dart';
 
 class LanguageOption {
@@ -23,10 +24,11 @@ List<LanguageOption> buildLanguageOptions() {
       .toList();
 }
 
-/// Parses a persisted locale tag such as "de" or "pt-PT".
+/// Parses a persisted locale tag such as "de", "pt-PT" or "zh-Hant".
 ///
 /// Tags stored before regional variants shipped carry no region, so a tag
-/// without one parses to a locale without a country code.
+/// without one parses to a locale without a country code. A four letter
+/// subtag is a script, any other subtag after the language is a region.
 Locale? localeFromTag(String? tag) {
   if (tag == null || tag.isEmpty) {
     return null;
@@ -36,34 +38,23 @@ Locale? localeFromTag(String? tag) {
   if (languageCode.isEmpty) {
     return null;
   }
-  final countryCode = parts.length > 1 && parts[1].isNotEmpty ? parts[1] : null;
-  return Locale(languageCode, countryCode);
+  final subtags = parts.skip(1).where((part) => part.isNotEmpty);
+  return Locale.fromSubtags(
+    languageCode: languageCode,
+    scriptCode: subtags.where(_isScriptSubtag).firstOrNull,
+    countryCode: subtags.where((part) => !_isScriptSubtag(part)).firstOrNull,
+  );
 }
 
-/// Serializes a locale into the tag that gets persisted.
-String localeToTag(Locale locale) {
-  final countryCode = locale.countryCode;
-  if (countryCode == null || countryCode.isEmpty) {
-    return locale.languageCode;
-  }
-  return '${locale.languageCode}-$countryCode';
-}
+bool _isScriptSubtag(String subtag) => subtag.length == 4;
+
+/// Serializes a locale into the tag that gets persisted, such as "zh-Hant".
+String localeToTag(Locale locale) => locale.toLanguageTag();
 
 /// Supported locale that [locale] should be displayed in.
 ///
-/// A region match is tried before a language match, so that two variants of
-/// one language stay apart. Falling back to the first supported locale mirrors
-/// how Flutter resolves a locale that no entry matches.
-Locale resolveSupportedLocale(Locale locale) {
-  for (final supportedLocale in AppLocalizations.supportedLocales) {
-    if (supportedLocale == locale) {
-      return supportedLocale;
-    }
-  }
-  for (final supportedLocale in AppLocalizations.supportedLocales) {
-    if (supportedLocale.languageCode == locale.languageCode) {
-      return supportedLocale;
-    }
-  }
-  return AppLocalizations.supportedLocales.first;
-}
+/// Resolves the way the app itself does, so that two variants of one language
+/// stay apart and a locale that no entry matches falls back to the first
+/// supported locale.
+Locale resolveSupportedLocale(Locale locale) =>
+    resolveLocaleList([locale], AppLocalizations.supportedLocales);

@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::assert_matches;
+
 use apqmls::{
     ApqCiphersuite, ApqMlsGroup,
     authentication::{ApqCredentialWithKey, ApqSignatureKeyPair},
@@ -39,53 +41,53 @@ fn classical_signature_in_pq_session_is_conf_only() {
 
 #[test]
 fn duplicate_ciphersuites_are_rejected() {
-    assert!(matches!(
+    assert_matches!(
         validate_ciphersuites(ApqCiphersuite::new(T, T), PqtMode::ConfOnly),
         Err(ApqValidationError::DuplicateCiphersuite(T))
-    ));
+    );
 }
 
 #[test]
 fn two_traditional_ciphersuites_are_rejected() {
-    assert!(matches!(
+    assert_matches!(
         validate_ciphersuites(ApqCiphersuite::new(T, T_P384), PqtMode::ConfOnly),
         Err(ApqValidationError::InvalidPqKem(_))
-    ));
+    );
 }
 
 #[test]
 fn hybrid_kem_in_pq_session_is_rejected() {
-    assert!(matches!(
+    assert_matches!(
         validate_ciphersuites(ApqCiphersuite::new(T, PQ_HYBRID_KEM), PqtMode::ConfOnly),
         Err(ApqValidationError::InvalidPqKem(_))
-    ));
+    );
 }
 
 #[test]
 fn pq_ciphersuite_in_t_session_is_rejected() {
-    assert!(matches!(
+    assert_matches!(
         validate_ciphersuites(
             ApqCiphersuite::new(PQ_CONF_ONLY, PQ_CONF_AND_AUTH),
             PqtMode::ConfAndAuth
         ),
         Err(ApqValidationError::NonClassicalTKem(_))
-    ));
+    );
 }
 
 #[test]
 fn conf_and_auth_with_classical_pq_signature_is_rejected() {
-    assert!(matches!(
+    assert_matches!(
         validate_ciphersuites(ApqCiphersuite::new(T, PQ_CONF_ONLY), PqtMode::ConfAndAuth),
         Err(ApqValidationError::ModeMismatch { .. })
-    ));
+    );
 }
 
 #[test]
 fn conf_only_with_pq_signature_is_rejected() {
-    assert!(matches!(
+    assert_matches!(
         validate_ciphersuites(ApqCiphersuite::new(T, PQ_CONF_AND_AUTH), PqtMode::ConfOnly),
         Err(ApqValidationError::ModeMismatch { .. })
-    ));
+    );
 }
 
 #[test]

@@ -6,27 +6,30 @@
 
 use std::convert::Infallible;
 
-use airapiclient::ds_api::DsAttachmentTarget;
 use aircommon::{
     credentials::UserCredential,
     crypto::indexed_aead::{ciphertexts::IndexDecryptable, keys::UserProfileKey},
-    identifiers::{RemoteAttachmentId, UserId},
-    messages::client_as_out::GetUserProfileResponse,
+    identifiers::{QualifiedGroupId, RemoteAttachmentId, UserId},
+    messages::{client_as_out::GetUserProfileResponse, client_ds_out::ExternalCommitInfoIn},
     time::TimeStamp,
 };
 use airprotos::{
     client::group::{ExternalGroupProfile, GroupProfile},
     delivery_service::v1::StorageObjectType,
 };
-use anyhow::Context;
+use anyhow::{Context, ensure};
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
-use tls_codec::Serialize as _;
-use tracing::{debug, error, info};
+use tls_codec::{DeserializeBytes, Serialize as _};
+use tracing::{debug, error, info, warn};
 
 use crate::{
-    Chat, ChatAttributes, ChatStatus,
-    clients::{CoreUser, update_key::update_chat_attributes},
+    Chat, ChatAttributes, ChatId, ChatStatus,
+    chats::PendingConnectionRequest,
+    clients::own_client_info::OwnClientInfo,
+    clients::{
+        CoreUser, connection_offer::payload::ConnectionInfo, update_key::update_chat_attributes,
+    },
     db::access::WriteConnection,
     groups::{Group, ProfileInfo},
     job::operation::OperationId,
@@ -57,17 +60,61 @@ impl CoreUser {
             .await
     }
 
-    /// Creates a [`FetchUserProfileOperation`] job
-    ///
-    /// It can be immediately executed for example in a context of another job.
-    pub(crate) fn fetch_user_profile_job(
-        profile_info: impl Into<ProfileInfo>,
-    ) -> impl Job<Output = ()> {
-        let ProfileInfo {
-            user_credential,
-            user_profile_key,
-        } = profile_info.into();
-        FetchUserProfileOperation::new(user_credential, user_profile_key)
+    /// Schedule fetching the profile of the sender of a pending incoming
+    /// request.
+    pub(crate) async fn schedule_fetch_request_sender_profile(
+        connection: impl WriteConnection,
+        request_id: ChatId,
+        sender_credential: UserCredential,
+    ) -> sqlx::Result<()> {
+        FetchRequestSenderProfileOperation {
+            request_id,
+            sender_credential,
+        }
+        .into_operation()
+        .enqueue(connection)
+        .await
+    }
+
+    /// Fetches the profile of the sender of an incoming connection request. The
+    /// profile key can be stale (when the sender rotated it), so it needs to be
+    /// fetched from the connection group.
+    pub(crate) async fn fetch_request_sender_profile(
+        context: &mut JobContext<'_, '_>,
+        connection_info: &ConnectionInfo,
+        sender_credential: &UserCredential,
+    ) -> Result<(), JobError<Infallible>> {
+        let sender = sender_credential.user_id();
+        let offered_key = UserProfileKey::from_base_secret(
+            connection_info
+                .friendship_package
+                .user_profile_base_secret
+                .clone(),
+            sender,
+        )
+        .map_err(JobError::fatal)?;
+        let fetch = FetchUserProfileOperation::new(sender_credential.clone(), offered_key);
+        let Err(error) = fetch.execute(context).await else {
+            return Ok(());
+        };
+        warn!(%error, "Failed to fetch user profile; falling back to fetching group info");
+
+        let qgid = QualifiedGroupId::tls_deserialize_exact_bytes(
+            connection_info.connection_group_id.as_slice(),
+        )?;
+        let eci = context
+            .api_clients
+            .get(qgid.owning_domain())?
+            .ds_connection_group_info(
+                connection_info.connection_group_id.clone(),
+                &connection_info.connection_group_ear_key,
+            )
+            .await?;
+        let current_key =
+            sender_profile_key(&eci, connection_info, sender).map_err(JobError::fatal)?;
+        FetchUserProfileOperation::new(sender_credential.clone(), current_key)
+            .execute(context)
+            .await
     }
 
     /// Schedule a group profile fetch operation.
@@ -92,6 +139,36 @@ impl CoreUser {
         .enqueue(connection)
         .await
     }
+}
+
+/// Decrypts the sender's current profile key from the info of their unjoined
+/// connection group.
+fn sender_profile_key(
+    eci: &ExternalCommitInfoIn,
+    connection_info: &ConnectionInfo,
+    sender: &UserId,
+) -> anyhow::Result<UserProfileKey> {
+    let encrypted_user_profile_key = if !eci.indexed_encrypted_user_profile_keys.is_empty() {
+        ensure!(
+            eci.indexed_encrypted_user_profile_keys.len() == 1,
+            "Unjoined connection group must have exactly one user profile key"
+        );
+        eci.indexed_encrypted_user_profile_keys
+            .values()
+            .next()
+            .expect("logic error: len == 1")
+    } else {
+        ensure!(
+            eci.encrypted_user_profile_keys.len() == 1,
+            "Unjoined connection group must have exactly one user profile key"
+        );
+        &eci.encrypted_user_profile_keys[0]
+    };
+    Ok(UserProfileKey::decrypt(
+        &connection_info.connection_group_identity_link_wrapper_key,
+        encrypted_user_profile_key,
+        sender,
+    )?)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -192,6 +269,56 @@ impl Job for FetchUserProfileOperation {
     }
 }
 
+/// Fetches the profile of the sender of a pending request a sibling handed
+/// over.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct FetchRequestSenderProfileOperation {
+    request_id: ChatId,
+    sender_credential: UserCredential,
+}
+
+impl OperationData for FetchRequestSenderProfileOperation {
+    fn kind() -> OperationKind {
+        OperationKind::FetchRequestSenderProfile
+    }
+
+    fn generate_id(&self) -> OperationId {
+        let mut bytes = Vec::new();
+        bytes.push(Self::kind() as u8);
+        bytes.extend(self.request_id.uuid().as_bytes());
+        OperationId(bytes)
+    }
+}
+
+impl Job for FetchRequestSenderProfileOperation {
+    type Output = ();
+
+    type DomainError = Infallible;
+
+    async fn execute_logic(
+        self,
+        context: &mut JobContext<'_, '_>,
+    ) -> Result<Self::Output, JobError<Self::DomainError>> {
+        let Self {
+            request_id,
+            sender_credential,
+        } = self;
+        let request = PendingConnectionRequest::load(context.db.read().await?, request_id).await?;
+        // An accepted request fetched the profile when joining the connection
+        // group. A declined one needs none.
+        let Some(request) = request else {
+            debug!(%request_id, "Request is no longer pending, skipping its profile");
+            return Ok(());
+        };
+        CoreUser::fetch_request_sender_profile(
+            context,
+            &request.connection_info,
+            &sender_credential,
+        )
+        .await
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct FetchGroupProfileOperation {
     group_id: GroupId,
@@ -236,10 +363,11 @@ impl Job for FetchGroupProfileOperation {
             is_initial_fetch,
         } = self;
 
+        let chat_id = ChatId::try_from(&group_id).map_err(JobError::fatal)?;
         info!(
-            ?group_id,
+            %chat_id,
             object_id = %external_group_profile.object_id,
-            ?uploaded_at,
+            uploaded_at = %uploaded_at.as_ref(),
             "Fetching group profile"
         );
 
@@ -255,7 +383,7 @@ impl Job for FetchGroupProfileOperation {
                 if let ChatStatus::Blocked = chat.status() {
                     return Ok(None);
                 }
-                let group = Group::load_verified(txn, &group_id)
+                let group = Group::load_ref(txn, &group_id)
                     .await?
                     .context("Missing group")?;
                 Ok(Some((chat, group)))
@@ -268,15 +396,18 @@ impl Job for FetchGroupProfileOperation {
         // Fetch group profile from the object storage
         let api_client = context.api_clients.get(&chat.owner_domain())?;
         let remote_attachment_id = RemoteAttachmentId::new(external_group_profile.object_id);
+        let target = group.attachment_target();
+        let signer = OwnClientInfo::signer_for_attachment_target(
+            context.db.read().await?,
+            &target,
+            &context.key_store.signing_key,
+        )
+        .await?;
         let url = api_client
             .ds_get_attachment_url(
                 StorageObjectType::GroupProfile,
-                &context.key_store.signing_key,
-                DsAttachmentTarget::Group {
-                    group_state_ear_key: group.group_state_ear_key(),
-                    group_id: group.group_id(),
-                    sender_index: group.own_index(),
-                },
+                &signer,
+                target,
                 remote_attachment_id,
             )
             .await?;
@@ -291,15 +422,15 @@ impl Job for FetchGroupProfileOperation {
 
         // Decrypt and validate group profile
         let group_profile = GroupProfile::decrypt(
-            group.identity_link_wrapper_key(),
+            &group.identity_link_wrapper_key,
             &external_group_profile,
             bytes.into(),
         )
         .map_err(JobError::fatal)?;
 
         debug!(
-            ?group_id,
-            ?external_group_profile,
+            %chat_id,
+            object_id = %external_group_profile.object_id,
             "Fetched and decrypted group profile"
         );
 
@@ -330,7 +461,7 @@ impl Job for FetchGroupProfileOperation {
                     CoreUser::store_new_messages(txn, chat.id(), messages).await?;
                 }
 
-                debug!(?group_id, chat_id = %chat.id(), "Updated chat attributes");
+                debug!(%chat_id, "Updated chat attributes");
 
                 Ok(())
             })

@@ -2,12 +2,21 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/core/core.dart';
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/you/delete_account_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:provider/provider.dart';
 
 import '../../helpers.dart';
+import '../../mocks.dart';
+
+class MockCoreClient extends Mock implements CoreClient {}
 
 void main() {
   group('DeleteAccountDialogTest', () {
@@ -38,6 +47,33 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/delete_account_dialog_confirmed.png'),
       );
+    });
+
+    testWidgets('a failed deletion is reported in a dialog', (tester) async {
+      final userCubit = MockUserCubit();
+      final coreClient = MockCoreClient();
+      when(
+        () => userCubit.deleteAccount(
+          confirmationText: any(named: 'confirmationText'),
+        ),
+      ).thenThrow(Exception('offline'));
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            BlocProvider<UserCubit>.value(value: userCubit),
+            Provider<CoreClient>.value(value: coreClient),
+          ],
+          child: buildSubject(isConfirmed: true),
+        ),
+      );
+
+      await tester.tap(find.byType(Button).last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Something went wrong'), findsOneWidget);
+      expect(find.text('Wait a moment, then try again.'), findsOneWidget);
+      verifyNever(() => coreClient.logout());
     });
   });
 }

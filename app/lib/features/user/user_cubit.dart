@@ -74,6 +74,12 @@ class UserCubit implements StateStreamableSource<UiUser> {
 
   Future<void> deleteChat(ChatId chatId) => _impl.deleteChat(chatId);
 
+  Future<void> retractContactRequest(ChatId chatId) =>
+      _impl.retractContactRequest(chatId);
+
+  Future<void> declineContactRequest(ChatId chatId) =>
+      _impl.declineContactRequest(chatId);
+
   Future<void> devEraseChat(ChatId chatId) => _impl.devEraseChat(chatId);
 
   Future<List<UiContact>> get contacts => _impl.contacts;
@@ -108,7 +114,12 @@ class UserCubit implements StateStreamableSource<UiUser> {
   Future<ChatId> addContactFromGroup({
     required ChatId chatId,
     required UiUserId userId,
-  }) => _impl.addContactFromGroup(chatId: chatId, userId: userId);
+    required bool preferApq,
+  }) => _impl.addContactFromGroup(
+    chatId: chatId,
+    userId: userId,
+    preferApq: preferApq,
+  );
 
   Future<UsernameHash?> checkUsernameExists({required UiUsername username}) =>
       _impl.checkUsernameExists(username: username);

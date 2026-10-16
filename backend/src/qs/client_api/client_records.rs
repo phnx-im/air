@@ -109,12 +109,12 @@ impl Qs {
     #[tracing::instrument(skip_all, err)]
     pub(crate) async fn qs_delete_client_record(
         &self,
-        params: DeleteClientRecordParams,
+        params: &DeleteClientRecordParams,
     ) -> Result<(), QsUpdateClientRecordError> {
         QsClientRecord::soft_delete(&self.db_pool, &params.sender)
             .await
-            .map_err(|e| {
-                error!("Error deleting client record: {:?}", e);
+            .map_err(|error| {
+                error!(%error, "Error deleting client record");
                 QsUpdateClientRecordError::StorageError
             })?;
 

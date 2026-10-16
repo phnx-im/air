@@ -20,7 +20,7 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use apqmls::{
     ApqMlsGroupMut,
     messages::ApqProtocolMessage,
-    processing::{ApqProcessMessageError, ApqProcessedMessage},
+    processing::{ApqProcessMessageError, ApqProcessedMessage, resolve_partial_commit},
 };
 use mimi_room_policy::RoleIndex;
 use openmls::{
@@ -37,9 +37,13 @@ use tls_codec::DeserializeBytes as TlsDeserializeBytes;
 use tracing::{debug, error, instrument, warn};
 
 use crate::{
+    chats::{
+        self,
+        connection_requests::{self, ConnectionRequestEffects},
+    },
     clients::{
         api_clients::ApiClients,
-        block_contact::pending::{apply_blocked_contacts_update, complete_sent_entries},
+        block_contact,
         user_settings::{SettingChanges, apply_settings_update, merge_settings_update},
     },
     db::access::WriteDbTransaction,
@@ -63,7 +67,7 @@ async fn apply_self_group_payload(
     txn: &mut WriteDbTransaction<'_>,
     payload: &SelfGroupPayload,
     own_echo: bool,
-) -> Result<()> {
+) -> Result<ConnectionRequestEffects> {
     if !payload.updates.is_empty() {
         // Fold the extracted snapshots into one merged snapshot. This can be
         // empty when the update decoded to unknown-only fields sent by a newer
@@ -92,17 +96,43 @@ async fn apply_self_group_payload(
         }
     }
 
-    if own_echo {
-        complete_sent_entries(txn, &payload.blocked_contacts).await?;
+    let effects = if own_echo {
+        block_contact::persistence::complete_sent_entries(txn, &payload.blocked_contacts).await?;
+        connection_requests::complete_sent_entries(txn, &payload.connection_requests).await?;
+        ConnectionRequestEffects::default()
     } else {
-        apply_blocked_contacts_update(txn, &payload.blocked_contacts).await?;
+        let declined_chats = block_contact::persistence::apply_blocked_contacts_update(
+            txn,
+            &payload.blocked_contacts,
+        )
+        .await?;
+        let mut effects = connection_requests::apply_connection_requests_update(
+            txn,
+            &payload.connection_requests,
+        )
+        .await?;
+        effects.stale_chats.extend(declined_chats);
+        effects
+    };
+
+    // Deletions go last, so a chat a sibling erased stays erased even if this
+    // commit also carries a request for it.
+    if own_echo {
+        chats::persistence::remove_staged_deletion(txn, &payload.deleted_chats).await?;
+    } else {
+        chats::persistence::apply_deleted_chats(
+            txn,
+            &payload.deleted_chats,
+            &effects.accepted_locally,
+        )
+        .await?;
     }
 
-    Ok(())
+    Ok(effects)
 }
 
 pub(crate) enum ProcessMessageResult {
-    Processed(ProcessMessageProcessed),
+    Processed(Box<ProcessMessageProcessed>),
     /// This message was skipped because we have processed it (or its side-effect) already.
     Ignored,
     /// We got a message that we can't process from our current group state, e.g. because it's too
@@ -115,12 +145,15 @@ pub(crate) struct ProcessMessageProcessed {
     pub(crate) processed_message: ProcessedMessage,
     pub(crate) we_were_removed: bool,
     pub(crate) profile_infos: Vec<(UserCredential, UserProfileKey)>,
+    /// What a sibling's self-group commit did to connection requests.
+    pub(crate) connection_request_effects: ConnectionRequestEffects,
 }
 
 struct PostProcessState {
     sender_index: LeafNodeIndex,
     we_were_removed: bool,
     encrypted_profile_infos: Vec<(UserCredential, EncryptedUserProfileKey)>,
+    connection_request_effects: ConnectionRequestEffects,
 }
 
 struct PostProcessAadResult {
@@ -146,7 +179,10 @@ impl Group {
             let message = message.into();
             let message_epoch = message.epoch();
             match self.mls_group.process_message(&provider, message) {
-                Ok(pm) => pm,
+                Ok(processed_message) => {
+                    // Processes app data updates in the message, if any.
+                    resolve_partial_commit(&self.mls_group, &provider, processed_message)?
+                }
                 Err(ProcessMessageError::<sqlx::Error>::ValidationError(
                     ValidationError::WrongEpoch,
                 )) => {
@@ -215,11 +251,14 @@ impl Group {
             }
             ProcessedMessageContent::ApplicationMessage(_) => {
                 debug!("process application message");
-                return Ok(ProcessMessageResult::Processed(ProcessMessageProcessed {
-                    processed_message,
-                    we_were_removed: false,
-                    profile_infos: Vec::new(),
-                }));
+                return Ok(ProcessMessageResult::Processed(Box::new(
+                    ProcessMessageProcessed {
+                        processed_message,
+                        we_were_removed: false,
+                        profile_infos: Vec::new(),
+                        connection_request_effects: ConnectionRequestEffects::default(),
+                    },
+                )));
             }
             ProcessedMessageContent::ProposalMessage(_proposal) => {
                 // Proposals are just returned and can then be added to the
@@ -234,6 +273,7 @@ impl Group {
                     sender_index: *sender_index,
                     we_were_removed: false,
                     encrypted_profile_infos: Vec::new(),
+                    connection_request_effects: ConnectionRequestEffects::default(),
                 }
             }
             ProcessedMessageContent::StagedCommitMessage(_) => {
@@ -252,6 +292,7 @@ impl Group {
                     sender_index: self.mls_group.own_leaf_index(),
                     we_were_removed: false,
                     encrypted_profile_infos: Vec::new(),
+                    connection_request_effects: ConnectionRequestEffects::default(),
                 }
             }
             ProcessedMessageContent::OwnPrivateMessage => {
@@ -289,11 +330,14 @@ impl Group {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(ProcessMessageResult::Processed(ProcessMessageProcessed {
-            processed_message,
-            we_were_removed: post_process_state.we_were_removed,
-            profile_infos,
-        }))
+        Ok(ProcessMessageResult::Processed(Box::new(
+            ProcessMessageProcessed {
+                processed_message,
+                we_were_removed: post_process_state.we_were_removed,
+                profile_infos,
+                connection_request_effects: post_process_state.connection_request_effects,
+            },
+        )))
     }
 
     async fn post_process_staged_commit(
@@ -338,13 +382,15 @@ impl Group {
         // below so the pending setting changes and token seed proposals are
         // reconciled against what this commit carried before the outbound
         // service can re-issue them.
+        let mut connection_request_effects = ConnectionRequestEffects::default();
         if self.is_self_group() {
             let payload = self.extract_self_group_messages(txn, staged_commit).await;
             if !payload.is_empty() {
                 // Own echo: the DS fanned our own commit back while our pending
                 // commit was already gone.
                 let own_echo = sender_index == self.mls_group().own_leaf_index();
-                apply_self_group_payload(txn, &payload, own_echo).await?;
+                connection_request_effects =
+                    apply_self_group_payload(txn, &payload, own_echo).await?;
             }
         }
 
@@ -387,6 +433,7 @@ impl Group {
             sender_index,
             we_were_removed,
             encrypted_profile_infos: aad_result.encrypted_profile_infos,
+            connection_request_effects,
         })
     }
 
@@ -1086,17 +1133,29 @@ fn validate_join_connection_group_commit(
 
 #[cfg(test)]
 mod tests {
-    use aircommon::{credentials::SelfGroupCredential, identifiers::UserId};
-    use airprotos::client::self_group::{BlockedContactEntry, ContactBlocked, ContactUnblocked};
+    use aircommon::{
+        codec::PersistenceCodec,
+        credentials::SelfGroupCredential,
+        identifiers::{QualifiedGroupId, UserId},
+    };
+    use airprotos::client::self_group::{
+        BlockedContactEntry, ConnectionRequestDeclined, ConnectionRequestEntry, ContactBlocked,
+        ContactUnblocked, DeletedChat,
+    };
     use chrono::DateTime;
     use openmls::prelude::LeafNodeIndex;
     use sqlx::SqlitePool;
     use uuid::Uuid;
 
     use crate::{
-        clients::block_contact::{
-            BlockedContact,
-            pending::{BlockedState, entries_to_broadcast, store_outgoing_entry},
+        Chat,
+        clients::{
+            block_contact::{
+                BlockedContact,
+                pending::BlockedState,
+                persistence::{staged_entries, store_outgoing_entry},
+            },
+            self_group_outbox::{self, OutboxKind},
         },
         db::access::DbAccess,
     };
@@ -1267,12 +1326,61 @@ mod tests {
 
             assert!(!BlockedContact::check_blocked(&mut *txn, &contested).await?);
             assert_eq!(
-                entries_to_broadcast(&mut *txn).await?,
+                staged_entries(&mut *txn).await?,
                 vec![
                     blocked_entry(&contested, 10, "Alice"),
                     blocked_entry(&untouched, 20, "Bob")
                 ],
                 "both parked changes must survive to be re-sent"
+            );
+            Ok(())
+        })
+        .await
+    }
+
+    /// We declined a request that a sibling accepted meanwhile. Another
+    /// sibling's decline of it arrives after the accept.
+    #[sqlx::test]
+    async fn an_accepted_connection_drops_our_parked_deletion(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let group_id: GroupId =
+            QualifiedGroupId::new(Uuid::from_u128(7), "localhost".parse()?).into();
+
+        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let chat = Chat::new_onboarding_connection_chat(group_id.clone(), user(1));
+            chat.store(&mut *txn).await?;
+            let declined = ConnectionRequestEntry::Declined(ConnectionRequestDeclined {
+                chat_id: chat.id().uuid(),
+                declined_at: DateTime::from_timestamp_millis(1_767_225_600_000).unwrap(),
+            });
+            self_group_outbox::stage(
+                &mut *txn,
+                OutboxKind::ConnectionRequest,
+                chat.id().uuid().as_bytes(),
+                &PersistenceCodec::to_vec(&declined)?,
+                None,
+            )
+            .await?;
+            chats::persistence::store_outgoing_deletion(&mut *txn, &group_id).await?;
+            let payload = SelfGroupPayload {
+                connection_requests: vec![declined],
+                deleted_chats: vec![DeletedChat {
+                    group_id: Some(group_id.clone()),
+                }],
+                ..Default::default()
+            };
+
+            apply_self_group_payload(txn, &payload, false).await?;
+
+            assert!(Chat::load(&mut *txn, &chat.id()).await?.is_some());
+            assert!(connection_requests::staged_entries(txn).await?.is_empty());
+            assert!(
+                chats::persistence::staged_deletions(&mut *txn)
+                    .await?
+                    .is_empty(),
+                "a parked deletion of the accepted chat would erase it on the siblings"
             );
             Ok(())
         })

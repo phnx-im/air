@@ -4,7 +4,7 @@
 
 use airapiclient::{ApiClient, as_api::AsConnectionOfferResponder};
 use aircommon::{
-    credentials::keys::UserSigningKey,
+    credentials::keys::{LeafSigningKey, UserSigningKey},
     crypto::{
         aead::keys::{FriendshipPackageEarKey, GroupStateEarKey, IdentityLinkWrapperKey},
         hash::Hashable as _,
@@ -18,20 +18,24 @@ use aircommon::{
     },
     time::TimeStamp,
 };
-use airprotos::client::{
-    group::GroupData,
-    group_bootstrap::{
-        ConnectionContext, GroupBootstrapCarrier, HandleInitiatorContext, TargetedInitiatorContext,
+use airprotos::{
+    auth_service::v1::OperationType,
+    client::{
+        group::GroupData,
+        group_bootstrap::{
+            ConnectionContext, GroupBootstrapCarrier, HandleInitiatorContext,
+            TargetedInitiatorContext,
+        },
+        signed_connection_package::AnyConnectionPackage,
     },
-    signed_connection_package::AnyConnectionPackage,
 };
 use anyhow::{Context, bail};
 use openmls::group::GroupId;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::{
-    Chat, ChatId, ChatMessage, SystemMessage,
-    chats::GroupDataExt,
+    Chat, ChatId,
+    chats::{PendingConnectionRequest, outgoing_requests::OutgoingRequest},
     clients::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
         targeted_message::TargetedMessageContent,
@@ -39,10 +43,11 @@ use crate::{
     contacts::{PartialContact, PartialContactType, TargetedMessageContact, UsernameContact},
     db::access::WriteDbTransaction,
     groups::{
-        Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider,
+        Group, NewGroupContext, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider,
         self_group::SelfGroup,
     },
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
+    privacy_pass::{self, TokenShortage},
 };
 
 use super::{CoreUser, connection_offer::payload::ConnectionOfferPayload};
@@ -55,6 +60,8 @@ pub enum AddUsernameContactError {
     DuplicateRequest,
     /// The given username is our own
     OwnUsername,
+    /// Today's allowance of connection requests is spent
+    RateLimited,
 }
 
 impl CoreUser {
@@ -68,6 +75,7 @@ impl CoreUser {
         &self,
         username: Username,
         hash: UsernameHash,
+        prefer_apq: bool,
     ) -> anyhow::Result<Result<ChatId, AddUsernameContactError>> {
         let client = self.api_client()?;
 
@@ -84,41 +92,83 @@ impl CoreUser {
             return Ok(Err(AddUsernameContactError::OwnUsername));
         }
 
-        // Phase 1: Fetch a connection package from the AS
-        let (connection_package, connection_offer_responder) =
-            match client.as_connect_username(hash).await {
-                Ok(res) => res,
-                Err(error) if error.is_not_found() => {
-                    return Ok(Err(AddUsernameContactError::UsernameNotFound));
-                }
-                Err(error) => return Err(error.into()),
-            };
+        // Pay for the request with a token. It is consumed after the checks
+        // above, a request that goes nowhere costs nothing.
+        let consumed = match self
+            .consume_or_replenish_token(&client, OperationType::ConnectUsername)
+            .await?
+        {
+            Ok(consumed) => consumed,
+            Err(TokenShortage::Exhausted) => {
+                return Ok(Err(AddUsernameContactError::RateLimited));
+            }
+            Err(shortage @ TokenShortage::Replenishing) => {
+                warn!(%shortage, "no privacy pass token available for a connection request");
+                return Err(shortage.into());
+            }
+        };
 
-        // Phase 2: Verify the connection package
+        // Fetch a connection package from the AS. The AS redeems the token in
+        // the transaction that returns the package, NOT_FOUND leaves the token
+        // valid. Other errors leave the redemption unknown, so the token is
+        // given up.
+        let (connection_package, connection_offer_responder) = match client
+            .as_connect_username(hash, Some(consumed.token.clone()))
+            .await
+        {
+            Ok(res) => res,
+            Err(error) if error.is_not_found() => {
+                self.restore_unredeemed_token(OperationType::ConnectUsername, consumed)
+                    .await;
+                return Ok(Err(AddUsernameContactError::UsernameNotFound));
+            }
+            Err(error) if error.is_unknown_token_key_id() => {
+                // Not retried right away: the re-fetched batch should not
+                // be redeemed right after its issuance.
+                warn!("unknown token key ID, purging stale tokens");
+                self.purge_and_replenish_tokens(&client, OperationType::ConnectUsername)
+                    .await?;
+                bail!("token key rotated and tokens replenished, retry later");
+            }
+            Err(error) => return Err(error.into()),
+        };
+
+        // The AS redeemed the token when it returned the package.
+        if let Some(position) = consumed.position
+            && let Err(error) =
+                privacy_pass::mark_redeemed(self.db().write().await?, &position).await
+        {
+            warn!(%error, "failed to record a redeemed privacy pass token");
+        }
+
+        // Verify the connection package
         let verified_connection_package = connection_package.verify(&hash)?;
+        let is_apq = prefer_apq
+            && verified_connection_package
+                .air_features()
+                .is_some_and(|features| features.apq_connection_groups);
 
-        // Phase 3: Prepare the connection locally
+        // Prepare the connection locally
         // No need to provision a group profile here, because we only have the group title and no
         // any additional data to upload.
         let provision_group_profile = None;
-        let request_pq_group_id = false;
-        let (group_id, _, _) = client
-            .ds_request_group_id(provision_group_profile, request_pq_group_id)
+        let (group_id, pq_group_id, _) = client
+            .ds_request_group_id(provision_group_profile, is_apq)
             .await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: verified_connection_package,
             group_id,
+            pq_group_id,
         };
 
         let client_reference = self.create_own_client_reference();
 
-        // Phase 4: Create the connection group locally and commit it.
+        // Create the connection group locally and commit it.
         let local_partial_contact = Box::pin(self.db().with_write_transaction(async |txn| {
-            let local_group = Box::pin(connection_package.create_local_connection_group(
-                &mut *txn,
-                &self.inner.key_store.signing_key,
-                username.clone(),
-            ))
+            let local_group = Box::pin(
+                connection_package
+                    .create_local_connection_group(&mut *txn, &self.inner.key_store.signing_key),
+            )
             .await?;
 
             Box::pin(local_group.create_username_contact(
@@ -132,7 +182,7 @@ impl CoreUser {
         }))
         .await?;
 
-        // Phase 5: Create the connection group on the DS and send off the connection offer
+        // Create the connection group on the DS and send off the connection offer
         let cleanup = local_partial_contact.cleanup();
         let result = Box::pin(local_partial_contact.create_connection_group_via_username(
             &client,
@@ -149,11 +199,13 @@ impl CoreUser {
     /// Create a connection with a new user via an existing group chat.
     ///
     /// The group chat must contain the user to connect to. Returns the [`ChatId`] of the newly
-    /// created connection chat.
+    /// created connection chat. If the user already sent us a request that is pending, no
+    /// request is sent and the chat of theirs is returned.
     pub async fn add_contact_from_group(
         &self,
         chat_id: ChatId,
         user_id: UserId,
+        prefer_apq: bool,
     ) -> anyhow::Result<ChatId> {
         let client = self.api_client()?;
 
@@ -161,6 +213,13 @@ impl CoreUser {
         // Check whether we already have this user as a contact
         if self.contact(&user_id).await.is_some() {
             bail!("User is already a contact");
+        }
+
+        // Their request is answered rather than crossed with a new one.
+        if let Some(pending_chat_id) =
+            PendingConnectionRequest::chat_of_sender(self.db().read().await?, &user_id).await?
+        {
+            return Ok(pending_chat_id);
         }
 
         // Check whether we already have a pending connection request to this user
@@ -171,17 +230,30 @@ impl CoreUser {
             bail!("Connection request is already pending");
         }
 
+        // Check if the member of the group supports APQ connection groups (in case one should be
+        // created)
+        let is_apq = if prefer_apq {
+            let origin_group = Group::load_with_chat_id(self.db().read().await?, chat_id)
+                .await?
+                .context("Can't find group to send targeted message in")?;
+            origin_group
+                .member_app_data(&user_id)
+                .is_some_and(|data| data.features.apq_connection_groups)
+        } else {
+            false
+        };
+
         // Phase 1: Prepare the connection locally
         // No need to provision a group profile here, because we only have the group title and no
         // any additional data to upload.
         let provision_group_profile = None;
-        let request_pq_group_id = false;
-        let (group_id, _, _) = client
-            .ds_request_group_id(provision_group_profile, request_pq_group_id)
+        let (group_id, pq_group_id, _) = client
+            .ds_request_group_id(provision_group_profile, is_apq)
             .await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: user_id,
             group_id,
+            pq_group_id,
         };
 
         let client_reference = self.create_own_client_reference();
@@ -189,9 +261,11 @@ impl CoreUser {
         // Phase 4: Create the connection group and the targeted message
         // locally.
         let local_partial_contact = Box::pin(self.db().with_write_transaction(async |txn| {
-            let local_group = connection_package
-                .create_local_connection_group(&mut *txn, &self.inner.key_store.signing_key)
-                .await?;
+            let local_group = Box::pin(
+                connection_package
+                    .create_local_connection_group(&mut *txn, &self.inner.key_store.signing_key),
+            )
+            .await?;
 
             Box::pin(local_group.create_targeted_message_contact(
                 txn,
@@ -290,108 +364,57 @@ enum ConnectionGroupError {
 struct VerifiedConnectionPackagesWithGroupId<Payload = AnyConnectionPackage> {
     payload: Payload,
     group_id: GroupId,
+    pq_group_id: Option<GroupId>,
 }
 
 impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
-    async fn create_connection_group_internal(
-        &self,
+    async fn create_local_connection_group(
+        self,
         txn: &mut WriteDbTransaction<'_>,
         signing_key: &UserSigningKey,
-    ) -> anyhow::Result<(Group, PartialCreateGroupParams, Option<SelfGroup>)> {
+    ) -> anyhow::Result<LocalGroup<Payload>> {
+        info!("Creating local connection group");
+        let Self {
+            payload,
+            group_id,
+            pq_group_id,
+        } = self;
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
-        let group_data_bytes = GroupData {
-            encrypted_title: None,
-            external_group_profile: None,
-        }
-        .encode()?;
 
-        let self_group = SelfGroup::load(&mut *txn).await?;
+        let self_group = SelfGroup::load(&mut *txn)
+            .await?
+            .filter(SelfGroup::has_linked_devices);
+        let vc_group_id = self_group.as_ref().map(|group| group.group_id());
 
-        let (group, partial_params) = Group::create_group(
-            &mut *txn,
-            signing_key,
-            identity_link_wrapper_key,
-            self.group_id.clone(),
-            group_data_bytes,
-            self_group.as_ref().map(|group| group.group_id()),
-        )?;
+        let (group, partial_params) = if let Some(pq_group_id) = pq_group_id {
+            Group::create_apq_group(
+                &mut *txn,
+                &LeafSigningKey::User(signing_key.clone()),
+                signing_key.credential().user_id().clone(),
+                identity_link_wrapper_key,
+                group_id,
+                pq_group_id,
+                NewGroupContext::LegacyChat(GroupData::empty()),
+                vc_group_id,
+            )?
+        } else {
+            Group::create_group(
+                &mut *txn,
+                signing_key,
+                identity_link_wrapper_key,
+                group_id,
+                NewGroupContext::LegacyChat(GroupData::empty()),
+                vc_group_id,
+            )?
+        };
 
         group.store(txn).await?;
 
-        Ok((group, partial_params, self_group))
-    }
-}
-
-impl VerifiedConnectionPackagesWithGroupId<AnyConnectionPackage> {
-    async fn create_local_connection_group(
-        self,
-        txn: &mut WriteDbTransaction<'_>,
-        signing_key: &UserSigningKey,
-        username: Username,
-    ) -> anyhow::Result<LocalGroup<AnyConnectionPackage>> {
-        info!("Creating local connection group");
-
-        let (group, partial_params, self_group) = self
-            .create_connection_group_internal(&mut *txn, signing_key)
-            .await?;
-
-        let Self {
-            payload: method_payload,
-            group_id,
-        } = self;
-
-        // Create the connection chat
-        let chat = Chat::new_handle_chat(group_id.clone(), username.clone());
-        chat.store(&mut *txn).await?;
-
-        // Create the initial system message for the chat
-        let system_message = SystemMessage::NewHandleConnectionChat(username);
-        let chat_message =
-            ChatMessage::new_system_message(chat.id(), TimeStamp::now(), system_message);
-        chat_message.store(&mut *txn).await?;
-
         Ok(LocalGroup {
             group,
             partial_params,
             self_group,
-            chat_id: chat.id(),
-            payload: method_payload,
-        })
-    }
-}
-
-impl VerifiedConnectionPackagesWithGroupId<UserId> {
-    async fn create_local_connection_group(
-        self,
-        txn: &mut WriteDbTransaction<'_>,
-        signing_key: &UserSigningKey,
-    ) -> anyhow::Result<LocalGroup<UserId>> {
-        info!("Creating local connection group");
-        let (group, partial_params, self_group) = self
-            .create_connection_group_internal(&mut *txn, signing_key)
-            .await?;
-
-        let Self {
-            payload: user_id,
-            group_id,
-        } = self;
-
-        // Create the connection chat
-        let chat = Chat::new_targeted_message_chat(group_id.clone(), user_id.clone());
-        chat.store(&mut *txn).await?;
-
-        // Create the initial system message for the chat
-        let system_message = SystemMessage::NewDirectConnectionChat(user_id.clone());
-        let chat_message =
-            ChatMessage::new_system_message(chat.id(), TimeStamp::now(), system_message);
-        chat_message.store(txn).await?;
-
-        Ok(LocalGroup {
-            group,
-            partial_params,
-            self_group,
-            chat_id: chat.id(),
-            payload: user_id,
+            payload,
         })
     }
 }
@@ -400,7 +423,6 @@ struct LocalGroup<Payload = AnyConnectionPackage> {
     group: Group,
     partial_params: PartialCreateGroupParams,
     self_group: Option<SelfGroup>,
-    chat_id: ChatId,
     payload: Payload,
 }
 
@@ -417,7 +439,6 @@ impl LocalGroup<AnyConnectionPackage> {
             group,
             partial_params,
             self_group,
-            chat_id,
             payload: verified_connection_package,
         } = self;
 
@@ -452,17 +473,12 @@ impl LocalGroup<AnyConnectionPackage> {
 
         let connection_offer_hash = connection_offer.hash();
 
-        group.store_connection_offer_psk(&mut *txn, connection_offer_hash)?;
-
-        // Create and persist a new partial contact
-        UsernameContact::new(
-            username.clone(),
-            chat_id,
-            friendship_package_ear_key.clone(),
+        let request = OutgoingRequest::Username {
+            username: username.clone(),
+            friendship_package_ear_key: friendship_package_ear_key.clone(),
             connection_offer_hash,
-        )
-        .upsert(&mut *txn)
-        .await?;
+        };
+        let chat_id = request.store(txn, &group, TimeStamp::now()).await?.id();
 
         let encrypted_user_profile_key =
             own_user_profile_key.encrypt(group.identity_link_wrapper_key(), own_user_id)?;
@@ -510,7 +526,6 @@ impl LocalGroup<UserId> {
             group,
             partial_params,
             self_group,
-            chat_id,
             payload: user_id,
         } = self;
 
@@ -524,13 +539,18 @@ impl LocalGroup<UserId> {
 
         let friendship_package_ear_key = FriendshipPackageEarKey::random()?;
 
-        // Create and persist a new partial contact
-        let contact = TargetedMessageContact::new(
-            user_id.clone(),
-            chat_id,
-            friendship_package_ear_key.clone(),
-        );
-        contact.upsert(&mut *txn).await?;
+        let mut targeted_message_group =
+            Group::load_with_chat_id(&mut *txn, targeted_message_chat_id)
+                .await?
+                .context("Can't find group to send targeted message in")?;
+        let origin_group_id = targeted_message_group.group_id().clone();
+
+        let request = OutgoingRequest::Targeted {
+            user_id: user_id.clone(),
+            friendship_package_ear_key: friendship_package_ear_key.clone(),
+            origin_group_id: Some(origin_group_id.clone()),
+        };
+        let chat_id = request.store(txn, &group, TimeStamp::now()).await?.id();
 
         let encrypted_user_profile_key =
             own_user_profile_key.encrypt(group.identity_link_wrapper_key(), own_user_id)?;
@@ -539,8 +559,9 @@ impl LocalGroup<UserId> {
 
         if let Some(self_group) = &self_group {
             let connection = ConnectionContext::TargetedInitiator(TargetedInitiatorContext {
-                user_id: Some(contact.user_id.clone().into()),
+                user_id: Some(user_id.clone().into()),
                 friendship_package_ear_key: Some(friendship_package_ear_key.clone()),
+                origin_group_id: Some(origin_group_id),
             });
             params.group_bootstrap = Some(self_group.seal_group_bootstrap_param(
                 txn,
@@ -553,15 +574,11 @@ impl LocalGroup<UserId> {
         // Prepare targeted message
         let connection_info =
             ConnectionInfo::new(&group, friendship_package, friendship_package_ear_key);
-        let mut targeted_message_group =
-            Group::load_with_chat_id(&mut *txn, targeted_message_chat_id)
-                .await?
-                .context("Can't find group to send targeted message in")?;
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         let targeted_message_params = targeted_message_group.create_targeted_application_message(
             &provider,
             &key_store.signing_key,
-            contact.user_id,
+            user_id.clone(),
             TargetedMessageContent::ConnectionRequest(connection_info),
         )?;
 

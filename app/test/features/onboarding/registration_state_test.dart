@@ -18,6 +18,20 @@ RegistrationState _withSessionExpiringIn(Duration left) => RegistrationState(
 );
 
 void main() {
+  group('RegistrationState without a server answer', () {
+    test('asks for no challenge', () {
+      const state = RegistrationState();
+      expect(state.challengeRequired, isFalse);
+      expect(state.invitationCodeRequired, isFalse);
+      expect(state.challengeUnsupported, isFalse);
+    });
+
+    test('is valid without a code', () {
+      const state = RegistrationState(displayName: 'Ellie');
+      expect(state.isValid, isTrue);
+    });
+  });
+
   group('RegistrationState.hasAdmissionSession', () {
     test('a session with time to spare is in hand', () {
       expect(

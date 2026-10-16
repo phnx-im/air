@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airapiclient::ds_api::DsRequestError;
 use aircommon::{
     credentials::{
         RoomPolicyIdentity, UserCredential,
@@ -19,7 +18,7 @@ use aircommon::{
 };
 use airprotos::client::{
     group::GroupData,
-    self_group::{BlockedContactEntry, LinkedDevice, SettingsUpdate, TokenSeed},
+    self_group::{LinkedDevice, SelfGroupMessage, SettingsUpdate, TokenSeed},
 };
 use anyhow::{Context as _, anyhow, bail};
 use apqmls::{commit_builder::ApqCommitMessageBundle, messages::ApqKeyPackage};
@@ -28,16 +27,16 @@ use mimi_room_policy::RoleIndex;
 use openmls::{group::GroupId, prelude::KeyPackageRef};
 use serde::{Deserialize, Serialize};
 use sqlx::{query, query_as, query_scalar};
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
-    chats::{GroupDataExt, messages::TimestampedMessage},
+    chats::{self, GroupDataExt, messages::TimestampedMessage},
     clients::{
         CoreUser,
         api_clients::ApiClients,
-        block_contact::pending,
+        block_contact,
         linked_devices::merge_device_entry_locally,
         own_client_info::OwnClientInfo,
         update_key::update_chat_attributes,
@@ -46,18 +45,19 @@ use crate::{
     contacts::{ContactAddInfos, ContactKeyPackage},
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
-        Group, GroupDataBytes, PreparedInvitee, VerifiedGroup,
-        client_auth_info::StorableUserCredential, handle_group_not_found_on_ds,
-        self_group::SelfGroup,
+        Group, PreparedInvitee, VerifiedGroup, client_auth_info::StorableUserCredential,
+        handle_group_not_found_on_ds, self_group::SelfGroup,
     },
     job::{
         Job, JobContext, JobContextReadConnection, JobError,
         chat_operation::{ChatOperationError, DerivationEpoch},
+        recoverable::{Recoverable, RecoverableCause},
     },
     key_stores::{
         indexed_keys::StorableIndexedKey,
         key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
     },
+    outbound_service::timed_tasks::{TimedTask, TimedTaskKind},
     privacy_pass,
 };
 
@@ -68,6 +68,9 @@ use crate::{
 const RETRY_INTERVAL: Duration = Duration::seconds(5);
 #[cfg(any(test, feature = "test_utils"))]
 const RETRY_INTERVAL: Duration = Duration::seconds(1);
+
+/// Failed attempts before a pending operation is given up on.
+const MAX_RETRIES: u32 = 5;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(super) enum OperationType {
@@ -94,12 +97,13 @@ pub(super) enum OperationType {
         #[serde(with = "serde_bytes")]
         new_chat_picture: Option<Vec<u8>>,
     },
-    SettingsUpdate {
+    SelfGroupMessages {
         params: Box<ApqGroupOperationParamsOut>,
-        /// The snapshot this commit carries. When the commit is accepted, the
-        /// pending [`SettingChanges`] are completed against it: only fields
-        /// sent with the still-intended value are done.
-        update: SettingsUpdate,
+        /// The drained outbox this commit carries. When the commit is accepted,
+        /// each message completes the parked changes it asserts: only those
+        /// still holding the sent value are done, so a change re-parked while
+        /// the commit was in flight is re-issued rather than lost.
+        messages: Vec<SelfGroupMessage>,
     },
     TokenSeeds {
         params: Box<ApqGroupOperationParamsOut>,
@@ -107,10 +111,6 @@ pub(super) enum OperationType {
         /// become the agreed seeds of their keys, because the DS ordering that
         /// accepted the commit is what decides the first writer.
         seeds: Vec<TokenSeed>,
-    },
-    BlockedContactsUpdate {
-        params: Box<ApqGroupOperationParamsOut>,
-        contacts: Vec<BlockedContactEntry>,
     },
     SelfGroupKeyPackageUpload {
         params: Box<ApqGroupOperationParamsOut>,
@@ -134,9 +134,8 @@ impl std::fmt::Display for OperationType {
             OperationType::ApqDelete { .. } => "apq_delete",
             OperationType::Other { .. } => "other",
             OperationType::ApqOther { .. } => "apq_other",
-            OperationType::SettingsUpdate { .. } => "settings_update",
+            OperationType::SelfGroupMessages { .. } => "self_group_messages",
             OperationType::TokenSeeds { .. } => "token_seeds",
-            OperationType::BlockedContactsUpdate { .. } => "blocked_contacts_update",
             OperationType::SelfGroupKeyPackageUpload { .. } => "self_group_kp_upload",
             OperationType::SelfGroupRemove { .. } => "self_group_remove",
             OperationType::SelfGroupAdd { .. } => "self_group_add",
@@ -195,9 +194,8 @@ impl OperationType {
             | OperationType::ApqDelete { .. }
             | OperationType::Other { .. }
             | OperationType::ApqOther { .. }
-            | OperationType::SettingsUpdate { .. }
+            | OperationType::SelfGroupMessages { .. }
             | OperationType::TokenSeeds { .. }
-            | OperationType::BlockedContactsUpdate { .. }
             | OperationType::SelfGroupKeyPackageUpload { .. }
             | OperationType::SelfGroupRemove { .. }
             | OperationType::SelfGroupAdd { .. } => true,
@@ -210,6 +208,55 @@ impl OperationType {
             OperationType::Delete(_) | OperationType::ApqDelete { .. }
         )
     }
+}
+
+/// Completes the parked changes each sent message asserts.
+///
+/// A change re-parked with a different value while the commit was in flight
+/// stays parked and is re-issued by the outbound service.
+async fn complete_sent_messages(
+    txn: &mut WriteDbTransaction<'_>,
+    messages: &[SelfGroupMessage],
+) -> anyhow::Result<()> {
+    for message in messages {
+        match message {
+            SelfGroupMessage::SettingsUpdate(update) => {
+                SettingChanges::complete_sent(txn, update).await?
+            }
+            SelfGroupMessage::BlockedContactsUpdate(update) => {
+                block_contact::persistence::complete_sent_entries(txn, &update.contacts).await?
+            }
+            SelfGroupMessage::DeletedChat(chat) => {
+                chats::persistence::remove_staged_deletion(txn, std::slice::from_ref(chat)).await?
+            }
+            SelfGroupMessage::ConnectionRequestsUpdate(update) => {
+                chats::connection_requests::complete_sent_entries(txn, &update.requests).await?
+            }
+            // Seeds stage their own commit, so they never travel in a drained
+            // outbox.
+            SelfGroupMessage::TokenSeed(_) | SelfGroupMessage::Unknown => {}
+        }
+    }
+    Ok(())
+}
+
+/// Gives up the parked changes a terminally failed commit carried.
+///
+/// Settings return to the values stored before they were touched, because the
+/// local write was optimistic. A block stays applied and parked: it is not an
+/// optimistic edit to undo, and it reaches the siblings on a later commit. The
+/// same holds for a deleted chat and a connection request.
+async fn roll_back_sent_messages(
+    txn: &mut WriteDbTransaction<'_>,
+    messages: &[SelfGroupMessage],
+) -> anyhow::Result<()> {
+    if messages
+        .iter()
+        .any(|message| matches!(message, SelfGroupMessage::SettingsUpdate(_)))
+    {
+        SettingChanges::roll_back_and_clear(txn).await?;
+    }
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -238,12 +285,55 @@ impl Job for PendingChatOperation {
         mut self,
         context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
-        match self.execute_internal(context).await {
-            // Update retry_due at on network errors
-            Err(JobError::NetworkError) => {
-                #[cfg(not(any(test, feature = "test_utils")))]
-                let retry_due = context.now + RETRY_INTERVAL;
-                #[cfg(any(test, feature = "test_utils"))]
+        let result = self
+            .execute_internal(context)
+            .await
+            .map_err(|error| match error {
+                // A recoverable error spends an attempt, unless the database was
+                // busy or the commit was stale and the job is dropped anyway
+                JobError::Recoverable(recoverable)
+                    if !matches!(
+                        recoverable.cause,
+                        RecoverableCause::Busy | RecoverableCause::Stale
+                    ) =>
+                {
+                    self.number_of_attempts += 1;
+                    if self.number_of_attempts >= MAX_RETRIES {
+                        JobError::Fatal(recoverable.error.context(format!(
+                            "Job failed after {MAX_RETRIES} attempts due to recoverable errors"
+                        )))
+                    } else {
+                        JobError::Recoverable(recoverable)
+                    }
+                }
+                e => e,
+            });
+        match result {
+            // Clean up after an error which is not recoverable
+            error @ Err(
+                JobError::Fatal(_)
+                | JobError::Domain(ChatOperationError::DeviceLimitReached { .. }),
+            ) => {
+                self.clean_up(context, true).await;
+                error
+            }
+            // The staged commit is stale, so only a new commit can carry its
+            // operation. A self-group intent stays parked and goes out with the
+            // next commit. Any other operation is dropped, as after a lost
+            // epoch race.
+            error @ Err(JobError::Recoverable(Recoverable {
+                cause: RecoverableCause::Stale,
+                ..
+            })) => {
+                self.clean_up(context, false).await;
+                error
+            }
+            // Update retry_due at on errors a later attempt may get past
+            Err(
+                error @ (JobError::NetworkError
+                | JobError::RateLimited { .. }
+                | JobError::Recoverable(_)),
+            ) => {
                 let retry_due = context.now + RETRY_INTERVAL;
                 self.update_retry_due_at(context.db.write().await?, retry_due)
                     .await?;
@@ -251,9 +341,10 @@ impl Job for PendingChatOperation {
                 info!(
                     ?group_id,
                     next_retry = ?retry_due,
+                    %error,
                     "Failed to execute PendingChatOperation, will retry later"
                 );
-                Err(JobError::NetworkError)
+                Err(error)
             }
             Err(JobError::NotFound) => {
                 let group_id = self.group.group_id().clone();
@@ -269,32 +360,46 @@ impl Job for PendingChatOperation {
                     .await?;
                 Err(JobError::NotFound)
             }
-            fatal_error @ Err(JobError::Fatal(_)) => {
-                // Clean up job after fatal error
-                context
-                    .db
-                    .write()
-                    .await?
-                    .with_transaction(async |txn| -> anyhow::Result<()> {
-                        self.roll_back_self_group_intent(txn).await?;
-                        let group = self.group.group_mut();
-                        group.discard_pending_commit(&mut *txn).await?;
-                        Self::delete(txn, self.group.group_id()).await?;
-                        Ok(())
-                    })
-                    .await
-                    .inspect_err(|error| {
-                        error!(%error, "Failed to delete pending chat operation");
-                    })
-                    .ok();
-                fatal_error
-            }
             res => res,
         }
     }
 }
 
 impl PendingChatOperation {
+    /// Drops the operation and its staged commit. With `roll_back_intent`, the
+    /// parked self-group changes it carried are given up as well, otherwise
+    /// they stay parked for the next commit.
+    async fn clean_up(&mut self, context: &mut JobContext<'_, '_>, roll_back_intent: bool) {
+        let Ok(mut connection) = context.db.write().await.inspect_err(|error| {
+            error!(%error, "Failed to delete pending chat operation");
+        }) else {
+            return;
+        };
+        connection
+            .with_transaction(async |txn| self.clean_up_in_transaction(txn, roll_back_intent).await)
+            .await
+            .inspect_err(|error| {
+                error!(%error, "Failed to delete pending chat operation");
+            })
+            .ok();
+    }
+
+    async fn clean_up_in_transaction(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        roll_back_intent: bool,
+    ) -> anyhow::Result<()> {
+        if roll_back_intent {
+            self.roll_back_self_group_intent(txn).await?;
+        }
+        self.group
+            .group_mut()
+            .discard_pending_commit(&mut *txn)
+            .await?;
+        Self::delete(txn, self.group.group_id()).await?;
+        Ok(())
+    }
+
     pub(super) fn new(group: VerifiedGroup, operation: OperationType) -> Self {
         Self {
             group,
@@ -320,16 +425,15 @@ impl PendingChatOperation {
         txn: &mut WriteDbTransaction<'_>,
     ) -> anyhow::Result<()> {
         match &self.operation {
-            // Fields the user re-toggled while the commit was in flight stay
-            // pending and are re-issued by the outbound service.
-            OperationType::SettingsUpdate { update, .. } => {
-                SettingChanges::complete_sent(txn, update).await
+            OperationType::SelfGroupMessages { messages, .. } => {
+                complete_sent_messages(txn, messages).await
             }
             OperationType::TokenSeeds { seeds, .. } => {
                 privacy_pass::complete_sent_seeds(txn, seeds).await
             }
-            OperationType::BlockedContactsUpdate { contacts, .. } => {
-                Ok(pending::complete_sent_entries(txn, contacts).await?)
+            OperationType::SelfGroupAdd { .. } => {
+                TimedTask::schedule_now(txn, TimedTaskKind::KeyPackageUpload).await?;
+                Ok(())
             }
             _ => Ok(()),
         }
@@ -354,7 +458,9 @@ impl PendingChatOperation {
         txn: &mut WriteDbTransaction<'_>,
     ) -> anyhow::Result<()> {
         match &self.operation {
-            OperationType::SettingsUpdate { .. } => SettingChanges::roll_back_and_clear(txn).await,
+            OperationType::SelfGroupMessages { messages, .. } => {
+                roll_back_sent_messages(txn, messages).await
+            }
             // The seeds were never agreed, so dropping the proposals lets a
             // later replenishment run propose again.
             OperationType::TokenSeeds { seeds, .. } => {
@@ -406,15 +512,12 @@ impl PendingChatOperation {
 
         let api_client = api_clients.get(qgid.owning_domain())?;
 
-        // If this is a leave operation that has been tried before, we have to
-        // check whether the group is still at the same epoch. If not, we have
-        // to re-create the proposal.
+        // If the group moved on since the leave proposal was staged, we have to re-create the
+        // proposal.
         if let OperationType::Leave(leave_params) = &mut self.operation
-            // This is always Some, because we know the MlsMessage is a
-            // PublicMessage
+            // This is always Some, because we know the MlsMessage is a PublicMessage
             && let Some(message_epoch) = leave_params.t_remove_proposal.epoch()
             && message_epoch != self.group.mls_group().epoch()
-            && self.number_of_attempts > 0
         {
             // No need to check the PQ epoch (if any) because a different PQ epoch implies a
             // different T epoch.
@@ -495,9 +598,8 @@ impl PendingChatOperation {
                     )
                     .await
             }
-            OperationType::SettingsUpdate { params, .. }
+            OperationType::SelfGroupMessages { params, .. }
             | OperationType::TokenSeeds { params, .. }
-            | OperationType::BlockedContactsUpdate { params, .. }
             | OperationType::SelfGroupRemove { params }
             | OperationType::SelfGroupAdd { params }
             | OperationType::SelfGroupKeyPackageUpload { params, .. } => {
@@ -517,27 +619,53 @@ impl PendingChatOperation {
             }
         };
 
-        let mut ds_has_confirmed_leave = true;
+        let mut retry_leave = false;
         let ds_timestamp = match res {
             Ok(ds_timestamp) => ds_timestamp,
             Err(error) => {
-                self.number_of_attempts += 1;
-                if !is_leave {
-                    let job_error = self.handle_error(context.db.write().await?, error).await?;
-                    return Err(job_error);
+                if !is_leave && let Some(detail) = error.device_limit_reached() {
+                    return Err(JobError::Domain(ChatOperationError::DeviceLimitReached {
+                        max_devices: detail.max_devices,
+                    }));
                 }
 
-                // The leave action is special in that we want to consider
-                // it successful regardless of any DS errors and
-                // post-process anyway. If the DS returned an error, we'll
-                // try again later, but that's just for the benefit of the
-                // server and the other chat members.
+                // The leave action is special in that we want to consider it successful regardless
+                // of any DS errors and post-process anyway. If the DS returned an error, we'll try
+                // again later, but that's just for the benefit of the server and the other chat
+                // members.
+                let error: JobError<ChatOperationError> = error.into();
+                retry_leave = match &error {
+                    // Either commit was accepted on a previous try, or another commit was faster.
+                    // Either way the queue is expected to resolve it.
+                    JobError::Recoverable(Recoverable {
+                        cause: RecoverableCause::WrongEpoch,
+                        ..
+                    }) if !is_leave => {
+                        self.mark_as_waiting_for_queue_response(db.write().await?)
+                            .await?;
+                        return Err(JobError::Blocked);
+                    }
+                    _ if !is_leave => return Err(error),
+                    // Not specific to the leave, retried without a budget
+                    JobError::NetworkError | JobError::RateLimited { .. } => true,
+                    // Retrying cannot succeed
+                    JobError::NotFound
+                    | JobError::Fatal(_)
+                    | JobError::Domain(_)
+                    | JobError::Blocked => false,
+                    // A retry checks whether the proposal is still at the group's epoch
+                    JobError::Recoverable(_) => {
+                        self.number_of_attempts += 1;
+                        self.number_of_attempts < MAX_RETRIES
+                    }
+                };
                 info!(
                     group_id = ?self.group.group_id(),
+                    %error,
+                    retry_leave,
                     "Leave operation failed due to DS error,
                     proceeding with local post-processing"
                 );
-                ds_has_confirmed_leave = false;
                 TimeStamp::now()
             }
         };
@@ -578,14 +706,15 @@ impl PendingChatOperation {
                 };
 
                 let group_messages = if is_commit {
-                    let (mut group_messages, group_data_bytes) = self
+                    let (mut group_messages, group_data) = self
                         .group
                         .merge_pending_commit(&mut *txn, None, ds_timestamp)
                         .await?;
 
-                    if let Some(bytes) = group_data_bytes
-                        && let Some(chat_title) =
-                            GroupData::decode_title(&bytes, self.group.identity_link_wrapper_key())?
+                    if let Some(group_data) = group_data
+                        && let (chat_title, _profile) =
+                            group_data.into_parts(self.group.identity_link_wrapper_key())
+                        && let Some(chat_title) = chat_title
                     {
                         let attributes = ChatAttributes::new(chat_title, new_chat_picture);
                         update_chat_attributes(
@@ -644,13 +773,13 @@ impl PendingChatOperation {
                 // intent it asserted.
                 self.complete_self_group_intent(txn).await?;
 
-                // Unless this is a leave operation that hasn't been confirmed
-                // by the DS, we can delete the pending operation now.
-                if !is_leave || ds_has_confirmed_leave {
+                // Unless this is a leave operation that is retried, we can
+                // delete the pending operation now.
+                if !retry_leave {
                     Self::delete(txn, self.group.group_id()).await?;
                 } else {
-                    // If it's a leave operation that hasn't been confirmed by
-                    // the DS, we want to set a due date for retrying
+                    // A leave operation that the DS hasn't confirmed yet is
+                    // retried later
                     let retry_due = *now + RETRY_INTERVAL;
                     self.update_retry_due_at(txn, retry_due).await?;
                 }
@@ -660,42 +789,6 @@ impl PendingChatOperation {
             .await?;
 
         Ok(messages)
-    }
-
-    async fn handle_error(
-        &mut self,
-        mut connection: impl WriteConnection,
-        error: DsRequestError,
-    ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
-        debug!(?error, "DS request failed");
-        const MAX_RETRIES: u32 = 5;
-        if error.is_not_found() {
-            // The group no longer exists on the DS. There is no point
-            // in retrying, the group needs to be torn down instead.
-            Ok(JobError::NotFound)
-        } else if error.is_wrong_epoch() {
-            // Either commit was accepted on a previous try, or another commit was faster. Either
-            // way the queue is expected to resolve it.
-            self.mark_as_waiting_for_queue_response(&mut connection)
-                .await?;
-            Err(JobError::Blocked)
-        } else if error.is_network_error() && self.number_of_attempts < MAX_RETRIES {
-            // If we get a network error (which means we don't know whether the request has been
-            // processed by the DS), we want to try again until we've either succeeded or reached a
-            // max number of retries.
-            Ok(JobError::NetworkError)
-        } else {
-            let error = if self.number_of_attempts >= MAX_RETRIES {
-                anyhow!(
-                    "Job failed after {} attempts due to DS errors: {:?}",
-                    MAX_RETRIES,
-                    error
-                )
-            } else {
-                anyhow!("Job failed due to DS error: {:?}", error)
-            };
-            Ok(JobError::Fatal(error))
-        }
     }
 
     /// Creates and stores a PendingChatOperation for removing users.
@@ -769,12 +862,11 @@ impl PendingChatOperation {
         new_chat_picture: Option<Vec<u8>>,
         derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<Self> {
-        let group_data_bytes = new_group_data.map(|data| data.encode()).transpose()?;
-        Self::create_update_with_raw_group_data(
+        Self::create_update_with_group_data(
             txn,
             signer,
             chat_id,
-            group_data_bytes,
+            new_group_data,
             new_chat_picture,
             derivation_epoch,
         )
@@ -793,34 +885,34 @@ impl PendingChatOperation {
         let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
         let params = group
             .group_mut()
-            .apq_update(txn, &signer, derivation_epoch)
+            .apq_update(txn, &signer, None, derivation_epoch)
             .await?;
         let job = Self::new(group, OperationType::apq_other(params));
         job.store(txn).await?;
         Ok(job)
     }
 
-    /// Stages a self-group commit carrying the settings update and stores it as
+    /// Stages a self-group commit carrying the drained outbox and stores it as
     /// a pending chat operation.
     ///
     /// Takes the loaded self-group, because the caller has to check it for a
     /// pending commit itself to tell a transient one apart from a failure.
-    pub(crate) async fn create_settings_update(
+    pub(crate) async fn create_self_group_messages(
         txn: &mut WriteDbTransaction<'_>,
         signer: &SelfGroupSigningKey,
         mut group: VerifiedGroup,
-        update: SettingsUpdate,
+        messages: Vec<SelfGroupMessage>,
     ) -> anyhow::Result<Self> {
         let params = group
             .group_mut()
-            .stage_settings_update(txn, signer, &update)
+            .stage_self_group_messages(txn, signer, messages.clone())
             .await?;
 
         let job = Self::new(
             group,
-            OperationType::SettingsUpdate {
+            OperationType::SelfGroupMessages {
                 params: Box::new(params),
-                update,
+                messages,
             },
         );
         job.store(txn).await?;
@@ -848,28 +940,6 @@ impl PendingChatOperation {
             OperationType::TokenSeeds {
                 params: Box::new(params),
                 seeds,
-            },
-        );
-        job.store(txn).await?;
-        Ok(job)
-    }
-
-    pub(crate) async fn create_blocked_contacts_update(
-        txn: &mut WriteDbTransaction<'_>,
-        signer: &SelfGroupSigningKey,
-        mut group: VerifiedGroup,
-        contacts: Vec<BlockedContactEntry>,
-    ) -> anyhow::Result<Self> {
-        let params = group
-            .group_mut()
-            .stage_blocked_contacts_update(txn, signer, &contacts)
-            .await?;
-
-        let job = Self::new(
-            group,
-            OperationType::BlockedContactsUpdate {
-                params: Box::new(params),
-                contacts,
             },
         );
         job.store(txn).await?;
@@ -985,11 +1055,11 @@ impl PendingChatOperation {
         Ok(job)
     }
 
-    pub(crate) async fn create_update_with_raw_group_data(
+    pub(crate) async fn create_update_with_group_data(
         txn: &mut WriteDbTransaction<'_>,
         signer: &UserSigningKey,
         chat_id: ChatId,
-        group_data_bytes: Option<GroupDataBytes>,
+        new_group_data: Option<GroupData>,
         new_chat_picture: Option<Vec<u8>>,
         derivation_epoch: DerivationEpoch,
     ) -> anyhow::Result<Self> {
@@ -998,15 +1068,23 @@ impl PendingChatOperation {
             .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
 
         let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
-        let params = group
-            .group_mut()
-            .update(&mut *txn, &signer, group_data_bytes, derivation_epoch)
-            .await?;
 
-        let job = Self::new(
-            group,
-            OperationType::other_with_picture(params, new_chat_picture),
-        );
+        // If there is a pending proposal, we have to do a full APQ update.
+        let operation_type = if group.is_apq() && group.group().has_pending_proposals() {
+            let params = group
+                .group_mut()
+                .apq_update(&mut *txn, &signer, new_group_data, derivation_epoch)
+                .await?;
+            OperationType::apq_other_with_picture(params, new_chat_picture)
+        } else {
+            let params = group
+                .group_mut()
+                .update(&mut *txn, &signer, new_group_data, derivation_epoch)
+                .await?;
+            OperationType::other_with_picture(params, new_chat_picture)
+        };
+
+        let job = Self::new(group, operation_type);
         job.store(txn).await?;
 
         Ok(job)
@@ -1015,6 +1093,10 @@ impl PendingChatOperation {
     /// Creates and stores a PendingChatOperation for deleting a chat.
     /// If the chat has only one member (the user themself), it is
     /// directly set to inactive instead.
+    ///
+    /// The exception is an open outgoing request. Its group has only the user
+    /// as member until the recipient joins, and deleting it on the DS is what
+    /// retracts the request.
     pub(super) async fn create_delete(
         txn: &mut WriteDbTransaction<'_>,
         signer: &UserSigningKey,
@@ -1031,7 +1113,7 @@ impl PendingChatOperation {
 
         let past_members: Vec<_> = group.members().collect();
 
-        if past_members.len() == 1 {
+        if past_members.len() == 1 && !chat.is_unconfirmed() {
             chat.set_status(txn, ChatStatus::inactive(past_members))
                 .await?;
             Ok(None)
@@ -1259,6 +1341,26 @@ impl PendingChatOperation {
                 Self::delete(txn, group_id).await?;
             }
         }
+        Ok(())
+    }
+
+    /// Gives up the parked delete of the group, so it is never sent. Any other
+    /// parked operation of the group stays.
+    pub(crate) async fn abandon_delete(
+        txn: &mut WriteDbTransaction<'_>,
+        group_id: &GroupId,
+    ) -> anyhow::Result<()> {
+        let Some(mut job) = Self::load_by_group_id(&mut *txn, group_id).await? else {
+            return Ok(());
+        };
+        if !job.operation.is_delete() {
+            return Ok(());
+        }
+        job.group
+            .group_mut()
+            .discard_pending_commit(&mut *txn)
+            .await?;
+        Self::delete(txn, group_id).await?;
         Ok(())
     }
 
@@ -1717,7 +1819,6 @@ pub mod test_utils {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches;
 
     use aircommon::{
         credentials::{
@@ -1727,28 +1828,19 @@ mod tests {
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
     };
-    use airprotos::{
-        client::app_data::{ClientAppData, GroupAppData},
-        common::v1::{StatusDetails, StatusDetailsCode, WrongEpochDetail, status_details::Detail},
-    };
+    use airprotos::client::app_data::ClientAppData;
     use chrono::{Duration, Utc};
     use uuid::Uuid;
 
     use crate::{
-        ChatAttributes, clients::own_client_info::OwnClientInfo, db::access::DbAccess,
-        groups::GroupDataBytes, utils::persistence::open_db_in_memory,
+        ChatAttributes,
+        clients::{own_client_info::OwnClientInfo, user_settings::ReadReceiptsSetting},
+        db::access::DbAccess,
+        groups::NewGroupContext,
+        utils::persistence::open_db_in_memory,
     };
 
     use super::*;
-
-    /// A DS error that reports a wrong-epoch rejection.
-    fn wrong_epoch_error() -> DsRequestError {
-        let details = StatusDetails {
-            code: StatusDetailsCode::WrongEpoch.into(),
-            detail: Some(Detail::WrongEpoch(WrongEpochDetail {})),
-        };
-        DsRequestError::Tonic(details.to_status(tonic::Code::InvalidArgument, "wrong epoch"))
-    }
 
     /// Builds a single-member APQ self-group with a pending settings-update
     /// operation, stored in the database.
@@ -1789,11 +1881,7 @@ mod tests {
                     IdentityLinkWrapperKey::random()?,
                     t_group_id,
                     pq_group_id,
-                    GroupDataBytes::from(b"test-group-data".to_vec()),
-                    GroupAppData {
-                        is_self_group: true,
-                        safe_aad_components: None,
-                    },
+                    NewGroupContext::SelfGroup(GroupData::empty()),
                     None,
                 )?;
                 group.store(&mut *txn).await?;
@@ -1801,18 +1889,19 @@ mod tests {
 
                 let update = SettingsUpdate {
                     send_read_receipts: Some(true),
-                    linked_devices: None,
+                    ..Default::default()
                 };
+                let messages = vec![SelfGroupMessage::SettingsUpdate(update)];
                 let params = group
                     .group_mut()
-                    .stage_settings_update(txn, &signing_key, &update)
+                    .stage_self_group_messages(txn, &signing_key, messages.clone())
                     .await?;
 
                 let job = PendingChatOperation::new(
                     group,
-                    OperationType::SettingsUpdate {
+                    OperationType::SelfGroupMessages {
                         params: Box::new(params),
-                        update,
+                        messages,
                     },
                 );
                 job.store(txn).await?;
@@ -1823,35 +1912,62 @@ mod tests {
         Ok((pool, job, signing_key))
     }
 
-    /// A wrong-epoch rejection of a settings update parks the operation as
-    /// `WaitingForQueueResponse` but does not mark the self-group commit as
-    /// failed. A settings race must not raise a "desynced" banner.
     #[tokio::test(flavor = "multi_thread")]
-    async fn wrong_epoch_parks_settings_without_marking_failed() -> anyhow::Result<()> {
-        let (pool, mut pending, _signing_key) = setup_self_group_settings_op().await?;
-
-        let result = pending
-            .handle_error(pool.write().await?, wrong_epoch_error())
-            .await;
-
-        // Parked, not failed.
-        assert_matches!(result, Err(JobError::Blocked));
-        assert!(
-            !pending.group.commit_failed(),
-            "settings race must not mark the commit failed"
-        );
-
-        // The status is persisted as waiting for the queue response.
+    async fn stale_clean_up_keeps_the_settings_intent() -> anyhow::Result<()> {
+        let (pool, mut pending, _signer) = setup_self_group_settings_op().await?;
         let group_id = pending.group.group_id().clone();
-        let reloaded = PendingChatOperation::load_by_group_id(pool.read().await?, &group_id)
-            .await?
-            .expect("operation should still exist");
-        assert!(matches!(
-            reloaded.status,
-            PendingChatOperationStatus::WaitingForQueueResponse
-        ));
 
-        Ok(())
+        let mut connection = pool.write().await?;
+        connection
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                // Record the local change the staged commit carries, so there
+                // is an intent a rollback could destroy.
+                SettingChanges::record(txn, &ReadReceiptsSetting(true)).await?;
+                assert!(SettingChanges::has_pending(&mut *txn).await?);
+
+                pending.clean_up_in_transaction(txn, false).await?;
+
+                assert!(
+                    PendingChatOperation::load_by_group_id(&mut *txn, &group_id)
+                        .await?
+                        .is_none()
+                );
+                assert!(pending.group.mls_group().pending_commit().is_none());
+                assert!(
+                    SettingChanges::has_pending(&mut *txn).await?,
+                    "a stale clean up must keep the setting change parked"
+                );
+                Ok(())
+            })
+            .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn fatal_clean_up_rolls_back_the_settings_intent() -> anyhow::Result<()> {
+        let (pool, mut pending, _signer) = setup_self_group_settings_op().await?;
+        let group_id = pending.group.group_id().clone();
+
+        let mut connection = pool.write().await?;
+        connection
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                SettingChanges::record(txn, &ReadReceiptsSetting(true)).await?;
+                assert!(SettingChanges::has_pending(&mut *txn).await?);
+
+                pending.clean_up_in_transaction(txn, true).await?;
+
+                assert!(
+                    PendingChatOperation::load_by_group_id(&mut *txn, &group_id)
+                        .await?
+                        .is_none()
+                );
+                assert!(pending.group.mls_group().pending_commit().is_none());
+                assert!(
+                    !SettingChanges::has_pending(&mut *txn).await?,
+                    "a fatal clean up must drop the setting change"
+                );
+                Ok(())
+            })
+            .await
     }
 
     /// Any incoming commit deletes a pending settings operation, parked or
@@ -1942,11 +2058,7 @@ mod tests {
                     IdentityLinkWrapperKey::random()?,
                     t_group_id.clone(),
                     pq_group_id,
-                    GroupDataBytes::from(b"test-group-data".to_vec()),
-                    GroupAppData {
-                        is_self_group: true,
-                        safe_aad_components: None,
-                    },
+                    NewGroupContext::SelfGroup(GroupData::empty()),
                     None,
                 )?;
                 group.store(&mut *txn).await?;
@@ -1991,8 +2103,6 @@ mod tests {
     /// Builds a single-member APQ self group owned by a fresh client, with the
     /// own client info and own user profile key the self-group paths expect.
     async fn setup_self_group() -> anyhow::Result<(DbAccess, UserId, UserSigningKey, GroupId)> {
-        use openmls::components::vc_derivation_info::VC_COMPONENT_ID;
-
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
         let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
@@ -2029,11 +2139,7 @@ mod tests {
                     IdentityLinkWrapperKey::random()?,
                     t_group_id.clone(),
                     pq_group_id,
-                    GroupDataBytes::from(b"test-group-data".to_vec()),
-                    GroupAppData {
-                        is_self_group: true,
-                        safe_aad_components: Some(vec![VC_COMPONENT_ID]),
-                    },
+                    NewGroupContext::SelfGroup(GroupData::empty()),
                     None,
                 )?;
                 group.store(&mut *txn).await?;
@@ -2223,7 +2329,6 @@ mod tests {
 
         let qgid = QualifiedGroupId::new(Uuid::new_v4(), user_id.domain().clone());
         let group_id = GroupId::from(qgid);
-        let group_data_bytes = GroupDataBytes::from(b"test-group-data".to_vec());
 
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
 
@@ -2232,7 +2337,7 @@ mod tests {
             &signing_key,
             identity_link_wrapper_key,
             group_id.clone(),
-            group_data_bytes,
+            NewGroupContext::LegacyChat(GroupData::empty()),
             None,
         )?;
         group.store(&mut connection).await?;
@@ -2343,26 +2448,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn not_found_ds_error_is_routed_to_not_found() -> anyhow::Result<()> {
-        let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
-
-        let leave_params = group
-            .group_mut()
-            .stage_leave_group(pool.write().await?, &signing_key)?;
-        let mut pending =
-            PendingChatOperation::new(group, OperationType::Leave(Box::new(leave_params)));
-
-        // A "group not found" response from the DS must be classified as
-        // NotFound so the group is torn down, not retried as a generic fatal.
-        let error = DsRequestError::Tonic(tonic::Status::not_found("group not found"));
-        let result = pending.handle_error(pool.write().await?, error).await;
-
-        assert_matches!(result, Ok(JobError::NotFound));
-
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
     async fn delete_removes_pending_operation() -> anyhow::Result<()> {
         let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
         let mut connection = pool.write().await?;
@@ -2390,5 +2475,64 @@ mod tests {
                 Ok(())
             })
             .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn abandon_delete_drops_the_parked_delete() -> anyhow::Result<()> {
+        let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
+        let group_id = group.group_id().clone();
+        let mut connection = pool.write().await?;
+
+        Box::pin(
+            connection.with_transaction(async |txn| -> anyhow::Result<()> {
+                let params = group
+                    .group_mut()
+                    .stage_delete(&mut *txn, &signing_key)
+                    .await?;
+                PendingChatOperation::new(group, OperationType::Delete(Box::new(params)))
+                    .store(&mut *txn)
+                    .await?;
+
+                PendingChatOperation::abandon_delete(txn, &group_id).await?;
+
+                assert!(
+                    PendingChatOperation::load_by_group_id(&mut *txn, &group_id)
+                        .await?
+                        .is_none()
+                );
+                let group = Group::load(&mut *txn, &group_id).await?.unwrap();
+                assert!(group.mls_group().pending_commit().is_none());
+                Ok(())
+            }),
+        )
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn abandon_delete_keeps_another_parked_operation() -> anyhow::Result<()> {
+        let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
+        let group_id = group.group_id().clone();
+        let mut connection = pool.write().await?;
+
+        Box::pin(
+            connection.with_transaction(async |txn| -> anyhow::Result<()> {
+                let leave_params = group
+                    .group_mut()
+                    .stage_leave_group(&mut *txn, &signing_key)?;
+                PendingChatOperation::new(group, OperationType::Leave(Box::new(leave_params)))
+                    .store(&mut *txn)
+                    .await?;
+
+                PendingChatOperation::abandon_delete(txn, &group_id).await?;
+
+                assert!(
+                    PendingChatOperation::load_by_group_id(&mut *txn, &group_id)
+                        .await?
+                        .is_some()
+                );
+                Ok(())
+            }),
+        )
+        .await
     }
 }

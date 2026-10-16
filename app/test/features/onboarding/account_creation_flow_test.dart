@@ -4,6 +4,7 @@
 
 import 'dart:async';
 
+import 'package:air/app.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
@@ -12,6 +13,7 @@ import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -25,6 +27,12 @@ import '../../mocks.dart';
 /// A code of the length the first step insists on, so the flow can be driven
 /// past it.
 const _validCode = 'ABCD2345';
+
+/// A gated server that takes an invitation code.
+const _codeGatedRegistration = RegistrationInfo(
+  challengeRequired: true,
+  acceptedChallenges: [ChallengeKind.invitationCode],
+);
 
 /// A server that admits anyone without a challenge.
 const _openRegistration = RegistrationInfo(
@@ -79,14 +87,19 @@ void main() {
         const NavigationState.intro(screens: [IntroScreenType.accountCreation]),
       );
       when(() => navigationCubit.pop()).thenReturn(true);
-      when(() => registrationCubit.state)
-          .thenReturn(const RegistrationState(invitationCode: _validCode));
+      when(() => registrationCubit.state).thenReturn(
+        const RegistrationState(
+          invitationCode: _validCode,
+          registrationInfo: _codeGatedRegistration,
+        ),
+      );
       when(() => registrationCubit.submitInvitationCode())
           .thenAnswer((_) async => null);
       when(() => registrationCubit.signUp()).thenAnswer((_) async => null);
+      scaffoldMessengerKey.currentState?.clearSnackBars();
     });
 
-    Widget buildSubject() => MultiBlocProvider(
+    Widget buildSubject({bool scaffold = false}) => MultiBlocProvider(
       providers: [
         BlocProvider<RegistrationCubit>.value(value: registrationCubit),
         BlocProvider<NavigationCubit>.value(value: navigationCubit),
@@ -96,8 +109,12 @@ void main() {
       child: Builder(
         builder: (context) => MaterialApp(
           debugShowCheckedModeBanner: false,
+          scaffoldMessengerKey: scaffoldMessengerKey,
           theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
+          builder: scaffold
+              ? (context, child) => RootScaffold(child: child!)
+              : null,
           home: const AccountCreationFlow(),
         ),
       ),
@@ -147,11 +164,52 @@ void main() {
       await submit(tester, 'Join Air');
 
       expect(find.text('Enter invite code'), findsOneWidget);
+      expect(find.text('Something went wrong'), findsOneWidget);
+      expect(
+        find.text('Invalid invite code. Check your code, then try again.'),
+        findsOneWidget,
+      );
     });
 
+    testWidgets(
+      'a rejected code at sign up returns to the code with a snackbar',
+      (tester) async {
+        when(
+          () => registrationCubit.signUp(),
+        ).thenAnswer((_) async => const SignUpError(code: .challengeRejected));
+        when(() => registrationCubit.state).thenReturn(
+          const RegistrationState(
+            invitationCode: _validCode,
+            displayName: 'Ellie',
+            registrationInfo: _codeGatedRegistration,
+          ),
+        );
+
+        await tester.pumpWidget(buildSubject(scaffold: true));
+        await tester.pumpAndSettle();
+        await submit(tester, 'Join Air');
+        expect(find.text('Create your profile'), findsOneWidget);
+
+        await submit(tester, 'Create');
+
+        expect(find.text('Enter invite code'), findsOneWidget);
+        expect(
+          find.text('Invalid invite code. Check your code, then try again.'),
+          findsOneWidget,
+        );
+
+        scaffoldMessengerKey.currentState?.removeCurrentSnackBar();
+        await tester.pumpAndSettle();
+      },
+    );
+
     testWidgets('a short code never reaches the server', (tester) async {
-      when(() => registrationCubit.state)
-          .thenReturn(const RegistrationState(invitationCode: 'ABC'));
+      when(() => registrationCubit.state).thenReturn(
+        const RegistrationState(
+          invitationCode: 'ABC',
+          registrationInfo: _codeGatedRegistration,
+        ),
+      );
 
       await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();
@@ -169,6 +227,7 @@ void main() {
         const RegistrationState(
           invitationCode: _validCode,
           domain: 'not a host',
+          registrationInfo: _codeGatedRegistration,
         ),
       );
 
@@ -207,6 +266,7 @@ void main() {
         const RegistrationState(
           invitationCode: _validCode,
           displayName: 'Ellie',
+          registrationInfo: _codeGatedRegistration,
         ),
       );
 
@@ -234,6 +294,7 @@ void main() {
         const RegistrationState(
           invitationCode: _validCode,
           displayName: 'Ellie',
+          registrationInfo: _codeGatedRegistration,
         ),
       );
 
@@ -265,6 +326,7 @@ void main() {
         const RegistrationState(
           invitationCode: _validCode,
           displayName: 'Ellie',
+          registrationInfo: _codeGatedRegistration,
         ),
       );
 
@@ -289,6 +351,21 @@ void main() {
         matchesGoldenFile('goldens/account_creation_code_desktop.png'),
       );
     }, variant: desktopPlatform);
+
+    group('unanswered server', () {
+      testWidgets('opens on the profile rather than the code', (tester) async {
+        // The server could not be asked, which says nothing about whether it
+        // gates registration.
+        when(() => registrationCubit.state)
+            .thenReturn(const RegistrationState(displayName: 'Ellie'));
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Create your profile'), findsOneWidget);
+        expect(find.text('Enter invite code'), findsNothing);
+      });
+    });
 
     group('open registration', () {
       setUp(() {
@@ -345,10 +422,7 @@ void main() {
           when(() => registrationCubit.state).thenReturn(
             const RegistrationState(
               displayName: 'Ellie',
-              registrationInfo: RegistrationInfo(
-                challengeRequired: true,
-                acceptedChallenges: [ChallengeKind.invitationCode],
-              ),
+              registrationInfo: _codeGatedRegistration,
             ),
           );
           return const SignUpError(code: .challengeRequired);
@@ -360,6 +434,30 @@ void main() {
         await submit(tester, 'Create');
 
         expect(find.text('Enter invite code'), findsOneWidget);
+        expect(find.text('Something went wrong'), findsOneWidget);
+        expect(
+          find.text(
+            'This server now asks for an invite code. Enter one to carry on.',
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('an internal sign up error is reported in a dialog', (
+        tester,
+      ) async {
+        when(() => registrationCubit.signUp()).thenAnswer(
+          (_) async => const SignUpError(code: .internal, message: 'boom'),
+        );
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+
+        await submit(tester, 'Create');
+
+        expect(find.text('Create your profile'), findsOneWidget);
+        expect(find.text('Something went wrong'), findsOneWidget);
+        expect(find.textContaining('boom'), findsOneWidget);
       });
     });
 

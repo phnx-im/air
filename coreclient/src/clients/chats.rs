@@ -11,16 +11,18 @@ use aircommon::{
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::{DateTime, Utc};
 use mimi_room_policy::VerifiedRoomState;
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::{
-    ChatAttributes, ChatType, MessageDraft, MessageId, UserProfile,
+    ChatAttributes, ChatStatus, ChatType, MessageDraft, MessageId, UserProfile,
     chats::{
-        Chat, PendingConnectionInfo, messages::ChatMessage,
-        notification_rebuild::ChatNotificationRebuildSet,
+        Chat, messages::ChatMessage, notification_rebuild::ChatNotificationRebuildSet, persistence,
     },
     groups::Group,
-    job::{chat_operation::ChatOperation, create_chat::CreateChat},
+    job::{
+        JobError, chat_operation::ChatOperation, create_chat::CreateChat,
+        pending_chat_operation::PendingChatOperation,
+    },
     utils::image::resize_profile_image,
 };
 
@@ -71,7 +73,9 @@ impl CoreUser {
         Ok(Chat::load_ordered_ids(self.db().read().await?).await?)
     }
 
-    /// Erases the chat data with the given [`ChatId`].
+    /// Erases the chat data with the given [`ChatId`] and parks the deletion
+    /// for the user's other devices. Erasing open incoming requests declines
+    /// them.
     ///
     /// Must not be called before the chat is deleted.
     pub async fn erase_chat(&self, chat_id: ChatId) -> Result<()> {
@@ -80,22 +84,51 @@ impl CoreUser {
                 let chat = Chat::load(&mut *txn, &chat_id)
                     .await?
                     .context("missing chat for deletion")?;
-                if let ChatType::PendingConnection(_) = chat.chat_type()
-                    && let Some(info) = PendingConnectionInfo::load(&mut *txn, chat_id).await?
-                    && let Some(hash) = info.connection_offer_hash
-                {
-                    Group::delete_connection_offer_psk(&mut *txn, hash)?;
-                }
-                Group::delete_from_db(txn, chat.group_id())
-                    .await
-                    .inspect_err(|error| {
-                        error!(%error, "failed to delete group; skipping");
-                    })
-                    .ok();
-                Chat::delete(&mut *txn, chat.id()).await?;
-                Ok(())
+                persistence::erase_and_park_deletion(txn, &chat).await
             })
-            .await
+            .await?;
+
+        self.outbound_service().notify_pending_chat_operations();
+
+        Ok(())
+    }
+
+    /// Deletes the chat on the DS and then erases it on all of the user's
+    /// devices. The chat of incoming requests has no group of ours on the DS,
+    /// so it is only erased, which declines the requests.
+    ///
+    /// Fails without a change if the DS cannot be reached. Erasing the chat
+    /// would drop the parked delete, so the other members would never learn
+    /// about it. Any other failure of the delete still erases the chat, so a
+    /// chat whose group is broken can be removed.
+    pub async fn delete_and_erase_chat(&self, chat_id: ChatId) -> Result<()> {
+        let chat = self
+            .db()
+            .with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
+            .await?
+            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+        if let ChatType::PendingConnection(_) = chat.chat_type() {
+            return self.erase_chat(chat_id).await;
+        }
+        match self.execute_job(ChatOperation::delete_chat(chat_id)).await {
+            Ok(_) | Err(JobError::NotFound) => {}
+            Err(JobError::NetworkError) => {
+                self.db()
+                    .with_write_transaction(async |txn| {
+                        PendingChatOperation::abandon_delete(txn, chat.group_id()).await
+                    })
+                    .await?;
+                bail!("Failed to reach the DS to delete chat {chat_id}");
+            }
+            // An inactive chat has no group on the DS left to delete.
+            Err(error) if matches!(chat.status(), ChatStatus::Inactive(_)) => {
+                debug!(%error, "Erasing an inactive chat without a DS delete");
+            }
+            Err(error) => {
+                error!(%error, "Failed to delete the chat on the DS, erasing it anyway");
+            }
+        }
+        self.erase_chat(chat_id).await
     }
 
     pub async fn leave_chat(&self, chat_id: ChatId) -> Result<()> {
@@ -351,10 +384,11 @@ impl CoreUser {
     }
 
     pub async fn load_room_state(&self, chat_id: &ChatId) -> Result<(UserId, VerifiedRoomState)> {
-        if let Some(chat_id) = self.chat(chat_id).await
-            && let Some(group) = Group::load(self.db().read().await?, chat_id.group_id()).await?
+        if let Some(chat) = self.chat(chat_id).await
+            && let Some(room_state) =
+                Group::load_room_state(self.db().read().await?.as_mut(), chat.group_id()).await?
         {
-            return Ok((self.user_id().clone(), group.into_room_state()));
+            return Ok((self.user_id().clone(), room_state));
         }
         bail!("Room does not exist")
     }
@@ -380,6 +414,21 @@ impl CoreUser {
             participants,
             own_profile,
         })
+    }
+
+    /// Advances the chat notification watermark over everything a notification
+    /// would show, so that it is never shown.
+    pub async fn mark_chat_notified(&self, chat_id: ChatId) -> Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| {
+                let rebuild_set =
+                    Chat::load_notification_rebuild_set(&mut *txn, chat_id, self.user_id()).await?;
+                if let Some(newest) = rebuild_set.entries.last() {
+                    Chat::set_notified_until(txn, chat_id, newest.timestamp()).await?;
+                }
+                Ok(())
+            })
+            .await
     }
 }
 

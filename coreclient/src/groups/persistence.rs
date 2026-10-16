@@ -4,6 +4,7 @@
 
 use std::{collections::HashSet, ops::Deref};
 
+use airapiclient::ds_api::DsAttachmentTarget;
 use aircommon::{
     codec::{BlobDecoded, BlobEncoded, PersistenceCodec},
     credentials::{GroupStorageWitness, LeafCredential, RoomPolicyIdentity, UserCredential},
@@ -11,7 +12,8 @@ use aircommon::{
     identifiers::UserId,
     time::TimeStamp,
 };
-use anyhow::Result;
+use airprotos::client::group::GroupData;
+use anyhow::{Result, anyhow};
 use mimi_room_policy::{RoomState, VerifiedRoomState};
 use openmls::group::{GroupId, MlsGroup, MlsGroupState};
 use openmls::prelude::{LeafNodeIndex, StagedCommit};
@@ -29,7 +31,11 @@ use crate::{
     utils::persistence::{GroupIdRefWrapper, GroupIdWrapper},
 };
 
-use super::{Group, GroupDataBytes, diff::StagedGroupDiff, openmls_provider::AirOpenMlsProvider};
+use super::{
+    Group,
+    diff::StagedGroupDiff,
+    openmls_provider::{AirOpenMlsProvider, storage_provider::purge_group_state},
+};
 
 struct SqlGroup {
     group_id: GroupIdWrapper,
@@ -175,7 +181,7 @@ impl VerifiedGroup {
         txn: &mut WriteDbTransaction<'_>,
         staged_commit_option: impl Into<Option<StagedCommit>>,
         ds_timestamp: TimeStamp,
-    ) -> Result<(Vec<TimestampedMessage>, Option<GroupDataBytes>)> {
+    ) -> Result<(Vec<TimestampedMessage>, Option<GroupData>)> {
         let witness = LocalGroupStorage(self.0.group_id().clone());
         self.0
             .merge_pending_commit(txn, &witness, staged_commit_option, ds_timestamp)
@@ -483,26 +489,26 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
     ) -> sqlx::Result<()> {
-        if let Some(mut group) = Group::load(&mut *txn, group_id).await? {
-            let provider = AirOpenMlsProvider::new(txn.as_mut());
-            group.mls_group.delete(provider.storage())?;
-        };
-        let group_id = GroupIdRefWrapper::from(group_id);
-        let pq_group_id: Option<GroupIdWrapper> = query_scalar!(
-            r#"SELECT group_id AS "group_id: _" FROM pq_group WHERE t_group_id = ?"#,
-            group_id
+        let group_id_ref = GroupIdRefWrapper::from(group_id);
+        // Skips the OpenMLS storage, which blocks.
+        let Some(pq_group_id): Option<Option<GroupIdWrapper>> = query_scalar!(
+            r#"SELECT pq.group_id AS "pq_group_id?: _"
+            FROM "group" g
+            LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id
+            WHERE g.group_id = ?"#,
+            group_id_ref
         )
         .fetch_optional(txn.as_mut())
         .await?
-        .flatten();
+        else {
+            return Ok(());
+        };
+        delete_mls_group(txn, group_id).await?;
         if let Some(pq_group_id) = pq_group_id {
-            let provider = AirOpenMlsProvider::new(txn.as_mut());
-            if let Some(mut pq_mls_group) = MlsGroup::load(provider.storage(), &pq_group_id.0)? {
-                pq_mls_group.delete(provider.storage())?;
-            }
+            delete_mls_group(txn, &pq_group_id.0).await?;
         };
         // This will also cascade delete the pq_group
-        query!(r#"DELETE FROM "group" WHERE group_id = ?"#, group_id)
+        query!(r#"DELETE FROM "group" WHERE group_id = ?"#, group_id_ref)
             .execute(txn.as_mut())
             .await?;
         Ok(())
@@ -573,6 +579,71 @@ impl Group {
             .collect())
     }
 
+    /// Loads a group's key material and our own leaf index without
+    /// reconstructing the MLS state that [`Self::load`] deserializes.
+    pub(crate) async fn load_ref(
+        mut connection: impl ReadConnection,
+        group_id: &GroupId,
+    ) -> sqlx::Result<Option<GroupRef>> {
+        let group_id = GroupIdRefWrapper::from(group_id);
+        let sql_group_ref = query_as!(
+            SqlGroupRef,
+            r#"SELECT
+                g.group_id AS "group_id: _",
+                pq.group_id AS "pq_group_id: _",
+                g.group_state_ear_key AS "group_state_ear_key: _",
+                identity_link_wrapper_key AS "identity_link_wrapper_key: _"
+            FROM "group" g
+            LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id
+            WHERE g.group_id = ?
+            "#,
+            group_id
+        )
+        .fetch_optional(connection.as_mut())
+        .await?;
+        Ok(sql_group_ref.and_then(|sql| sql.finish(connection.as_mut())))
+    }
+
+    /// Same as [`Self::load_ref()`], but via the corresponding chat.
+    pub(crate) async fn load_ref_with_chat_id(
+        mut connection: impl ReadConnection,
+        chat_id: ChatId,
+    ) -> sqlx::Result<Option<GroupRef>> {
+        let sql_group_ref = query_as!(
+            SqlGroupRef,
+            r#"SELECT
+                g.group_id AS "group_id: _",
+                pq.group_id AS "pq_group_id: _",
+                g.group_state_ear_key AS "group_state_ear_key: _",
+                identity_link_wrapper_key AS "identity_link_wrapper_key: _"
+            FROM "group" g
+            INNER JOIN chat c ON c.group_id = g.group_id
+            LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id
+            WHERE c.chat_id = ?
+            "#,
+            chat_id
+        )
+        .fetch_optional(connection.as_mut())
+        .await?;
+        Ok(sql_group_ref.and_then(|sql| sql.finish(connection.as_mut())))
+    }
+
+    /// Loads a group's room state without reconstructing its MLS state.
+    pub(crate) async fn load_room_state(
+        executor: impl SqliteExecutor<'_>,
+        group_id: &GroupId,
+    ) -> sqlx::Result<Option<VerifiedRoomState>> {
+        let group_id = GroupIdRefWrapper::from(group_id);
+        Ok(query_scalar!(
+            r#"SELECT room_state AS "room_state: BlobDecoded<VerifiedRoomState>"
+            FROM "group" WHERE group_id = ?"#,
+            group_id,
+        )
+        .fetch_optional(executor)
+        .await?
+        .map(|BlobDecoded(room_state)| room_state))
+    }
+
     /// Our own leaf index in the given group, read straight from MLS storage
     /// instead of by loading the whole group.
     pub(crate) fn load_own_leaf_index(
@@ -619,6 +690,83 @@ impl Group {
             })
             .collect();
         Ok(Some(user_ids))
+    }
+}
+
+/// Falls back to purging the stored state without decoding it, so a group
+/// whose state no longer decodes can still be deleted.
+async fn delete_mls_group(
+    txn: &mut WriteDbTransaction<'_>,
+    group_id: &GroupId,
+) -> sqlx::Result<()> {
+    let provider = AirOpenMlsProvider::new(txn.as_mut());
+    match MlsGroup::load(provider.storage(), group_id) {
+        Ok(Some(mut mls_group)) => mls_group.delete(provider.storage()),
+        Ok(None) => Ok(()),
+        Err(error @ (sqlx::Error::ColumnDecode { .. } | sqlx::Error::Decode(_))) => {
+            warn!(?group_id, %error, "MLS group state does not decode, purging it");
+            purge_group_state(txn.as_mut(), group_id).await
+        }
+        Err(error) => Err(error),
+    }
+}
+
+struct SqlGroupRef {
+    group_id: GroupIdWrapper,
+    pq_group_id: Option<GroupIdWrapper>,
+    group_state_ear_key: GroupStateEarKey,
+    identity_link_wrapper_key: IdentityLinkWrapperKey,
+}
+
+impl SqlGroupRef {
+    fn finish(self, connection: &mut SqliteConnection) -> Option<GroupRef> {
+        let group_id = self.group_id.0;
+        let own_index = Group::load_own_leaf_index(connection, &group_id)?;
+        Some(GroupRef {
+            group_id,
+            pq_group_id: self.pq_group_id.map(|GroupIdWrapper(id)| id),
+            group_state_ear_key: self.group_state_ear_key,
+            identity_link_wrapper_key: self.identity_link_wrapper_key,
+            own_index,
+        })
+    }
+}
+
+/// A group's key material and our own leaf index, loaded without its MLS state.
+pub(crate) struct GroupRef {
+    pub(crate) group_id: GroupId,
+    pub(crate) pq_group_id: Option<GroupId>,
+    pub(crate) group_state_ear_key: GroupStateEarKey,
+    pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
+    pub(crate) own_index: LeafNodeIndex,
+}
+
+impl GroupRef {
+    pub(crate) fn attachment_target(&self) -> DsAttachmentTarget<'_> {
+        DsAttachmentTarget::Group {
+            group_state_ear_key: &self.group_state_ear_key,
+            group_id: &self.group_id,
+            sender_index: self.own_index,
+        }
+    }
+
+    /// Errors if this group (or its PQ counterpart) has a pending commit. Reads
+    /// only the group state instead of the whole group.
+    pub(crate) fn ensure_clean(&self, connection: &mut SqliteConnection) -> Result<()> {
+        for group_id in [Some(&self.group_id), self.pq_group_id.as_ref()]
+            .into_iter()
+            .flatten()
+        {
+            let state: Option<MlsGroupState> = AirOpenMlsProvider::new(connection)
+                .storage()
+                .group_state(group_id)
+                .map_err(|error| anyhow!("Failed to load group state: {error}"))?;
+            anyhow::ensure!(
+                !matches!(state, Some(MlsGroupState::PendingCommit(_))),
+                "Room already had a pending commit"
+            );
+        }
+        Ok(())
     }
 }
 
@@ -675,5 +823,66 @@ impl Group {
         .fetch_optional(connection.as_mut())
         .await?;
         Ok(pending_commit_failed.unwrap_or_default())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::{
+        credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
+        crypto::aead::keys::IdentityLinkWrapperKey,
+        identifiers::{QualifiedGroupId, UserId},
+    };
+    use airprotos::client::group::GroupData;
+    use uuid::Uuid;
+
+    use crate::{
+        db::access::DbAccess, groups::NewGroupContext, utils::persistence::open_db_in_memory,
+    };
+
+    use super::*;
+
+    fn random_group_id() -> GroupId {
+        GroupId::from(QualifiedGroupId::new(
+            Uuid::new_v4(),
+            "example.com".parse().unwrap(),
+        ))
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn delete_group_with_undecodable_mls_state() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+
+        let signer = LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(Uuid::new_v4())?);
+        let (group, _params) = Group::create_apq_group(
+            &mut txn,
+            &signer,
+            UserId::random("example.com".parse()?),
+            IdentityLinkWrapperKey::random()?,
+            random_group_id(),
+            random_group_id(),
+            NewGroupContext::SelfGroup(GroupData::empty()),
+            None,
+        )?;
+        group.store(&mut txn).await?;
+
+        sqlx::query(
+            "UPDATE group_data SET group_data = X'00' WHERE data_type = 'join_group_config'",
+        )
+        .execute(txn.as_mut())
+        .await?;
+
+        let pq_group_id = group.pq_group_id().expect("APQ group without PQ group");
+        Group::delete_from_db(&mut txn, group.group_id()).await?;
+
+        assert!(Group::load(&mut txn, group.group_id()).await?.is_none());
+        let provider = AirOpenMlsProvider::new(txn.as_mut());
+        for group_id in [group.group_id(), &pq_group_id] {
+            assert!(MlsGroup::load(provider.storage(), group_id)?.is_none());
+        }
+
+        Ok(())
     }
 }

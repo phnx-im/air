@@ -2,11 +2,31 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::identifiers::UserId;
 use aircoreclient::clients::{CoreUser, process::process_qs::ProcessedQsMessages};
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::Utc;
+use tempfile::TempDir;
 
 use super::multi_device::link_new_device;
+
+/// Links a second device to `user_id`, so that key packages are uploaded via
+/// the self group, and brings both devices past the linking commit.
+///
+/// The [`TempDir`] holds the new device's database and must stay alive as
+/// long as it is used.
+async fn link_sibling(
+    setup: &TestBackend,
+    user_id: &UserId,
+) -> anyhow::Result<(CoreUser, TempDir)> {
+    let (device_b, tmp) = link_new_device(setup, user_id).await;
+    setup
+        .get_user(user_id)
+        .fetch_and_process_qs_messages()
+        .await;
+    drain_queue(&device_b).await?;
+    Ok((device_b, tmp))
+}
 
 /// Fetches and processes a device's queue, asserting that every message was
 /// processed without error.
@@ -44,10 +64,12 @@ async fn ensure_self_group_creates_apq_group() -> anyhow::Result<()> {
 async fn self_group_resync_re_registers_the_derivation_epoch() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let user_id = setup.add_user().await;
+    // The key package upload at the end only goes through the self group with
+    // a sibling.
+    let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
     let test_user = setup.get_user(&user_id);
     let user = &test_user.user;
 
-    user.ensure_self_group().await?;
     assert!(
         user.self_group_has_derivation_epoch().await?,
         "creating the self-group registers its initial derivation epoch"
@@ -92,10 +114,9 @@ async fn self_group_resync_re_registers_the_derivation_epoch() -> anyhow::Result
 async fn key_package_upload_via_self_group_waits_for_commit_response() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let user_id = setup.add_user().await;
+    let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
     let test_user = setup.get_user(&user_id);
     let user = &test_user.user;
-
-    user.ensure_self_group().await?;
 
     // Baseline: the initial publish-path upload from user creation
     let live_before = user.live_key_package_refs().await?;
@@ -169,17 +190,43 @@ async fn key_package_upload_via_self_group_waits_for_commit_response() -> anyhow
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn single_device_uploads_key_packages_via_publish() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let user_id = setup.add_user().await;
+    let user = &setup.get_user(&user_id).user;
+
+    user.ensure_self_group().await?;
+    let live_before = user.live_key_package_refs().await?;
+    let epochs_before = user.self_group_epochs().await?;
+
+    user.outbound_service()
+        .schedule_key_package_upload(Utc::now())
+        .await?;
+    user.outbound_service().run_once().await;
+
+    // Without siblings there is nobody to derive the batch from a commit, so
+    // the self group is left alone and the batch goes live right away.
+    assert!(user.self_group_pending_operation_info().await?.is_none());
+    assert_eq!(user.self_group_epochs().await?, epochs_before);
+    let live_after = user.live_key_package_refs().await?;
+    assert_ne!(live_after.0, live_before.0, "plain refs should be replaced");
+    assert_ne!(live_after.1, live_before.1, "APQ refs should be replaced");
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn key_packages_from_self_group_upload_are_served_and_usable() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
+    let (_device_b, _tmp) = link_sibling(&setup, &alice).await?;
 
     // Full upload cycle for alice
     {
         let test_user = setup.get_user(&alice);
         let user = &test_user.user;
-        user.ensure_self_group().await?;
         user.outbound_service()
             .schedule_key_package_upload(Utc::now())
             .await?;
@@ -216,10 +263,10 @@ async fn key_packages_from_self_group_upload_are_served_and_usable() -> anyhow::
 async fn key_package_upload_recovers_from_staging_failure() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let user_id = setup.add_user().await;
+    let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
     let test_user = setup.get_user(&user_id);
     let user = &test_user.user;
 
-    user.ensure_self_group().await?;
     let live_before = user.live_key_package_refs().await?;
     let epochs_before = user.self_group_epochs().await?;
 
@@ -269,10 +316,9 @@ async fn key_package_upload_recovers_from_staging_failure() -> anyhow::Result<()
 async fn key_package_upload_backs_off_while_pending() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let user_id = setup.add_user().await;
+    let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
     let test_user = setup.get_user(&user_id);
     let user = &test_user.user;
-
-    user.ensure_self_group().await?;
 
     // First upload: job ends up waiting for the commit response
     user.outbound_service()
@@ -327,10 +373,10 @@ async fn key_package_upload_backs_off_while_pending() -> anyhow::Result<()> {
 async fn mismatched_upload_commit_abandons_job() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let user_id = setup.add_user().await;
+    let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
     let test_user = setup.get_user(&user_id);
     let user = &test_user.user;
 
-    user.ensure_self_group().await?;
     let live_before = user.live_key_package_refs().await?;
     let (t_epoch, _) = user
         .self_group_epochs()

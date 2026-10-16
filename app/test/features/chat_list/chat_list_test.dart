@@ -135,6 +135,43 @@ void main() {
       );
     });
 
+    void announceExpiry() {
+      when(() => userCubit.state).thenReturn(
+        MockUiUser(
+          id: 1,
+          versionStatus: VersionStatus.expiresAt(DateTime.utc(2026, 8, 1, 12)),
+        ),
+      );
+    }
+
+    testWidgets('renders correctly with update reminder', (tester) async {
+      announceExpiry();
+
+      await tester.pumpWidget(buildSubject(chats: chats));
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_update_reminder.png'),
+      );
+    });
+
+    testWidgets('renders correctly with update reminder (dark mode)', (
+      tester,
+    ) async {
+      tester.platformDispatcher.platformBrightnessTestValue = .dark;
+      addTearDown(() {
+        tester.platformDispatcher.clearPlatformBrightnessTestValue();
+      });
+      announceExpiry();
+
+      await tester.pumpWidget(buildSubject(chats: chats));
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_update_reminder_dark_mode.png'),
+      );
+    });
+
     testWidgets('renders correctly with mute menu open (mobile)', (
       tester,
     ) async {

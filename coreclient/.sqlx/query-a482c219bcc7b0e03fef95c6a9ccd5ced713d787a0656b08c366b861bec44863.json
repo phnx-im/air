@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT pq.group_id AS \"pq_group_id?: _\"\n            FROM \"group\" g\n            LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id\n            WHERE g.group_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "pq_group_id?: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pq_group",
+            "name": "group_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "a482c219bcc7b0e03fef95c6a9ccd5ced713d787a0656b08c366b861bec44863"
+}

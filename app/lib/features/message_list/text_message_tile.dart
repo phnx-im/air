@@ -169,15 +169,9 @@ class TextMessageTile extends HookWidget {
   ///
   /// What a row does carry is what the reader may have to act on: how far an
   /// own send got, and whether the message was edited. The reader's own last
-  /// message reports its delivery state whatever that state is; older rows do
-  /// so only while the send is unfinished -- in flight, landed on the server
-  /// but nowhere else, or failed.
-  ///
-  /// An edit is the exception: it puts the message it replaces back to sent
-  /// until the other side reports on the new content, and the original had
-  /// long since arrived. Reporting that on an older row reads as a message
-  /// that never landed, so an edited row keeps its marker and leaves the
-  /// delivery state to the rows that report one anyway.
+  /// message reports its delivery state whatever that state is. Older rows do
+  /// so only while the send is in flight or failed, so a run of own messages
+  /// reports its state once, on its last row.
   Widget? _stamp(BuildContext context, {required bool showsTime}) {
     // A deleted message reports neither: what it once said and how far it got
     // are both gone with it. Rows deleted before deletions stopped stamping an
@@ -187,7 +181,7 @@ class TextMessageTile extends HookWidget {
         isSender &&
         switch (status) {
           UiMessageStatus.sending || UiMessageStatus.error => true,
-          UiMessageStatus.sent => !isEdited,
+          UiMessageStatus.sent ||
           UiMessageStatus.delivered ||
           UiMessageStatus.read ||
           UiMessageStatus.hidden ||
@@ -895,9 +889,16 @@ List<MessageAction> _messageActions(
       ),
       isDestructive: true,
       insertSeparatorBefore: !isDeleted,
-      onSelected: () => (isSender && isSent && !isDeleted)
-          ? _showDeleteMessageDialog(context: context, messageId: messageId)
-          : _showDeleteForMeDialog(context: context, messageId: messageId),
+      onSelected: () {
+        // In Notes to self, deleting for me already removes it everywhere.
+        final isSelfChat =
+            context.read<ChatDetailsCubit>().state.chat?.isSelfChat ?? false;
+        if (isSender && isSent && !isDeleted && !isSelfChat) {
+          _showDeleteMessageDialog(context: context, messageId: messageId);
+        } else {
+          _showDeleteForMeDialog(context: context, messageId: messageId);
+        }
+      },
     ),
     if (attachments.isNotEmpty && !Platform.isIOS)
       MessageAction(
@@ -994,7 +995,12 @@ class _MessageContent extends StatelessWidget {
           isSelf: isSender,
           child: _capped(
             MessageBubbleTokens.padding,
-            _placeholder(context, loc.textMessage_hiddenPlaceholder),
+            _placeholder(
+              context,
+              DeviceType.isDesktop
+                  ? loc.textMessage_hiddenPlaceholder_desktop
+                  : loc.textMessage_hiddenPlaceholder,
+            ),
           ),
         ),
       );

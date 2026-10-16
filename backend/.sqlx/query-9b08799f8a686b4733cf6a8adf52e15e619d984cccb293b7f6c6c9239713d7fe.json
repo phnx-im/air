@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO allowance_record AS a\n                (key_value, remaining, valid_until)\n                VALUES ($1, $2::bigint - 1, $4)\n            ON CONFLICT (key_value) DO UPDATE SET\n                remaining = CASE WHEN a.valid_until < $3\n                    THEN EXCLUDED.remaining\n                    ELSE a.remaining - 1 END,\n                valid_until = CASE WHEN a.valid_until < $3\n                    THEN EXCLUDED.valid_until\n                    ELSE a.valid_until END\n            WHERE a.valid_until < $3 OR a.remaining > 0\n            RETURNING 1 AS \"consumed!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "consumed!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int8",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "9b08799f8a686b4733cf6a8adf52e15e619d984cccb293b7f6c6c9239713d7fe"
+}

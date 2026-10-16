@@ -14,10 +14,27 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:air/core/core.dart';
 import 'package:uuid/uuid.dart';
 
-ThemeData testThemeData(Brightness brightness) {
+/// A 1x1 transparent PNG, for a widget that needs a real picture to lay out.
+final transparentPixelPng = Uint8List.fromList(const [
+  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, //
+  0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+  0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
+  0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+  0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
+  0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
+  0x42, 0x60, 0x82,
+]);
+
+ThemeData testThemeData(Brightness brightness, {bool withColorEmojis = false}) {
   final theme = themeData(brightness);
   return theme.copyWith(
-    textTheme: theme.textTheme.apply(fontFamilyFallback: const ['NotoEmoji']),
+    textTheme: theme.textTheme.apply(
+      fontFamilyFallback: withColorEmojis
+          ? (Platform.isMacOS ? ['Apple Color Emoji'] : ['NotoColorEmoji'])
+          : ['NotoEmoji'],
+    ),
   );
 }
 
@@ -25,6 +42,9 @@ ThemeData testThemeData(Brightness brightness) {
 /// typescale and the appbar height from the target platform, which a test can
 /// pin after this library is first loaded.
 ThemeData get testLightTheme => testThemeData(.light);
+
+/// See [testLightTheme] for why this is a getter rather than a `final`.
+ThemeData get testDarkTheme => testThemeData(.dark);
 
 /// Maps the host OS to the matching desktop [TargetPlatform] so widget goldens
 /// render the same desktop code path the app ships on that OS, keeping the
@@ -121,17 +141,43 @@ UuidValue _intToUuidValue(int value) {
 }
 
 class LocalFileComparatorWithThreshold extends LocalFileComparator {
-  LocalFileComparatorWithThreshold(super.testFile, this.threshold);
+  LocalFileComparatorWithThreshold(
+    super.testFile,
+    this.threshold, {
+    this.platformSuffix = true,
+  });
 
   final double threshold;
 
+  /// Whether the depicted platform is appended to the golden's name.
+  final bool platformSuffix;
+
   String _platformSuffix() {
-    if (Platform.isMacOS) return '.macos';
-    if (Platform.isWindows) return '.windows';
-    if (Platform.isLinux) return '.linux';
-    if (Platform.isAndroid) return '.android';
-    if (Platform.isIOS) return '.ios';
-    return '';
+    if (!platformSuffix) return '';
+    final os = Platform.operatingSystem.toLowerCase();
+    switch (debugDefaultTargetPlatformOverride) {
+      // when not overridden, the target platform is the current one.
+      case null:
+        return ".$os";
+      // android and iOS have no desktop host of their own, so whatever host
+      // renders them still picks the font, same as the null case above. Fold
+      // that into the name too, or the golden collides across hosts.
+      case TargetPlatform.android:
+        return '.android.$os';
+      case TargetPlatform.iOS:
+        return '.ios.$os';
+      // these are only ever set to match the host running the test (see
+      // `desktopPlatform`), so the target platform alone already identifies
+      // the host that recorded it.
+      case TargetPlatform.linux:
+        return '.linux';
+      case TargetPlatform.macOS:
+        return '.macos';
+      case TargetPlatform.windows:
+        return '.windows';
+      default:
+        return '';
+    }
   }
 
   @override

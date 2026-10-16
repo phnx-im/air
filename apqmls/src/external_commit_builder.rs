@@ -24,8 +24,7 @@ use crate::{
     ApqCiphersuite, ApqMlsGroup,
     authentication::{ApqCredentialWithKey, ApqSigner},
     commit_builder::ApqCommitMessageBundle,
-    extension::{ensure_extension_support, ensure_leaf_node_component_support},
-    key_package::ensure_ciphersuite_support,
+    extension::ensure_leaf_node_parameters,
     messages::{ApqProposalIn, ApqRatchetTreeIn, VerifiableApqGroupInfo},
     psk::{ApqPskError, derive_and_store_psk},
     validation::{
@@ -192,8 +191,9 @@ impl ApqExternalCommitBuilder {
             ApqCiphersuite::new(t_group_info.ciphersuite(), pq_group_info.ciphersuite());
 
         let (t_ln_parameters, pq_ln_parameters) = leaf_node_parameters.unwrap_or_default();
-        let t_ln_parameters = ensure_leaf_node_parameters(&t_ln_parameters, apq_ciphersuite)?;
-        let pq_ln_parameters = ensure_leaf_node_parameters(&pq_ln_parameters, apq_ciphersuite)?;
+        let t_ln_parameters = ensure_leaf_node_parameters(&t_ln_parameters, None, apq_ciphersuite)?;
+        let pq_ln_parameters =
+            ensure_leaf_node_parameters(&pq_ln_parameters, None, apq_ciphersuite)?;
 
         // PQ leg
         let (mut pq_group, pq_bundle) = build_and_finalize_leg(
@@ -342,31 +342,6 @@ fn build_and_finalize_leg<Provider: OpenMlsProvider>(
         .build(provider.rand(), provider.crypto(), signer, |_| true)?
         .finalize(provider)
         .map_err(Into::into)
-}
-
-/// Ensures extensions supports for APQ and ciphersuite in the leaf node parameters.
-fn ensure_leaf_node_parameters(
-    params: &LeafNodeParameters,
-    apq_ciphersuite: ApqCiphersuite,
-) -> Result<LeafNodeParameters, tls_codec::Error> {
-    let t_capabilities = params
-        .capabilities()
-        .cloned()
-        .unwrap_or_default()
-        .pipe(ensure_extension_support)?
-        .pipe(|c| ensure_ciphersuite_support(c, apq_ciphersuite))?;
-    let ln_extensions = params
-        .extensions()
-        .cloned()
-        .unwrap_or_default()
-        .pipe(ensure_leaf_node_component_support)?;
-    let mut builder = LeafNodeParameters::builder()
-        .with_capabilities(t_capabilities)
-        .with_extensions(ln_extensions);
-    if let Some(credential_with_key) = params.credential_with_key() {
-        builder = builder.with_credential_with_key(credential_with_key.clone());
-    };
-    Ok(builder.build())
 }
 
 /// Errors that can occur when creating a new [`ApqMlsGroup`] from an external commit.

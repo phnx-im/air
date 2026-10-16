@@ -6,7 +6,8 @@ import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/patterns/dialog/dialog_tokens.dart';
-import 'package:flutter/widgets.dart';
+import 'package:air/l10n/l10n.dart';
+import 'package:flutter/material.dart';
 
 /// A dialog for confirming a single action.
 class ConfirmDialog extends StatelessWidget {
@@ -84,8 +85,9 @@ class ConfirmDialog extends StatelessWidget {
               Expanded(
                 child: Button(
                   onPressed: () {
-                    onConfirm?.call();
+                    // Pop first, so a dialog shown by onConfirm stays open.
                     Navigator.of(context).pop(true);
+                    onConfirm?.call();
                   },
                   label: confirm,
                   type: .primary,
@@ -98,4 +100,25 @@ class ConfirmDialog extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Show a modal dialog with an error message.
+///
+/// Without a [title], it reads "Something went wrong".
+void showErrorDialog(
+  BuildContext context, {
+  String Function(AppLocalizations)? title,
+  required String Function(AppLocalizations) message,
+}) {
+  showDialog(
+    context: context,
+    builder: (context) {
+      final loc = AppLocalizations.of(context);
+      return ConfirmDialog(
+        title: title != null ? title(loc) : loc.errorDialog_title,
+        message: message(loc),
+        confirm: loc.errorDialog_confirm,
+      );
+    },
+  );
 }

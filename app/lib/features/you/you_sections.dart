@@ -57,7 +57,7 @@ class YouSectionContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) => switch (section) {
     YouSection.profile => const ProfileSection(),
-    YouSection.devices => const LinkedDevicesContent(),
+    YouSection.devices => const LinkedDevicesSection(),
     YouSection.account => const AccountSection(),
     YouSection.preferences => const PreferencesSection(),
     YouSection.help => const HelpSection(),
@@ -364,6 +364,8 @@ class PreferencesSection extends HookWidget {
       spacing: S.s12,
       children: [
         const _LanguageSettings(),
+        FieldLabel(loc.userSettingsScreen_languageSettingsDescription),
+
         SwitchField(
           onSubmit: (value) async {
             try {
@@ -398,8 +400,6 @@ class _LanguageSettings extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-
     return LanguagePickerMenu(
       onLocaleSelected: (locale) async {
         context.read<AppLocaleCubit>().setLocale(locale);
@@ -412,6 +412,7 @@ class _LanguageSettings extends StatelessWidget {
         );
       },
       childBuilder: (context, option, onTap) {
+        final palette = SemanticPalette.of(context);
         return FieldContainer(
           onTap: onTap,
           child: Row(
@@ -464,9 +465,15 @@ class _LimitAnimatedImagesLoopsSetting extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final settingsCubit = context.read<UserSettingsCubit>();
-    final limitAnimatedImagesLoops = useState(
-      useMemoized(() => settingsCubit.state.limitAnimatedImagesLoops),
+    final limitAnimatedImagesLoopsSetting = context.select(
+      (UserSettingsCubit cubit) => cubit.state.limitAnimatedImagesLoops,
     );
+    final limitAnimatedImagesLoops = useState(limitAnimatedImagesLoopsSetting);
+    // Converge onto the cubit state, see `PreferencesSection`.
+    useEffect(() {
+      limitAnimatedImagesLoops.value = limitAnimatedImagesLoopsSetting;
+      return null;
+    }, [limitAnimatedImagesLoopsSetting]);
 
     final loc = AppLocalizations.of(context);
 
@@ -476,8 +483,16 @@ class _LimitAnimatedImagesLoopsSetting extends HookWidget {
         SwitchField(
           label: loc.userSettingsScreen_limitAnimatedImagesLoops,
           value: limitAnimatedImagesLoops,
-          onSubmit: (value) {
-            settingsCubit.setLimitAnimatedImagesLoops(value: value);
+          onSubmit: (value) async {
+            try {
+              await settingsCubit.setLimitAnimatedImagesLoops(value: value);
+            } catch (e) {
+              _log.severe("Failed to set limit animated images loops: $e", e);
+              if (context.mounted) {
+                limitAnimatedImagesLoops.value =
+                    settingsCubit.state.limitAnimatedImagesLoops;
+              }
+            }
           },
         ),
 
@@ -523,8 +538,8 @@ class HelpSection extends HookWidget {
             // what a run of taps is doing.
             if (onVersionTap()) return;
             showSnackBarStandalone(
-              (loc) =>
-                  SnackBar(content: Text(loc.settingsScreen_copiedToClipboard)),
+              (loc) => loc.settingsScreen_copiedToClipboard,
+              tone: .success,
             );
           },
           child: Row(

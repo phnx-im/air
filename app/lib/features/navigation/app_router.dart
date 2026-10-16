@@ -74,9 +74,6 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
   Widget build(BuildContext context) {
     final navigationState = context.watch<NavigationCubit>().state;
 
-    // hide material banners if any
-    ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
-
     final breakpoint = context.breakpoint;
 
     // routing
@@ -202,8 +199,6 @@ extension on IntroScreenType {
 
 /// Convert [HomeNavigation] state into a list of pages.
 extension on HomeNavigationState {
-  ChatId? get openChatId => chatOpen ? chatId : null;
-
   List<Page> pages({
     required Breakpoint breakpoint,
     required bool modalsFullBleed,
@@ -213,7 +208,7 @@ extension on HomeNavigationState {
       canPop: false,
       child: HomeScreen(),
     );
-    final openChatId = this.openChatId;
+    final visibleChatId = this.visibleChatId;
     return [
       homeScreenPage,
       if (createGroupOpen)
@@ -231,10 +226,10 @@ extension on HomeNavigationState {
           key: ValueKey("you-section-screen-$section"),
           child: YouSectionScreen(section: section),
         ),
-      if (openChatId != null && breakpoint.isSmall)
+      if (visibleChatId != null && breakpoint.isSmall)
         const MaterialPage(key: ValueKey("chat-screen"), child: ChatScreen()),
-      if (openChatId != null)
-        ..._chatDetailsPages(openChatId, fullBleed: modalsFullBleed),
+      if (visibleChatId != null)
+        ..._chatDetailsPages(visibleChatId, fullBleed: modalsFullBleed),
       if (shareDestinationOpen)
         const MaterialPage(
           key: ValueKey("share-destination-screen"),

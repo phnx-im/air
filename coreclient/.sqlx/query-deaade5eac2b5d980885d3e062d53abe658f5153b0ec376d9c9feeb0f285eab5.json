@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM privacy_pass_token WHERE id = ?\n             RETURNING operation_type, key_fingerprint, allowance_epoch, token_index",
+  "describe": {
+    "columns": [
+      {
+        "name": "operation_type",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_token",
+            "name": "operation_type"
+          }
+        }
+      },
+      {
+        "name": "key_fingerprint",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_token",
+            "name": "key_fingerprint"
+          }
+        }
+      },
+      {
+        "name": "allowance_epoch",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_token",
+            "name": "allowance_epoch"
+          }
+        }
+      },
+      {
+        "name": "token_index",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_token",
+            "name": "token_index"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "deaade5eac2b5d980885d3e062d53abe658f5153b0ec376d9c9feeb0f285eab5"
+}

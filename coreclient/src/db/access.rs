@@ -285,13 +285,12 @@ impl ReadConnection for ReadDbConnection {}
 impl ReadConnection for ReadDbTransaction<'_> {}
 
 impl ReadTransaction for ReadDbTransaction<'_> {}
-impl ReadTransaction for &mut ReadDbTransaction<'_> {}
 impl ReadTransaction for WriteDbTransaction<'_> {}
-impl ReadTransaction for &mut WriteDbTransaction<'_> {}
 impl WriteTransaction for WriteDbTransaction<'_> {}
 impl WriteTransaction for &mut WriteDbTransaction<'_> {}
 
 impl<C> ReadConnection for &mut C where C: ReadConnection {}
+impl<C> ReadTransaction for &mut C where C: ReadTransaction {}
 
 impl<C> WriteConnection for &mut C
 where

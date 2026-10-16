@@ -5,10 +5,10 @@
 //! Derivation and persistence of the per-epoch self-group message key.
 //!
 //! Self-group commits carry encrypted `SelfGroupMessages` payloads (settings
-//! updates and Privacy Pass token seeds) under a symmetric key that is scoped to
-//! a single self-group epoch. The key is derived from the MLS safe exporter of
-//! the T group for
-//! [`AIR_COMPONENT_ID`] and then run through one further KDF step.
+//! updates, Privacy Pass token seeds, blocked contacts, deleted chats and
+//! connection requests) under a symmetric key that is scoped to a single
+//! self-group epoch. The key is derived from the MLS safe exporter of the T
+//! group for [`AIR_COMPONENT_ID`] and then run through one further KDF step.
 //!
 //! The MLS application export tree is a puncturable PRF: exporting the same
 //! component ID twice within one epoch fails, because the first export
@@ -39,8 +39,8 @@ use airprotos::client::{
     app_data::GroupAppData,
     component::AIR_COMPONENT_ID,
     self_group::{
-        AppEphemeralPayload, BlockedContactEntry, BlockedContactsUpdate, SelfGroupMessage,
-        SelfGroupMessages, SettingsUpdate, TokenSeed,
+        AppEphemeralPayload, BlockedContactEntry, ConnectionRequestEntry, DeletedChat,
+        SelfGroupMessage, SelfGroupMessages, SettingsUpdate, TokenSeed,
     },
 };
 use anyhow::{Result, anyhow, ensure};
@@ -171,35 +171,19 @@ impl Group {
         .await
     }
 
-    /// Stages a self-group commit that carries the given settings update.
-    pub(crate) async fn stage_settings_update(
+    /// Stages a self-group commit carrying the drained outbox.
+    ///
+    /// One commit covers every kind of synchronized state the outbox holds, so
+    /// a settings change and a block parked together reach the siblings in a
+    /// single round trip rather than contending for the self-group's one
+    /// operation slot.
+    pub(crate) async fn stage_self_group_messages(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         signer: &SelfGroupSigningKey,
-        update: &SettingsUpdate,
+        messages: Vec<SelfGroupMessage>,
     ) -> Result<ApqGroupOperationParamsOut> {
-        let proposal = self.self_group_settings_proposal(txn, update).await?;
-        self.stage_self_group_message_commit(txn, signer, proposal)
-            .await
-    }
-
-    /// Stages a self-group commit carrying the given blocked-contact entries.
-    pub(crate) async fn stage_blocked_contacts_update(
-        &mut self,
-        txn: &mut WriteDbTransaction<'_>,
-        signer: &SelfGroupSigningKey,
-        contacts: &[BlockedContactEntry],
-    ) -> Result<ApqGroupOperationParamsOut> {
-        let proposal = self
-            .self_group_messages_proposal(
-                txn,
-                vec![SelfGroupMessage::BlockedContactsUpdate(
-                    BlockedContactsUpdate {
-                        contacts: contacts.to_vec(),
-                    },
-                )],
-            )
-            .await?;
+        let proposal = self.self_group_messages_proposal(txn, messages).await?;
         self.stage_self_group_message_commit(txn, signer, proposal)
             .await
     }
@@ -345,6 +329,10 @@ impl Group {
                     SelfGroupMessage::BlockedContactsUpdate(update) => {
                         extracted.blocked_contacts.extend(update.contacts);
                     }
+                    SelfGroupMessage::DeletedChat(deleted) => extracted.deleted_chats.push(deleted),
+                    SelfGroupMessage::ConnectionRequestsUpdate(update) => {
+                        extracted.connection_requests.extend(update.requests);
+                    }
                     // A message kind added by a newer client.
                     SelfGroupMessage::Unknown => debug!("Skipping unknown self-group message"),
                 }
@@ -364,15 +352,23 @@ pub(crate) struct SelfGroupPayload {
     pub(crate) token_seeds: Vec<TokenSeed>,
     /// Blocked-contact changes.
     pub(crate) blocked_contacts: Vec<BlockedContactEntry>,
+    /// Chats the sender deleted.
+    pub(crate) deleted_chats: Vec<DeletedChat>,
+    /// Connection-request changes.
+    pub(crate) connection_requests: Vec<ConnectionRequestEntry>,
 }
 
 impl SelfGroupPayload {
     pub(crate) fn is_empty(&self) -> bool {
-        self.updates.is_empty() && self.token_seeds.is_empty() && self.blocked_contacts.is_empty()
+        self.updates.is_empty()
+            && self.token_seeds.is_empty()
+            && self.blocked_contacts.is_empty()
+            && self.deleted_chats.is_empty()
+            && self.connection_requests.is_empty()
     }
 }
 
-mod persistence {
+pub(super) mod persistence {
     use aircommon::crypto::aead::keys::SelfGroupMessageKey;
     use openmls::group::GroupId;
     use sqlx::query;
@@ -426,6 +422,20 @@ mod persistence {
             group_id,
             epoch,
             key,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        Ok(())
+    }
+
+    pub(crate) async fn delete(
+        mut connection: impl WriteConnection,
+        group_id: &GroupId,
+    ) -> sqlx::Result<()> {
+        let group_id = GroupIdRefWrapper::from(group_id);
+        query!(
+            "DELETE FROM self_group_message_key WHERE group_id = ?",
+            group_id,
         )
         .execute(connection.as_mut())
         .await?;
@@ -513,6 +523,7 @@ mod derivation_tests {
     use airprotos::client::{
         app_data::GroupAppData,
         component::AIR_COMPONENT_ID,
+        group::GroupData,
         self_group::{
             AppEphemeralPayload, BlockedContactEntry, BlockedContactsUpdate, ContactBlocked,
             SelfGroupMessage, SelfGroupMessages, SettingsUpdate,
@@ -526,7 +537,7 @@ mod derivation_tests {
     use crate::{
         clients::own_client_info::OwnClientInfo,
         db::access::{DbAccess, WriteConnection, WriteDbTransaction},
-        groups::{Group, GroupDataBytes, openmls_provider::AirOpenMlsProvider},
+        groups::{Group, NewGroupContext, openmls_provider::AirOpenMlsProvider},
         utils::persistence::open_db_in_memory,
     };
 
@@ -566,6 +577,11 @@ mod derivation_tests {
         user_id: UserId,
         is_self_group: bool,
     ) -> anyhow::Result<Group> {
+        let context = if is_self_group {
+            NewGroupContext::SelfGroup(GroupData::empty())
+        } else {
+            NewGroupContext::LegacyChat(GroupData::empty())
+        };
         let (group, _params) = Group::create_apq_group(
             &mut *txn,
             signer,
@@ -573,11 +589,7 @@ mod derivation_tests {
             IdentityLinkWrapperKey::random()?,
             random_group_id(),
             random_group_id(),
-            GroupDataBytes::from(b"test-group-data".to_vec()),
-            GroupAppData {
-                is_self_group,
-                safe_aad_components: None,
-            },
+            context,
             None,
         )?;
         Ok(group)
@@ -700,10 +712,14 @@ mod derivation_tests {
 
         let update = SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         };
         group
-            .stage_settings_update(&mut txn, &sg_signer, &update)
+            .stage_self_group_messages(
+                &mut txn,
+                &sg_signer,
+                vec![SelfGroupMessage::SettingsUpdate(update.clone())],
+            )
             .await?;
 
         // Exactly one AppEphemeral proposal with our component id.
@@ -799,8 +815,10 @@ mod derivation_tests {
             GroupAppData {
                 is_self_group: false,
                 safe_aad_components: None,
+                profile: None,
             }
-            .to_extension(),
+            .to_extension()
+            .unwrap(),
         )?;
         assert!(!GroupAppData::is_self_group_context(&flipped));
 
@@ -843,10 +861,14 @@ mod derivation_tests {
 
         let update = SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         };
         group
-            .stage_settings_update(&mut txn, &sg_signer, &update)
+            .stage_self_group_messages(
+                &mut txn,
+                &sg_signer,
+                vec![SelfGroupMessage::SettingsUpdate(update.clone())],
+            )
             .await?;
 
         let mut receiver = Group::load(&mut txn, group.group_id())
@@ -942,7 +964,7 @@ mod derivation_tests {
         let ciphertext =
             SelfGroupMessages(vec![SelfGroupMessage::SettingsUpdate(SettingsUpdate {
                 send_read_receipts: Some(true),
-                linked_devices: None,
+                ..Default::default()
             })])
             .encrypt_padded(&foreign_key)?;
         let undecryptable_bytes =

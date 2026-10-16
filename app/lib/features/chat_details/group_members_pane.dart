@@ -43,6 +43,9 @@ class GroupMembersPane extends HookWidget {
       (MemberDetailsCubit cubit) => cubit.state.roomState,
     );
     final ownUserId = context.select((UserCubit cubit) => cubit.state.userId);
+    final isInactive = context.select(
+      (ChatDetailsCubit cubit) => cubit.state.chat?.isInactive ?? false,
+    );
 
     final controller = useTextEditingController();
     final query = useState("");
@@ -64,7 +67,7 @@ class GroupMembersPane extends HookWidget {
 
     return ModalPane(
       title: loc.groupMembersScreen_title,
-      trailing: const _AddMembersAction(),
+      trailing: isInactive ? null : const _AddMembersAction(),
       // The list below the search field scrolls on its own.
       scrollable: false,
       child: Column(

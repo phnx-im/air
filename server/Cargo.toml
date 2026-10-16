@@ -4,7 +4,7 @@
 
 [package]
 name = "airserver"
-version = "0.22.0"
+version = "0.24.0"
 edition = "2024"
 publish = false
 description = "Server that makes the logic implemented in the backend available to clients via a REST API"
@@ -36,6 +36,7 @@ chrono.workspace = true
 clap = { workspace = true, features = ["derive"] }
 config.workspace = true
 futures-core.workspace = true
+http-body.workspace = true
 indexmap.workspace = true
 jsonwebtoken.workspace = true
 metrics.workspace = true
@@ -74,6 +75,7 @@ chrono.workspace = true
 criterion.workspace = true
 hex.workspace = true
 image.workspace = true
+metrics-util.workspace = true
 mimi_content.workspace = true
 mockito.workspace = true
 png.workspace = true

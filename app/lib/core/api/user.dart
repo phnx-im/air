@@ -24,6 +24,9 @@ abstract class User implements RustOpaqueInterface {
   /// Random UUID naming this client's DB file and identifying its client record.
   UuidValue get clientRecordId;
 
+  /// Erase the self group and its chat from the local database.
+  Future<void> dangerResetSelfGroup();
+
   /// Total number of unread messages across all chats
   Future<int> get globalUnreadMessagesCount;
 
@@ -75,6 +78,9 @@ abstract class User implements RustOpaqueInterface {
 
   /// Stop background work gracefully and wait for completion.
   Future<void> prepareForBackground();
+
+  /// Re-fetch the profiles of all groups and contacts in the background.
+  Future<void> refreshAllProfiles();
 
   /// Signals the foreground drainer that background push handlers have
   /// persisted new store notifications.
@@ -131,12 +137,14 @@ class UserDebugInfo {
   final List<TimedTaskDebugInfo> timedTasks;
   final int addUsernameTokenCount;
   final int invitationCodeTokenCount;
+  final int connectUsernameTokenCount;
 
   const UserDebugInfo({
     required this.userId,
     required this.timedTasks,
     required this.addUsernameTokenCount,
     required this.invitationCodeTokenCount,
+    required this.connectUsernameTokenCount,
   });
 
   @override
@@ -144,7 +152,8 @@ class UserDebugInfo {
       userId.hashCode ^
       timedTasks.hashCode ^
       addUsernameTokenCount.hashCode ^
-      invitationCodeTokenCount.hashCode;
+      invitationCodeTokenCount.hashCode ^
+      connectUsernameTokenCount.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -154,5 +163,6 @@ class UserDebugInfo {
           userId == other.userId &&
           timedTasks == other.timedTasks &&
           addUsernameTokenCount == other.addUsernameTokenCount &&
-          invitationCodeTokenCount == other.invitationCodeTokenCount;
+          invitationCodeTokenCount == other.invitationCodeTokenCount &&
+          connectUsernameTokenCount == other.connectUsernameTokenCount;
 }

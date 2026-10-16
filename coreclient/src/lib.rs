@@ -22,6 +22,7 @@ mod utils;
 pub use crate::{
     chats::{
         Chat, ChatAttributes, ChatId, ChatMuted, ChatStatus, ChatType, InactiveChat, MessageDraft,
+        connection_requests::StoredRequest,
         messages::{
             ChatMessage, ContentMessage, ErrorMessage, EventMessage, InReplyToMessage, Message,
             MessageId, SystemMessage,
@@ -46,7 +47,8 @@ pub use crate::{
         linked_devices::{LinkedDevicesSetting, current_platform},
         safety_code::SafetyCode,
         user_settings::{
-            DeveloperModeSetting, ExperimentalFeaturesSetting, ReadReceiptsSetting, UserSetting,
+            DefaultEmojiSkinToneSetting, DeveloperModeSetting, ExperimentalFeaturesSetting,
+            LimitAnimatedImagesLoopsSetting, ReadReceiptsSetting, UserSetting,
         },
     },
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},

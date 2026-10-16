@@ -1,0 +1,18 @@
+---
+source: protos/src/client/self_group.rs
+expression: diag
+---
+a4                                     # map(4)
+   01                                  #   unsigned(1)
+   01                                  #   unsigned(1)
+   02                                  #   unsigned(2)
+   58 20                               #   bytes(32)
+      abababababababababababababababab #     "\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab"
+      abababababababababababababababab #     "\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab\xab"
+   03                                  #   unsigned(3)
+   19 02a7                             #   unsigned(679)
+   04                                  #   unsigned(4)
+   83                                  #   array(3)
+      00                               #     unsigned(0)
+      03                               #     unsigned(3)
+      07                               #     unsigned(7)

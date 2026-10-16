@@ -9,12 +9,15 @@ import 'package:air/ds/patterns/nux/nux_scaffold_tokens.dart';
 import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat/share_target_publisher.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/features/onboarding/update_required_screen.dart';
+import 'package:air/features/onboarding/update_required_view.dart';
 import 'package:air/features/user/unlinked_device_listener.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/features/you/linked_devices_cubit.dart';
+import 'package:air/l10n/app_localizations.dart';
 import 'package:air/platform/method_channel.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -30,6 +33,7 @@ class UserSessionScope extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return BlocBuilder<UserSessionCubit, UserSessionState>(
       builder: (context, session) {
         Widget resolved(Widget child) {
@@ -57,6 +61,11 @@ class UserSessionScope extends StatelessWidget {
                     create: (context) =>
                         UsersCubit(userCubit: context.read<UserCubit>()),
                   ),
+                  BlocProvider<LinkedDevicesCubit>(
+                    create: (context) => LinkedDevicesCubit(
+                      userCubit: context.read<UserCubit>(),
+                    ),
+                  ),
                 ],
                 child: MultiRepositoryProvider(
                   providers: [
@@ -78,6 +87,7 @@ class UserSessionScope extends StatelessWidget {
                     RepositoryProvider<ShareTargetPublisher>(
                       create: (context) => ShareTargetPublisher(
                         chatsRepository: context.read<ChatsRepository>(),
+                        loc: loc,
                       ),
                       dispose: (publisher) => unawaited(publisher.dispose()),
                       // reconciles leftover OS shortcuts right away
@@ -85,7 +95,13 @@ class UserSessionScope extends StatelessWidget {
                     ),
                   ],
                   child: UnlinkedDeviceHandler(
-                    child: UpdateRequiredScreen(child: child),
+                    child: BlocSelector<UserCubit, UiUser, bool>(
+                      selector: (user) =>
+                          user.versionStatus is VersionStatus_Unsupported,
+                      builder: (context, unsupported) => unsupported
+                          ? UpdateRequiredView(platform: defaultTargetPlatform)
+                          : child,
+                    ),
                   ),
                 ),
               ),

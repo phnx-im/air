@@ -11,7 +11,9 @@ import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
+import 'package:air/ds/patterns/switch_field/switch_field.dart';
 import 'package:flutter/material.dart';
 import 'package:air/util/username_input_formatter.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -29,12 +31,17 @@ class AddContactDialog extends HookWidget {
     final isSubmitting = useState(false);
     final isInputValid = useState(false);
     final errorMessage = useState<String?>(null);
+    final preferApq = useState(false);
 
     final controller = useTextEditingController();
 
     final focusNode = useFocusNode();
 
     final loc = AppLocalizations.of(context);
+
+    final experimentalFeatures = context.select(
+      (UserSettingsCubit cubit) => cubit.state.experimentalFeaturesActive,
+    );
 
     return AppDialog(
       child: Column(
@@ -75,6 +82,7 @@ class AddContactDialog extends HookWidget {
                 errorMessage: errorMessage,
                 usernameHash: usernameHash,
                 value: value,
+                preferApq: preferApq.value,
               )._submit(context);
             },
           ),
@@ -90,6 +98,15 @@ class AddContactDialog extends HookWidget {
               username: controller.text,
             ),
           ),
+
+          if (experimentalFeatures) ...[
+            const SizedBox(height: S.s12),
+            SwitchField(
+              onChanged: (value) => preferApq.value = value,
+              value: preferApq.value,
+              label: "Post-Quantum Encryption",
+            ),
+          ],
 
           const SizedBox(height: S.s24),
 
@@ -112,6 +129,7 @@ class AddContactDialog extends HookWidget {
                     errorMessage: errorMessage,
                     usernameHash: usernameHash,
                     value: controller.text,
+                    preferApq: preferApq.value,
                   )._submit(context),
                   state: isSubmitting.value
                       ? .pending
@@ -159,7 +177,9 @@ class _Description extends StatelessWidget {
     final (text, color) = switch ((errorMessage, hasUsernameHash)) {
       (final errorMessage?, _) => (errorMessage, palette.function.danger),
       (null, true) => (
-        loc.newConnectionDialog_handleExists(username),
+        DeviceType.isDesktop
+            ? loc.newConnectionDialog_handleExists_desktop(username)
+            : loc.newConnectionDialog_handleExists(username),
         palette.function.success.primary,
       ),
       (null, false) => (
@@ -178,12 +198,14 @@ class _SubmitHandler {
     required this.errorMessage,
     required this.usernameHash,
     required this.value,
+    required this.preferApq,
   });
 
   final ValueNotifier<bool> isSubmitting;
   final ValueNotifier<String?> errorMessage;
   final ValueNotifier<UsernameHash?> usernameHash;
   final String value;
+  final bool preferApq;
 
   void _submit(BuildContext context) {
     isSubmitting.value = true;
@@ -208,21 +230,27 @@ class _SubmitHandler {
   void _checkUsername(BuildContext context, UiUsername username) async {
     isSubmitting.value = true;
     final userCubit = context.read<UserCubit>();
-    final hash = await userCubit.checkUsernameExists(username: username);
+    try {
+      final hash = await userCubit.checkUsernameExists(username: username);
+      if (!context.mounted) return;
+      if (hash == null) {
+        final loc = AppLocalizations.of(context);
+        errorMessage.value = loc.newConnectionDialog_error_usernameNotFound(
+          username.plaintext,
+        );
+        return;
+      }
 
-    if (!context.mounted) return;
-    final loc = AppLocalizations.of(context);
-
-    if (hash == null) {
-      errorMessage.value = loc.newConnectionDialog_error_usernameNotFound(
-        username.plaintext,
+      usernameHash.value = hash;
+    } catch (e) {
+      _log.severe("Failed to check username: $e", e);
+      showSnackBarStandalone(
+        (loc) => loc.newConnectionDialog_error(username.plaintext),
+        tone: .danger,
       );
+    } finally {
       isSubmitting.value = false;
-      return;
     }
-
-    usernameHash.value = hash;
-    isSubmitting.value = false;
   }
 
   void _connectUsername(
@@ -238,6 +266,7 @@ class _SubmitHandler {
       final error = await chatsRepository.createContactChat(
         username: username,
         hash: hash,
+        preferApq: preferApq,
       );
       final errorMessage = switch (error) {
         AddUsernameContactError.usernameNotFound =>
@@ -246,6 +275,8 @@ class _SubmitHandler {
           loc.newConnectionDialog_error_duplicateRequest,
         AddUsernameContactError.ownUsername =>
           loc.newConnectionDialog_error_ownUsername,
+        AddUsernameContactError.rateLimited =>
+          loc.newConnectionDialog_error_rateLimited,
         null => null,
       };
       if (errorMessage != null) {
@@ -254,13 +285,13 @@ class _SubmitHandler {
         Navigator.of(context).pop();
       }
     } catch (e) {
-      // fatal error
       _log.severe("Failed to create connection: $e", e);
-      showErrorBannerStandalone(
+      showSnackBarStandalone(
         (loc) => loc.newConnectionDialog_error(username.plaintext),
+        tone: .danger,
       );
     } finally {
-      isSubmitting.value = false;
+      if (context.mounted) isSubmitting.value = false;
     }
   }
 }

@@ -315,6 +315,9 @@ private let kProtectedBlockedCategory = "protected-blocked"
             result(nil)
         } else if call.method == "requestNotificationPermission" {
             requestNotificationPermission(result: result)
+        } else if call.method == "openNotificationSettings" {
+            openNotificationSettings()
+            result(nil)
         } else if call.method == "donateShareTarget" {
             donateShareTarget(call: call, result: result)
         } else if call.method == "clearShareTargets" {
@@ -436,6 +439,18 @@ private let kProtectedBlockedCategory = "protected-blocked"
         }
         if taskId == backgroundTaskId {
             backgroundTaskId = .invalid
+        }
+    }
+
+    private func openNotificationSettings() {
+        let urlString: String
+        if #available(iOS 16.0, *) {
+            urlString = UIApplication.openNotificationSettingsURLString
+        } else {
+            urlString = UIApplication.openSettingsURLString
+        }
+        if let url = URL(string: urlString) {
+            UIApplication.shared.open(url)
         }
     }
 

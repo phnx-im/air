@@ -4,7 +4,7 @@
 
 [package]
 name = "aircoreclient"
-version = "0.22.0"
+version = "0.24.0"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
 edition = "2024"
 publish = false
@@ -57,6 +57,7 @@ tracing.workspace = true
 url.workspace = true
 uuid = { workspace = true, features = ["v4", "serde"] }
 webpx.workspace = true
+zeroize.workspace = true
 
 [dev-dependencies]
 airbackend.workspace = true

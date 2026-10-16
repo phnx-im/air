@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM privacy_pass_token\n         WHERE operation_type = ? AND key_fingerprint = ?\n            AND allowance_epoch = ? AND token_index = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "1df2540aaafc718cddaf0bd8a6be386245fb484abf2d12769a1a9384102db1ab"
+}

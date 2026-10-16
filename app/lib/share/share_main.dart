@@ -85,6 +85,7 @@ class _ShareAppState extends State<ShareApp> {
         AppLocalizations.supportedLocales,
         const Locale('en', 'US'),
       ),
+      localeListResolutionCallback: resolveLocaleList,
       theme: lightTheme,
       darkTheme: darkTheme,
       debugShowCheckedModeBanner: false,
@@ -142,7 +143,7 @@ class _BootstrapErrorView extends StatelessWidget {
                 const SizedBox(height: S.s16),
                 OutlinedButton(
                   onPressed: () => closeShareHost(success: false),
-                  child: Text(loc.errorBanner_ok),
+                  child: Text(loc.errorDialog_confirm),
                 ),
               ],
             ),

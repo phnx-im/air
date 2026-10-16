@@ -28,6 +28,11 @@ void main() {
     timePattern: 'HH:mm',
     datePattern: 'dd.MM.yyyy',
   );
+  const formatsZh = TimeFormats(
+    locale: 'zh_TW',
+    timePattern: 'ah:mm',
+    datePattern: 'y年M月d日',
+  );
 
   setUpAll(initializeDateFormatting);
 
@@ -58,6 +63,22 @@ void main() {
       final at = DateTime(2023, 12, 15, 9, 5);
       expect(messageStamp(at), '09:05');
       expect(messageStamp(at, formats: formats12), '9:05 AM');
+    });
+
+    test('names the day period in the locale', () {
+      final at = DateTime(2023, 12, 14, 13, 32);
+      expect(messageStamp(at, formats: formatsZh), '下午1:32');
+    });
+
+    test('keeps one clock pattern apart per locale', () {
+      final at = DateTime(2023, 12, 14, 13, 32);
+      const formatsZh12 = TimeFormats(
+        locale: 'zh_TW',
+        timePattern: 'h:mm a',
+        datePattern: 'y/M/d',
+      );
+      expect(messageStamp(at, formats: formats12), '1:32 PM');
+      expect(messageStamp(at, formats: formatsZh12), '1:32 下午');
     });
 
     test('carries no day, however old the message is', () {
@@ -107,6 +128,23 @@ void main() {
       expect(
         chatListStamp(DateTime(2022, 5, 20), formats: formatsDe),
         '20.05.2022',
+      );
+    });
+
+    test('drops the year unit along with the year', () {
+      expect(chatListStamp(DateTime(2023, 5, 20), formats: formatsZh), '5月20日');
+      expect(
+        chatListStamp(DateTime(2022, 5, 20), formats: formatsZh),
+        '2022年5月20日',
+      );
+      const formatsKo = TimeFormats(
+        locale: 'en_US',
+        timePattern: 'HH:mm',
+        datePattern: 'y년 M월 d일',
+      );
+      expect(
+        chatListStamp(DateTime(2023, 5, 20), formats: formatsKo),
+        '5월 20일',
       );
     });
   });

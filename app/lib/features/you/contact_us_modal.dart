@@ -4,6 +4,7 @@
 
 import 'dart:async';
 
+import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/checkbox/checkbox.dart';
@@ -93,8 +94,9 @@ class _EmailForm extends HookWidget {
         debugLogsUrl.value = await context.read<UserCubit>().uploadLogs();
       } catch (e) {
         _log.severe("Failed to upload logs: $e", e);
-        showErrorBannerStandalone(
+        showSnackBarStandalone(
           (loc) => loc.contactUsScreen_errorUploadingLogs,
+          tone: .danger,
         );
         debugLogsUrl.value = null;
       } finally {
@@ -216,19 +218,25 @@ class _EmailForm extends HookWidget {
     if (debugLogsUrl != null) {
       final loc = AppLocalizations.of(context);
       body += "\n\n";
-      body += loc.contactUsScreen_body_logsUrl(
-        Uri.encodeComponent(debugLogsUrl),
-      );
+      body += loc.contactUsScreen_body_logsUrl(debugLogsUrl);
     }
-    final Uri emailUri = Uri.parse(
-      'mailto:help@air.ms?subject=$subject&body=$body',
+    // Not `queryParameters`: it encodes spaces as `+`, which some mail apps
+    // show literally.
+    final emailUri = Uri(
+      scheme: 'mailto',
+      path: 'help@air.ms',
+      query:
+          'subject=${Uri.encodeComponent(subject ?? '')}'
+          '&body=${Uri.encodeComponent(body)}',
     );
     try {
       await launcher.launchUrl(emailUri);
     } catch (e) {
       _log.severe("Failed to launch email: $e", e);
-      showErrorBannerStandalone(
-        (loc) => loc.contactUsScreen_errorLaunchingEmail,
+      if (!context.mounted) return;
+      showErrorDialog(
+        context,
+        message: (loc) => loc.contactUsScreen_errorLaunchingEmail,
       );
     }
   }

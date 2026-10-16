@@ -91,6 +91,8 @@ message StatusDetails {
     WrongEpochDetail wrong_epoch = 4;
     TokenQuotaExceededDetail token_quota_exceeded = 5;
     GenerationCollisionDetail generation_collision = 6;
+    DeviceLimitReachedDetail device_limit_reached = 7;
+    UncommittedSelfRemoveDetail uncommitted_self_remove = 8;
   }
 }
 
@@ -106,6 +108,10 @@ enum StatusDetailsCode {
   STATUS_DETAILS_CODE_TOKEN_QUOTA_EXCEEDED = 5;
   // Another previous message was already sent in this generation
   STATUS_DETAILS_CODE_GENERATION_COLLISION = 6;
+  // The device limit for this user has been reached
+  STATUS_DETAILS_CODE_DEVICE_LIMIT_REACHED = 7;
+  // The commit left a self-remove proposal pending on the DS uncommitted
+  STATUS_DETAILS_CODE_UNCOMMITTED_SELF_REMOVE = 8;
 }
 
 message VersionUnsupportedDetail {
@@ -125,12 +131,20 @@ message TokenQuotaExceededDetail {
 
 message WrongEpochDetail {}
 
+message UncommittedSelfRemoveDetail {}
+
 message GenerationCollisionDetail {
   repeated sfixed64 tags = 1;
+}
+
+message DeviceLimitReachedDetail {
+  uint32 max_devices = 1;
 }
 
 message AirFeatures {
   bool encrypted_group_profiles = 1;
   bool empty_connection_group_attributes = 2;
   bool pq_groups = 3;
+  // The client can establish connection group as an APQ group
+  bool apq_connection_groups = 4;
 }

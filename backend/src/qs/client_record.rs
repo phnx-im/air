@@ -26,6 +26,7 @@ use tracing::{error, info, trace, warn};
 use crate::{
     errors::StorageError,
     messages::intra_backend::DsFanOutPayload,
+    pseudonym::Pseudonymizer,
     qs::{PushNotificationError, queue::Queues},
 };
 
@@ -205,14 +206,15 @@ pub(crate) mod persistence {
             .await
         }
 
-        pub(in crate::qs) async fn load_verifying_key(
+        pub(in crate::qs) async fn load_verifying_key_and_user_id(
             connection: impl PgExecutor<'_>,
             client_id: &QsClientId,
-        ) -> Result<Option<QsClientVerifyingKey>, StorageError> {
+        ) -> Result<Option<(QsClientVerifyingKey, QsUserId)>, StorageError> {
             let client_id = client_id.as_uuid();
-            sqlx::query_scalar!(
+            sqlx::query!(
                 r#"SELECT
-                    owner_signature_key as "verifying_key: BlobDecoded<QsClientVerifyingKey>"
+                    owner_signature_key as "verifying_key: BlobDecoded<QsClientVerifyingKey>",
+                    user_id as "user_id: QsUserId"
                 FROM
                     qs_client_record
                 WHERE
@@ -222,7 +224,7 @@ pub(crate) mod persistence {
             )
             .fetch_optional(connection)
             .await
-            .map(|key| key.map(|BlobDecoded(verifying_key)| verifying_key))
+            .map(|record| record.map(|record| (record.verifying_key.into_inner(), record.user_id)))
             .map_err(From::from)
         }
 
@@ -291,7 +293,7 @@ pub(crate) mod persistence {
         ///
         /// The client ids are ordered ascending. Callers lock the client records in that order
         /// (see `load_for_update`), which keeps the lock order consistent and avoids deadlocks.
-        pub(in crate::qs) async fn load_client_ids(
+        pub(in crate::qs) async fn load_user_client_ids(
             connection: impl PgExecutor<'_>,
             client_id: &QsClientId,
         ) -> Result<Option<Vec<QsClientId>>, StorageError> {
@@ -432,10 +434,12 @@ pub(crate) mod persistence {
                 .expect("missing client record");
             assert_eq!(loaded, client_record);
 
-            let verifying_key = QsClientRecord::load_verifying_key(&pool, &client_record.client_id)
-                .await?
-                .expect("missing client verifying key");
+            let (verifying_key, user_id) =
+                QsClientRecord::load_verifying_key_and_user_id(&pool, &client_record.client_id)
+                    .await?
+                    .expect("missing client verifying key");
             assert_eq!(verifying_key, client_record.auth_key);
+            assert_eq!(user_id, client_record.user_id);
 
             Ok(())
         }
@@ -484,10 +488,12 @@ pub(crate) mod persistence {
             assert_eq!(loaded, None);
 
             let loaded =
-                QsClientRecord::load_verifying_key(&pool, &client_record.client_id).await?;
-            assert_eq!(loaded, None);
+                QsClientRecord::load_verifying_key_and_user_id(&pool, &client_record.client_id)
+                    .await?;
+            assert!(loaded.is_none());
 
-            let loaded = QsClientRecord::load_client_ids(&pool, &client_record.client_id).await?;
+            let loaded =
+                QsClientRecord::load_user_client_ids(&pool, &client_record.client_id).await?;
             assert_eq!(loaded, Some(vec![]));
 
             let tombstone_user_id: QsUserId = sqlx::query_scalar(
@@ -554,10 +560,16 @@ impl QsClientRecord {
     ///
     /// Returns a QS client record if a push notification should be sent to the client, otherwise
     /// `None`.
+    #[tracing::instrument(
+        level = "info",
+        skip_all,
+        fields(qs_client = %pseudonymizer.client(&client_id))
+    )]
     pub(crate) async fn enqueue(
         txn: &mut PgTransaction<'_>,
         client_id: QsClientId,
         queues: &Queues,
+        pseudonymizer: &Pseudonymizer,
         msg: &DsFanOutPayload,
     ) -> Result<Option<QsClientRecord>, EnqueueError> {
         match msg {
@@ -595,9 +607,15 @@ impl QsClientRecord {
     /// If the token is invalid, the push notification token stored for the client is deleted.
     ///
     /// The operation is infallible, all errors are handled inside and logged.
+    #[tracing::instrument(
+        level = "info",
+        skip_all,
+        fields(qs_client = %pseudonymizer.client(&self.client_id))
+    )]
     pub(crate) async fn send_push_notification(
         &self,
         pool: &PgPool,
+        pseudonymizer: &Pseudonymizer,
         push_notification_provider: &impl PushNotificationProvider,
         push_token_key: Option<&PushTokenEarKey>,
     ) {
@@ -766,7 +784,7 @@ mod tests {
         // Case 1: unknown anchor => Ok(None)
         let unknown = QsClientId::random(&mut rand::rng());
         assert_eq!(
-            QsClientRecord::load_client_ids(&pool, &unknown).await?,
+            QsClientRecord::load_user_client_ids(&pool, &unknown).await?,
             None
         );
 
@@ -776,7 +794,7 @@ mod tests {
         let _other = store_random_client_record(&pool, other_user.user_id).await?;
 
         // Case 3a: active anchor => all active client ids of the same user, including itself
-        let result = QsClientRecord::load_client_ids(&pool, &a.client_id).await?;
+        let result = QsClientRecord::load_user_client_ids(&pool, &a.client_id).await?;
         let got: HashSet<_> = result.expect("anchor missing").into_iter().collect();
         let want: HashSet<_> = [a.client_id, b.client_id].into_iter().collect();
         assert_eq!(got, want);
@@ -784,14 +802,14 @@ mod tests {
         // Case 3b: tombstone the queried client; anchor still resolves, returns only the live sibling
         QsClientRecord::soft_delete(&pool, &a.client_id).await?;
         assert_eq!(
-            QsClientRecord::load_client_ids(&pool, &a.client_id).await?,
+            QsClientRecord::load_user_client_ids(&pool, &a.client_id).await?,
             Some(vec![b.client_id]),
         );
 
         // Case 2: tombstone the remaining sibling → anchor present, zero actives
         QsClientRecord::soft_delete(&pool, &b.client_id).await?;
         assert_eq!(
-            QsClientRecord::load_client_ids(&pool, &a.client_id).await?,
+            QsClientRecord::load_user_client_ids(&pool, &a.client_id).await?,
             Some(vec![]),
         );
 

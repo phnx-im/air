@@ -16,7 +16,7 @@ use aircommon::{
     },
     identifiers::{QsReference, SealedClientReference},
     time::TimeStamp,
-    utils::removed_client,
+    utils::{removed_client, removed_clients},
 };
 use airprotos::client::app_data::{ClientAppData, GroupAppData};
 use apqmls::extension::ApqInfo;
@@ -26,7 +26,7 @@ use mls_assist::{
     group::{Group, RetainedWelcomeInfo},
     openmls::{
         group::GroupId,
-        prelude::{GroupEpoch, LeafNodeIndex, StagedCommit},
+        prelude::{GroupEpoch, LeafNodeIndex, Proposal, StagedCommit},
     },
     provider_traits::MlsAssistProvider,
 };
@@ -80,6 +80,10 @@ pub(crate) struct DsGroupState {
     /// Transient container for the epoch snapshot a virtual client's external
     /// join produced, for its sibling emulator clients to fetch.
     epoch_snapshot_outbox: EpochSnapshotOutbox,
+
+    /// Transient marker that the group's only member deleted it, so the state
+    /// is removed instead of persisted.
+    pub(super) marked_for_deletion: bool,
 }
 
 /// What a joiner needs about one epoch, as V3 stored it.
@@ -117,6 +121,7 @@ impl DsGroupState {
             proposals: Vec::new(),
             welcome_info_outbox: WelcomeInfoOutbox::default(),
             epoch_snapshot_outbox: EpochSnapshotOutbox::default(),
+            marked_for_deletion: false,
         }
     }
 
@@ -259,6 +264,12 @@ impl DsGroupState {
         self.welcome_info_outbox.take(epoch)
     }
 
+    /// When a delete commit of the group's only member was processed, this
+    /// returns true.
+    pub(crate) fn is_marked_for_deletion(&self) -> bool {
+        self.marked_for_deletion
+    }
+
     pub(super) fn external_commit_info(&self) -> ExternalCommitInfo {
         let group_info = self.group().group_info().clone();
         let ratchet_tree = self.group().export_ratchet_tree();
@@ -340,6 +351,46 @@ impl DsGroupState {
         !self.is_self_group()
     }
 
+    /// The leaves that sent a self-remove proposal the DS has accepted but not
+    /// seen committed yet.
+    fn pending_self_remove_leaves(&self) -> Result<Vec<LeafNodeIndex>, SelfRemoveCheckError> {
+        let proposals = self
+            .group()
+            .queued_proposals(self.provider.storage())
+            .map_err(|error| {
+                error!(%error, "Failed to read the proposal store");
+                SelfRemoveCheckError::ProposalStore
+            })?;
+        Ok(proposals
+            .iter()
+            .filter(|proposal| matches!(proposal.proposal(), Proposal::SelfRemove))
+            .filter_map(removed_client)
+            .collect())
+    }
+
+    /// The next commit after a self-remove proposal has to remove the proposing
+    /// leaf, otherwise a group could keep a leaving member in indefinitely by
+    /// committing around its proposal.
+    pub(super) fn ensure_self_removes_committed(
+        &self,
+        staged_commit: &StagedCommit,
+    ) -> Result<(), SelfRemoveCheckError> {
+        let pending = self.pending_self_remove_leaves()?;
+        if pending.is_empty() {
+            return Ok(());
+        }
+        let removed = removed_clients(staged_commit);
+        let uncommitted: Vec<_> = pending
+            .into_iter()
+            .filter(|leaf_index| !removed.contains(leaf_index))
+            .collect();
+        if !uncommitted.is_empty() {
+            warn!(?uncommitted, "Commit leaves pending self-removes behind");
+            return Err(SelfRemoveCheckError::Uncommitted);
+        }
+        Ok(())
+    }
+
     /// The self-group flag in the group context's [`GroupAppData`] is fixed at
     /// group creation. Returns `true` if merging `staged_commit` keeps it
     /// unchanged.
@@ -379,6 +430,18 @@ impl DsGroupState {
             .iter()
             .map(|(index, profile)| (*index, profile.encrypted_user_profile_key.clone()))
     }
+}
+
+/// Why the DS could not accept a commit's handling of pending self-removes.
+#[derive(Debug, Error)]
+pub(crate) enum SelfRemoveCheckError {
+    /// The proposal store could not be read, so the DS cannot tell whether a
+    /// commit leaves a self-remove behind.
+    #[error("Failed to read the proposal store")]
+    ProposalStore,
+    /// The commit does not remove every leaf with a pending self-remove.
+    #[error("Commit leaves a pending self-remove proposal uncommitted")]
+    Uncommitted,
 }
 
 #[derive(Debug, Error)]
@@ -631,6 +694,7 @@ impl DecodedDsGroupState {
             proposals: state.proposals,
             welcome_info_outbox: staged_welcome_info,
             epoch_snapshot_outbox: EpochSnapshotOutbox::default(),
+            marked_for_deletion: false,
         })
     }
 }

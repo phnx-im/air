@@ -9,6 +9,7 @@ use airapiclient::{
     ds_api::{DsAttachmentTarget, DsRequestError},
 };
 use aircommon::{
+    DEFAULT_MAX_ATTACHMENT_SIZE,
     crypto::{
         aead::{AeadCiphertext, AeadDecryptable, keys::AttachmentEarKey},
         errors::DecryptionError,
@@ -36,6 +37,7 @@ use crate::{
         },
     },
     groups::Group,
+    groups::persistence::GroupRef,
     image_is_animated,
 };
 
@@ -45,6 +47,8 @@ enum AttachmentDownloadError {
     ApiClientInit(#[from] ApiClientInitError),
     #[error("failed to get attachment download URL: {0}")]
     DsRequest(#[from] DsRequestError),
+    #[error("failed to load attachment signing key: {0}")]
+    Signer(#[source] anyhow::Error),
     #[error("failed to download attachment: {0}")]
     Http(#[from] reqwest::Error),
     #[error("attachment size overflow: {0}")]
@@ -111,7 +115,7 @@ impl CoreUser {
                 progress_tx.report(bytes_total, 0);
 
                 let chat_id = record.chat_id;
-                let Some(group) = Group::load_with_chat_id(&mut *txn, chat_id).await? else {
+                let Some(group) = Group::load_ref_with_chat_id(&mut *txn, chat_id).await? else {
                     error!(?chat_id, "Group not found");
                     return Ok(None);
                 };
@@ -203,13 +207,9 @@ impl CoreUser {
         remote_attachment_id: RemoteAttachmentId,
     ) -> anyhow::Result<Url> {
         let api_client = self.api_clients().default_client()?;
+        let signer = self.attachment_signer(&target).await?;
         let download_url = api_client
-            .ds_get_attachment_url(
-                object_type,
-                self.signing_key(),
-                target,
-                remote_attachment_id,
-            )
+            .ds_get_attachment_url(object_type, &signer, target, remote_attachment_id)
             .await?
             .parse()?;
         Ok(download_url)
@@ -227,7 +227,7 @@ impl CoreUser {
             nonce,
             size,
         }: PendingAttachmentRecord,
-        group: &Group,
+        group: &GroupRef,
         progress_tx: &AttachmentProgressSender,
     ) -> Result<AttachmentBytes, AttachmentDownloadError> {
         // Check encryption parameters
@@ -258,15 +258,16 @@ impl CoreUser {
 
         // Get the download URL from DS
         let api_client = self.api_clients().default_client()?;
+        let target = group.attachment_target();
+        let signer = self
+            .attachment_signer(&target)
+            .await
+            .map_err(AttachmentDownloadError::Signer)?;
         let download_url = api_client
             .ds_get_attachment_url(
                 StorageObjectType::Attachment,
-                self.signing_key(),
-                DsAttachmentTarget::Group {
-                    group_state_ear_key: group.group_state_ear_key(),
-                    group_id: group.group_id(),
-                    sender_index: group.own_index(),
-                },
+                &signer,
+                target,
                 remote_attachment_id,
             )
             .await?;
@@ -292,7 +293,9 @@ impl CoreUser {
         };
 
         let bytes_total = size.try_into()?;
-        let mut bytes = Vec::with_capacity(bytes_total);
+        // `size` is declared by the sender, so don't trust it for preallocation.
+        let capacity = size.min(DEFAULT_MAX_ATTACHMENT_SIZE).try_into()?;
+        let mut bytes = Vec::with_capacity(capacity);
         while let Some(chunk) = bytes_stream.next().await.transpose()? {
             bytes.extend_from_slice(&chunk);
             progress_tx.report(bytes_total, bytes.len());

@@ -13,6 +13,7 @@ import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/features/you/linking_device_dialog.dart';
 import 'package:air/features/you/you_fields.dart';
+import 'package:air/l10n/intl_locale.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -27,21 +28,8 @@ AppIconType _iconFor(LinkedDevicePlatform platform) => switch (platform) {
 
 /// The devices section: this device, the ones linked to it, and the way to add
 /// another. Sized and scrolled by its host.
-class LinkedDevicesContent extends StatelessWidget {
-  const LinkedDevicesContent({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) =>
-          LinkedDevicesCubit(userCubit: context.read<UserCubit>()),
-      child: const LinkedDevicesView(),
-    );
-  }
-}
-
-class LinkedDevicesView extends StatelessWidget {
-  const LinkedDevicesView({super.key});
+class LinkedDevicesSection extends StatelessWidget {
+  const LinkedDevicesSection({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +39,10 @@ class LinkedDevicesView extends StatelessWidget {
     final devices = context.select(
       (LinkedDevicesCubit cubit) => cubit.state.devices,
     );
+    final maxDevices = context.select(
+      (UserCubit cubit) => cubit.state.maxDevices,
+    );
+    final atLimit = maxDevices > 0 && devices.length >= maxDevices;
     final thisDevice = devices
         .where((device) => device.isThisDevice)
         .firstOrNull;
@@ -78,24 +70,41 @@ class LinkedDevicesView extends StatelessWidget {
             const SizedBox(height: S.s8),
           ],
           Text(
-            loc.linkedDevicesScreen_editNameHint,
+            DeviceType.isDesktop
+                ? loc.linkedDevicesScreen_editNameHint_desktop
+                : loc.linkedDevicesScreen_editNameHint,
             style: typeScale.body.xs.style(color: palette.text.quaternary),
           ),
           const SizedBox(height: S.s24),
         ],
-        Button(
-          type: .primary,
-          label: loc.linkedDevicesScreen_linkDevice,
-          onPressed: () => showDialog(
-            context: context,
-            builder: (_) => const LinkDeviceModal(),
+        if (atLimit)
+          SizedBox(
+            width: .infinity,
+            child: Text(
+              loc.linkedDevicesScreen_deviceLimitReached(maxDevices),
+              textAlign: .center,
+              style: typeScale.body.s.style(color: palette.text.secondary),
+            ),
+          )
+        else
+          Button(
+            type: .primary,
+            label: loc.linkedDevicesScreen_linkDevice,
+            onPressed: () => showDialog(
+              context: context,
+              builder: (_) => const LinkDeviceModal(),
+            ),
           ),
-        ),
         const SizedBox(height: S.s8),
         SizedBox(
           width: .infinity,
           child: Text(
-            loc.linkedDevicesScreen_deviceCount(others.length),
+            maxDevices > 0
+                ? loc.linkedDevicesScreen_deviceCountWithLimit(
+                    devices.length,
+                    maxDevices,
+                  )
+                : loc.linkedDevicesScreen_deviceCount(others.length),
             textAlign: .center,
             style: typeScale.body.xs.style(color: palette.text.quaternary),
           ),
@@ -153,12 +162,11 @@ class _SingleDevice extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
-    final locale = Localizations.localeOf(context).toString();
-    final dateFormat = DateFormat.yMMMMd(locale).addPattern("'at'").add_jm();
+    final locale = intlLocaleName(Localizations.localeOf(context));
     final name = device.name.isEmpty
         ? loc.linkedDevicesScreen_unknownDevice
         : device.name;
-    final linkedAt = device.linkedAt;
+    final linkedAt = device.linkedAt?.toLocal();
 
     return Container(
       decoration: BoxDecoration(
@@ -194,7 +202,8 @@ class _SingleDevice extends StatelessWidget {
                     if (linkedAt != null)
                       Text(
                         loc.linkedDevicesScreen_linkedOn(
-                          dateFormat.format(linkedAt.toLocal()),
+                          DateFormat.yMMMMd(locale).format(linkedAt),
+                          DateFormat.jm(locale).format(linkedAt),
                         ),
                         style: typeScale.body.xs.style(
                           color: palette.text.tertiary,
@@ -221,7 +230,6 @@ class _SingleDevice extends StatelessWidget {
   }
 
   void _unlinkDevice(BuildContext context, String name) {
-    final loc = AppLocalizations.of(context);
     final cubit = context.read<LinkedDevicesCubit>();
     showDialog(
       context: context,
@@ -230,13 +238,11 @@ class _SingleDevice extends StatelessWidget {
           try {
             await cubit.unlinkDevice(clientId: device.clientId);
           } catch (_) {
-            if (!context.mounted) {
-              return;
-            }
-            _showErrorDialog(
+            if (!context.mounted) return;
+            showErrorDialog(
               context,
-              title: loc.linkedDevicesScreen_unlinkError_title,
-              message: loc.linkedDevicesScreen_unlinkError(name),
+              title: (loc) => loc.linkedDevicesScreen_unlinkError_title,
+              message: (loc) => loc.linkedDevicesScreen_unlinkError(name),
             );
           }
         },
@@ -245,7 +251,6 @@ class _SingleDevice extends StatelessWidget {
   }
 
   void _editDeviceName(BuildContext context, String currentName) {
-    final loc = AppLocalizations.of(context);
     final cubit = context.read<LinkedDevicesCubit>();
     final navigator = Navigator.of(context);
     showDialog(
@@ -257,35 +262,16 @@ class _SingleDevice extends StatelessWidget {
           try {
             await cubit.renameDevice(clientId: device.clientId, name: value);
           } catch (_) {
-            if (!context.mounted) {
-              return;
-            }
-            _showErrorDialog(
+            if (!context.mounted) return;
+            showErrorDialog(
               context,
-              title: loc.linkedDevicesScreen_renameError_title,
+              title: (loc) => loc.linkedDevicesScreen_renameError_title,
               // The old name: the rename did not take effect.
-              message: loc.linkedDevicesScreen_renameError(currentName),
+              message: (loc) =>
+                  loc.linkedDevicesScreen_renameError(currentName),
             );
           }
         },
-      ),
-    );
-  }
-
-  /// Reports a failed device action, with only a dismiss button: there is
-  /// nothing to confirm, the action simply did not happen.
-  void _showErrorDialog(
-    BuildContext context, {
-    required String title,
-    required String message,
-  }) {
-    showDialog(
-      context: context,
-      builder: (_) => ConfirmDialog(
-        title: title,
-        message: message,
-        confirm: AppLocalizations.of(context)
-            .linkedDevicesScreen_errorDialog_confirm,
       ),
     );
   }

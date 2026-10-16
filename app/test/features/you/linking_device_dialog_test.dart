@@ -192,5 +192,22 @@ void main() {
         matchesGoldenFile('goldens/linked_devices_link_failed.png'),
       );
     });
+
+    testWidgets('device limit', (tester) async {
+      await pumpToConnecting(tester);
+
+      controller.add(
+        const MultiDeviceLinkEvent.deviceLimitReached(maxDevices: 5),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Device limit reached'), findsOneWidget);
+      expect(find.text('Try again'), findsNothing);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/linked_devices_link_device_limit.png'),
+      );
+    });
   });
 }

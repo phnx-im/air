@@ -113,12 +113,10 @@ mod test {
 
     /// The rows reference `encrypted_group`, so a group has to exist first.
     async fn store_group(pool: &PgPool, ds: &Ds) -> anyhow::Result<Uuid> {
-        let group_uuid = Uuid::new_v4();
-        assert!(ds.reserve_group_id(group_uuid).await);
-        let qgid = QualifiedGroupId::new(group_uuid, ds.own_domain.clone());
-        let reserved = ds.claim_reserved_group_id(qgid.group_uuid()).await.unwrap();
+        let (qgid, _) = ds.request_group_ids(false)?;
+        let reserved = ds.claim_reserved_group_id(qgid.group_uuid()).unwrap();
         StorableDsGroupData::new_and_store(pool, reserved, Ciphertext::random()).await?;
-        Ok(group_uuid)
+        Ok(qgid.group_uuid())
     }
 
     async fn new_ds(pool: PgPool) -> anyhow::Result<Ds> {
@@ -126,6 +124,7 @@ mod test {
             pool,
             "example.com".parse().unwrap(),
             VersionPolicy::default(),
+            0,
             CancellationToken::new(),
         )
         .await?)
@@ -254,7 +253,7 @@ mod test {
         .await?;
 
         let qgid = QualifiedGroupId::new(group_id, ds.own_domain.clone());
-        StorableDsGroupData::<true>::delete(&pool, &qgid).await?;
+        StorableDsGroupData::<true>::delete(&pool, qgid.group_uuid()).await?;
 
         assert!(
             DsEpochSnapshot::load(&pool, group_id, epoch, KEEP_ALL)

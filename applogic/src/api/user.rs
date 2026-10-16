@@ -213,6 +213,16 @@ impl User {
         self.user.trigger_timed_task(id).await?;
         Ok(())
     }
+
+    /// Erase the self group and its chat from the local database.
+    pub async fn danger_reset_self_group(&self) -> Result<()> {
+        self.user.danger_reset_self_group().await
+    }
+
+    /// Re-fetch the profiles of all groups and contacts in the background.
+    pub async fn refresh_all_profiles(&self) {
+        self.user.spawn_refresh_all_profiles();
+    }
 }
 
 #[frb(mirror(UserDebugInfo))]
@@ -221,6 +231,7 @@ pub struct _UserDebugInfo {
     pub timed_tasks: Vec<TimedTaskDebugInfo>,
     pub add_username_token_count: u32,
     pub invitation_code_token_count: u32,
+    pub connect_username_token_count: u32,
 }
 
 #[frb(mirror(TimedTaskDebugInfo))]

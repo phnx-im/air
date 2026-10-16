@@ -4,6 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/message_list/display_message_tile.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -46,8 +47,14 @@ void main() {
           .thenReturn(const ChatDetailsState(members: []));
     });
 
-    Widget buildSubject(UiSystemMessage message) => MultiBlocProvider(
+    Widget buildSubject(
+      UiSystemMessage message, {
+      FakeChatsRepository? repository,
+    }) => MultiBlocProvider(
       providers: [
+        RepositoryProvider<ChatsRepository>.value(
+          value: repository ?? FakeChatsRepository(chats),
+        ),
         BlocProvider<UsersCubit>.value(value: usersCubit),
         BlocProvider<UserCubit>.value(value: userCubit),
         BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
@@ -67,6 +74,27 @@ void main() {
         ),
       ),
     );
+
+    /// The chat of a contact request of [chatType], open or [closed].
+    UiChatDetails requestChat(UiChatType chatType, {bool closed = false}) =>
+        UiChatDetails(
+          id: 5.chatId(),
+          status: closed
+              ? const UiChatStatus.inactive(UiInactiveChat(pastMembers: []))
+              : const UiChatStatus.active(),
+          isApq: false,
+          isSelfChat: false,
+          chatType: chatType,
+          unreadMessages: 0,
+          lastUsed: DateTime.utc(2026, 1, 1),
+          mutedUntil: null,
+          pendingCommitFailed: false,
+          resyncFailed: false,
+        );
+
+    void showChat(UiChatDetails chat) =>
+        when(() => chatDetailsCubit.state)
+            .thenReturn(ChatDetailsState(chat: chat, members: const []));
 
     testWidgets('opens the profile of the name that was tapped', (
       tester,
@@ -147,6 +175,316 @@ void main() {
       await tester.tapOnText(find.textRange.ofSubstring('Weekly sync'));
 
       verifyNever(() => navigationCubit.openMemberDetails(any()));
+    });
+
+    testWidgets('names the group chat a request came through', (tester) async {
+      await tester.pumpWidget(
+        buildSubject(
+          UiSystemMessage.receivedAdditionalDirectConnectionRequest(
+            sender: 1.userId(),
+            groupChat: UiRequestGroupChat.chat(3.chatId()),
+          ),
+        ),
+      );
+
+      expect(
+        find.text(
+          'Alice also sent you a contact request through the group chat Group.',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('names no group chat when it is not on this device', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildSubject(
+          UiSystemMessage.receivedAdditionalDirectConnectionRequest(
+            sender: 1.userId(),
+            groupChat: UiRequestGroupChat.chat(99.chatId()),
+          ),
+        ),
+      );
+
+      expect(
+        find.text(
+          'Alice also sent you a contact request through a mutual group chat.',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('names the group chat once it syncs', (tester) async {
+      final repository = FakeChatsRepository(chats);
+      await tester.pumpWidget(
+        buildSubject(
+          UiSystemMessage.receivedAdditionalDirectConnectionRequest(
+            sender: 1.userId(),
+            groupChat: UiRequestGroupChat.chat(99.chatId()),
+          ),
+          repository: repository,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      repository.upsert(groupChat(99.chatId(), 'Book Club'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Alice also sent you a contact request through the group chat '
+          'Book Club.',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('names no group chat once it is deleted', (tester) async {
+      final repository = FakeChatsRepository(chats);
+      await tester.pumpWidget(
+        buildSubject(
+          UiSystemMessage.receivedAdditionalDirectConnectionRequest(
+            sender: 1.userId(),
+            groupChat: UiRequestGroupChat.chat(3.chatId()),
+          ),
+          repository: repository,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      repository.remove(3.chatId());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Alice also sent you a contact request through a mutual group chat.',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('renames the group chat on the request card', (tester) async {
+      showChat(requestChat(UiChatType_PendingConnection(userProfiles[0])));
+      final repository = FakeChatsRepository(chats);
+      await tester.pumpWidget(
+        buildSubject(
+          UiSystemMessage.receivedDirectConnectionRequest(
+            sender: 1.userId(),
+            groupChat: UiRequestGroupChat.chat(3.chatId()),
+          ),
+          repository: repository,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      repository.upsert(groupChat(3.chatId(), 'Book Club'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Alice sent you a contact request through the group chat Book Club.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('shows a request card without a group chat on this device', (
+      tester,
+    ) async {
+      showChat(requestChat(UiChatType_PendingConnection(userProfiles[0])));
+      await tester.pumpWidget(
+        buildSubject(
+          UiSystemMessage.receivedDirectConnectionRequest(
+            sender: 1.userId(),
+            groupChat: UiRequestGroupChat.chat(99.chatId()),
+          ),
+        ),
+      );
+
+      expect(
+        find.text(
+          'Alice sent you a contact request through a mutual group chat.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('names the group chat a sent request went through', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildSubject(
+          UiSystemMessage.sentDirectConnectionRequest(
+            recipient: 1.userId(),
+            originChatId: 3.chatId(),
+          ),
+        ),
+      );
+
+      expect(
+        find.text(
+          'You sent a contact request to Alice through the group chat Group.',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('names no group chat of a sent request not on this device', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildSubject(
+          UiSystemMessage.sentDirectConnectionRequest(
+            recipient: 1.userId(),
+            originChatId: 99.chatId(),
+          ),
+        ),
+      );
+
+      expect(
+        find.text(
+          'You sent a contact request to Alice through a mutual group chat.',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('shows an unavailable request as a record', (tester) async {
+      showChat(
+        requestChat(
+          UiChatType_PendingConnection(userProfiles[0]),
+          closed: true,
+        ),
+      );
+      await tester.pumpWidget(
+        buildSubject(
+          UiSystemMessage.receivedHandleConnectionRequest(
+            sender: 1.userId(),
+            username: const UiUsername(plaintext: 'eve_03'),
+          ),
+        ),
+      );
+
+      expect(find.text('Accept'), findsNothing);
+      expect(
+        find.text(
+          'Alice sent you a contact request through your username eve_03.',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('shows the request card while the request is open', (
+      tester,
+    ) async {
+      showChat(requestChat(UiChatType_PendingConnection(userProfiles[0])));
+      await tester.pumpWidget(
+        buildSubject(
+          UiSystemMessage.receivedHandleConnectionRequest(
+            sender: 1.userId(),
+            username: const UiUsername(plaintext: 'eve_03'),
+          ),
+        ),
+      );
+
+      expect(find.text('Accept'), findsOneWidget);
+    });
+
+    testWidgets('shows the card of an open request sent to a username', (
+      tester,
+    ) async {
+      const username = UiUsername(plaintext: 'eve_03');
+      showChat(requestChat(const UiChatType_HandleConnection(username)));
+      await tester.pumpWidget(
+        buildSubject(const UiSystemMessage.newHandleConnectionChat(username)),
+      );
+
+      expect(find.text('You sent a contact request'), findsOneWidget);
+      expect(find.text('to the username eve_03'), findsOneWidget);
+      expect(
+        find.text("You'll be able to chat once they accept."),
+        findsOneWidget,
+      );
+      expect(find.text('Retract request'), findsOneWidget);
+    });
+
+    testWidgets('shows the card of an open request sent through a group', (
+      tester,
+    ) async {
+      showChat(
+        requestChat(UiChatType_TargetedMessageConnection(userProfiles[0])),
+      );
+      await tester.pumpWidget(
+        buildSubject(
+          UiSystemMessage.sentDirectConnectionRequest(
+            recipient: 1.userId(),
+            originChatId: 3.chatId(),
+          ),
+        ),
+      );
+
+      expect(find.text('You sent Alice a contact request'), findsOneWidget);
+      expect(find.text('via your group Group'), findsOneWidget);
+      expect(find.text('Retract request'), findsOneWidget);
+    });
+
+    testWidgets('names no group of a sent request not on this device', (
+      tester,
+    ) async {
+      showChat(
+        requestChat(UiChatType_TargetedMessageConnection(userProfiles[0])),
+      );
+      await tester.pumpWidget(
+        buildSubject(
+          UiSystemMessage.sentDirectConnectionRequest(
+            recipient: 1.userId(),
+            originChatId: 99.chatId(),
+          ),
+        ),
+      );
+
+      expect(find.text('You sent Alice a contact request'), findsOneWidget);
+      expect(find.textContaining('via your group'), findsNothing);
+    });
+
+    testWidgets('shows a closed sent request as a record', (tester) async {
+      const username = UiUsername(plaintext: 'eve_03');
+      showChat(
+        requestChat(const UiChatType_HandleConnection(username), closed: true),
+      );
+      await tester.pumpWidget(
+        buildSubject(const UiSystemMessage.newHandleConnectionChat(username)),
+      );
+
+      expect(find.text('Retract request'), findsNothing);
+      expect(
+        find.textContaining(
+          'You sent a contact request to username eve_03.',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('renders an unavailable request', (tester) async {
+      await tester.pumpWidget(
+        buildSubject(const UiSystemMessage.connectionRequestUnavailable()),
+      );
+      expect(
+        find.text(
+          'The contact request is no longer available.',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
     });
   });
 }

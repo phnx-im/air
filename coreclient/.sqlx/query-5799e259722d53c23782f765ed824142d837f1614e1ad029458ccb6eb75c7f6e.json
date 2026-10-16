@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT operation_type, key_fingerprint, allowance_epoch, token_index\n         FROM privacy_pass_redeemed\n         ORDER BY operation_type, key_fingerprint, allowance_epoch, token_index",
+  "describe": {
+    "columns": [
+      {
+        "name": "operation_type",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_redeemed",
+            "name": "operation_type"
+          }
+        }
+      },
+      {
+        "name": "key_fingerprint",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_redeemed",
+            "name": "key_fingerprint"
+          }
+        }
+      },
+      {
+        "name": "allowance_epoch",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_redeemed",
+            "name": "allowance_epoch"
+          }
+        }
+      },
+      {
+        "name": "token_index",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_redeemed",
+            "name": "token_index"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5799e259722d53c23782f765ed824142d837f1614e1ad029458ccb6eb75c7f6e"
+}

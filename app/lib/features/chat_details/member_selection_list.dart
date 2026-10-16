@@ -125,11 +125,8 @@ class MemberSelectionList extends HookWidget {
                 onTap: isSupported
                     ? () => onToggle(contact)
                     : () => showSnackBarStandalone(
-                        (loc) => SnackBar(
-                          content: Text(
-                            loc.memberSelectionList_client_not_supported,
-                          ),
-                        ),
+                        (loc) => loc.memberSelectionList_client_not_supported,
+                        tone: .danger,
                       ),
                 trailing: isSupported
                     ? AppCheckbox(

@@ -6,20 +6,29 @@
 use aircommon::messages::client_ds_out::SendMessageCollisionTag;
 use openmls::group::{GroupEpoch, Member};
 
-use aircommon::{credentials::RoomPolicyIdentity, identifiers::QualifiedGroupId};
+use aircommon::{
+    credentials::RoomPolicyIdentity,
+    identifiers::{QualifiedGroupId, Username},
+    messages::connection_package::ConnectionPackageHash,
+};
 use openmls::prelude::GroupId;
 use uuid::Uuid;
 
-use airprotos::client::group::{EncryptedGroupTitle, GroupData};
+use airprotos::client::{
+    app_data::GroupAppDataExt,
+    group::{EncryptedGroupTitle, GroupData},
+};
 
 use crate::{
-    chats::GroupDataExt,
+    ChatAttributes,
     groups::{openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
     job::{
         chat_operation::DerivationEpoch,
+        create_chat::CreateChat,
         pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     },
     outbound_service::resync::{Resync, ResyncReason, ResyncStatus},
+    usernames::connection_packages::ConnectionPackageRecord,
 };
 
 use super::*;
@@ -73,18 +82,6 @@ impl CoreUser {
 
     pub async fn self_group(&self) -> anyhow::Result<Option<SelfGroup>> {
         Ok(SelfGroup::load(self.db().read().await?).await?)
-    }
-
-    pub async fn self_chat_title(&self) -> anyhow::Result<Option<String>> {
-        let Some(group) = self.self_group().await? else {
-            return Ok(None);
-        };
-        let chat_id = crate::ChatId::try_from(group.group_id())?;
-        let chat = self
-            .db()
-            .with_read_transaction(async |txn| crate::Chat::load(txn, &chat_id).await)
-            .await?;
-        Ok(chat.and_then(|chat| chat.attributes().map(|attrs| attrs.title().to_owned())))
     }
 
     pub async fn self_group_member_count(&self) -> anyhow::Result<Option<usize>> {
@@ -273,6 +270,8 @@ impl CoreUser {
             original_leaf_index: group.own_index(),
             shares_vc_leaf: false,
             connection_contact: None,
+            outgoing_request: None,
+            accepted_friendship_package: None,
             reason: ResyncReason::Manual,
             attempts: 0,
         };
@@ -288,9 +287,7 @@ impl CoreUser {
     /// Whether any setting changes are still waiting to be synchronized.
     pub async fn has_pending_setting_changes(&self) -> anyhow::Result<bool> {
         use crate::clients::user_settings::SettingChanges;
-        Ok(SettingChanges::load(self.db().read().await?)
-            .await?
-            .is_some())
+        Ok(SettingChanges::has_pending(self.db().read().await?).await?)
     }
 
     /// Returns (operation_type, request_status, number_of_attempts) for the
@@ -322,16 +319,15 @@ impl CoreUser {
                     .context("No group")?;
                 let encrypted_title =
                     EncryptedGroupTitle::encrypt(&title, group.identity_link_wrapper_key())?;
-                let group_data_bytes = GroupData {
+                let group_data = GroupData {
                     encrypted_title: Some(encrypted_title),
                     external_group_profile: None,
-                }
-                .encode()?;
-                PendingChatOperation::create_update_with_raw_group_data(
+                };
+                PendingChatOperation::create_update_with_group_data(
                     txn,
                     self.signing_key(),
                     chat_id,
-                    Some(group_data_bytes),
+                    Some(group_data),
                     None,
                     DerivationEpoch::Keep,
                 )
@@ -339,6 +335,31 @@ impl CoreUser {
             })
             .await?;
         job.staged_commit_message_bytes()
+    }
+
+    /// Creates a group whose group profile is stored in the group profile component.
+    pub async fn create_chat_with_profile_component(
+        &self,
+        title: String,
+        is_apq: bool,
+    ) -> anyhow::Result<ChatId> {
+        let chat_attributes = ChatAttributes::new(title, None);
+        let client_reference = self.create_own_client_reference();
+        let job =
+            CreateChat::new(chat_attributes, client_reference, is_apq).with_profile_component();
+        Ok(self.execute_job(job).await?)
+    }
+
+    /// Whether the group context of the chat carries the group profile component.
+    pub async fn has_group_profile_component(&self, chat_id: ChatId) -> anyhow::Result<bool> {
+        let Some(group) = self
+            .db()
+            .with_read_transaction(async |txn| Group::load_with_chat_id(txn, chat_id).await)
+            .await?
+        else {
+            return Ok(false);
+        };
+        Ok(group.mls_group().extensions().has_group_profile_component())
     }
 
     pub async fn group_data(&self, chat_id: ChatId) -> anyhow::Result<Option<GroupData>> {
@@ -349,10 +370,7 @@ impl CoreUser {
         else {
             return Ok(None);
         };
-        let Some(bytes) = group.group_data() else {
-            return Ok(None);
-        };
-        Ok(Some(GroupData::decode(&bytes)?))
+        group.group_data()
     }
 
     /// Send a message to the DS using the given collision tags instead of
@@ -473,5 +491,17 @@ impl CoreUser {
             .await?;
 
         Ok(())
+    }
+
+    /// The hashes of the connection packages of `username` whose decryption
+    /// keys this device holds.
+    pub async fn connection_package_hashes(
+        &self,
+        username: &Username,
+    ) -> anyhow::Result<Vec<ConnectionPackageHash>> {
+        Ok(
+            ConnectionPackageRecord::load_hashes_for_username(self.db().read().await?, username)
+                .await?,
+        )
     }
 }

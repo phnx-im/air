@@ -28,10 +28,7 @@ pub trait AeadKey: AsRef<Secret<AEAD_KEY_SIZE>> {
         &self,
         plaintext: impl Into<Payload<'msg, 'aad>>,
     ) -> Result<AeadCiphertext, EncryptionError> {
-        // TODO: from_slice can potentially panic. However, we can rule this out
-        // with a single test, since both the AEAD algorithm and the key size
-        // are static.
-        let key = Key::<Aead>::from_slice(self.as_ref().secret());
+        let key: &Key<Aead> = self.as_ref().secret().into();
         let cipher: Aead = Aead::new(key);
         // TODO: Use a proper RNG provider instead.
         let nonce_raw = Secret::<AEAD_NONCE_SIZE>::random().map_err(|e| match e {
@@ -83,10 +80,7 @@ fn decrypt<'ctxt, 'aad>(
     nonce: &[u8; AEAD_NONCE_SIZE],
     ciphertext: impl Into<Payload<'ctxt, 'aad>>,
 ) -> Result<Vec<u8>, DecryptionError> {
-    // TODO: from_slice can potentially panic. However, we can rule this out
-    // with a single test, since both the AEAD algorithm and the key size
-    // are static.
-    let key = Key::<Aead>::from_slice(key.as_ref().secret());
+    let key: &Key<Aead> = key.as_ref().secret().into();
     let cipher: Aead = Aead::new(key);
     // TODO: Use a proper RNG provider instead.
     cipher.decrypt(nonce.into(), ciphertext).map_err(|e| {

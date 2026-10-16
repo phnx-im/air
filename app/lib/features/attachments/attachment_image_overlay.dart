@@ -9,7 +9,6 @@ import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/patterns/snackbar/snackbar_tokens.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -112,8 +111,8 @@ class AttachmentImageOverlay extends HookWidget {
           iconColor: palette.text.primary,
           onPressed: () {
             showSnackBarStandalone(
-              (loc) => SnackBar(content: Text(loc.attachment_notFound)),
-              tone: SnackbarTone.danger,
+              (loc) => loc.attachment_notFound,
+              tone: .danger,
             );
           },
         ),

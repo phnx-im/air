@@ -126,8 +126,9 @@ class _AddMembersViewState extends State<AddMembersView> {
     );
     if (notAdded.isNotEmpty) {
       _log.warning('Failed to add members: incompatible client');
-      showErrorBannerStandalone(
+      showSnackBarStandalone(
         (loc) => loc.addMembersScreen_error_incompatibleClient,
+        tone: .danger,
       );
     }
     navigationCubit.pop();

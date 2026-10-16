@@ -52,6 +52,10 @@
   "@userSettingsScreen_readReceiptsDescription": {
     "description": "Explains that the read receipts toggle applies in both directions."
   },
+  "userSettingsScreen_languageSettingsDescription": "Translations may contain mistakes.",
+  "@userSettingsScreen_languageSettingsDescription": {
+    "description": "Help text under the language picker in settings. Warns that the app's translations may contain errors."
+  },
 
   "userSettingsScreen_displayNameLabel": "Display name",
   "@userSettingsScreen_displayNameLabel": {
@@ -150,9 +154,13 @@
   "@safetyCodeScreen_title": {
     "description": "Title of the pane showing the safety code shared with one contact."
   },
-  "safetyCodeScreen_tapToCopy": "Tap to copy",
-  "@safetyCodeScreen_tapToCopy": {
+  "safetyCodeScreen_copyHint": "Tap to copy",
+  "@safetyCodeScreen_copyHint": {
     "description": "Hint under the safety code telling the user they can tap it to copy."
+  },
+  "safetyCodeScreen_copyHint_desktop": "Click to copy",
+  "@safetyCodeScreen_copyHint_desktop": {
+    "description": "Desktop version of safetyCodeScreen_copyHint: hint under the safety code telling the user they can click it to copy."
   },
   "safetyCodeScreen_copiedToClipboard": "Copied to clipboard",
   "@safetyCodeScreen_copiedToClipboard": {
@@ -171,6 +179,11 @@
   "chatDetailsScreen_unknownChat": "Unknown chat",
   "@chatDetailsScreen_unknownChat": {
     "description": "Fallback title when a chat has no name and no members to name it after."
+  },
+
+  "selfChatTitle": "Notes to self",
+  "@selfChatTitle": {
+    "description": "Title of the chat used to sync notes and messages between the user's own devices."
   },
 
   "muteDurationSheet_title": "Mute chat?",
@@ -330,6 +343,10 @@
   "@deleteContactDialog_delete": {
     "description": "Confirming button of the delete contact dialog. Deletes content, so use the glossary term for deleting."
   },
+  "deleteContactDialog_error": "Failed to delete Air contact. Try again.",
+  "@deleteContactDialog_error": {
+    "description": "Error banner shown when deleting an Air contact fails, for example while offline. The contact and its chat stay."
+  },
 
   "addContactDialog_title": "Add Air contact",
   "@addContactDialog_title": {
@@ -356,11 +373,11 @@
     "description": "Confirming button of the add contact dialog, which sends a contact request."
   },
 
-  "changeGroupTitleDialog_title": "Change group title",
+  "changeGroupTitleDialog_title": "Change group name",
   "@changeGroupTitleDialog_title": {
     "description": "Title of the dialog for renaming a group."
   },
-  "changeGroupTitleDialog_content": "Choose a title for the group.",
+  "changeGroupTitleDialog_content": "Choose a name for the group.",
   "@changeGroupTitleDialog_content": {
     "description": "Body of the rename group dialog, above the name field."
   },
@@ -403,6 +420,30 @@
   "@introScreen_signUp": {
     "description": "Start screen button for creating a new account."
   },
+  "introScreen_newPhone_title": "Using a new phone?",
+  "@introScreen_newPhone_title": {
+    "description": "Heading of the notice on the start screen of an iPhone or iPad that was set up from a backup or another phone."
+  },
+  "introScreen_newPhone_body": "For your security, Air accounts don't automatically move to new devices. To use your account, do this:",
+  "@introScreen_newPhone_body": {
+    "description": "Intro line under the heading of the new-phone notice on the start screen. Introduces the numbered steps below it."
+  },
+  "introScreen_newPhone_step1": "Open Air on your old device, go to You > Devices, then tap Link a device.",
+  "@introScreen_newPhone_step1": {
+    "description": "First numbered step of the new-phone notice, done on the old device. The navigation names must match this locale's labels for the You tab (homeTab_profile), the Devices row (userSettingsScreen_devices) and the Link a device button (linkedDevicesScreen_linkDevice)."
+  },
+  "introScreen_newPhone_step1Desktop": "Open Air on your old device, go to You > Devices, then click Link a device.",
+  "@introScreen_newPhone_step1Desktop": {
+    "description": "Desktop variant of introScreen_newPhone_step1 that says click instead of tap. The same label rules apply."
+  },
+  "introScreen_newPhone_step2": "On this device, tap Link to an existing account, then follow the instructions on the next page.",
+  "@introScreen_newPhone_step2": {
+    "description": "Second numbered step of the new-phone notice, done on the new device. The quoted button name must match this locale's introScreen_linkExisting label."
+  },
+  "introScreen_newPhone_step2Desktop": "On this device, click Link to an existing account, then follow the instructions on the next page.",
+  "@introScreen_newPhone_step2Desktop": {
+    "description": "Desktop variant of introScreen_newPhone_step2 that says click instead of tap. The quoted button name must match this locale's introScreen_linkExisting label."
+  },
   "introScreen_termsLinkText": "Terms of Use",
   "@introScreen_termsLinkText": {
     "description": "Link text inside the terms sentence on the start screen. Must match the wording used inside that sentence so the link can be located in the rendered string."
@@ -421,9 +462,22 @@
   "@invitationCodeScreen_header": {
     "description": "Header of the step asking for an invite code during sign up."
   },
-  "invitationCodeScreen_subheader": "Air is currently invitation-only. Enter your code to join. If you don't have one, ask someone who’s already on Air.",
+  "invitationCodeScreen_subheader": "To keep Air running smoothly, we limit how many accounts can be created within a short timespan. Wait until later today and try again to sign up without an invite code.",
   "@invitationCodeScreen_subheader": {
-    "description": "Explains that Air is invitation-only and where to get a code."
+    "description": "Explains that sign up is rate limited, so an invite code is required for now, and that trying again later works without one."
+  },
+  "invitationCodeScreen_notificationsHint": "If you didn't allow push notifications for Air, that could also be why you're seeing this screen. To allow push notifications, {settingsLink}.",
+  "@invitationCodeScreen_notificationsHint": {
+    "description": "Second paragraph under the invite code explanation, shown on mobile only. Suggests that missing push notification permission can also lead to this screen. The placeholder is replaced by the link text that opens the notification settings and must appear verbatim.",
+    "placeholders": {
+      "settingsLink": {
+        "type": "String"
+      }
+    }
+  },
+  "invitationCodeScreen_notificationsLinkText": "tap here",
+  "@invitationCodeScreen_notificationsLinkText": {
+    "description": "Link text inside the push notifications sentence on the invite code step. Opens the system notification settings for Air. Must match the wording used inside that sentence so the link can be located in the rendered string."
   },
   "invitationCodeScreen_inputLabel": "Invite code (required)",
   "@invitationCodeScreen_inputLabel": {
@@ -467,9 +521,13 @@
   "@invitationCodesScreen_copyAll": {
     "description": "Button that copies every unused invite code at once."
   },
-  "invitationCodesScreen_tapToGetCode": "Tap to get code",
-  "@invitationCodesScreen_tapToGetCode": {
+  "invitationCodesScreen_getCodeHint": "Tap to get code",
+  "@invitationCodesScreen_getCodeHint": {
     "description": "Hint on an empty code slot telling the user to tap it to request a code."
+  },
+  "invitationCodesScreen_getCodeHint_desktop": "Click to get a code",
+  "@invitationCodesScreen_getCodeHint_desktop": {
+    "description": "Desktop version of invitationCodesScreen_getCodeHint: hint on an empty code slot telling the user to click it to request a code."
   },
   "invitationCodesScreen_removeUsedCodes": "Remove used codes",
   "@invitationCodesScreen_removeUsedCodes": {
@@ -638,6 +696,10 @@
   "@linkingDeviceScreen_linking_confirm_edit_subtitle": {
     "description": "Hint under the device name telling the user they can tap it to rename the device."
   },
+  "linkingDeviceScreen_linking_confirm_edit_subtitle_desktop": "Click to edit device name",
+  "@linkingDeviceScreen_linking_confirm_edit_subtitle_desktop": {
+    "description": "Desktop version of linkingDeviceScreen_linking_confirm_edit_subtitle: hint under the device name telling the user they can click it to rename the device."
+  },
   "linkingDeviceScreen_linking_confirm_body": "You're about to link a new device, which will have full access to your Air account. Only do this if the device belongs to you.",
   "@linkingDeviceScreen_linking_confirm_body": {
     "description": "Warns that a linked device gets full account access."
@@ -650,9 +712,9 @@
   "@linkingDeviceScreen_linking_confirm_button": {
     "description": "Button that confirms linking the new device."
   },
-  "linkingDeviceScreen_instructions_1": "Open Air on your existing device and go to You → Manage devices.",
+  "linkingDeviceScreen_instructions_1": "Open Air on your existing device, then go to You → Devices.",
   "@linkingDeviceScreen_instructions_1": {
-    "description": "First linking step. Names the You tab and the manage devices row as they appear in this locale."
+    "description": "First linking step. Names the You tab and the Devices row as they appear in this locale."
   },
   "linkingDeviceScreen_instructions_2": "Tap \"Link a device\", then scan the QR code or enter the numeric code shown above.",
   "@linkingDeviceScreen_instructions_2": {
@@ -678,6 +740,23 @@
   "@linkingDeviceScreen_error_codesExpired_reload": {
     "description": "Button that requests fresh linking codes."
   },
+  "linkingDeviceScreen_error_deviceLimit_title": "Device limit reached",
+  "@linkingDeviceScreen_error_deviceLimit_title": {
+    "description": "Title of the dialog on the new device when the existing device could not link it because the account reached its device limit."
+  },
+  "linkingDeviceScreen_error_deviceLimit_message": "{maxDevices, plural, one {You already have the maximum of {maxDevices} device. Unlink a device, then try again.} other {You already have the maximum of {maxDevices} devices. Unlink a device, then try again.}}",
+  "@linkingDeviceScreen_error_deviceLimit_message": {
+    "description": "Body of the device limit dialog on the new device. {maxDevices} is the maximum number of devices per account.",
+    "placeholders": {
+      "maxDevices": {
+        "type": "int"
+      }
+    }
+  },
+  "linkingDeviceScreen_error_deviceLimit_back": "Okay",
+  "@linkingDeviceScreen_error_deviceLimit_back": {
+    "description": "Button that closes the device limit dialog on the new device and leaves the linking flow."
+  },
   "linkingDevicesScreen_error_title": "Linking failed",
   "@linkingDevicesScreen_error_title": {
     "description": "Title of the dialog shown when linking a device fails."
@@ -694,6 +773,23 @@
   "@linkingDevicesScreen_error_dismiss": {
     "description": "Button that closes the linking failed dialog so the user can retry."
   },
+  "linkingDevicesScreen_error_deviceLimit_title": "Device limit reached",
+  "@linkingDevicesScreen_error_deviceLimit_title": {
+    "description": "Title of the linking error page on the existing device when the server rejected the new device because the account reached its device limit."
+  },
+  "linkingDevicesScreen_error_deviceLimit": "{maxDevices, plural, one {You can link up to {maxDevices} device. Unlink a device, then try again.} other {You can link up to {maxDevices} devices. Unlink a device, then try again.}}",
+  "@linkingDevicesScreen_error_deviceLimit": {
+    "description": "Body of the device limit error page on the existing device. {maxDevices} is the maximum number of devices per account.",
+    "placeholders": {
+      "maxDevices": {
+        "type": "int"
+      }
+    }
+  },
+  "linkingDevicesScreen_error_deviceLimit_dismiss": "Okay",
+  "@linkingDevicesScreen_error_deviceLimit_dismiss": {
+    "description": "Button that closes the device limit error page and returns to the linked devices screen."
+  },
 
   "linkedDevicesScreen_thisDevice": "This device",
   "@linkedDevicesScreen_thisDevice": {
@@ -703,11 +799,14 @@
   "@linkedDevicesScreen_linkedDevices": {
     "description": "Section header above the user's other linked devices."
   },
-  "linkedDevicesScreen_linkedOn": "Linked on {date}",
+  "linkedDevicesScreen_linkedOn": "Linked on {date} at {time}",
   "@linkedDevicesScreen_linkedOn": {
-    "description": "Subtitle of a device entry giving the date it was linked. The placeholder is an already formatted date.",
+    "description": "Subtitle of a device entry giving the date and time it was linked. Both placeholders are already formatted, the date with the month spelled out and the time as a clock time. Change the word joining them, or reorder them, as your language needs.",
     "placeholders": {
       "date": {
+        "type": "String"
+      },
+      "time": {
         "type": "String"
       }
     }
@@ -715,6 +814,10 @@
   "linkedDevicesScreen_editNameHint": "Tap a device to edit its name.",
   "@linkedDevicesScreen_editNameHint": {
     "description": "Hint under the device list telling the user they can tap a device to rename it."
+  },
+  "linkedDevicesScreen_editNameHint_desktop": "Click a device to edit its name.",
+  "@linkedDevicesScreen_editNameHint_desktop": {
+    "description": "Desktop version of linkedDevicesScreen_editNameHint: hint under the device list telling the user they can click a device to rename it."
   },
   "linkedDevicesScreen_linkDevice": "Link a device",
   "@linkedDevicesScreen_linkDevice": {
@@ -750,15 +853,32 @@
       }
     }
   },
-  "linkedDevicesScreen_errorDialog_confirm": "Okay",
-  "@linkedDevicesScreen_errorDialog_confirm": {
-    "description": "Button that acknowledges and closes a device error dialog."
-  },
   "linkedDevicesScreen_deviceCount": "{count, plural, =0 {No devices linked.} one {{count} device linked.} other {{count} devices linked.}}",
   "@linkedDevicesScreen_deviceCount": {
     "description": "Count of linked devices under the device list. Provide the plural forms your language needs. The zero case is worded without a number.",
     "placeholders": {
       "count": {
+        "type": "int"
+      }
+    }
+  },
+  "linkedDevicesScreen_deviceCountWithLimit": "{maxDevices, plural, one {{count} of {maxDevices} device linked.} other {{count} of {maxDevices} devices linked.}}",
+  "@linkedDevicesScreen_deviceCountWithLimit": {
+    "description": "Count of linked devices under the device list when the server sets a device limit. {count} includes this device, {maxDevices} is the limit. Provide the plural forms your language needs, and pick the placeholder that drives agreement in your language.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "maxDevices": {
+        "type": "int"
+      }
+    }
+  },
+  "linkedDevicesScreen_deviceLimitReached": "{maxDevices, plural, one {You’ve reached the limit of {maxDevices} linked device. Unlink a device if you want to link a new one.} other {You’ve reached the limit of {maxDevices} linked devices. Unlink a device if you want to link a new one.}}",
+  "@linkedDevicesScreen_deviceLimitReached": {
+    "description": "Shown on the linked devices screen in place of the link button when the account already has the maximum number of linked devices.",
+    "placeholders": {
+      "maxDevices": {
         "type": "int"
       }
     }
@@ -1028,7 +1148,7 @@
       }
     }
   },
-  "systemMessage_newDirectConnectionChat": "You sent a contact request to {displayName}. They might not be immediately notified about your request.",
+  "systemMessage_newDirectConnectionChat": "You sent a contact request to {displayName}.",
   "@systemMessage_newDirectConnectionChat": {
     "description": "System message opening a chat where the user sent a contact request to a person from a shared group.",
     "placeholders": {
@@ -1036,6 +1156,106 @@
         "type": "String"
       }
     }
+  },
+  "systemMessage_sentDirectConnectionRequest": "You sent a contact request to {displayName} through the group chat {groupName}.",
+  "@systemMessage_sentDirectConnectionRequest": {
+    "description": "System message opening a chat where the user sent a contact request to a person from a shared group, naming that group chat. Replaces systemMessage_newDirectConnectionChat for requests that know their group chat.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      },
+      "groupName": {
+        "type": "String"
+      }
+    }
+  },
+  "systemMessage_sentDirectConnectionRequestUnknownGroup": "You sent a contact request to {displayName} through a mutual group chat.",
+  "@systemMessage_sentDirectConnectionRequestUnknownGroup": {
+    "description": "Same as systemMessage_sentDirectConnectionRequest, for when the group chat is not on this device, because it was deleted or has not synced yet.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "systemMessage_connectionRequestUnavailable": "The contact request is no longer available.",
+  "@systemMessage_connectionRequestUnavailable": {
+    "description": "System message in the chat of an incoming contact request that its sender retracted before the user could accept it."
+  },
+  "sentContactRequest_title": "You sent a contact request",
+  "@sentContactRequest_title": {
+    "description": "Headline of the card of a contact request the user sent to a username, while the recipient has not answered."
+  },
+  "sentContactRequest_titleWithName": "You sent {displayName} a contact request",
+  "@sentContactRequest_titleWithName": {
+    "description": "Headline of the card of a contact request the user sent to a member of a group chat, while the recipient has not answered.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "sentContactRequest_toUsername": "to the username {username}",
+  "@sentContactRequest_toUsername": {
+    "description": "Line under the headline of the card of a sent contact request, naming the username it went to. Continues the headline, so it starts in lowercase.",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "sentContactRequest_viaGroup": "via your group {groupName}",
+  "@sentContactRequest_viaGroup": {
+    "description": "Line under the headline of the card of a contact request the user sent to a member of a group, naming that group. Continues the headline, so it starts in lowercase.",
+    "placeholders": {
+      "groupName": {
+        "type": "String"
+      }
+    }
+  },
+  "sentContactRequest_body": "You'll be able to chat once they accept.",
+  "@sentContactRequest_body": {
+    "description": "Line on the card of a sent contact request, explaining that chatting starts once the recipient accepts."
+  },
+  "sentContactRequest_retract": "Retract request",
+  "@sentContactRequest_retract": {
+    "description": "Button on the card of a contact request the user sent and the recipient has not answered yet. Opens a dialog to take the request back."
+  },
+  "sentContactRequest_error_retract": "Failed to retract contact request",
+  "@sentContactRequest_error_retract": {
+    "description": "Error banner shown when retracting a sent contact request fails."
+  },
+  "retractContactRequestDialog_title": "Retract contact request?",
+  "@retractContactRequestDialog_title": {
+    "description": "Title of the dialog that confirms taking back a contact request the user sent."
+  },
+  "retractContactRequestDialog_content": "If you retract your contact request, the receiver will no longer be able to accept it.",
+  "@retractContactRequestDialog_content": {
+    "description": "Body of the dialog that confirms taking back a sent contact request. The recipient is not told about it."
+  },
+  "retractContactRequestDialog_cancel": "Cancel",
+  "@retractContactRequestDialog_cancel": {
+    "description": "Button that dismisses the dialog for retracting a contact request."
+  },
+  "retractContactRequestDialog_confirm": "Retract",
+  "@retractContactRequestDialog_confirm": {
+    "description": "Confirming button of the dialog for retracting a contact request. Destructive style."
+  },
+  "closedContactRequest_delete": "Delete",
+  "@closedContactRequest_delete": {
+    "description": "Button replacing the message composer in the chat of a contact request that ended without a connection, for example because its sender retracted it before the user could accept. Opens a dialog to delete the chat."
+  },
+  "closedContactRequest_deleteDialog_content": "This contact request will be deleted from your chats list.",
+  "@closedContactRequest_deleteDialog_content": {
+    "description": "Body of the dialog confirming that the chat of a contact request that ended without a connection is deleted. Its title is deleteChatDialog_title."
+  },
+  "closedContactRequest_deleteDialog_cancel": "Cancel",
+  "@closedContactRequest_deleteDialog_cancel": {
+    "description": "Button that dismisses the dialog for deleting the chat of an ended contact request."
+  },
+  "closedContactRequest_error_delete": "Failed to delete contact request",
+  "@closedContactRequest_error_delete": {
+    "description": "Error banner shown when deleting the chat of an ended contact request fails."
   },
   "systemMessage_receivedHandleConnectionRequest": "{displayName} sent you a contact request through your username {username}.",
   "@systemMessage_receivedHandleConnectionRequest": {
@@ -1057,6 +1277,48 @@
         "type": "String"
       },
       "groupName": {
+        "type": "String"
+      }
+    }
+  },
+  "systemMessage_receivedDirectConnectionRequestUnknownGroup": "{displayName} sent you a contact request through a mutual group chat.",
+  "@systemMessage_receivedDirectConnectionRequestUnknownGroup": {
+    "description": "Same as systemMessage_receivedDirectConnectionRequest, for when the group chat is not on this device, because it was deleted or has not synced yet. Also the subtitle of the contact request card.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "systemMessage_receivedAdditionalUsernameConnectionRequest": "{displayName} also sent you a contact request through your username {username}.",
+  "@systemMessage_receivedAdditionalUsernameConnectionRequest": {
+    "description": "System message in the chat of a pending contact request, when the same person sends another request through another of the user's usernames. It joins the request that is already there.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      },
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "systemMessage_receivedAdditionalDirectConnectionRequest": "{displayName} also sent you a contact request through the group chat {groupName}.",
+  "@systemMessage_receivedAdditionalDirectConnectionRequest": {
+    "description": "System message in the chat of a pending contact request, when the same person sends another request through a group both people are in. It joins the request that is already there. {groupName} is the title of that group.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      },
+      "groupName": {
+        "type": "String"
+      }
+    }
+  },
+  "systemMessage_receivedAdditionalDirectConnectionRequestUnknownGroup": "{displayName} also sent you a contact request through a mutual group chat.",
+  "@systemMessage_receivedAdditionalDirectConnectionRequestUnknownGroup": {
+    "description": "Same as systemMessage_receivedAdditionalDirectConnectionRequest, for when the group chat is not on this device, because it was deleted or has not synced yet.",
+    "placeholders": {
+      "displayName": {
         "type": "String"
       }
     }
@@ -1085,6 +1347,66 @@
   "systemMessage_onboarded": "This client has been onboarded into the chat after linking.",
   "@systemMessage_onboarded": {
     "description": "System message marking where a newly linked device joined the chat."
+  },
+
+  "systemMessage_deviceLinked": "You linked a new device named {device} to your account. {viewDevicesAction}",
+  "@systemMessage_deviceLinked": {
+    "description": "Notice in the self-chat message list when one of our own devices got linked. The device name is rendered in bold wherever it lands, so put it where your language needs it. viewDevicesAction is the call-to-action sentence (see systemMessage_viewDevicesAction); place it wherever it reads naturally, with whatever punctuation or spacing your language needs around it.",
+    "placeholders": {
+      "device": {
+        "type": "String"
+      },
+      "viewDevicesAction": {
+        "type": "String"
+      }
+    }
+  },
+
+  "systemMessage_deviceLinkedUnknown": "You linked a new device to your account. {viewDevicesAction}",
+  "@systemMessage_deviceLinkedUnknown": {
+    "description": "Same as systemMessage_deviceLinked, for when the device's name isn't known yet (e.g. not synced).",
+    "placeholders": {
+      "viewDevicesAction": {
+        "type": "String"
+      }
+    }
+  },
+
+  "systemMessage_deviceUnlinked": "You unlinked the device {device} from your account. {viewDevicesAction}",
+  "@systemMessage_deviceUnlinked": {
+    "description": "Notice in the self-chat message list when one of our own devices got unlinked. The device name is rendered in bold wherever it lands, so put it where your language needs it. viewDevicesAction is the call-to-action sentence (see systemMessage_viewDevicesAction); place it wherever it reads naturally, with whatever punctuation or spacing your language needs around it.",
+    "placeholders": {
+      "device": {
+        "type": "String"
+      },
+      "viewDevicesAction": {
+        "type": "String"
+      }
+    }
+  },
+
+  "systemMessage_deviceUnlinkedUnknown": "You unlinked a device from your account. {viewDevicesAction}",
+  "@systemMessage_deviceUnlinkedUnknown": {
+    "description": "Same as systemMessage_deviceUnlinked, for when the device's name isn't known anymore (it was already dropped once unlinked).",
+    "placeholders": {
+      "viewDevicesAction": {
+        "type": "String"
+      }
+    }
+  },
+
+  "systemMessage_viewDevicesAction": "Tap to view your devices.",
+  "@systemMessage_viewDevicesAction": {
+    "description": "Call-to-action rendered as its own tappable, emphasized run at the point the surrounding sentence places it. Tapping it opens the devices section of settings."
+  },
+  "systemMessage_viewDevicesAction_desktop": "Click to view your devices.",
+  "@systemMessage_viewDevicesAction_desktop": {
+    "description": "Desktop version of systemMessage_viewDevicesAction: call-to-action rendered as its own clickable, emphasized run at the point the surrounding sentence places it. Clicking it opens the devices section of settings."
+  },
+
+  "systemMessage_selfChatCreated": "Use this chat as your personal notepad. Messages are synced across all of your account's linked devices.",
+  "@systemMessage_selfChatCreated": {
+    "description": "First system message in the self-chat (see selfChatTitle), posted when that chat is created on a device. Explains that the chat is a private notepad whose messages appear on all of the user's linked devices."
   },
 
   "timestamp_now": "Now",
@@ -1138,9 +1460,9 @@
   "@chatList_newGroup": {
     "description": "Menu item in the chat list header that starts creating a group chat."
   },
-  "chatList_emptyMessage": "Add your first Air contact to get started",
-  "@chatList_emptyMessage": {
-    "description": "Empty state of the chat list, shown before the user has any contacts."
+  "chatList_noChats": "Use the compose button to add your first contact and start chatting.",
+  "@chatList_noChats": {
+    "description": "Initial state of the chat list, shown before the user has any contacts."
   },
 
   "chatList_draft": "Draft",
@@ -1234,6 +1556,15 @@
       }
     }
   },
+  "newConnectionDialog_handleExists_desktop": "{username} exists. Click “Send” to send a contact request.",
+  "@newConnectionDialog_handleExists_desktop": {
+    "description": "Desktop version of newConnectionDialog_handleExists: confirmation that the username exists, telling the user how to proceed. The quoted text is the confirming button and should match it.",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
   "newConnectionDialog_cancel": "Cancel",
   "@newConnectionDialog_cancel": {
     "description": "Button that dismisses the add contact dialog."
@@ -1275,6 +1606,10 @@
   "newConnectionDialog_error_ownUsername": "You can't send a contact request to yourself.",
   "@newConnectionDialog_error_ownUsername": {
     "description": "Error shown when the user enters one of their own usernames."
+  },
+  "newConnectionDialog_error_rateLimited": "You've reached today's limit for contact requests. Try again tomorrow.",
+  "@newConnectionDialog_error_rateLimited": {
+    "description": "Error shown in the add contact dialog when the daily allowance of contact requests is spent. The allowance resets at midnight UTC."
   },
 
   "composer_inputHint": "Message {chatTitle}",
@@ -1369,6 +1704,10 @@
   "textMessage_hiddenPlaceholder": "Blocked user, tap to reveal message",
   "@textMessage_hiddenPlaceholder": {
     "description": "Stands in for a message from a blocked user, telling the user they can tap to reveal it."
+  },
+  "textMessage_hiddenPlaceholder_desktop": "Blocked user, click to reveal message",
+  "@textMessage_hiddenPlaceholder_desktop": {
+    "description": "Desktop version of textMessage_hiddenPlaceholder: stands in for a message from a blocked user, telling the user they can click to reveal it."
   },
   "textMessage_deleted": "Deleted message",
   "@textMessage_deleted": {
@@ -1751,6 +2090,10 @@
   "@deleteChatDialog_delete": {
     "description": "Confirming button of the delete chat dialog."
   },
+  "deleteChatDialog_error": "Failed to delete chat. Try again.",
+  "@deleteChatDialog_error": {
+    "description": "Error banner shown when deleting a group chat from its details fails, for example while offline. The chat stays."
+  },
 
   "byteUnit_B": "B",
   "@byteUnit_B": {
@@ -1809,9 +2152,9 @@
   "@deleteAccountScreen_confirmButtonText": {
     "description": "Confirming button of the delete account dialog."
   },
-  "deleteAccountScreen_deleteAccountError": "Something went wrong on our end. Wait a moment, then try again.",
+  "deleteAccountScreen_deleteAccountError": "Wait a moment, then try again.",
   "@deleteAccountScreen_deleteAccountError": {
-    "description": "Error shown when deleting the account fails on the server."
+    "description": "Body of the error dialog shown when deleting the account fails on the server. The dialog title already says something went wrong."
   },
 
   "appOutdatedScreen_title": "Software update required",
@@ -1822,22 +2165,33 @@
   "@appOutdatedScreen_message": {
     "description": "Headline telling the user an update is needed to carry on."
   },
-  "appOutdatedScreen_description": "Open the App Store on iOS or Google Play on Android, then update Air.",
-  "@appOutdatedScreen_description": {
-    "description": "Names the store to update from on each mobile platform. App Store and Google Play are product names."
+  "appOutdatedScreen_descriptionAppStore": "Open the App Store and update Air.",
+  "@appOutdatedScreen_descriptionAppStore": {
+    "description": "Update instruction on the update required screen on iOS and macOS. App Store is a product name."
+  },
+  "appOutdatedScreen_descriptionGooglePlay": "Open Google Play and update Air.",
+  "@appOutdatedScreen_descriptionGooglePlay": {
+    "description": "Update instruction on the update required screen on Android. Google Play is a product name."
+  },
+  "appOutdatedScreen_descriptionMicrosoftStore": "Open the Microsoft Store and update Air.",
+  "@appOutdatedScreen_descriptionMicrosoftStore": {
+    "description": "Update instruction on the update required screen on Windows. Microsoft Store is a product name."
+  },
+  "appOutdatedScreen_descriptionLinux": "Update Air using your preferred method.",
+  "@appOutdatedScreen_descriptionLinux": {
+    "description": "Update instruction on the update required screen on Linux. Air may be installed through any package manager or by hand, so no specific tool is named."
   },
   "appOutdatedScreen_action": "Update",
   "@appOutdatedScreen_action": {
     "description": "Button that opens the store so the user can update."
   },
-  "versionExpiryBanner_message": "Update Air by {date} to keep using it",
-  "@versionExpiryBanner_message": {
-    "description": "Banner above the app content when the server announced the date on which this app version stops working. The date is already formatted for the locale.",
-    "placeholders": {
-      "date": {
-        "type": "String"
-      }
-    }
+  "updateReminder_title": "Update Air",
+  "@updateReminder_title": {
+    "description": "Title of the reminder card at the top of the chat list when the server announced the date on which this app version stops working."
+  },
+  "updateReminder_body": "A new app version is available. Update now to keep using Air.",
+  "@updateReminder_body": {
+    "description": "Body of the update reminder card."
   },
 
   "contactRequestDialog_title": "Contact request",
@@ -1848,9 +2202,51 @@
   "@contactRequestDialog_avatarHint": {
     "description": "Hint over the blurred picture of someone who is not yet a contact, telling the user they can tap to reveal it."
   },
-  "contactRequestDialog_cancel": "Later",
-  "@contactRequestDialog_cancel": {
-    "description": "Button that postpones the contact request without accepting it."
+  "contactRequestDialog_avatarHint_desktop": "Click to reveal their picture",
+  "@contactRequestDialog_avatarHint_desktop": {
+    "description": "Desktop version of contactRequestDialog_avatarHint: hint over the blurred picture of someone who is not yet a contact, telling the user they can click to reveal it."
+  },
+  "contactRequestDialog_decline": "Decline",
+  "@contactRequestDialog_decline": {
+    "description": "Button on an incoming contact request that declines it without asking. The sender is not told."
+  },
+  "contactRequestDialog_block": "Block",
+  "@contactRequestDialog_block": {
+    "description": "Button on an incoming contact request that blocks its sender, which declines the request. Opens a confirmation dialog."
+  },
+  "contactRequestDialog_error_decline": "Failed to decline contact request",
+  "@contactRequestDialog_error_decline": {
+    "description": "Error shown when declining an incoming contact request fails."
+  },
+  "contactRequestDialog_error_block": "Failed to block the sender of the contact request",
+  "@contactRequestDialog_error_block": {
+    "description": "Error shown when blocking the sender of an incoming contact request fails."
+  },
+  "blockContactRequestDialog_title": "Block {displayName}?",
+  "@blockContactRequestDialog_title": {
+    "description": "Title of the dialog confirming that the sender of an incoming contact request is blocked.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "blockContactRequestDialog_content": "You’ll decline {displayName}’s contact request and won’t receive contact requests or messages from them anymore. They won’t be able to see that you blocked them.",
+  "@blockContactRequestDialog_content": {
+    "description": "Body of the dialog confirming that the sender of an incoming contact request is blocked. Explains that the request is declined as well.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "blockContactRequestDialog_cancel": "Cancel",
+  "@blockContactRequestDialog_cancel": {
+    "description": "Button that closes the dialog without blocking the sender of the contact request."
+  },
+  "blockContactRequestDialog_confirm": "Block",
+  "@blockContactRequestDialog_confirm": {
+    "description": "Destructive button that blocks the sender of the contact request and declines the request."
   },
   "contactRequestDialog_confirm": "Accept",
   "@contactRequestDialog_confirm": {
@@ -1865,9 +2261,13 @@
     "description": "Error shown when a contact request cannot be accepted because this app version is too old."
   },
 
-  "errorBanner_ok": "OK",
-  "@errorBanner_ok": {
-    "description": "Button that dismisses the error banner at the top of the screen."
+  "errorDialog_title": "Something went wrong",
+  "@errorDialog_title": {
+    "description": "Default title of the modal dialog that reports a failed action."
+  },
+  "errorDialog_confirm": "Okay",
+  "@errorDialog_confirm": {
+    "description": "Button that acknowledges and closes an error dialog."
   },
 
   "memberSelectionList_client_not_supported": "This contact has an outdated app which needs to be updated.",

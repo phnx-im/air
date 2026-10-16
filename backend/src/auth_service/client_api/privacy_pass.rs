@@ -317,6 +317,7 @@ mod tests {
             pool.clone(),
             "example.com".parse()?,
             Default::default(),
+            0,
             CancellationToken::new(),
         )
         .await?;
@@ -891,13 +892,14 @@ mod tests {
         let keys_before = load_batched_token_keys(&pool).await?;
         assert!(keys_before.is_empty());
 
-        // Rotation should create a key.
+        // Rotation should create a key per operation type.
         let rotated = rotate_keys_if_needed(&pool).await?;
-        assert!(rotated.contains(&OperationType::AddUsername));
-        assert!(rotated.contains(&OperationType::GetInviteCode));
+        for operation_type in OperationType::all() {
+            assert!(rotated.contains(&operation_type));
+        }
 
         let keys_after = load_batched_token_keys(&pool).await?;
-        assert_eq!(keys_after.len(), 2);
+        assert_eq!(keys_after.len(), OperationType::all().count());
 
         // Second call: key is fresh, no rotation needed.
         let rotated = rotate_keys_if_needed(&pool).await?;
@@ -1513,7 +1515,7 @@ mod tests {
         Ok(())
     }
 
-    /// Issuing a token with the wrong operation type should fail
+    /// A key of another operation type must not yield tokens
     #[sqlx::test]
     async fn public_key_operation_type_mismatch(pool: PgPool) -> anyhow::Result<()> {
         let (service, public_keys) = setup_with_keypair(&pool).await?;
@@ -1524,7 +1526,7 @@ mod tests {
             store_random_client_record(&pool, user_record.user_id().clone()).await?;
 
         let challenge = build_challenge();
-        let (token_request, _token_state) =
+        let (token_request, token_state) =
             AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, 1)?;
 
         let token_response = service
@@ -1536,10 +1538,12 @@ mod tests {
             )
             .await;
 
-        assert!(matches!(
-            token_response,
-            Err(IssueTokensError::PrivacyPassError(_))
-        ));
+        match token_response {
+            Err(IssueTokensError::PrivacyPassError(_)) => {}
+            // There was a key collision, but then the proof on the client must fail.
+            Ok(response) => assert!(response.issue_tokens(&token_state).is_err()),
+            Err(error) => panic!("expected an error: {error:?}"),
+        }
 
         Ok(())
     }

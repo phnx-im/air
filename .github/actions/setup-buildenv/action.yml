@@ -196,13 +196,54 @@ runs:
     ## Flutter
 
     - if: inputs.flutter == 'true'
+      id: flutter-version
+      name: Read Flutter version
+      shell: bash
+      run: echo "value=$(jq -r .flutter app/.fvmrc)" >> $GITHUB_OUTPUT
+
+    - if: inputs.flutter == 'true' && !(runner.os == 'Linux' && runner.arch == 'ARM64')
       name: Setup Flutter SDK
       uses: gferon/setup-flutter@1d849067b1961950d28aa76b231a2a88ce045b2e
       with:
         channel: stable
-        version: 3.47.0
+        version: ${{ steps.flutter-version.outputs.value }}
         cache: true
         cache-sdk: true
+
+    # Flutter publishes no Linux arm64 SDK archive, so clone the same version
+    # from git. The flutter tool downloads the arm64 engine artifacts itself.
+    - if: inputs.flutter == 'true' && runner.os == 'Linux' && runner.arch == 'ARM64' && github.ref == 'refs/heads/main'
+      name: Cache Flutter SDK (Linux arm64)
+      uses: actions/cache@v5
+      with:
+        path: |
+          ~/flutter
+          ~/.pub-cache
+        key: flutter-linux-arm64-${{ steps.flutter-version.outputs.value }}-${{ hashFiles('app/pubspec.lock') }}
+        restore-keys: |
+          flutter-linux-arm64-${{ steps.flutter-version.outputs.value }}-
+
+    - if: inputs.flutter == 'true' && runner.os == 'Linux' && runner.arch == 'ARM64' && github.ref != 'refs/heads/main'
+      name: Download Flutter SDK cache (Linux arm64)
+      uses: actions/cache/restore@v5
+      with:
+        path: |
+          ~/flutter
+          ~/.pub-cache
+        key: flutter-linux-arm64-${{ steps.flutter-version.outputs.value }}-${{ hashFiles('app/pubspec.lock') }}
+        restore-keys: |
+          flutter-linux-arm64-${{ steps.flutter-version.outputs.value }}-
+
+    - if: inputs.flutter == 'true' && runner.os == 'Linux' && runner.arch == 'ARM64'
+      name: Setup Flutter SDK (Linux arm64)
+      shell: bash
+      run: |
+        if [[ ! -x ~/flutter/bin/flutter ]]; then
+          git clone --depth 1 --branch ${{ steps.flutter-version.outputs.value }} https://github.com/flutter/flutter.git ~/flutter
+        fi
+        echo "$HOME/flutter/bin" >> $GITHUB_PATH
+        ~/flutter/bin/flutter config --no-analytics
+        ~/flutter/bin/flutter precache --linux --no-android --no-ios --no-web
 
     - if: inputs.flutter == 'true'
       name: Enable native assets (build hooks)

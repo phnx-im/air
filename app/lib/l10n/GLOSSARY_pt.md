@@ -72,6 +72,8 @@ A saída é usar verbos em forma finita, não particípios. "{user1} adicionou {
 | **Vincular** | Dar acesso à conta a outro dispositivo | Vale para dispositivos, não para contatos. Não é o mesmo que conectar |
 | **Desvincular** | Retirar o acesso de um dispositivo vinculado | |
 | **Denunciar spam** | Sinalizar uma pessoa ou uma mensagem como spam | Recurso de moderação |
+| **Tocar** | Inglês "tap" | Celulares e tablets. "Toque" |
+| **Clicar** | Inglês "click" | Desktop, nas chaves `_desktop`. "Clique" |
 
 ## Arquivos e dados
 

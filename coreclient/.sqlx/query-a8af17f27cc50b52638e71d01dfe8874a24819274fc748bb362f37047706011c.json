@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM self_group_outbox WHERE kind = ?1 AND key = ?2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "a8af17f27cc50b52638e71d01dfe8874a24819274fc748bb362f37047706011c"
+}

@@ -14,7 +14,9 @@ use aircommon::{
         QS_CLIENT_REFERENCE_EXTENSION_TYPE, SUPPORTED_PROTOCOL_VERSIONS,
     },
 };
-use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
+use airprotos::client::component::{
+    AIR_COMPONENT_ID, AIR_GROUP_PROFILE_COMPONENT_ID, AirComponent,
+};
 use airprotos::client::group::{EncryptedGroupTitle, ExternalGroupProfile, GroupData};
 use anyhow::Context as _;
 use hex::ToHex as _;
@@ -32,7 +34,7 @@ use crate::{
     chats::GroupDataExt,
     clients::CoreUser,
     db::access::ReadConnection,
-    groups::{Group, GroupDataBytes, openmls_provider::KeyRefWrapper},
+    groups::{Group, openmls_provider::KeyRefWrapper},
     outbound_service::resync::{Resync, ResyncDebugInfo},
 };
 
@@ -149,7 +151,7 @@ impl GroupDebugInfo {
             .mls_group()
             .extensions()
             .unknown(GROUP_DATA_EXTENSION_TYPE)
-            .and_then(|ext| GroupData::decode(&GroupDataBytes::from(ext.0.clone())).ok())
+            .and_then(|ext| GroupData::decode(&ext.0).ok())
             .map(|gd| GroupDataDebugInfo {
                 encrypted_title: gd.encrypted_title.map(EncryptedGroupTitleDebugInfo::from),
                 external_group_profile: gd
@@ -298,12 +300,10 @@ impl AppDataDebugInfo {
             .map(|list| {
                 list.component_ids
                     .iter()
-                    .map(|id| {
-                        if *id == AIR_COMPONENT_ID {
-                            format!("Air({id:#06x})")
-                        } else {
-                            format!("{id:#06x}")
-                        }
+                    .map(|id| match *id {
+                        AIR_COMPONENT_ID => format!("Air({id:#06x})"),
+                        AIR_GROUP_PROFILE_COMPONENT_ID => format!("GroupProfile({id:#06x})"),
+                        _ => format!("{id:#06x}"),
                     })
                     .collect()
             })

@@ -8,12 +8,15 @@ use aircommon::{
     credentials::keys::LeafSigningKey,
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::{QualifiedGroupId, UserId},
-    messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
+    messages::{
+        client_as::EncryptedFriendshipPackage, client_ds::AadPayload,
+        client_ds_out::ExternalCommitInfoIn,
+    },
     time::TimeStamp,
 };
 use anyhow::{Context, Result, anyhow, bail};
 use apqmls::commit_builder::ApqCommitMessageBundle;
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Utc};
 use openmls::{
     group::GroupId,
     prelude::{LeafNodeIndex, MlsMessageOut},
@@ -24,6 +27,7 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
+    chats::outgoing_requests::{self, OutgoingRequest},
     clients::{
         CoreUser,
         api_clients::ApiClients,
@@ -35,18 +39,13 @@ use crate::{
         DecryptedProfileInfos, Group, ProfileInfo, handle_group_not_found_on_ds,
         self_group::SelfGroup,
     },
-    job::{operation::OperationData, profile::FetchUserProfileOperation},
+    job::{operation::OperationData, profile::FetchUserProfileOperation, recoverable::Recoverable},
     outbound_service::{
         OutboundServiceContext,
-        error::{
-            OutboundServiceError, classify_ds_error, is_ds_not_found_error, is_ds_rejection_error,
-            is_ds_wrong_epoch_error,
-        },
+        error::{OutboundServiceError, is_ds_not_found_error},
+        retry::{RetryDecision, RetryPolicy},
     },
 };
-
-/// DS rejections before a queued resync is given up on.
-const MAX_RESYNC_ATTEMPTS: u32 = 5;
 
 /// Why a group is being resynced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -163,8 +162,14 @@ pub(crate) struct Resync {
     /// The contact to create alongside the chat when this resync onboards into a
     /// connection group.
     pub(crate) connection_contact: Option<ConnectionContact>,
+    /// The request to recreate when this resync onboards into the connection
+    /// group of an unanswered outgoing request.
+    pub(crate) outgoing_request: Option<OutgoingRequest>,
+    /// The friendship package of the recipient's join, if the recipient
+    /// accepted [`Self::outgoing_request`] before this resync onboards.
+    pub(crate) accepted_friendship_package: Option<EncryptedFriendshipPackage>,
     pub(crate) reason: ResyncReason,
-    /// How many DS rejections this entry has collected so far.
+    /// How many server errors this entry has collected so far.
     pub(crate) attempts: u32,
 }
 
@@ -179,6 +184,8 @@ impl Resync {
             original_leaf_index: group.own_index(),
             shares_vc_leaf: group.own_leaf_is_virtual_client(),
             connection_contact: None,
+            outgoing_request: None,
+            accepted_friendship_package: None,
             reason,
             attempts: 0,
         }
@@ -222,6 +229,7 @@ impl CoreUser {
                 identity_link_wrapper_key,
                 vc_leaf_index,
                 connection,
+                outgoing_request,
             } = group;
 
             let resync = Resync {
@@ -233,6 +241,8 @@ impl CoreUser {
                 original_leaf_index: LeafNodeIndex::new(vc_leaf_index),
                 shares_vc_leaf: true,
                 connection_contact: connection,
+                outgoing_request,
+                accepted_friendship_package: None,
                 reason: ResyncReason::Onboarding,
                 attempts: 0,
             };
@@ -248,13 +258,13 @@ impl CoreUser {
 impl OutboundServiceContext {
     /// Drains the resync queue.
     ///
-    /// DS rejections count towards [`MAX_RESYNC_ATTEMPTS`] with backoff, then the entry is marked
+    /// Server errors count towards [`RetryPolicy::RESYNC`] with backoff, then the entry is marked
     /// `failed` until a manual resync or a processed commit clears it. Other errors retry on the
     /// next run.
     pub(super) async fn perform_queued_resyncs(
         &self,
         run_token: &CancellationToken,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), OutboundServiceError> {
         // Used to identify locked receipts by this task
         let task_id = Uuid::new_v4();
         loop {
@@ -266,7 +276,8 @@ impl OutboundServiceContext {
             let Some(resync) = self
                 .db
                 .with_write_transaction(async |txn| Resync::dequeue(txn, task_id, now).await)
-                .await?
+                .await
+                .map_err(OutboundServiceError::fatal)?
             else {
                 return Ok(());
             };
@@ -283,7 +294,11 @@ impl OutboundServiceContext {
     }
 
     /// Performs a single dequeued resync and records its outcome in the queue.
-    async fn perform_resync(&self, resync: Resync, now: DateTime<Utc>) -> anyhow::Result<()> {
+    async fn perform_resync(
+        &self,
+        resync: Resync,
+        now: DateTime<Utc>,
+    ) -> Result<(), OutboundServiceError> {
         info!("Performing resync");
 
         let group_id = resync.group_id.clone();
@@ -320,6 +335,14 @@ impl OutboundServiceContext {
             }
             // We are not a member anymore, which was already handled inside.
             Ok(None) => return Ok(()),
+            // Leave the entry untouched and retry in a later run
+            Err(
+                error @ (OutboundServiceError::NetworkError
+                | OutboundServiceError::RateLimited { .. }),
+            ) => {
+                warn!(%error, "Resync failed; retrying later");
+                return Err(error);
+            }
             Err(OutboundServiceError::Fatal(error)) => {
                 if is_ds_not_found_error(&error) {
                     error!(%error, "Group not found on DS during resync; tearing down group");
@@ -327,7 +350,8 @@ impl OutboundServiceContext {
                         .with_write_transaction(async |txn| {
                             handle_group_not_found_on_ds(txn, &group_id).await
                         })
-                        .await?;
+                        .await
+                        .map_err(OutboundServiceError::fatal)?;
                     return Ok(());
                 }
 
@@ -336,7 +360,7 @@ impl OutboundServiceContext {
                 return Ok(());
             }
             Err(OutboundServiceError::Recoverable(error)) => {
-                match retry_decision(&error, attempts) {
+                match RetryPolicy::RESYNC.decide(error.cause, attempts) {
                     RetryDecision::Retry => {
                         warn!(%error, "Resync failed; retrying later");
                     }
@@ -380,43 +404,6 @@ impl OutboundServiceContext {
     }
 }
 
-/// What to do with a queue entry after a recoverable error.
-#[derive(Debug, PartialEq, Eq)]
-enum RetryDecision {
-    /// Leave the entry untouched. The next run picks it up again.
-    Retry,
-    /// Spend an attempt and defer the next one.
-    Backoff { attempts: u32, retry_in: TimeDelta },
-    /// Spend the last attempt and give up.
-    GiveUp,
-}
-
-fn retry_decision(error: &anyhow::Error, attempts: u32) -> RetryDecision {
-    if !is_ds_rejection_error(error) || is_ds_wrong_epoch_error(error) {
-        return RetryDecision::Retry;
-    }
-    let attempts = attempts + 1;
-    if attempts >= MAX_RESYNC_ATTEMPTS {
-        RetryDecision::GiveUp
-    } else {
-        RetryDecision::Backoff {
-            attempts,
-            retry_in: resync_backoff(attempts),
-        }
-    }
-}
-
-/// Backoff 1m -> 2m -> 4m -> 8m, doubling per spent attempt. With
-/// [`MAX_RESYNC_ATTEMPTS`] the entry is given up on after the 8m wait. The
-/// cap only matters if the attempt limit grows.
-fn resync_backoff(attempts: u32) -> TimeDelta {
-    const RESYNC_BACKOFF_BASE: TimeDelta = TimeDelta::seconds(30);
-    const RESYNC_BACKOFF_MAX: TimeDelta = TimeDelta::seconds(60 * 60);
-
-    let factor = 1i32 << attempts.min(16);
-    (RESYNC_BACKOFF_BASE * factor).min(RESYNC_BACKOFF_MAX)
-}
-
 impl Resync {
     /// Resync using an external commit.
     ///
@@ -432,15 +419,12 @@ impl Resync {
         own_user_id: &UserId,
     ) -> Result<Option<(ChatId, DecryptedProfileInfos)>, OutboundServiceError> {
         let shares_vc_leaf = self.shares_vc_leaf;
-        if shares_vc_leaf
-            && SelfGroup::load(&mut connection)
-                .await
-                .map_err(OutboundServiceError::recoverable)?
-                .is_none()
-        {
-            return Err(OutboundServiceError::recoverable(anyhow!(
-                "self group not joined yet; deferring onboarding of group {:?}",
-                self.group_id
+        if shares_vc_leaf && SelfGroup::load(&mut connection).await?.is_none() {
+            return Err(OutboundServiceError::Recoverable(Recoverable::deferred(
+                anyhow!(
+                    "self group not joined yet; deferring onboarding of group {:?}",
+                    self.group_id
+                ),
             )));
         }
 
@@ -459,16 +443,15 @@ impl Resync {
                     handle_group_not_found_on_ds(txn, &self.group_id).await
                 })
                 .await
-                .map_err(OutboundServiceError::recoverable)?;
+                .map_err(OutboundServiceError::fatal)?;
             return Ok(None);
         };
         let connection_contact = self.connection_contact.take();
+        let outgoing_request = self.outgoing_request.take();
+        let accepted_friendship_package = self.accepted_friendship_package.take();
         let ds_timestamp = TimeStamp::now();
 
-        let mut txn = connection
-            .begin()
-            .await
-            .map_err(OutboundServiceError::recoverable)?;
+        let mut txn = connection.begin().await?;
         let (group, commit, member_profile_infos, members_diff) = Box::pin(self.create_commit(
             &mut txn,
             api_clients,
@@ -486,6 +469,16 @@ impl Resync {
                     Self::create_connection_chat(&mut txn, &group, connection_contact)
                         .await
                         .map_err(OutboundServiceError::fatal)?
+                } else if let Some(outgoing_request) = outgoing_request {
+                    Self::restore_outgoing_request(
+                        &mut txn,
+                        &group,
+                        outgoing_request,
+                        accepted_friendship_package,
+                        ds_timestamp,
+                    )
+                    .await
+                    .map_err(OutboundServiceError::fatal)?
                 } else {
                     Self::create_group_chat(&mut txn, &group, own_user_id, ds_timestamp)
                         .await
@@ -495,9 +488,7 @@ impl Resync {
             ),
         };
 
-        txn.commit()
-            .await
-            .map_err(OutboundServiceError::recoverable)?;
+        txn.commit().await?;
 
         Self::send_commit(api_clients, signer, &group, commit, original_leaf_index).await?;
 
@@ -561,6 +552,29 @@ impl Resync {
         Ok(chat.id())
     }
 
+    /// Recreate the chat of an outgoing request for a connection group we just
+    /// onboarded into, confirmed if the recipient accepted it before.
+    async fn restore_outgoing_request(
+        txn: &mut WriteDbTransaction<'_>,
+        group: &Group,
+        request: OutgoingRequest,
+        accepted_friendship_package: Option<EncryptedFriendshipPackage>,
+        ds_timestamp: TimeStamp,
+    ) -> Result<ChatId> {
+        let mut chat = request.store(&mut *txn, group, ds_timestamp).await?;
+        let Some(friendship_package) = accepted_friendship_package else {
+            return Ok(chat.id());
+        };
+
+        let system_message =
+            outgoing_requests::confirm_missed_join(txn, &mut chat, group, &friendship_package)
+                .await?;
+        ChatMessage::new_system_message(chat.id(), ds_timestamp, system_message)
+            .store(&mut *txn)
+            .await?;
+        Ok(chat.id())
+    }
+
     /// Create the local chat for a group we just onboarded into.
     async fn create_group_chat(
         txn: &mut WriteDbTransaction<'_>,
@@ -619,7 +633,7 @@ impl Resync {
                 &self.group_state_ear_key,
             )
             .await
-            .map_err(classify_ds_error)
+            .map_err(OutboundServiceError::from)
     }
 
     async fn create_commit(
@@ -655,7 +669,7 @@ impl Resync {
         let aad = AadPayload::Resync.into();
         let (group, commit, member_profile_infos) = if self.pq_group_id.is_some() {
             // APQ group
-            let (group, bundle, member_profile_infos) = Group::join_apq_group_externally(
+            let (group, bundle, member_profile_infos) = Box::pin(Group::join_apq_group_externally(
                 txn,
                 api_clients,
                 external_commit_info,
@@ -665,7 +679,8 @@ impl Resync {
                 self.identity_link_wrapper_key,
                 aad,
                 vc_group_id,
-            )
+                None,
+            ))
             .await??;
             (
                 group,
@@ -686,8 +701,7 @@ impl Resync {
                 self.group_state_ear_key,
                 self.identity_link_wrapper_key,
                 aad,
-                None, // This is not in response to a connection offer.
-                None, // A resync joins a group we are already a member of.
+                None,
                 vc_group_id,
             )
             .await??;
@@ -721,7 +735,7 @@ impl Resync {
             .get(qgid.owning_domain())
             .map_err(OutboundServiceError::fatal)?;
 
-        let response = match commit {
+        match commit {
             ResyncCommit::T(commit) => {
                 api_client
                     .ds_resync(
@@ -731,7 +745,7 @@ impl Resync {
                         group.group_state_ear_key(),
                         original_leaf_index,
                     )
-                    .await
+                    .await?
             }
             ResyncCommit::PQ(bundle) => {
                 api_client
@@ -741,11 +755,10 @@ impl Resync {
                         group.group_state_ear_key(),
                         original_leaf_index,
                     )
-                    .await
+                    .await?
             }
         };
 
-        response.map_err(classify_ds_error)?;
         Ok(())
     }
 }
@@ -829,6 +842,9 @@ mod persistence {
             let pq_group_id = self.pq_group_id.as_ref().map(GroupIdRefWrapper::from);
             let original_leaf_index = self.original_leaf_index.u32() as i32;
             let connection_contact = self.connection_contact.as_ref().map(BlobEncoded);
+            let outgoing_request = self.outgoing_request.as_ref().map(BlobEncoded);
+            let accepted_friendship_package =
+                self.accepted_friendship_package.as_ref().map(BlobEncoded);
             query!(
                 "INSERT INTO resync_queue (
                     group_id,
@@ -839,11 +855,13 @@ mod persistence {
                     original_leaf_index,
                     shares_vc_leaf,
                     connection_contact,
+                    outgoing_request,
+                    accepted_friendship_package,
                     status,
                     reason,
                     attempts
                 )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0)
                 ON CONFLICT DO NOTHING",
                 group_id,
                 pq_group_id,
@@ -853,6 +871,8 @@ mod persistence {
                 original_leaf_index,
                 self.shares_vc_leaf,
                 connection_contact,
+                outgoing_request,
+                accepted_friendship_package,
                 ResyncStatus::Pending as _,
                 self.reason as _,
             )
@@ -877,6 +897,9 @@ mod persistence {
             let pq_group_id = self.pq_group_id.as_ref().map(GroupIdRefWrapper::from);
             let original_leaf_index = self.original_leaf_index.u32() as i32;
             let connection_contact = self.connection_contact.as_ref().map(BlobEncoded);
+            let outgoing_request = self.outgoing_request.as_ref().map(BlobEncoded);
+            let accepted_friendship_package =
+                self.accepted_friendship_package.as_ref().map(BlobEncoded);
             query!(
                 "INSERT INTO resync_queue (
                     group_id,
@@ -887,11 +910,13 @@ mod persistence {
                     original_leaf_index,
                     shares_vc_leaf,
                     connection_contact,
+                    outgoing_request,
+                    accepted_friendship_package,
                     status,
                     reason,
                     attempts
                 )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 0)
                 ON CONFLICT (group_id) DO UPDATE SET
                     pq_group_id = excluded.pq_group_id,
                     chat_id = excluded.chat_id,
@@ -900,6 +925,8 @@ mod persistence {
                     original_leaf_index = excluded.original_leaf_index,
                     shares_vc_leaf = excluded.shares_vc_leaf,
                     connection_contact = excluded.connection_contact,
+                    outgoing_request = excluded.outgoing_request,
+                    accepted_friendship_package = excluded.accepted_friendship_package,
                     status = excluded.status,
                     attempts = 0,
                     not_before = NULL,
@@ -914,6 +941,8 @@ mod persistence {
                 original_leaf_index,
                 self.shares_vc_leaf,
                 connection_contact,
+                outgoing_request,
+                accepted_friendship_package,
                 ResyncStatus::Pending as _,
                 self.reason as _,
             )
@@ -1000,6 +1029,8 @@ mod persistence {
                 original_leaf_index: i32,
                 shares_vc_leaf: bool,
                 connection_contact: Option<BlobDecoded<ConnectionContact>>,
+                outgoing_request: Option<BlobDecoded<OutgoingRequest>>,
+                accepted_friendship_package: Option<BlobDecoded<EncryptedFriendshipPackage>>,
                 reason: ResyncReason,
                 attempts: i64,
             }
@@ -1037,6 +1068,8 @@ mod persistence {
                     original_leaf_index AS "original_leaf_index: _",
                     shares_vc_leaf AS "shares_vc_leaf: _",
                     connection_contact AS "connection_contact: _",
+                    outgoing_request AS "outgoing_request: _",
+                    accepted_friendship_package AS "accepted_friendship_package: _",
                     reason AS "reason: _",
                     attempts
                 "#,
@@ -1054,6 +1087,10 @@ mod persistence {
                 original_leaf_index: LeafNodeIndex::new(record.original_leaf_index as u32),
                 shares_vc_leaf: record.shares_vc_leaf,
                 connection_contact: record.connection_contact.map(BlobDecoded::into_inner),
+                outgoing_request: record.outgoing_request.map(BlobDecoded::into_inner),
+                accepted_friendship_package: record
+                    .accepted_friendship_package
+                    .map(BlobDecoded::into_inner),
                 reason: record.reason,
                 attempts: record.attempts as u32,
             });
@@ -1075,6 +1112,45 @@ mod persistence {
             )
             .fetch_optional(connection.as_mut())
             .await
+        }
+
+        /// Whether the group has a queue entry that onboards into the connection
+        /// group of an outgoing request.
+        pub(crate) async fn onboards_outgoing_request(
+            mut connection: impl ReadConnection,
+            group_id: &GroupId,
+        ) -> sqlx::Result<bool> {
+            let group_id = group_id.as_slice();
+            query_scalar!(
+                r#"SELECT EXISTS (
+                    SELECT 1 FROM resync_queue
+                    WHERE group_id = ? AND outgoing_request IS NOT NULL
+                ) AS "onboards: bool""#,
+                group_id,
+            )
+            .fetch_one(connection.as_mut())
+            .await
+        }
+
+        /// Records that the recipient accepted the outgoing request the group's
+        /// queue entry onboards into.
+        pub(crate) async fn record_acceptance(
+            mut connection: impl WriteConnection,
+            group_id: &GroupId,
+            friendship_package: &EncryptedFriendshipPackage,
+        ) -> sqlx::Result<()> {
+            let group_id = group_id.as_slice();
+            let friendship_package = BlobEncoded(friendship_package);
+            query!(
+                "UPDATE resync_queue
+                SET accepted_friendship_package = ?2
+                WHERE group_id = ?1",
+                group_id,
+                friendship_package,
+            )
+            .execute(connection.as_mut())
+            .await?;
+            Ok(())
         }
 
         /// Records a spent attempt and when the next one may run.
@@ -1149,71 +1225,14 @@ struct ResyncTCommit {
 
 #[cfg(test)]
 mod tests {
-    use std::{assert_matches, time::Duration};
+    use std::assert_matches;
 
-    use airapiclient::ds_api::DsRequestError;
-    use airprotos::common::v1::{
-        StatusDetails, StatusDetailsCode, WrongEpochDetail, status_details::Detail,
-    };
+    use aircommon::crypto::aead::keys::FriendshipPackageEarKey;
+    use chrono::TimeDelta;
 
     use crate::{ChatAttributes, db::access::DbAccess, utils::persistence::open_db_in_memory};
 
     use super::*;
-
-    fn ds_rejection() -> anyhow::Error {
-        DsRequestError::Tonic(tonic::Status::invalid_argument("rejected")).into()
-    }
-
-    fn ds_wrong_epoch() -> anyhow::Error {
-        let details = StatusDetails {
-            code: StatusDetailsCode::WrongEpoch.into(),
-            detail: Some(Detail::WrongEpoch(WrongEpochDetail {})),
-        };
-        DsRequestError::Tonic(details.to_status(tonic::Code::InvalidArgument, "wrong epoch")).into()
-    }
-
-    #[test]
-    fn local_error_does_not_spend_an_attempt() {
-        let error = anyhow!("self group not joined yet");
-        assert_eq!(retry_decision(&error, 3), RetryDecision::Retry);
-    }
-
-    #[test]
-    fn network_error_does_not_spend_an_attempt() {
-        let error: anyhow::Error = DsRequestError::Timeout(Duration::from_secs(1)).into();
-        assert_eq!(retry_decision(&error, 3), RetryDecision::Retry);
-    }
-
-    #[test]
-    fn wrong_epoch_does_not_spend_an_attempt() {
-        assert_eq!(retry_decision(&ds_wrong_epoch(), 3), RetryDecision::Retry);
-    }
-
-    #[test]
-    fn ds_rejection_spends_an_attempt_with_backoff() {
-        assert_eq!(
-            retry_decision(&ds_rejection(), 0),
-            RetryDecision::Backoff {
-                attempts: 1,
-                retry_in: TimeDelta::minutes(1),
-            }
-        );
-        assert_eq!(
-            retry_decision(&ds_rejection(), 3),
-            RetryDecision::Backoff {
-                attempts: 4,
-                retry_in: TimeDelta::minutes(8),
-            }
-        );
-    }
-
-    #[test]
-    fn last_ds_rejection_gives_up() {
-        assert_eq!(
-            retry_decision(&ds_rejection(), MAX_RESYNC_ATTEMPTS - 1),
-            RetryDecision::GiveUp
-        );
-    }
 
     /// A chat and a matching queue entry. The queue only stores ids and keys,
     /// so no MLS group is needed.
@@ -1238,6 +1257,8 @@ mod tests {
             original_leaf_index: LeafNodeIndex::new(0),
             shares_vc_leaf: false,
             connection_contact: None,
+            outgoing_request: None,
+            accepted_friendship_package: None,
             reason,
             attempts: 0,
         };
@@ -1272,6 +1293,60 @@ mod tests {
             .expect("entry should be due");
         assert_eq!(dequeued.reason, ResyncReason::FutureEpoch);
         assert_eq!(dequeued.attempts, 3);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn onboarding_keeps_the_outgoing_request_and_its_acceptance() -> anyhow::Result<()> {
+        let (pool, mut resync) = setup(ResyncReason::Onboarding).await?;
+        let group_id = resync.group_id.clone();
+        let request = OutgoingRequest::Targeted {
+            user_id: UserId::random("example.com".parse()?),
+            friendship_package_ear_key: FriendshipPackageEarKey::random()?,
+            origin_group_id: Some(GroupId::from(QualifiedGroupId::new(
+                Uuid::new_v4(),
+                "example.com".parse()?,
+            ))),
+        };
+        resync.chat_id = None;
+        resync.outgoing_request = Some(request.clone());
+        let mut connection = pool.write().await?;
+        resync.enqueue(&mut connection).await?;
+        assert!(Resync::onboards_outgoing_request(&mut connection, &group_id).await?);
+
+        let friendship_package = EncryptedFriendshipPackage::random();
+        Resync::record_acceptance(&mut connection, &group_id, &friendship_package).await?;
+
+        let dequeued = connection
+            .with_transaction(async |txn| Resync::dequeue(txn, Uuid::new_v4(), Utc::now()).await)
+            .await?
+            .expect("entry should be due");
+        assert_eq!(dequeued.outgoing_request, Some(request));
+        let accepted = dequeued
+            .accepted_friendship_package
+            .expect("the acceptance should be kept");
+        assert_eq!(
+            accepted.aead_ciphertext(),
+            friendship_package.aead_ciphertext()
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn only_onboarding_into_an_outgoing_request_takes_a_join() -> anyhow::Result<()> {
+        let (pool, resync) = setup(ResyncReason::Onboarding).await?;
+        let group_id = resync.group_id.clone();
+        let mut connection = pool.write().await?;
+        resync.enqueue(&mut connection).await?;
+        assert!(!Resync::onboards_outgoing_request(&mut connection, &group_id).await?);
+
+        let unknown = GroupId::from(QualifiedGroupId::new(
+            Uuid::new_v4(),
+            "example.com".parse()?,
+        ));
+        assert!(!Resync::onboards_outgoing_request(&mut connection, &unknown).await?);
 
         Ok(())
     }
