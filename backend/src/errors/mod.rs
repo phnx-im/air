@@ -21,7 +21,7 @@ use prost::Message;
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tonic::{Code, Status};
-use tracing::error;
+use tracing::{error, warn};
 
 use aircommon::codec::PersistenceCodec;
 
@@ -115,18 +115,15 @@ impl From<QueueError> for Status {
 /// Potential errors when performing a group operation.
 #[derive(Debug, Error)]
 pub(crate) enum GroupOperationError {
-    /// Unrecoverable implementation error
-    #[error("Library Error")]
-    LibraryError,
+    #[error("Error serializing message")]
+    SerializationError(#[from] tls_codec::Error),
     /// Invalid assisted message.
     #[error("Invalid assisted message")]
     InvalidMessage,
-    /// Commit message epoch differs from the group's epoch.
-    #[error("Commit message epoch differs from the group's epoch")]
-    WrongEpoch,
-    /// Error processing message.
     #[error("Error processing message")]
-    ProcessingError,
+    ProcessingError(#[from] ProcessAssistedMessageError),
+    #[error("Error processing message")]
+    ApqProcessingError(#[from] ProcessApqAssistedMessageError),
     /// Membership change of an APQ group via a non-APQ group operation.
     #[error("APQ group requires an APQ group operation")]
     ApqMembershipChange,
@@ -144,50 +141,38 @@ pub(crate) enum GroupOperationError {
     MaxDevicesExceeded { max_devices: u32 },
 }
 
-/// The DS's classification of an [`ApqProcessPublicMessageError`].
-enum ApqPublicErrorKind {
+/// The DS's classification of an error from processing an assisted message.
+#[derive(Display)]
+enum ProcessErrorKind {
+    /// Invalid assisted message
     InvalidMessage,
+    /// Message epoch differs from the group's epoch
     WrongEpoch,
+    /// Error processing message
     ProcessingError,
 }
 
-fn apq_public_error_kind(error: &ApqProcessPublicMessageError) -> ApqPublicErrorKind {
-    match error {
-        ApqProcessPublicMessageError::Processing(PublicProcessMessageError::ValidationError(
-            ValidationError::WrongEpoch,
-        )) => ApqPublicErrorKind::WrongEpoch,
-        ApqProcessPublicMessageError::Processing(PublicProcessMessageError::ValidationError(
-            ValidationError::LibraryError(_),
-        ))
-        | ApqProcessPublicMessageError::AppDataUpdate(_) => ApqPublicErrorKind::ProcessingError,
-        ApqProcessPublicMessageError::Processing(_)
-        | ApqProcessPublicMessageError::Validation(_)
-        | ApqProcessPublicMessageError::ApqInfoUpdate(_) => ApqPublicErrorKind::InvalidMessage,
-    }
-}
-
-impl From<ApqPublicErrorKind> for GroupOperationError {
-    fn from(kind: ApqPublicErrorKind) -> Self {
-        match kind {
-            ApqPublicErrorKind::InvalidMessage => Self::InvalidMessage,
-            ApqPublicErrorKind::WrongEpoch => Self::WrongEpoch,
-            ApqPublicErrorKind::ProcessingError => Self::ProcessingError,
+impl ProcessErrorKind {
+    /// Converts `error` of this kind into a status and logs it, unless it is a
+    /// wrong epoch. `invalid` creates the status of an invalid message.
+    fn into_status(self, error: &dyn std::error::Error, invalid: fn(String) -> Status) -> Status {
+        let msg = self.to_string();
+        match self {
+            Self::InvalidMessage => {
+                warn!(%error, "Invalid assisted message");
+                invalid(msg)
+            }
+            Self::WrongEpoch => wrong_epoch_status(msg),
+            Self::ProcessingError => {
+                error!(%error, "Failed to process assisted message");
+                Status::internal(msg)
+            }
         }
     }
 }
 
-impl From<ApqPublicErrorKind> for ClientSelfRemovalError {
-    fn from(kind: ApqPublicErrorKind) -> Self {
-        match kind {
-            ApqPublicErrorKind::InvalidMessage => Self::InvalidMessage,
-            ApqPublicErrorKind::WrongEpoch => Self::WrongEpoch,
-            ApqPublicErrorKind::ProcessingError => Self::ProcessingError,
-        }
-    }
-}
-
-impl From<ProcessAssistedMessageError> for GroupOperationError {
-    fn from(error: ProcessAssistedMessageError) -> Self {
+impl From<&ProcessAssistedMessageError> for ProcessErrorKind {
+    fn from(error: &ProcessAssistedMessageError) -> Self {
         match error {
             ProcessAssistedMessageError::InvalidAssistedMessage
             | ProcessAssistedMessageError::GroupInfoValidation(_) => Self::InvalidMessage,
@@ -200,22 +185,35 @@ impl From<ProcessAssistedMessageError> for GroupOperationError {
                 },
                 _ => Self::ProcessingError,
             },
-            ProcessAssistedMessageError::ApqProcessMessage(error) => {
-                apq_public_error_kind(&error).into()
-            }
+            ProcessAssistedMessageError::ApqProcessMessage(error) => error.into(),
         }
     }
 }
 
-impl From<ProcessApqAssistedMessageError> for GroupOperationError {
-    fn from(error: ProcessApqAssistedMessageError) -> Self {
+impl From<&ProcessApqAssistedMessageError> for ProcessErrorKind {
+    fn from(error: &ProcessApqAssistedMessageError) -> Self {
         match error {
             ProcessApqAssistedMessageError::InvalidAssistedMessage
             | ProcessApqAssistedMessageError::GroupInfoValidation(_) => Self::InvalidMessage,
             ProcessApqAssistedMessageError::LibraryError(_) => Self::ProcessingError,
-            ProcessApqAssistedMessageError::ProcessMessageError(error) => {
-                apq_public_error_kind(&error).into()
-            }
+            ProcessApqAssistedMessageError::ProcessMessageError(error) => error.into(),
+        }
+    }
+}
+
+impl From<&ApqProcessPublicMessageError> for ProcessErrorKind {
+    fn from(error: &ApqProcessPublicMessageError) -> Self {
+        match error {
+            ApqProcessPublicMessageError::Processing(
+                PublicProcessMessageError::ValidationError(ValidationError::WrongEpoch),
+            ) => Self::WrongEpoch,
+            ApqProcessPublicMessageError::Processing(
+                PublicProcessMessageError::ValidationError(ValidationError::LibraryError(_)),
+            )
+            | ApqProcessPublicMessageError::AppDataUpdate(_) => Self::ProcessingError,
+            ApqProcessPublicMessageError::Processing(_)
+            | ApqProcessPublicMessageError::Validation(_)
+            | ApqProcessPublicMessageError::ApqInfoUpdate(_) => Self::InvalidMessage,
         }
     }
 }
@@ -224,19 +222,29 @@ impl From<GroupOperationError> for Status {
     fn from(e: GroupOperationError) -> Self {
         let msg = e.to_string();
         match e {
-            GroupOperationError::LibraryError
-            | GroupOperationError::ProcessingError
-            | GroupOperationError::InvalidMessage => Status::internal(msg),
+            GroupOperationError::InvalidMessage => {
+                error!("Invalid message");
+                Status::internal(msg)
+            }
+            GroupOperationError::SerializationError(error) => {
+                error!(%error, "Failed to serialize message");
+                Status::internal(msg)
+            }
+            GroupOperationError::ProcessingError(error) => {
+                ProcessErrorKind::from(&error).into_status(&error, Status::internal)
+            }
+            GroupOperationError::ApqProcessingError(error) => {
+                ProcessErrorKind::from(&error).into_status(&error, Status::internal)
+            }
             GroupOperationError::MissingQueueConfig | GroupOperationError::IncompleteWelcome => {
                 Status::invalid_argument(msg)
             }
             GroupOperationError::ApqMembershipChange => Status::failed_precondition(msg),
             GroupOperationError::SelfRemoveCheck(error) => error.into(),
-            GroupOperationError::MergeCommitError(merge_commit_error) => {
-                error!(%merge_commit_error, "failed merging commit");
+            GroupOperationError::MergeCommitError(error) => {
+                error!(%error, "Failed merging commit");
                 Status::internal(msg)
             }
-            GroupOperationError::WrongEpoch => wrong_epoch_status(msg),
             GroupOperationError::MaxDevicesExceeded { max_devices } => {
                 let details = StatusDetails {
                     code: StatusDetailsCode::DeviceLimitReached.into(),
@@ -260,9 +268,10 @@ pub(crate) enum GroupDeletionError {
     /// Invalid assisted message.
     #[error("Invalid assisted message")]
     InvalidMessage,
-    /// Error processing message.
     #[error("Error processing message")]
-    ProcessingError,
+    ProcessingError(#[from] ProcessAssistedMessageError),
+    #[error("Error processing message")]
+    ApqProcessingError(#[from] ProcessApqAssistedMessageError),
     #[error("Error merging commit")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
 }
@@ -272,9 +281,16 @@ impl From<GroupDeletionError> for Status {
         let msg = e.to_string();
         match e {
             GroupDeletionError::InvalidMessage => Status::invalid_argument(msg),
-            GroupDeletionError::ProcessingError => Status::internal(msg),
-            GroupDeletionError::MergeCommitError(merge_commit_error) => {
-                error!(%merge_commit_error, "failed merging commit");
+            GroupDeletionError::ProcessingError(error) => {
+                error!(%error, "Failed to process assisted message");
+                Status::internal(msg)
+            }
+            GroupDeletionError::ApqProcessingError(error) => {
+                error!(%error, "Failed to process APQ assisted message");
+                Status::internal(msg)
+            }
+            GroupDeletionError::MergeCommitError(error) => {
+                error!(%error, "Failed merging commit");
                 Status::internal(msg)
             }
         }
@@ -287,34 +303,10 @@ pub(crate) enum ClientSelfRemovalError {
     /// Invalid assisted message.
     #[error("Invalid assisted message")]
     InvalidMessage,
-    /// Error processing message.
     #[error("Error processing message")]
-    ProcessingError,
-    #[error("Message epoch differs from the group's epoch")]
-    WrongEpoch,
+    ProcessingError(#[from] ProcessAssistedMessageError),
     #[error("Error merging commit")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
-}
-
-impl From<ProcessAssistedMessageError> for ClientSelfRemovalError {
-    fn from(error: ProcessAssistedMessageError) -> Self {
-        match error {
-            ProcessAssistedMessageError::InvalidAssistedMessage
-            | ProcessAssistedMessageError::GroupInfoValidation(_) => Self::InvalidMessage,
-            ProcessAssistedMessageError::LibraryError(_) => Self::ProcessingError,
-            ProcessAssistedMessageError::ProcessMessageError(error) => match error {
-                PublicProcessMessageError::ValidationError(error) => match error {
-                    ValidationError::LibraryError(_) => Self::ProcessingError,
-                    ValidationError::WrongEpoch => Self::WrongEpoch,
-                    _ => Self::InvalidMessage,
-                },
-                _ => Self::ProcessingError,
-            },
-            ProcessAssistedMessageError::ApqProcessMessage(error) => {
-                apq_public_error_kind(&error).into()
-            }
-        }
-    }
 }
 
 fn wrong_epoch_status(msg: String) -> Status {
@@ -346,10 +338,11 @@ impl From<ClientSelfRemovalError> for Status {
         let msg = e.to_string();
         match e {
             ClientSelfRemovalError::InvalidMessage => Status::invalid_argument(msg),
-            ClientSelfRemovalError::ProcessingError => Status::internal(msg),
-            ClientSelfRemovalError::WrongEpoch => wrong_epoch_status(msg),
-            ClientSelfRemovalError::MergeCommitError(merge_commit_error) => {
-                error!(%merge_commit_error, "failed merging commit");
+            ClientSelfRemovalError::ProcessingError(error) => {
+                ProcessErrorKind::from(&error).into_status(&error, Status::invalid_argument)
+            }
+            ClientSelfRemovalError::MergeCommitError(error) => {
+                error!(%error, "Failed merging commit");
                 Status::internal(msg)
             }
         }
@@ -362,10 +355,11 @@ pub(crate) enum ResyncClientError {
     /// Invalid assisted message.
     #[error("Invalid assisted message")]
     InvalidMessage,
-    /// Error processing message.
     #[error("Error processing message")]
-    ProcessingError,
-    #[error(transparent)]
+    ProcessingError(#[from] ProcessAssistedMessageError),
+    #[error("Error processing message")]
+    ApqProcessingError(#[from] ProcessApqAssistedMessageError),
+    #[error("Self-remove check error")]
     SelfRemoveCheck(#[from] SelfRemoveCheckError),
     #[error("Error merging commit")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
@@ -376,10 +370,20 @@ impl From<ResyncClientError> for Status {
         let msg = e.to_string();
         match e {
             ResyncClientError::InvalidMessage => Status::invalid_argument(msg),
-            ResyncClientError::ProcessingError => Status::internal(msg),
-            ResyncClientError::SelfRemoveCheck(error) => error.into(),
-            ResyncClientError::MergeCommitError(merge_commit_error) => {
-                error!(%merge_commit_error, "failed merging commit");
+            ResyncClientError::ProcessingError(error) => {
+                error!(%error, "Failed to process assisted message");
+                Status::internal(msg)
+            }
+            ResyncClientError::ApqProcessingError(error) => {
+                error!(%error, "Failed to process APQ assisted message");
+                Status::internal(msg)
+            }
+            ResyncClientError::SelfRemoveCheck(error) => {
+                error!(%error, "Failed self-remove check");
+                error.into()
+            }
+            ResyncClientError::MergeCommitError(error) => {
+                error!(%error, "Failed merging commit");
                 Status::internal(msg)
             }
         }

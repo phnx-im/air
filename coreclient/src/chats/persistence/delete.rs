@@ -6,6 +6,7 @@
 //!
 //! Deleting a chat erases it locally and parks a [`DeletedChat`] for the next
 //! self-group commit. The siblings erase their copy when the commit arrives.
+//! Erasing the chat of open incoming requests declines them.
 
 use aircommon::codec::PersistenceCodec;
 use airprotos::client::self_group::DeletedChat;
@@ -14,7 +15,7 @@ use tracing::{error, warn};
 
 use crate::{
     ChatType,
-    chats::{Chat, PendingConnectionRequest},
+    chats::{Chat, PendingConnectionRequest, connection_requests},
     clients::self_group_outbox::{self, OutboxKind},
     contacts::UsernameContact,
     db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
@@ -52,6 +53,20 @@ pub(crate) async fn erase(txn: &mut WriteDbTransaction<'_>, chat: &Chat) -> anyh
 
     Chat::delete(&mut *txn, chat.id()).await?;
     Ok(())
+}
+
+/// Erases the chat and stores the outgoing deletion signalling message for the
+/// siblings. The pending requests of the chat are declined.
+pub(crate) async fn erase_and_park_deletion(
+    txn: &mut WriteDbTransaction<'_>,
+    chat: &Chat,
+) -> anyhow::Result<()> {
+    for request in PendingConnectionRequest::load_for_chat(&mut *txn, chat.id()).await? {
+        store_outgoing_deletion(&mut *txn, request.group_id()).await?;
+        connection_requests::decline(txn, request).await?;
+    }
+    erase(txn, chat).await?;
+    store_outgoing_deletion(txn, chat.group_id()).await
 }
 
 /// Parks a local deletion for the next self-group commit.
@@ -111,16 +126,21 @@ pub(crate) async fn remove_staged_deletion(
     Ok(())
 }
 
-/// Erases the chats a sibling deleted.
+/// Erases the chats a sibling deleted, except the connections accepted on this
+/// device.
 pub(crate) async fn apply_deleted_chats(
     txn: &mut WriteDbTransaction<'_>,
     deleted: &[DeletedChat],
+    accepted_locally: &[GroupId],
 ) -> anyhow::Result<()> {
     for DeletedChat { group_id } in deleted {
         let Some(group_id) = group_id else {
             warn!("Skipping a deleted chat without a group id");
             continue;
         };
+        if accepted_locally.contains(group_id) {
+            continue;
+        }
         if let Some(chat) = Chat::load_by_group_id(&mut *txn, group_id).await? {
             erase(txn, &chat).await?;
         }
@@ -200,7 +220,7 @@ mod tests {
             store_outgoing_deletion(&mut *txn, &group_id(1)).await?;
             store_outgoing_deletion(&mut *txn, &group_id(2)).await?;
 
-            apply_deleted_chats(txn, &[deleted(1), DeletedChat::default()]).await?;
+            apply_deleted_chats(txn, &[deleted(1), DeletedChat::default()], &[]).await?;
 
             assert_eq!(staged_deletions(&mut *txn).await?, vec![deleted(2)]);
             Ok(())
@@ -219,7 +239,7 @@ mod tests {
             let deleted = DeletedChat {
                 group_id: Some(chat.group_id().clone()),
             };
-            apply_deleted_chats(txn, &[deleted]).await?;
+            apply_deleted_chats(txn, &[deleted], &[]).await?;
 
             assert!(Chat::load(&mut *txn, &chat.id()).await?.is_none());
             Ok(())

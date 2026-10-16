@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/features/chat/contact_request_actions.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
@@ -43,10 +44,12 @@ class _UsernameContactRequest extends ContactRequestSource {
 class ContactRequestDialog extends HookWidget {
   const ContactRequestDialog({
     super.key,
+    required this.chatId,
     required this.sender,
     required this.source,
   });
 
+  final ChatId chatId;
   final UiUserId sender;
   final ContactRequestSource source;
 
@@ -90,9 +93,16 @@ class ContactRequestDialog extends HookWidget {
           : loc.contactRequestDialog_avatarHint,
       actions: ContactRequestAnswers(
         acceptLabel: loc.contactRequestDialog_confirm,
-        dismissLabel: loc.contactRequestDialog_cancel,
+        declineLabel: loc.contactRequestDialog_decline,
+        blockLabel: loc.contactRequestDialog_block,
         onAccept: () => _accept(context, isAccepting),
-        onDismiss: () => context.read<NavigationCubit>().closeChat(),
+        onDecline: () => declineContactRequest(context, chatId),
+        onBlock: () => blockContactRequest(
+          context,
+          chatId,
+          sender,
+          senderProfile.displayName,
+        ),
         isAccepting: isAccepting.value,
       ),
     );

@@ -2216,9 +2216,47 @@
   "@contactRequestDialog_avatarHint_desktop": {
     "description": "Desktop version of contactRequestDialog_avatarHint: hint over the blurred picture of someone who is not yet a contact, telling the user they can click to reveal it."
   },
-  "contactRequestDialog_cancel": "Later",
-  "@contactRequestDialog_cancel": {
-    "description": "Button that postpones the contact request without accepting it."
+  "contactRequestDialog_decline": "Decline",
+  "@contactRequestDialog_decline": {
+    "description": "Button on an incoming contact request that declines it without asking. The sender is not told."
+  },
+  "contactRequestDialog_block": "Block",
+  "@contactRequestDialog_block": {
+    "description": "Button on an incoming contact request that blocks its sender, which declines the request. Opens a confirmation dialog."
+  },
+  "contactRequestDialog_error_decline": "Failed to decline contact request",
+  "@contactRequestDialog_error_decline": {
+    "description": "Error shown when declining an incoming contact request fails."
+  },
+  "contactRequestDialog_error_block": "Failed to block the sender of the contact request",
+  "@contactRequestDialog_error_block": {
+    "description": "Error shown when blocking the sender of an incoming contact request fails."
+  },
+  "blockContactRequestDialog_title": "Block {displayName}?",
+  "@blockContactRequestDialog_title": {
+    "description": "Title of the dialog confirming that the sender of an incoming contact request is blocked.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "blockContactRequestDialog_content": "You’ll decline {displayName}’s contact request and won’t receive contact requests or messages from them anymore. They won’t be able to see that you blocked them.",
+  "@blockContactRequestDialog_content": {
+    "description": "Body of the dialog confirming that the sender of an incoming contact request is blocked. Explains that the request is declined as well.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "blockContactRequestDialog_cancel": "Cancel",
+  "@blockContactRequestDialog_cancel": {
+    "description": "Button that closes the dialog without blocking the sender of the contact request."
+  },
+  "blockContactRequestDialog_confirm": "Block",
+  "@blockContactRequestDialog_confirm": {
+    "description": "Destructive button that blocks the sender of the contact request and declines the request."
   },
   "contactRequestDialog_confirm": "Accept",
   "@contactRequestDialog_confirm": {

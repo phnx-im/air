@@ -20,20 +20,20 @@ impl AuthService {
         &self,
         _params: AsCredentialsParams,
     ) -> Result<AsCredentialsResponse, AsCredentialsError> {
-        let as_credentials = Credential::load_all(&self.db_pool).await.map_err(|e| {
-            tracing::error!("Error loading AS credentials: {:?}", e);
+        let as_credentials = Credential::load_all(&self.db_pool).await.map_err(|error| {
+            tracing::error!(%error, "Error loading AS credentials");
             AsCredentialsError::StorageError
         })?;
         let as_intermediate_credentials = IntermediateCredential::load_all(&self.db_pool)
             .await
-            .map_err(|e| {
-                tracing::error!("Error loading intermediate credentials: {:?}", e);
+            .map_err(|error| {
+                tracing::error!(%error, "Error loading intermediate credentials");
                 AsCredentialsError::StorageError
             })?;
         let batched_token_keys = load_batched_token_keys(&self.db_pool)
             .await
-            .map_err(|e| {
-                tracing::error!("Error loading batched token keys: {:?}", e);
+            .map_err(|error| {
+                tracing::error!(%error, "Error loading batched token keys");
                 AsCredentialsError::StorageError
             })?
             .into_iter()

@@ -247,6 +247,16 @@ impl ChatMessage {
         Ok(())
     }
 
+    pub(crate) async fn mark_as_edited(
+        &mut self,
+        connection: impl WriteConnection,
+        edited_at: TimeStamp,
+    ) -> sqlx::Result<()> {
+        Self::update_edited_at(connection, self.id(), edited_at).await?;
+        self.set_edited_at(edited_at);
+        Ok(())
+    }
+
     pub fn id_ref(&self) -> &MessageId {
         &self.message_id
     }

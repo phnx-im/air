@@ -96,19 +96,23 @@ async fn apply_self_group_payload(
         }
     }
 
-    if own_echo {
-        block_contact::persistence::complete_sent_entries(txn, &payload.blocked_contacts).await?;
-    } else {
-        block_contact::persistence::apply_blocked_contacts_update(txn, &payload.blocked_contacts)
-            .await?;
-    }
-
     let effects = if own_echo {
+        block_contact::persistence::complete_sent_entries(txn, &payload.blocked_contacts).await?;
         connection_requests::complete_sent_entries(txn, &payload.connection_requests).await?;
         ConnectionRequestEffects::default()
     } else {
-        connection_requests::apply_connection_requests_update(txn, &payload.connection_requests)
-            .await?
+        let declined_chats = block_contact::persistence::apply_blocked_contacts_update(
+            txn,
+            &payload.blocked_contacts,
+        )
+        .await?;
+        let mut effects = connection_requests::apply_connection_requests_update(
+            txn,
+            &payload.connection_requests,
+        )
+        .await?;
+        effects.stale_chats.extend(declined_chats);
+        effects
     };
 
     // Deletions go last, so a chat a sibling erased stays erased even if this
@@ -116,7 +120,12 @@ async fn apply_self_group_payload(
     if own_echo {
         chats::persistence::remove_staged_deletion(txn, &payload.deleted_chats).await?;
     } else {
-        chats::persistence::apply_deleted_chats(txn, &payload.deleted_chats).await?;
+        chats::persistence::apply_deleted_chats(
+            txn,
+            &payload.deleted_chats,
+            &effects.accepted_locally,
+        )
+        .await?;
     }
 
     Ok(effects)
@@ -1139,18 +1148,29 @@ fn validate_join_connection_group_commit(
 
 #[cfg(test)]
 mod tests {
-    use aircommon::{credentials::SelfGroupCredential, identifiers::UserId};
-    use airprotos::client::self_group::{BlockedContactEntry, ContactBlocked, ContactUnblocked};
+    use aircommon::{
+        codec::PersistenceCodec,
+        credentials::SelfGroupCredential,
+        identifiers::{QualifiedGroupId, UserId},
+    };
+    use airprotos::client::self_group::{
+        BlockedContactEntry, ConnectionRequestDeclined, ConnectionRequestEntry, ContactBlocked,
+        ContactUnblocked, DeletedChat,
+    };
     use chrono::DateTime;
     use openmls::prelude::LeafNodeIndex;
     use sqlx::SqlitePool;
     use uuid::Uuid;
 
     use crate::{
-        clients::block_contact::{
-            BlockedContact,
-            pending::BlockedState,
-            persistence::{staged_entries, store_outgoing_entry},
+        Chat,
+        clients::{
+            block_contact::{
+                BlockedContact,
+                pending::BlockedState,
+                persistence::{staged_entries, store_outgoing_entry},
+            },
+            self_group_outbox::{self, OutboxKind},
         },
         db::access::DbAccess,
     };
@@ -1327,6 +1347,55 @@ mod tests {
                     blocked_entry(&untouched, 20, "Bob")
                 ],
                 "both parked changes must survive to be re-sent"
+            );
+            Ok(())
+        })
+        .await
+    }
+
+    /// We declined a request that a sibling accepted meanwhile. Another
+    /// sibling's decline of it arrives after the accept.
+    #[sqlx::test]
+    async fn an_accepted_connection_drops_our_parked_deletion(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let group_id: GroupId =
+            QualifiedGroupId::new(Uuid::from_u128(7), "localhost".parse()?).into();
+
+        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let chat = Chat::new_onboarding_connection_chat(group_id.clone(), user(1));
+            chat.store(&mut *txn).await?;
+            let declined = ConnectionRequestEntry::Declined(ConnectionRequestDeclined {
+                chat_id: chat.id().uuid(),
+                declined_at: DateTime::from_timestamp_millis(1_767_225_600_000).unwrap(),
+            });
+            self_group_outbox::stage(
+                &mut *txn,
+                OutboxKind::ConnectionRequest,
+                chat.id().uuid().as_bytes(),
+                &PersistenceCodec::to_vec(&declined)?,
+                None,
+            )
+            .await?;
+            chats::persistence::store_outgoing_deletion(&mut *txn, &group_id).await?;
+            let payload = SelfGroupPayload {
+                connection_requests: vec![declined],
+                deleted_chats: vec![DeletedChat {
+                    group_id: Some(group_id.clone()),
+                }],
+                ..Default::default()
+            };
+
+            apply_self_group_payload(txn, &payload, false).await?;
+
+            assert!(Chat::load(&mut *txn, &chat.id()).await?.is_some());
+            assert!(connection_requests::staged_entries(txn).await?.is_empty());
+            assert!(
+                chats::persistence::staged_deletions(&mut *txn)
+                    .await?
+                    .is_empty(),
+                "a parked deletion of the accepted chat would erase it on the siblings"
             );
             Ok(())
         })

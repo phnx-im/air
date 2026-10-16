@@ -22,6 +22,8 @@ use crate::{
         },
         storage::Storage,
     },
+    pseudonym::Pseudonymizer,
+    rate_limiter::provider::{ALLOWANCE_SWEEP_INTERVAL, sweep_expired_allowances},
     version::VersionPolicy,
 };
 pub use grpc::GrpcDs;
@@ -63,6 +65,7 @@ pub struct Ds {
     storage: Option<Storage>,
     version_policy: VersionPolicy,
     max_devices: MaxDevices,
+    pseudonymizer: Pseudonymizer,
 }
 
 #[derive(Debug)]
@@ -78,10 +81,15 @@ impl BackendService for Ds {
     ) -> Result<Self, ServiceCreationError> {
         let group_id_reservations = Arc::new(Mutex::new(GroupIdReservations::default()));
         tokio::spawn(
-            stop.run_until_cancelled_owned(sweep_expired_group_id_reservations(
-                group_id_reservations.clone(),
-            )),
+            stop.clone()
+                .run_until_cancelled_owned(sweep_expired_group_id_reservations(
+                    group_id_reservations.clone(),
+                )),
         );
+        tokio::spawn(stop.run_until_cancelled_owned(sweep_expired_allowances(
+            db_pool.clone(),
+            ALLOWANCE_SWEEP_INTERVAL,
+        )));
 
         let ds = Self {
             own_domain: domain,
@@ -90,6 +98,7 @@ impl BackendService for Ds {
             storage: None,
             version_policy,
             max_devices: MaxDevices::new(max_devices),
+            pseudonymizer: Pseudonymizer::random(),
         };
 
         Ok(ds)

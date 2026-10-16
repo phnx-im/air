@@ -16,6 +16,60 @@ import 'package:provider/provider.dart';
 
 final _log = Logger("ContactRequestActions");
 
+/// Declines the incoming contact request of [chatId]. Nothing is sent to its
+/// sender, so declining asks for no confirmation. The chat disappears with it.
+Future<void> declineContactRequest(BuildContext context, ChatId chatId) async {
+  final userCubit = context.read<UserCubit>();
+  final navigationCubit = context.read<NavigationCubit>();
+  try {
+    await userCubit.declineContactRequest(chatId);
+  } catch (e, stackTrace) {
+    _log.severe("Failed to decline contact request: $e", e, stackTrace);
+    showSnackBarStandalone(
+      (loc) => loc.contactRequestDialog_error_decline,
+      tone: .danger,
+    );
+    return;
+  }
+  _closeIfOpen(navigationCubit, chatId);
+}
+
+/// Blocks [sender] once the user confirms, which declines their incoming
+/// contact request of [chatId]. The chat disappears with it.
+Future<void> blockContactRequest(
+  BuildContext context,
+  ChatId chatId,
+  UiUserId sender,
+  String displayName,
+) async {
+  final userCubit = context.read<UserCubit>();
+  final navigationCubit = context.read<NavigationCubit>();
+  final loc = AppLocalizations.of(context);
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (_) => ConfirmDialog(
+      title: loc.blockContactRequestDialog_title(displayName),
+      message: loc.blockContactRequestDialog_content(displayName),
+      cancel: loc.blockContactRequestDialog_cancel,
+      confirm: loc.blockContactRequestDialog_confirm,
+      destructive: true,
+    ),
+  );
+  if (!(confirmed ?? false)) return;
+  AppHaptics.destructive();
+  try {
+    await userCubit.blockContact(sender);
+  } catch (e, stackTrace) {
+    _log.severe("Failed to block contact request sender: $e", e, stackTrace);
+    showSnackBarStandalone(
+      (loc) => loc.contactRequestDialog_error_block,
+      tone: .danger,
+    );
+    return;
+  }
+  _closeIfOpen(navigationCubit, chatId);
+}
+
 /// Retracts the outgoing contact request of [chatId] once the user confirms.
 /// The chat disappears with it.
 Future<void> retractContactRequest(BuildContext context, ChatId chatId) async {
@@ -44,7 +98,12 @@ Future<void> retractContactRequest(BuildContext context, ChatId chatId) async {
     );
     return;
   }
-  // Another chat open next to the chat list stays.
+  _closeIfOpen(navigationCubit, chatId);
+}
+
+/// Closes the chat of a request that disappeared. Another chat open next to
+/// the chat list stays.
+void _closeIfOpen(NavigationCubit navigationCubit, ChatId chatId) {
   if (navigationCubit.state.chatId == chatId) {
     navigationCubit.closeChat();
   }
@@ -71,11 +130,7 @@ Future<void> deleteClosedContactRequest(
   );
   if (!(confirmed ?? false)) return;
   AppHaptics.destructive();
-  // The chat disappears, so it must not stay open. Another chat open next to
-  // the chat list stays.
-  if (navigationCubit.state.chatId == chatId) {
-    navigationCubit.closeChat();
-  }
+  _closeIfOpen(navigationCubit, chatId);
   try {
     await userCubit.deleteChat(chatId);
   } catch (e, stackTrace) {

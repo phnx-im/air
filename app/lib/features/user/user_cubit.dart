@@ -77,6 +77,9 @@ class UserCubit implements StateStreamableSource<UiUser> {
   Future<void> retractContactRequest(ChatId chatId) =>
       _impl.retractContactRequest(chatId);
 
+  Future<void> declineContactRequest(ChatId chatId) =>
+      _impl.declineContactRequest(chatId);
+
   Future<void> devEraseChat(ChatId chatId) => _impl.devEraseChat(chatId);
 
   Future<List<UiContact>> get contacts => _impl.contacts;

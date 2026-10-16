@@ -38,7 +38,11 @@ void main() {
             theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             home: Scaffold(
-              body: ContactRequestDialog(sender: sender, source: source),
+              body: ContactRequestDialog(
+                chatId: 1.chatId(),
+                sender: sender,
+                source: source,
+              ),
             ),
           );
         },

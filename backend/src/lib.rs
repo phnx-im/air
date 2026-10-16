@@ -15,6 +15,7 @@ pub(crate) mod errors;
 pub(crate) mod listen_session;
 pub mod messages;
 pub(crate) mod pg_listen;
+pub(crate) mod pseudonym;
 pub mod qs;
 pub mod rate_limiter;
 pub mod relay_service;

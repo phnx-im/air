@@ -50,8 +50,8 @@ impl AuthService {
 
         user_record.stage_user_profile(user_profile);
 
-        user_record.update(&self.db_pool).await.map_err(|e| {
-            error!("Error updating user record: {:?}", e);
+        user_record.update(&self.db_pool).await.map_err(|error| {
+            error!(%error, "Error updating user record");
             StageUserProfileError::StorageError
         })?;
 
@@ -72,8 +72,8 @@ impl AuthService {
             .merge_user_profile()
             .map_err(|_| MergeUserProfileError::NoStagedUserProfile)?;
 
-        user_record.update(&self.db_pool).await.map_err(|e| {
-            error!("Error updating user record: {:?}", e);
+        user_record.update(&self.db_pool).await.map_err(|error| {
+            error!(%error, "Error updating user record");
             MergeUserProfileError::StorageError
         })?;
 

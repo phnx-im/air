@@ -50,8 +50,7 @@ impl DsGroupState {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
             .group()
-            .process_assisted_message(self.provider.crypto(), commit)
-            .map_err(|_| GroupDeletionError::ProcessingError)?;
+            .process_assisted_message(self.provider.crypto(), commit)?;
 
         // Perform DS-level validation
         // Make sure that we have the right message type.
@@ -111,11 +110,7 @@ impl DsGroupState {
                 t_message,
                 pq_message,
                 |_, _| true,
-            )
-            .map_err(|error| {
-                warn!(%error, "Failed to process APQ delete group commit");
-                GroupDeletionError::ProcessingError
-            })?;
+            )?;
 
         // Perform DS-level validation on each leg against its own source of
         // truth for the group's membership.

@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use prost::Message;
 use semver::Version;
 use tonic::{Code, Status};
-use tracing::error;
+use tracing::{Span, error, field};
 
 use crate::settings::VersionExpiration;
 
@@ -128,6 +128,7 @@ impl VersionPolicy {
                 });
             }
         };
+        Span::current().record("client_version", field::display(&version));
 
         match self.evaluate(&version, now) {
             VersionStatus::Ok => Ok(VerifiedClientVersion {
