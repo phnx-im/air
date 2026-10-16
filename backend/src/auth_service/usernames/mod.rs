@@ -10,7 +10,6 @@ use aircommon::{
     time::{Duration, ExpirationData, TimeStamp},
 };
 use airprotos::auth_service::v1::OperationType;
-use chrono::Utc;
 use displaydoc::Display;
 use privacypass::{
     amortized_tokens::{AmortizedBatchTokenRequest, AmortizedBatchTokenResponse, AmortizedToken},
@@ -162,7 +161,7 @@ const REFRESH_LEEWAY: Duration = Duration::weeks(1);
 /// reason to refresh the username.
 fn is_refresh_due(expiration_data: &ExpirationData) -> bool {
     let due_within = USERNAME_VALIDITY_PERIOD - USERNAME_REFRESH_THRESHOLD + REFRESH_LEEWAY;
-    *expiration_data.not_after() <= Utc::now() + due_within
+    *expiration_data.not_after() <= *TimeStamp::now() + due_within
 }
 
 #[derive(Debug, Error, Display)]

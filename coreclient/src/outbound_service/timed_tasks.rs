@@ -456,7 +456,7 @@ impl OutboundServiceContext {
             }
         }
 
-        Ok(Duration::weeks(1))
+        Ok(Duration::days(1))
     }
 
     /// Ensures the client has Privacy Pass tokens available for all
