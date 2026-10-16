@@ -50,12 +50,15 @@ impl User {
     /// - Chats suppressed by a sibling client never alert.
     ///   Their new entries are marked as notified, which also clears their
     ///   posted notifications.
+    /// - Without `alert`, chats that would alert are skipped, and only the
+    ///   silent chats are rebuilt.
     pub(crate) async fn message_and_reaction_notifications(
         &self,
         messages: &[ChatMessage],
         reactions: &[ReactionNotification],
         changed_chats: &[ChatId],
         siblings: Option<&SiblingClientStates>,
+        alert: bool,
     ) -> ChatNotificationsBatch {
         // Load all chats at one to avoid multiple lookups in db
         let mut chats: HashMap<ChatId, (Chat, AlertMode)> = HashMap::new();
@@ -78,7 +81,8 @@ impl User {
                 }
                 continue;
             }
-            if let Entry::Vacant(entry) = chats.entry(chat_id)
+            if alert
+                && let Entry::Vacant(entry) = chats.entry(chat_id)
                 && let Some(chat) = self.user.chat(&chat_id).await
                 && !chat.is_muted()
             {

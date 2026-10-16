@@ -649,8 +649,8 @@ impl CubitContext {
     }
 }
 
-/// Whether notifications come from the catch-up right after the queue stream
-/// opened or from live delivery.
+/// Whether notifications come from the catch-up right after a queue stream
+/// (re)opened or from live delivery.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Delivery {
     InitialBacklog,
@@ -658,6 +658,14 @@ enum Delivery {
 }
 
 impl CubitContext {
+    /// Whether notifications of this delivery are dropped regardless of their
+    /// content.
+    fn drops(&self, delivery: Delivery) -> bool {
+        IS_DESKTOP
+            && delivery == Delivery::InitialBacklog
+            && *self.app_state.borrow() != AppState::DesktopBackground
+    }
+
     /// Show OS notifications, as far as the UI's policy and the app state allow.
     async fn show_notifications(
         &self,
@@ -675,13 +683,7 @@ impl CubitContext {
             "send_notification"
         );
 
-        // On desktop the first batch after start is history the user is
-        // watching load in, unless they have switched away, in which case it
-        // is the only cue they get.
-        if IS_DESKTOP
-            && delivery == Delivery::InitialBacklog
-            && app_state != AppState::DesktopBackground
-        {
+        if self.drops(delivery) {
             return;
         }
 

@@ -162,6 +162,7 @@ impl User {
                 &reaction_notifications,
                 &chats_with_changed_notifications,
                 sibling_client_states.as_ref(),
+                true,
             )
             .await;
         notifications.extend(additions);

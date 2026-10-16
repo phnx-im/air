@@ -100,22 +100,26 @@ impl CubitContext {
         siblings: Option<&SiblingClientStates>,
         delivery: Delivery,
     ) {
-        let mut notifications = Vec::with_capacity(new_chats.len() + new_messages.len());
+        let notify = !self.drops(delivery);
         let user = User::from_core_user(self.core_user.clone());
-        user.new_chat_notifications(&new_chats, &mut notifications)
-            .await;
         let chat_notifications = user
             .message_and_reaction_notifications(
                 &new_messages,
                 &reaction_notifications,
                 &chats_with_changed_notifications,
                 siblings,
+                notify,
             )
             .await;
-        notifications.extend(chat_notifications.additions);
-        user.new_connection_request_notifications(&new_connections, &mut notifications)
-            .await;
-        self.show_notifications(notifications, delivery).await;
+        if notify {
+            let mut notifications = Vec::with_capacity(new_chats.len() + new_messages.len());
+            user.new_chat_notifications(&new_chats, &mut notifications)
+                .await;
+            notifications.extend(chat_notifications.additions);
+            user.new_connection_request_notifications(&new_connections, &mut notifications)
+                .await;
+            self.show_notifications(notifications, delivery).await;
+        }
 
         let mut stale_chats = chat_notifications.empty_chats;
         stale_chats.extend(removed_chats);
@@ -156,6 +160,8 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
             }
             Err(error) => return Err(error.into()),
         };
+        // The server replays what queued up while disconnected.
+        self.initial_backlog_drained = false;
         self.sibling_client_states = Some(self.cubit_context.core_user.sibling_client_states()?);
         self.spawn_report_client_state(responder.clone());
         self.cubit_context
