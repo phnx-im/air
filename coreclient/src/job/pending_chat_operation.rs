@@ -750,6 +750,13 @@ impl PendingChatOperation {
                     // more to do.
                     vec![]
                 };
+                // We drop the group messages if this is a delete operation for
+                // an unconfirmed connection group.
+                let group_messages = if is_delete && chat.is_unconfirmed() {
+                    Vec::new()
+                } else {
+                    group_messages
+                };
 
                 // If the chat isn't already inactive (which can be the case for
                 // leave operations that have already been processed), and this
@@ -1771,10 +1778,12 @@ pub mod test_utils {
         /// path.
         pub(crate) fn staged_commit_message_bytes(&self) -> anyhow::Result<Vec<u8>> {
             use openmls::prelude::tls_codec::Serialize as _;
-            let OperationType::Other { params, .. } = &self.operation else {
-                bail!("not a group operation carrying a commit");
+            let commit = match &self.operation {
+                OperationType::Other { params, .. } => &params.commit,
+                OperationType::Delete(params) => &params.commit,
+                _ => bail!("not a plain MLS operation carrying a commit"),
             };
-            Ok(params.commit.mls_message().tls_serialize_detached()?)
+            Ok(commit.mls_message().tls_serialize_detached()?)
         }
 
         /// Corrupts the persisted batch id of a self-group key package upload

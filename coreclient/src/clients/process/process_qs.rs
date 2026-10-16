@@ -979,6 +979,14 @@ impl CoreUser {
                     ds_timestamp,
                 )
                 .await?;
+                // As on a sibling, deleting an unconfirmed connection group
+                // ends the request, which the chat records itself.
+                if chat.is_unconfirmed()
+                    && let AadPayload::DeleteGroup =
+                        AadMessage::tls_deserialize_exact_bytes(&aad)?.into_payload()
+                {
+                    group_messages.clear();
+                }
                 HandledMessages {
                     new_messages: group_messages,
                     ..Default::default()

@@ -1038,17 +1038,22 @@ async fn expire_requests(device: &CoreUser) {
 }
 
 /// Asserts that the chat is closed with a single record of its sent request
-/// expiring.
+/// expiring, as its last message.
 async fn assert_sent_request_expired(device: &CoreUser, chat_id: ChatId, label: &str) {
     assert_inactive(device, chat_id, None, label).await;
-    let records = system_messages(device, chat_id)
-        .await
-        .into_iter()
+    let messages = system_messages(device, chat_id).await;
+    let records = messages
+        .iter()
         .filter(|message| matches!(message, SystemMessage::SentConnectionRequestExpired))
         .count();
     assert_eq!(
         records, 1,
         "the {label} device should record the expiry once"
+    );
+    assert_eq!(
+        messages.last(),
+        Some(&SystemMessage::SentConnectionRequestExpired),
+        "the expiry record should be the last message on the {label} device"
     );
 }
 
@@ -1076,6 +1081,7 @@ async fn an_expired_request_closes_on_the_sibling_and_is_unavailable() {
     // The next run deletes the group on the DS. The sibling shares the leaf,
     // so it gets the delete commit, and keeps the chat as a record.
     device_a.outbound_service().run_once().await;
+    assert_sent_request_expired(&device_a, chat_id, "sender").await;
     drain_expecting_success(&device_b, "the sibling failed to follow the expiry").await;
     assert_sent_request_expired(&device_b, chat_id, "sibling").await;
 
@@ -1095,6 +1101,48 @@ async fn an_expired_request_closes_on_the_sibling_and_is_unavailable() {
         .await
         .unwrap();
     assert!(new_chat_id.is_ok(), "got {new_chat_id:?}");
+}
+
+/// The DS echoes the delete of the expired request's group before its response
+/// arrives.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Echoed expiry delete", skip_all)]
+async fn an_echoed_expiry_delete_keeps_the_record() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let bob_record = add_username(&mut setup, &bob).await;
+    let alice_user = setup.get_user(&alice).user().clone();
+    // Only a plain MLS echo can be fed back to the sender.
+    let chat_id = alice_user
+        .add_contact(bob_record.username.clone(), bob_record.hash, false)
+        .await
+        .unwrap()
+        .unwrap();
+    alice_user
+        .backdate_contact_request(chat_id, PAST_THE_DEADLINE)
+        .await
+        .unwrap();
+    expire_requests(&alice_user).await;
+
+    let echo = alice_user
+        .pending_commit_message_bytes(chat_id)
+        .await
+        .unwrap();
+    alice_user
+        .process_incoming_mls_message(&echo)
+        .await
+        .unwrap();
+
+    assert!(
+        alice_user
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none(),
+        "the echo should complete the parked delete"
+    );
+    assert_sent_request_expired(&alice_user, chat_id, "sender").await;
 }
 
 /// The device holding the username comes online after the deadline of a
