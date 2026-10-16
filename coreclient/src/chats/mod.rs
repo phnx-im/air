@@ -302,6 +302,13 @@ impl ChatStatus {
     pub fn inactive(past_members: Vec<UserId>) -> Self {
         ChatStatus::Inactive(InactiveChat { past_members })
     }
+
+    pub fn is_inactive(&self) -> bool {
+        match self {
+            ChatStatus::Inactive(_) => true,
+            ChatStatus::Pending | ChatStatus::Active | ChatStatus::Blocked => false,
+        }
+    }
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Hash, Serialize, Deserialize)]

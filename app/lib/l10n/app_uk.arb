@@ -263,6 +263,7 @@
   "systemMessage_receivedAdditionalDirectConnectionRequestUnknownGroup": "{displayName} також надіслав(-ла) вам запит на контакт через спільний груповий чат.",
   "systemMessage_userChangedPicture": "{user} змінив(-ла) фото групи",
   "systemMessage_userCreatedGroup": "{user} створив(-ла) групу",
+  "systemMessage_userDeletedChat": "{user} видалив(-ла) чат",
   "systemMessage_onboarded": "Цей клієнт приєднався до чату після прив’язки.",
   "systemMessage_deviceLinked": "Ви прив’язали до свого облікового запису новий пристрій {device}. {viewDevicesAction}",
   "systemMessage_deviceLinkedUnknown": "Ви прив’язали до свого облікового запису новий пристрій. {viewDevicesAction}",

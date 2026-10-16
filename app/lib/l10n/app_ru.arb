@@ -263,6 +263,7 @@
   "systemMessage_receivedAdditionalDirectConnectionRequestUnknownGroup": "{displayName} также отправил(а) вам запрос на контакт через общий групповой чат.",
   "systemMessage_userChangedPicture": "{user} изменил(а) фото группы",
   "systemMessage_userCreatedGroup": "{user} создал(а) группу",
+  "systemMessage_userDeletedChat": "{user} удалил(а) чат",
   "systemMessage_onboarded": "Этот клиент подключился к чату после привязки.",
   "systemMessage_deviceLinked": "Вы привязали к своему аккаунту новое устройство {device}. {viewDevicesAction}",
   "systemMessage_deviceLinkedUnknown": "Вы привязали к своему аккаунту новое устройство. {viewDevicesAction}",

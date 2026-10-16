@@ -274,6 +274,7 @@
   "systemMessage_receivedAdditionalDirectConnectionRequestUnknownGroup": "{displayName} também te enviou um pedido de contacto através de um chat de grupo em comum.",
   "systemMessage_userChangedPicture": "{user} alterou a fotografia do grupo",
   "systemMessage_userCreatedGroup": "{user} criou o grupo",
+  "systemMessage_userDeletedChat": "{user} eliminou o chat",
   "systemMessage_onboarded": "Este cliente entrou no chat depois da associação.",
   "systemMessage_deviceLinked": "Associaste um novo dispositivo chamado {device} à tua conta. {viewDevicesAction}",
   "systemMessage_deviceLinkedUnknown": "Associaste um novo dispositivo à tua conta. {viewDevicesAction}",

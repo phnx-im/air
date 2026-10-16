@@ -12,7 +12,7 @@ use std::fmt;
 // Re-export for FRB-reasons
 pub(crate) use aircommon::identifiers::{Username, UsernameValidationError};
 pub(crate) use aircoreclient::{AddUsernameContactError, ChatId, MessageId};
-pub(crate) use airprotos::client::component::{AirComponent, AirFeatures};
+pub(crate) use airprotos::client::component::AirFeatures;
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
@@ -584,6 +584,7 @@ pub enum UiSystemMessage {
     NewHandleConnectionChat(UiUsername),
     NewDirectConnectionChat(UiUserId),
     CreateGroup(UiUserId),
+    DeleteGroup(UiUserId),
     Onboarded,
     DeviceLinked(Uuid),
     DeviceUnlinked(Uuid),
@@ -672,6 +673,7 @@ impl From<SystemMessage> for UiSystemMessage {
                 UiSystemMessage::NewDirectConnectionChat(user_id.into())
             }
             SystemMessage::CreateGroup(user_id) => UiSystemMessage::CreateGroup(user_id.into()),
+            SystemMessage::DeleteGroup(deleter) => UiSystemMessage::DeleteGroup(deleter.into()),
             SystemMessage::Onboarded => UiSystemMessage::Onboarded,
             SystemMessage::DeviceLinked(client_id) => UiSystemMessage::DeviceLinked(client_id),
             SystemMessage::DeviceUnlinked(client_id) => UiSystemMessage::DeviceUnlinked(client_id),
@@ -893,14 +895,6 @@ impl From<Username> for UiUsername {
             plaintext: username.into_plaintext(),
         }
     }
-}
-
-#[frb(unignore)]
-#[frb(mirror(AirComponent))]
-#[frb(dart_metadata = ("freezed"))]
-struct _AirComponent {
-    pub features: AirFeatures,
-    pub is_self_group: bool,
 }
 
 #[frb(unignore)]

@@ -98,7 +98,7 @@ pub(crate) async fn expire_due(
         };
         let at = expires_at(sent_at).into();
         if outgoing_requests::close_expired(txn, &mut chat, at).await? {
-            stage_group_delete(txn, signer, chat_id).await?;
+            stage_group_delete(txn, signer, chat_id, now).await?;
         }
     }
 
@@ -140,6 +140,7 @@ async fn stage_group_delete(
     txn: &mut WriteDbTransaction<'_>,
     signer: &UserSigningKey,
     chat_id: ChatId,
+    now: DateTime<Utc>,
 ) -> anyhow::Result<()> {
     if PendingChatOperation::is_pending_for_chat(&mut *txn, chat_id).await? {
         return Ok(());
@@ -147,7 +148,8 @@ async fn stage_group_delete(
     // We only log a failure. Returning it would roll back the other expiries
     // of the run, and a failure that repeats would block them for good. The
     // request is closed either way. Only its group stays on the DS.
-    if let Err(error) = PendingChatOperation::create_delete(txn, signer, chat_id).await {
+    let deleted = Some(now.into());
+    if let Err(error) = PendingChatOperation::create_delete(txn, signer, chat_id, deleted).await {
         warn!(%error, %chat_id, "Could not park deleting the group of an expired request");
     }
     Ok(())

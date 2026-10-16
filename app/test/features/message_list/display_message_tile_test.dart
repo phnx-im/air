@@ -169,6 +169,23 @@ void main() {
       },
     );
 
+    testWidgets('renders and opens the name of who deleted the chat', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildSubject(UiSystemMessage.deleteGroup(1.userId())),
+      );
+
+      expect(
+        find.text('Alice deleted the chat', findRichText: true),
+        findsOneWidget,
+      );
+
+      await tester.tapOnText(find.textRange.ofSubstring('Alice'));
+
+      verify(() => navigationCubit.openMemberDetails(1.userId())).called(1);
+    });
+
     testWidgets('opens nothing from a group name', (tester) async {
       await tester.pumpWidget(
         buildSubject(

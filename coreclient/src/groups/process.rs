@@ -492,10 +492,13 @@ impl Group {
                 }
             }
             // The group was deleted; there is nothing else to do at this point.
-            AadPayload::DeleteGroup => PostProcessAadResult {
-                we_were_removed: true,
-                encrypted_profile_infos: Vec::new(),
-            },
+            AadPayload::DeleteGroup => {
+                ensure_delete_keeps_sender_credential(processed_message)?;
+                PostProcessAadResult {
+                    we_were_removed: true,
+                    encrypted_profile_infos: Vec::new(),
+                }
+            }
         };
 
         Ok(result)
@@ -1017,6 +1020,18 @@ fn ensure_self_group_flag_unchanged(
             == GroupAppData::is_self_group_context(mls_group.extensions()),
         "commit would toggle the self-group flag"
     );
+    Ok(())
+}
+
+/// Make sure that the sender's credential doesn't change in a delete commit.
+fn ensure_delete_keeps_sender_credential(processed_message: &ProcessedMessage) -> Result<()> {
+    let staged_commit = expect_staged_commit(processed_message)?;
+    if let Some(leaf_node) = staged_commit.update_path_leaf_node() {
+        ensure!(
+            leaf_node.credential() == processed_message.credential(),
+            "delete commit changes the sender's credential"
+        );
+    }
     Ok(())
 }
 

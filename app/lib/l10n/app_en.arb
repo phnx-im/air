@@ -1391,6 +1391,16 @@
     }
   },
 
+  "systemMessage_userDeletedChat": "{user} deleted the chat",
+  "@systemMessage_userDeletedChat": {
+    "description": "Notice in the message list when someone deletes the chat for all of its members. The name is rendered in bold wherever it lands, so put it where your language needs it.",
+    "placeholders": {
+      "user": {
+        "type": "String"
+      }
+    }
+  },
+
   "systemMessage_onboarded": "This client has been onboarded into the chat after linking.",
   "@systemMessage_onboarded": {
     "description": "System message marking where a newly linked device joined the chat."

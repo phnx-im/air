@@ -636,6 +636,7 @@ pub enum SystemMessage {
     /// that was not recorded. See [`Self::SentGroupConnectionRequest`].
     NewDirectConnectionChat(UserId),
     CreateGroup(UserId),
+    DeleteGroup(UserId),
     /// We got onboarded into a group after linking.
     Onboarded,
     /// A device, identified by its client id, was linked.
@@ -743,7 +744,8 @@ impl SystemMessage {
             SystemMessage::Add(actor, _) | SystemMessage::Remove(actor, _) => actor.as_ref(),
             SystemMessage::ChangeTitle { user_id, .. }
             | SystemMessage::ChangePicture(user_id)
-            | SystemMessage::CreateGroup(user_id) => Some(user_id),
+            | SystemMessage::CreateGroup(user_id)
+            | SystemMessage::DeleteGroup(user_id) => Some(user_id),
             SystemMessage::ReceivedDirectConnectionRequest { .. }
             | SystemMessage::ReceivedHandleConnectionRequest { .. }
             | SystemMessage::AcceptedConnectionRequest { .. }
@@ -892,6 +894,10 @@ impl SystemMessage {
             SystemMessage::CreateGroup(user_id) => {
                 let user_display_name = core_user.user_profile(user_id).await.display_name;
                 format!("{user_display_name} created the group")
+            }
+            SystemMessage::DeleteGroup(deleter) => {
+                let deleter_display_name = core_user.user_profile(deleter).await.display_name;
+                format!("{deleter_display_name} deleted the chat")
             }
             SystemMessage::Onboarded => {
                 "This client has been onboarded into the group after linking".into()
