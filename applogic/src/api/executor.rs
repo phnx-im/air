@@ -17,7 +17,7 @@ use flutter_rust_bridge::{
 
 use crate::FLUTTER_RUST_BRIDGE_CODEGEN_VERSION;
 
-const TOKIO_WORKER_THREADS: usize = 4;
+const TOKIO_WORKER_THREADS: usize = 6;
 const SYNC_POOL_THREADS: usize = 2;
 const RAYON_THREADS: usize = 2;
 
