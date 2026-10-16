@@ -104,7 +104,7 @@ impl From<QueueError> for Status {
         match error {
             QueueError::Storage(error) => {
                 error!(%error, "storage error");
-                Self::internal(msg)
+                Self::internal("Database error")
             }
             QueueError::PayloadReceiverClosed => Self::internal(msg),
             QueueError::ClientNotFound => Self::not_found(msg),
@@ -115,14 +115,14 @@ impl From<QueueError> for Status {
 /// Potential errors when performing a group operation.
 #[derive(Debug, Error)]
 pub(crate) enum GroupOperationError {
-    #[error("Error serializing message")]
+    #[error("Error serializing message: {0}")]
     SerializationError(#[from] tls_codec::Error),
     /// Invalid assisted message.
     #[error("Invalid assisted message")]
     InvalidMessage,
-    #[error("Error processing message")]
+    #[error("Error processing message: {0}")]
     ProcessingError(#[from] ProcessAssistedMessageError),
-    #[error("Error processing message")]
+    #[error("Error processing message: {0}")]
     ApqProcessingError(#[from] ProcessApqAssistedMessageError),
     /// Membership change of an APQ group via a non-APQ group operation.
     #[error("APQ group requires an APQ group operation")]
@@ -135,7 +135,7 @@ pub(crate) enum GroupOperationError {
     IncompleteWelcome,
     #[error(transparent)]
     SelfRemoveCheck(#[from] SelfRemoveCheckError),
-    #[error("Error merging commit")]
+    #[error("Error merging commit: {0}")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
     #[error("Max devices exceeded")]
     MaxDevicesExceeded { max_devices: u32 },
@@ -228,7 +228,7 @@ impl From<GroupOperationError> for Status {
             }
             GroupOperationError::SerializationError(error) => {
                 error!(%error, "Failed to serialize message");
-                Status::internal(msg)
+                Status::internal("Error serializing message")
             }
             GroupOperationError::ProcessingError(error) => {
                 ProcessErrorKind::from(&error).into_status(&error, Status::internal)
@@ -243,7 +243,7 @@ impl From<GroupOperationError> for Status {
             GroupOperationError::SelfRemoveCheck(error) => error.into(),
             GroupOperationError::MergeCommitError(error) => {
                 error!(%error, "Failed merging commit");
-                Status::internal(msg)
+                Status::internal("Error merging commit")
             }
             GroupOperationError::MaxDevicesExceeded { max_devices } => {
                 let details = StatusDetails {
@@ -268,11 +268,11 @@ pub(crate) enum GroupDeletionError {
     /// Invalid assisted message.
     #[error("Invalid assisted message")]
     InvalidMessage,
-    #[error("Error processing message")]
+    #[error("Error processing message: {0}")]
     ProcessingError(#[from] ProcessAssistedMessageError),
-    #[error("Error processing message")]
+    #[error("Error processing message: {0}")]
     ApqProcessingError(#[from] ProcessApqAssistedMessageError),
-    #[error("Error merging commit")]
+    #[error("Error merging commit: {0}")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
 }
 
@@ -283,15 +283,15 @@ impl From<GroupDeletionError> for Status {
             GroupDeletionError::InvalidMessage => Status::invalid_argument(msg),
             GroupDeletionError::ProcessingError(error) => {
                 error!(%error, "Failed to process assisted message");
-                Status::internal(msg)
+                Status::internal("Error processing message")
             }
             GroupDeletionError::ApqProcessingError(error) => {
                 error!(%error, "Failed to process APQ assisted message");
-                Status::internal(msg)
+                Status::internal("Error processing message")
             }
             GroupDeletionError::MergeCommitError(error) => {
                 error!(%error, "Failed merging commit");
-                Status::internal(msg)
+                Status::internal("Error merging commit")
             }
         }
     }
@@ -303,9 +303,9 @@ pub(crate) enum ClientSelfRemovalError {
     /// Invalid assisted message.
     #[error("Invalid assisted message")]
     InvalidMessage,
-    #[error("Error processing message")]
+    #[error("Error processing message: {0}")]
     ProcessingError(#[from] ProcessAssistedMessageError),
-    #[error("Error merging commit")]
+    #[error("Error merging commit: {0}")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
 }
 
@@ -343,7 +343,7 @@ impl From<ClientSelfRemovalError> for Status {
             }
             ClientSelfRemovalError::MergeCommitError(error) => {
                 error!(%error, "Failed merging commit");
-                Status::internal(msg)
+                Status::internal("Error merging commit")
             }
         }
     }
@@ -355,13 +355,13 @@ pub(crate) enum ResyncClientError {
     /// Invalid assisted message.
     #[error("Invalid assisted message")]
     InvalidMessage,
-    #[error("Error processing message")]
+    #[error("Error processing message: {0}")]
     ProcessingError(#[from] ProcessAssistedMessageError),
-    #[error("Error processing message")]
+    #[error("Error processing message: {0}")]
     ApqProcessingError(#[from] ProcessApqAssistedMessageError),
-    #[error("Self-remove check error")]
+    #[error("Self-remove check error: {0}")]
     SelfRemoveCheck(#[from] SelfRemoveCheckError),
-    #[error("Error merging commit")]
+    #[error("Error merging commit: {0}")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
 }
 
@@ -372,11 +372,11 @@ impl From<ResyncClientError> for Status {
             ResyncClientError::InvalidMessage => Status::invalid_argument(msg),
             ResyncClientError::ProcessingError(error) => {
                 error!(%error, "Failed to process assisted message");
-                Status::internal(msg)
+                Status::internal("Error processing message")
             }
             ResyncClientError::ApqProcessingError(error) => {
                 error!(%error, "Failed to process APQ assisted message");
-                Status::internal(msg)
+                Status::internal("Error processing message")
             }
             ResyncClientError::SelfRemoveCheck(error) => {
                 error!(%error, "Failed self-remove check");
@@ -384,7 +384,7 @@ impl From<ResyncClientError> for Status {
             }
             ResyncClientError::MergeCommitError(error) => {
                 error!(%error, "Failed merging commit");
-                Status::internal(msg)
+                Status::internal("Error merging commit")
             }
         }
     }
