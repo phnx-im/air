@@ -377,6 +377,7 @@ impl CoreUser {
                     Some(group_data),
                     None,
                     DerivationEpoch::Keep,
+                    &self.create_own_client_reference(),
                 )
                 .await
             })

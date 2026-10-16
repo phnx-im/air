@@ -324,9 +324,10 @@ impl CoreUser {
 
         let group_signer = LeafSigningKey::SelfGroup(self_group_signing_key.clone());
         let own_user_id = self.user_id().clone();
+        let client_reference = self.create_own_client_reference();
         let (group, partial_params, user_profile_key) = self
             .db()
-            .with_write_transaction(async move |txn| -> anyhow::Result<_> {
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 let (group, partial_params) = Group::create_apq_group(
                     &mut *txn,
                     &group_signer,
@@ -338,6 +339,7 @@ impl CoreUser {
                     // The self group is the emulation group itself, not a
                     // virtual client of one.
                     None,
+                    Some(&client_reference),
                 )?;
 
                 let user_profile_key = UserProfileKey::load_own(&mut *txn).await?;
@@ -348,7 +350,6 @@ impl CoreUser {
             })
             .await?;
 
-        let client_reference = self.create_own_client_reference();
         let encrypted_user_profile_key =
             user_profile_key.encrypt(group.identity_link_wrapper_key(), self.user_id())?;
         let mut params = partial_params.into_params(client_reference, encrypted_user_profile_key);

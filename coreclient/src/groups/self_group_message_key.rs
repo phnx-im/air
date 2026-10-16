@@ -591,6 +591,7 @@ mod derivation_tests {
             random_group_id(),
             context,
             None,
+            None,
         )?;
         Ok(group)
     }

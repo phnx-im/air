@@ -238,6 +238,7 @@ mod tests {
             random_group_id(),
             NewGroupContext::SelfGroup(GroupData::empty()),
             None,
+            None,
         )?;
         Ok(group)
     }
