@@ -100,7 +100,7 @@ impl CubitContext {
         siblings: Option<&SiblingClientStates>,
         delivery: Delivery,
     ) {
-        let notify = !self.drops(delivery);
+        let notify = self.should_notify(delivery);
         let user = User::from_core_user(self.core_user.clone());
         let chat_notifications = user
             .message_and_reaction_notifications(

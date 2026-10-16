@@ -658,12 +658,12 @@ enum Delivery {
 }
 
 impl CubitContext {
-    /// Whether notifications of this delivery are dropped regardless of their
-    /// content.
-    fn drops(&self, delivery: Delivery) -> bool {
-        IS_DESKTOP
-            && delivery == Delivery::InitialBacklog
-            && *self.app_state.borrow() != AppState::DesktopBackground
+    /// Whether notifications of this delivery are shown at all, regardless of
+    /// their content.
+    fn should_notify(&self, delivery: Delivery) -> bool {
+        !IS_DESKTOP
+            || delivery == Delivery::Live
+            || *self.app_state.borrow() == AppState::DesktopBackground
     }
 
     /// Show OS notifications, as far as the UI's policy and the app state allow.
@@ -683,7 +683,7 @@ impl CubitContext {
             "send_notification"
         );
 
-        if self.drops(delivery) {
+        if !self.should_notify(delivery) {
             return;
         }
 

@@ -26,6 +26,7 @@ class AppLifecycleHandler with WidgetsBindingObserver {
   AppState _appState = AppState.foreground;
   int? _backgroundTaskId;
 
+  /// Emits the current app state on listen, then every change.
   Stream<AppState> get appStateStream => Stream.multi((controller) {
     controller.add(_appState);
     final subscription = _appStateController.stream.listen(
