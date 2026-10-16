@@ -121,7 +121,6 @@ dependencies = [
  "image",
  "indexmap",
  "jni",
- "libc",
  "memmap2",
  "mimi-room-policy",
  "mimi_content",
@@ -4448,6 +4447,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 
 [[package]]
+name = "maybe-async"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "746873a384ad60adc5db74471dfaba74bd278afbdcfd81db93fafcdfc8b5ca0c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "md-5"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5024,7 +5034,7 @@ checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 [[package]]
 name = "openmls"
 version = "0.9.0"
-source = "git+https://github.com/openmls/openmls?rev=b68a50a361e22628c9cf5dd5f47dbc709cc9922b#b68a50a361e22628c9cf5dd5f47dbc709cc9922b"
+source = "git+https://github.com/openmls/openmls?rev=7c94cc351ea771771100edca47695055da379a34#7c94cc351ea771771100edca47695055da379a34"
 dependencies = [
  "itertools 0.15.0",
  "log",
@@ -5050,7 +5060,7 @@ dependencies = [
 [[package]]
 name = "openmls_basic_credential"
 version = "0.6.0"
-source = "git+https://github.com/openmls/openmls?rev=b68a50a361e22628c9cf5dd5f47dbc709cc9922b#b68a50a361e22628c9cf5dd5f47dbc709cc9922b"
+source = "git+https://github.com/openmls/openmls?rev=7c94cc351ea771771100edca47695055da379a34#7c94cc351ea771771100edca47695055da379a34"
 dependencies = [
  "ed25519-dalek 3.0.0",
  "getrandom 0.4.3",
@@ -5067,7 +5077,7 @@ dependencies = [
 [[package]]
 name = "openmls_libcrux_crypto"
 version = "0.4.0"
-source = "git+https://github.com/openmls/openmls?rev=b68a50a361e22628c9cf5dd5f47dbc709cc9922b#b68a50a361e22628c9cf5dd5f47dbc709cc9922b"
+source = "git+https://github.com/openmls/openmls?rev=7c94cc351ea771771100edca47695055da379a34#7c94cc351ea771771100edca47695055da379a34"
 dependencies = [
  "aes",
  "fpe",
@@ -5092,7 +5102,7 @@ dependencies = [
 [[package]]
 name = "openmls_memory_storage"
 version = "0.6.0"
-source = "git+https://github.com/openmls/openmls?rev=b68a50a361e22628c9cf5dd5f47dbc709cc9922b#b68a50a361e22628c9cf5dd5f47dbc709cc9922b"
+source = "git+https://github.com/openmls/openmls?rev=7c94cc351ea771771100edca47695055da379a34#7c94cc351ea771771100edca47695055da379a34"
 dependencies = [
  "hex",
  "log",
@@ -5105,7 +5115,7 @@ dependencies = [
 [[package]]
 name = "openmls_rust_crypto"
 version = "0.6.0"
-source = "git+https://github.com/openmls/openmls?rev=b68a50a361e22628c9cf5dd5f47dbc709cc9922b#b68a50a361e22628c9cf5dd5f47dbc709cc9922b"
+source = "git+https://github.com/openmls/openmls?rev=7c94cc351ea771771100edca47695055da379a34#7c94cc351ea771771100edca47695055da379a34"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -5133,7 +5143,7 @@ dependencies = [
 [[package]]
 name = "openmls_serialization_helpers"
 version = "0.1.0"
-source = "git+https://github.com/openmls/openmls?rev=b68a50a361e22628c9cf5dd5f47dbc709cc9922b#b68a50a361e22628c9cf5dd5f47dbc709cc9922b"
+source = "git+https://github.com/openmls/openmls?rev=7c94cc351ea771771100edca47695055da379a34#7c94cc351ea771771100edca47695055da379a34"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5156,7 +5166,7 @@ dependencies = [
 [[package]]
 name = "openmls_test"
 version = "0.3.0"
-source = "git+https://github.com/openmls/openmls?rev=b68a50a361e22628c9cf5dd5f47dbc709cc9922b#b68a50a361e22628c9cf5dd5f47dbc709cc9922b"
+source = "git+https://github.com/openmls/openmls?rev=7c94cc351ea771771100edca47695055da379a34#7c94cc351ea771771100edca47695055da379a34"
 dependencies = [
  "openmls_libcrux_crypto",
  "openmls_rust_crypto",
@@ -5169,8 +5179,9 @@ dependencies = [
 [[package]]
 name = "openmls_traits"
 version = "0.6.0"
-source = "git+https://github.com/openmls/openmls?rev=b68a50a361e22628c9cf5dd5f47dbc709cc9922b#b68a50a361e22628c9cf5dd5f47dbc709cc9922b"
+source = "git+https://github.com/openmls/openmls?rev=7c94cc351ea771771100edca47695055da379a34#7c94cc351ea771771100edca47695055da379a34"
 dependencies = [
+ "maybe-async",
  "serde",
  "tls_codec",
 ]

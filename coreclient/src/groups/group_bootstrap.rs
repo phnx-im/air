@@ -22,6 +22,7 @@ use aircommon::{
     },
     identifiers::{UserId, Username},
     messages::client_as::ConnectionOfferHash,
+    time::TimeStamp,
 };
 use airprotos::client::group_bootstrap::{
     ConnectionContext, GroupBootstrap, GroupBootstrapBlob, GroupBootstrapCarrier,
@@ -202,6 +203,7 @@ impl TryFrom<ConnectionContext> for BootstrapConnection {
                     connection_offer_hash: context
                         .connection_offer_hash
                         .context("handle initiator context without a connection offer hash")?,
+                    sent_at: context.sent_at.map(TimeStamp::from),
                 }))
             }
             ConnectionContext::TargetedInitiator(context) => {
@@ -214,6 +216,7 @@ impl TryFrom<ConnectionContext> for BootstrapConnection {
                         "targeted initiator context without a friendship package ear key",
                     )?,
                     origin_group_id: context.origin_group_id,
+                    sent_at: context.sent_at.map(TimeStamp::from),
                 }))
             }
             ConnectionContext::Accept(context) => Ok(Self::Accept {
@@ -267,8 +270,11 @@ mod tests {
     };
     use airprotos::client::{
         group::GroupData,
-        group_bootstrap::{AcceptContext, HandleInitiatorContext, PeerUserId},
+        group_bootstrap::{
+            AcceptContext, HandleInitiatorContext, PeerUserId, TargetedInitiatorContext,
+        },
     };
+    use chrono::{DateTime, Utc};
     use uuid::Uuid;
 
     use crate::{
@@ -469,13 +475,53 @@ mod tests {
         assert!(
             with_connection(ConnectionContext::HandleInitiator(HandleInitiatorContext {
                 username: None,
-                friendship_package_ear_key: Some(key(5)),
-                connection_offer_hash: Some(ConnectionOfferHash::from_bytes([6u8; 32])),
+                ..handle_initiator_context(None)
             }))
             .is_err()
         );
         // A context kind this version does not know cannot be installed.
         assert!(with_connection(ConnectionContext::Unknown).is_err());
+    }
+
+    fn handle_initiator_context(sent_at: Option<DateTime<Utc>>) -> HandleInitiatorContext {
+        HandleInitiatorContext {
+            username: Some("ellie-03".to_owned()),
+            friendship_package_ear_key: Some(key(5)),
+            connection_offer_hash: Some(ConnectionOfferHash::from_bytes([6u8; 32])),
+            sent_at,
+        }
+    }
+
+    #[test]
+    fn an_initiator_context_carries_the_send_time() -> anyhow::Result<()> {
+        let sent_at = |connection| -> anyhow::Result<Option<TimeStamp>> {
+            let contents = GroupBootstrapContents::try_from(GroupBootstrap {
+                connection: Some(connection),
+                ..minimal_payload()
+            })?;
+            let Some(BootstrapConnection::Initiator(request)) = contents.connection else {
+                bail!("expected an initiator context");
+            };
+            let (OutgoingRequest::Username { sent_at, .. }
+            | OutgoingRequest::Targeted { sent_at, .. }) = request;
+            Ok(sent_at)
+        };
+        let targeted_context = |sent_at| {
+            ConnectionContext::TargetedInitiator(TargetedInitiatorContext {
+                user_id: Some(peer_user_id().into()),
+                friendship_package_ear_key: Some(key(7)),
+                origin_group_id: None,
+                sent_at,
+            })
+        };
+
+        for time in [DateTime::from_timestamp_millis(1_767_225_600_123), None] {
+            let expected = time.map(TimeStamp::from);
+            let handle_context = ConnectionContext::HandleInitiator(handle_initiator_context(time));
+            assert_eq!(sent_at(handle_context)?, expected);
+            assert_eq!(sent_at(targeted_context(time))?, expected);
+        }
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]

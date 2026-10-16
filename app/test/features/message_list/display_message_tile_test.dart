@@ -76,21 +76,25 @@ void main() {
     );
 
     /// The chat of a contact request of [chatType], open or [closed].
-    UiChatDetails requestChat(UiChatType chatType, {bool closed = false}) =>
-        UiChatDetails(
-          id: 5.chatId(),
-          status: closed
-              ? const UiChatStatus.inactive(UiInactiveChat(pastMembers: []))
-              : const UiChatStatus.active(),
-          isApq: false,
-          isSelfChat: false,
-          chatType: chatType,
-          unreadMessages: 0,
-          lastUsed: DateTime.utc(2026, 1, 1),
-          mutedUntil: null,
-          pendingCommitFailed: false,
-          resyncFailed: false,
-        );
+    UiChatDetails requestChat(
+      UiChatType chatType, {
+      bool closed = false,
+      DateTime? expiresAt,
+    }) => UiChatDetails(
+      id: 5.chatId(),
+      status: closed
+          ? const UiChatStatus.inactive(UiInactiveChat(pastMembers: []))
+          : const UiChatStatus.active(),
+      isApq: false,
+      isSelfChat: false,
+      chatType: chatType,
+      unreadMessages: 0,
+      lastUsed: DateTime.utc(2026, 1, 1),
+      mutedUntil: null,
+      pendingCommitFailed: false,
+      resyncFailed: false,
+      contactRequestExpiresAt: expiresAt,
+    );
 
     void showChat(UiChatDetails chat) =>
         when(() => chatDetailsCubit.state)
@@ -164,6 +168,23 @@ void main() {
         verify(() => navigationCubit.openMemberDetails(2.userId())).called(1);
       },
     );
+
+    testWidgets('renders and opens the name of who deleted the chat', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildSubject(UiSystemMessage.deleteGroup(1.userId())),
+      );
+
+      expect(
+        find.text('Alice deleted the chat', findRichText: true),
+        findsOneWidget,
+      );
+
+      await tester.tapOnText(find.textRange.ofSubstring('Alice'));
+
+      verify(() => navigationCubit.openMemberDetails(1.userId())).called(1);
+    });
 
     testWidgets('opens nothing from a group name', (tester) async {
       await tester.pumpWidget(
@@ -468,6 +489,65 @@ void main() {
       expect(
         find.textContaining(
           'You sent a contact request to username eve_03.',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('counts down on the card of a received request', (
+      tester,
+    ) async {
+      showChat(
+        requestChat(
+          UiChatType_PendingConnection(userProfiles[0]),
+          expiresAt: DateTime.now().add(const Duration(days: 3)),
+        ),
+      );
+      await tester.pumpWidget(
+        buildSubject(
+          UiSystemMessage.receivedHandleConnectionRequest(
+            sender: 1.userId(),
+            username: const UiUsername(plaintext: 'eve_03'),
+          ),
+        ),
+      );
+
+      expect(find.text('Expires in 3 days'), findsOneWidget);
+    });
+
+    testWidgets('counts down on the card of a sent request', (tester) async {
+      const username = UiUsername(plaintext: 'eve_03');
+      showChat(
+        requestChat(
+          const UiChatType_HandleConnection(username),
+          expiresAt: DateTime.now().add(const Duration(hours: 5)),
+        ),
+      );
+      await tester.pumpWidget(
+        buildSubject(const UiSystemMessage.newHandleConnectionChat(username)),
+      );
+
+      expect(find.text('Expires in 5 hours'), findsOneWidget);
+    });
+
+    testWidgets('renders an expired received request', (tester) async {
+      await tester.pumpWidget(
+        buildSubject(const UiSystemMessage.connectionRequestExpired()),
+      );
+      expect(
+        find.text('Contact request expired.', findRichText: true),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('renders an expired sent request', (tester) async {
+      await tester.pumpWidget(
+        buildSubject(const UiSystemMessage.sentConnectionRequestExpired()),
+      );
+      expect(
+        find.textContaining(
+          'Your contact request expired.',
           findRichText: true,
         ),
         findsOneWidget,

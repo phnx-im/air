@@ -197,15 +197,15 @@ impl Qs {
     ) -> Result<KeyPackageResponse, QsKeyPackageError> {
         let KeyPackageParams { sender } = params;
 
-        let mut connection = self.db_pool.acquire().await.map_err(|e| {
-            tracing::warn!("Failed to acquire connection: {:?}", e);
+        let mut connection = self.db_pool.acquire().await.map_err(|error| {
+            tracing::warn!(%error, "Failed to acquire connection");
             QsKeyPackageError::StorageError
         })?;
 
         let key_package = KeyPackage::load_user_key_package(&mut connection, &sender)
             .await
-            .map_err(|e| {
-                tracing::warn!("Storage provider error: {:?}", e);
+            .map_err(|error| {
+                tracing::warn!(%error, "Storage provider error");
                 QsKeyPackageError::StorageError
             })?;
 
@@ -219,15 +219,15 @@ impl Qs {
         &self,
         sender: FriendshipToken,
     ) -> Result<ApqKeyPackage, QsKeyPackageError> {
-        let mut connection = self.db_pool.acquire().await.map_err(|e| {
-            tracing::warn!("Failed to acquire connection: {:?}", e);
+        let mut connection = self.db_pool.acquire().await.map_err(|error| {
+            tracing::warn!(%error, "Failed to acquire connection");
             QsKeyPackageError::StorageError
         })?;
 
         ApqKeyPackage::load_user_key_package(&mut connection, &sender)
             .await
-            .map_err(|e| {
-                tracing::warn!("Storage provider error: {:?}", e);
+            .map_err(|error| {
+                tracing::warn!(%error, "Storage provider error");
                 QsKeyPackageError::StorageError
             })
     }
@@ -239,8 +239,8 @@ impl Qs {
     ) -> Result<EncryptionKeyResponse, QsEncryptionKeyError> {
         StorableClientIdDecryptionKey::load(&self.db_pool)
             .await
-            .map_err(|e| {
-                tracing::warn!("Failed to load client id decryption key: {:?}", e);
+            .map_err(|error| {
+                tracing::warn!(%error, "Failed to load client id decryption key");
                 QsEncryptionKeyError::StorageError
             })?
             .map(|decryption_key| {

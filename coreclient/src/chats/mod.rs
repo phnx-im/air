@@ -23,9 +23,12 @@ use crate::{
 };
 
 pub use draft::MessageDraft;
-pub(crate) use {pending::PendingConnectionRequest, status::StatusRecord};
+pub(crate) use {
+    declined::DeclinedConnectionRequest, pending::PendingConnectionRequest, status::StatusRecord,
+};
 
 pub(crate) mod connection_requests;
+mod declined;
 mod draft;
 pub(crate) mod messages;
 pub(crate) mod notification_rebuild;
@@ -33,6 +36,7 @@ pub(crate) mod outgoing_requests;
 pub(crate) mod pending;
 pub(crate) mod persistence;
 pub(crate) mod reactions;
+pub(crate) mod request_expiry;
 mod sqlx_support;
 pub(crate) mod status;
 
@@ -297,6 +301,13 @@ pub enum ChatStatus {
 impl ChatStatus {
     pub fn inactive(past_members: Vec<UserId>) -> Self {
         ChatStatus::Inactive(InactiveChat { past_members })
+    }
+
+    pub fn is_inactive(&self) -> bool {
+        match self {
+            ChatStatus::Inactive(_) => true,
+            ChatStatus::Pending | ChatStatus::Active | ChatStatus::Blocked => false,
+        }
     }
 }
 

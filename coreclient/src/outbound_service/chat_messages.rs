@@ -417,12 +417,11 @@ impl OutboundServiceContext {
                         .mark_as_sent(&mut *txn, message.timestamp().into())
                         .await?;
                     if !is_deletion {
-                        message.set_edited_at(ds_timestamp);
+                        message.mark_as_edited(&mut *txn, ds_timestamp).await?;
                     }
                 } else {
                     message.mark_as_sent(&mut *txn, ds_timestamp).await?;
                 }
-                message.update(&mut *txn).await?;
 
                 // Advance the last-read marker to the DS timestamp, but only
                 // if the message was already marked as read when it was

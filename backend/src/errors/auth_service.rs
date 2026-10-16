@@ -97,7 +97,7 @@ pub(crate) enum IssueTokensError {
     #[error("Bad request: {0}")]
     BadRequest(&'static str),
     /// Storage provider error
-    #[error("Storage provider error")]
+    #[error("Storage provider error: {0}")]
     StorageError(#[from] StorageError),
     /// Too many tokens requested
     #[error("Too many tokens requested")]
@@ -106,7 +106,7 @@ pub(crate) enum IssueTokensError {
         tokens_available: u16,
     },
     /// PrivacyPass protocol error
-    #[error("PrivacyPass protocol error")]
+    #[error("PrivacyPass protocol error: {0}")]
     PrivacyPassError(#[from] IssueTokenResponseError),
 }
 
@@ -128,7 +128,7 @@ impl From<IssueTokensError> for Status {
             IssueTokensError::BadRequest(msg) => Status::invalid_argument(msg),
             IssueTokensError::StorageError(error) => {
                 error!(%error, "storage error while issuing tokens");
-                Status::internal(msg)
+                Status::internal("Storage provider error")
             }
             IssueTokensError::TooManyTokensRequested {
                 retry_after_secs,
@@ -150,7 +150,7 @@ impl From<IssueTokensError> for Status {
             ),
             IssueTokensError::PrivacyPassError(error) => {
                 error!(%error, "failed to issue tokens");
-                Status::internal(msg)
+                Status::internal("PrivacyPass protocol error")
             }
         }
     }
@@ -162,10 +162,10 @@ pub(crate) enum IssueTokenBatchError {
     #[error("Bad request: {0}")]
     BadRequest(&'static str),
     /// Storage provider error
-    #[error("Storage provider error")]
+    #[error("Storage provider error: {0}")]
     StorageError(#[from] StorageError),
     /// PrivacyPass protocol error
-    #[error("PrivacyPass protocol error")]
+    #[error("PrivacyPass protocol error: {0}")]
     PrivacyPassError(#[from] IssueTokenResponseError),
 }
 
@@ -177,16 +177,15 @@ impl From<sqlx::Error> for IssueTokenBatchError {
 
 impl From<IssueTokenBatchError> for Status {
     fn from(e: IssueTokenBatchError) -> Self {
-        let msg = e.to_string();
         match e {
             IssueTokenBatchError::BadRequest(msg) => Status::invalid_argument(msg),
             IssueTokenBatchError::StorageError(error) => {
                 error!(%error, "storage error while issuing a token batch");
-                Status::internal(msg)
+                Status::internal("Storage provider error")
             }
             IssueTokenBatchError::PrivacyPassError(error) => {
                 error!(%error, "failed to issue a token batch");
-                Status::internal(msg)
+                Status::internal("PrivacyPass protocol error")
             }
         }
     }

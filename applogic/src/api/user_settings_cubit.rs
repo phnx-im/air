@@ -5,8 +5,8 @@
 use std::sync::Arc;
 
 use aircoreclient::{
-    DefaultEmojiSkinToneSetting, DeveloperModeSetting, ExperimentalFeaturesSetting,
-    LimitAnimatedImagesLoopsSetting, ReadReceiptsSetting, UserSetting,
+    DefaultEmojiSkinToneSetting, DeleteExpiredContactRequestsSetting, DeveloperModeSetting,
+    ExperimentalFeaturesSetting, LimitAnimatedImagesLoopsSetting, ReadReceiptsSetting, UserSetting,
     clients::CoreUser,
     db::notification::{DbEntityId, DbNotification},
 };
@@ -37,6 +37,10 @@ pub struct UserSettings {
     pub limit_animated_images_loops: bool,
     #[frb(default = true)]
     pub read_receipts: bool,
+    /// Whether contact requests that expired are deleted instead of kept as a
+    /// record. Synced across the user's devices.
+    #[frb(default = false)]
+    pub delete_expired_contact_requests: bool,
     /// Whether the developer surface is unlocked on this device.
     #[frb(default = false)]
     pub developer_mode: bool,
@@ -62,6 +66,7 @@ impl Default for UserSettings {
             send_on_enter: false,
             limit_animated_images_loops: false,
             read_receipts: true,
+            delete_expired_contact_requests: false,
             developer_mode: false,
             experimental_features: false,
             default_emoji_skin_tone: 0,
@@ -80,6 +85,7 @@ pub async fn load_user_settings(user: &User) -> UserSettings {
     let send_on_enter = core_user.user_setting().await;
     let limit_animated_images_loops = core_user.user_setting().await;
     let read_receipts = core_user.user_setting().await;
+    let delete_expired_contact_requests = core_user.user_setting().await;
     let developer_mode = core_user.user_setting().await;
     let experimental_features = core_user.user_setting().await;
     let default_emoji_skin_tone = core_user.user_setting().await;
@@ -99,6 +105,10 @@ pub async fn load_user_settings(user: &User) -> UserSettings {
         ),
         read_receipts: read_receipts
             .map_or(defaults.read_receipts, |ReadReceiptsSetting(value)| value),
+        delete_expired_contact_requests: delete_expired_contact_requests.map_or(
+            defaults.delete_expired_contact_requests,
+            |DeleteExpiredContactRequestsSetting(value)| value,
+        ),
         developer_mode: developer_mode
             .map_or(defaults.developer_mode, |DeveloperModeSetting(value)| value),
         experimental_features: experimental_features.map_or(
@@ -247,6 +257,25 @@ impl UserSettingsCubitBase {
         Ok(())
     }
 
+    pub async fn set_delete_expired_contact_requests(&self, value: bool) -> anyhow::Result<()> {
+        if self
+            .core
+            .state_tx()
+            .borrow()
+            .delete_expired_contact_requests
+            == value
+        {
+            return Ok(());
+        }
+        self.core_user
+            .set_synced_user_setting(&DeleteExpiredContactRequestsSetting(value))
+            .await?;
+        self.core
+            .state_tx()
+            .send_modify(|state| state.delete_expired_contact_requests = value);
+        Ok(())
+    }
+
     pub async fn set_developer_mode(&self, value: bool) -> anyhow::Result<()> {
         if self.core.state_tx().borrow().developer_mode == value {
             return Ok(());
@@ -349,10 +378,11 @@ async fn settings_listener(
     }
 }
 
-const SYNCED_SETTING_KEYS: [&str; 3] = [
+const SYNCED_SETTING_KEYS: [&str; 4] = [
     ReadReceiptsSetting::KEY,
     DefaultEmojiSkinToneSetting::KEY,
     LimitAnimatedImagesLoopsSetting::KEY,
+    DeleteExpiredContactRequestsSetting::KEY,
 ];
 
 /// Reads the synced settings from the database and emits them if any changed.
@@ -373,14 +403,20 @@ async fn reload_synced_settings(core_user: &CoreUser, state_tx: &watch::Sender<U
         defaults.limit_animated_images_loops,
         |LimitAnimatedImagesLoopsSetting(value)| value,
     );
+    let delete_expired_contact_requests = core_user.user_setting().await.map_or(
+        defaults.delete_expired_contact_requests,
+        |DeleteExpiredContactRequestsSetting(value)| value,
+    );
 
     state_tx.send_if_modified(|state| {
         let modified = state.read_receipts != read_receipts
             || state.default_emoji_skin_tone != default_emoji_skin_tone
-            || state.limit_animated_images_loops != limit_animated_images_loops;
+            || state.limit_animated_images_loops != limit_animated_images_loops
+            || state.delete_expired_contact_requests != delete_expired_contact_requests;
         state.read_receipts = read_receipts;
         state.default_emoji_skin_tone = default_emoji_skin_tone;
         state.limit_animated_images_loops = limit_animated_images_loops;
+        state.delete_expired_contact_requests = delete_expired_contact_requests;
         modified
     });
 }

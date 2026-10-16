@@ -82,8 +82,7 @@ impl DsGroupState {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
             .group()
-            .process_assisted_message(self.provider.crypto(), external_commit)
-            .map_err(|_| ResyncClientError::ProcessingError)?;
+            .process_assisted_message(self.provider.crypto(), external_commit)?;
 
         // Perform DS-level validation
         // Make sure that we have the right message type.
@@ -104,8 +103,8 @@ impl DsGroupState {
             return Err(ResyncClientError::InvalidMessage);
         };
 
-        if !self.self_group_flag_unchanged(staged_commit_message) {
-            error!("Commit would toggle the self-group flag");
+        if !self.group_flags_unchanged(staged_commit_message) {
+            error!("Commit would change the self-group flag or the tombstone");
             return Err(ResyncClientError::InvalidMessage);
         }
 
@@ -217,11 +216,7 @@ impl DsGroupState {
                     t_message,
                     pq_message,
                     |_, _| true,
-                )
-                .map_err(|error| {
-                    error!(%error, "Failed to process APQ message");
-                    ResyncClientError::ProcessingError
-                })?;
+                )?;
 
         let ApqExternalCommit {
             t_staged_commit,

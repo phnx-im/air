@@ -473,12 +473,14 @@ impl LocalGroup<AnyConnectionPackage> {
 
         let connection_offer_hash = connection_offer.hash();
 
+        let sent_at = TimeStamp::now_millis();
         let request = OutgoingRequest::Username {
             username: username.clone(),
             friendship_package_ear_key: friendship_package_ear_key.clone(),
             connection_offer_hash,
+            sent_at: Some(sent_at),
         };
-        let chat_id = request.store(txn, &group, TimeStamp::now()).await?.id();
+        let chat_id = request.store(txn, &group, sent_at).await?.id();
 
         let encrypted_user_profile_key =
             own_user_profile_key.encrypt(group.identity_link_wrapper_key(), own_user_id)?;
@@ -490,6 +492,7 @@ impl LocalGroup<AnyConnectionPackage> {
                 username: Some(username.plaintext().to_owned()),
                 friendship_package_ear_key: Some(friendship_package_ear_key.clone()),
                 connection_offer_hash: Some(connection_offer_hash),
+                sent_at: Some(*sent_at),
             });
             params.group_bootstrap = Some(self_group.seal_group_bootstrap_param(
                 txn,
@@ -545,12 +548,14 @@ impl LocalGroup<UserId> {
                 .context("Can't find group to send targeted message in")?;
         let origin_group_id = targeted_message_group.group_id().clone();
 
+        let sent_at = TimeStamp::now_millis();
         let request = OutgoingRequest::Targeted {
             user_id: user_id.clone(),
             friendship_package_ear_key: friendship_package_ear_key.clone(),
             origin_group_id: Some(origin_group_id.clone()),
+            sent_at: Some(sent_at),
         };
-        let chat_id = request.store(txn, &group, TimeStamp::now()).await?.id();
+        let chat_id = request.store(txn, &group, sent_at).await?.id();
 
         let encrypted_user_profile_key =
             own_user_profile_key.encrypt(group.identity_link_wrapper_key(), own_user_id)?;
@@ -562,6 +567,7 @@ impl LocalGroup<UserId> {
                 user_id: Some(user_id.clone().into()),
                 friendship_package_ear_key: Some(friendship_package_ear_key.clone()),
                 origin_group_id: Some(origin_group_id),
+                sent_at: Some(*sent_at),
             });
             params.group_bootstrap = Some(self_group.seal_group_bootstrap_param(
                 txn,

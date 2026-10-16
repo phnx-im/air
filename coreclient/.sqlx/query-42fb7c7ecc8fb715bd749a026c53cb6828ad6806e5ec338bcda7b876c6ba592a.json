@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM declined_connection_request WHERE declined_at <= ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "42fb7c7ecc8fb715bd749a026c53cb6828ad6806e5ec338bcda7b876c6ba592a"
+}
