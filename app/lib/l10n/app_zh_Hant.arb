@@ -255,6 +255,7 @@
   "systemMessage_receivedAdditionalDirectConnectionRequestUnknownGroup": "{displayName} 也透過共同群組聊天向你傳送了聯絡請求。",
   "systemMessage_userChangedPicture": "{user} 變更了群組圖片",
   "systemMessage_userCreatedGroup": "{user} 建立了群組",
+  "systemMessage_userDeletedChat": "{user} 刪除了這個聊天",
   "systemMessage_onboarded": "這個客戶端在連結後已加入這個聊天。",
   "systemMessage_deviceLinked": "你已將名為 {device} 的新裝置連結至你的帳號。{viewDevicesAction}",
   "systemMessage_deviceLinkedUnknown": "你已將一部新裝置連結至你的帳號。{viewDevicesAction}",

@@ -29,7 +29,9 @@ use tls_codec::{DeserializeBytes, Serialize};
 use tracing::error;
 
 use crate::client::{
-    component::{AIR_COMPONENT_ID, AIR_GROUP_PROFILE_COMPONENT_ID, AirComponent, AirFeatures},
+    component::{
+        AIR_COMPONENT_ID, AIR_GROUP_PROFILE_COMPONENT_ID, AirComponent, AirFeatures, GroupTombstone,
+    },
     group::GroupProfileComponent,
 };
 
@@ -63,6 +65,8 @@ pub struct GroupAppData {
     ///
     /// Missing for legacy groups where the group profile is stored in a group context extension.
     pub profile: Option<GroupProfileComponent>,
+    /// See [`AirComponent::tombstone`].
+    pub tombstone: Option<GroupTombstone>,
 }
 
 impl ClientAppData {
@@ -134,9 +138,10 @@ impl ClientAppData {
             dict,
             &AirComponent {
                 features: self.features.clone(),
-                // In a leaf node or a key package, this flag has no meaning
-                // => it must be false.
+                // In a leaf node or a key package, these fields have no meaning
+                // => they must be unset.
                 is_self_group: false,
+                tombstone: None,
             },
         );
     }
@@ -198,6 +203,7 @@ impl GroupAppData {
             is_self_group: component.is_self_group,
             safe_aad_components,
             profile,
+            tombstone: component.tombstone,
         })
     }
 
@@ -226,6 +232,7 @@ impl GroupAppData {
             &AirComponent {
                 features: AirFeatures::default_leaf_or_key_package_features(),
                 is_self_group: self.is_self_group,
+                tombstone: self.tombstone.clone(),
             },
         );
         Ok(dict)
@@ -239,6 +246,21 @@ impl GroupAppData {
 
     pub fn is_self_group_context(extensions: &Extensions<GroupContext>) -> bool {
         Self::from_group_context(extensions).is_some_and(|data| data.is_self_group)
+    }
+
+    /// The Air component of the group context, as stored.
+    pub fn air_component(extensions: &Extensions<GroupContext>) -> Option<AirComponent> {
+        air_component(extensions.app_data_dictionary()?.dictionary())
+    }
+
+    /// Whether the group context carries a tombstone, whatever its context.
+    pub fn has_tombstone(extensions: &Extensions<GroupContext>) -> bool {
+        Self::from_group_context(extensions).is_some_and(|data| data.tombstone.is_some())
+    }
+
+    /// The tombstone of the group context, if any.
+    pub fn tombstone(extensions: &Extensions<GroupContext>) -> Option<GroupTombstone> {
+        Self::from_group_context(extensions).and_then(|data| data.tombstone)
     }
 
     pub fn group_profile(extensions: &Extensions<GroupContext>) -> Option<GroupProfileComponent> {
@@ -308,11 +330,14 @@ fn is_virtual_client(dict: &AppDataDictionary) -> bool {
 
 #[cfg(test)]
 mod test {
-    use aircommon::codec::PersistenceCodec;
+    use aircommon::{codec::PersistenceCodec, time::TimeStamp};
     use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
     use uuid::uuid;
 
-    use crate::client::group::{EncryptedGroupTitle, ExternalGroupProfile};
+    use crate::client::{
+        component::TombstoneContext,
+        group::{EncryptedGroupTitle, ExternalGroupProfile},
+    };
 
     use super::*;
 
@@ -435,6 +460,7 @@ mod test {
                     is_self_group,
                     safe_aad_components: None,
                     profile: None,
+                    tombstone: None,
                 }
                 .to_extension()
                 .unwrap(),
@@ -460,16 +486,59 @@ mod test {
                 is_self_group: true,
                 safe_aad_components: Some(vec![0x8042]),
                 profile: Some(test_profile()),
+                tombstone: None,
             },
             GroupAppData {
                 is_self_group: false,
                 safe_aad_components: None,
                 profile: None,
+                tombstone: None,
+            },
+            GroupAppData {
+                is_self_group: false,
+                safe_aad_components: None,
+                profile: None,
+                tombstone: Some(GroupTombstone::deleted(TimeStamp::now())),
             },
         ] {
             let extensions = Extensions::from_vec(vec![data.to_extension().unwrap()]).unwrap();
             assert_eq!(GroupAppData::from_group_context(&extensions), Some(data));
         }
+    }
+
+    #[test]
+    fn tombstone_is_read_from_group_context_extensions() {
+        let group_context_extensions = |tombstone| {
+            Extensions::from_vec(vec![
+                GroupAppData {
+                    is_self_group: false,
+                    safe_aad_components: None,
+                    profile: None,
+                    tombstone,
+                }
+                .to_extension()
+                .unwrap(),
+            ])
+            .unwrap()
+        };
+
+        let deleted = GroupTombstone::deleted(TimeStamp::now());
+        let extensions = group_context_extensions(Some(deleted.clone()));
+        assert!(GroupAppData::has_tombstone(&extensions));
+        assert_eq!(GroupAppData::tombstone(&extensions), Some(deleted));
+
+        let unknown = GroupTombstone {
+            timestamp: None,
+            context: TombstoneContext::Unknown,
+        };
+        assert!(GroupAppData::has_tombstone(&group_context_extensions(
+            Some(unknown)
+        )));
+
+        assert!(!GroupAppData::has_tombstone(&group_context_extensions(
+            None
+        )));
+        assert!(!GroupAppData::has_tombstone(&Extensions::empty()));
     }
 
     #[test]
@@ -486,6 +555,7 @@ mod test {
                 is_self_group: false,
                 safe_aad_components: None,
                 profile: Some(test_profile()),
+                tombstone: None,
             }
             .to_extension()
             .unwrap(),
@@ -498,6 +568,7 @@ mod test {
                 is_self_group: false,
                 safe_aad_components: None,
                 profile: None,
+                tombstone: None,
             }
             .to_extension()
             .unwrap(),
@@ -514,6 +585,7 @@ mod test {
             is_self_group: false,
             safe_aad_components: None,
             profile: Some(test_profile()),
+            tombstone: None,
         }
         .to_dictionary()
         .unwrap();
@@ -534,6 +606,7 @@ mod test {
                 is_self_group: false,
                 safe_aad_components: Some(vec![REQUIRED_SAFE_AAD_COMPONENT_ID]),
                 profile: None,
+                tombstone: None,
             }
             .to_extension()
             .unwrap(),
@@ -568,6 +641,7 @@ mod test {
                 is_self_group: false,
                 safe_aad_components: None,
                 profile: None,
+                tombstone: None,
             }
             .to_extension()
             .unwrap(),

@@ -1420,6 +1420,36 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn delete_group_message_serde_codec() {
+        let deleter = UserId::new(Uuid::from_u128(1), "localhost".parse().unwrap());
+        let event = EventMessage::System(SystemMessage::DeleteGroup(deleter));
+        let bytes = PersistenceCodec::to_vec(&event).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[sqlx::test]
+    async fn store_load_delete_group_message(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+
+        let deleter = UserId::random("localhost".parse()?);
+        let message = ChatMessage::new_system_message(
+            chat.id(),
+            TimeStamp::now(),
+            SystemMessage::DeleteGroup(deleter),
+        );
+        message.store(pool.write().await?).await?;
+
+        let loaded = ChatMessage::load(pool.read().await?, message.id()).await?;
+        assert_eq!(loaded, Some(message));
+
+        Ok(())
+    }
+
+    #[test]
     fn versioned_message_serde_json() {
         insta::assert_json_snapshot!(&*VERSIONED_MESSAGE);
     }

@@ -255,6 +255,7 @@
   "systemMessage_receivedAdditionalDirectConnectionRequestUnknownGroup": "{displayName} 还通过共同群聊向你发送了联系请求。",
   "systemMessage_userChangedPicture": "{user} 更改了群组图片",
   "systemMessage_userCreatedGroup": "{user} 创建了群组",
+  "systemMessage_userDeletedChat": "{user} 删除了此聊天",
   "systemMessage_onboarded": "此客户端在关联后已加入此聊天。",
   "systemMessage_deviceLinked": "你已将名为 {device} 的新设备关联到你的账号。{viewDevicesAction}",
   "systemMessage_deviceLinkedUnknown": "你已将一台新设备关联到你的账号。{viewDevicesAction}",

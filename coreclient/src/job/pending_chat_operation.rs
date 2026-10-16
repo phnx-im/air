@@ -1091,18 +1091,16 @@ impl PendingChatOperation {
     }
 
     /// Creates and stores a PendingChatOperation for deleting a chat.
-    /// If the chat has only one member (the user themself), it is
-    /// directly set to inactive instead.
     ///
-    /// The exception is an open outgoing request. Its group has only the user
-    /// as member until the recipient joins, and deleting it on the DS is what
-    /// retracts the request.
+    /// `deleted` is recorded in the tombstone the delete commit sets, see
+    /// [`Group::stage_delete`].
     pub(super) async fn create_delete(
         txn: &mut WriteDbTransaction<'_>,
         signer: &UserSigningKey,
         chat_id: ChatId,
-    ) -> anyhow::Result<Option<Self>> {
-        let mut chat = Chat::load(&mut *txn, &chat_id)
+        deleted: Option<TimeStamp>,
+    ) -> anyhow::Result<Self> {
+        let chat = Chat::load(&mut *txn, &chat_id)
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
 
@@ -1111,29 +1109,24 @@ impl PendingChatOperation {
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
 
-        let past_members: Vec<_> = group.members().collect();
-
-        if past_members.len() == 1 && !chat.is_unconfirmed() {
-            chat.set_status(txn, ChatStatus::inactive(past_members))
+        let operation_type = if group.is_apq() {
+            let bundle = group
+                .group_mut()
+                .stage_apq_delete(&mut *txn, signer, deleted)
                 .await?;
-            Ok(None)
+            OperationType::ApqDelete {
+                commit: Box::new(bundle),
+            }
         } else {
-            let operation_type = if group.is_apq() {
-                let bundle = group
-                    .group_mut()
-                    .stage_apq_delete(&mut *txn, signer)
-                    .await?;
-                OperationType::ApqDelete {
-                    commit: Box::new(bundle),
-                }
-            } else {
-                let message = group.group_mut().stage_delete(&mut *txn, signer).await?;
-                OperationType::Delete(Box::new(message))
-            };
-            let job = Self::new(group, operation_type);
-            job.store(txn).await?;
-            Ok(Some(job))
-        }
+            let message = group
+                .group_mut()
+                .stage_delete(&mut *txn, signer, deleted)
+                .await?;
+            OperationType::Delete(Box::new(message))
+        };
+        let job = Self::new(group, operation_type);
+        job.store(txn).await?;
+        Ok(job)
     }
 
     pub(crate) async fn create_add(
@@ -1818,7 +1811,7 @@ pub mod test_utils {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
 
     use aircommon::{
         credentials::{
@@ -1828,12 +1821,16 @@ mod tests {
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
     };
-    use airprotos::client::app_data::ClientAppData;
-    use chrono::{Duration, Utc};
+    use airprotos::client::{
+        app_data::{ClientAppData, GroupAppData},
+        component::GroupTombstone,
+    };
+    use chrono::{Duration, TimeZone, Utc};
+    use openmls::{group::GroupContext, prelude::Extensions};
     use uuid::Uuid;
 
     use crate::{
-        ChatAttributes,
+        ChatAttributes, EventMessage, Message,
         clients::{own_client_info::OwnClientInfo, user_settings::ReadReceiptsSetting},
         db::access::DbAccess,
         groups::NewGroupContext,
@@ -2365,6 +2362,18 @@ mod tests {
         Ok((pool, group, chat_id, signing_key))
     }
 
+    /// A group and its chat with a pending leave operation.
+    pub(crate) async fn setup_group_with_pending_operation() -> anyhow::Result<(DbAccess, ChatId)> {
+        let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
+        let leave_params = group
+            .group_mut()
+            .stage_leave_group(pool.write().await?, &signing_key)?;
+        PendingChatOperation::new(group, OperationType::Leave(Box::new(leave_params)))
+            .store(pool.write().await?)
+            .await?;
+        Ok((pool, chat_id))
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn store_and_load_roundtrip() -> anyhow::Result<()> {
         let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
@@ -2477,6 +2486,159 @@ mod tests {
             .await
     }
 
+    fn deleted_at() -> TimeStamp {
+        Utc.with_ymd_and_hms(2026, 10, 13, 12, 0, 0).unwrap().into()
+    }
+
+    fn tombstone_in(extensions: &Extensions<GroupContext>) -> Option<GroupTombstone> {
+        GroupAppData::tombstone(extensions)
+    }
+
+    async fn setup_apq_group() -> anyhow::Result<(DbAccess, VerifiedGroup, UserSigningKey)> {
+        let (pool, _group, _chat_id, signing_key) = setup_group_and_chat().await?;
+        let mut connection = pool.write().await?;
+        let user_id = signing_key.credential().user_id().clone();
+        let domain = user_id.domain().clone();
+        let (group, _params) = Group::create_apq_group(
+            &mut connection,
+            &LeafSigningKey::User(signing_key.clone()),
+            user_id,
+            IdentityLinkWrapperKey::random()?,
+            GroupId::from(QualifiedGroupId::new(Uuid::new_v4(), domain.clone())),
+            GroupId::from(QualifiedGroupId::new(Uuid::new_v4(), domain)),
+            NewGroupContext::Chat(GroupData::empty()),
+            None,
+        )?;
+        group.store(&mut connection).await?;
+        Ok((pool, VerifiedGroup::new_for_test(group), signing_key))
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn delete_records_the_tombstone_in_the_group_context() -> anyhow::Result<()> {
+        let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
+        let mut connection = pool.write().await?;
+        assert_eq!(tombstone_in(group.group().mls_group().extensions()), None);
+
+        Box::pin(
+            connection.with_transaction(async |txn| -> anyhow::Result<()> {
+                group
+                    .group_mut()
+                    .stage_delete(&mut *txn, &signing_key, Some(deleted_at()))
+                    .await?;
+                Ok(())
+            }),
+        )
+        .await?;
+
+        let staged = group
+            .group()
+            .mls_group()
+            .pending_commit()
+            .expect("delete commit staged");
+        assert_eq!(
+            tombstone_in(staged.group_context().extensions()),
+            Some(GroupTombstone::deleted(deleted_at()))
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn delete_without_tombstone_leaves_the_group_context_alone() -> anyhow::Result<()> {
+        let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
+        let mut connection = pool.write().await?;
+
+        Box::pin(
+            connection.with_transaction(async |txn| -> anyhow::Result<()> {
+                group
+                    .group_mut()
+                    .stage_delete(&mut *txn, &signing_key, None)
+                    .await?;
+                Ok(())
+            }),
+        )
+        .await?;
+
+        let staged = group
+            .group()
+            .mls_group()
+            .pending_commit()
+            .expect("delete commit staged");
+        assert_eq!(tombstone_in(staged.group_context().extensions()), None);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn apq_delete_records_the_tombstone_in_the_t_group_context_only() -> anyhow::Result<()> {
+        let (pool, mut group, signing_key) = setup_apq_group().await?;
+        let mut connection = pool.write().await?;
+
+        Box::pin(
+            connection.with_transaction(async |txn| -> anyhow::Result<()> {
+                group
+                    .group_mut()
+                    .stage_apq_delete(&mut *txn, &signing_key, Some(deleted_at()))
+                    .await?;
+                Ok(())
+            }),
+        )
+        .await?;
+
+        let t_staged = group
+            .group()
+            .mls_group()
+            .pending_commit()
+            .expect("T delete commit staged");
+        assert_eq!(
+            tombstone_in(t_staged.group_context().extensions()),
+            Some(GroupTombstone::deleted(deleted_at()))
+        );
+        let pq_staged = group
+            .group()
+            .pq()
+            .expect("PQ leg")
+            .mls_group
+            .pending_commit()
+            .expect("PQ delete commit staged");
+        assert_eq!(tombstone_in(pq_staged.group_context().extensions()), None);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn merging_the_delete_commit_yields_one_delete_group_message() -> anyhow::Result<()> {
+        let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
+        let own_user_id = signing_key.credential().user_id().clone();
+        let mut connection = pool.write().await?;
+
+        let messages = Box::pin(
+            connection.with_transaction(async |txn| -> anyhow::Result<_> {
+                group
+                    .group_mut()
+                    .stage_delete(&mut *txn, &signing_key, Some(deleted_at()))
+                    .await?;
+                let (messages, _group_data) = group
+                    .merge_pending_commit(&mut *txn, None, TimeStamp::now())
+                    .await?;
+                CoreUser::store_new_messages(&mut *txn, chat_id, messages).await
+            }),
+        )
+        .await?;
+
+        let [message] = messages.as_slice() else {
+            panic!("expected exactly one message, got {}", messages.len());
+        };
+        assert_eq!(
+            message.message(),
+            &Message::Event(EventMessage::System(SystemMessage::DeleteGroup(
+                own_user_id
+            )))
+        );
+        assert_eq!(
+            tombstone_in(group.group().mls_group().extensions()),
+            Some(GroupTombstone::deleted(deleted_at()))
+        );
+        Ok(())
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn abandon_delete_drops_the_parked_delete() -> anyhow::Result<()> {
         let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
@@ -2487,7 +2649,7 @@ mod tests {
             connection.with_transaction(async |txn| -> anyhow::Result<()> {
                 let params = group
                     .group_mut()
-                    .stage_delete(&mut *txn, &signing_key)
+                    .stage_delete(&mut *txn, &signing_key, Some(TimeStamp::now()))
                     .await?;
                 PendingChatOperation::new(group, OperationType::Delete(Box::new(params)))
                     .store(&mut *txn)
