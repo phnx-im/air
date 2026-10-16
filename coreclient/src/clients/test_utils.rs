@@ -327,6 +327,16 @@ impl CoreUser {
         Ok(SettingChanges::has_pending(self.db().read().await?).await?)
     }
 
+    /// The serialized commit of the chat's pending operation.
+    pub async fn pending_commit_message_bytes(&self, chat_id: ChatId) -> anyhow::Result<Vec<u8>> {
+        let job = self
+            .db()
+            .with_read_transaction(async |txn| PendingChatOperation::load(txn, &chat_id).await)
+            .await?
+            .context("No pending chat operation")?;
+        job.staged_commit_message_bytes()
+    }
+
     /// Returns (operation_type, request_status, number_of_attempts) for the
     /// pending chat operation of the given chat, if any.
     pub async fn pending_chat_operation_info(

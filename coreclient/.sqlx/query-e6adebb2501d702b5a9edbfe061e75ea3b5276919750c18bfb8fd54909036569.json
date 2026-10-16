@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT MIN(timestamp) AS \"timestamp: DateTime<Utc>\" FROM message WHERE chat_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "timestamp: DateTime<Utc>",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "e6adebb2501d702b5a9edbfe061e75ea3b5276919750c18bfb8fd54909036569"
+}

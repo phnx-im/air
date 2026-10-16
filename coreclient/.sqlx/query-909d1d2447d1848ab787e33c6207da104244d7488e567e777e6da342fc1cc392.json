@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS(\n                    SELECT 1 FROM declined_connection_request WHERE request_id = ?\n                ) AS \"declined!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "declined!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "909d1d2447d1848ab787e33c6207da104244d7488e567e777e6da342fc1cc392"
+}

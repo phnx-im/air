@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO declined_connection_request (request_id, declined_at)\n                VALUES (?, ?)\n                ON CONFLICT (request_id) DO UPDATE SET declined_at = excluded.declined_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "bcd661fd6d8959985081ade34d2c4a80400a1a63e5801375af74dd6d9ed7d4cb"
+}

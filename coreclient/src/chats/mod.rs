@@ -23,9 +23,12 @@ use crate::{
 };
 
 pub use draft::MessageDraft;
-pub(crate) use {pending::PendingConnectionRequest, status::StatusRecord};
+pub(crate) use {
+    declined::DeclinedConnectionRequest, pending::PendingConnectionRequest, status::StatusRecord,
+};
 
 pub(crate) mod connection_requests;
+mod declined;
 mod draft;
 pub(crate) mod messages;
 pub(crate) mod notification_rebuild;
@@ -33,6 +36,7 @@ pub(crate) mod outgoing_requests;
 pub(crate) mod pending;
 pub(crate) mod persistence;
 pub(crate) mod reactions;
+pub(crate) mod request_expiry;
 mod sqlx_support;
 pub(crate) mod status;
 

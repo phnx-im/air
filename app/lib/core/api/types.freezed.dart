@@ -3865,6 +3865,70 @@ String toString() {
 
 
 /// @nodoc
+
+
+class UiSystemMessage_ConnectionRequestExpired extends UiSystemMessage {
+  const UiSystemMessage_ConnectionRequestExpired(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ConnectionRequestExpired);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'UiSystemMessage.connectionRequestExpired()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class UiSystemMessage_SentConnectionRequestExpired extends UiSystemMessage {
+  const UiSystemMessage_SentConnectionRequestExpired(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_SentConnectionRequestExpired);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'UiSystemMessage.sentConnectionRequestExpired()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
 mixin _$UiUsername {
 
  String get plaintext;

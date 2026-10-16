@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n            request_id AS \"request_id: ChatId\",\n            declined_at AS \"declined_at: DateTime<Utc>\"\n        FROM declined_connection_request\n        ORDER BY request_id",
+  "query": "SELECT\n                    request_id AS \"request_id: ChatId\",\n                    declined_at AS \"declined_at: DateTime<Utc>\"\n                FROM declined_connection_request\n                ORDER BY request_id",
   "describe": {
     "columns": [
       {
@@ -34,5 +34,5 @@
       false
     ]
   },
-  "hash": "d7a23ce6fbe1563c4b0a7eff277e37de06355aeba6ef857c3c179ebaac3b8748"
+  "hash": "85484ac1dbe933de59f52e3346aca0c43f8d7d8cfcb4096e2fd10e5b31169840"
 }

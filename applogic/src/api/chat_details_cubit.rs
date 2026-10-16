@@ -875,6 +875,13 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         None => None,
     };
 
+    let contact_request_expires_at = core_user
+        .contact_request_expires_at(&chat)
+        .await
+        .inspect_err(|error| error!(%error, "Failed to load the expiry of a contact request"))
+        .ok()
+        .flatten();
+
     let group_id = chat.group_id;
     let chat_type = UiChatType::load_from_chat_type(core_user, chat.chat_type).await;
 
@@ -913,6 +920,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         muted_until: chat.muted_until.map(Into::into),
         pending_commit_failed,
         resync_failed,
+        contact_request_expires_at,
     }
 }
 

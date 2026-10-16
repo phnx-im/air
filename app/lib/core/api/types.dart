@@ -152,6 +152,10 @@ class UiChatDetails {
   final bool pendingCommitFailed;
   final bool resyncFailed;
 
+  /// When the open contact request the chat shows expires. For incoming
+  /// requests, that is the sender's newest request.
+  final DateTime? contactRequestExpiresAt;
+
   const UiChatDetails({
     required this.id,
     required this.status,
@@ -166,6 +170,7 @@ class UiChatDetails {
     this.mutedUntil,
     required this.pendingCommitFailed,
     required this.resyncFailed,
+    this.contactRequestExpiresAt,
   });
 
   @override
@@ -182,7 +187,8 @@ class UiChatDetails {
       isSelfChat.hashCode ^
       mutedUntil.hashCode ^
       pendingCommitFailed.hashCode ^
-      resyncFailed.hashCode;
+      resyncFailed.hashCode ^
+      contactRequestExpiresAt.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -201,7 +207,8 @@ class UiChatDetails {
           isSelfChat == other.isSelfChat &&
           mutedUntil == other.mutedUntil &&
           pendingCommitFailed == other.pendingCommitFailed &&
-          resyncFailed == other.resyncFailed;
+          resyncFailed == other.resyncFailed &&
+          contactRequestExpiresAt == other.contactRequestExpiresAt;
 }
 
 /// A message in a chat
@@ -522,6 +529,10 @@ sealed class UiSystemMessage with _$UiSystemMessage {
   }) = UiSystemMessage_SentDirectConnectionRequest;
   const factory UiSystemMessage.connectionRequestUnavailable() =
       UiSystemMessage_ConnectionRequestUnavailable;
+  const factory UiSystemMessage.connectionRequestExpired() =
+      UiSystemMessage_ConnectionRequestExpired;
+  const factory UiSystemMessage.sentConnectionRequestExpired() =
+      UiSystemMessage_SentConnectionRequestExpired;
 }
 
 /// UI representation of an [`UserId`]

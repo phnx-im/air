@@ -945,7 +945,7 @@ impl CoreUser {
                     privacy_pass::store_provisioned_seeds(txn, &token_seeds).await?;
                     apply_blocked_contacts_update(txn, &blocked_contacts).await?;
                     privacy_pass::apply_redeemed_tokens(txn, &redeemed_tokens).await?;
-                    store_provisioned_requests(txn, &connection_requests).await?;
+                    store_provisioned_requests(txn, &connection_requests, Utc::now()).await?;
 
                     // Queue the onboarding into the groups the virtual client is
                     // already a member of.

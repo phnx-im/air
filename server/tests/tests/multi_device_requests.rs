@@ -5,10 +5,13 @@
 //! Connection requests across the devices of a user.
 
 use aircoreclient::{
-    AcceptContactRequestError, ChatId, ChatStatus, ChatType, DisplayName, SystemMessage,
-    UserProfile, clients::CoreUser,
+    AcceptContactRequestError, ChatId, ChatStatus, ChatType, DeleteExpiredContactRequestsSetting,
+    DisplayName, SystemMessage, UserProfile, UsernameRecord, clients::CoreUser,
 };
 use airserver_test_harness::utils::setup::TestBackend;
+use chrono::{DateTime, Duration, Utc};
+use tokio::time::timeout;
+use tokio_stream::StreamExt;
 
 use super::{
     contact_requests::{add_second_username, pending_chats_from, system_messages},
@@ -435,6 +438,12 @@ async fn linked_device_gets_open_outgoing_requests(acceptance: Acceptance) {
                 .chat_type(),
             &ChatType::TargetedMessageConnection(charlie.clone())
         );
+        // The requests expire at the same time on both devices.
+        for chat_id in [username_chat_id, group_request_chat_id] {
+            let expires_at = request_expires_at(&device_a, chat_id).await;
+            assert!(expires_at.is_some());
+            assert_eq!(request_expires_at(&device_b, chat_id).await, expires_at);
+        }
     }
 
     let bob_user = setup.get_user(&bob).user().clone();
@@ -979,4 +988,278 @@ async fn a_decline_racing_an_accept_keeps_the_connection() {
 
     drain_queue(&bob_user).await;
     send_and_receive(&bob_user, &[&device_a, &device_b], chat_id, "hello alice").await;
+}
+
+/// More than the lifetime of a connection request.
+const PAST_THE_DEADLINE: Duration = Duration::days(31);
+
+/// Sends a request from `device_a` to `bob_record` and waits until `device_b`
+/// shows it too. Returns the chat of the request.
+async fn send_mirrored_request(
+    setup: &TestBackend,
+    device_a: &CoreUser,
+    device_b: &CoreUser,
+    bob_record: &UsernameRecord,
+) -> ChatId {
+    let chat_id = device_a
+        .add_contact(
+            bob_record.username.clone(),
+            bob_record.hash,
+            setup.apq_groups,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    drain_expecting_success(device_b, "the sibling failed to mirror the request").await;
+    drain_expecting_success(device_a, "the sender failed to take its own echo").await;
+    let expires_at = request_expires_at(device_a, chat_id).await;
+    assert!(expires_at.is_some());
+    assert_eq!(
+        request_expires_at(device_b, chat_id).await,
+        expires_at,
+        "the request should expire at the same time on both devices"
+    );
+    chat_id
+}
+
+async fn request_expires_at(device: &CoreUser, chat_id: ChatId) -> Option<DateTime<Utc>> {
+    let chat = device.chat(&chat_id).await.unwrap();
+    device.contact_request_expires_at(&chat).await.unwrap()
+}
+
+/// Runs the expiry of connection requests on `device` now.
+async fn expire_requests(device: &CoreUser) {
+    device
+        .outbound_service()
+        .schedule_connection_request_expiry(Utc::now())
+        .await
+        .unwrap();
+    device.outbound_service().run_once().await;
+}
+
+/// Asserts that the chat is closed with a single record of its sent request
+/// expiring, as its last message.
+async fn assert_sent_request_expired(device: &CoreUser, chat_id: ChatId, label: &str) {
+    assert_inactive(device, chat_id, None, label).await;
+    let messages = system_messages(device, chat_id).await;
+    let records = messages
+        .iter()
+        .filter(|message| matches!(message, SystemMessage::SentConnectionRequestExpired))
+        .count();
+    assert_eq!(
+        records, 1,
+        "the {label} device should record the expiry once"
+    );
+    assert_eq!(
+        messages.last(),
+        Some(&SystemMessage::SentConnectionRequestExpired),
+        "the expiry record should be the last message on the {label} device"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Expired request", skip_all)]
+async fn an_expired_request_closes_on_the_sibling_and_is_unavailable() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let bob_record = add_username(&mut setup, &bob).await;
+    let chat_id = send_mirrored_request(&setup, &device_a, &device_b, &bob_record).await;
+    let bob_user = setup.get_user(&bob).user().clone();
+    let bob_chat_id = receive_connection_offer(&bob_user, &bob_record).await;
+
+    for device in [&device_a, &device_b] {
+        device
+            .backdate_contact_request(chat_id, PAST_THE_DEADLINE)
+            .await
+            .unwrap();
+    }
+    expire_requests(&device_a).await;
+    assert_sent_request_expired(&device_a, chat_id, "sender").await;
+
+    // The next run deletes the group on the DS. The sibling shares the leaf,
+    // so it gets the delete commit, and keeps the chat as a record.
+    device_a.outbound_service().run_once().await;
+    assert_sent_request_expired(&device_a, chat_id, "sender").await;
+    drain_expecting_success(&device_b, "the sibling failed to follow the expiry").await;
+    assert_sent_request_expired(&device_b, chat_id, "sibling").await;
+
+    let accepted = bob_user.accept_contact_request(bob_chat_id).await.unwrap();
+    assert!(
+        matches!(accepted, Err(AcceptContactRequestError::Unavailable)),
+        "an expired request cannot be accepted, got {accepted:?}"
+    );
+
+    // The expiry frees the username for a new request.
+    let new_chat_id = device_a
+        .add_contact(
+            bob_record.username.clone(),
+            bob_record.hash,
+            setup.apq_groups,
+        )
+        .await
+        .unwrap();
+    assert!(new_chat_id.is_ok(), "got {new_chat_id:?}");
+}
+
+/// The DS echoes the delete of the expired request's group before its response
+/// arrives.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Echoed expiry delete", skip_all)]
+async fn an_echoed_expiry_delete_keeps_the_record() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let bob_record = add_username(&mut setup, &bob).await;
+    let alice_user = setup.get_user(&alice).user().clone();
+    // Only a plain MLS echo can be fed back to the sender.
+    let chat_id = alice_user
+        .add_contact(bob_record.username.clone(), bob_record.hash, false)
+        .await
+        .unwrap()
+        .unwrap();
+    alice_user
+        .backdate_contact_request(chat_id, PAST_THE_DEADLINE)
+        .await
+        .unwrap();
+    expire_requests(&alice_user).await;
+
+    let echo = alice_user
+        .pending_commit_message_bytes(chat_id)
+        .await
+        .unwrap();
+    alice_user
+        .process_incoming_mls_message(&echo)
+        .await
+        .unwrap();
+
+    assert!(
+        alice_user
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none(),
+        "the echo should complete the parked delete"
+    );
+    assert_sent_request_expired(&alice_user, chat_id, "sender").await;
+}
+
+/// The device holding the username comes online after the deadline of a
+/// request sent to it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Request fetched past its deadline", skip_all)]
+async fn a_request_fetched_past_its_deadline_is_dropped() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let record = add_username(&mut setup, &alice).await;
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
+    let bob_user = setup.get_user(&bob).user().clone();
+    bob_user
+        .add_contact(record.username.clone(), record.hash, setup.apq_groups)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let (mut stream, responder) = device_a.listen_username(&record).await.unwrap();
+    let mut message = timeout(std::time::Duration::from_secs(5), stream.next())
+        .await
+        .unwrap()
+        .flatten()
+        .expect("the offer should be queued");
+    let created_at = message
+        .created_at
+        .as_mut()
+        .expect("the server should stamp the offer");
+    created_at.seconds -= PAST_THE_DEADLINE.num_seconds();
+    let message_id = message.message_id.unwrap();
+    let stored = device_a
+        .process_username_queue_message(record.username.clone(), message)
+        .await
+        .unwrap();
+    responder.ack(message_id.into()).await;
+    assert!(stored.is_none(), "an expired offer should not be stored");
+    assert!(pending_chats_from(&device_a, &bob).await.is_empty());
+
+    device_a.outbound_service().run_once().await;
+    drain_queue(&device_b).await;
+    assert!(
+        pending_chats_from(&device_b, &bob).await.is_empty(),
+        "an expired offer should not be forwarded"
+    );
+}
+
+/// Both devices are online when the request expires.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Request expiring on both devices", skip_all)]
+async fn a_request_expiring_on_both_devices_keeps_one_record() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let bob_record = add_username(&mut setup, &bob).await;
+    let chat_id = send_mirrored_request(&setup, &device_a, &device_b, &bob_record).await;
+
+    for device in [&device_a, &device_b] {
+        device
+            .backdate_contact_request(chat_id, PAST_THE_DEADLINE)
+            .await
+            .unwrap();
+        expire_requests(device).await;
+    }
+    // The first delete wins. The sibling gets its commit while its own delete
+    // is still parked.
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to follow the expiry").await;
+    assert_sent_request_expired(&device_b, chat_id, "sibling").await;
+
+    // The parked delete finds the group gone.
+    device_b.outbound_service().run_once().await;
+    drain_queue(&device_a).await;
+    assert_sent_request_expired(&device_a, chat_id, "first").await;
+    assert_sent_request_expired(&device_b, chat_id, "sibling").await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Deleting expired requests", skip_all)]
+async fn expired_requests_go_when_the_user_chose_so() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    device_a
+        .set_synced_user_setting(&DeleteExpiredContactRequestsSetting(true))
+        .await
+        .unwrap();
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to take the setting").await;
+    let bob_record = add_username(&mut setup, &bob).await;
+    let chat_id = send_mirrored_request(&setup, &device_a, &device_b, &bob_record).await;
+
+    for device in [&device_a, &device_b] {
+        device
+            .backdate_contact_request(chat_id, PAST_THE_DEADLINE)
+            .await
+            .unwrap();
+    }
+    // The record stays while the group delete is parked, since erasing the
+    // chat would drop it.
+    expire_requests(&device_a).await;
+    assert_sent_request_expired(&device_a, chat_id, "sender").await;
+    device_a.outbound_service().run_once().await;
+    expire_requests(&device_a).await;
+    assert!(
+        device_a.chat(&chat_id).await.is_none(),
+        "the sender should delete the record once the group is gone"
+    );
+
+    drain_expecting_success(&device_b, "the sibling failed to follow the expiry").await;
+    expire_requests(&device_b).await;
+    assert!(
+        device_b.chat(&chat_id).await.is_none(),
+        "the sibling should delete the record too"
+    );
 }

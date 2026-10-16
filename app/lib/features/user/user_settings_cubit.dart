@@ -133,6 +133,9 @@ class UserSettingsCubit implements StateStreamableSource<UserSettings> {
   Future<void> setReadReceipts({required bool value}) =>
       _impl!.setReadReceipts(value: value);
 
+  Future<void> setDeleteExpiredContactRequests({required bool value}) =>
+      _impl!.setDeleteExpiredContactRequests(value: value);
+
   Future<void> setDeveloperMode({required bool value}) async {
     final impl = _impl;
     if (impl == null) {

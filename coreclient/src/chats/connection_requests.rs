@@ -15,7 +15,8 @@
 //!
 //! Declining an incoming request, or finding it unavailable, travels through
 //! the self-group too. A declined request is remembered, so a late copy of it
-//! is dropped.
+//! is dropped. Expiry needs no message, since every device expires a request
+//! at the same time, see [`request_expiry`].
 
 use aircommon::{
     codec::PersistenceCodec,
@@ -29,16 +30,18 @@ use airprotos::client::self_group::{
     ConnectionRequestReceived, ConnectionRequestSource, ConnectionRequestUnavailable,
 };
 use anyhow::{Context, ensure};
-use chrono::{DateTime, SubsecRound, Utc};
+use chrono::{DateTime, Utc};
 use openmls::group::GroupId;
-use sqlx::{query, query_scalar};
 use tls_codec::{DeserializeBytes, Serialize as _};
 use tracing::{debug, warn};
 use uuid::Uuid;
 
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, ChatType, Contact, SystemMessage,
-    chats::{PendingConnectionRequest, messages::TimestampedMessage, persistence},
+    chats::{
+        DeclinedConnectionRequest, PendingConnectionRequest, messages::TimestampedMessage,
+        persistence, request_expiry,
+    },
     clients::{
         CoreUser,
         block_contact::BlockedContact,
@@ -46,9 +49,7 @@ use crate::{
         own_client_info::OwnClientInfo,
         self_group_outbox::{self, OutboxKind},
     },
-    db::access::{
-        ReadConnection, ReadDbTransaction, ReadTransaction, WriteConnection, WriteDbTransaction,
-    },
+    db::access::{ReadDbTransaction, ReadTransaction, WriteDbTransaction},
     groups::{Group, client_auth_info::StorableUserCredential},
     usernames::connection_packages::ConnectionPackageRecord,
     utils::persistence::GroupIdWrapper,
@@ -211,7 +212,7 @@ pub(crate) async fn is_known(
         .await?
         .is_some()
         || Chat::load(&mut txn, &request_id).await?.is_some()
-        || was_declined(txn, request_id).await?)
+        || DeclinedConnectionRequest::exists(txn, request_id).await?)
 }
 
 /// Returns true if `sender` is a contact with a live connection chat.
@@ -364,10 +365,12 @@ pub(crate) async fn complete_sent_entries(
 ///
 /// A sibling's entry replaces our parked one of the same request, except that
 /// a received entry only replaces a received one. Our decline or unavailable
-/// mark of a request stays parked when a late copy of it arrives.
+/// mark of a request stays parked when a late copy of it arrives. A received
+/// entry already expired at `now` is dropped.
 pub(crate) async fn apply_connection_requests_update(
     txn: &mut WriteDbTransaction<'_>,
     entries: &[ConnectionRequestEntry],
+    now: DateTime<Utc>,
 ) -> anyhow::Result<ConnectionRequestEffects> {
     let mut effects = ConnectionRequestEffects::default();
     for entry in entries {
@@ -381,7 +384,7 @@ pub(crate) async fn apply_connection_requests_update(
                     warn!(%request_id, "Skipping a forwarded request via a group");
                 }
                 ConnectionRequestSource::Username(_) | ConnectionRequestSource::Unknown => {
-                    if let Some(stored) = store_received(txn, received).await? {
+                    if let Some(stored) = store_received(txn, received, now).await? {
                         effects.new_requests.push(stored.chat_id);
                         effects.stale_chats.extend(stored.moved_from);
                     }
@@ -430,19 +433,21 @@ async fn drop_replaced_parked(
     Ok(())
 }
 
-/// Stores the declined and the pending requests of a provisioning package.
+/// Stores the declined and the pending requests of a provisioning package. A
+/// pending request already expired at `now` is dropped.
 pub(crate) async fn store_provisioned_requests(
     txn: &mut WriteDbTransaction<'_>,
     entries: &[ConnectionRequestEntry],
+    now: DateTime<Utc>,
 ) -> anyhow::Result<()> {
     for entry in entries {
         match entry {
             ConnectionRequestEntry::Received(received) => {
-                store_received(txn, received).await?;
+                store_received(txn, received, now).await?;
             }
             ConnectionRequestEntry::Declined(declined) => {
                 let request_id = ChatId::new(declined.chat_id);
-                remember_declined(&mut *txn, request_id, declined.declined_at).await?;
+                store_declined_request(&mut *txn, request_id, declined.declined_at).await?;
             }
             ConnectionRequestEntry::Unavailable(_) | ConnectionRequestEntry::Unknown => {
                 debug!("Skipping a provisioned connection request this client cannot read");
@@ -457,7 +462,11 @@ pub(crate) async fn store_provisioned_requests(
 pub(crate) async fn requests_snapshot(
     txn: &mut ReadDbTransaction<'_>,
 ) -> anyhow::Result<Vec<ConnectionRequestEntry>> {
-    let mut entries = declined_entries(&mut *txn).await?;
+    let mut entries: Vec<_> = DeclinedConnectionRequest::load_all(&mut *txn)
+        .await?
+        .into_iter()
+        .map(|declined| declined_entry(declined.request_id, declined.declined_at))
+        .collect();
     let requests = PendingConnectionRequest::load_all(&mut *txn).await?;
     entries.reserve(requests.len());
     for request in requests {
@@ -524,17 +533,20 @@ fn received_entry(
 }
 
 /// Stores a request from a sibling, unless there is nothing to add: it is
-/// known, its deletion is parked, or its sender is blocked or connected.
+/// known or expired at `now`, its deletion is parked, or its sender is blocked
+/// or connected.
 async fn store_received(
     txn: &mut WriteDbTransaction<'_>,
     received: &ConnectionRequestReceived,
+    now: DateTime<Utc>,
 ) -> anyhow::Result<Option<StoredRequest>> {
     let Some((request, credential)) = parse_received(received) else {
         return Ok(None);
     };
     let request_id = request.request_id()?;
     let group_id = &request.connection_info.connection_group_id;
-    if is_settled(&mut *txn, request_id, &request.sender).await?
+    if request_expiry::has_expired(*request.received_at, now)
+        || is_settled(&mut *txn, request_id, &request.sender).await?
         || persistence::is_deletion_staged(&mut *txn, group_id).await?
         || BlockedContact::check_blocked(&mut *txn, &request.sender).await?
     {
@@ -640,9 +652,27 @@ async fn remove_unavailable(
     };
     let removed = remove_request(txn, request).await?;
     if removed.remaining.is_none() {
-        close_unavailable_chat(txn, removed.chat_id).await?;
+        let record = SystemMessage::ConnectionRequestUnavailable;
+        close_incoming_chat(txn, removed.chat_id, record, TimeStamp::now()).await?;
     }
     Ok(Some(removed))
+}
+
+/// Removes a pending request whose deadline passed, including older ones.
+pub(crate) async fn expire_incoming(
+    txn: &mut WriteDbTransaction<'_>,
+    request_id: ChatId,
+) -> anyhow::Result<()> {
+    let Some(request) = PendingConnectionRequest::load(&mut *txn, request_id).await? else {
+        return Ok(());
+    };
+    let at = request_expiry::expires_at(*request.received_at).into();
+    let removed = remove_request(txn, request).await?;
+    if removed.remaining.is_none() {
+        let record = SystemMessage::ConnectionRequestExpired;
+        close_incoming_chat(txn, removed.chat_id, record, at).await?;
+    }
+    Ok(())
 }
 
 /// Declines a pending request of a chat that is about to be erased, and parks
@@ -654,8 +684,8 @@ pub(crate) async fn decline(
     let request_id = request.request_id;
     // The entry carries milliseconds. Dropping the rest keeps our record equal
     // to the ones of the siblings.
-    let declined_at = Utc::now().trunc_subsecs(3);
-    remember_declined(&mut *txn, request_id, declined_at).await?;
+    let declined_at = *TimeStamp::now_millis();
+    store_declined_request(&mut *txn, request_id, declined_at).await?;
     park(txn, request_id, &declined_entry(request_id, declined_at)).await?;
     discard_request_state(txn, request).await
 }
@@ -668,7 +698,7 @@ async fn apply_declined(
     declined_at: DateTime<Utc>,
     effects: &mut ConnectionRequestEffects,
 ) -> anyhow::Result<()> {
-    remember_declined(&mut *txn, request_id, declined_at).await?;
+    store_declined_request(&mut *txn, request_id, declined_at).await?;
     let Some(request) = PendingConnectionRequest::load(&mut *txn, request_id).await? else {
         if let Some(chat) = Chat::load(&mut *txn, &request_id).await?
             && !matches!(chat.chat_type(), ChatType::PendingConnection(_))
@@ -715,7 +745,7 @@ pub(crate) async fn apply_blocked_sender(
         return Ok(None);
     };
     for request in PendingConnectionRequest::load_for_chat(&mut *txn, chat_id).await? {
-        remember_declined(&mut *txn, request.request_id, blocked_at).await?;
+        store_declined_request(&mut *txn, request.request_id, blocked_at).await?;
         discard_request_state(txn, request).await?;
     }
     if let Some(chat) = Chat::load(&mut *txn, &chat_id).await? {
@@ -724,11 +754,13 @@ pub(crate) async fn apply_blocked_sender(
     Ok(Some(chat_id))
 }
 
-/// Turns the chat of incoming requests that are all gone into a record of
-/// that.
-async fn close_unavailable_chat(
+/// Turns the chat of incoming requests that all ended into a `record` of how
+/// the last one ended.
+async fn close_incoming_chat(
     txn: &mut WriteDbTransaction<'_>,
     chat_id: ChatId,
+    record: SystemMessage,
+    at: TimeStamp,
 ) -> anyhow::Result<()> {
     let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
         return Ok(());
@@ -740,10 +772,7 @@ async fn close_unavailable_chat(
     }
     Group::delete_from_db(txn, chat.group_id()).await?;
     Chat::update_status(&mut *txn, chat_id, &ChatStatus::inactive(Vec::new())).await?;
-    let record = TimestampedMessage::system_message(
-        SystemMessage::ConnectionRequestUnavailable,
-        TimeStamp::now(),
-    );
+    let record = TimestampedMessage::system_message(record, at);
     CoreUser::store_new_messages(txn, chat_id, vec![record]).await?;
     Ok(())
 }
@@ -803,56 +832,17 @@ async fn discard_request_state(
     Ok(())
 }
 
-/// Whether the user declined the request.
-async fn was_declined(
-    mut connection: impl ReadConnection,
-    request_id: ChatId,
-) -> sqlx::Result<bool> {
-    query_scalar!(
-        r#"SELECT EXISTS(
-            SELECT 1 FROM declined_connection_request WHERE request_id = ?
-        ) AS "declined!: bool""#,
-        request_id,
-    )
-    .fetch_one(connection.as_mut())
-    .await
-}
-
-/// The entries of the requests the user declined, sorted by request id.
-async fn declined_entries(
-    mut connection: impl ReadConnection,
-) -> sqlx::Result<Vec<ConnectionRequestEntry>> {
-    let declines = query!(
-        r#"SELECT
-            request_id AS "request_id: ChatId",
-            declined_at AS "declined_at: DateTime<Utc>"
-        FROM declined_connection_request
-        ORDER BY request_id"#,
-    )
-    .fetch_all(connection.as_mut())
-    .await?;
-    Ok(declines
-        .into_iter()
-        .map(|decline| declined_entry(decline.request_id, decline.declined_at))
-        .collect())
-}
-
-/// Records a decline. A later decline of the same request replaces the time.
-/// Only a sibling's entry can meet a record, and every device applies those in
-/// the same order, so all devices end up with the same time.
-async fn remember_declined(
-    mut connection: impl WriteConnection,
+/// Store declined request
+async fn store_declined_request(
+    txn: &mut WriteDbTransaction<'_>,
     request_id: ChatId,
     declined_at: DateTime<Utc>,
-) -> sqlx::Result<()> {
-    query!(
-        "INSERT INTO declined_connection_request (request_id, declined_at)
-        VALUES (?, ?)
-        ON CONFLICT (request_id) DO UPDATE SET declined_at = excluded.declined_at",
+) -> anyhow::Result<()> {
+    DeclinedConnectionRequest {
         request_id,
         declined_at,
-    )
-    .execute(connection.as_mut())
+    }
+    .store(&mut *txn)
     .await?;
     Ok(())
 }
@@ -979,6 +969,11 @@ mod tests {
         DateTime::<Utc>::from_timestamp(1_767_225_600 + seconds, 0)
             .unwrap()
             .into()
+    }
+
+    /// When the updates of siblings arrive, a day after the first request.
+    fn now() -> DateTime<Utc> {
+        *at(86_400)
     }
 
     /// Stores an incoming request via `username`, as processing its offer
@@ -1273,7 +1268,7 @@ mod tests {
 
             // Starting over stands in for the sibling that never saw the offer.
             Chat::delete(&mut *txn, stored.chat_id).await?;
-            let effects = apply_connection_requests_update(txn, &sent).await?;
+            let effects = apply_connection_requests_update(txn, &sent, now()).await?;
 
             assert_eq!(effects.new_requests, vec![stored.chat_id]);
             let chat = Chat::load(&mut *txn, &stored.chat_id).await?.unwrap();
@@ -1308,7 +1303,7 @@ mod tests {
             Chat::delete(&mut *txn, newer.chat_id).await?;
             let older = receive_request_from(txn, credential.user_id(), "ellie-04", at(0)).await?;
 
-            let effects = apply_connection_requests_update(txn, &sent).await?;
+            let effects = apply_connection_requests_update(txn, &sent, now()).await?;
 
             assert_eq!(effects.new_requests, vec![newer.chat_id]);
             assert_eq!(effects.stale_chats, vec![older.chat_id]);
@@ -1336,7 +1331,25 @@ mod tests {
             .store(&mut *txn)
             .await?;
 
-            let effects = apply_connection_requests_update(txn, &sent).await?;
+            let effects = apply_connection_requests_update(txn, &sent, now()).await?;
+
+            assert!(effects.new_requests.is_empty());
+            assert!(Chat::load(&mut *txn, &stored.chat_id).await?.is_none());
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_forwarded_request_past_its_deadline_is_dropped() -> anyhow::Result<()> {
+        let db = linked_device().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let credential = sender_with_credential(txn).await?;
+            let received_at = now() - request_expiry::REQUEST_LIFETIME;
+            let (stored, sent) = receive_and_park(txn, &credential, received_at.into()).await?;
+            Chat::delete(&mut *txn, stored.chat_id).await?;
+
+            let effects = apply_connection_requests_update(txn, &sent, now()).await?;
 
             assert!(effects.new_requests.is_empty());
             assert!(Chat::load(&mut *txn, &stored.chat_id).await?.is_none());
@@ -1377,7 +1390,7 @@ mod tests {
             Chat::delete(&mut *txn, stored.chat_id).await?;
             connect(txn, credential.user_id(), ChatStatus::Active).await?;
 
-            let effects = apply_connection_requests_update(txn, &sent).await?;
+            let effects = apply_connection_requests_update(txn, &sent, now()).await?;
 
             assert!(effects.new_requests.is_empty());
             assert!(Chat::load(&mut *txn, &stored.chat_id).await?.is_none());
@@ -1402,7 +1415,7 @@ mod tests {
             Chat::delete(&mut *txn, stored.chat_id).await?;
             connect(txn, credential.user_id(), ChatStatus::Pending).await?;
 
-            let effects = apply_connection_requests_update(txn, &sent).await?;
+            let effects = apply_connection_requests_update(txn, &sent, now()).await?;
 
             assert!(effects.new_requests.is_empty());
             assert!(
@@ -1426,7 +1439,7 @@ mod tests {
             Chat::delete(&mut *txn, stored.chat_id).await?;
             connect(txn, credential.user_id(), ChatStatus::inactive(Vec::new())).await?;
 
-            let effects = apply_connection_requests_update(txn, &sent).await?;
+            let effects = apply_connection_requests_update(txn, &sent, now()).await?;
 
             assert_eq!(effects.new_requests, vec![stored.chat_id]);
             assert_eq!(
@@ -1452,7 +1465,7 @@ mod tests {
             persistence::store_outgoing_deletion(&mut *txn, request.group_id()).await?;
             Chat::delete(&mut *txn, stored.chat_id).await?;
 
-            let effects = apply_connection_requests_update(txn, &sent).await?;
+            let effects = apply_connection_requests_update(txn, &sent, now()).await?;
 
             assert!(effects.new_requests.is_empty());
             assert!(!is_known(&mut *txn, stored.chat_id).await?);
@@ -1482,6 +1495,7 @@ mod tests {
             let effects = apply_connection_requests_update(
                 txn,
                 &[garbled, unknown_source, ConnectionRequestEntry::Unknown],
+                now(),
             )
             .await?;
             assert!(effects.new_requests.is_empty());
@@ -1516,7 +1530,7 @@ mod tests {
             let credential = sender_with_credential(txn).await?;
             let (_stored, sent) = receive_and_park(txn, &credential, at(0)).await?;
 
-            let effects = apply_connection_requests_update(txn, &sent).await?;
+            let effects = apply_connection_requests_update(txn, &sent, now()).await?;
 
             assert!(effects.new_requests.is_empty());
             assert!(staged_entries(txn).await?.is_empty());
@@ -1621,7 +1635,7 @@ mod tests {
             // chats yet.
             Chat::delete(&mut *txn, stored.chat_id).await?;
             Chat::delete(&mut *txn, group.id()).await?;
-            store_provisioned_requests(txn, &snapshot).await?;
+            store_provisioned_requests(txn, &snapshot, now()).await?;
 
             let pending = PendingConnectionRequest::load(&mut *txn, stored.chat_id)
                 .await?
@@ -1654,7 +1668,7 @@ mod tests {
             Chat::delete(&mut *txn, stored.chat_id).await?;
             Chat::delete(&mut *txn, group.id()).await?;
 
-            let effects = apply_connection_requests_update(txn, &snapshot).await?;
+            let effects = apply_connection_requests_update(txn, &snapshot, now()).await?;
             assert!(effects.new_requests.is_empty());
             assert!(
                 PendingConnectionRequest::load(&mut *txn, stored.chat_id)
@@ -1683,7 +1697,7 @@ mod tests {
             Chat::delete(&mut *txn, stored.chat_id).await?;
             Chat::delete(&mut *txn, group.id()).await?;
 
-            store_provisioned_requests(txn, &[without_group_id]).await?;
+            store_provisioned_requests(txn, &[without_group_id], now()).await?;
             assert!(
                 PendingConnectionRequest::load(&mut *txn, stored.chat_id)
                     .await?
@@ -1787,7 +1801,8 @@ mod tests {
             let stored = receive_request_from(txn, &sender()?, "ellie-03", at(0)).await?;
 
             let effects =
-                apply_connection_requests_update(txn, &[unavailable_entry(stored.chat_id)]).await?;
+                apply_connection_requests_update(txn, &[unavailable_entry(stored.chat_id)], now())
+                    .await?;
 
             assert_eq!(effects.stale_chats, vec![stored.chat_id]);
             assert!(request_ids(txn, stored.chat_id).await?.is_empty());
@@ -1900,7 +1915,7 @@ mod tests {
             let deleted = staged_deleted_groups(txn).await?;
             assert!(groups.iter().all(|group_id| deleted.contains(group_id)));
 
-            let effects = apply_connection_requests_update(txn, &copies).await?;
+            let effects = apply_connection_requests_update(txn, &copies, now()).await?;
             assert!(effects.new_requests.is_empty());
             assert!(Chat::load(&mut *txn, &newer.chat_id).await?.is_none());
             assert_eq!(staged_entries(txn).await?, staged);
@@ -1917,16 +1932,19 @@ mod tests {
             let stored = receive_request_from(txn, credential.user_id(), "ellie-03", at(0)).await?;
             let copies = copies_of_requests(txn, stored.chat_id, &credential).await?;
 
-            let effects =
-                apply_connection_requests_update(txn, &[declined_entry(stored.chat_id, *at(120))])
-                    .await?;
+            let effects = apply_connection_requests_update(
+                txn,
+                &[declined_entry(stored.chat_id, *at(120))],
+                now(),
+            )
+            .await?;
 
             assert_eq!(effects.stale_chats, vec![stored.chat_id]);
             assert!(effects.accepted_locally.is_empty());
             assert!(Chat::load(&mut *txn, &stored.chat_id).await?.is_none());
             assert!(request_ids(txn, stored.chat_id).await?.is_empty());
 
-            let effects = apply_connection_requests_update(txn, &copies).await?;
+            let effects = apply_connection_requests_update(txn, &copies, now()).await?;
             assert!(effects.new_requests.is_empty());
             assert!(Chat::load(&mut *txn, &stored.chat_id).await?.is_none());
             Ok(())
@@ -1943,9 +1961,12 @@ mod tests {
             let older = receive_request_from(txn, &sender, "ellie-03", at(0)).await?;
             let newer = receive_request_from(txn, &sender, "ellie-04", at(60)).await?;
 
-            let effects =
-                apply_connection_requests_update(txn, &[declined_entry(newer.chat_id, *at(120))])
-                    .await?;
+            let effects = apply_connection_requests_update(
+                txn,
+                &[declined_entry(newer.chat_id, *at(120))],
+                now(),
+            )
+            .await?;
 
             assert_eq!(effects.stale_chats, vec![newer.chat_id]);
             assert!(Chat::load(&mut *txn, &newer.chat_id).await?.is_none());
@@ -1969,9 +1990,12 @@ mod tests {
             chat.set_chat_type(&mut *txn, &ChatType::Connection(sender))
                 .await?;
 
-            let effects =
-                apply_connection_requests_update(txn, &[declined_entry(stored.chat_id, *at(120))])
-                    .await?;
+            let effects = apply_connection_requests_update(
+                txn,
+                &[declined_entry(stored.chat_id, *at(120))],
+                now(),
+            )
+            .await?;
 
             assert_eq!(effects.accepted_locally, vec![chat.group_id().clone()]);
             assert!(effects.stale_chats.is_empty());
@@ -1992,7 +2016,7 @@ mod tests {
             let chat = Chat::load(&mut *txn, &stored.chat_id).await?.unwrap();
             persistence::erase_and_park_deletion(txn, &chat).await?;
 
-            let effects = apply_connection_requests_update(txn, &copies).await?;
+            let effects = apply_connection_requests_update(txn, &copies, now()).await?;
 
             assert!(effects.new_requests.is_empty());
             assert_eq!(
@@ -2018,7 +2042,7 @@ mod tests {
         let sibling = linked_device().await?;
         sibling
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                let effects = apply_connection_requests_update(txn, &copies).await?;
+                let effects = apply_connection_requests_update(txn, &copies, now()).await?;
                 assert_eq!(effects.new_requests, vec![request_id]);
                 Ok(())
             })
@@ -2034,7 +2058,7 @@ mod tests {
             .await?;
         sibling
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                apply_connection_requests_update(txn, &declines).await?;
+                apply_connection_requests_update(txn, &declines, now()).await?;
                 assert!(Chat::load(&mut *txn, &request_id).await?.is_none());
                 assert_eq!(recorded_decline_time(txn, request_id).await?, declined_at);
                 Ok(())
@@ -2053,7 +2077,7 @@ mod tests {
             persistence::erase_and_park_deletion(txn, &chat).await?;
 
             let sibling_decline = declined_entry(stored.chat_id, *at(120));
-            apply_connection_requests_update(txn, &[sibling_decline]).await?;
+            apply_connection_requests_update(txn, &[sibling_decline], now()).await?;
 
             assert_eq!(recorded_decline_time(txn, stored.chat_id).await?, *at(120));
             assert!(staged_entries(txn).await?.is_empty());
@@ -2091,10 +2115,10 @@ mod tests {
         let new_device = linked_device().await?;
         new_device
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                store_provisioned_requests(txn, &snapshot).await?;
+                store_provisioned_requests(txn, &snapshot, now()).await?;
                 assert_eq!(request_ids(txn, pending.chat_id).await?.len(), 1);
 
-                let effects = apply_connection_requests_update(txn, &copies).await?;
+                let effects = apply_connection_requests_update(txn, &copies, now()).await?;
                 assert!(effects.new_requests.is_empty());
                 assert!(Chat::load(&mut *txn, &declined.chat_id).await?.is_none());
                 assert_eq!(
@@ -2120,7 +2144,7 @@ mod tests {
                 declined_ids(&staged_entries(txn).await?),
                 vec![stored.chat_id]
             );
-            assert!(was_declined(&mut *txn, stored.chat_id).await?);
+            assert!(DeclinedConnectionRequest::exists(&mut *txn, stored.chat_id).await?);
             Ok(())
         })
         .await
@@ -2152,7 +2176,7 @@ mod tests {
                 user_id: sender.clone(),
             });
             apply_blocked_contacts_update(txn, &[unblocked]).await?;
-            let effects = apply_connection_requests_update(txn, &copies).await?;
+            let effects = apply_connection_requests_update(txn, &copies, now()).await?;
             assert!(effects.new_requests.is_empty());
             Ok(())
         })
