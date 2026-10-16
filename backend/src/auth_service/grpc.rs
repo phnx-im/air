@@ -61,7 +61,7 @@ use crate::{
 
 use super::{
     AuthService,
-    usernames::{UsernameQueues, UsernameRecord},
+    usernames::{UsernameQueues, UsernameRecord, UsernameRefresh},
 };
 
 pub struct GrpcAs {
@@ -746,9 +746,17 @@ impl auth_service_server::AuthService for GrpcAs {
             .transpose()
             .map_err(|_| Status::invalid_argument("invalid token"))?;
 
-        self.inner.as_refresh_username(hash, token).await?;
-
-        Ok(Response::new(RefreshUsernameResponse {}))
+        let response = match self.inner.as_refresh_username(hash, token).await? {
+            UsernameRefresh::Refreshed { expires_at } => RefreshUsernameResponse {
+                skipped: false,
+                expires_at: Some(expires_at.into()),
+            },
+            UsernameRefresh::Skipped { expires_at } => RefreshUsernameResponse {
+                skipped: true,
+                expires_at: Some(expires_at.into()),
+            },
+        };
+        Ok(Response::new(response))
     }
 
     type ConnectUsernameStream = BoxStream<'static, Result<ConnectUsernameResponse, Status>>;

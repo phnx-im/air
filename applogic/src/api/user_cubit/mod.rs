@@ -367,6 +367,16 @@ impl UserCubitBase {
             .await
     }
 
+    /// Declines the incoming contact requests of the chat and erases the chat.
+    /// Their sender is not told.
+    #[frb(positional)]
+    pub async fn decline_contact_request(&self, chat_id: ChatId) -> anyhow::Result<()> {
+        self.context
+            .core_user
+            .decline_contact_request(chat_id)
+            .await
+    }
+
     /// Only delete the local chat data, do not delete the chat on the server or try to leave it.
     ///
     /// Used for development purposes.

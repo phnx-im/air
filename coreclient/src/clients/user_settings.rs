@@ -123,6 +123,7 @@ pub trait SyncedUserSetting: UserSetting {
 macro_rules! for_each_synced_setting {
     ($f:ident($($args:expr),* $(,)?)) => {
         $f::<ReadReceiptsSetting>($($args),*).await?;
+        $f::<DeleteExpiredContactRequestsSetting>($($args),*).await?;
         $f::<crate::clients::linked_devices::LinkedDevicesSetting>($($args),*).await?;
         $f::<DefaultEmojiSkinToneSetting>($($args),*).await?;
         $f::<LimitAnimatedImagesLoopsSetting>($($args),*).await?;
@@ -463,6 +464,39 @@ impl SyncedUserSetting for LimitAnimatedImagesLoopsSetting {
     }
 }
 
+/// Whether contact requests that expired are deleted instead of kept as a
+/// record. Off by default.
+pub struct DeleteExpiredContactRequestsSetting(pub bool);
+
+impl UserSetting for DeleteExpiredContactRequestsSetting {
+    const KEY: &'static str = "delete_expired_contact_requests";
+
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(vec![self.0 as u8])
+    }
+
+    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
+        match bytes.as_slice() {
+            [byte] => Ok(Self(*byte != 0)),
+            _ => bail!("invalid delete_expired_contact_requests bytes"),
+        }
+    }
+}
+
+impl SyncedUserSetting for DeleteExpiredContactRequestsSetting {
+    fn apply_to_update(&self, update: &mut SettingsUpdate) {
+        update.delete_expired_contact_requests = Some(self.0);
+    }
+
+    fn from_update(update: &SettingsUpdate) -> Option<Self> {
+        update.delete_expired_contact_requests.map(Self)
+    }
+
+    fn clear_in_update(update: &mut SettingsUpdate) {
+        update.delete_expired_contact_requests = None;
+    }
+}
+
 /// Whether the developer surface is unlocked on this device.
 ///
 /// The outer gate, with [`ExperimentalFeaturesSetting`] a switch inside that
@@ -691,6 +725,7 @@ mod tests {
             linked_devices: Some(Vec::new()),
             default_emoji_skin_tone: Some(4),
             limit_animated_images_loops: Some(true),
+            delete_expired_contact_requests: Some(true),
         };
         let collected = pool
             .with_write_transaction(async |txn| -> anyhow::Result<SettingsUpdate> {

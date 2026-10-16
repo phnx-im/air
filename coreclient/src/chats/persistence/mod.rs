@@ -391,6 +391,46 @@ impl Chat {
         .await
     }
 
+    /// Loads the ids of the active chats of outgoing requests whose oldest
+    /// message is at or before `sent_until`.
+    pub(crate) async fn load_open_outgoing_request_ids(
+        mut connection: impl ReadConnection,
+        sent_until: DateTime<Utc>,
+    ) -> sqlx::Result<Vec<ChatId>> {
+        query_scalar!(
+            r#"SELECT
+                c.chat_id AS "chat_id: _"
+            FROM chat c
+            WHERE (c.connection_user_handle IS NOT NULL
+                    OR (c.connection_user_uuid IS NOT NULL
+                        AND c.is_confirmed_connection = 0
+                        AND c.is_incoming = 0))
+                AND c.status = ?1
+                AND (SELECT MIN(m.timestamp) FROM message m WHERE m.chat_id = c.chat_id) <= ?2"#,
+            SqlChatStatus::Active,
+            sent_until,
+        )
+        .fetch_all(connection.as_mut())
+        .await
+    }
+
+    /// Loads the ids of the inactive chats of incoming and outgoing requests.
+    pub(crate) async fn load_closed_request_ids(
+        mut connection: impl ReadConnection,
+    ) -> sqlx::Result<Vec<ChatId>> {
+        query_scalar!(
+            r#"SELECT
+                chat_id AS "chat_id: _"
+            FROM chat
+            WHERE (connection_user_handle IS NOT NULL
+                    OR (connection_user_uuid IS NOT NULL AND is_confirmed_connection = 0))
+                AND status = ?"#,
+            SqlChatStatus::Inactive,
+        )
+        .fetch_all(connection.as_mut())
+        .await
+    }
+
     pub(crate) async fn load_by_group_id(
         mut txn: impl ReadTransaction,
         group_id: &GroupId,

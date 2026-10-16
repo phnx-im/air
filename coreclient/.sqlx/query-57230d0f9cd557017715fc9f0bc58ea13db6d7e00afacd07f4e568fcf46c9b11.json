@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                c.chat_id AS \"chat_id: _\"\n            FROM chat c\n            WHERE (c.connection_user_handle IS NOT NULL\n                    OR (c.connection_user_uuid IS NOT NULL\n                        AND c.is_confirmed_connection = 0\n                        AND c.is_incoming = 0))\n                AND c.status = ?1\n                AND (SELECT MIN(m.timestamp) FROM message m WHERE m.chat_id = c.chat_id) <= ?2",
+  "describe": {
+    "columns": [
+      {
+        "name": "chat_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "chat_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "57230d0f9cd557017715fc9f0bc58ea13db6d7e00afacd07f4e568fcf46c9b11"
+}

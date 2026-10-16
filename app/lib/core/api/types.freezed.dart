@@ -13,162 +13,6 @@ part of 'types.dart';
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
-mixin _$AirComponent {
-
- AirFeatures get features; bool get isSelfGroup;
-/// Create a copy of AirComponent
-/// with the given fields replaced by the non-null parameter values.
-@JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-$AirComponentCopyWith<AirComponent> get copyWith => _$AirComponentCopyWithImpl<AirComponent>(this as AirComponent, _$identity);
-
-
-
-@override
-bool operator ==(Object other) {
-  final _this = this as AirComponent;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AirComponent&&(identical(other.features, _this.features) || other.features == _this.features)&&(identical(other.isSelfGroup, _this.isSelfGroup) || other.isSelfGroup == _this.isSelfGroup));
-}
-
-
-@override
-int get hashCode {
-  final _this = this as AirComponent;
-  return Object.hash(runtimeType,_this.features,_this.isSelfGroup);
-}
-
-@override
-String toString() {
-  final _this = this as AirComponent;
-  return 'AirComponent(features: ${_this.features}, isSelfGroup: ${_this.isSelfGroup})';
-}
-
-
-}
-
-/// @nodoc
-abstract mixin class $AirComponentCopyWith<$Res>  {
-  factory $AirComponentCopyWith(AirComponent value, $Res Function(AirComponent) _then) = _$AirComponentCopyWithImpl;
-@useResult
-$Res call({
- AirFeatures features, bool isSelfGroup
-});
-
-
-$AirFeaturesCopyWith<$Res> get features;
-
-}
-/// @nodoc
-class _$AirComponentCopyWithImpl<$Res>
-    implements $AirComponentCopyWith<$Res> {
-  _$AirComponentCopyWithImpl(this._self, this._then);
-
-  final AirComponent _self;
-  final $Res Function(AirComponent) _then;
-
-/// Create a copy of AirComponent
-/// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? features = null,Object? isSelfGroup = null,}) {
-  return _then(AirComponent(
-features: null == features ? _self.features : features // ignore: cast_nullable_to_non_nullable
-as AirFeatures,isSelfGroup: null == isSelfGroup ? _self.isSelfGroup : isSelfGroup // ignore: cast_nullable_to_non_nullable
-as bool,
-  ));
-}
-/// Create a copy of AirComponent
-/// with the given fields replaced by the non-null parameter values.
-@override
-@pragma('vm:prefer-inline')
-$AirFeaturesCopyWith<$Res> get features {
-  
-  return $AirFeaturesCopyWith<$Res>(_self.features, (value) {
-    return _then(_self.copyWith(features: value));
-  });
-}
-}
-
-
-
-/// @nodoc
-
-
-class _AirComponent implements AirComponent {
-  const _AirComponent({required this.features, required this.isSelfGroup});
-  
-
-@override final  AirFeatures features;
-@override final  bool isSelfGroup;
-
-/// Create a copy of AirComponent
-/// with the given fields replaced by the non-null parameter values.
-@override @JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-_$AirComponentCopyWith<_AirComponent> get copyWith => __$AirComponentCopyWithImpl<_AirComponent>(this, _$identity);
-
-
-
-@override
-bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _AirComponent&&(identical(other.features, features) || other.features == features)&&(identical(other.isSelfGroup, isSelfGroup) || other.isSelfGroup == isSelfGroup));
-}
-
-
-@override
-int get hashCode {
-    return Object.hash(runtimeType,features,isSelfGroup);
-}
-
-@override
-String toString() {
-    return 'AirComponent(features: $features, isSelfGroup: $isSelfGroup)';
-}
-
-
-}
-
-/// @nodoc
-abstract mixin class _$AirComponentCopyWith<$Res> implements $AirComponentCopyWith<$Res> {
-  factory _$AirComponentCopyWith(_AirComponent value, $Res Function(_AirComponent) _then) = __$AirComponentCopyWithImpl;
-@override @useResult
-$Res call({
- AirFeatures features, bool isSelfGroup
-});
-
-
-@override $AirFeaturesCopyWith<$Res> get features;
-
-}
-/// @nodoc
-class __$AirComponentCopyWithImpl<$Res>
-    implements _$AirComponentCopyWith<$Res> {
-  __$AirComponentCopyWithImpl(this._self, this._then);
-
-  final _AirComponent _self;
-  final $Res Function(_AirComponent) _then;
-
-/// Create a copy of AirComponent
-/// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? features = null,Object? isSelfGroup = null,}) {
-  return _then(_AirComponent(
-features: null == features ? _self.features : features // ignore: cast_nullable_to_non_nullable
-as AirFeatures,isSelfGroup: null == isSelfGroup ? _self.isSelfGroup : isSelfGroup // ignore: cast_nullable_to_non_nullable
-as bool,
-  ));
-}
-
-/// Create a copy of AirComponent
-/// with the given fields replaced by the non-null parameter values.
-@override
-@pragma('vm:prefer-inline')
-$AirFeaturesCopyWith<$Res> get features {
-  
-  return $AirFeaturesCopyWith<$Res>(_self.features, (value) {
-    return _then(_self.copyWith(features: value));
-  });
-}
-}
-
-/// @nodoc
 mixin _$AirFeatures {
 
  bool get encryptedGroupProfiles; bool get emptyConnectionGroupAttributes; bool get pqGroups; bool get apqConnectionGroups;
@@ -3495,6 +3339,74 @@ as UiUserId,
 /// @nodoc
 
 
+class UiSystemMessage_DeleteGroup extends UiSystemMessage {
+  const UiSystemMessage_DeleteGroup(this.field0): super._();
+  
+
+ final  UiUserId field0;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiSystemMessage_DeleteGroupCopyWith<UiSystemMessage_DeleteGroup> get copyWith => _$UiSystemMessage_DeleteGroupCopyWithImpl<UiSystemMessage_DeleteGroup>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_DeleteGroup&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
+
+@override
+String toString() {
+    return 'UiSystemMessage.deleteGroup(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiSystemMessage_DeleteGroupCopyWith<$Res> implements $UiSystemMessageCopyWith<$Res> {
+  factory $UiSystemMessage_DeleteGroupCopyWith(UiSystemMessage_DeleteGroup value, $Res Function(UiSystemMessage_DeleteGroup) _then) = _$UiSystemMessage_DeleteGroupCopyWithImpl;
+@useResult
+$Res call({
+ UiUserId field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiSystemMessage_DeleteGroupCopyWithImpl<$Res>
+    implements $UiSystemMessage_DeleteGroupCopyWith<$Res> {
+  _$UiSystemMessage_DeleteGroupCopyWithImpl(this._self, this._then);
+
+  final UiSystemMessage_DeleteGroup _self;
+  final $Res Function(UiSystemMessage_DeleteGroup) _then;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(UiSystemMessage_DeleteGroup(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as UiUserId,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
 class UiSystemMessage_Onboarded extends UiSystemMessage {
   const UiSystemMessage_Onboarded(): super._();
   
@@ -3944,6 +3856,70 @@ int get hashCode => runtimeType.hashCode;
 @override
 String toString() {
     return 'UiSystemMessage.connectionRequestUnavailable()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class UiSystemMessage_ConnectionRequestExpired extends UiSystemMessage {
+  const UiSystemMessage_ConnectionRequestExpired(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ConnectionRequestExpired);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'UiSystemMessage.connectionRequestExpired()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class UiSystemMessage_SentConnectionRequestExpired extends UiSystemMessage {
+  const UiSystemMessage_SentConnectionRequestExpired(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_SentConnectionRequestExpired);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'UiSystemMessage.sentConnectionRequestExpired()';
 }
 
 

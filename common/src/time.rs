@@ -109,6 +109,11 @@ impl TimeStamp {
         Utc::now().round_subsecs(ROUND_SUBSECS_DIGITS).into()
     }
 
+    /// Same as [`Utc::now`], but truncated to millisecond precision.
+    pub fn now_millis() -> Self {
+        Utc::now().trunc_subsecs(3).into()
+    }
+
     /// Checks if this time stamp is more than `expiration` in the past.
     pub fn has_expired(&self, expiration: Duration) -> bool {
         let time_left = Utc::now() - expiration;
@@ -135,6 +140,13 @@ mod timestamp_conversion {
         let time_serialized = time.tls_serialize_detached().unwrap();
         let time_deserialized = TimeStamp::tls_deserialize_exact_bytes(&time_serialized).unwrap();
         assert_eq!(time, time_deserialized);
+    }
+
+    #[test]
+    fn now_millis_survives_a_millisecond_roundtrip() {
+        let time = TimeStamp::now_millis();
+        let millis = time.timestamp_millis();
+        assert_eq!(*time, DateTime::from_timestamp_millis(millis).unwrap());
     }
 }
 

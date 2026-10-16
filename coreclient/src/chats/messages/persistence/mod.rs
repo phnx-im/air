@@ -890,6 +890,19 @@ impl ChatMessage {
         .await
     }
 
+    /// The time of the oldest message in the chat.
+    pub(crate) async fn first_timestamp(
+        mut connection: impl ReadConnection,
+        chat_id: ChatId,
+    ) -> sqlx::Result<Option<DateTime<Utc>>> {
+        query_scalar!(
+            r#"SELECT MIN(timestamp) AS "timestamp: DateTime<Utc>" FROM message WHERE chat_id = ?"#,
+            chat_id
+        )
+        .fetch_one(connection.as_mut())
+        .await
+    }
+
     /// Get the last content message in the chat which is owned by the given user.
     pub(crate) async fn last_content_message_by_user(
         mut connection: impl ReadConnection,
@@ -1417,6 +1430,36 @@ pub(crate) mod tests {
             versioned.to_event_message().unwrap(),
             EventMessage::System(SystemMessage::Remove(Some(actor), subject))
         );
+    }
+
+    #[test]
+    fn delete_group_message_serde_codec() {
+        let deleter = UserId::new(Uuid::from_u128(1), "localhost".parse().unwrap());
+        let event = EventMessage::System(SystemMessage::DeleteGroup(deleter));
+        let bytes = PersistenceCodec::to_vec(&event).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[sqlx::test]
+    async fn store_load_delete_group_message(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+
+        let deleter = UserId::random("localhost".parse()?);
+        let message = ChatMessage::new_system_message(
+            chat.id(),
+            TimeStamp::now(),
+            SystemMessage::DeleteGroup(deleter),
+        );
+        message.store(pool.write().await?).await?;
+
+        let loaded = ChatMessage::load(pool.read().await?, message.id()).await?;
+        assert_eq!(loaded, Some(message));
+
+        Ok(())
     }
 
     #[test]

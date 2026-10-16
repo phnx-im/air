@@ -83,7 +83,7 @@ use aircommon::{
 };
 use airprotos::client::{
     app_data::{ClientAppData, GroupAppData, GroupAppDataExt},
-    component::AIR_GROUP_PROFILE_COMPONENT_ID,
+    component::{AIR_COMPONENT_ID, AIR_GROUP_PROFILE_COMPONENT_ID, GroupTombstone},
     group::GroupData,
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
@@ -132,7 +132,8 @@ use openmls::{
         LeafNodeParameters, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
         OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal,
         ProposalType, ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
-        UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
+        UnknownExtension, group_info::VerifiableGroupInfo,
+        tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
     treesync::{RatchetTree, RatchetTreeIn, errors::LeafNodeValidationError},
@@ -1083,6 +1084,8 @@ impl Group {
         } = external_commit_info;
 
         ensure!(pq.is_none(), "APQ group in non-APQ stage_invite");
+        let group_info_signer =
+            group_info_signer_credential(&verifiable_group_info, &ratchet_tree_in);
 
         let proposals: Vec<_> = proposals
             .iter()
@@ -1181,6 +1184,10 @@ impl Group {
         // which is only accepted inside our own self group.
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &mls_group, is_self_group).await?;
+        if let Some(tombstone) = GroupAppData::tombstone(mls_group.extensions()) {
+            let closer = closer(group_info_signer.as_ref(), signer.credential().user_id())?;
+            bail!(GroupClosed { closer, tombstone });
+        }
         if let Some(join) = connection_group {
             add_joiner_to_room_state(&mut room_state, join.inviter, signer.credential().user_id())?;
         }
@@ -1283,6 +1290,7 @@ impl Group {
             .collect();
 
         let t_ciphersuite = t_group_info.ciphersuite();
+        let group_info_signer = group_info_signer_credential(&t_group_info, &t_ratchet_tree);
         let group_info = VerifiableApqGroupInfo::new(t_group_info, pq_group_info);
 
         let encrypted_profile_keys_fallback = Self::encrypted_profile_keys_fallback(
@@ -1383,6 +1391,10 @@ impl Group {
         // only accepted inside our own self group.
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &t_group, is_self_group).await?;
+        if let Some(tombstone) = GroupAppData::tombstone(t_group.extensions()) {
+            let closer = closer(group_info_signer.as_ref(), own_user_id)?;
+            bail!(GroupClosed { closer, tombstone });
+        }
         if let Some(join) = connection_group {
             add_joiner_to_room_state(&mut room_state, join.inviter, own_user_id)?;
         }
@@ -1779,10 +1791,14 @@ impl Group {
         })
     }
 
+    /// Stages the commit that deletes the group. The commit removes every other
+    /// member. If `deleted` is Some, the commit also sets a tombstone recording
+    /// the deletion in the Air component of the group's context.
     pub(super) async fn stage_delete(
         &mut self,
         mut connection: impl WriteConnection,
         signer: &UserSigningKey,
+        deleted: Option<TimeStamp>,
     ) -> anyhow::Result<DeleteGroupParamsOut> {
         let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
@@ -1797,6 +1813,7 @@ impl Group {
                 }
             })
             .collect::<Vec<_>>();
+        let component_data = self.deleted_air_component(deleted)?;
 
         // There shouldn't be a welcome
         let aad_payload = AadPayload::DeleteGroup;
@@ -1807,9 +1824,19 @@ impl Group {
         if let Some(group_id) = &vc_group_id {
             builder = builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?;
         }
+        let mut builder = builder.propose_removals(remove_indices);
+        if let Some(component_data) = &component_data {
+            builder = builder.add_proposal(Proposal::AppDataUpdate(Box::new(
+                AppDataUpdateProposal::update(AIR_COMPONENT_ID, component_data.data().to_vec()),
+            )));
+        }
+        let mut builder = builder.load_psks(provider.storage())?;
+        if let Some(component_data) = component_data {
+            let mut updater = builder.app_data_dictionary_updater();
+            updater.set(component_data);
+            builder.with_app_data_dictionary_updates(updater.changes());
+        }
         let (mls_message, _welcome_option, group_info_option) = builder
-            .propose_removals(remove_indices)
-            .load_psks(provider.storage())?
             .create_group_info(true)
             .build(provider.rand(), provider.crypto(), signer, |_| true)?
             .stage_commit(&provider)?
@@ -1824,10 +1851,13 @@ impl Group {
         Ok(params)
     }
 
+    /// The APQ counterpart of [`Self::stage_delete`]. The flag goes into the
+    /// T group context only.
     pub(super) async fn stage_apq_delete(
         &mut self,
         mut connection: impl WriteConnection,
         signer: &UserSigningKey,
+        deleted: Option<TimeStamp>,
     ) -> anyhow::Result<ApqCommitMessageBundle> {
         let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
@@ -1843,6 +1873,7 @@ impl Group {
                 }
             })
             .collect::<Vec<_>>();
+        let component_data = self.deleted_air_component(deleted)?;
 
         let (t_group, pq_group) = self.apq_mls_groups_mut()?;
 
@@ -1854,6 +1885,9 @@ impl Group {
             .force_self_update(true)
             .propose_removals(removed_indices)
             .create_group_info(true);
+        if let Some(component_data) = component_data {
+            builder = builder.update_t_app_data(component_data);
+        }
         if let Some(group_id) = vc_group_id {
             builder = builder.vc_emulation(group_id);
         }
@@ -1865,6 +1899,27 @@ impl Group {
         );
 
         Ok(bundle)
+    }
+
+    /// The Air component of the T group context with a tombstone marking the
+    /// group as deleted at `deleted`, ready for an app data update. `None` if
+    /// no tombstone is to be set.
+    fn deleted_air_component(
+        &self,
+        deleted: Option<TimeStamp>,
+    ) -> anyhow::Result<Option<ComponentData>> {
+        let Some(deleted) = deleted else {
+            return Ok(None);
+        };
+        let Some(mut component) = GroupAppData::air_component(self.mls_group.extensions()) else {
+            warn!(
+                group_id = ?self.group_id(),
+                "Group context has no Air component, deleting without a tombstone"
+            );
+            return Ok(None);
+        };
+        component.tombstone = Some(GroupTombstone::deleted(deleted));
+        Ok(Some(component.to_component_data()?))
     }
 
     pub(super) async fn discard_pending_commit(
@@ -2838,6 +2893,7 @@ impl NewGroupContext {
             is_self_group,
             safe_aad_components: is_self_group.then(|| vec![VC_COMPONENT_ID]),
             profile: None,
+            tombstone: None,
         }
     }
 
@@ -3061,6 +3117,31 @@ fn validate_self_group_add_credential(
         }
     }
     Ok(())
+}
+
+/// Returns the leaf credential of the member that signed the group info. The
+/// credential is taken from the ratchet tree that came with the group info.
+///
+/// Only trustworthy once the join has verified the group info and the tree.
+fn group_info_signer_credential(
+    group_info: &VerifiableGroupInfo,
+    ratchet_tree: &RatchetTreeIn,
+) -> Option<Credential> {
+    let signer = group_info.signer();
+    ratchet_tree
+        .full_leaves()
+        .find(|(index, _)| *index == signer)
+        .map(|(_, leaf)| leaf.credential().clone())
+}
+
+/// The user that set a group's tombstone. Since the DS doesn't allow any group
+/// operations on a group with a tombstone, the creator of the group info must
+/// be the one that set it.
+fn closer(group_info_signer: Option<&Credential>, own_user_id: &UserId) -> Result<UserId> {
+    let credential = group_info_signer.context("group info signer has no leaf")?;
+    Ok(LeafCredential::from_credential(credential)?
+        .user_id(own_user_id)
+        .clone())
 }
 
 /// Cleans up local state when the DS reports that a group no longer exists.
@@ -3398,6 +3479,23 @@ impl TimestampedMessage {
         staged_commit: &StagedCommit,
         ds_timestamp: TimeStamp,
     ) -> Result<Vec<Self>> {
+        // A commit that sets the tombstone closes the group. Its removes are
+        // only there for legacy clients.
+        if GroupAppData::has_tombstone(staged_commit.group_context().extensions())
+            && !GroupAppData::has_tombstone(group.mls_group().extensions())
+        {
+            let leaf_node = staged_commit
+                .update_path_leaf_node()
+                .context("Delete commit without update path")?;
+            let deleter = LeafCredential::from_credential(leaf_node.credential())?
+                .user_id(group.own_user_id())
+                .clone();
+            return Ok(vec![TimestampedMessage::system_message(
+                SystemMessage::DeleteGroup(deleter),
+                ds_timestamp,
+            )]);
+        }
+
         // Collect the remover/removed pairs into a set to avoid duplicates.
         let mut removed_set = HashSet::new();
         let mut devices_unlinked_set = HashSet::new();

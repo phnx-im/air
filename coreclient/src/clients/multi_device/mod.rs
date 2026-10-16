@@ -51,7 +51,7 @@ use uuid::Uuid;
 use crate::{
     Chat, ChatId, ChatStatus, ChatType, Contact,
     chats::{
-        connection_requests::{pending_requests_snapshot, store_provisioned_requests},
+        connection_requests::{requests_snapshot, store_provisioned_requests},
         outgoing_requests::OutgoingRequest,
     },
     clients::{
@@ -570,7 +570,7 @@ impl CoreUser {
             privacy_pass::redeemed_tokens_snapshot(self.db().read().await?).await?;
         let connection_requests = self
             .db()
-            .with_read_transaction(async |txn| pending_requests_snapshot(txn).await)
+            .with_read_transaction(async |txn| requests_snapshot(txn).await)
             .await?;
 
         Ok(ProvisioningPackage {
@@ -940,7 +940,7 @@ impl CoreUser {
                     privacy_pass::store_provisioned_seeds(txn, &token_seeds).await?;
                     apply_blocked_contacts_update(txn, &blocked_contacts).await?;
                     privacy_pass::apply_redeemed_tokens(txn, &redeemed_tokens).await?;
-                    store_provisioned_requests(txn, &connection_requests).await?;
+                    store_provisioned_requests(txn, &connection_requests, Utc::now()).await?;
 
                     // Queue the onboarding into the groups the virtual client is
                     // already a member of.

@@ -270,6 +270,17 @@ class _GroupDebugInfoBody extends StatelessWidget {
             children: [DeveloperInfoRow(label: 'Queued', value: 'no')],
           ),
         if (info.groupData case final data?) _GroupDataCard(data: data),
+        if (info.appData case final appData?)
+          DeveloperCard(
+            caption: 'App Data',
+            children: [
+              _ChipListRow(label: 'Components', values: appData.components),
+              if (appData.airComponent?.isSelfGroup == true)
+                const DeveloperInfoRow(label: 'Self Group', value: 'yes'),
+              if (appData.airComponent?.tombstone case final tombstone?)
+                DeveloperInfoRow(label: 'Tombstone', value: tombstone),
+            ],
+          ),
         if (info.requiredCapabilities case final caps?)
           DeveloperCard(
             caption: 'Required Capabilities',

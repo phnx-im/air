@@ -66,7 +66,7 @@ use crate::{
         persistence::{delete_client_database, open_lock_file},
     },
 };
-use crate::{ChatId, key_stores::as_credentials::AsCredentials};
+use crate::{ChatId, ChatStatus, key_stores::as_credentials::AsCredentials};
 use crate::{ContactType, user_profiles::UserProfile};
 use crate::{
     MessageId,
@@ -717,8 +717,20 @@ impl CoreUser {
             .ok()
     }
 
+    /// The members the chat had when it became inactive, if it recorded any,
+    /// otherwise the members from the room state of its group.
+    ///
     /// Returns None if there is no chat with the given id.
     pub async fn chat_participants(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
+        match self.chat(&chat_id).await?.status() {
+            ChatStatus::Inactive(inactive) if !inactive.past_members().is_empty() => {
+                return Some(inactive.past_members().iter().cloned().collect());
+            }
+            ChatStatus::Inactive(_)
+            | ChatStatus::Pending
+            | ChatStatus::Active
+            | ChatStatus::Blocked => {}
+        }
         Group::load_participants(self.db().read().await.ok()?.as_mut(), chat_id)
             .await
             .inspect_err(|error| {

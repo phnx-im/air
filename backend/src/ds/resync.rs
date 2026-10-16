@@ -103,8 +103,8 @@ impl DsGroupState {
             return Err(ResyncClientError::InvalidMessage);
         };
 
-        if !self.self_group_flag_unchanged(staged_commit_message) {
-            error!("Commit would toggle the self-group flag");
+        if !self.group_flags_unchanged(staged_commit_message) {
+            error!("Commit would change the self-group flag or the tombstone");
             return Err(ResyncClientError::InvalidMessage);
         }
 

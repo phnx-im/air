@@ -403,6 +403,7 @@ impl CoreUser {
 
 mod persistence {
     use aircommon::identifiers::UserId;
+    use chrono::{DateTime, Utc};
     use sqlx::{query, query_as, query_scalar};
 
     use crate::db::access::ReadConnection;
@@ -478,6 +479,23 @@ mod persistence {
                     origin_group_id AS "origin_group_id: GroupIdWrapper"
                 FROM pending_connection_request
                 ORDER BY request_id"#,
+            )
+            .fetch_all(connection.as_mut())
+            .await
+        }
+
+        /// The ids of the requests received at or before `cutoff`, oldest
+        /// first.
+        pub(crate) async fn load_ids_received_until(
+            mut connection: impl ReadConnection,
+            cutoff: DateTime<Utc>,
+        ) -> sqlx::Result<Vec<ChatId>> {
+            query_scalar!(
+                r#"SELECT request_id AS "request_id: ChatId"
+                FROM pending_connection_request
+                WHERE received_at <= ?
+                ORDER BY received_at"#,
+                cutoff
             )
             .fetch_all(connection.as_mut())
             .await

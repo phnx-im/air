@@ -32,6 +32,7 @@ use aircommon::{
 use airmacros::{
     DeserializeTaggedMap, DeserializeTaggedUnion, SerializeTaggedMap, SerializeTaggedUnion,
 };
+use chrono::{DateTime, Utc};
 use mimi_content::{Disposition, MimiContent, NestedPart, content_container::ExtensionName};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use openmls::group::GroupId;
@@ -364,6 +365,7 @@ pub struct LinkedDevice {
 ///   ? linked_devices: [* LinkedDevice] .tag 2
 ///   ? default_emoji_skin_tone: uint .size 1 .tag 3
 ///   ? limit_animated_images_loops: bool .tag 4
+///   ? delete_expired_contact_requests: bool .tag 5
 /// }
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
@@ -379,6 +381,10 @@ pub struct SettingsUpdate {
     pub default_emoji_skin_tone: Option<u8>,
     #[tag(4)]
     pub limit_animated_images_loops: Option<bool>,
+    /// Whether contact requests that expired are deleted instead of kept as a
+    /// record.
+    #[tag(5)]
+    pub delete_expired_contact_requests: Option<bool>,
 }
 
 /// The contacts whose blocked state the sender just changed. This is a diff and
@@ -513,6 +519,7 @@ pub struct ConnectionRequestsUpdate {
 /// ```cddl
 /// ConnectionRequestEntry = {
 ///   1: ConnectionRequestReceived //
+///   2: ConnectionRequestDeclined //
 ///   3: ConnectionRequestUnavailable
 /// }
 /// ```
@@ -520,6 +527,8 @@ pub struct ConnectionRequestsUpdate {
 pub enum ConnectionRequestEntry {
     #[tag(1)]
     Received(ConnectionRequestReceived),
+    #[tag(2)]
+    Declined(ConnectionRequestDeclined),
     #[tag(3)]
     Unavailable(ConnectionRequestUnavailable),
     /// A state this client does not understand. The entry is ignored on
@@ -557,8 +566,8 @@ pub struct ConnectionRequestReceived {
     /// Only present for a request via a username.
     #[tag(5)]
     pub connection_package_hash: Option<ConnectionPackageHash>,
-    #[tag(6)]
-    pub received_at: u64,
+    #[tag(6, with = "chrono::serde::ts_milliseconds")]
+    pub received_at: DateTime<Utc>,
 }
 
 /// How a connection request reached the user.
@@ -600,6 +609,25 @@ pub struct ConnectionRequestGroup {
     /// receiver skips an entry without it.
     #[tag(1, with = "group_id_as_bytes")]
     pub group_id: Option<GroupId>,
+}
+
+/// The user declined an incoming connection request. Its sender is not told.
+/// Siblings record the decline time as-is, so all devices hold the same time.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ConnectionRequestDeclined = {
+///   chat_id: bstr .size 16 .tag 1,
+///   declined_at: uint .tag 2,              ; unix epoch milliseconds (UTC)
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ConnectionRequestDeclined {
+    #[tag(1)]
+    pub chat_id: Uuid,
+    #[tag(2, with = "chrono::serde::ts_milliseconds")]
+    pub declined_at: DateTime<Utc>,
 }
 
 /// An incoming connection request turned out to be gone when the user tried
@@ -704,6 +732,7 @@ mod test {
                 "Laptop",
                 LinkedDevicePlatform::Linux,
             )]),
+            delete_expired_contact_requests: Some(true),
             ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&update).unwrap();
@@ -711,9 +740,9 @@ mod test {
         assert_eq!(update, decoded);
     }
 
-    /// An older client sends `SettingsUpdate` without tag 2. The field must
-    /// decode as absent, which means "the sender has no value", not "clear the
-    /// value".
+    /// An older client sends `SettingsUpdate` without tags 2 to 5. The fields
+    /// must decode as absent, which means "the sender has no value", not "clear
+    /// the value".
     #[test]
     fn settings_update_without_linked_devices_decodes_as_absent() {
         #[derive(Debug, Clone, Default, SerializeTaggedMap)]
@@ -804,6 +833,7 @@ mod test {
                 "Laptop",
                 LinkedDevicePlatform::Linux,
             )]),
+            delete_expired_contact_requests: Some(true),
             ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&update).unwrap();
@@ -1123,7 +1153,7 @@ mod test {
                     source: ConnectionRequestSource::Username("alice".to_owned()),
                     connection_offer_hash: Some(ConnectionOfferHash::from_bytes([0x13; 32])),
                     connection_package_hash: Some(ConnectionPackageHash::from_bytes([0x14; 32])),
-                    received_at: 1_767_225_600_123,
+                    received_at: DateTime::from_timestamp_millis(1_767_225_600_123).unwrap(),
                 }),
                 ConnectionRequestEntry::Received(ConnectionRequestReceived {
                     connection_info: vec![0x15; 8],
@@ -1131,10 +1161,14 @@ mod test {
                     source: ConnectionRequestSource::Group(sample_connection_request_group()),
                     connection_offer_hash: None,
                     connection_package_hash: None,
-                    received_at: 1_767_225_600_456,
+                    received_at: DateTime::from_timestamp_millis(1_767_225_600_456).unwrap(),
                 }),
                 ConnectionRequestEntry::Unavailable(ConnectionRequestUnavailable {
                     chat_id: Uuid::from_u128(0x19),
+                }),
+                ConnectionRequestEntry::Declined(ConnectionRequestDeclined {
+                    chat_id: Uuid::from_u128(0x1a),
+                    declined_at: DateTime::from_timestamp_millis(1_767_225_600_789).unwrap(),
                 }),
             ],
         }
@@ -1228,7 +1262,7 @@ mod test {
             source: ConnectionRequestSource::Group(sample_connection_request_group()),
             connection_offer_hash: None,
             connection_package_hash: None,
-            received_at: 1_767_225_600_123,
+            received_at: DateTime::from_timestamp_millis(1_767_225_600_123).unwrap(),
         };
         let newer = vec![
             ConnectionRequestEntryV2::Later(ConnectionRequestLater {
@@ -1248,9 +1282,10 @@ mod test {
         );
     }
 
-    /// A client that only knows received requests skips the unavailable ones.
+    /// A client that only knows received requests skips the unavailable and
+    /// declined ones.
     #[test]
-    fn unavailable_requests_are_skipped_by_an_older_client() {
+    fn later_request_states_are_skipped_by_an_older_client() {
         #[derive(Debug, Clone, PartialEq, DeserializeTaggedUnion)]
         enum ConnectionRequestEntryV1 {
             #[tag(1)]
@@ -1267,6 +1302,7 @@ mod test {
             [
                 ConnectionRequestEntryV1::Received(_),
                 ConnectionRequestEntryV1::Received(_),
+                ConnectionRequestEntryV1::Unknown,
                 ConnectionRequestEntryV1::Unknown,
             ]
         ));

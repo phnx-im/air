@@ -38,7 +38,7 @@ mod attachment_recovery;
 pub(crate) mod chat_message_queue;
 mod chat_messages;
 mod deleted_messages;
-mod error;
+pub(crate) mod error;
 mod key_packages;
 mod profile;
 mod push_tokens;
