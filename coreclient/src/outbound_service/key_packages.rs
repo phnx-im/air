@@ -145,18 +145,22 @@ impl OutboundServiceContext {
 
                 let emulation_group_id = self_group.group().mls_group().group_id().clone();
 
-                // TODO: Heavy CPU operation, do we have to spawn_blocking here?
-                let generated = self.key_store.generate_vc_key_package_batch(
-                    &mut *txn,
-                    &self.qs_client_id,
-                    &emulation_group_id,
-                    VcKeyPackageBatchConfig {
-                        key_packages: KEY_PACKAGES,
-                        last_resort: true,
-                        apq_key_packages: APQ_KEY_PACKAGES,
-                        apq_last_resort: true,
-                    },
-                )?;
+                // CPU heavy, so keep it off the tokio workers. The generator
+                // writes through the transaction, which rules out
+                // `spawn_blocking`.
+                let generated = tokio::task::block_in_place(|| {
+                    self.key_store.generate_vc_key_package_batch(
+                        &mut *txn,
+                        &self.qs_client_id,
+                        &emulation_group_id,
+                        VcKeyPackageBatchConfig {
+                            key_packages: KEY_PACKAGES,
+                            last_resort: true,
+                            apq_key_packages: APQ_KEY_PACKAGES,
+                            apq_last_resort: true,
+                        },
+                    )
+                })?;
 
                 Ok(Some(generated))
             })
@@ -254,39 +258,43 @@ impl OutboundServiceContext {
     async fn generate_key_packages(&self) -> anyhow::Result<KeyPackageBatch> {
         self.db
             .with_write_transaction(async move |txn| {
-                let mut plain = Vec::with_capacity(KEY_PACKAGES + 1);
-                // Non-last resort key packages
-                for _ in 0..KEY_PACKAGES {
+                // CPU heavy, see `upload_via_self_group`.
+                tokio::task::block_in_place(|| {
+                    let mut plain = Vec::with_capacity(KEY_PACKAGES + 1);
+                    // Non-last resort key packages
+                    for _ in 0..KEY_PACKAGES {
+                        plain.push(self.key_store.generate_key_package(
+                            &mut *txn,
+                            &self.qs_client_id,
+                            false,
+                        )?);
+                    }
+                    // Last resort key package
                     plain.push(self.key_store.generate_key_package(
                         &mut *txn,
                         &self.qs_client_id,
-                        false,
+                        true,
                     )?);
-                }
-                // Last resort key package
-                plain.push(self.key_store.generate_key_package(
-                    &mut *txn,
-                    &self.qs_client_id,
-                    true,
-                )?);
 
-                // Non-last resort APQ key packages
-                let mut apq = Vec::with_capacity(APQ_KEY_PACKAGES + 1);
-                #[expect(clippy::reversed_empty_ranges)]
-                for _ in 0..APQ_KEY_PACKAGES {
+                    // Non-last resort APQ key packages
+                    let mut apq = Vec::with_capacity(APQ_KEY_PACKAGES + 1);
+                    #[expect(clippy::reversed_empty_ranges)]
+                    for _ in 0..APQ_KEY_PACKAGES {
+                        apq.push(self.key_store.generate_apq_key_package(
+                            &mut *txn,
+                            &self.qs_client_id,
+                            false,
+                        )?);
+                    }
+                    // Last resort APQ key package
                     apq.push(self.key_store.generate_apq_key_package(
-                        &mut *txn,
+                        txn,
                         &self.qs_client_id,
-                        false,
+                        true,
                     )?);
-                }
-                // Last resort APQ key package
-                apq.push(
-                    self.key_store
-                        .generate_apq_key_package(txn, &self.qs_client_id, true)?,
-                );
 
-                Ok(KeyPackageBatch { plain, apq })
+                    Ok(KeyPackageBatch { plain, apq })
+                })
             })
             .await
     }

@@ -48,13 +48,15 @@ parking_lot.workspace = true
 pulldown-cmark.workspace = true
 qrcode.workspace = true
 rand.workspace = true
+rayon.workspace = true
 regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tar.workspace = true
 thiserror.workspace = true
+threadpool.workspace = true
 tls_codec.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream.workspace = true
 tokio-util.workspace = true
 tonic.workspace = true
