@@ -28,14 +28,6 @@ enum AddUsernameContactError {
 }
 
 @freezed
-sealed class AirComponent with _$AirComponent {
-  const factory AirComponent({
-    required AirFeatures features,
-    required bool isSelfGroup,
-  }) = _AirComponent;
-}
-
-@freezed
 sealed class AirFeatures with _$AirFeatures {
   const factory AirFeatures({
     required bool encryptedGroupProfiles,
@@ -505,6 +497,8 @@ sealed class UiSystemMessage with _$UiSystemMessage {
       UiSystemMessage_NewDirectConnectionChat;
   const factory UiSystemMessage.createGroup(UiUserId field0) =
       UiSystemMessage_CreateGroup;
+  const factory UiSystemMessage.deleteGroup(UiUserId field0) =
+      UiSystemMessage_DeleteGroup;
   const factory UiSystemMessage.onboarded() = UiSystemMessage_Onboarded;
   const factory UiSystemMessage.deviceLinked(UuidValue field0) =
       UiSystemMessage_DeviceLinked;
