@@ -5,7 +5,7 @@
 use aircommon::{
     credentials::keys::LeafSigningKey,
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
-    identifiers::UserId,
+    identifiers::{QsReference, UserId},
     mls_group_config::{
         APQ_CIPHERSUITE, MAX_PAST_EPOCHS, default_group_required_extensions,
         default_leaf_node_capabilities, default_sender_ratchet_configuration,
@@ -28,7 +28,7 @@ use crate::{
     db::access::WriteConnection,
     groups::{
         NewGroupContext, PartialCreateGroupParams, PartialPqCreateGroupParams,
-        openmls_provider::AirOpenMlsProvider,
+        client_reference_extension, openmls_provider::AirOpenMlsProvider,
     },
 };
 
@@ -63,6 +63,7 @@ impl Group {
         pq_group_id: GroupId,
         context: NewGroupContext,
         vc_group_id: Option<&GroupId>,
+        creator_client_reference: Option<&QsReference>,
     ) -> anyhow::Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
@@ -101,14 +102,16 @@ impl Group {
             LeafSigningKey::SelfGroup(_) => self_group_leaf_node_capabilities(),
         };
 
+        let mut leaf_node_extensions = ClientAppData::current().leaf_node_extensions();
+        if let Some(client_reference) = creator_client_reference {
+            leaf_node_extensions.add(client_reference_extension(client_reference)?)?;
+        }
+
         let mut builder = ApqMlsGroup::builder()
             .with_group_ids(t_group_id, pq_group_id)
             .with_ciphersuite(APQ_CIPHERSUITE)
             .with_capabilities(capabilities)
-            .with_leaf_node_extensions(
-                ClientAppData::current().leaf_node_extensions(),
-                ClientAppData::current().leaf_node_extensions(),
-            )?
+            .with_leaf_node_extensions(leaf_node_extensions.clone(), leaf_node_extensions)?
             .with_group_context_extensions(t_gc_extensions, pq_gc_extensions)?
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)

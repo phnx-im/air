@@ -21,3 +21,25 @@ pub(crate) fn init_test_tracing() {
         )
         .try_init();
 }
+
+/// A reference to a random QS client, sealed with a random key.
+#[cfg(test)]
+pub(crate) fn random_client_reference() -> aircommon::identifiers::QsReference {
+    use aircommon::{
+        crypto::hpke::{ClientIdDecryptionKey, HpkeEncryptable},
+        identifiers::{ClientConfig, QsClientId, QsReference},
+    };
+
+    QsReference {
+        client_homeserver_domain: "example.com".parse().unwrap(),
+        sealed_reference: ClientConfig {
+            client_id: QsClientId::random(&mut rand::rng()),
+            push_token_ear_key: None,
+        }
+        .encrypt(
+            ClientIdDecryptionKey::generate().unwrap().encryption_key(),
+            &[],
+            &[],
+        ),
+    }
+}

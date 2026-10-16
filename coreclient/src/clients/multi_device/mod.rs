@@ -18,9 +18,7 @@ use aircommon::crypto::kdf::keys::RatchetSecret;
 use aircommon::crypto::signatures::keys::QsClientSigningKey;
 use aircommon::identifiers::Fqdn;
 use aircommon::messages::QueueMessage;
-use aircommon::mls_group_config::{
-    APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE, self_group_leaf_node_capabilities,
-};
+use aircommon::mls_group_config::{APQ_CIPHERSUITE, self_group_leaf_node_capabilities};
 use airprotos::client::app_data::ClientAppData;
 use airprotos::client::self_group::SettingsUpdate;
 use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
@@ -32,8 +30,8 @@ use openmls::prelude::{Credential, CredentialType, SignaturePublicKey};
 use openmls::{
     group::{MlsGroup, MlsGroupCreateConfig, MlsGroupJoinConfig, StagedWelcome},
     prelude::{
-        BasicCredential, CredentialWithKey, Extension, KeyPackage, MlsMessageBodyIn, MlsMessageIn,
-        MlsMessageOut, ProtocolVersion, UnknownExtension,
+        BasicCredential, CredentialWithKey, KeyPackage, MlsMessageBodyIn, MlsMessageIn,
+        MlsMessageOut, ProtocolVersion,
     },
 };
 use openmls_basic_credential::SignatureKeyPair;
@@ -70,7 +68,8 @@ use crate::{
     db::access::DbAccess,
     delete_client_database,
     groups::{
-        Group, client_auth_info::StorableUserCredential, openmls_provider::AirOpenMlsProvider,
+        Group, client_auth_info::StorableUserCredential, client_reference_extension,
+        openmls_provider::AirOpenMlsProvider,
     },
     job::{
         JobError,
@@ -713,11 +712,7 @@ impl CoreUser {
 
         let mut leaf_node_extensions = ClientAppData::current().leaf_node_extensions();
         let client_reference = self.create_own_client_reference();
-        // TODO: don't use Extension::Unknown
-        leaf_node_extensions.add(Extension::Unknown(
-            QS_CLIENT_REFERENCE_EXTENSION_TYPE,
-            UnknownExtension(client_reference.tls_serialize_detached()?),
-        ))?;
+        leaf_node_extensions.add(client_reference_extension(&client_reference)?)?;
         // add two fields AirComponent Option<QsClientId> and Option<QsUserId>
         let key_package_extensions = ClientAppData::current().key_package_extensions();
 

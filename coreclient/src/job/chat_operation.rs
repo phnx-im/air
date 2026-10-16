@@ -395,6 +395,7 @@ impl ChatOperation {
             http_client,
             db,
             key_store,
+            qs_client_id,
             ..
         } = context;
 
@@ -484,6 +485,7 @@ impl ChatOperation {
                     group_data,
                     new_chat_picture,
                     derivation_epoch,
+                    &key_store.create_own_client_reference(qs_client_id),
                 )
                 .await
             })
@@ -497,7 +499,12 @@ impl ChatOperation {
         context: &mut JobContext<'_, '_>,
         derivation_epoch: DerivationEpoch,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
-        let JobContext { db, key_store, .. } = context;
+        let JobContext {
+            db,
+            key_store,
+            qs_client_id,
+            ..
+        } = context;
         let job = db
             .write()
             .await?
@@ -507,6 +514,7 @@ impl ChatOperation {
                     &key_store.signing_key,
                     self.chat_id,
                     derivation_epoch,
+                    &key_store.create_own_client_reference(qs_client_id),
                 )
                 .await
             })

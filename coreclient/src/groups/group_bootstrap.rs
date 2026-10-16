@@ -322,6 +322,7 @@ mod tests {
             random_group_id(),
             context,
             vc_group_id,
+            None,
         )?;
         Ok(group)
     }

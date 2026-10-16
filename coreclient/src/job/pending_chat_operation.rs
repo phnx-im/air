@@ -8,7 +8,7 @@ use aircommon::{
         keys::{SelfGroupSigningKey, UserSigningKey},
     },
     crypto::{aead::keys::WelcomeAttributionInfoEarKey, indexed_aead::keys::UserProfileKey},
-    identifiers::{QualifiedGroupId, UserId},
+    identifiers::{QsReference, QualifiedGroupId, UserId},
     messages::client_ds_out::{
         ApqGroupOperationParamsOut, DeleteGroupParamsOut, GroupOperationParamsOut,
         SelfRemoveParamsOut,
@@ -861,6 +861,7 @@ impl PendingChatOperation {
         new_group_data: Option<GroupData>,
         new_chat_picture: Option<Vec<u8>>,
         derivation_epoch: DerivationEpoch,
+        own_client_reference: &QsReference,
     ) -> anyhow::Result<Self> {
         Self::create_update_with_group_data(
             txn,
@@ -869,6 +870,7 @@ impl PendingChatOperation {
             new_group_data,
             new_chat_picture,
             derivation_epoch,
+            own_client_reference,
         )
         .await
     }
@@ -878,6 +880,7 @@ impl PendingChatOperation {
         signer: &UserSigningKey,
         chat_id: ChatId,
         derivation_epoch: DerivationEpoch,
+        own_client_reference: &QsReference,
     ) -> anyhow::Result<Self> {
         let mut group = Group::load_with_chat_id_clean_verified(&mut *txn, chat_id)
             .await?
@@ -885,7 +888,7 @@ impl PendingChatOperation {
         let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
         let params = group
             .group_mut()
-            .apq_update(txn, &signer, None, derivation_epoch)
+            .apq_update(txn, &signer, None, derivation_epoch, own_client_reference)
             .await?;
         let job = Self::new(group, OperationType::apq_other(params));
         job.store(txn).await?;
@@ -1062,6 +1065,7 @@ impl PendingChatOperation {
         new_group_data: Option<GroupData>,
         new_chat_picture: Option<Vec<u8>>,
         derivation_epoch: DerivationEpoch,
+        own_client_reference: &QsReference,
     ) -> anyhow::Result<Self> {
         let mut group = Group::load_with_chat_id_clean_verified(&mut *txn, chat_id)
             .await?
@@ -1073,13 +1077,25 @@ impl PendingChatOperation {
         let operation_type = if group.is_apq() && group.group().has_pending_proposals() {
             let params = group
                 .group_mut()
-                .apq_update(&mut *txn, &signer, new_group_data, derivation_epoch)
+                .apq_update(
+                    &mut *txn,
+                    &signer,
+                    new_group_data,
+                    derivation_epoch,
+                    own_client_reference,
+                )
                 .await?;
             OperationType::apq_other_with_picture(params, new_chat_picture)
         } else {
             let params = group
                 .group_mut()
-                .update(&mut *txn, &signer, new_group_data, derivation_epoch)
+                .update(
+                    &mut *txn,
+                    &signer,
+                    new_group_data,
+                    derivation_epoch,
+                    own_client_reference,
+                )
                 .await?;
             OperationType::other_with_picture(params, new_chat_picture)
         };
@@ -1837,7 +1853,7 @@ mod tests {
         clients::{own_client_info::OwnClientInfo, user_settings::ReadReceiptsSetting},
         db::access::DbAccess,
         groups::NewGroupContext,
-        utils::persistence::open_db_in_memory,
+        utils::{persistence::open_db_in_memory, random_client_reference},
     };
 
     use super::*;
@@ -1882,6 +1898,7 @@ mod tests {
                     t_group_id,
                     pq_group_id,
                     NewGroupContext::SelfGroup(GroupData::empty()),
+                    None,
                     None,
                 )?;
                 group.store(&mut *txn).await?;
@@ -2016,23 +2033,22 @@ mod tests {
         Ok(())
     }
 
-    /// A self-update staged in the self group keeps the self-group credential
-    /// type in the leaf capabilities (RFC 9420 valn0104) and the per-device
-    /// leaf signature key, even though the caller passes the user signing key.
-    #[tokio::test(flavor = "multi_thread")]
-    async fn self_update_in_self_group_keeps_self_group_leaf() -> anyhow::Result<()> {
-        use aircommon::credentials::SELF_GROUP_CREDENTIAL_TYPE;
-        use openmls::prelude::{CredentialType, SignaturePublicKey};
-
+    /// Creates a self group whose creator leaf carries
+    /// `creator_client_reference` and stages an APQ self-update with
+    /// `own_client_reference`.
+    async fn stage_self_group_update(
+        self_group_signing_key: &SelfGroupSigningKey,
+        creator_client_reference: Option<&QsReference>,
+        own_client_reference: &QsReference,
+    ) -> anyhow::Result<VerifiedGroup> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
         let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
-        let self_group_signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
         let leaf_signer = LeafSigningKey::SelfGroup(self_group_signing_key.clone());
 
         let mut connection = pool.write().await?;
         connection
-            .with_transaction(async |txn| -> anyhow::Result<()> {
+            .with_transaction(async |txn| -> anyhow::Result<_> {
                 let t_group_id = GroupId::from(QualifiedGroupId::new(
                     Uuid::new_v4(),
                     "example.com".parse()?,
@@ -2060,6 +2076,7 @@ mod tests {
                     pq_group_id,
                     NewGroupContext::SelfGroup(GroupData::empty()),
                     None,
+                    creator_client_reference,
                 )?;
                 group.store(&mut *txn).await?;
                 let chat =
@@ -2071,32 +2088,97 @@ mod tests {
                     &user_signing_key,
                     chat.id(),
                     DerivationEpoch::Keep,
+                    own_client_reference,
                 )
                 .await?;
 
-                let staged = job
-                    .group
-                    .mls_group()
-                    .pending_commit()
-                    .context("no staged commit")?;
-                let leaf = staged
-                    .update_path_leaf_node()
-                    .context("no update path leaf")?;
-                assert!(
-                    leaf.capabilities()
-                        .credentials()
-                        .contains(&CredentialType::Other(SELF_GROUP_CREDENTIAL_TYPE)),
-                    "self-group leaf must keep the self-group credential type in its capabilities"
-                );
-                assert_eq!(
-                    leaf.signature_key(),
-                    &SignaturePublicKey::from(self_group_signing_key.verifying_key().clone()),
-                    "self-group leaf must keep the per-device signature key"
-                );
-                Ok(())
+                Ok(job.group)
             })
-            .await?;
+            .await
+    }
 
+    fn update_path_leaf(group: &Group) -> anyhow::Result<openmls::prelude::LeafNode> {
+        let staged = group
+            .mls_group()
+            .pending_commit()
+            .context("no staged commit")?;
+        let leaf = staged
+            .update_path_leaf_node()
+            .context("no update path leaf")?;
+        Ok(leaf.clone())
+    }
+
+    fn leaf_client_reference(leaf: &openmls::prelude::LeafNode) -> Option<QsReference> {
+        use aircommon::mls_group_config::QS_CLIENT_REFERENCE_EXTENSION_TYPE;
+        use tls_codec::DeserializeBytes as _;
+
+        let extension = leaf
+            .extensions()
+            .unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE)?;
+        QsReference::tls_deserialize_exact_bytes(&extension.0).ok()
+    }
+
+    /// A self-update staged in the self group keeps the self-group credential
+    /// type in the leaf capabilities and the per-device leaf signature key, even
+    /// though the caller passes the user signing key.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn self_update_in_self_group_keeps_self_group_leaf() -> anyhow::Result<()> {
+        use aircommon::credentials::SELF_GROUP_CREDENTIAL_TYPE;
+        use openmls::prelude::{CredentialType, SignaturePublicKey};
+
+        let self_group_signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let client_reference = random_client_reference();
+        let group = stage_self_group_update(
+            &self_group_signing_key,
+            Some(&client_reference),
+            &client_reference,
+        )
+        .await?;
+        let leaf = update_path_leaf(&group)?;
+
+        assert!(
+            leaf.capabilities()
+                .credentials()
+                .contains(&CredentialType::Other(SELF_GROUP_CREDENTIAL_TYPE)),
+            "self-group leaf must keep the self-group credential type in its capabilities"
+        );
+        assert_eq!(
+            leaf.signature_key(),
+            &SignaturePublicKey::from(self_group_signing_key.verifying_key().clone()),
+            "self-group leaf must keep the per-device signature key"
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn self_update_in_self_group_adds_missing_client_reference() -> anyhow::Result<()> {
+        let self_group_signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let own_client_reference = random_client_reference();
+        let group =
+            stage_self_group_update(&self_group_signing_key, None, &own_client_reference).await?;
+
+        assert_eq!(
+            leaf_client_reference(&update_path_leaf(&group)?),
+            Some(own_client_reference)
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn self_update_in_self_group_keeps_existing_client_reference() -> anyhow::Result<()> {
+        let self_group_signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let creator_client_reference = random_client_reference();
+        let group = stage_self_group_update(
+            &self_group_signing_key,
+            Some(&creator_client_reference),
+            &random_client_reference(),
+        )
+        .await?;
+
+        assert_eq!(
+            leaf_client_reference(&update_path_leaf(&group)?),
+            Some(creator_client_reference)
+        );
         Ok(())
     }
 
@@ -2141,6 +2223,7 @@ mod tests {
                     pq_group_id,
                     NewGroupContext::SelfGroup(GroupData::empty()),
                     None,
+                    None,
                 )?;
                 group.store(&mut *txn).await?;
 
@@ -2165,19 +2248,12 @@ mod tests {
         use aircommon::{
             crypto::hpke::{ClientIdDecryptionKey, HpkeEncryptable},
             identifiers::{ClientConfig, QsReference},
-            mls_group_config::{
-                APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE,
-                self_group_leaf_node_capabilities,
-            },
+            mls_group_config::{APQ_CIPHERSUITE, self_group_leaf_node_capabilities},
         };
         use apqmls::authentication::ApqCredentialWithKey;
-        use openmls::prelude::{
-            Credential, CredentialType, CredentialWithKey, Extension, SignaturePublicKey,
-            UnknownExtension,
-        };
-        use tls_codec::Serialize as _;
+        use openmls::prelude::{Credential, CredentialType, CredentialWithKey, SignaturePublicKey};
 
-        use crate::groups::openmls_provider::AirOpenMlsProvider;
+        use crate::groups::{client_reference_extension, openmls_provider::AirOpenMlsProvider};
 
         let signer = SelfGroupSigningKey::generate(client_id)?;
         let signature_key = SignaturePublicKey::from(signer.verifying_key().clone());
@@ -2205,10 +2281,7 @@ mod tests {
             ),
         };
         let mut leaf_node_extensions = ClientAppData::current().leaf_node_extensions();
-        leaf_node_extensions.add(Extension::Unknown(
-            QS_CLIENT_REFERENCE_EXTENSION_TYPE,
-            UnknownExtension(client_reference.tls_serialize_detached()?),
-        ))?;
+        leaf_node_extensions.add(client_reference_extension(&client_reference)?)?;
 
         let key_package_extensions = ClientAppData::current().key_package_extensions();
 

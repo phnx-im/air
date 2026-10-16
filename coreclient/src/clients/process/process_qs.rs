@@ -1903,6 +1903,7 @@ mod tests {
                     pq_group_id,
                     NewGroupContext::SelfGroup(GroupData::empty()),
                     None,
+                    None,
                 )?;
                 group.store(&mut *txn).await?;
                 assert!(

@@ -396,6 +396,7 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
                 pq_group_id,
                 NewGroupContext::LegacyChat(GroupData::empty()),
                 vc_group_id,
+                None,
             )?
         } else {
             Group::create_group(
