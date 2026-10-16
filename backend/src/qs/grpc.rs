@@ -13,13 +13,10 @@ use airprotos::{
 
 use aircommon::{
     identifiers,
-    messages::{
-        self,
-        client_qs::{
-            CreateClientRecordParams, CreateUserRecordParams, DeleteClientRecordParams,
-            DeleteUserRecordParams, KeyPackageParams, PublishKeyPackagesParams,
-            UpdateClientRecordParams, UpdateUserRecordParams,
-        },
+    messages::client_qs::{
+        CreateClientRecordParams, CreateUserRecordParams, DeleteClientRecordParams,
+        DeleteUserRecordParams, KeyPackageParams, PublishKeyPackagesParams,
+        UpdateClientRecordParams, UpdateUserRecordParams,
     },
     time::TimeStamp,
     virtual_client::KeyPackageBatchId,
@@ -397,9 +394,7 @@ impl QueueService for GrpcQs {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
         let params = KeyPackageParams {
-            sender: messages::FriendshipToken::from_bytes(
-                request.sender.ok_or_missing_field("sender")?.bytes,
-            ),
+            sender: request.sender.ok_or_missing_field("sender")?.try_into()?,
         };
         let response = self.qs.qs_key_package(params).await?;
         Ok(Response::new(KeyPackageResponse {
@@ -442,9 +437,7 @@ impl QueueService for GrpcQs {
     ) -> Result<Response<ApqKeyPackageResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(request.client_metadata.as_ref())?;
-        let friendship_token = messages::FriendshipToken::from_bytes(
-            request.sender.ok_or_missing_field("sender")?.bytes,
-        );
+        let friendship_token = request.sender.ok_or_missing_field("sender")?.try_into()?;
         let key_package = self.qs.qs_apq_key_package(friendship_token).await?;
         Ok(Response::new(ApqKeyPackageResponse {
             key_package: Some(key_package.try_into().tls_failed("key_package")?),
@@ -707,6 +700,40 @@ mod tests {
             .create_user(Request::new(valid_create_user_request()))
             .await?;
         assert_eq!(record_counts(&pool).await?, (1, 1));
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn key_package_lookups_reject_wrong_length_tokens(pool: PgPool) -> anyhow::Result<()> {
+        let qs = Qs::initialize(
+            pool,
+            "example.com".parse()?,
+            Default::default(),
+            0,
+            CancellationToken::new(),
+        )
+        .await?;
+        let grpc_qs = GrpcQs::new(qs);
+        let sender = Some(FriendshipToken { bytes: vec![2; 33] });
+
+        let status = grpc_qs
+            .key_package(Request::new(KeyPackageRequest {
+                client_metadata: None,
+                sender: sender.clone(),
+            }))
+            .await
+            .unwrap_err();
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+
+        let status = grpc_qs
+            .apq_key_package(Request::new(ApqKeyPackageRequest {
+                client_metadata: None,
+                sender,
+            }))
+            .await
+            .unwrap_err();
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
 
         Ok(())
     }
