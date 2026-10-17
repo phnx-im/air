@@ -751,6 +751,29 @@ impl Chat {
         .map(|n: i64| usize::try_from(n).expect("usize overflow"))
     }
 
+    /// Returns the earliest time after `now` at which a chat mute runs out.
+    ///
+    /// Chats muted forever never run out and are skipped.
+    pub(crate) async fn next_mute_expiry(
+        mut connection: impl ReadConnection,
+        now: DateTime<Utc>,
+    ) -> sqlx::Result<Option<DateTime<Utc>>> {
+        let forever = ChatMuted::Forever.into_date_time();
+        query_scalar!(
+            r#"SELECT
+                MIN(muted_until) AS "muted_until?: _"
+            FROM
+                chat
+            WHERE
+                muted_until > ?1
+                AND muted_until < ?2"#,
+            now,
+            forever,
+        )
+        .fetch_one(connection.as_mut())
+        .await
+    }
+
     pub(crate) async fn set_muted_until(
         mut connection: impl WriteConnection,
         chat_id: ChatId,
@@ -1103,7 +1126,7 @@ pub mod tests {
             test_chat_message_with_salt,
         },
         clients::block_contact::BlockedContact,
-        db::access::DbAccess,
+        db::access::{DbAccess, WriteDbConnection},
     };
 
     use super::*;
@@ -1573,6 +1596,35 @@ pub mod tests {
         assert_eq!(n, 1);
         let n = Chat::global_unread_message_count(&mut connection, &own_user).await?;
         assert_eq!(n, 1);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn next_mute_expiry(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+        let now: DateTime<Utc> = "2026-01-01T00:00:00Z".parse().unwrap();
+
+        let mute = async |connection: &mut WriteDbConnection, muted_until: Option<ChatMuted>| {
+            let chat = test_chat();
+            chat.store(&mut *connection).await?;
+            Chat::set_muted_until(connection, chat.id(), muted_until).await
+        };
+
+        let until = |hours| Some(ChatMuted::Until(now + Duration::hours(hours)));
+
+        mute(&mut connection, None).await?;
+        mute(&mut connection, Some(ChatMuted::Forever)).await?;
+        mute(&mut connection, until(-1)).await?;
+        assert_eq!(Chat::next_mute_expiry(&mut connection, now).await?, None);
+
+        mute(&mut connection, until(2)).await?;
+        mute(&mut connection, until(1)).await?;
+        assert_eq!(
+            Chat::next_mute_expiry(&mut connection, now).await?,
+            Some(now + Duration::hours(1))
+        );
 
         Ok(())
     }

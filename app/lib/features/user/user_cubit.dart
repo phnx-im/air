@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:air/core/core.dart';
@@ -10,6 +11,9 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:logging/logging.dart';
+
+final _log = Logger('UserCubit');
 
 /// Wrapper of the [UserCubitBase] that implements a [StateStreamableSource]
 ///
@@ -27,10 +31,19 @@ class UserCubit implements StateStreamableSource<UiUser> {
       _appState = appState;
       _impl.setAppState(appState: appState);
     });
+    if (Platform.isIOS || Platform.isMacOS) {
+      _badgeCountSubscription = _impl.badgeCountStream().listen(
+        setBadgeCount,
+        onError: (Object error, StackTrace stackTrace) {
+          _log.severe('Badge count stream failed: $error', error, stackTrace);
+        },
+      );
+    }
   }
 
   final UserCubitBase _impl;
   late final StreamSubscription<AppState> _appStateSubscription;
+  StreamSubscription<int>? _badgeCountSubscription;
   AppState _appState = AppState.foreground;
 
   UserCubitBase get impl => _impl;
@@ -39,6 +52,10 @@ class UserCubit implements StateStreamableSource<UiUser> {
   @override
   FutureOr<void> close() {
     _appStateSubscription.cancel();
+    if (_badgeCountSubscription case final subscription?) {
+      subscription.cancel();
+      unawaited(setBadgeCount(0));
+    }
     _impl.close();
   }
 

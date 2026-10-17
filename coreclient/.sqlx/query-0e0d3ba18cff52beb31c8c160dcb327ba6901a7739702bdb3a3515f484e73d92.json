@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                MIN(muted_until) AS \"muted_until?: _\"\n            FROM\n                chat\n            WHERE\n                muted_until > ?1\n                AND muted_until < ?2",
+  "describe": {
+    "columns": [
+      {
+        "name": "muted_until?: _",
+        "ordinal": 0,
+        "type_info": "Datetime",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "0e0d3ba18cff52beb31c8c160dcb327ba6901a7739702bdb3a3515f484e73d92"
+}
