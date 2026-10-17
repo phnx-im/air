@@ -375,3 +375,72 @@ impl LocalState {
         affected
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use chrono::Local;
+
+    use crate::api::types::{UiChatStatus, UiChatType, UiUserProfile};
+
+    use super::*;
+
+    fn chat_details(chat_type: UiChatType) -> UiChatDetails {
+        UiChatDetails {
+            id: ChatId::random(),
+            status: UiChatStatus::Active,
+            chat_type,
+            last_used: Local::now(),
+            unread_messages: 0,
+            last_message: None,
+            last_reaction: None,
+            draft: None,
+            is_apq: false,
+            is_self_chat: false,
+            muted_until: None,
+            pending_commit_failed: false,
+            resync_failed: false,
+            contact_request_expires_at: None,
+        }
+    }
+
+    fn profile_update(user_id: &UserId) -> DbNotification {
+        let mut notification = DbNotification::default();
+        notification
+            .ops
+            .insert(DbEntityId::User(user_id.clone()), Default::default());
+        notification
+    }
+
+    #[test]
+    fn a_profile_update_reloads_the_one_to_one_chat_of_its_user() {
+        let alice = UserId::random("localhost".parse().unwrap());
+        let profile = UiUserProfile::from_user_id(alice.clone());
+        let chat_types = [
+            UiChatType::Connection(profile.clone()),
+            UiChatType::TargetedMessageConnection(profile.clone()),
+            UiChatType::PendingConnection(profile),
+        ];
+        for chat_type in chat_types {
+            let chat = chat_details(chat_type);
+            let mut state = LocalState::default();
+            state.record(&chat);
+
+            let affected = state.affected(&profile_update(&alice));
+
+            assert_eq!(affected, HashSet::from([chat.id]), "{:?}", chat.chat_type);
+        }
+    }
+
+    #[test]
+    fn a_profile_update_of_another_user_reloads_nothing() {
+        let alice = UserId::random("localhost".parse().unwrap());
+        let bob = UserId::random("localhost".parse().unwrap());
+        let profile = UiUserProfile::from_user_id(alice);
+        let mut state = LocalState::default();
+        state.record(&chat_details(UiChatType::PendingConnection(profile)));
+
+        let affected = state.affected(&profile_update(&bob));
+
+        assert!(affected.is_empty());
+    }
+}

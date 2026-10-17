@@ -115,8 +115,10 @@ pub struct UiChatDetails {
 impl UiChatDetails {
     pub(crate) fn connection_user_id(&self) -> Option<&UiUserId> {
         match &self.chat_type {
-            UiChatType::Connection(profile) => Some(&profile.user_id),
-            _ => None,
+            UiChatType::Connection(profile)
+            | UiChatType::TargetedMessageConnection(profile)
+            | UiChatType::PendingConnection(profile) => Some(&profile.user_id),
+            UiChatType::HandleConnection(_) | UiChatType::Group(_) => None,
         }
     }
 }
