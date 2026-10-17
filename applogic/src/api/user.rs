@@ -182,15 +182,6 @@ impl User {
         self.user.signal_pending_db_notifications();
     }
 
-    /// Total number of unread messages across all chats
-    #[frb(getter, type_64bit_int)]
-    pub async fn global_unread_messages_count(&self) -> usize {
-        self.user
-            .global_unread_messages_count()
-            .await
-            .unwrap_or_default()
-    }
-
     /// The unique identifier of the logged in user
     #[frb(getter, sync)]
     pub fn user_id(&self) -> UiUserId {

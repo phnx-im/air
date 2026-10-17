@@ -175,7 +175,14 @@ async fn retrieve_messages(path: String) -> anyhow::Result<NotificationBatch> {
             },
         };
 
-    let badge_count = user.global_unread_messages_count().await;
+    let badge_count = user
+        .user
+        .global_unread_messages_count()
+        .await
+        .unwrap_or_else(|error| {
+            error!(%error, "Failed to count unread messages");
+            0
+        });
 
     for store_notification in pending_store_notifications {
         if let Err(error) = user.user.enqueue_db_notification(&store_notification).await {

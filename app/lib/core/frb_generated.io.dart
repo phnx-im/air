@@ -595,6 +595,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<int> dco_decode_StreamSink_CastedPrimitive_usize_Sse(
+    dynamic raw,
+  );
+
+  @protected
   RustStreamSink<ChatDetailsState> dco_decode_StreamSink_chat_details_state_Sse(
     dynamic raw,
   );
@@ -1930,6 +1935,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   RustStreamSink<UsersState>
   sse_decode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RustStreamSink<int> sse_decode_StreamSink_CastedPrimitive_usize_Sse(
     SseDeserializer deserializer,
   );
 
@@ -3591,6 +3601,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState_Sse(
     RustStreamSink<UsersState> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_CastedPrimitive_usize_Sse(
+    RustStreamSink<int> self,
     SseSerializer serializer,
   );
 

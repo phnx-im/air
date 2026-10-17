@@ -89,6 +89,7 @@ pub use sibling_client_state::SiblingClientStates;
 pub(crate) mod add_contact;
 pub(crate) mod api_clients;
 pub(crate) mod attachment;
+mod badge_count;
 pub(crate) mod block_contact;
 pub mod chats;
 pub(crate) mod connection_offer;
