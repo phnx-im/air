@@ -22,9 +22,8 @@ use crate::{
 
 const DEBOUNCE: Duration = Duration::from_millis(250);
 
-/// We also count after this much time without a count. This picks up chat
-/// mutes that ran out, and changes from writes that skipped their DB
-/// notification.
+/// Safety net to ensure that the badge count is always correct, even if a DB
+/// notification is missed.
 const RECOUNT_INTERVAL: Duration = Duration::from_secs(30);
 
 impl CoreUser {
@@ -44,11 +43,8 @@ struct BadgeCount {
 }
 
 impl BadgeCount {
-    /// Whether a recount to `count` at `now` reveals a write that skipped its
-    /// DB notification, given that no notification came since this count.
-    ///
-    /// A chat mute running out changes the count without a notification, so
-    /// such a change is expected.
+    /// Missed notifications that would appear when we run the count at the
+    /// safety interval.
     fn missed_notification(&self, count: usize, now: DateTime<Utc>) -> bool {
         let mute_ran_out = self.next_mute_expiry.is_some_and(|expiry| expiry <= now);
         count != self.count && !mute_ran_out
@@ -90,9 +86,8 @@ async fn watch_badge_count<E>(
             }
             Err(error) => {
                 error!(%error, "Failed to load the badge count");
-                // The change that triggered this count is consumed. We forget
-                // the last count, so that the next one is emitted and not
-                // reported as a missed notification.
+                // We don't count this as a missed notification, because the
+                // count may be correct and the error is transient.
                 None
             }
         };
@@ -105,8 +100,6 @@ async fn watch_badge_count<E>(
 }
 
 async fn load(db: &DbAccess, own_user: &UserId) -> sqlx::Result<BadgeCount> {
-    // Taken before counting, so that a mute running out during the count is
-    // still returned as the next expiry.
     let now = Utc::now();
     db.with_read_transaction(async |txn| {
         let count = Chat::global_unread_message_count(&mut *txn, own_user).await?;
@@ -119,8 +112,7 @@ async fn load(db: &DbAccess, own_user: &UserId) -> sqlx::Result<BadgeCount> {
     .await
 }
 
-/// Waits until the count is due again. Returns `None` once the notifications
-/// closed.
+/// Waits until the count is due again.
 async fn next_trigger(
     notifications: &mut (impl Stream<Item = Arc<DbNotification>> + Unpin),
     recount_interval: Duration,
