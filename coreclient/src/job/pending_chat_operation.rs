@@ -46,8 +46,7 @@ use crate::{
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
         Group, PreparedInvitee, VerifiedGroup, client_auth_info::StorableUserCredential,
-        delete_left_group, handle_group_closed_on_ds, handle_group_not_found_on_ds,
-        self_group::SelfGroup,
+        handle_group_closed_on_ds, handle_group_not_found_on_ds, self_group::SelfGroup,
     },
     job::{
         Job, JobContext, JobContextReadConnection, JobError,
@@ -635,6 +634,7 @@ impl PendingChatOperation {
         };
 
         let mut retry_leave = false;
+        let mut leave_rejected = false;
         let ds_timestamp = match res {
             Ok(ds_timestamp) => ds_timestamp,
             Err(error) => {
@@ -675,6 +675,16 @@ impl PendingChatOperation {
                         self.number_of_attempts < MAX_RETRIES
                     }
                 };
+                // NotFound and GroupClosed mean the group is gone on the DS
+                leave_rejected =
+                    !retry_leave && !matches!(error, JobError::NotFound | JobError::GroupClosed);
+                if leave_rejected {
+                    warn!(
+                        group_id = ?self.group.group_id(),
+                        %error,
+                        "DS rejected the leave, keeping the group"
+                    );
+                }
                 info!(
                     group_id = ?self.group.group_id(),
                     %error,
@@ -783,7 +793,7 @@ impl PendingChatOperation {
                         .await?;
                 }
 
-                let leave_done = is_leave && !retry_leave;
+                let leave_done = is_leave && !retry_leave && !leave_rejected;
                 if !leave_done {
                     let t_self_update_at = Some(ds_timestamp);
                     let pq_self_update_at = self.group.is_apq().then_some(ds_timestamp);
@@ -800,9 +810,10 @@ impl PendingChatOperation {
                 self.complete_self_group_intent(txn).await?;
 
                 if leave_done {
-                    // The DS holds our self-remove, so the group is of no
-                    // further use. This also drops the pending operation.
-                    delete_left_group(txn, &mut chat, &self.group).await?;
+                    // The DS holds our self-remove (or the group is gone there),
+                    // so the group is of no further use. This also drops the
+                    // pending operation.
+                    handle_group_not_found_on_ds(txn, self.group.group_id()).await?;
                 } else if !retry_leave {
                     Self::delete(txn, self.group.group_id()).await?;
                 } else {

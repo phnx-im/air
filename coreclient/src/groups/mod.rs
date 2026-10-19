@@ -3144,14 +3144,15 @@ fn closer(group_info_signer: Option<&Credential>, own_user_id: &UserId) -> Resul
         .clone())
 }
 
-/// Cleans up local state when the DS reports that a group no longer exists.
+/// Deactivates the chat of a group and deletes the MLS group, when the DS
+/// reports the group gone or we left it.
 ///
 /// Mirrors what happens when we process a deletion commit from another member:
 /// the chat is marked inactive (preserving history) and the MLS group is
 /// deleted. The group deletion cascades to `resync_queue`,
 /// `pending_chat_operation`, and `group_membership` via foreign keys.
 ///
-/// This function is idempotent — safe to call even if the group or chat is
+/// This function is idempotent, safe to call even if the group or chat is
 /// already gone.
 pub(crate) async fn handle_group_not_found_on_ds(
     txn: &mut WriteDbTransaction<'_>,
@@ -3181,22 +3182,6 @@ pub(crate) async fn handle_group_not_found_on_ds(
     // group_membership via FK.
     Group::delete_from_db(txn, group_id).await?;
 
-    Ok(())
-}
-
-/// Deletes the MLS group of a chat we left and records its last members on
-/// the inactive chat. Cascades to `pending_chat_operation` and
-/// `group_membership` via FK.
-pub(crate) async fn delete_left_group(
-    txn: &mut WriteDbTransaction<'_>,
-    chat: &mut crate::Chat,
-    group: &Group,
-) -> anyhow::Result<()> {
-    let past_members = group.members().collect();
-    chat.set_status(&mut *txn, ChatStatus::inactive(past_members))
-        .await?;
-    Resync::remove(&mut *txn, group.group_id()).await?;
-    Group::delete_from_db(txn, group.group_id()).await?;
     Ok(())
 }
 

@@ -22,7 +22,7 @@ use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
     clients::own_client_info::OwnClientInfo,
     db::access::WriteConnection,
-    groups::{Group, delete_left_group},
+    groups::{Group, handle_group_not_found_on_ds},
     job::{Job, JobContext, JobContextDb, JobError, pending_chat_operation::PendingChatOperation},
 };
 
@@ -370,7 +370,7 @@ impl ChatOperation {
             .write()
             .await?
             .with_transaction(async |txn| {
-                let mut chat = Chat::load(&mut *txn, &self.chat_id)
+                let chat = Chat::load(&mut *txn, &self.chat_id)
                     .await?
                     .with_context(|| format!("No chat with id {}", self.chat_id))?;
                 let group = Group::load_clean_verified(&mut *txn, chat.group_id())
@@ -381,7 +381,7 @@ impl ChatOperation {
                 // own leaf from another device: the DS holds the leave and the system message is
                 // already recorded.
                 if group.group().has_pending_own_self_remove() {
-                    delete_left_group(txn, &mut chat, &group).await?;
+                    handle_group_not_found_on_ds(txn, group.group_id()).await?;
                     return Ok(None);
                 }
 

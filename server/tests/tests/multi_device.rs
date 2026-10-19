@@ -3051,6 +3051,38 @@ async fn setup_group_with_linked_device() -> (
     (setup, alice, bob, charlie, chat_id, new_device, tmp)
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Leave a group before its creation echo", skip_all)]
+async fn multi_device_leave_before_own_creation_echo() {
+    let (setup, alice, bob, _charlie, _chat_id, new_device, _tmp) =
+        setup_group_with_linked_device().await;
+    let old_device = setup.get_user(&alice).user();
+
+    let chat_id = new_device
+        .create_chat("left early".to_owned(), None, false)
+        .await
+        .unwrap();
+    new_device
+        .invite_users(chat_id, std::slice::from_ref(&bob))
+        .await
+        .unwrap();
+    new_device.leave_chat(chat_id).await.unwrap();
+
+    // The creator still has its own creation echo queued.
+    drain_queue_ok(&new_device, "the creator failed to process its own echo").await;
+    let past_members: HashSet<UserId> = [&alice, &bob].into_iter().cloned().collect();
+    assert_inactive(
+        &new_device,
+        chat_id,
+        Some(&past_members),
+        "the echo must not revive the chat",
+    )
+    .await;
+    assert!(new_device.mls_chat_participants(chat_id).await.is_none());
+
+    drain_queue_ok(old_device, "the sibling failed to follow the group").await;
+}
+
 /// Drains the device's queue and fails the test if any message could not be
 /// processed.
 async fn drain_queue_ok(user: &CoreUser, what: &str) {
