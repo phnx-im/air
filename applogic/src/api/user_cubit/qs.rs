@@ -23,12 +23,13 @@ use crate::{
     util::{BackgroundStreamContext, BackgroundStreamTask, spawn_from_sync},
 };
 
-use super::{AppState, CubitContext, UiUser};
+use super::{AppState, CubitContext, Delivery, UiUser};
 
 #[derive(Debug)]
 #[frb(ignore)]
 pub(super) struct QueueContext {
     cubit_context: CubitContext,
+    initial_backlog_drained: bool,
     /// Stops publishing the client state over the current stream
     stop_client_state: Option<CancellationToken>,
     /// Sibling client states received over the current stream
@@ -97,23 +98,28 @@ impl CubitContext {
             removed_chats,
         }: ProcessedQsMessages,
         siblings: Option<&SiblingClientStates>,
+        delivery: Delivery,
     ) {
-        let mut notifications = Vec::with_capacity(new_chats.len() + new_messages.len());
+        let notify = self.should_notify(delivery);
         let user = User::from_core_user(self.core_user.clone());
-        user.new_chat_notifications(&new_chats, &mut notifications)
-            .await;
         let chat_notifications = user
             .message_and_reaction_notifications(
                 &new_messages,
                 &reaction_notifications,
                 &chats_with_changed_notifications,
                 siblings,
+                notify,
             )
             .await;
-        notifications.extend(chat_notifications.additions);
-        user.new_connection_request_notifications(&new_connections, &mut notifications)
-            .await;
-        self.show_notifications(notifications).await;
+        if notify {
+            let mut notifications = Vec::with_capacity(new_chats.len() + new_messages.len());
+            user.new_chat_notifications(&new_chats, &mut notifications)
+                .await;
+            notifications.extend(chat_notifications.additions);
+            user.new_connection_request_notifications(&new_connections, &mut notifications)
+                .await;
+            self.show_notifications(notifications, delivery).await;
+        }
 
         let mut stale_chats = chat_notifications.empty_chats;
         stale_chats.extend(removed_chats);
@@ -154,6 +160,8 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
             }
             Err(error) => return Err(error.into()),
         };
+        // The server replays what queued up while disconnected.
+        self.initial_backlog_drained = false;
         self.sibling_client_states = Some(self.cubit_context.core_user.sibling_client_states()?);
         self.spawn_report_client_state(responder.clone());
         self.cubit_context
@@ -227,31 +235,42 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
             }
         };
 
-        let is_partially_processed = result.is_partially_processed();
-        match result {
-            QsProcessEventResult::FullyProcessed { processed }
-            | QsProcessEventResult::PartiallyProcessed { processed, .. } => {
-                self.cubit_context
-                    .show_notifications_for_processed_qs_messages(
-                        processed,
-                        self.sibling_client_states.as_ref(),
-                    )
-                    .await;
-                // A commit in this batch may have removed this device from the
-                // self group, which the app has to act on.
-                UiUser::reload_account_unlinked(
-                    &self.cubit_context.state_tx,
-                    &self.cubit_context.core_user,
-                )
-                .await;
-            }
-            QsProcessEventResult::Accumulated | QsProcessEventResult::Ignored => (),
+        let (processed, fully_processed) = match result {
+            QsProcessEventResult::Accumulated | QsProcessEventResult::Ignored => return true,
+            QsProcessEventResult::FullyProcessed { processed } => (processed, true),
+            // A hole in the sequence of messages: stop the stream, the task
+            // reconnects and the unprocessed rest is redelivered.
+            QsProcessEventResult::PartiallyProcessed { processed, .. } => (processed, false),
         };
 
-        // Stop stream if partially processed
-        // => There is a hole in the sequence of the messages, therefore we cannot continue
-        // processing them.
-        !is_partially_processed
+        let delivery = if self.initial_backlog_drained {
+            Delivery::Live
+        } else {
+            Delivery::InitialBacklog
+        };
+
+        self.cubit_context
+            .show_notifications_for_processed_qs_messages(
+                processed,
+                self.sibling_client_states.as_ref(),
+                delivery,
+            )
+            .await;
+
+        // A commit in this batch may have removed this device from the
+        // self group, which the app has to act on.
+        UiUser::reload_account_unlinked(
+            &self.cubit_context.state_tx,
+            &self.cubit_context.core_user,
+        )
+        .await;
+
+        // A redelivered partial batch is still backlog.
+        if fully_processed {
+            self.initial_backlog_drained = true;
+        }
+
+        fully_processed
     }
 
     async fn on_stream_end(&mut self) {
@@ -288,6 +307,7 @@ impl QueueContext {
     pub(super) fn new(cubit_context: CubitContext) -> Self {
         Self {
             cubit_context,
+            initial_backlog_drained: false,
             stop_client_state: None,
             sibling_client_states: None,
         }

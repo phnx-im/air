@@ -11,3 +11,9 @@ pub(crate) use background::{BackgroundStreamContext, BackgroundStreamTask};
 pub(crate) use cubit_core::{Cubit, CubitCore};
 pub(crate) use file_ring_buffer::{FileRingBuffer, FileRingBufferLock};
 pub(crate) use spawn::spawn_from_sync;
+
+pub(crate) const IS_DESKTOP: bool = cfg!(any(
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "windows"
+));
