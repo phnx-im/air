@@ -7,11 +7,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use aircommon::identifiers::UserId;
 use airserver_test_harness::utils::setup::TestBackend;
 use criterion::{Criterion, criterion_group, criterion_main};
 use tokio::sync::Mutex;
-use uuid::Uuid;
 
 const NUM_THREADS: usize = 4;
 
@@ -25,14 +23,12 @@ fn benchmarks(c: &mut Criterion) {
     let setup = runtime.block_on(TestBackend::single());
     let setup = Rc::new(Mutex::new(setup));
 
-    let alice = UserId::new(Uuid::new_v4(), "example.com".parse().unwrap());
-    let bob = UserId::new(Uuid::new_v4(), "example.com".parse().unwrap());
-
-    let chat_alice_bob = runtime.block_on(async {
+    let (alice, bob, chat_alice_bob) = runtime.block_on(async {
         let mut setup = setup.lock().await;
         let alice = setup.add_user().await;
         let bob = setup.add_user().await;
-        setup.connect_users(&alice, &bob).await
+        let chat_id = setup.connect_users(&alice, &bob).await;
+        (alice, bob, chat_id)
     });
 
     let mut group = c.benchmark_group("benchmarks");
@@ -56,17 +52,19 @@ fn benchmarks(c: &mut Criterion) {
         })
     });
 
+    // A user may only send a few connection requests per day, so every
+    // connection gets a fresh initiator.
     group.bench_function("connect_users", |b| {
         b.to_async(&runtime).iter_custom(|iter| {
-            let alice = alice.clone();
             let setup = setup.clone();
             let mut elapsed = Duration::default();
             async move {
                 let mut setup = setup.lock().await;
                 for _ in 0..iter {
-                    let bob = setup.add_user().await;
+                    let initiator = setup.add_user().await;
+                    let responder = setup.add_user().await;
                     let time = Instant::now();
-                    setup.connect_users(&alice, &bob).await;
+                    setup.connect_users(&initiator, &responder).await;
                     elapsed += time.elapsed();
                 }
                 elapsed
@@ -90,8 +88,6 @@ fn benchmarks(c: &mut Criterion) {
                         .await;
                     elapsed += time.elapsed()
                 }
-                // update group, otherwise we get too far in to the future error from MLS
-                setup.update_group(chat_alice_bob, &alice).await;
                 elapsed
             }
         })
@@ -158,6 +154,8 @@ fn benchmarks(c: &mut Criterion) {
     });
 
     group.finish();
+
+    runtime.block_on(async move { drop(setup) });
 }
 
 criterion_group!(benches, benchmarks);
