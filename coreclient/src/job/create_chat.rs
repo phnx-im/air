@@ -169,6 +169,7 @@ impl CreateChat {
                         pq_group_id.context("Missing PQ group ID")?,
                         context,
                         vc_group_id,
+                        None,
                     )?
                 } else {
                     Group::create_group(
