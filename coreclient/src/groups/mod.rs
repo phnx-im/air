@@ -114,7 +114,7 @@ use crate::{
     groups::{apq_group::PqGroup, client_auth_info::VerifiableUserCredentialExt},
     job::chat_operation::DerivationEpoch,
     key_stores::as_credentials::AsCredentials,
-    outbound_service::resync::Resync,
+    outbound_service::resync::{Resync, ResyncReason},
 };
 
 use openmls::{
@@ -3120,6 +3120,32 @@ pub(crate) async fn handle_group_not_found_on_ds(
     // group_membership via FK.
     Group::delete_from_db(txn, group_id).await?;
 
+    Ok(())
+}
+
+/// Handles the DS rejecting a request because the group is closed, i.e. its
+/// context carries a tombstone which we missed when it was added.
+///
+/// Schedules a resync of the group, which finds the tombstone and ends the chat
+/// with a message naming who closed the group. Without an active chat there is
+/// nothing to announce, and the group is cleaned up like one the DS doesn't
+/// know.
+pub(crate) async fn handle_group_closed_on_ds(
+    txn: &mut WriteDbTransaction<'_>,
+    group_id: &GroupId,
+) -> anyhow::Result<()> {
+    let Some(group) = Group::load(&mut *txn, group_id).await? else {
+        return handle_group_not_found_on_ds(txn, group_id).await;
+    };
+    let Some(chat) = crate::Chat::load_by_group_id(&mut *txn, group_id).await? else {
+        return handle_group_not_found_on_ds(txn, group_id).await;
+    };
+    if chat.status().is_inactive() {
+        return handle_group_not_found_on_ds(txn, group_id).await;
+    }
+    Resync::for_group(chat.id(), &group, ResyncReason::FutureEpoch)
+        .enqueue_or_reset(&mut *txn)
+        .await?;
     Ok(())
 }
 

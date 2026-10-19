@@ -5,10 +5,7 @@
 use std::{collections::HashMap, path::Path};
 
 use tracing::{error, info};
-use zbus::{
-    zvariant::Value,
-    {Connection, Proxy},
-};
+use zbus::{Connection, Proxy, Variant};
 
 use crate::notifications::NotificationContent;
 use crate::notifications::NotificationId;
@@ -58,7 +55,7 @@ impl LinuxNotifier {
         )
         .await?;
         proxy
-            .call_method("Register", &("ms.air.Air", HashMap::<&str, Value>::new()))
+            .call_method("Register", &("ms.air.Air", HashMap::<&str, Variant>::new()))
             .await?;
         Ok(())
     }
@@ -112,7 +109,7 @@ async fn show_portal(
         ..
     }: NotificationContent,
 ) -> anyhow::Result<()> {
-    let mut notification = HashMap::<&str, Value>::new();
+    let mut notification = HashMap::<&str, Variant>::new();
     notification.insert("title", title.into());
     notification.insert("body", body.into());
     if portal_version >= 2 {
@@ -138,7 +135,7 @@ async fn show_direct(
         ..
     }: NotificationContent,
 ) -> anyhow::Result<()> {
-    let mut hints: HashMap<&str, Value> = HashMap::new();
+    let mut hints: HashMap<&str, Variant> = HashMap::new();
     // for GNOME 46+ compatibility
     hints.insert("sender-pid", std::process::id().into());
     hints.insert("x-gnome-stack-group", format!("air-chat-{chat_id}").into());

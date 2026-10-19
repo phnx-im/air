@@ -40,6 +40,8 @@ pub mod welcome_attribution_info;
 #[sqlx(transparent)]
 pub struct FriendshipToken(#[serde(with = "serde_bytes")] Vec<u8>);
 
+pub const FRIENDSHIP_TOKEN_SIZE: usize = 32;
+
 impl FriendshipToken {
     pub fn from_bytes(token: Vec<u8>) -> Self {
         Self(token)
@@ -52,7 +54,7 @@ impl FriendshipToken {
     pub fn random() -> Result<Self, RandomnessError> {
         let token = OpenMlsRustCrypto::default()
             .rand()
-            .random_vec(32)
+            .random_vec(FRIENDSHIP_TOKEN_SIZE)
             .map_err(|_| RandomnessError::InsufficientRandomness)?;
 
         Ok(Self(token))

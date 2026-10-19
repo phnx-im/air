@@ -6,7 +6,11 @@
 
 use aircoreclient::{
     AcceptContactRequestError, ChatId, ChatStatus, ChatType, DeleteExpiredContactRequestsSetting,
-    DisplayName, SystemMessage, UserProfile, UsernameRecord, clients::CoreUser,
+    DisplayName, SystemMessage, UserProfile, UsernameRecord,
+    clients::{
+        CoreUser,
+        process::qs_stream::{QsProcessEventResult, QsStreamProcessor},
+    },
 };
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::{DateTime, Duration, Utc};
@@ -102,6 +106,62 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
     drain_expecting_success(&bob_user, "bob failed to follow the accept").await;
     let chat_bob = bob_user.chat(&chat_id).await.unwrap();
     assert_eq!(chat_bob.chat_type(), &ChatType::Connection(alice.clone()));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Streamed forwarded request has the sender profile", skip_all)]
+async fn a_streamed_forwarded_request_has_the_sender_profile() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let record = add_username(&mut setup, &alice).await;
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
+
+    // A default display name is the same fallback a missing profile shows.
+    let bob_user = setup.get_user(&bob).user().clone();
+    let display_name: DisplayName = "Bob".parse().unwrap();
+    bob_user
+        .update_user_profile(UserProfile {
+            user_id: bob.clone(),
+            display_name: display_name.clone(),
+            profile_picture: None,
+        })
+        .await
+        .unwrap();
+    bob_user
+        .add_contact(record.username.clone(), record.hash, setup.apq_groups)
+        .await
+        .unwrap()
+        .unwrap();
+    let chat_id = receive_connection_offer(&device_a, &record).await;
+    device_a.outbound_service().run_once().await;
+
+    let (mut stream, responder) = device_b.listen_queue().await.unwrap();
+    let mut processor = QsStreamProcessor::new(Some(responder));
+    let processed = loop {
+        let event = timeout(std::time::Duration::from_secs(5), stream.next())
+            .await
+            .expect("the forwarded request should be streamed")
+            .expect("the stream should stay open")
+            .unwrap();
+        match processor.process_event(&device_b, event).await {
+            QsProcessEventResult::Accumulated | QsProcessEventResult::Ignored => (),
+            QsProcessEventResult::FullyProcessed { processed } => break processed,
+            QsProcessEventResult::PartiallyProcessed { dropped, .. } => {
+                panic!("the sibling dropped {dropped} messages")
+            }
+        }
+    };
+
+    // The app builds the notification right after processing.
+    assert_eq!(processed.new_connections, vec![chat_id]);
+    assert_eq!(
+        device_b.user_profile(&bob).await.display_name,
+        display_name,
+        "the notification should show the sender's name"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
