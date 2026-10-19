@@ -3056,31 +3056,32 @@ async fn setup_group_with_linked_device() -> (
 async fn multi_device_leave_before_own_creation_echo() {
     let (setup, alice, bob, _charlie, _chat_id, new_device, _tmp) =
         setup_group_with_linked_device().await;
-    let old_device = setup.get_user(&alice).user();
+    let creator = setup.get_user(&alice).user();
 
-    let chat_id = new_device
-        .create_chat("left early".to_owned(), None, false)
+    // The linked device has no profile of bob, so the old device creates.
+    let chat_id = creator
+        .create_chat("left early".to_owned(), None, setup.apq_groups)
         .await
         .unwrap();
-    new_device
+    creator
         .invite_users(chat_id, std::slice::from_ref(&bob))
         .await
         .unwrap();
-    new_device.leave_chat(chat_id).await.unwrap();
+    creator.leave_chat(chat_id).await.unwrap();
 
     // The creator still has its own creation echo queued.
-    drain_queue_ok(&new_device, "the creator failed to process its own echo").await;
+    drain_queue_ok(creator, "the creator failed to process its own echo").await;
     let past_members: HashSet<UserId> = [&alice, &bob].into_iter().cloned().collect();
     assert_inactive(
-        &new_device,
+        creator,
         chat_id,
         Some(&past_members),
         "the echo must not revive the chat",
     )
     .await;
-    assert!(new_device.mls_chat_participants(chat_id).await.is_none());
+    assert!(creator.mls_chat_participants(chat_id).await.is_none());
 
-    drain_queue_ok(old_device, "the sibling failed to follow the group").await;
+    drain_queue_ok(&new_device, "the sibling failed to follow the group").await;
 }
 
 /// Drains the device's queue and fails the test if any message could not be

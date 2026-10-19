@@ -324,9 +324,15 @@ impl CoreUser {
         } = commit_response;
 
         // Load the group by group_id
-        let mut group = Group::load_verified(&mut *txn, &group_id)
-            .await?
-            .context("Can't find group for commit response")?;
+        let Some(mut group) = Group::load_verified(&mut *txn, &group_id).await? else {
+            // A commit of ours that was still queued when we left
+            if let Some(chat) = Chat::load_by_group_id(&mut *txn, &group_id).await?
+                && let ChatStatus::Inactive(_) = chat.status()
+            {
+                return Ok(());
+            }
+            bail!("Can't find group for commit response");
+        };
 
         // Check how the message epoch compares to our group's local epoch.
         if group.mls_group().epoch() < epoch {
