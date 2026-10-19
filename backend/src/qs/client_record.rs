@@ -26,6 +26,7 @@ use tracing::{error, info, trace, warn};
 use crate::{
     errors::StorageError,
     messages::intra_backend::DsFanOutPayload,
+    pseudonym::Pseudonymizer,
     qs::{PushNotificationError, queue::Queues},
 };
 
@@ -559,10 +560,16 @@ impl QsClientRecord {
     ///
     /// Returns a QS client record if a push notification should be sent to the client, otherwise
     /// `None`.
+    #[tracing::instrument(
+        level = "info",
+        skip_all,
+        fields(qs_client = %pseudonymizer.client(&client_id))
+    )]
     pub(crate) async fn enqueue(
         txn: &mut PgTransaction<'_>,
         client_id: QsClientId,
         queues: &Queues,
+        pseudonymizer: &Pseudonymizer,
         msg: &DsFanOutPayload,
     ) -> Result<Option<QsClientRecord>, EnqueueError> {
         match msg {
@@ -600,9 +607,15 @@ impl QsClientRecord {
     /// If the token is invalid, the push notification token stored for the client is deleted.
     ///
     /// The operation is infallible, all errors are handled inside and logged.
+    #[tracing::instrument(
+        level = "info",
+        skip_all,
+        fields(qs_client = %pseudonymizer.client(&self.client_id))
+    )]
     pub(crate) async fn send_push_notification(
         &self,
         pool: &PgPool,
+        pseudonymizer: &Pseudonymizer,
         push_notification_provider: &impl PushNotificationProvider,
         push_token_key: Option<&PushTokenEarKey>,
     ) {

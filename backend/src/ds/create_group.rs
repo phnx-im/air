@@ -33,6 +33,16 @@ use crate::{
     qs::QsConnector,
 };
 
+/// Rejects a new group whose context already carries a tombstone. Only a
+/// delete commit sets it.
+pub(super) fn ensure_created_without_tombstone(group: &Group) -> Result<(), Status> {
+    if GroupAppData::has_tombstone(group.group_info().group_context().extensions()) {
+        error!("new group carries a tombstone");
+        return Err(Status::invalid_argument("new group carries a tombstone"));
+    }
+    Ok(())
+}
+
 impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     pub(super) fn extract_group_state(
         &self,
@@ -69,6 +79,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             error!(%error, "failed to create t_group");
             Status::internal("failed to create t_group")
         })?;
+        ensure_created_without_tombstone(&group)?;
 
         let state = DsGroupState::new(
             provider,

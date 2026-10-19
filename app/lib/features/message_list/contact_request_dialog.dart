@@ -2,12 +2,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/features/chat/contact_request_actions.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/contact_request_card/contact_request_card.dart';
 import 'package:air/ds/patterns/contact_request_card/contact_request_card_tokens.dart';
+import 'package:air/features/message_list/contact_request_countdown.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/image_providers.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -43,12 +45,18 @@ class _UsernameContactRequest extends ContactRequestSource {
 class ContactRequestDialog extends HookWidget {
   const ContactRequestDialog({
     super.key,
+    required this.chatId,
     required this.sender,
     required this.source,
+    this.expiresAt,
   });
 
+  final ChatId chatId;
   final UiUserId sender;
   final ContactRequestSource source;
+
+  /// When the request expires, counted from the sender's newest request.
+  final DateTime? expiresAt;
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +68,7 @@ class ContactRequestDialog extends HookWidget {
     final tokens = ContactRequestCardTokens.current;
 
     final isAccepting = useState(false);
+    final expiresLabel = useExpiresLabel(loc, expiresAt);
 
     final subtitle = switch (source) {
       _TargetedMessageContactRequest(:final String originChatTitle) =>
@@ -88,11 +97,19 @@ class ContactRequestDialog extends HookWidget {
       pictureRevealLabel: DeviceType.isDesktop
           ? loc.contactRequestDialog_avatarHint_desktop
           : loc.contactRequestDialog_avatarHint,
+      expiresLabel: expiresLabel,
       actions: ContactRequestAnswers(
         acceptLabel: loc.contactRequestDialog_confirm,
-        dismissLabel: loc.contactRequestDialog_cancel,
+        declineLabel: loc.contactRequestDialog_decline,
+        blockLabel: loc.contactRequestDialog_block,
         onAccept: () => _accept(context, isAccepting),
-        onDismiss: () => context.read<NavigationCubit>().closeChat(),
+        onDecline: () => declineContactRequest(context, chatId),
+        onBlock: () => blockContactRequest(
+          context,
+          chatId,
+          sender,
+          senderProfile.displayName,
+        ),
         isAccepting: isAccepting.value,
       ),
     );

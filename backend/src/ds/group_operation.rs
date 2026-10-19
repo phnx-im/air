@@ -42,7 +42,7 @@ use aircommon::{
     },
     mls_group_config::QS_CLIENT_REFERENCE_EXTENSION_TYPE,
     time::TimeStamp,
-    utils::removed_clients,
+    utils::{removed_client, removed_clients},
 };
 use tls_codec::DeserializeBytes;
 use tracing::{error, warn};
@@ -121,19 +121,25 @@ impl DsGroupState {
             return Err(GroupOperationError::InvalidMessage);
         };
 
-        if !self.self_group_flag_unchanged(staged_commit) {
-            warn!("Commit would toggle the self-group flag");
+        if !self.group_flags_unchanged(staged_commit) {
+            warn!("Commit would change the self-group flag or the tombstone");
             return Err(GroupOperationError::InvalidMessage);
         }
 
+        // A member that proposed its own removal relies on the next committer
+        // to carry the proposal, so a commit must not leave one behind.
+        self.ensure_self_removes_committed(staged_commit)?;
+
         // A traditional commit on an APQ group can only be a PARTIAL
-        // self-update. Membership changes must go through the APQ endpoint so
-        // that both legs stay in sync. External commits are caught by the
-        // remove proposal they must carry.
+        // self-update. Membership changes (including self-removes) must go
+        // through the APQ endpoint so that both legs stay in sync. External
+        // commits are caught by the remove proposal they must carry.
         if pq_group_state.is_none()
             && self.is_apq()
             && (staged_commit.add_proposals().next().is_some()
-                || staged_commit.remove_proposals().next().is_some())
+                || staged_commit
+                    .queued_proposals()
+                    .any(|proposal| removed_client(proposal).is_some()))
         {
             warn!("Traditional membership change on an APQ group");
             return Err(GroupOperationError::ApqMembershipChange);
@@ -457,10 +463,12 @@ impl DsGroupState {
                 warn!("PQ message content is not a staged commit");
                 return Err(GroupOperationError::InvalidMessage);
             };
-            if !pq_group_state.self_group_flag_unchanged(pq_staged_commit) {
-                warn!("PQ commit would toggle the self-group flag");
+            if !pq_group_state.group_flags_unchanged(pq_staged_commit) {
+                warn!("PQ commit would change the self-group flag or the tombstone");
                 return Err(GroupOperationError::InvalidMessage);
             }
+            // See the T leg. Self-removes need to be committed on both legs.
+            pq_group_state.ensure_self_removes_committed(pq_staged_commit)?;
             let pq_sender_index = match processed_assisted_message
                 .processed_message
                 .pq_message
@@ -688,11 +696,7 @@ impl DsGroupState {
             // regular-group Welcome targets a virtual client and must fan out
             // to all of the user's device queues.
             let fan_out_message = DsFanOutMessage {
-                payload: DsFanOutPayload::QueueMessage(
-                    welcome_bundle
-                        .try_into()
-                        .map_err(|_| GroupOperationError::LibraryError)?,
-                ),
+                payload: DsFanOutPayload::QueueMessage(welcome_bundle.try_into()?),
                 client_reference: client_queue_config,
                 suppress_notifications: false.into(),
                 broadcast_to_all_client_queues: self.broadcast_to_all_client_queues().into(),
@@ -745,11 +749,7 @@ impl DsGroupState {
             // See `generate_fan_out_messages`: broadcast only for
             // regular-group Welcomes.
             let fan_out_message = DsFanOutMessage {
-                payload: DsFanOutPayload::QueueMessage(
-                    welcome_bundle
-                        .try_into()
-                        .map_err(|_| GroupOperationError::LibraryError)?,
-                ),
+                payload: DsFanOutPayload::QueueMessage(welcome_bundle.try_into()?),
                 client_reference: client_queue_config,
                 suppress_notifications: false.into(),
                 broadcast_to_all_client_queues: self.broadcast_to_all_client_queues().into(),
@@ -805,11 +805,7 @@ impl DsGroupState {
             (self.group.epoch().as_u64() - 1).into(),
             timestamp,
             key_package_batch,
-        )
-        .map_err(|e| {
-            warn!(error = %e, "Error serializing commit response");
-            GroupOperationError::LibraryError
-        })?;
+        )?;
         let payload = DsFanOutPayload::QueueMessage(commit_response);
         let sender_client_reference = self
             .member_profiles

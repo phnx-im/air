@@ -173,7 +173,7 @@ impl Chat {
     /// On conflict, the chat is **not** removed but updated.
     pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let title = self.attributes().map(|attrs| attrs.title());
-        info!(id =% self.id, ?title, "Storing chat");
+        info!(id =% self.id, "Storing chat");
         let title = title.unwrap_or_default();
         let picture = self
             .attributes()
@@ -386,6 +386,46 @@ impl Chat {
             ORDER BY g.self_updated_at ASC"#,
             until_due_at as _,
             SqlChatStatus::Active,
+        )
+        .fetch_all(connection.as_mut())
+        .await
+    }
+
+    /// Loads the ids of the active chats of outgoing requests whose oldest
+    /// message is at or before `sent_until`.
+    pub(crate) async fn load_open_outgoing_request_ids(
+        mut connection: impl ReadConnection,
+        sent_until: DateTime<Utc>,
+    ) -> sqlx::Result<Vec<ChatId>> {
+        query_scalar!(
+            r#"SELECT
+                c.chat_id AS "chat_id: _"
+            FROM chat c
+            WHERE (c.connection_user_handle IS NOT NULL
+                    OR (c.connection_user_uuid IS NOT NULL
+                        AND c.is_confirmed_connection = 0
+                        AND c.is_incoming = 0))
+                AND c.status = ?1
+                AND (SELECT MIN(m.timestamp) FROM message m WHERE m.chat_id = c.chat_id) <= ?2"#,
+            SqlChatStatus::Active,
+            sent_until,
+        )
+        .fetch_all(connection.as_mut())
+        .await
+    }
+
+    /// Loads the ids of the inactive chats of incoming and outgoing requests.
+    pub(crate) async fn load_closed_request_ids(
+        mut connection: impl ReadConnection,
+    ) -> sqlx::Result<Vec<ChatId>> {
+        query_scalar!(
+            r#"SELECT
+                chat_id AS "chat_id: _"
+            FROM chat
+            WHERE (connection_user_handle IS NOT NULL
+                    OR (connection_user_uuid IS NOT NULL AND is_confirmed_connection = 0))
+                AND status = ?"#,
+            SqlChatStatus::Inactive,
         )
         .fetch_all(connection.as_mut())
         .await
@@ -709,6 +749,29 @@ impl Chat {
         .fetch_one(connection.as_mut())
         .await
         .map(|n: i64| usize::try_from(n).expect("usize overflow"))
+    }
+
+    /// Returns the earliest time after `now` at which a chat mute runs out.
+    ///
+    /// Chats muted forever never run out and are skipped.
+    pub(crate) async fn next_mute_expiry(
+        mut connection: impl ReadConnection,
+        now: DateTime<Utc>,
+    ) -> sqlx::Result<Option<DateTime<Utc>>> {
+        let forever = ChatMuted::Forever.into_date_time();
+        query_scalar!(
+            r#"SELECT
+                MIN(muted_until) AS "muted_until?: _"
+            FROM
+                chat
+            WHERE
+                muted_until > ?1
+                AND muted_until < ?2"#,
+            now,
+            forever,
+        )
+        .fetch_one(connection.as_mut())
+        .await
     }
 
     pub(crate) async fn set_muted_until(
@@ -1063,7 +1126,7 @@ pub mod tests {
             test_chat_message_with_salt,
         },
         clients::block_contact::BlockedContact,
-        db::access::DbAccess,
+        db::access::{DbAccess, WriteDbConnection},
     };
 
     use super::*;
@@ -1533,6 +1596,35 @@ pub mod tests {
         assert_eq!(n, 1);
         let n = Chat::global_unread_message_count(&mut connection, &own_user).await?;
         assert_eq!(n, 1);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn next_mute_expiry(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+        let now: DateTime<Utc> = "2026-01-01T00:00:00Z".parse().unwrap();
+
+        let mute = async |connection: &mut WriteDbConnection, muted_until: Option<ChatMuted>| {
+            let chat = test_chat();
+            chat.store(&mut *connection).await?;
+            Chat::set_muted_until(connection, chat.id(), muted_until).await
+        };
+
+        let until = |hours| Some(ChatMuted::Until(now + Duration::hours(hours)));
+
+        mute(&mut connection, None).await?;
+        mute(&mut connection, Some(ChatMuted::Forever)).await?;
+        mute(&mut connection, until(-1)).await?;
+        assert_eq!(Chat::next_mute_expiry(&mut connection, now).await?, None);
+
+        mute(&mut connection, until(2)).await?;
+        mute(&mut connection, until(1)).await?;
+        assert_eq!(
+            Chat::next_mute_expiry(&mut connection, now).await?,
+            Some(now + Duration::hours(1))
+        );
 
         Ok(())
     }

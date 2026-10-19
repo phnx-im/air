@@ -12,7 +12,7 @@ use std::fmt;
 // Re-export for FRB-reasons
 pub(crate) use aircommon::identifiers::{Username, UsernameValidationError};
 pub(crate) use aircoreclient::{AddUsernameContactError, ChatId, MessageId};
-pub(crate) use airprotos::client::component::{AirComponent, AirFeatures};
+pub(crate) use airprotos::client::component::AirFeatures;
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
@@ -107,13 +107,18 @@ pub struct UiChatDetails {
     pub muted_until: Option<UiChatMuted>,
     pub pending_commit_failed: bool,
     pub resync_failed: bool,
+    /// When the open contact request the chat shows expires. For incoming
+    /// requests, that is the sender's newest request.
+    pub contact_request_expires_at: Option<DateTime<Utc>>,
 }
 
 impl UiChatDetails {
     pub(crate) fn connection_user_id(&self) -> Option<&UiUserId> {
         match &self.chat_type {
-            UiChatType::Connection(profile) => Some(&profile.user_id),
-            _ => None,
+            UiChatType::Connection(profile)
+            | UiChatType::TargetedMessageConnection(profile)
+            | UiChatType::PendingConnection(profile) => Some(&profile.user_id),
+            UiChatType::HandleConnection(_) | UiChatType::Group(_) => None,
         }
     }
 }
@@ -581,6 +586,7 @@ pub enum UiSystemMessage {
     NewHandleConnectionChat(UiUsername),
     NewDirectConnectionChat(UiUserId),
     CreateGroup(UiUserId),
+    DeleteGroup(UiUserId),
     Onboarded,
     DeviceLinked(Uuid),
     DeviceUnlinked(Uuid),
@@ -599,6 +605,8 @@ pub enum UiSystemMessage {
         origin_chat_id: ChatId,
     },
     ConnectionRequestUnavailable,
+    ConnectionRequestExpired,
+    SentConnectionRequestExpired,
 }
 
 /// The group chat a connection request came through.
@@ -667,6 +675,7 @@ impl From<SystemMessage> for UiSystemMessage {
                 UiSystemMessage::NewDirectConnectionChat(user_id.into())
             }
             SystemMessage::CreateGroup(user_id) => UiSystemMessage::CreateGroup(user_id.into()),
+            SystemMessage::DeleteGroup(deleter) => UiSystemMessage::DeleteGroup(deleter.into()),
             SystemMessage::Onboarded => UiSystemMessage::Onboarded,
             SystemMessage::DeviceLinked(client_id) => UiSystemMessage::DeviceLinked(client_id),
             SystemMessage::DeviceUnlinked(client_id) => UiSystemMessage::DeviceUnlinked(client_id),
@@ -699,6 +708,10 @@ impl From<SystemMessage> for UiSystemMessage {
             },
             SystemMessage::ConnectionRequestUnavailable => {
                 UiSystemMessage::ConnectionRequestUnavailable
+            }
+            SystemMessage::ConnectionRequestExpired => UiSystemMessage::ConnectionRequestExpired,
+            SystemMessage::SentConnectionRequestExpired => {
+                UiSystemMessage::SentConnectionRequestExpired
             }
         }
     }
@@ -884,14 +897,6 @@ impl From<Username> for UiUsername {
             plaintext: username.into_plaintext(),
         }
     }
-}
-
-#[frb(unignore)]
-#[frb(mirror(AirComponent))]
-#[frb(dart_metadata = ("freezed"))]
-struct _AirComponent {
-    pub features: AirFeatures,
-    pub is_self_group: bool,
 }
 
 #[frb(unignore)]

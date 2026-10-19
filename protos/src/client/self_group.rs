@@ -32,6 +32,7 @@ use aircommon::{
 use airmacros::{
     DeserializeTaggedMap, DeserializeTaggedUnion, SerializeTaggedMap, SerializeTaggedUnion,
 };
+use chrono::{DateTime, Utc};
 use mimi_content::{Disposition, MimiContent, NestedPart, content_container::ExtensionName};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use openmls::group::GroupId;
@@ -362,6 +363,9 @@ pub struct LinkedDevice {
 /// SettingsUpdate = {
 ///   ? send_read_receipts: bool .tag 1
 ///   ? linked_devices: [* LinkedDevice] .tag 2
+///   ? default_emoji_skin_tone: uint .size 1 .tag 3
+///   ? limit_animated_images_loops: bool .tag 4
+///   ? delete_expired_contact_requests: bool .tag 5
 /// }
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
@@ -371,6 +375,16 @@ pub struct SettingsUpdate {
     /// Sorted by `client_id` so the encoding is canonical.
     #[tag(2)]
     pub linked_devices: Option<Vec<LinkedDevice>>,
+    /// 0 is no modifier, 1 to 5 are the Fitzpatrick modifiers U+1F3FB to
+    /// U+1F3FF in order. Receivers clamp unknown values.
+    #[tag(3)]
+    pub default_emoji_skin_tone: Option<u8>,
+    #[tag(4)]
+    pub limit_animated_images_loops: Option<bool>,
+    /// Whether contact requests that expired are deleted instead of kept as a
+    /// record.
+    #[tag(5)]
+    pub delete_expired_contact_requests: Option<bool>,
 }
 
 /// The contacts whose blocked state the sender just changed. This is a diff and
@@ -505,6 +519,7 @@ pub struct ConnectionRequestsUpdate {
 /// ```cddl
 /// ConnectionRequestEntry = {
 ///   1: ConnectionRequestReceived //
+///   2: ConnectionRequestDeclined //
 ///   3: ConnectionRequestUnavailable
 /// }
 /// ```
@@ -512,6 +527,8 @@ pub struct ConnectionRequestsUpdate {
 pub enum ConnectionRequestEntry {
     #[tag(1)]
     Received(ConnectionRequestReceived),
+    #[tag(2)]
+    Declined(ConnectionRequestDeclined),
     #[tag(3)]
     Unavailable(ConnectionRequestUnavailable),
     /// A state this client does not understand. The entry is ignored on
@@ -549,8 +566,8 @@ pub struct ConnectionRequestReceived {
     /// Only present for a request via a username.
     #[tag(5)]
     pub connection_package_hash: Option<ConnectionPackageHash>,
-    #[tag(6)]
-    pub received_at: u64,
+    #[tag(6, with = "chrono::serde::ts_milliseconds")]
+    pub received_at: DateTime<Utc>,
 }
 
 /// How a connection request reached the user.
@@ -592,6 +609,25 @@ pub struct ConnectionRequestGroup {
     /// receiver skips an entry without it.
     #[tag(1, with = "group_id_as_bytes")]
     pub group_id: Option<GroupId>,
+}
+
+/// The user declined an incoming connection request. Its sender is not told.
+/// Siblings record the decline time as-is, so all devices hold the same time.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ConnectionRequestDeclined = {
+///   chat_id: bstr .size 16 .tag 1,
+///   declined_at: uint .tag 2,              ; unix epoch milliseconds (UTC)
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ConnectionRequestDeclined {
+    #[tag(1)]
+    pub chat_id: Uuid,
+    #[tag(2, with = "chrono::serde::ts_milliseconds")]
+    pub declined_at: DateTime<Utc>,
 }
 
 /// An incoming connection request turned out to be gone when the user tried
@@ -643,7 +679,7 @@ mod test {
     fn sample_messages() -> SelfGroupMessages {
         SelfGroupMessages(vec![SelfGroupMessage::SettingsUpdate(SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         })])
     }
 
@@ -696,15 +732,17 @@ mod test {
                 "Laptop",
                 LinkedDevicePlatform::Linux,
             )]),
+            delete_expired_contact_requests: Some(true),
+            ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&update).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
         assert_eq!(update, decoded);
     }
 
-    /// An older client sends `SettingsUpdate` without tag 2. The field must
-    /// decode as absent, which means "the sender has no value", not "clear the
-    /// value".
+    /// An older client sends `SettingsUpdate` without tags 2 to 5. The fields
+    /// must decode as absent, which means "the sender has no value", not "clear
+    /// the value".
     #[test]
     fn settings_update_without_linked_devices_decodes_as_absent() {
         #[derive(Debug, Clone, Default, SerializeTaggedMap)]
@@ -718,8 +756,13 @@ mod test {
         };
         let bytes = PersistenceCodec::to_vec(&old).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
-        assert_eq!(decoded.send_read_receipts, Some(false));
-        assert_eq!(decoded.linked_devices, None);
+        assert_eq!(
+            decoded,
+            SettingsUpdate {
+                send_read_receipts: Some(false),
+                ..Default::default()
+            }
+        );
     }
 
     #[test]
@@ -728,7 +771,7 @@ mod test {
         struct SettingsUpdateV3 {
             #[tag(1)]
             send_read_receipts: Option<bool>,
-            #[tag(3)]
+            #[tag(99)]
             something_new: Option<u64>,
         }
 
@@ -748,7 +791,7 @@ mod test {
     fn settings_update_roundtrip_and_wire_shape() {
         let set = SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&set).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
@@ -758,13 +801,27 @@ mod test {
 
         let empty = SettingsUpdate {
             send_read_receipts: None,
-            linked_devices: None,
+            ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&empty).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
         assert_eq!(empty, decoded);
         // `{}`: map(0).
         assert_eq!(&bytes[1..], &[0xA0]);
+    }
+
+    #[test]
+    fn settings_update_display_settings_roundtrip_and_wire_shape() {
+        let update = SettingsUpdate {
+            default_emoji_skin_tone: Some(3),
+            limit_animated_images_loops: Some(false),
+            ..Default::default()
+        };
+        let bytes = PersistenceCodec::to_vec(&update).unwrap();
+        let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(update, decoded);
+        // `{3: 3, 4: false}`
+        assert_eq!(&bytes[1..], &[0xA2, 0x03, 0x03, 0x04, 0xF4]);
     }
 
     #[test]
@@ -776,6 +833,8 @@ mod test {
                 "Laptop",
                 LinkedDevicePlatform::Linux,
             )]),
+            delete_expired_contact_requests: Some(true),
+            ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&update).unwrap();
         let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
@@ -873,7 +932,7 @@ mod test {
 
         let update = SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         };
         let newer = vec![
             SelfGroupMessage::TokenSeed(sample_seed()),
@@ -955,7 +1014,7 @@ mod test {
 
         let update = SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         };
         let newer = vec![
             SelfGroupMessage::BlockedContactsUpdate(sample_blocked_contacts_update()),
@@ -1094,7 +1153,7 @@ mod test {
                     source: ConnectionRequestSource::Username("alice".to_owned()),
                     connection_offer_hash: Some(ConnectionOfferHash::from_bytes([0x13; 32])),
                     connection_package_hash: Some(ConnectionPackageHash::from_bytes([0x14; 32])),
-                    received_at: 1_767_225_600_123,
+                    received_at: DateTime::from_timestamp_millis(1_767_225_600_123).unwrap(),
                 }),
                 ConnectionRequestEntry::Received(ConnectionRequestReceived {
                     connection_info: vec![0x15; 8],
@@ -1102,10 +1161,14 @@ mod test {
                     source: ConnectionRequestSource::Group(sample_connection_request_group()),
                     connection_offer_hash: None,
                     connection_package_hash: None,
-                    received_at: 1_767_225_600_456,
+                    received_at: DateTime::from_timestamp_millis(1_767_225_600_456).unwrap(),
                 }),
                 ConnectionRequestEntry::Unavailable(ConnectionRequestUnavailable {
                     chat_id: Uuid::from_u128(0x19),
+                }),
+                ConnectionRequestEntry::Declined(ConnectionRequestDeclined {
+                    chat_id: Uuid::from_u128(0x1a),
+                    declined_at: DateTime::from_timestamp_millis(1_767_225_600_789).unwrap(),
                 }),
             ],
         }
@@ -1157,7 +1220,7 @@ mod test {
 
         let update = SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         };
         let newer = vec![
             SelfGroupMessage::ConnectionRequestsUpdate(sample_connection_requests_update()),
@@ -1199,7 +1262,7 @@ mod test {
             source: ConnectionRequestSource::Group(sample_connection_request_group()),
             connection_offer_hash: None,
             connection_package_hash: None,
-            received_at: 1_767_225_600_123,
+            received_at: DateTime::from_timestamp_millis(1_767_225_600_123).unwrap(),
         };
         let newer = vec![
             ConnectionRequestEntryV2::Later(ConnectionRequestLater {
@@ -1219,9 +1282,10 @@ mod test {
         );
     }
 
-    /// A client that only knows received requests skips the unavailable ones.
+    /// A client that only knows received requests skips the unavailable and
+    /// declined ones.
     #[test]
-    fn unavailable_requests_are_skipped_by_an_older_client() {
+    fn later_request_states_are_skipped_by_an_older_client() {
         #[derive(Debug, Clone, PartialEq, DeserializeTaggedUnion)]
         enum ConnectionRequestEntryV1 {
             #[tag(1)]
@@ -1238,6 +1302,7 @@ mod test {
             [
                 ConnectionRequestEntryV1::Received(_),
                 ConnectionRequestEntryV1::Received(_),
+                ConnectionRequestEntryV1::Unknown,
                 ConnectionRequestEntryV1::Unknown,
             ]
         ));
@@ -1506,11 +1571,11 @@ mod test {
     fn vec_of_messages_with_unknown_element() {
         let known_a = SelfGroupMessageV2::SettingsUpdate(SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: None,
+            ..Default::default()
         });
         let known_b = SelfGroupMessageV2::SettingsUpdate(SettingsUpdate {
             send_read_receipts: Some(false),
-            linked_devices: None,
+            ..Default::default()
         });
         let newer = vec![known_a, SelfGroupMessageV2::Something(9), known_b];
         let bytes = PersistenceCodec::to_vec(&newer).unwrap();
@@ -1521,12 +1586,12 @@ mod test {
             vec![
                 SelfGroupMessage::SettingsUpdate(SettingsUpdate {
                     send_read_receipts: Some(true),
-                    linked_devices: None,
+                    ..Default::default()
                 }),
                 SelfGroupMessage::Unknown,
                 SelfGroupMessage::SettingsUpdate(SettingsUpdate {
                     send_read_receipts: Some(false),
-                    linked_devices: None,
+                    ..Default::default()
                 }),
             ]
         );

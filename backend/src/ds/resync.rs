@@ -82,8 +82,7 @@ impl DsGroupState {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
             .group()
-            .process_assisted_message(self.provider.crypto(), external_commit)
-            .map_err(|_| ResyncClientError::ProcessingError)?;
+            .process_assisted_message(self.provider.crypto(), external_commit)?;
 
         // Perform DS-level validation
         // Make sure that we have the right message type.
@@ -104,10 +103,14 @@ impl DsGroupState {
             return Err(ResyncClientError::InvalidMessage);
         };
 
-        if !self.self_group_flag_unchanged(staged_commit_message) {
-            error!("Commit would toggle the self-group flag");
+        if !self.group_flags_unchanged(staged_commit_message) {
+            error!("Commit would change the self-group flag or the tombstone");
             return Err(ResyncClientError::InvalidMessage);
         }
+
+        // The external commit info handed the resyncing client the pending
+        // self-remove proposals, so its commit has to carry them.
+        self.ensure_self_removes_committed(staged_commit_message)?;
 
         // Check if it's an external commit.
         if !matches!(processed_message.sender(), Sender::NewMemberCommit) {
@@ -213,11 +216,7 @@ impl DsGroupState {
                     t_message,
                     pq_message,
                     |_, _| true,
-                )
-                .map_err(|error| {
-                    error!(%error, "Failed to process APQ message");
-                    ResyncClientError::ProcessingError
-                })?;
+                )?;
 
         let ApqExternalCommit {
             t_staged_commit,
@@ -232,6 +231,11 @@ impl DsGroupState {
             pq_group_state,
             &processed_assisted_message_plus.processed_assisted_message,
         )?;
+
+        // See the T-only variant. Both legs park their own copy of a
+        // self-remove proposal, so both have to see it committed.
+        t_group_state.ensure_self_removes_committed(t_staged_commit)?;
+        pq_group_state.ensure_self_removes_committed(pq_staged_commit)?;
 
         // The resyncing sender's fresh T leaf must match the group kind. The PQ leaf is bound to it
         // by the shared signature key.

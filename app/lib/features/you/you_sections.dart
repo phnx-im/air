@@ -336,27 +336,11 @@ class _InvitationCodesBadge extends StatelessWidget {
 }
 
 /// Preferences: the switches and pickers that shape day-to-day use.
-class PreferencesSection extends HookWidget {
+class PreferencesSection extends StatelessWidget {
   const PreferencesSection({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final settingsCubit = context.read<UserSettingsCubit>();
-    final readReceiptsSetting = context.select(
-      (UserSettingsCubit cubit) => cubit.state.readReceipts,
-    );
-    // The subscription above also provides the initial value: useState only
-    // reads its argument on the first build.
-    final readReceipts = useState(readReceiptsSetting);
-    // Converge the local switch onto the cubit state. This moves the switch
-    // for out-of-band changes (a sibling device update or a rollback) and
-    // confirms it after a successful submit. The optimistic local flip
-    // survives because the cubit state only changes on success.
-    useEffect(() {
-      readReceipts.value = readReceiptsSetting;
-      return null;
-    }, [readReceiptsSetting]);
-
     final loc = AppLocalizations.of(context);
 
     return Column(
@@ -366,30 +350,87 @@ class PreferencesSection extends HookWidget {
         const _LanguageSettings(),
         FieldLabel(loc.userSettingsScreen_languageSettingsDescription),
 
-        SwitchField(
-          onSubmit: (value) async {
-            try {
-              await settingsCubit.setReadReceipts(value: value);
-            } catch (e) {
-              // The submit failed, so the cubit state did not move. Revert the
-              // optimistic local flip to match it.
-              _log.severe("Failed to set read receipts: $e", e);
-              // The flush on dispose submits a pending tap during unmount, so
-              // this can fail after the notifier is gone. There is no UI left
-              // to revert then, and writing to a disposed notifier throws.
-              if (context.mounted) {
-                readReceipts.value = settingsCubit.state.readReceipts;
-              }
-            }
-          },
-          value: readReceipts,
+        _SyncedSettingSwitch(
+          select: (settings) => settings.readReceipts,
+          submit: (cubit, value) => cubit.setReadReceipts(value: value),
           label: loc.userSettingsScreen_readReceipts,
+          description: loc.userSettingsScreen_readReceiptsDescription,
         ),
-        FieldLabel(loc.userSettingsScreen_readReceiptsDescription),
+
+        _SyncedSettingSwitch(
+          select: (settings) => settings.deleteExpiredContactRequests,
+          submit: (cubit, value) =>
+              cubit.setDeleteExpiredContactRequests(value: value),
+          label: loc.userSettingsScreen_deleteExpiredContactRequests,
+          description:
+              loc.userSettingsScreen_deleteExpiredContactRequestsDescription,
+        ),
 
         if (DeviceType.isPhone) const _SendOnEnterSetting(),
 
         const _LimitAnimatedImagesLoopsSetting(),
+      ],
+    );
+  }
+}
+
+/// A switch for a setting that syncs across the user's devices, with its
+/// description below.
+class _SyncedSettingSwitch extends HookWidget {
+  const _SyncedSettingSwitch({
+    required this.select,
+    required this.submit,
+    required this.label,
+    required this.description,
+  });
+
+  final bool Function(UserSettings settings) select;
+  final Future<void> Function(UserSettingsCubit cubit, bool value) submit;
+  final String label;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    final settingsCubit = context.read<UserSettingsCubit>();
+    final setting = context.select(
+      (UserSettingsCubit cubit) => select(cubit.state),
+    );
+    // The subscription above also provides the initial value: useState only
+    // reads its argument on the first build.
+    final switchValue = useState(setting);
+    // Converge the local switch onto the cubit state. This moves the switch
+    // for out-of-band changes (a sibling device update or a rollback) and
+    // confirms it after a successful submit. The optimistic local flip
+    // survives because the cubit state only changes on success.
+    useEffect(() {
+      switchValue.value = setting;
+      return null;
+    }, [setting]);
+
+    return Column(
+      crossAxisAlignment: .start,
+      spacing: S.s12,
+      children: [
+        SwitchField(
+          onSubmit: (value) async {
+            try {
+              await submit(settingsCubit, value);
+            } catch (e) {
+              // The submit failed, so the cubit state did not move. Revert the
+              // optimistic local flip to match it.
+              _log.severe("Failed to set the setting '$label': $e", e);
+              // The flush on dispose submits a pending tap during unmount, so
+              // this can fail after the notifier is gone. There is no UI left
+              // to revert then, and writing to a disposed notifier throws.
+              if (context.mounted) {
+                switchValue.value = select(settingsCubit.state);
+              }
+            }
+          },
+          value: switchValue,
+          label: label,
+        ),
+        FieldLabel(description),
       ],
     );
   }
@@ -465,9 +506,15 @@ class _LimitAnimatedImagesLoopsSetting extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final settingsCubit = context.read<UserSettingsCubit>();
-    final limitAnimatedImagesLoops = useState(
-      useMemoized(() => settingsCubit.state.limitAnimatedImagesLoops),
+    final limitAnimatedImagesLoopsSetting = context.select(
+      (UserSettingsCubit cubit) => cubit.state.limitAnimatedImagesLoops,
     );
+    final limitAnimatedImagesLoops = useState(limitAnimatedImagesLoopsSetting);
+    // Converge onto the cubit state, see `PreferencesSection`.
+    useEffect(() {
+      limitAnimatedImagesLoops.value = limitAnimatedImagesLoopsSetting;
+      return null;
+    }, [limitAnimatedImagesLoopsSetting]);
 
     final loc = AppLocalizations.of(context);
 
@@ -477,8 +524,16 @@ class _LimitAnimatedImagesLoopsSetting extends HookWidget {
         SwitchField(
           label: loc.userSettingsScreen_limitAnimatedImagesLoops,
           value: limitAnimatedImagesLoops,
-          onSubmit: (value) {
-            settingsCubit.setLimitAnimatedImagesLoops(value: value);
+          onSubmit: (value) async {
+            try {
+              await settingsCubit.setLimitAnimatedImagesLoops(value: value);
+            } catch (e) {
+              _log.severe("Failed to set limit animated images loops: $e", e);
+              if (context.mounted) {
+                limitAnimatedImagesLoops.value =
+                    settingsCubit.state.limitAnimatedImagesLoops;
+              }
+            }
           },
         ),
 

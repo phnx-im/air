@@ -258,8 +258,9 @@ runs:
         sudo apt-get install -yqq lld ninja-build libgtk-3-dev
 
     # The Flutter native-assets hook runs with an allowlisted environment, so
-    # the variables set above never reach `cargo build` for the app. Forward
-    # them through the hook config instead (see app/hook/build.dart).
+    # the variables set above and the runner's `CI` never reach `cargo build`
+    # for the app. Forward them through the hook config instead (see
+    # app/hook/build.dart).
     - if: inputs.flutter == 'true'
       name: Configure the Rust build hook
       shell: python
@@ -268,7 +269,7 @@ runs:
 
         pathlib.Path("app/.dart_tool").mkdir(parents=True, exist_ok=True)
 
-        keys = ["AIR_BUILD_NUMBER", "AIR_REFRESH_BUILD_METADATA", "RUSTC_WRAPPER"]
+        keys = ["AIR_BUILD_NUMBER", "AIR_REFRESH_BUILD_METADATA", "RUSTC_WRAPPER", "CI"]
         env = {k: v for k in keys if (v := os.getenv(k))}
 
         data = json.dumps({"cargo_env": env})

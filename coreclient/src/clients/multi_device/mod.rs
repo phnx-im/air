@@ -18,9 +18,7 @@ use aircommon::crypto::kdf::keys::RatchetSecret;
 use aircommon::crypto::signatures::keys::QsClientSigningKey;
 use aircommon::identifiers::Fqdn;
 use aircommon::messages::QueueMessage;
-use aircommon::mls_group_config::{
-    APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE, self_group_leaf_node_capabilities,
-};
+use aircommon::mls_group_config::{APQ_CIPHERSUITE, self_group_leaf_node_capabilities};
 use airprotos::client::app_data::ClientAppData;
 use airprotos::client::self_group::SettingsUpdate;
 use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
@@ -32,8 +30,8 @@ use openmls::prelude::{Credential, CredentialType, SignaturePublicKey};
 use openmls::{
     group::{MlsGroup, MlsGroupCreateConfig, MlsGroupJoinConfig, StagedWelcome},
     prelude::{
-        BasicCredential, CredentialWithKey, Extension, KeyPackage, MlsMessageBodyIn, MlsMessageIn,
-        MlsMessageOut, ProtocolVersion, UnknownExtension,
+        BasicCredential, CredentialWithKey, KeyPackage, MlsMessageBodyIn, MlsMessageIn,
+        MlsMessageOut, ProtocolVersion,
     },
 };
 use openmls_basic_credential::SignatureKeyPair;
@@ -53,7 +51,7 @@ use uuid::Uuid;
 use crate::{
     Chat, ChatId, ChatStatus, ChatType, Contact,
     chats::{
-        connection_requests::{pending_requests_snapshot, store_provisioned_requests},
+        connection_requests::{requests_snapshot, store_provisioned_requests},
         outgoing_requests::OutgoingRequest,
     },
     clients::{
@@ -70,7 +68,8 @@ use crate::{
     db::access::DbAccess,
     delete_client_database,
     groups::{
-        Group, client_auth_info::StorableUserCredential, openmls_provider::AirOpenMlsProvider,
+        Group, client_auth_info::StorableUserCredential, client_reference_extension,
+        openmls_provider::AirOpenMlsProvider,
     },
     job::{
         JobError,
@@ -514,6 +513,7 @@ impl CoreUser {
             Err(error) => return Err(error.into()),
         }
         info!("added new device to self group");
+        self.outbound_service().notify_key_package_upload();
 
         // Keep the RPC alive until the relay closes our stream, which happens
         // once the new device has finished and disconnected.
@@ -570,7 +570,7 @@ impl CoreUser {
             privacy_pass::redeemed_tokens_snapshot(self.db().read().await?).await?;
         let connection_requests = self
             .db()
-            .with_read_transaction(async |txn| pending_requests_snapshot(txn).await)
+            .with_read_transaction(async |txn| requests_snapshot(txn).await)
             .await?;
 
         Ok(ProvisioningPackage {
@@ -712,11 +712,7 @@ impl CoreUser {
 
         let mut leaf_node_extensions = ClientAppData::current().leaf_node_extensions();
         let client_reference = self.create_own_client_reference();
-        // TODO: don't use Extension::Unknown
-        leaf_node_extensions.add(Extension::Unknown(
-            QS_CLIENT_REFERENCE_EXTENSION_TYPE,
-            UnknownExtension(client_reference.tls_serialize_detached()?),
-        ))?;
+        leaf_node_extensions.add(client_reference_extension(&client_reference)?)?;
         // add two fields AirComponent Option<QsClientId> and Option<QsUserId>
         let key_package_extensions = ClientAppData::current().key_package_extensions();
 
@@ -944,7 +940,7 @@ impl CoreUser {
                     privacy_pass::store_provisioned_seeds(txn, &token_seeds).await?;
                     apply_blocked_contacts_update(txn, &blocked_contacts).await?;
                     privacy_pass::apply_redeemed_tokens(txn, &redeemed_tokens).await?;
-                    store_provisioned_requests(txn, &connection_requests).await?;
+                    store_provisioned_requests(txn, &connection_requests, Utc::now()).await?;
 
                     // Queue the onboarding into the groups the virtual client is
                     // already a member of.

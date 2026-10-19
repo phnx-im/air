@@ -5,7 +5,8 @@
 use std::sync::Arc;
 
 use aircoreclient::{
-    DeveloperModeSetting, ExperimentalFeaturesSetting, ReadReceiptsSetting, UserSetting,
+    DefaultEmojiSkinToneSetting, DeleteExpiredContactRequestsSetting, DeveloperModeSetting,
+    ExperimentalFeaturesSetting, LimitAnimatedImagesLoopsSetting, ReadReceiptsSetting, UserSetting,
     clients::CoreUser,
     db::notification::{DbEntityId, DbNotification},
 };
@@ -36,6 +37,10 @@ pub struct UserSettings {
     pub limit_animated_images_loops: bool,
     #[frb(default = true)]
     pub read_receipts: bool,
+    /// Whether contact requests that expired are deleted instead of kept as a
+    /// record. Synced across the user's devices.
+    #[frb(default = false)]
+    pub delete_expired_contact_requests: bool,
     /// Whether the developer surface is unlocked on this device.
     #[frb(default = false)]
     pub developer_mode: bool,
@@ -61,6 +66,7 @@ impl Default for UserSettings {
             send_on_enter: false,
             limit_animated_images_loops: false,
             read_receipts: true,
+            delete_expired_contact_requests: false,
             developer_mode: false,
             experimental_features: false,
             default_emoji_skin_tone: 0,
@@ -79,6 +85,7 @@ pub async fn load_user_settings(user: &User) -> UserSettings {
     let send_on_enter = core_user.user_setting().await;
     let limit_animated_images_loops = core_user.user_setting().await;
     let read_receipts = core_user.user_setting().await;
+    let delete_expired_contact_requests = core_user.user_setting().await;
     let developer_mode = core_user.user_setting().await;
     let experimental_features = core_user.user_setting().await;
     let default_emoji_skin_tone = core_user.user_setting().await;
@@ -98,6 +105,10 @@ pub async fn load_user_settings(user: &User) -> UserSettings {
         ),
         read_receipts: read_receipts
             .map_or(defaults.read_receipts, |ReadReceiptsSetting(value)| value),
+        delete_expired_contact_requests: delete_expired_contact_requests.map_or(
+            defaults.delete_expired_contact_requests,
+            |DeleteExpiredContactRequestsSetting(value)| value,
+        ),
         developer_mode: developer_mode
             .map_or(defaults.developer_mode, |DeveloperModeSetting(value)| value),
         experimental_features: experimental_features.map_or(
@@ -225,7 +236,7 @@ impl UserSettingsCubitBase {
             return Ok(());
         }
         self.core_user
-            .set_user_setting(&LimitAnimatedImagesLoopsSetting(value))
+            .set_synced_user_setting(&LimitAnimatedImagesLoopsSetting(value))
             .await?;
         self.core
             .state_tx()
@@ -243,6 +254,25 @@ impl UserSettingsCubitBase {
         self.core
             .state_tx()
             .send_modify(|state| state.read_receipts = value);
+        Ok(())
+    }
+
+    pub async fn set_delete_expired_contact_requests(&self, value: bool) -> anyhow::Result<()> {
+        if self
+            .core
+            .state_tx()
+            .borrow()
+            .delete_expired_contact_requests
+            == value
+        {
+            return Ok(());
+        }
+        self.core_user
+            .set_synced_user_setting(&DeleteExpiredContactRequestsSetting(value))
+            .await?;
+        self.core
+            .state_tx()
+            .send_modify(|state| state.delete_expired_contact_requests = value);
         Ok(())
     }
 
@@ -277,7 +307,7 @@ impl UserSettingsCubitBase {
             return Ok(());
         }
         self.core_user
-            .set_user_setting(&DefaultEmojiSkinToneSetting(value))
+            .set_synced_user_setting(&DefaultEmojiSkinToneSetting(value))
             .await?;
         self.core
             .state_tx()
@@ -320,7 +350,7 @@ async fn settings_listener(
     state_tx: watch::Sender<UserSettings>,
     cancel: CancellationToken,
 ) {
-    reload_read_receipts(&core_user, &state_tx).await;
+    reload_synced_settings(&core_user, &state_tx).await;
 
     loop {
         let notification = tokio::select! {
@@ -331,50 +361,64 @@ async fn settings_listener(
             },
         };
 
+        let mut reload = false;
         for entity_id in notification.ops.keys() {
             let DbEntityId::UserSetting(key) = entity_id else {
                 continue;
             };
-            if key == ReadReceiptsSetting::KEY {
-                reload_read_receipts(&core_user, &state_tx).await;
+            if SYNCED_SETTING_KEYS.contains(&key.as_str()) {
+                reload = true;
             } else {
                 debug!(%key, "ignoring notification for unhandled user setting");
             }
         }
-    }
-}
-
-/// Reads the read receipts setting from the database and emits it if it changed.
-///
-/// A missing row means a rollback deleted it, so the state falls back to the
-/// default (matching the `frb(default)` of `true`).
-async fn reload_read_receipts(core_user: &CoreUser, state_tx: &watch::Sender<UserSettings>) {
-    let read_receipts = core_user
-        .user_setting::<ReadReceiptsSetting>()
-        .await
-        .is_none_or(|ReadReceiptsSetting(value)| value);
-    state_tx.send_if_modified(|state| {
-        let modified = state.read_receipts != read_receipts;
-        state.read_receipts = read_receipts;
-        modified
-    });
-}
-
-struct DefaultEmojiSkinToneSetting(u8);
-
-impl UserSetting for DefaultEmojiSkinToneSetting {
-    const KEY: &'static str = "default_emoji_skin_tone";
-
-    fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        Ok(vec![self.0])
-    }
-
-    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        match bytes.as_slice() {
-            [byte] => Ok(Self(*byte)),
-            _ => bail!("invalid default_emoji_skin_tone bytes"),
+        if reload {
+            reload_synced_settings(&core_user, &state_tx).await;
         }
     }
+}
+
+const SYNCED_SETTING_KEYS: [&str; 4] = [
+    ReadReceiptsSetting::KEY,
+    DefaultEmojiSkinToneSetting::KEY,
+    LimitAnimatedImagesLoopsSetting::KEY,
+    DeleteExpiredContactRequestsSetting::KEY,
+];
+
+/// Reads the synced settings from the database and emits them if any changed.
+///
+/// A missing row means a rollback deleted it, so the state falls back to the
+/// default.
+async fn reload_synced_settings(core_user: &CoreUser, state_tx: &watch::Sender<UserSettings>) {
+    let defaults = UserSettings::default();
+    let read_receipts = core_user
+        .user_setting()
+        .await
+        .map_or(defaults.read_receipts, |ReadReceiptsSetting(value)| value);
+    let default_emoji_skin_tone = core_user.user_setting().await.map_or(
+        defaults.default_emoji_skin_tone,
+        |DefaultEmojiSkinToneSetting(value)| value,
+    );
+    let limit_animated_images_loops = core_user.user_setting().await.map_or(
+        defaults.limit_animated_images_loops,
+        |LimitAnimatedImagesLoopsSetting(value)| value,
+    );
+    let delete_expired_contact_requests = core_user.user_setting().await.map_or(
+        defaults.delete_expired_contact_requests,
+        |DeleteExpiredContactRequestsSetting(value)| value,
+    );
+
+    state_tx.send_if_modified(|state| {
+        let modified = state.read_receipts != read_receipts
+            || state.default_emoji_skin_tone != default_emoji_skin_tone
+            || state.limit_animated_images_loops != limit_animated_images_loops
+            || state.delete_expired_contact_requests != delete_expired_contact_requests;
+        state.read_receipts = read_receipts;
+        state.default_emoji_skin_tone = default_emoji_skin_tone;
+        state.limit_animated_images_loops = limit_animated_images_loops;
+        state.delete_expired_contact_requests = delete_expired_contact_requests;
+        modified
+    });
 }
 
 /// Device-local, since the banner is dismissed on the device in hand.
@@ -466,23 +510,6 @@ impl UserSetting for SendOnEnterSetting {
         match bytes.as_slice() {
             [byte] => Ok(Self(*byte != 0)),
             _ => bail!("invalid send_on_enter bytes"),
-        }
-    }
-}
-
-struct LimitAnimatedImagesLoopsSetting(bool);
-
-impl UserSetting for LimitAnimatedImagesLoopsSetting {
-    const KEY: &'static str = "limit_animated_images_loops";
-
-    fn encode(&self) -> anyhow::Result<Vec<u8>> {
-        Ok(vec![self.0 as u8])
-    }
-
-    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
-        match bytes.as_slice() {
-            [byte] => Ok(Self(*byte != 0)),
-            _ => bail!("invalid limit_animated_images_loops bytes"),
         }
     }
 }

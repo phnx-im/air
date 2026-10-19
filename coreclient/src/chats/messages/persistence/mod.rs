@@ -838,6 +838,24 @@ impl ChatMessage {
         Ok(())
     }
 
+    pub(super) async fn update_edited_at(
+        mut connection: impl WriteConnection,
+        message_id: MessageId,
+        edited_at: TimeStamp,
+    ) -> sqlx::Result<()> {
+        let res = query!(
+            "UPDATE message SET edited_at = ? WHERE message_id = ?",
+            edited_at,
+            message_id,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        if res.rows_affected() == 1 {
+            connection.notifier().update(message_id);
+        }
+        Ok(())
+    }
+
     /// Get the last message in the chat.
     pub(crate) async fn last_message(
         mut connection: impl ReadConnection,
@@ -869,6 +887,19 @@ impl ChatMessage {
         .await?
         .map(ChatMessage::from)
         .with_loaded_in_reply_to(&mut connection)
+        .await
+    }
+
+    /// The time of the oldest message in the chat.
+    pub(crate) async fn first_timestamp(
+        mut connection: impl ReadConnection,
+        chat_id: ChatId,
+    ) -> sqlx::Result<Option<DateTime<Utc>>> {
+        query_scalar!(
+            r#"SELECT MIN(timestamp) AS "timestamp: DateTime<Utc>" FROM message WHERE chat_id = ?"#,
+            chat_id
+        )
+        .fetch_one(connection.as_mut())
         .await
     }
 
@@ -1399,6 +1430,36 @@ pub(crate) mod tests {
             versioned.to_event_message().unwrap(),
             EventMessage::System(SystemMessage::Remove(Some(actor), subject))
         );
+    }
+
+    #[test]
+    fn delete_group_message_serde_codec() {
+        let deleter = UserId::new(Uuid::from_u128(1), "localhost".parse().unwrap());
+        let event = EventMessage::System(SystemMessage::DeleteGroup(deleter));
+        let bytes = PersistenceCodec::to_vec(&event).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[sqlx::test]
+    async fn store_load_delete_group_message(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+
+        let deleter = UserId::random("localhost".parse()?);
+        let message = ChatMessage::new_system_message(
+            chat.id(),
+            TimeStamp::now(),
+            SystemMessage::DeleteGroup(deleter),
+        );
+        message.store(pool.write().await?).await?;
+
+        let loaded = ChatMessage::load(pool.read().await?, message.id()).await?;
+        assert_eq!(loaded, Some(message));
+
+        Ok(())
     }
 
     #[test]

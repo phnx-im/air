@@ -77,6 +77,7 @@ use crate::{
     air_service::{BackendService, MaxDevices, ServiceCreationError},
     errors::StorageError,
     messages::intra_backend::DsFanOutMessage,
+    pseudonym::Pseudonymizer,
     qs::{queue::Queues, user_record::UserRecord},
     version::VersionPolicy,
 };
@@ -102,6 +103,7 @@ pub struct Qs {
     queues: Queues,
     version_policy: VersionPolicy,
     max_devices: MaxDevices,
+    pseudonymizer: Pseudonymizer,
     stop: CancellationToken,
 }
 
@@ -138,6 +140,7 @@ impl BackendService for Qs {
             queues,
             version_policy,
             max_devices: MaxDevices::new(max_devices),
+            pseudonymizer: Pseudonymizer::random(),
             stop,
         })
     }

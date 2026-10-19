@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                chat_id AS \"chat_id: _\"\n            FROM chat\n            WHERE (connection_user_handle IS NOT NULL\n                    OR (connection_user_uuid IS NOT NULL AND is_confirmed_connection = 0))\n                AND status = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "chat_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "chat_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e15154d19422e1d34f7de35b30a2a8dfcc15ae7b1f98940b7dafd235cd0d13bf"
+}

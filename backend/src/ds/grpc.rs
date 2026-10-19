@@ -20,7 +20,9 @@ use aircommon::{
     time::TimeStamp,
 };
 use airprotos::{
-    common::v1::ClientMetadata,
+    common::v1::{
+        ClientMetadata, GroupClosedDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
+    },
     convert::{RefInto, TryFromRef as _, TryRefInto},
     delivery_service::v1::{
         self, delivery_service_server::DeliveryService,
@@ -45,7 +47,7 @@ use sqlx::{PgConnection, PgTransaction};
 use thiserror::Error;
 use tokio::task::{JoinError, JoinSet};
 use tonic::{Request, Response, Status, async_trait};
-use tracing::{error, warn};
+use tracing::{Span, error, field::Empty, warn};
 
 use crate::{
     auth_service::AsConnector,
@@ -55,7 +57,7 @@ use crate::{
     },
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
     qs::QsConnector,
-    rate_limiter::{RateLimiter, RlConfig, RlKey, provider::RlPostgresStorage},
+    rate_limiter::{RateLimiter, RlConfig, RlKey, RlOperation, provider::RlPostgresStorage},
 };
 
 use super::{
@@ -97,6 +99,12 @@ fn to_status(e: LoadGroupStateError) -> Status {
 const MAX_CONCURRENT_FANOUTS: usize = 128;
 
 impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
+    /// Records the pseudonym of the group on the current span.
+    fn record_group(&self, qgid: &QualifiedGroupId) {
+        let group = self.ds.pseudonymizer.group(&qgid.group_uuid());
+        Span::current().record("group", tracing::field::display(group));
+    }
+
     pub fn new(ds: Ds, qs_connector: Qep, as_connector: As) -> Self {
         Self {
             ds,
@@ -147,7 +155,8 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     /// the state on success.
     ///
     /// If the group state has expired, it has already been deleted; the transaction is committed to
-    /// persist the deletion and [`Status::not_found()`] is returned.
+    /// persist the deletion and [`Status::not_found()`] is returned. A group with a tombstone
+    /// takes no further updates and returns [`Status::not_found()`] as well.
     async fn load_for_update_or_not_found<'a>(
         &self,
         mut txn: PgTransaction<'a>,
@@ -158,7 +167,10 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .load_group_state_for_update(&mut txn, qgid, ear_key)
             .await
         {
-            Ok((group_data, group_state)) => Ok((txn, group_state, group_data)),
+            Ok((group_data, group_state)) => {
+                ensure_no_tombstone(&group_state)?;
+                Ok((txn, group_state, group_data))
+            }
             Err(LoadGroupStateError::Expired) => {
                 // The group state has expired and has already been deleted.
                 // Commit the transaction and return not found.
@@ -325,12 +337,15 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 
     /// The same as `update_group_state`, but does not perform any verification
     /// of the request.
+    #[tracing::instrument(level = "info", skip_all, fields(group = Empty))]
     async fn update_group_state_without_verification<T: Send>(
         &self,
         qgid: &QualifiedGroupId,
         ear_key: &GroupStateEarKey,
         f: impl AsyncFnOnce(&mut DsGroupState, &mut StorableDsGroupData<true>) -> Result<T, Status>,
     ) -> Result<T, Status> {
+        self.record_group(qgid);
+
         let txn = self.ds.db_pool.begin().await.map_err(|error| {
             error!(%error, "Failed to start transaction");
             Status::internal("Failed to start transaction")
@@ -422,6 +437,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     /// `Err`.
     ///
     /// If the group state has expired, it is deleted and not found is returned.
+    #[tracing::instrument(level = "info", skip_all, fields(group = Empty, sender = Empty))]
     async fn update_group_state<R, P, T: Send, const TAG: u32>(
         &self,
         request: SignedRequest<R, TAG>,
@@ -435,6 +451,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         let ear_key = request.inner().ear_key()?;
         let message = request.inner().message()?;
         let qgid = message.validated_qgid(self.ds.own_domain())?;
+        self.record_group(&qgid);
 
         let txn = self.ds.db_pool.begin().await.map_err(|error| {
             error!(%error, "Failed to start transaction");
@@ -445,6 +462,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .await?;
 
         let (payload, sender_index, message) = verify_message(request, &group_state, sender_index)?;
+        Span::current().record("sender", sender_index.u32());
 
         let verification_data = LeafVerificationData {
             ear_key: &ear_key,
@@ -479,6 +497,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     /// rolled back if the function returns `Err`.
     ///
     /// If the group state has expired, it is deleted and [`Status::not_found()`] is returned.
+    #[tracing::instrument(level = "info", skip_all, fields(group = Empty, sender = Empty))]
     async fn update_apq_group_state<R, P, T: Send, const TAG: u32>(
         &self,
         request: SignedRequest<R, TAG>,
@@ -494,6 +513,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 
         let t_qgid = t_message.validated_qgid(self.ds.own_domain())?;
         let pq_qgid = pq_message.validated_qgid(self.ds.own_domain())?;
+        self.record_group(&t_qgid);
 
         let txn = self.ds.db_pool.begin().await.map_err(|error| {
             error!(%error, "Failed to start transaction");
@@ -510,6 +530,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 
         let (payload, t_sender_index) =
             resolve_and_verify(request, &t_message, &t_group_state, sender_index)?;
+        Span::current().record("sender", t_sender_index.u32());
 
         // Check that the T/PQ indices and signature keys match
         let pq_sender_index = match sender_index {
@@ -600,6 +621,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     ///
     /// Both qualified group ids are taken from the messages, which are then handed to `f` together
     /// with the loaded group states.
+    #[tracing::instrument(level = "info", skip_all, fields(group = Empty))]
     async fn update_apq_group_state_without_verification<T: Send>(
         &self,
         ear_key: &GroupStateEarKey,
@@ -614,6 +636,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     ) -> Result<T, Status> {
         let t_qgid = t_message.validated_qgid(self.ds.own_domain())?;
         let pq_qgid = pq_message.validated_qgid(self.ds.own_domain())?;
+        self.record_group(&t_qgid);
 
         let txn = self.ds.db_pool.begin().await.map_err(|error| {
             error!(%error, "Failed to start transaction");
@@ -662,6 +685,24 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .verify_client_version(client_metadata, Utc::now())?;
         Ok(verified.version)
     }
+}
+
+/// Rejects an operation on a group whose context carries a tombstone. Reads
+/// stay possible, so that members that missed the tombstone still learn about
+/// it when they resync.
+///
+/// The status is `NotFound`, which clients without the group closed detail
+/// treat as a gone group.
+fn ensure_no_tombstone(group_state: &DsGroupState) -> Result<(), Status> {
+    if group_state.has_tombstone() {
+        let status = StatusDetails {
+            code: StatusDetailsCode::GroupClosed.into(),
+            detail: Some(Detail::GroupClosed(GroupClosedDetail {})),
+        }
+        .to_status(tonic::Code::NotFound, "Group is closed");
+        return Err(status);
+    }
+    Ok(())
 }
 
 /// Resolves the PQ leg's group id from the T group's `ApqInfo`, `None` for a T group.
@@ -945,14 +986,20 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             error!(%error, "failed to create group");
             Status::internal("failed to create group")
         })?;
+        super::create_group::ensure_created_without_tombstone(&group)?;
 
         let credential =
             Self::creator_credential(&group, payload.creator_user_credential.as_ref())?;
 
-        // Configure the rate-limiting
+        // Now we can verify the payload
+        let payload: CreateGroupPayload = request
+            .verify(credential.verifying_key())
+            .map_err(InvalidSignature)?;
+
+        // Configure the rate-limiting. Only after verification, so a forged
+        // request cannot spend another user's allowance.
         let rl_key = RlKey::new(
-            b"ds",
-            b"reserve_group_id",
+            RlOperation::ReserveGroupId,
             &[b"user_uuid", credential.user_id().uuid().as_bytes()],
         );
         let config = RlConfig {
@@ -963,16 +1010,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let rl = RateLimiter::new(config, rl_storage);
 
         // Apply the rate-limiting
-        if !rl.allowed(rl_key).await {
+        if !rl.allowed(rl_key, Utc::now()).await {
             return Err(Status::resource_exhausted(
                 "Too many requests, please try again later",
             ));
         }
-
-        // Now we can verify the payload
-        let payload: CreateGroupPayload = request
-            .verify(credential.verifying_key())
-            .map_err(InvalidSignature)?;
 
         let reserved_group_id = self
             .ds
@@ -1101,10 +1143,15 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             payload.creator_user_credential.as_ref(),
         )?;
 
-        // Configure and apply rate-limiting
+        // Now we can verify the payload
+        let payload: CreateApqGroupPayload = request
+            .verify(t_user_credential.verifying_key())
+            .map_err(InvalidSignature)?;
+
+        // Configure and apply rate-limiting. Only after verification, so a
+        // forged request cannot spend another user's allowance.
         let rl_key = RlKey::new(
-            b"ds",
-            b"reserve_group_id",
+            RlOperation::ReserveGroupId,
             &[b"user_uuid", t_user_credential.user_id().uuid().as_bytes()],
         );
         let config = RlConfig {
@@ -1113,16 +1160,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         };
         let rl_storage = RlPostgresStorage::new(self.ds.db_pool.clone());
         let rl = RateLimiter::new(config, rl_storage);
-        if !rl.allowed(rl_key).await {
+        if !rl.allowed(rl_key, Utc::now()).await {
             return Err(Status::resource_exhausted(
                 "Too many requests, please try again later",
             ));
         }
-
-        // Now we can verify the payload
-        let payload: CreateApqGroupPayload = request
-            .verify(t_user_credential.verifying_key())
-            .map_err(InvalidSignature)?;
 
         // Extract pq group state (PQ group uses the same ear_key as the T group)
         let (pq_qgid, pq_group_state, _) = Self::extract_group_state(
@@ -1958,6 +2000,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .load_group_state_immutable(&qgid, &ear_key)
             .await
             .map_err(to_status)?;
+        ensure_no_tombstone(&group_state)?;
 
         // verify signature
         let sender_key = sender_verifying_key(&group_state, sender_index)?;
@@ -2035,8 +2078,6 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
                 let group_message = group_state.delete_group(commit)?;
 
-                group_state.proposals.clear();
-
                 let timestamp = self
                     .fan_out_message_without_notifications(
                         group_message,
@@ -2093,9 +2134,6 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     t_message,
                     pq_message,
                 )?;
-
-                t_group_state.proposals.clear();
-                pq_group_state.proposals.clear();
 
                 let timestamp = TimeStamp::now();
                 let apq_payload =
@@ -2466,6 +2504,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .load_group_state_immutable(&qgid, &ear_key)
                     .await
                     .map_err(to_status)?;
+                ensure_no_tombstone(&group_state)?;
 
                 let sender_key = sender_verifying_key(&group_state, sender_index)?;
 
@@ -2613,6 +2652,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .load_group_state_immutable(&qgid, &ear_key)
             .await
             .map_err(to_status)?;
+        ensure_no_tombstone(&group_state)?;
 
         // verify signature
         let sender_key = sender_verifying_key(&group_state, sender_index)?;

@@ -73,16 +73,17 @@ use aircommon::{
         },
     },
     mls_group_config::{
-        GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, default_group_required_extensions,
-        default_leaf_node_capabilities, default_mls_group_join_config,
-        default_sender_ratchet_configuration, self_group_leaf_node_capabilities,
+        GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, QS_CLIENT_REFERENCE_EXTENSION_TYPE,
+        default_group_required_extensions, default_leaf_node_capabilities,
+        default_mls_group_join_config, default_sender_ratchet_configuration,
+        self_group_leaf_node_capabilities,
     },
     time::TimeStamp,
     utils::removed_client,
 };
 use airprotos::client::{
     app_data::{ClientAppData, GroupAppData, GroupAppDataExt},
-    component::AIR_GROUP_PROFILE_COMPONENT_ID,
+    component::{AIR_COMPONENT_ID, AIR_GROUP_PROFILE_COMPONENT_ID, GroupTombstone},
     group::GroupData,
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
@@ -114,10 +115,11 @@ use crate::{
     groups::{apq_group::PqGroup, client_auth_info::VerifiableUserCredentialExt},
     job::chat_operation::DerivationEpoch,
     key_stores::as_credentials::AsCredentials,
-    outbound_service::resync::Resync,
+    outbound_service::resync::{Resync, ResyncReason},
 };
 
 use openmls::{
+    component::ComponentData,
     components::vc_derivation_info::{GenerationId, VC_COMPONENT_ID},
     group::{
         CreateCommitError, ExportSecretError, ExternalCommitBuilder, GroupContext, GroupEpoch,
@@ -130,7 +132,8 @@ use openmls::{
         LeafNodeParameters, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
         OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal,
         ProposalType, ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
-        UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
+        UnknownExtension, group_info::VerifiableGroupInfo,
+        tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
     treesync::{RatchetTree, RatchetTreeIn, errors::LeafNodeValidationError},
@@ -412,10 +415,17 @@ impl Group {
         Ok((mls_group, &mut pq.mls_group))
     }
 
+    /// Whether either leg holds a proposal that has not been committed yet.
+    pub(crate) fn has_pending_proposals(&self) -> bool {
+        self.mls_group.pending_proposals().next().is_some()
+            || self
+                .pq
+                .as_ref()
+                .is_some_and(|pq| pq.mls_group.pending_proposals().next().is_some())
+    }
+
     /// Errors if this group (or its PQ counterpart, for APQ groups) has a
-    /// pending commit. Used by clean loaders to refuse to hand out a
-    /// `Group` whose MLS state has an in-flight commit, since further
-    /// staging on top of one is a logic error.
+    /// pending commit.
     pub(crate) fn ensure_clean(&self) -> Result<()> {
         ensure!(
             self.mls_group.pending_commit().is_none(),
@@ -1074,6 +1084,8 @@ impl Group {
         } = external_commit_info;
 
         ensure!(pq.is_none(), "APQ group in non-APQ stage_invite");
+        let group_info_signer =
+            group_info_signer_credential(&verifiable_group_info, &ratchet_tree_in);
 
         let proposals: Vec<_> = proposals
             .iter()
@@ -1172,6 +1184,10 @@ impl Group {
         // which is only accepted inside our own self group.
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &mls_group, is_self_group).await?;
+        if let Some(tombstone) = GroupAppData::tombstone(mls_group.extensions()) {
+            let closer = closer(group_info_signer.as_ref(), signer.credential().user_id())?;
+            bail!(GroupClosed { closer, tombstone });
+        }
         if let Some(join) = connection_group {
             add_joiner_to_room_state(&mut room_state, join.inviter, signer.credential().user_id())?;
         }
@@ -1274,6 +1290,7 @@ impl Group {
             .collect();
 
         let t_ciphersuite = t_group_info.ciphersuite();
+        let group_info_signer = group_info_signer_credential(&t_group_info, &t_ratchet_tree);
         let group_info = VerifiableApqGroupInfo::new(t_group_info, pq_group_info);
 
         let encrypted_profile_keys_fallback = Self::encrypted_profile_keys_fallback(
@@ -1283,15 +1300,26 @@ impl Group {
             own_user_id,
         );
 
+        // Every leaf of the self group contains the QS client reference of its
+        // device. We need to make sure the reference is preserved during a
+        // resync.
+        let replaced_client_reference = match signer {
+            LeafSigningKey::User(_) => None,
+            LeafSigningKey::SelfGroup(_) => own_client_reference_extension(&t_ratchet_tree, signer),
+        };
+
         let ratchet_tree = ApqRatchetTreeIn::new(t_ratchet_tree, pq_ratchet_tree);
 
         // Build the group
         let mls_group_config = default_mls_group_join_config();
-        let leaf_node_extensions = if vc_group_id.is_some() {
+        let mut leaf_node_extensions = if vc_group_id.is_some() {
             ClientAppData::current_virtual_client().leaf_node_extensions()
         } else {
             ClientAppData::current().leaf_node_extensions()
         };
+        if let Some(extension) = replaced_client_reference {
+            leaf_node_extensions.add(extension)?;
+        }
         let capabilities = match signer {
             LeafSigningKey::User(_) => default_leaf_node_capabilities(),
             LeafSigningKey::SelfGroup(_) => self_group_leaf_node_capabilities(),
@@ -1363,6 +1391,10 @@ impl Group {
         // only accepted inside our own self group.
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &t_group, is_self_group).await?;
+        if let Some(tombstone) = GroupAppData::tombstone(t_group.extensions()) {
+            let closer = closer(group_info_signer.as_ref(), own_user_id)?;
+            bail!(GroupClosed { closer, tombstone });
+        }
         if let Some(join) = connection_group {
             add_joiner_to_room_state(&mut room_state, join.inviter, own_user_id)?;
         }
@@ -1759,10 +1791,14 @@ impl Group {
         })
     }
 
+    /// Stages the commit that deletes the group. The commit removes every other
+    /// member. If `deleted` is Some, the commit also sets a tombstone recording
+    /// the deletion in the Air component of the group's context.
     pub(super) async fn stage_delete(
         &mut self,
         mut connection: impl WriteConnection,
         signer: &UserSigningKey,
+        deleted: Option<TimeStamp>,
     ) -> anyhow::Result<DeleteGroupParamsOut> {
         let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
@@ -1777,6 +1813,7 @@ impl Group {
                 }
             })
             .collect::<Vec<_>>();
+        let component_data = self.deleted_air_component(deleted)?;
 
         // There shouldn't be a welcome
         let aad_payload = AadPayload::DeleteGroup;
@@ -1787,9 +1824,19 @@ impl Group {
         if let Some(group_id) = &vc_group_id {
             builder = builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?;
         }
+        let mut builder = builder.propose_removals(remove_indices);
+        if let Some(component_data) = &component_data {
+            builder = builder.add_proposal(Proposal::AppDataUpdate(Box::new(
+                AppDataUpdateProposal::update(AIR_COMPONENT_ID, component_data.data().to_vec()),
+            )));
+        }
+        let mut builder = builder.load_psks(provider.storage())?;
+        if let Some(component_data) = component_data {
+            let mut updater = builder.app_data_dictionary_updater();
+            updater.set(component_data);
+            builder.with_app_data_dictionary_updates(updater.changes());
+        }
         let (mls_message, _welcome_option, group_info_option) = builder
-            .propose_removals(remove_indices)
-            .load_psks(provider.storage())?
             .create_group_info(true)
             .build(provider.rand(), provider.crypto(), signer, |_| true)?
             .stage_commit(&provider)?
@@ -1804,10 +1851,13 @@ impl Group {
         Ok(params)
     }
 
+    /// The APQ counterpart of [`Self::stage_delete`]. The flag goes into the
+    /// T group context only.
     pub(super) async fn stage_apq_delete(
         &mut self,
         mut connection: impl WriteConnection,
         signer: &UserSigningKey,
+        deleted: Option<TimeStamp>,
     ) -> anyhow::Result<ApqCommitMessageBundle> {
         let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
@@ -1823,6 +1873,7 @@ impl Group {
                 }
             })
             .collect::<Vec<_>>();
+        let component_data = self.deleted_air_component(deleted)?;
 
         let (t_group, pq_group) = self.apq_mls_groups_mut()?;
 
@@ -1834,6 +1885,9 @@ impl Group {
             .force_self_update(true)
             .propose_removals(removed_indices)
             .create_group_info(true);
+        if let Some(component_data) = component_data {
+            builder = builder.update_t_app_data(component_data);
+        }
         if let Some(group_id) = vc_group_id {
             builder = builder.vc_emulation(group_id);
         }
@@ -1845,6 +1899,27 @@ impl Group {
         );
 
         Ok(bundle)
+    }
+
+    /// The Air component of the T group context with a tombstone marking the
+    /// group as deleted at `deleted`, ready for an app data update. `None` if
+    /// no tombstone is to be set.
+    fn deleted_air_component(
+        &self,
+        deleted: Option<TimeStamp>,
+    ) -> anyhow::Result<Option<ComponentData>> {
+        let Some(deleted) = deleted else {
+            return Ok(None);
+        };
+        let Some(mut component) = GroupAppData::air_component(self.mls_group.extensions()) else {
+            warn!(
+                group_id = ?self.group_id(),
+                "Group context has no Air component, deleting without a tombstone"
+            );
+            return Ok(None);
+        };
+        component.tombstone = Some(GroupTombstone::deleted(deleted));
+        Ok(Some(component.to_component_data()?))
     }
 
     pub(super) async fn discard_pending_commit(
@@ -2138,6 +2213,7 @@ impl Group {
         signer: &LeafSigningKey,
         new_group_data: Option<GroupData>,
         derivation_epoch: DerivationEpoch,
+        own_client_reference: &QsReference,
     ) -> Result<GroupOperationParamsOut> {
         // We don't expect there to be a welcome.
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
@@ -2145,28 +2221,13 @@ impl Group {
         }))
         .tls_serialize_detached()?;
 
-        // Update group profile if needed.
-        let (component, extensions) = if let Some(group_data) = new_group_data {
-            if self.mls_group.extensions().has_group_profile_component() {
-                // If the group profile component exists, then update it.
-                (Some(group_data.into_component()), None)
-            } else {
-                // Otherwise, update the group context extension.
-                let bytes = group_data.encode()?;
-                let group_data_extension =
-                    Extension::Unknown(GROUP_DATA_EXTENSION_TYPE, UnknownExtension(bytes));
-                let mut extensions = self.mls_group().extensions().clone();
-                extensions.add_or_replace(group_data_extension)?;
-                (None, Some(extensions))
-            }
-        } else {
-            (None, None)
-        };
+        let (component_data, extensions) = self.group_data_update(new_group_data)?;
 
         let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
         let leaf_node_parameters = Self::update_leaf_node_extensions(
             own_leaf_node.extensions(),
             self.own_leaf_capabilities(),
+            self.is_self_group().then_some(own_client_reference),
         )?;
 
         // A leaf shared with sibling emulator clients must be replaced with key
@@ -2191,9 +2252,6 @@ impl Group {
                 builder = builder.vc_emulation(provider.crypto(), provider.storage(), group_id)?;
             }
 
-            let component_data = component
-                .map(|component| component.to_component_data())
-                .transpose()?;
             if let Some(component_data) = &component_data {
                 builder = builder.add_proposal(Proposal::AppDataUpdate(Box::new(
                     AppDataUpdateProposal::update(
@@ -2230,6 +2288,29 @@ impl Group {
         })
     }
 
+    /// If the group has a group profile component, `new_group_data` goes there.
+    /// Otherwise it goes into the group context extension.
+    fn group_data_update(
+        &self,
+        new_group_data: Option<GroupData>,
+    ) -> Result<(Option<ComponentData>, Option<Extensions<GroupContext>>)> {
+        let Some(group_data) = new_group_data else {
+            return Ok((None, None));
+        };
+        if self.mls_group.extensions().has_group_profile_component() {
+            let component_data = group_data.into_component().to_component_data()?;
+            Ok((Some(component_data), None))
+        } else {
+            let bytes = group_data.encode()?;
+            let mut extensions = self.mls_group().extensions().clone();
+            extensions.add_or_replace(Extension::Unknown(
+                GROUP_DATA_EXTENSION_TYPE,
+                UnknownExtension(bytes),
+            ))?;
+            Ok((None, Some(extensions)))
+        }
+    }
+
     /// APQ self-update on both the T and PQ groups.
     ///
     /// Produces a single combined commit via apqmls that forces a self-update of the key material
@@ -2239,7 +2320,9 @@ impl Group {
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         signer: &LeafSigningKey,
+        new_group_data: Option<GroupData>,
         derivation_epoch: DerivationEpoch,
+        own_client_reference: &QsReference,
     ) -> anyhow::Result<ApqGroupOperationParamsOut> {
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
             new_encrypted_user_profile_keys: Vec::new(),
@@ -2247,10 +2330,14 @@ impl Group {
         .tls_serialize_detached()?;
         self.mls_group.set_aad(aad);
 
+        let (component_data, group_context_extensions) = self.group_data_update(new_group_data)?;
+
+        let own_client_reference = self.is_self_group().then_some(own_client_reference);
         let t_own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
         let t_leaf_node_parameters = Self::update_leaf_node_extensions(
             t_own_leaf_node.extensions(),
             self.own_leaf_capabilities(),
+            own_client_reference,
         )?;
         let pq_own_leaf_node = self
             .pq()
@@ -2261,6 +2348,7 @@ impl Group {
         let pq_leaf_node_parameters = Self::update_leaf_node_extensions(
             pq_own_leaf_node.extensions(),
             self.own_leaf_capabilities(),
+            own_client_reference,
         )?;
 
         let vc_group_id = self.resolve_vc_emulation_group(&mut *txn).await?;
@@ -2275,6 +2363,12 @@ impl Group {
                 .create_group_info(true);
         if let Some(group_id) = vc_group_id {
             builder = builder.vc_emulation(group_id);
+        }
+        if let Some(extensions) = group_context_extensions {
+            builder = builder.propose_t_group_context_extensions(extensions);
+        }
+        if let Some(component_data) = component_data {
+            builder = builder.update_t_app_data(component_data);
         }
         let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
 
@@ -2305,9 +2399,9 @@ impl Group {
     fn update_leaf_node_extensions(
         leaf_node_extensions: &Extensions<LeafNode>,
         capabilities: Capabilities,
+        client_reference: Option<&QsReference>,
     ) -> anyhow::Result<LeafNodeParameters> {
-        let mut leaf_node_parameters =
-            LeafNodeParameters::builder().with_capabilities(capabilities);
+        let mut extensions = leaf_node_extensions.clone();
 
         // Refresh the app data to what this version of the client advertises. Only touch the
         // leaf node extensions if something actually changed.
@@ -2320,20 +2414,33 @@ impl Group {
             // Up to date
             Some(None) => {}
             Some(Some(dict)) => {
-                let mut leaf_node_extensions = leaf_node_extensions.clone();
-                leaf_node_extensions.add_or_replace(Extension::AppDataDictionary(
+                extensions.add_or_replace(Extension::AppDataDictionary(
                     AppDataDictionaryExtension::new(dict),
                 ))?;
-                leaf_node_parameters = leaf_node_parameters.with_extensions(leaf_node_extensions);
             }
             None => {
                 // App data extension is not present, add it with default values
-                let mut leaf_node_extensions = leaf_node_extensions.clone();
-                leaf_node_extensions.add(ClientAppData::current().to_extension())?;
-                leaf_node_parameters = leaf_node_parameters.with_extensions(leaf_node_extensions);
+                extensions.add(ClientAppData::current().to_extension())?;
             }
         }
 
+        // Self groups created by older clients have no client reference on the
+        // creator leaf. Also, clients before 0.23 could drop it during an APQ
+        // self-update. We add it back so that every leaf of the self group
+        // contains one.
+        if let Some(client_reference) = client_reference
+            && extensions
+                .unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE)
+                .is_none()
+        {
+            extensions.add(client_reference_extension(client_reference)?)?;
+        }
+
+        let mut leaf_node_parameters =
+            LeafNodeParameters::builder().with_capabilities(capabilities);
+        if &extensions != leaf_node_extensions {
+            leaf_node_parameters = leaf_node_parameters.with_extensions(extensions);
+        }
         Ok(leaf_node_parameters.build())
     }
 
@@ -2739,6 +2846,36 @@ impl Group {
     }
 }
 
+fn own_client_reference_extension(
+    ratchet_tree: &RatchetTreeIn,
+    signer: &LeafSigningKey,
+) -> Option<Extension> {
+    let signature_key = SignaturePublicKey::from(signer.verifying_key().clone());
+    let leaf = ratchet_tree
+        .leaves()
+        .find(|leaf| leaf.signature_key() == &signature_key)?
+        .clone()
+        .into_unchecked();
+    let client_reference = leaf
+        .extensions()
+        .unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE)?
+        .clone();
+    Some(Extension::Unknown(
+        QS_CLIENT_REFERENCE_EXTENSION_TYPE,
+        client_reference,
+    ))
+}
+
+pub(crate) fn client_reference_extension(
+    client_reference: &QsReference,
+) -> Result<Extension, tls_codec::Error> {
+    // TODO: don't use Extension::Unknown
+    Ok(Extension::Unknown(
+        QS_CLIENT_REFERENCE_EXTENSION_TYPE,
+        UnknownExtension(client_reference.tls_serialize_detached()?),
+    ))
+}
+
 /// Group context contents of a new group
 pub(crate) enum NewGroupContext {
     /// Profile in the legacy group data extension
@@ -2756,6 +2893,7 @@ impl NewGroupContext {
             is_self_group,
             safe_aad_components: is_self_group.then(|| vec![VC_COMPONENT_ID]),
             profile: None,
+            tombstone: None,
         }
     }
 
@@ -2981,6 +3119,31 @@ fn validate_self_group_add_credential(
     Ok(())
 }
 
+/// Returns the leaf credential of the member that signed the group info. The
+/// credential is taken from the ratchet tree that came with the group info.
+///
+/// Only trustworthy once the join has verified the group info and the tree.
+fn group_info_signer_credential(
+    group_info: &VerifiableGroupInfo,
+    ratchet_tree: &RatchetTreeIn,
+) -> Option<Credential> {
+    let signer = group_info.signer();
+    ratchet_tree
+        .full_leaves()
+        .find(|(index, _)| *index == signer)
+        .map(|(_, leaf)| leaf.credential().clone())
+}
+
+/// The user that set a group's tombstone. Since the DS doesn't allow any group
+/// operations on a group with a tombstone, the creator of the group info must
+/// be the one that set it.
+fn closer(group_info_signer: Option<&Credential>, own_user_id: &UserId) -> Result<UserId> {
+    let credential = group_info_signer.context("group info signer has no leaf")?;
+    Ok(LeafCredential::from_credential(credential)?
+        .user_id(own_user_id)
+        .clone())
+}
+
 /// Cleans up local state when the DS reports that a group no longer exists.
 ///
 /// Mirrors what happens when we process a deletion commit from another member:
@@ -3034,6 +3197,32 @@ pub(crate) async fn delete_left_group(
         .await?;
     Resync::remove(&mut *txn, group.group_id()).await?;
     Group::delete_from_db(txn, group.group_id()).await?;
+    Ok(())
+}
+
+/// Handles the DS rejecting a request because the group is closed, i.e. its
+/// context carries a tombstone which we missed when it was added.
+///
+/// Schedules a resync of the group, which finds the tombstone and ends the chat
+/// with a message naming who closed the group. Without an active chat there is
+/// nothing to announce, and the group is cleaned up like one the DS doesn't
+/// know.
+pub(crate) async fn handle_group_closed_on_ds(
+    txn: &mut WriteDbTransaction<'_>,
+    group_id: &GroupId,
+) -> anyhow::Result<()> {
+    let Some(group) = Group::load(&mut *txn, group_id).await? else {
+        return handle_group_not_found_on_ds(txn, group_id).await;
+    };
+    let Some(chat) = crate::Chat::load_by_group_id(&mut *txn, group_id).await? else {
+        return handle_group_not_found_on_ds(txn, group_id).await;
+    };
+    if chat.status().is_inactive() {
+        return handle_group_not_found_on_ds(txn, group_id).await;
+    }
+    Resync::for_group(chat.id(), &group, ResyncReason::FutureEpoch)
+        .enqueue_or_reset(&mut *txn)
+        .await?;
     Ok(())
 }
 
@@ -3332,6 +3521,23 @@ impl TimestampedMessage {
         staged_commit: &StagedCommit,
         ds_timestamp: TimeStamp,
     ) -> Result<Vec<Self>> {
+        // A commit that sets the tombstone closes the group. Its removes are
+        // only there for legacy clients.
+        if GroupAppData::has_tombstone(staged_commit.group_context().extensions())
+            && !GroupAppData::has_tombstone(group.mls_group().extensions())
+        {
+            let leaf_node = staged_commit
+                .update_path_leaf_node()
+                .context("Delete commit without update path")?;
+            let deleter = LeafCredential::from_credential(leaf_node.credential())?
+                .user_id(group.own_user_id())
+                .clone();
+            return Ok(vec![TimestampedMessage::system_message(
+                SystemMessage::DeleteGroup(deleter),
+                ds_timestamp,
+            )]);
+        }
+
         // Collect the remover/removed pairs into a set to avoid duplicates.
         let mut removed_set = HashSet::new();
         let mut devices_unlinked_set = HashSet::new();
@@ -3539,13 +3745,32 @@ fn to_capabilities_mismatch(error: CreateCommitError) -> anyhow::Result<LeafNode
 
 #[cfg(test)]
 mod tests {
-    use aircommon::mls_group_config::default_leaf_node_capabilities;
-    use airprotos::client::{app_data::ClientAppData, component::AirFeatures};
-    use openmls::prelude::{
-        AppDataDictionary, AppDataDictionaryExtension, Extension, Extensions, LeafNode,
+    use aircommon::{
+        credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
+        crypto::aead::keys::IdentityLinkWrapperKey,
+        identifiers::{QsReference, QualifiedGroupId, UserId},
+        mls_group_config::{
+            QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_leaf_node_capabilities,
+            self_group_leaf_node_capabilities,
+        },
+    };
+    use airprotos::client::{app_data::ClientAppData, component::AirFeatures, group::GroupData};
+    use openmls::{
+        prelude::{
+            AppDataDictionary, AppDataDictionaryExtension, Extension, Extensions, GroupId, LeafNode,
+        },
+        treesync::RatchetTreeIn,
+    };
+    use uuid::Uuid;
+
+    use crate::{
+        db::access::{DbAccess, WriteConnection},
+        utils::{persistence::open_db_in_memory, random_client_reference},
     };
 
-    use super::Group;
+    use super::{
+        Group, NewGroupContext, client_reference_extension, own_client_reference_extension,
+    };
 
     fn extensions_with_dict(dict: AppDataDictionary) -> Extensions<LeafNode> {
         Extensions::from_vec(vec![Extension::AppDataDictionary(
@@ -3559,7 +3784,7 @@ mod tests {
     fn no_app_data_dictionary() {
         let extensions = Extensions::empty();
         let params =
-            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities())
+            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities(), None)
                 .unwrap();
         assert_eq!(
             params.extensions(),
@@ -3572,7 +3797,7 @@ mod tests {
     fn empty_app_data_dictionary() {
         let extensions = extensions_with_dict(AppDataDictionary::new());
         let params =
-            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities())
+            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities(), None)
                 .unwrap();
         assert_eq!(
             params.extensions(),
@@ -3588,7 +3813,7 @@ mod tests {
         };
         let extensions = stale.leaf_node_extensions();
         let params =
-            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities())
+            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities(), None)
                 .unwrap();
         assert_eq!(
             params.extensions(),
@@ -3601,8 +3826,131 @@ mod tests {
     fn up_to_date_app_data_is_left_alone() {
         let extensions = ClientAppData::current().leaf_node_extensions();
         let params =
-            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities())
+            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities(), None)
                 .unwrap();
         assert!(params.extensions().is_none());
+    }
+
+    #[test]
+    fn missing_client_reference_is_added() {
+        let extensions = ClientAppData::current().leaf_node_extensions();
+        let client_reference = random_client_reference();
+        let params = Group::update_leaf_node_extensions(
+            &extensions,
+            self_group_leaf_node_capabilities(),
+            Some(&client_reference),
+        )
+        .unwrap();
+
+        let mut expected = extensions.clone();
+        expected
+            .add(client_reference_extension(&client_reference).unwrap())
+            .unwrap();
+        assert_eq!(params.extensions(), Some(&expected));
+    }
+
+    #[test]
+    fn existing_client_reference_is_kept() {
+        let mut extensions = ClientAppData::current().leaf_node_extensions();
+        extensions
+            .add(client_reference_extension(&random_client_reference()).unwrap())
+            .unwrap();
+        let params = Group::update_leaf_node_extensions(
+            &extensions,
+            self_group_leaf_node_capabilities(),
+            Some(&random_client_reference()),
+        )
+        .unwrap();
+        assert!(params.extensions().is_none());
+    }
+
+    #[test]
+    fn client_reference_is_added_alongside_refreshed_app_data() {
+        let extensions = Extensions::empty();
+        let client_reference = random_client_reference();
+        let params = Group::update_leaf_node_extensions(
+            &extensions,
+            self_group_leaf_node_capabilities(),
+            Some(&client_reference),
+        )
+        .unwrap();
+
+        let extensions = params.extensions().expect("extensions changed");
+        assert!(extensions.app_data_dictionary().is_some());
+        assert!(
+            extensions
+                .unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE)
+                .is_some()
+        );
+    }
+
+    fn random_group_id() -> GroupId {
+        GroupId::from(QualifiedGroupId::new(
+            Uuid::new_v4(),
+            "example.com".parse().unwrap(),
+        ))
+    }
+
+    fn self_group_signer() -> anyhow::Result<LeafSigningKey> {
+        Ok(LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(
+            Uuid::new_v4(),
+        )?))
+    }
+
+    /// The T ratchet tree of a new self group created by `signer`.
+    async fn self_group_ratchet_tree(
+        signer: &LeafSigningKey,
+        creator_client_reference: Option<&QsReference>,
+    ) -> anyhow::Result<RatchetTreeIn> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
+        connection
+            .with_transaction(async |txn| -> anyhow::Result<_> {
+                let (group, _params) = Group::create_apq_group(
+                    &mut *txn,
+                    signer,
+                    UserId::random("example.com".parse()?),
+                    IdentityLinkWrapperKey::random()?,
+                    random_group_id(),
+                    random_group_id(),
+                    NewGroupContext::SelfGroup(GroupData::empty()),
+                    None,
+                    creator_client_reference,
+                )?;
+                Ok(group.mls_group().export_ratchet_tree().into())
+            })
+            .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn own_client_reference_is_read_from_own_leaf() -> anyhow::Result<()> {
+        let signer = self_group_signer()?;
+        let client_reference = random_client_reference();
+        let ratchet_tree = self_group_ratchet_tree(&signer, Some(&client_reference)).await?;
+        assert_eq!(
+            own_client_reference_extension(&ratchet_tree, &signer),
+            Some(client_reference_extension(&client_reference)?)
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn own_leaf_without_client_reference() -> anyhow::Result<()> {
+        let signer = self_group_signer()?;
+        let ratchet_tree = self_group_ratchet_tree(&signer, None).await?;
+        assert_eq!(own_client_reference_extension(&ratchet_tree, &signer), None);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn client_reference_of_another_leaf_is_ignored() -> anyhow::Result<()> {
+        let creator = self_group_signer()?;
+        let ratchet_tree =
+            self_group_ratchet_tree(&creator, Some(&random_client_reference())).await?;
+        assert_eq!(
+            own_client_reference_extension(&ratchet_tree, &self_group_signer()?),
+            None
+        );
+        Ok(())
     }
 }

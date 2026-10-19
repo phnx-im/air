@@ -8,7 +8,7 @@ use aircommon::{
         keys::{SelfGroupSigningKey, UserSigningKey},
     },
     crypto::{aead::keys::WelcomeAttributionInfoEarKey, indexed_aead::keys::UserProfileKey},
-    identifiers::{QualifiedGroupId, UserId},
+    identifiers::{QsReference, QualifiedGroupId, UserId},
     messages::client_ds_out::{
         ApqGroupOperationParamsOut, DeleteGroupParamsOut, GroupOperationParamsOut,
         SelfRemoveParamsOut,
@@ -46,7 +46,8 @@ use crate::{
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
         Group, PreparedInvitee, VerifiedGroup, client_auth_info::StorableUserCredential,
-        delete_left_group, handle_group_not_found_on_ds, self_group::SelfGroup,
+        delete_left_group, handle_group_closed_on_ds, handle_group_not_found_on_ds,
+        self_group::SelfGroup,
     },
     job::{
         Job, JobContext, JobContextReadConnection, JobError,
@@ -57,6 +58,7 @@ use crate::{
         indexed_keys::StorableIndexedKey,
         key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
     },
+    outbound_service::timed_tasks::{TimedTask, TimedTaskKind},
     privacy_pass,
 };
 
@@ -288,9 +290,13 @@ impl Job for PendingChatOperation {
             .execute_internal(context)
             .await
             .map_err(|error| match error {
-                // A recoverable error spends an attempt, unless the database was busy
+                // A recoverable error spends an attempt, unless the database was
+                // busy or the commit was stale and the job is dropped anyway
                 JobError::Recoverable(recoverable)
-                    if recoverable.cause != RecoverableCause::Busy =>
+                    if !matches!(
+                        recoverable.cause,
+                        RecoverableCause::Busy | RecoverableCause::Stale
+                    ) =>
                 {
                     self.number_of_attempts += 1;
                     if self.number_of_attempts >= MAX_RETRIES {
@@ -304,6 +310,25 @@ impl Job for PendingChatOperation {
                 e => e,
             });
         match result {
+            // Clean up after an error which is not recoverable
+            error @ Err(
+                JobError::Fatal(_)
+                | JobError::Domain(ChatOperationError::DeviceLimitReached { .. }),
+            ) => {
+                self.clean_up(context, true).await;
+                error
+            }
+            // The staged commit is stale, so only a new commit can carry its
+            // operation. A self-group intent stays parked and goes out with the
+            // next commit. Any other operation is dropped, as after a lost
+            // epoch race.
+            error @ Err(JobError::Recoverable(Recoverable {
+                cause: RecoverableCause::Stale,
+                ..
+            })) => {
+                self.clean_up(context, false).await;
+                error
+            }
             // Update retry_due at on errors a later attempt may get past
             Err(
                 error @ (JobError::NetworkError
@@ -336,26 +361,19 @@ impl Job for PendingChatOperation {
                     .await?;
                 Err(JobError::NotFound)
             }
-            error @ (Err(JobError::Fatal(_))
-            | Err(JobError::Domain(ChatOperationError::DeviceLimitReached { .. }))) => {
-                // Clean up job after an error which is not recoverable
+            Err(JobError::GroupClosed) => {
+                let group_id = self.group.group_id().clone();
+                info!(?group_id, "Group closed on DS; scheduling a resync");
                 context
                     .db
                     .write()
                     .await?
-                    .with_transaction(async |txn| -> anyhow::Result<()> {
-                        self.roll_back_self_group_intent(txn).await?;
-                        let group = self.group.group_mut();
-                        group.discard_pending_commit(&mut *txn).await?;
-                        Self::delete(txn, self.group.group_id()).await?;
-                        Ok(())
+                    .with_transaction(async |txn| {
+                        self.clean_up_in_transaction(txn, true).await?;
+                        handle_group_closed_on_ds(txn, &group_id).await
                     })
-                    .await
-                    .inspect_err(|error| {
-                        error!(%error, "Failed to delete pending chat operation");
-                    })
-                    .ok();
-                error
+                    .await?;
+                Err(JobError::GroupClosed)
             }
             res => res,
         }
@@ -363,6 +381,40 @@ impl Job for PendingChatOperation {
 }
 
 impl PendingChatOperation {
+    /// Drops the operation and its staged commit. With `roll_back_intent`, the
+    /// parked self-group changes it carried are given up as well, otherwise
+    /// they stay parked for the next commit.
+    async fn clean_up(&mut self, context: &mut JobContext<'_, '_>, roll_back_intent: bool) {
+        let Ok(mut connection) = context.db.write().await.inspect_err(|error| {
+            error!(%error, "Failed to delete pending chat operation");
+        }) else {
+            return;
+        };
+        connection
+            .with_transaction(async |txn| self.clean_up_in_transaction(txn, roll_back_intent).await)
+            .await
+            .inspect_err(|error| {
+                error!(%error, "Failed to delete pending chat operation");
+            })
+            .ok();
+    }
+
+    async fn clean_up_in_transaction(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        roll_back_intent: bool,
+    ) -> anyhow::Result<()> {
+        if roll_back_intent {
+            self.roll_back_self_group_intent(txn).await?;
+        }
+        self.group
+            .group_mut()
+            .discard_pending_commit(&mut *txn)
+            .await?;
+        Self::delete(txn, self.group.group_id()).await?;
+        Ok(())
+    }
+
     pub(super) fn new(group: VerifiedGroup, operation: OperationType) -> Self {
         Self {
             group,
@@ -393,6 +445,10 @@ impl PendingChatOperation {
             }
             OperationType::TokenSeeds { seeds, .. } => {
                 privacy_pass::complete_sent_seeds(txn, seeds).await
+            }
+            OperationType::SelfGroupAdd { .. } => {
+                TimedTask::schedule_now(txn, TimedTaskKind::KeyPackageUpload).await?;
+                Ok(())
             }
             _ => Ok(()),
         }
@@ -609,6 +665,7 @@ impl PendingChatOperation {
                     JobError::NetworkError | JobError::RateLimited { .. } => true,
                     // Retrying cannot succeed
                     JobError::NotFound
+                    | JobError::GroupClosed
                     | JobError::Fatal(_)
                     | JobError::Domain(_)
                     | JobError::Blocked => false,
@@ -708,6 +765,13 @@ impl PendingChatOperation {
                     // post-processing has already happened and there is nothing
                     // more to do.
                     vec![]
+                };
+                // We drop the group messages if this is a delete operation for
+                // an unconfirmed connection group.
+                let group_messages = if is_delete && chat.is_unconfirmed() {
+                    Vec::new()
+                } else {
+                    group_messages
                 };
 
                 // If the chat isn't already inactive (which can be the case for
@@ -825,6 +889,7 @@ impl PendingChatOperation {
         new_group_data: Option<GroupData>,
         new_chat_picture: Option<Vec<u8>>,
         derivation_epoch: DerivationEpoch,
+        own_client_reference: &QsReference,
     ) -> anyhow::Result<Self> {
         Self::create_update_with_group_data(
             txn,
@@ -833,6 +898,7 @@ impl PendingChatOperation {
             new_group_data,
             new_chat_picture,
             derivation_epoch,
+            own_client_reference,
         )
         .await
     }
@@ -842,6 +908,7 @@ impl PendingChatOperation {
         signer: &UserSigningKey,
         chat_id: ChatId,
         derivation_epoch: DerivationEpoch,
+        own_client_reference: &QsReference,
     ) -> anyhow::Result<Self> {
         let mut group = Group::load_with_chat_id_clean_verified(&mut *txn, chat_id)
             .await?
@@ -849,7 +916,7 @@ impl PendingChatOperation {
         let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
         let params = group
             .group_mut()
-            .apq_update(txn, &signer, derivation_epoch)
+            .apq_update(txn, &signer, None, derivation_epoch, own_client_reference)
             .await?;
         let job = Self::new(group, OperationType::apq_other(params));
         job.store(txn).await?;
@@ -1026,39 +1093,58 @@ impl PendingChatOperation {
         new_group_data: Option<GroupData>,
         new_chat_picture: Option<Vec<u8>>,
         derivation_epoch: DerivationEpoch,
+        own_client_reference: &QsReference,
     ) -> anyhow::Result<Self> {
         let mut group = Group::load_with_chat_id_clean_verified(&mut *txn, chat_id)
             .await?
             .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
 
         let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
-        let params = group
-            .group_mut()
-            .update(&mut *txn, &signer, new_group_data, derivation_epoch)
-            .await?;
 
-        let job = Self::new(
-            group,
-            OperationType::other_with_picture(params, new_chat_picture),
-        );
+        // If there is a pending proposal, we have to do a full APQ update.
+        let operation_type = if group.is_apq() && group.group().has_pending_proposals() {
+            let params = group
+                .group_mut()
+                .apq_update(
+                    &mut *txn,
+                    &signer,
+                    new_group_data,
+                    derivation_epoch,
+                    own_client_reference,
+                )
+                .await?;
+            OperationType::apq_other_with_picture(params, new_chat_picture)
+        } else {
+            let params = group
+                .group_mut()
+                .update(
+                    &mut *txn,
+                    &signer,
+                    new_group_data,
+                    derivation_epoch,
+                    own_client_reference,
+                )
+                .await?;
+            OperationType::other_with_picture(params, new_chat_picture)
+        };
+
+        let job = Self::new(group, operation_type);
         job.store(txn).await?;
 
         Ok(job)
     }
 
     /// Creates and stores a PendingChatOperation for deleting a chat.
-    /// If the chat has only one member (the user themself), it is
-    /// directly set to inactive instead.
     ///
-    /// The exception is an open outgoing request. Its group has only the user
-    /// as member until the recipient joins, and deleting it on the DS is what
-    /// retracts the request.
-    pub(super) async fn create_delete(
+    /// `deleted` is recorded in the tombstone the delete commit sets, see
+    /// [`Group::stage_delete`].
+    pub(crate) async fn create_delete(
         txn: &mut WriteDbTransaction<'_>,
         signer: &UserSigningKey,
         chat_id: ChatId,
-    ) -> anyhow::Result<Option<Self>> {
-        let mut chat = Chat::load(&mut *txn, &chat_id)
+        deleted: Option<TimeStamp>,
+    ) -> anyhow::Result<Self> {
+        let chat = Chat::load(&mut *txn, &chat_id)
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
 
@@ -1067,29 +1153,24 @@ impl PendingChatOperation {
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
 
-        let past_members: Vec<_> = group.members().collect();
-
-        if past_members.len() == 1 && !chat.is_unconfirmed() {
-            chat.set_status(txn, ChatStatus::inactive(past_members))
+        let operation_type = if group.is_apq() {
+            let bundle = group
+                .group_mut()
+                .stage_apq_delete(&mut *txn, signer, deleted)
                 .await?;
-            Ok(None)
+            OperationType::ApqDelete {
+                commit: Box::new(bundle),
+            }
         } else {
-            let operation_type = if group.is_apq() {
-                let bundle = group
-                    .group_mut()
-                    .stage_apq_delete(&mut *txn, signer)
-                    .await?;
-                OperationType::ApqDelete {
-                    commit: Box::new(bundle),
-                }
-            } else {
-                let message = group.group_mut().stage_delete(&mut *txn, signer).await?;
-                OperationType::Delete(Box::new(message))
-            };
-            let job = Self::new(group, operation_type);
-            job.store(txn).await?;
-            Ok(Some(job))
-        }
+            let message = group
+                .group_mut()
+                .stage_delete(&mut *txn, signer, deleted)
+                .await?;
+            OperationType::Delete(Box::new(message))
+        };
+        let job = Self::new(group, operation_type);
+        job.store(txn).await?;
+        Ok(job)
     }
 
     pub(crate) async fn create_add(
@@ -1734,10 +1815,12 @@ pub mod test_utils {
         /// path.
         pub(crate) fn staged_commit_message_bytes(&self) -> anyhow::Result<Vec<u8>> {
             use openmls::prelude::tls_codec::Serialize as _;
-            let OperationType::Other { params, .. } = &self.operation else {
-                bail!("not a group operation carrying a commit");
+            let commit = match &self.operation {
+                OperationType::Other { params, .. } => &params.commit,
+                OperationType::Delete(params) => &params.commit,
+                _ => bail!("not a plain MLS operation carrying a commit"),
             };
-            Ok(params.commit.mls_message().tls_serialize_detached()?)
+            Ok(commit.mls_message().tls_serialize_detached()?)
         }
 
         /// Corrupts the persisted batch id of a self-group key package upload
@@ -1774,7 +1857,7 @@ pub mod test_utils {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
 
     use aircommon::{
         credentials::{
@@ -1784,13 +1867,20 @@ mod tests {
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
     };
-    use airprotos::client::app_data::ClientAppData;
-    use chrono::{Duration, Utc};
+    use airprotos::client::{
+        app_data::{ClientAppData, GroupAppData},
+        component::GroupTombstone,
+    };
+    use chrono::{Duration, TimeZone, Utc};
+    use openmls::{group::GroupContext, prelude::Extensions};
     use uuid::Uuid;
 
     use crate::{
-        ChatAttributes, clients::own_client_info::OwnClientInfo, db::access::DbAccess,
-        groups::NewGroupContext, utils::persistence::open_db_in_memory,
+        ChatAttributes, EventMessage, Message,
+        clients::{own_client_info::OwnClientInfo, user_settings::ReadReceiptsSetting},
+        db::access::DbAccess,
+        groups::NewGroupContext,
+        utils::{persistence::open_db_in_memory, random_client_reference},
     };
 
     use super::*;
@@ -1836,13 +1926,14 @@ mod tests {
                     pq_group_id,
                     NewGroupContext::SelfGroup(GroupData::empty()),
                     None,
+                    None,
                 )?;
                 group.store(&mut *txn).await?;
                 let mut group = VerifiedGroup::new_for_test(group);
 
                 let update = SettingsUpdate {
                     send_read_receipts: Some(true),
-                    linked_devices: None,
+                    ..Default::default()
                 };
                 let messages = vec![SelfGroupMessage::SettingsUpdate(update)];
                 let params = group
@@ -1863,6 +1954,64 @@ mod tests {
             .await?;
 
         Ok((pool, job, signing_key))
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn stale_clean_up_keeps_the_settings_intent() -> anyhow::Result<()> {
+        let (pool, mut pending, _signer) = setup_self_group_settings_op().await?;
+        let group_id = pending.group.group_id().clone();
+
+        let mut connection = pool.write().await?;
+        connection
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                // Record the local change the staged commit carries, so there
+                // is an intent a rollback could destroy.
+                SettingChanges::record(txn, &ReadReceiptsSetting(true)).await?;
+                assert!(SettingChanges::has_pending(&mut *txn).await?);
+
+                pending.clean_up_in_transaction(txn, false).await?;
+
+                assert!(
+                    PendingChatOperation::load_by_group_id(&mut *txn, &group_id)
+                        .await?
+                        .is_none()
+                );
+                assert!(pending.group.mls_group().pending_commit().is_none());
+                assert!(
+                    SettingChanges::has_pending(&mut *txn).await?,
+                    "a stale clean up must keep the setting change parked"
+                );
+                Ok(())
+            })
+            .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn fatal_clean_up_rolls_back_the_settings_intent() -> anyhow::Result<()> {
+        let (pool, mut pending, _signer) = setup_self_group_settings_op().await?;
+        let group_id = pending.group.group_id().clone();
+
+        let mut connection = pool.write().await?;
+        connection
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                SettingChanges::record(txn, &ReadReceiptsSetting(true)).await?;
+                assert!(SettingChanges::has_pending(&mut *txn).await?);
+
+                pending.clean_up_in_transaction(txn, true).await?;
+
+                assert!(
+                    PendingChatOperation::load_by_group_id(&mut *txn, &group_id)
+                        .await?
+                        .is_none()
+                );
+                assert!(pending.group.mls_group().pending_commit().is_none());
+                assert!(
+                    !SettingChanges::has_pending(&mut *txn).await?,
+                    "a fatal clean up must drop the setting change"
+                );
+                Ok(())
+            })
+            .await
     }
 
     /// Any incoming commit deletes a pending settings operation, parked or
@@ -1911,23 +2060,22 @@ mod tests {
         Ok(())
     }
 
-    /// A self-update staged in the self group keeps the self-group credential
-    /// type in the leaf capabilities (RFC 9420 valn0104) and the per-device
-    /// leaf signature key, even though the caller passes the user signing key.
-    #[tokio::test(flavor = "multi_thread")]
-    async fn self_update_in_self_group_keeps_self_group_leaf() -> anyhow::Result<()> {
-        use aircommon::credentials::SELF_GROUP_CREDENTIAL_TYPE;
-        use openmls::prelude::{CredentialType, SignaturePublicKey};
-
+    /// Creates a self group whose creator leaf carries
+    /// `creator_client_reference` and stages an APQ self-update with
+    /// `own_client_reference`.
+    async fn stage_self_group_update(
+        self_group_signing_key: &SelfGroupSigningKey,
+        creator_client_reference: Option<&QsReference>,
+        own_client_reference: &QsReference,
+    ) -> anyhow::Result<VerifiedGroup> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
         let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
-        let self_group_signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
         let leaf_signer = LeafSigningKey::SelfGroup(self_group_signing_key.clone());
 
         let mut connection = pool.write().await?;
         connection
-            .with_transaction(async |txn| -> anyhow::Result<()> {
+            .with_transaction(async |txn| -> anyhow::Result<_> {
                 let t_group_id = GroupId::from(QualifiedGroupId::new(
                     Uuid::new_v4(),
                     "example.com".parse()?,
@@ -1955,6 +2103,7 @@ mod tests {
                     pq_group_id,
                     NewGroupContext::SelfGroup(GroupData::empty()),
                     None,
+                    creator_client_reference,
                 )?;
                 group.store(&mut *txn).await?;
                 let chat =
@@ -1966,32 +2115,97 @@ mod tests {
                     &user_signing_key,
                     chat.id(),
                     DerivationEpoch::Keep,
+                    own_client_reference,
                 )
                 .await?;
 
-                let staged = job
-                    .group
-                    .mls_group()
-                    .pending_commit()
-                    .context("no staged commit")?;
-                let leaf = staged
-                    .update_path_leaf_node()
-                    .context("no update path leaf")?;
-                assert!(
-                    leaf.capabilities()
-                        .credentials()
-                        .contains(&CredentialType::Other(SELF_GROUP_CREDENTIAL_TYPE)),
-                    "self-group leaf must keep the self-group credential type in its capabilities"
-                );
-                assert_eq!(
-                    leaf.signature_key(),
-                    &SignaturePublicKey::from(self_group_signing_key.verifying_key().clone()),
-                    "self-group leaf must keep the per-device signature key"
-                );
-                Ok(())
+                Ok(job.group)
             })
-            .await?;
+            .await
+    }
 
+    fn update_path_leaf(group: &Group) -> anyhow::Result<openmls::prelude::LeafNode> {
+        let staged = group
+            .mls_group()
+            .pending_commit()
+            .context("no staged commit")?;
+        let leaf = staged
+            .update_path_leaf_node()
+            .context("no update path leaf")?;
+        Ok(leaf.clone())
+    }
+
+    fn leaf_client_reference(leaf: &openmls::prelude::LeafNode) -> Option<QsReference> {
+        use aircommon::mls_group_config::QS_CLIENT_REFERENCE_EXTENSION_TYPE;
+        use tls_codec::DeserializeBytes as _;
+
+        let extension = leaf
+            .extensions()
+            .unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE)?;
+        QsReference::tls_deserialize_exact_bytes(&extension.0).ok()
+    }
+
+    /// A self-update staged in the self group keeps the self-group credential
+    /// type in the leaf capabilities and the per-device leaf signature key, even
+    /// though the caller passes the user signing key.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn self_update_in_self_group_keeps_self_group_leaf() -> anyhow::Result<()> {
+        use aircommon::credentials::SELF_GROUP_CREDENTIAL_TYPE;
+        use openmls::prelude::{CredentialType, SignaturePublicKey};
+
+        let self_group_signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let client_reference = random_client_reference();
+        let group = stage_self_group_update(
+            &self_group_signing_key,
+            Some(&client_reference),
+            &client_reference,
+        )
+        .await?;
+        let leaf = update_path_leaf(&group)?;
+
+        assert!(
+            leaf.capabilities()
+                .credentials()
+                .contains(&CredentialType::Other(SELF_GROUP_CREDENTIAL_TYPE)),
+            "self-group leaf must keep the self-group credential type in its capabilities"
+        );
+        assert_eq!(
+            leaf.signature_key(),
+            &SignaturePublicKey::from(self_group_signing_key.verifying_key().clone()),
+            "self-group leaf must keep the per-device signature key"
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn self_update_in_self_group_adds_missing_client_reference() -> anyhow::Result<()> {
+        let self_group_signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let own_client_reference = random_client_reference();
+        let group =
+            stage_self_group_update(&self_group_signing_key, None, &own_client_reference).await?;
+
+        assert_eq!(
+            leaf_client_reference(&update_path_leaf(&group)?),
+            Some(own_client_reference)
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn self_update_in_self_group_keeps_existing_client_reference() -> anyhow::Result<()> {
+        let self_group_signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let creator_client_reference = random_client_reference();
+        let group = stage_self_group_update(
+            &self_group_signing_key,
+            Some(&creator_client_reference),
+            &random_client_reference(),
+        )
+        .await?;
+
+        assert_eq!(
+            leaf_client_reference(&update_path_leaf(&group)?),
+            Some(creator_client_reference)
+        );
         Ok(())
     }
 
@@ -2036,6 +2250,7 @@ mod tests {
                     pq_group_id,
                     NewGroupContext::SelfGroup(GroupData::empty()),
                     None,
+                    None,
                 )?;
                 group.store(&mut *txn).await?;
 
@@ -2060,19 +2275,12 @@ mod tests {
         use aircommon::{
             crypto::hpke::{ClientIdDecryptionKey, HpkeEncryptable},
             identifiers::{ClientConfig, QsReference},
-            mls_group_config::{
-                APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE,
-                self_group_leaf_node_capabilities,
-            },
+            mls_group_config::{APQ_CIPHERSUITE, self_group_leaf_node_capabilities},
         };
         use apqmls::authentication::ApqCredentialWithKey;
-        use openmls::prelude::{
-            Credential, CredentialType, CredentialWithKey, Extension, SignaturePublicKey,
-            UnknownExtension,
-        };
-        use tls_codec::Serialize as _;
+        use openmls::prelude::{Credential, CredentialType, CredentialWithKey, SignaturePublicKey};
 
-        use crate::groups::openmls_provider::AirOpenMlsProvider;
+        use crate::groups::{client_reference_extension, openmls_provider::AirOpenMlsProvider};
 
         let signer = SelfGroupSigningKey::generate(client_id)?;
         let signature_key = SignaturePublicKey::from(signer.verifying_key().clone());
@@ -2100,10 +2308,7 @@ mod tests {
             ),
         };
         let mut leaf_node_extensions = ClientAppData::current().leaf_node_extensions();
-        leaf_node_extensions.add(Extension::Unknown(
-            QS_CLIENT_REFERENCE_EXTENSION_TYPE,
-            UnknownExtension(client_reference.tls_serialize_detached()?),
-        ))?;
+        leaf_node_extensions.add(client_reference_extension(&client_reference)?)?;
 
         let key_package_extensions = ClientAppData::current().key_package_extensions();
 
@@ -2260,6 +2465,18 @@ mod tests {
         Ok((pool, group, chat_id, signing_key))
     }
 
+    /// A group and its chat with a pending leave operation.
+    pub(crate) async fn setup_group_with_pending_operation() -> anyhow::Result<(DbAccess, ChatId)> {
+        let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
+        let leave_params = group
+            .group_mut()
+            .stage_leave_group(pool.write().await?, &signing_key)?;
+        PendingChatOperation::new(group, OperationType::Leave(Box::new(leave_params)))
+            .store(pool.write().await?)
+            .await?;
+        Ok((pool, chat_id))
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn store_and_load_roundtrip() -> anyhow::Result<()> {
         let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
@@ -2372,6 +2589,160 @@ mod tests {
             .await
     }
 
+    fn deleted_at() -> TimeStamp {
+        Utc.with_ymd_and_hms(2026, 10, 13, 12, 0, 0).unwrap().into()
+    }
+
+    fn tombstone_in(extensions: &Extensions<GroupContext>) -> Option<GroupTombstone> {
+        GroupAppData::tombstone(extensions)
+    }
+
+    async fn setup_apq_group() -> anyhow::Result<(DbAccess, VerifiedGroup, UserSigningKey)> {
+        let (pool, _group, _chat_id, signing_key) = setup_group_and_chat().await?;
+        let mut connection = pool.write().await?;
+        let user_id = signing_key.credential().user_id().clone();
+        let domain = user_id.domain().clone();
+        let (group, _params) = Group::create_apq_group(
+            &mut connection,
+            &LeafSigningKey::User(signing_key.clone()),
+            user_id,
+            IdentityLinkWrapperKey::random()?,
+            GroupId::from(QualifiedGroupId::new(Uuid::new_v4(), domain.clone())),
+            GroupId::from(QualifiedGroupId::new(Uuid::new_v4(), domain)),
+            NewGroupContext::Chat(GroupData::empty()),
+            None,
+            None,
+        )?;
+        group.store(&mut connection).await?;
+        Ok((pool, VerifiedGroup::new_for_test(group), signing_key))
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn delete_records_the_tombstone_in_the_group_context() -> anyhow::Result<()> {
+        let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
+        let mut connection = pool.write().await?;
+        assert_eq!(tombstone_in(group.group().mls_group().extensions()), None);
+
+        Box::pin(
+            connection.with_transaction(async |txn| -> anyhow::Result<()> {
+                group
+                    .group_mut()
+                    .stage_delete(&mut *txn, &signing_key, Some(deleted_at()))
+                    .await?;
+                Ok(())
+            }),
+        )
+        .await?;
+
+        let staged = group
+            .group()
+            .mls_group()
+            .pending_commit()
+            .expect("delete commit staged");
+        assert_eq!(
+            tombstone_in(staged.group_context().extensions()),
+            Some(GroupTombstone::deleted(deleted_at()))
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn delete_without_tombstone_leaves_the_group_context_alone() -> anyhow::Result<()> {
+        let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
+        let mut connection = pool.write().await?;
+
+        Box::pin(
+            connection.with_transaction(async |txn| -> anyhow::Result<()> {
+                group
+                    .group_mut()
+                    .stage_delete(&mut *txn, &signing_key, None)
+                    .await?;
+                Ok(())
+            }),
+        )
+        .await?;
+
+        let staged = group
+            .group()
+            .mls_group()
+            .pending_commit()
+            .expect("delete commit staged");
+        assert_eq!(tombstone_in(staged.group_context().extensions()), None);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn apq_delete_records_the_tombstone_in_the_t_group_context_only() -> anyhow::Result<()> {
+        let (pool, mut group, signing_key) = setup_apq_group().await?;
+        let mut connection = pool.write().await?;
+
+        Box::pin(
+            connection.with_transaction(async |txn| -> anyhow::Result<()> {
+                group
+                    .group_mut()
+                    .stage_apq_delete(&mut *txn, &signing_key, Some(deleted_at()))
+                    .await?;
+                Ok(())
+            }),
+        )
+        .await?;
+
+        let t_staged = group
+            .group()
+            .mls_group()
+            .pending_commit()
+            .expect("T delete commit staged");
+        assert_eq!(
+            tombstone_in(t_staged.group_context().extensions()),
+            Some(GroupTombstone::deleted(deleted_at()))
+        );
+        let pq_staged = group
+            .group()
+            .pq()
+            .expect("PQ leg")
+            .mls_group
+            .pending_commit()
+            .expect("PQ delete commit staged");
+        assert_eq!(tombstone_in(pq_staged.group_context().extensions()), None);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn merging_the_delete_commit_yields_one_delete_group_message() -> anyhow::Result<()> {
+        let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
+        let own_user_id = signing_key.credential().user_id().clone();
+        let mut connection = pool.write().await?;
+
+        let messages = Box::pin(
+            connection.with_transaction(async |txn| -> anyhow::Result<_> {
+                group
+                    .group_mut()
+                    .stage_delete(&mut *txn, &signing_key, Some(deleted_at()))
+                    .await?;
+                let (messages, _group_data) = group
+                    .merge_pending_commit(&mut *txn, None, TimeStamp::now())
+                    .await?;
+                CoreUser::store_new_messages(&mut *txn, chat_id, messages).await
+            }),
+        )
+        .await?;
+
+        let [message] = messages.as_slice() else {
+            panic!("expected exactly one message, got {}", messages.len());
+        };
+        assert_eq!(
+            message.message(),
+            &Message::Event(EventMessage::System(SystemMessage::DeleteGroup(
+                own_user_id
+            )))
+        );
+        assert_eq!(
+            tombstone_in(group.group().mls_group().extensions()),
+            Some(GroupTombstone::deleted(deleted_at()))
+        );
+        Ok(())
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn abandon_delete_drops_the_parked_delete() -> anyhow::Result<()> {
         let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
@@ -2382,7 +2753,7 @@ mod tests {
             connection.with_transaction(async |txn| -> anyhow::Result<()> {
                 let params = group
                     .group_mut()
-                    .stage_delete(&mut *txn, &signing_key)
+                    .stage_delete(&mut *txn, &signing_key, Some(TimeStamp::now()))
                     .await?;
                 PendingChatOperation::new(group, OperationType::Delete(Box::new(params)))
                     .store(&mut *txn)

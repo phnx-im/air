@@ -91,6 +91,7 @@ fn transient_request_error(error: &anyhow::Error) -> Option<OutboundServiceError
             }
             RequestErrorKind::Network => Some(OutboundServiceError::NetworkError),
             RequestErrorKind::NotFound
+            | RequestErrorKind::GroupClosed
             | RequestErrorKind::Rejected
             | RequestErrorKind::ServerError => None,
         }
@@ -128,7 +129,9 @@ impl OutboundServiceError {
             RequestFailure::Network(_) => Self::NetworkError,
             RequestFailure::Recoverable(recoverable) => Self::Recoverable(recoverable),
             // Not found keeps the request error, see `is_ds_not_found_error`
-            RequestFailure::NotFound(error) | RequestFailure::Fatal(error) => Self::Fatal(error),
+            RequestFailure::NotFound(error)
+            | RequestFailure::GroupClosed(error)
+            | RequestFailure::Fatal(error) => Self::Fatal(error),
         }
     }
 }
@@ -143,30 +146,31 @@ where
             JobError::RateLimited { retry_after } => Self::RateLimited { retry_after },
             JobError::Recoverable(error) => Self::Recoverable(error),
             JobError::Fatal(error) => Self::Fatal(error),
-            error @ (JobError::Domain(_) | JobError::Blocked | JobError::NotFound) => {
-                Self::Fatal(error.into())
-            }
+            error @ (JobError::Domain(_)
+            | JobError::Blocked
+            | JobError::NotFound
+            | JobError::GroupClosed) => Self::Fatal(error.into()),
         }
     }
 }
 
-pub(super) trait RunResultExt {
-    /// Logs fatal and recoverable errors and continues, aborts the run
-    /// otherwise.
-    fn or_abort(self, task: &'static str) -> Result<(), WorkAborted>;
+pub(super) trait RunResultExt<T> {
+    /// Logs fatal and recoverable errors and continues with the default
+    /// value, aborts the run otherwise.
+    fn or_abort(self, task: &'static str) -> Result<T, WorkAborted>;
 }
 
-impl RunResultExt for Result<(), OutboundServiceError> {
-    fn or_abort(self, task: &'static str) -> Result<(), WorkAborted> {
+impl<T: Default> RunResultExt<T> for Result<T, OutboundServiceError> {
+    fn or_abort(self, task: &'static str) -> Result<T, WorkAborted> {
         match self {
-            Ok(()) => Ok(()),
+            Ok(value) => Ok(value),
             Err(OutboundServiceError::Fatal(error)) => {
                 error!(%error, task, "Outbound service task failed");
-                Ok(())
+                Ok(T::default())
             }
             Err(OutboundServiceError::Recoverable(error)) => {
                 error!(%error, task, "Outbound service task failed");
-                Ok(())
+                Ok(T::default())
             }
             Err(OutboundServiceError::NetworkError) => {
                 info!(
@@ -187,7 +191,10 @@ impl RunResultExt for Result<(), OutboundServiceError> {
 mod tests {
     use std::assert_matches;
 
-    use tonic::Status;
+    use airprotos::common::v1::{
+        StatusDetails, StatusDetailsCode, UncommittedSelfRemoveDetail, status_details::Detail,
+    };
+    use tonic::{Code, Status};
 
     use super::*;
     use crate::job::recoverable::RecoverableCause;
@@ -213,6 +220,24 @@ mod tests {
             OutboundServiceError::from(error),
             OutboundServiceError::Recoverable(Recoverable {
                 cause: RecoverableCause::Server,
+                ..
+            })
+        );
+    }
+
+    #[test]
+    fn uncommitted_self_remove_is_recoverable() {
+        let status = StatusDetails {
+            code: StatusDetailsCode::UncommittedSelfRemove.into(),
+            detail: Some(Detail::UncommittedSelfRemove(
+                UncommittedSelfRemoveDetail {},
+            )),
+        }
+        .to_status(Code::InvalidArgument, "uncommitted self remove");
+        assert_matches!(
+            OutboundServiceError::from(DsRequestError::Tonic(status)),
+            OutboundServiceError::Recoverable(Recoverable {
+                cause: RecoverableCause::Stale,
                 ..
             })
         );

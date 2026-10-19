@@ -164,6 +164,9 @@ pub(crate) enum JobError<E> {
     Blocked,
     #[error("Not found")]
     NotFound,
+    /// The group's context carries a tombstone we missed.
+    #[error("Group closed")]
+    GroupClosed,
     #[error("Recoverable error: {0}")]
     Recoverable(Recoverable),
     #[error(transparent)]
@@ -257,6 +260,7 @@ impl<E> JobError<E> {
                 Self::NetworkError
             }
             RequestFailure::NotFound(_) => Self::NotFound,
+            RequestFailure::GroupClosed(_) => Self::GroupClosed,
             RequestFailure::Recoverable(recoverable) => Self::Recoverable(recoverable),
             RequestFailure::Fatal(error) => Self::Fatal(error),
         }
@@ -321,7 +325,8 @@ mod tests {
     use std::{assert_matches, convert::Infallible};
 
     use airprotos::common::v1::{
-        DeviceLimitReachedDetail, StatusDetails, StatusDetailsCode, status_details,
+        DeviceLimitReachedDetail, StatusDetails, StatusDetailsCode, UncommittedSelfRemoveDetail,
+        status_details,
     };
     use tonic::{Code, Status};
 
@@ -370,6 +375,25 @@ mod tests {
         .to_status(Code::ResourceExhausted, "max devices exceeded");
         let error: JobError<Infallible> = DsRequestError::Tonic(status).into();
         assert_matches!(error, JobError::Fatal(_));
+    }
+
+    #[test]
+    fn uncommitted_self_remove_is_stale() {
+        let status = StatusDetails {
+            code: StatusDetailsCode::UncommittedSelfRemove.into(),
+            detail: Some(status_details::Detail::UncommittedSelfRemove(
+                UncommittedSelfRemoveDetail {},
+            )),
+        }
+        .to_status(Code::InvalidArgument, "uncommitted self remove");
+        let error: JobError<Infallible> = DsRequestError::Tonic(status).into();
+        assert_matches!(
+            error,
+            JobError::Recoverable(Recoverable {
+                cause: RecoverableCause::Stale,
+                ..
+            })
+        );
     }
 
     #[test]

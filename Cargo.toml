@@ -89,10 +89,10 @@ minicbor-serde = { version = "0.6", features = ["std"] }
 mockall = "0.13.1"
 mockito = "1.7.0"
 num_enum = "0.7"
-openmls = { git = "https://github.com/openmls/openmls", rev = "b68a50a361e22628c9cf5dd5f47dbc709cc9922b", features = ["draft-ietf-mls-pq-ciphersuites", "unchecked-conversions", "0-8-1-storage-format", "virtual-clients-draft"] }
-openmls_basic_credential = { git = "https://github.com/openmls/openmls", rev = "b68a50a361e22628c9cf5dd5f47dbc709cc9922b", features = ["clonable"] }
-openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "b68a50a361e22628c9cf5dd5f47dbc709cc9922b", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
-openmls_traits = { git = "https://github.com/openmls/openmls", rev = "b68a50a361e22628c9cf5dd5f47dbc709cc9922b", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
+openmls = { git = "https://github.com/openmls/openmls", rev = "7c94cc351ea771771100edca47695055da379a34", features = ["draft-ietf-mls-pq-ciphersuites", "unchecked-conversions", "0-8-1-storage-format", "virtual-clients-draft"] }
+openmls_basic_credential = { git = "https://github.com/openmls/openmls", rev = "7c94cc351ea771771100edca47695055da379a34", features = ["clonable"] }
+openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "7c94cc351ea771771100edca47695055da379a34", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
+openmls_traits = { git = "https://github.com/openmls/openmls", rev = "7c94cc351ea771771100edca47695055da379a34", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
 parking_lot = "0.12"
 pin-project = "1.1.10"
 png = "0.18.1"
@@ -157,7 +157,7 @@ ml-dsa = { git = "https://github.com/RustCrypto/signatures", rev = "017ce322cdbd
 
 # openmls_sqlite_storage 0.3.0 pulls openmls_traits 0.6.0 from
 # crates.io next to the git copy. Keep the rev in sync with the openmls pin.
-openmls_traits = { git = "https://github.com/openmls/openmls", rev = "b68a50a361e22628c9cf5dd5f47dbc709cc9922b" }
+openmls_traits = { git = "https://github.com/openmls/openmls", rev = "7c94cc351ea771771100edca47695055da379a34" }
 
 # openmls never builds its sqlite storage for us, but its PQ feature names it,
 # so it still lands in our lockfile (rust-lang/cargo#10801). The git version

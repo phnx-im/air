@@ -287,6 +287,18 @@ impl UserCubitBase {
         self.core.stream(sink).await;
     }
 
+    /// Emits the app badge count with an initial value and for subsequent
+    /// changes.
+    #[frb(type_64bit_int)]
+    pub async fn badge_count_stream(&self, sink: StreamSink<usize>) {
+        let counts = self
+            .context
+            .core_user
+            .watch_badge_count(|count| sink.add(count));
+        // Fails only once the Dart side cancelled the stream.
+        let _cancelled = self.cancel.run_until_cancelled(counts).await;
+    }
+
     // Cubit methods
 
     /// Extracts the linking code from a scanned QR payload, validating that it targets this user's
@@ -364,6 +376,16 @@ impl UserCubitBase {
         self.context
             .core_user
             .retract_contact_request(chat_id)
+            .await
+    }
+
+    /// Declines the incoming contact requests of the chat and erases the chat.
+    /// Their sender is not told.
+    #[frb(positional)]
+    pub async fn decline_contact_request(&self, chat_id: ChatId) -> anyhow::Result<()> {
+        self.context
+            .core_user
+            .decline_contact_request(chat_id)
             .await
     }
 

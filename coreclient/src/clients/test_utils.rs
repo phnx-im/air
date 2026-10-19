@@ -23,11 +23,14 @@ use crate::{
     ChatAttributes,
     groups::{openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
     job::{
-        chat_operation::DerivationEpoch,
+        chat_operation::{ChatOperation, DerivationEpoch},
         create_chat::CreateChat,
         pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     },
-    outbound_service::resync::{Resync, ResyncReason, ResyncStatus},
+    outbound_service::{
+        error::is_ds_not_found_error,
+        resync::{Resync, ResyncReason, ResyncStatus},
+    },
     usernames::connection_packages::ConnectionPackageRecord,
 };
 
@@ -70,6 +73,12 @@ impl CoreUser {
             challenge,
         )
         .await
+    }
+
+    /// Legacy version of chat deletion that removes all other members.
+    pub async fn delete_chat_without_tombstone(&self, chat_id: ChatId) -> Result<Vec<ChatMessage>> {
+        let job = ChatOperation::delete_chat_without_tombstone(chat_id);
+        Ok(self.execute_job(job).await?)
     }
 
     pub fn qs_user_id(&self) -> aircommon::identifiers::QsUserId {
@@ -217,6 +226,34 @@ impl CoreUser {
             .map(|group| group.members().collect())
     }
 
+    /// Whether the DS still serves the chat's group to an external joiner.
+    pub async fn ds_has_group(&self, chat_id: ChatId) -> anyhow::Result<bool> {
+        let group = Group::load_with_chat_id(self.db().read().await?, chat_id)
+            .await?
+            .context("group not found")?;
+        let qgid: QualifiedGroupId = group.group_id().try_into()?;
+        let result = self
+            .api_clients()
+            .get(qgid.owning_domain())?
+            .ds_external_commit_info(
+                group.group_id().clone(),
+                group.pq_group_id(),
+                group.group_state_ear_key(),
+            )
+            .await;
+        match result {
+            Ok(_) => Ok(true),
+            Err(error) => {
+                let error = anyhow::Error::from(error);
+                if is_ds_not_found_error(&error) {
+                    Ok(false)
+                } else {
+                    Err(error)
+                }
+            }
+        }
+    }
+
     /// The users the DS lists in the room state it serves to an external joiner
     /// of this chat's group.
     pub async fn ds_room_state_users(&self, chat_id: ChatId) -> anyhow::Result<HashSet<UserId>> {
@@ -290,6 +327,16 @@ impl CoreUser {
         Ok(SettingChanges::has_pending(self.db().read().await?).await?)
     }
 
+    /// The serialized commit of the chat's pending operation.
+    pub async fn pending_commit_message_bytes(&self, chat_id: ChatId) -> anyhow::Result<Vec<u8>> {
+        let job = self
+            .db()
+            .with_read_transaction(async |txn| PendingChatOperation::load(txn, &chat_id).await)
+            .await?
+            .context("No pending chat operation")?;
+        job.staged_commit_message_bytes()
+    }
+
     /// Returns (operation_type, request_status, number_of_attempts) for the
     /// pending chat operation of the given chat, if any.
     pub async fn pending_chat_operation_info(
@@ -330,6 +377,7 @@ impl CoreUser {
                     Some(group_data),
                     None,
                     DerivationEpoch::Keep,
+                    &self.create_own_client_reference(),
                 )
                 .await
             })

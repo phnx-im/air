@@ -15,11 +15,13 @@ use aircommon::crypto::signatures::keys::QsUserSigningKey;
 use aircommon::identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId, Username};
 use aircommon::messages::FriendshipToken;
 use aircommon::messages::client_as::ConnectionOfferHash;
+use aircommon::time::TimeStamp;
 use airprotos::auth_service::v1::OperationType;
 use airprotos::client::self_group::{
-    BlockedContactEntry, ConnectionRequestEntry, ConnectionRequestGroup, ConnectionRequestReceived,
-    ConnectionRequestSource, ContactBlocked, RedeemedTokens, TokenSeed,
+    BlockedContactEntry, ConnectionRequestDeclined, ConnectionRequestEntry, ConnectionRequestGroup,
+    ConnectionRequestReceived, ConnectionRequestSource, ContactBlocked, RedeemedTokens, TokenSeed,
 };
+use chrono::DateTime;
 use openmls::group::GroupId;
 use uuid::Uuid;
 
@@ -100,14 +102,18 @@ fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
     let mut package = sample_package(
         SettingsUpdate {
             send_read_receipts: Some(false),
-            linked_devices: None,
+            ..Default::default()
         },
         sample_seeds(),
         blocked_contacts.clone(),
         sample_redeemed(),
     )?;
-    let connection_requests = vec![ConnectionRequestEntry::Received(
-        ConnectionRequestReceived {
+    let connection_requests = vec![
+        ConnectionRequestEntry::Declined(ConnectionRequestDeclined {
+            chat_id: Uuid::from_u128(0x15),
+            declined_at: DateTime::from_timestamp_millis(1_767_225_600_789).unwrap(),
+        }),
+        ConnectionRequestEntry::Received(ConnectionRequestReceived {
             connection_info: vec![0x11; 8],
             sender_credential: vec![0x12; 8],
             source: ConnectionRequestSource::Group(ConnectionRequestGroup {
@@ -115,14 +121,15 @@ fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
             }),
             connection_offer_hash: None,
             connection_package_hash: None,
-            received_at: 1_767_225_600_123,
-        },
-    )];
+            received_at: DateTime::from_timestamp_millis(1_767_225_600_123).unwrap(),
+        }),
+    ];
     package.connection_requests = connection_requests.clone();
     let outgoing_request = OutgoingRequest::Username {
         username: Username::new("joel-03".to_owned())?,
         friendship_package_ear_key: FriendshipPackageEarKey::random()?,
         connection_offer_hash: ConnectionOfferHash::new_for_test(vec![0x66; 32]),
+        sent_at: Some(TimeStamp::now()),
     };
     package.groups.push(HigherLevelGroup {
         group_id: GroupId::from_slice(&[0x14; 8]),
@@ -143,7 +150,7 @@ fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
         decoded.synced_settings,
         SettingsUpdate {
             send_read_receipts: Some(false),
-            linked_devices: None,
+            ..Default::default()
         }
     );
     assert_eq!(decoded.token_seeds, sample_seeds());

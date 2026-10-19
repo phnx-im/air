@@ -151,6 +151,9 @@ pub(crate) fn run(args: CutArgs) -> Result<()> {
     println!("main and bumps main to {next}.");
     println!("Next steps:");
     println!("  git push origin {release_branch}");
+    // The push brings no new commits, so it does not trigger the release
+    // workflow.
+    println!("  gh workflow run app-release.yml --ref {release_branch}");
     println!("  git push -u origin {merge_branch}");
     println!("  gh pr create --title {title:?}");
     println!("Merge the PR with a merge commit (not squash) so {release_branch}");

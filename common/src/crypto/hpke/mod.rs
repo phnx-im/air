@@ -44,6 +44,9 @@ pub const HPKE_CONFIG: HpkeConfig = HpkeConfig(
     HpkeAeadType::AesGcm256,
 );
 
+/// Size of an HPKE public key under [`HPKE_CONFIG`] (X25519).
+pub const HPKE_PUBLIC_KEY_SIZE: usize = 32;
+
 impl<KT> EncryptionKey<KT> {
     fn new(bytes: Vec<u8>) -> Self {
         Self {

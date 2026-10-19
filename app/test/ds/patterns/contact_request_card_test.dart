@@ -36,9 +36,11 @@ void main() {
         buildSubject(
           ContactRequestAnswers(
             acceptLabel: 'Accept',
-            dismissLabel: 'Not now',
+            declineLabel: 'Decline',
+            blockLabel: 'Block',
             onAccept: () {},
-            onDismiss: () {},
+            onDecline: () {},
+            onBlock: () {},
           ),
         ),
       );
@@ -49,6 +51,32 @@ void main() {
       await tester.tap(find.text('Tap to reveal their message'));
       await tester.pump();
       expect(find.text('Hi, it is Alice'), findsOneWidget);
+    });
+
+    testWidgets('holds declining and blocking while accepting', (tester) async {
+      final answered = <String>[];
+      ContactRequestAnswers answers({required bool isAccepting}) =>
+          ContactRequestAnswers(
+            acceptLabel: 'Accept',
+            declineLabel: 'Decline',
+            blockLabel: 'Block',
+            onAccept: () => answered.add('accept'),
+            onDecline: () => answered.add('decline'),
+            onBlock: () => answered.add('block'),
+            isAccepting: isAccepting,
+          );
+
+      await tester.pumpWidget(buildSubject(answers(isAccepting: true)));
+      await tester.tap(find.text('Decline'), warnIfMissed: false);
+      await tester.tap(find.text('Block'), warnIfMissed: false);
+      await tester.pump();
+      expect(answered, isEmpty);
+
+      await tester.pumpWidget(buildSubject(answers(isAccepting: false)));
+      await tester.tap(find.text('Decline'));
+      await tester.tap(find.text('Block'));
+      await tester.pump();
+      expect(answered, ['decline', 'block']);
     });
 
     testWidgets("shows the picture and the note of the reader's own request", (

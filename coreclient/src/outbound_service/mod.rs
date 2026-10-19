@@ -38,7 +38,7 @@ mod attachment_recovery;
 pub(crate) mod chat_message_queue;
 mod chat_messages;
 mod deleted_messages;
-mod error;
+pub(crate) mod error;
 mod key_packages;
 mod profile;
 mod push_tokens;
@@ -138,7 +138,10 @@ impl OutboundService<OutboundServiceContext> {
     /// the failure lands on, which a full run does not guarantee.
     pub async fn send_queued_messages_once(&self) -> anyhow::Result<()> {
         self.context
-            .send_queued_messages(&CancellationToken::new())
+            .send_queued_messages(
+                &CancellationToken::new(),
+                &mut std::collections::HashSet::new(),
+            )
             .await?;
         Ok(())
     }
@@ -226,6 +229,11 @@ impl<C: OutboundServiceWork> OutboundService<C> {
     /// Wakes the outbound service to onboard a freshly linked device into the
     /// virtual client's existing groups.
     pub(crate) fn notify_vc_onboarding(&self) -> WaitForDoneFuture {
+        self.notify_work()
+    }
+
+    /// Wakes the outbound service to run a key package upload that was made due.
+    pub(crate) fn notify_key_package_upload(&self) -> WaitForDoneFuture {
         self.notify_work()
     }
 
@@ -395,7 +403,7 @@ impl OutboundServiceContext {
             .await
             .or_abort("queued resyncs")?;
 
-        Box::pin(self.send_pending_chat_operations(run_token))
+        let mut stale_groups = Box::pin(self.send_pending_chat_operations(run_token))
             .await
             .or_abort("pending chat operations")?;
 
@@ -415,7 +423,7 @@ impl OutboundServiceContext {
             .await
             .or_abort("recover interrupted attachment uploads")?;
 
-        self.send_queued_messages(run_token)
+        self.send_queued_messages(run_token, &mut stale_groups)
             .await
             .or_abort("queued messages")?;
 

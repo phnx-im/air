@@ -109,6 +109,7 @@ impl TimedTaskKind {
             TimedTaskKind::SignedConnectionPackageUpload { .. } => {
                 "Signed Connection Package Upload"
             }
+            TimedTaskKind::ConnectionRequestExpiry => "Connection Request Expiry",
         }
     }
 }

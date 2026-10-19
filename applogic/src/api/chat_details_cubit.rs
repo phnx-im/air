@@ -8,15 +8,15 @@ use std::{collections::HashMap, path::PathBuf, time::Duration};
 
 use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
 pub use aircoreclient::{
-    AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
-    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqGroupDebugInfo,
-    RequiredDebugCapabilities, ResyncDebugInfo,
+    AcceptContactRequestError, AirComponentDebugInfo, AppDataDebugInfo, DebugCapabilities,
+    EncryptedGroupTitleDebugInfo, ExternalGroupProfileDebugInfo, GroupDataDebugInfo,
+    GroupDebugInfo, PqGroupDebugInfo, RequiredDebugCapabilities, ResyncDebugInfo,
 };
 use aircoreclient::{
     AttachmentId, AttachmentProgress, AttachmentStatus, Chat, ChatId, ChatMessage, MarkChatAsRead,
     MessageId, ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
 };
-use airprotos::client::component::AirComponent;
+use airprotos::client::component::AirFeatures;
 use anyhow::{Context as _, bail};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
@@ -875,6 +875,13 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         None => None,
     };
 
+    let contact_request_expires_at = core_user
+        .contact_request_expires_at(&chat)
+        .await
+        .inspect_err(|error| error!(%error, "Failed to load the expiry of a contact request"))
+        .ok()
+        .flatten();
+
     let group_id = chat.group_id;
     let chat_type = UiChatType::load_from_chat_type(core_user, chat.chat_type).await;
 
@@ -913,6 +920,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         muted_until: chat.muted_until.map(Into::into),
         pending_commit_failed,
         resync_failed,
+        contact_request_expires_at,
     }
 }
 
@@ -990,6 +998,7 @@ pub struct _GroupDebugInfo {
     pub required_capabilities: Option<RequiredDebugCapabilities>,
     pub members: HashMap<u32, DebugCapabilities>,
     pub group_data: Option<GroupDataDebugInfo>,
+    pub app_data: Option<AppDataDebugInfo>,
     pub size_bytes: u64,
     pub pq: Option<PqGroupDebugInfo>,
     pub resync: Option<ResyncDebugInfo>,
@@ -1049,7 +1058,14 @@ pub struct _RequiredDebugCapabilities {
 #[frb(mirror(AppDataDebugInfo))]
 pub struct _AppDataDebugInfo {
     pub components: Vec<String>,
-    pub air_component: Option<AirComponent>,
+    pub air_component: Option<AirComponentDebugInfo>,
+}
+
+#[frb(mirror(AirComponentDebugInfo))]
+pub struct _AirComponentDebugInfo {
+    pub features: AirFeatures,
+    pub is_self_group: bool,
+    pub tombstone: Option<String>,
 }
 
 #[frb(mirror(DebugCapabilities))]

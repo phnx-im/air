@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     api::user::User,
-    background_execution::{IncomingNotificationContent, IncomingNotificationDismissal, stack},
+    background_execution::{IncomingNotificationContent, IncomingNotificationDismissal},
     logging::{LogKind, init_logger},
     messages::FetchAndProcessAllMessagesError,
     notifications::{NotificationContent, NotificationId},
@@ -79,23 +79,10 @@ where
     F: FnOnce() -> Fut + Send + 'static,
     Fut: Future<Output = anyhow::Result<T>>,
 {
-    // Log stack size and remaining bytes
-    info!(
-        stack_size = stack::size(),
-        remaining_bytes = stack::remaining(),
-        "Stack info in original thread"
-    );
-
     let thread = match std::thread::Builder::new()
         .stack_size(SECOND_THREAD_STACK_SIZE)
-        .spawn(move || {
-            info!(
-                stack_size = stack::size(),
-                remaining_bytes = stack::remaining(),
-                "Stack info in second thread"
-            );
-            block_on_runtime(task, make_future())
-        }) {
+        .spawn(move || block_on_runtime(task, make_future()))
+    {
         Ok(thread) => thread,
         Err(error) => {
             error!(%error, "Failed to spawn thread with increased stack size");
@@ -125,14 +112,6 @@ where
         .enable_all()
         .thread_stack_size(TOKIO_THREAD_STACK_SIZE)
         .worker_threads(TOKIO_WORKER_THREADS)
-        .on_thread_start(|| {
-            // Log stack size and remaining bytes
-            info!(
-                stack_size = stack::size(),
-                remaining_bytes = stack::remaining(),
-                "Stack info in worker thread"
-            );
-        })
         .build()
         .context("Failed to initialize tokio runtime")?;
     panic::catch_unwind(AssertUnwindSafe(|| runtime.block_on(Box::pin(future))))
@@ -196,7 +175,14 @@ async fn retrieve_messages(path: String) -> anyhow::Result<NotificationBatch> {
             },
         };
 
-    let badge_count = user.global_unread_messages_count().await;
+    let badge_count = user
+        .user
+        .global_unread_messages_count()
+        .await
+        .unwrap_or_else(|error| {
+            error!(%error, "Failed to count unread messages");
+            0
+        });
 
     for store_notification in pending_store_notifications {
         if let Err(error) = user.user.enqueue_db_notification(&store_notification).await {

@@ -10,6 +10,8 @@ use aircommon::codec::PersistenceCodec;
 use airprotos::client::self_group::BlockedContactEntry;
 
 use crate::{
+    ChatId,
+    chats::connection_requests,
     clients::{
         block_contact::{BlockedContact, pending::BlockedState},
         self_group_outbox::{self, OutboxKind},
@@ -34,17 +36,29 @@ impl BlockedState {
 ///
 /// Entries apply in order, so the last entry for a contact wins. An entry this
 /// client cannot make sense of is skipped, see [`BlockedState::from_entry`].
+/// The pending requests of a blocked sender are declined. Returns the chats
+/// they were shown in.
 pub(crate) async fn apply_blocked_contacts_update(
     txn: &mut WriteDbTransaction<'_>,
     entries: &[BlockedContactEntry],
-) -> sqlx::Result<()> {
+) -> anyhow::Result<Vec<ChatId>> {
+    let mut declined_chats = Vec::new();
     for entry in entries {
         let Some(state) = BlockedState::from_entry(entry) else {
             continue;
         };
         state.apply(&mut *txn).await?;
+        if let BlockedState::Blocked(contact) = &state {
+            let declined = connection_requests::apply_blocked_sender(
+                txn,
+                &contact.user_id,
+                contact.blocked_at,
+            )
+            .await?;
+            declined_chats.extend(declined);
+        }
     }
-    Ok(())
+    Ok(declined_chats)
 }
 
 /// Every stored block, as the entries a provisioning package carries.

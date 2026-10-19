@@ -50,6 +50,7 @@ use crate::{
         },
         outgoing_requests, persistence,
         reactions::Reaction,
+        request_expiry,
     },
     clients::{
         attachment::MimiContentExt,
@@ -661,7 +662,7 @@ impl CoreUser {
                         );
                     }
                     Some(ResyncStatus::Failed) => {
-                        debug!(
+                        warn!(
                             %chat_id, ?group_id, %reason,
                             "Group is out of sync; earlier resync failed permanently, not scheduling"
                         );
@@ -933,8 +934,9 @@ impl CoreUser {
             }
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
                 // Only our own devices are members of an unconfirmed connection
-                // group, so its deletion is a sibling retracting the request.
-                let retracted = we_were_removed && chat.is_unconfirmed();
+                // group, so its deletion is a sibling retracting the request,
+                // or closing it because it expired.
+                let ended = we_were_removed && chat.is_unconfirmed();
                 let sender_user_credential =
                     StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id)
                         .await?
@@ -957,8 +959,12 @@ impl CoreUser {
                     .group_mut()
                     .store_update(&mut *txn, None, None)
                     .await?;
-                if retracted {
-                    if let Some(chat) = Chat::load(&mut *txn, &chat_id).await? {
+                log_processed_commit(&group, &sender);
+
+                if ended {
+                    if let Some(mut chat) = Chat::load(&mut *txn, &chat_id).await?
+                        && !request_expiry::close_if_expired(txn, &mut chat, *ds_timestamp).await?
+                    {
                         persistence::erase(txn, &chat).await?;
                     }
                     return Ok(QsMessageOutcome::empty());
@@ -983,6 +989,7 @@ impl CoreUser {
                     .group_mut()
                     .store_update(&mut *txn, Some(ds_timestamp), pq_updated_at)
                     .await?;
+                log_processed_commit(&group, &sender);
                 self.finalize_own_commit(
                     &mut *txn,
                     &group,
@@ -993,6 +1000,14 @@ impl CoreUser {
                     ds_timestamp,
                 )
                 .await?;
+                // As on a sibling, deleting an unconfirmed connection group
+                // ends the request, which the chat records itself.
+                if chat.is_unconfirmed()
+                    && let AadPayload::DeleteGroup =
+                        AadMessage::tls_deserialize_exact_bytes(&aad)?.into_payload()
+                {
+                    group_messages.clear();
+                }
                 HandledMessages {
                     new_messages: group_messages,
                     ..Default::default()
@@ -1110,12 +1125,12 @@ impl CoreUser {
             // others, so it must not silence what our own devices tell us.
             let is_own_report = sender == self.user_id();
             if !read_receipts_enabled && !is_own_report {
-                report
-                    .statuses
-                    .retain(|status| status.status != MessageStatus::Read);
-                if report.statuses.is_empty() {
-                    debug!("Dropping read receipt because read receipts are disabled");
-                    return Ok(Default::default());
+                // A read implies delivery, and the sender may have skipped the
+                // delivery receipt in favor of the read one.
+                for status in &mut report.statuses {
+                    if status.status == MessageStatus::Read {
+                        status.status = MessageStatus::Delivered;
+                    }
                 }
             }
 
@@ -1847,6 +1862,22 @@ fn own_commit_key_package_batch(
     Ok(commit_data.key_package_uploads().next().map(From::from))
 }
 
+/// Logs a merged commit. `group` must already be in the new epoch.
+fn log_processed_commit(group: &VerifiedGroup, sender: &Sender) {
+    let group = group.group();
+    let sender_index = match sender {
+        Sender::Member(index) => Some(index.u32()),
+        _ => None,
+    };
+    info!(
+        group_id = ?group.group_id(),
+        epoch = group.mls_group().epoch().as_u64(),
+        pq_epoch = group.pq().map(|pq| pq.mls_group.epoch().as_u64()),
+        sender_index,
+        "processed commit"
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use aircommon::{
@@ -1909,6 +1940,7 @@ mod tests {
                     t_group_id,
                     pq_group_id,
                     NewGroupContext::SelfGroup(GroupData::empty()),
+                    None,
                     None,
                 )?;
                 group.store(&mut *txn).await?;

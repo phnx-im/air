@@ -123,7 +123,10 @@ pub trait SyncedUserSetting: UserSetting {
 macro_rules! for_each_synced_setting {
     ($f:ident($($args:expr),* $(,)?)) => {
         $f::<ReadReceiptsSetting>($($args),*).await?;
+        $f::<DeleteExpiredContactRequestsSetting>($($args),*).await?;
         $f::<crate::clients::linked_devices::LinkedDevicesSetting>($($args),*).await?;
+        $f::<DefaultEmojiSkinToneSetting>($($args),*).await?;
+        $f::<LimitAnimatedImagesLoopsSetting>($($args),*).await?;
     };
 }
 
@@ -397,6 +400,103 @@ impl SyncedUserSetting for ReadReceiptsSetting {
     }
 }
 
+/// Index into the app's emoji skin tone list, see
+/// [`SettingsUpdate::default_emoji_skin_tone`].
+pub struct DefaultEmojiSkinToneSetting(pub u8);
+
+impl UserSetting for DefaultEmojiSkinToneSetting {
+    const KEY: &'static str = "default_emoji_skin_tone";
+
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(vec![self.0])
+    }
+
+    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
+        match bytes.as_slice() {
+            [byte] => Ok(Self(*byte)),
+            _ => bail!("invalid default_emoji_skin_tone bytes"),
+        }
+    }
+}
+
+impl SyncedUserSetting for DefaultEmojiSkinToneSetting {
+    fn apply_to_update(&self, update: &mut SettingsUpdate) {
+        update.default_emoji_skin_tone = Some(self.0);
+    }
+
+    fn from_update(update: &SettingsUpdate) -> Option<Self> {
+        update.default_emoji_skin_tone.map(Self)
+    }
+
+    fn clear_in_update(update: &mut SettingsUpdate) {
+        update.default_emoji_skin_tone = None;
+    }
+}
+
+pub struct LimitAnimatedImagesLoopsSetting(pub bool);
+
+impl UserSetting for LimitAnimatedImagesLoopsSetting {
+    const KEY: &'static str = "limit_animated_images_loops";
+
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(vec![self.0 as u8])
+    }
+
+    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
+        match bytes.as_slice() {
+            [byte] => Ok(Self(*byte != 0)),
+            _ => bail!("invalid limit_animated_images_loops bytes"),
+        }
+    }
+}
+
+impl SyncedUserSetting for LimitAnimatedImagesLoopsSetting {
+    fn apply_to_update(&self, update: &mut SettingsUpdate) {
+        update.limit_animated_images_loops = Some(self.0);
+    }
+
+    fn from_update(update: &SettingsUpdate) -> Option<Self> {
+        update.limit_animated_images_loops.map(Self)
+    }
+
+    fn clear_in_update(update: &mut SettingsUpdate) {
+        update.limit_animated_images_loops = None;
+    }
+}
+
+/// Whether contact requests that expired are deleted instead of kept as a
+/// record. Off by default.
+pub struct DeleteExpiredContactRequestsSetting(pub bool);
+
+impl UserSetting for DeleteExpiredContactRequestsSetting {
+    const KEY: &'static str = "delete_expired_contact_requests";
+
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(vec![self.0 as u8])
+    }
+
+    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
+        match bytes.as_slice() {
+            [byte] => Ok(Self(*byte != 0)),
+            _ => bail!("invalid delete_expired_contact_requests bytes"),
+        }
+    }
+}
+
+impl SyncedUserSetting for DeleteExpiredContactRequestsSetting {
+    fn apply_to_update(&self, update: &mut SettingsUpdate) {
+        update.delete_expired_contact_requests = Some(self.0);
+    }
+
+    fn from_update(update: &SettingsUpdate) -> Option<Self> {
+        update.delete_expired_contact_requests.map(Self)
+    }
+
+    fn clear_in_update(update: &mut SettingsUpdate) {
+        update.delete_expired_contact_requests = None;
+    }
+}
+
 /// Whether the developer surface is unlocked on this device.
 ///
 /// The outer gate, with [`ExperimentalFeaturesSetting`] a switch inside that
@@ -513,7 +613,7 @@ mod tests {
     fn read_receipts_update(value: bool) -> SettingsUpdate {
         SettingsUpdate {
             send_read_receipts: Some(value),
-            linked_devices: None,
+            ..Default::default()
         }
     }
 
@@ -613,6 +713,28 @@ mod tests {
         .await?;
 
         assert_eq!(stored_read_receipts(&pool).await?, Some(true));
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn apply_and_collect_cover_every_synced_setting(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let update = SettingsUpdate {
+            send_read_receipts: Some(false),
+            linked_devices: Some(Vec::new()),
+            default_emoji_skin_tone: Some(4),
+            limit_animated_images_loops: Some(true),
+            delete_expired_contact_requests: Some(true),
+        };
+        let collected = pool
+            .with_write_transaction(async |txn| -> anyhow::Result<SettingsUpdate> {
+                apply_settings_update(txn, &update).await?;
+                SettingsUpdate::collect(txn).await
+            })
+            .await?;
+
+        assert_eq!(collected, update);
         Ok(())
     }
 

@@ -34,6 +34,8 @@ use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+use super::contact_requests::system_messages;
+
 /// Sends `text` from `sender` into the self-group chat and asserts that
 /// `receiver` sees it after fetching + processing its queue.
 pub(crate) async fn send_and_receive(
@@ -192,6 +194,28 @@ async fn link_new_device_named(
 pub(crate) async fn drain_queue(user: &CoreUser) {
     let messages = user.qs_fetch_messages().await.unwrap();
     user.fully_process_qs_messages(messages).await;
+}
+
+/// Acks all messages in the device's queue without processing them, as if
+/// the device had missed them.
+pub(crate) async fn discard_queue(user: &CoreUser) {
+    let (stream, responder) = user.listen_queue().await.unwrap();
+    let sequence_number = stream
+        .map_while(|message| match message.ok()?.event {
+            Some(listen_response::Event::Message(queue_message)) => {
+                Some(queue_message.sequence_number)
+            }
+            Some(
+                listen_response::Event::Empty(_)
+                | listen_response::Event::Payload(_)
+                | listen_response::Event::VersionStatus(_)
+                | listen_response::Event::SiblingClientState(_),
+            )
+            | None => None,
+        })
+        .fold(0, |_, sequence_number| sequence_number)
+        .await;
+    responder.ack(sequence_number + 1).await;
 }
 
 /// How many of the chat's stored content messages render as `text`.
@@ -766,10 +790,14 @@ async fn multi_device_settings_sync() {
     drain_queue(old_device).await;
     drain_queue(&new_device).await;
 
-    // Initial key package upload
+    // Initial key package uploads. Each upload completes only once the
+    // uploading device fetches its own commit.
     new_device.outbound_service().run_once().await;
     drain_queue(&new_device).await;
     drain_queue(old_device).await;
+    old_device.outbound_service().run_once().await;
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
 
     // Nothing was set before linking, so the linking payload carried an empty
     // snapshot and the new device starts unset.
@@ -1211,6 +1239,11 @@ async fn multi_device_deleted_chat_is_erased_on_sibling() -> anyhow::Result<()> 
     let first_device = setup.get_user(&alice).user();
     drain_queue(first_device).await;
     drain_queue(&second_device).await;
+    // Linking makes the first device upload key packages, which completes only
+    // once it fetches its own commit.
+    first_device.outbound_service().run_once().await;
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
     assert!(second_device.chat(&chat_id).await.is_some());
 
     first_device.delete_chat(chat_id).await?;
@@ -1245,6 +1278,239 @@ async fn multi_device_deleted_chat_is_erased_on_sibling() -> anyhow::Result<()> 
     );
 
     Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(
+    name = "Test a sole member's group deletion reaches the sibling",
+    skip_all
+)]
+async fn multi_device_sole_member_group_deletion_reaches_the_sibling() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let chat_id = setup.create_group(&alice).await;
+
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    // Onboarding into the pre-existing group runs in the background.
+    second_device.outbound_service().run_once().await;
+    let first_device = setup.get_user(&alice).user();
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
+    assert!(second_device.chat(&chat_id).await.is_some());
+    assert!(first_device.ds_has_group(chat_id).await?);
+
+    let deletion = SystemMessage::DeleteGroup(alice.clone());
+    first_device.delete_chat(chat_id).await?;
+    let messages = system_messages(first_device, chat_id).await;
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|message| **message == deletion)
+            .count(),
+        1,
+        "the deleter stores one deletion message: {messages:?}"
+    );
+    assert!(
+        !first_device.ds_has_group(chat_id).await?,
+        "the DS deletes the group of a sole member"
+    );
+
+    let qs_messages = second_device.qs_fetch_messages().await?;
+    let result = second_device.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "the sibling fails to follow the deletion: {:?}",
+        result.errors
+    );
+    assert!(
+        second_device
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .status()
+            .is_inactive()
+    );
+    let sibling_messages = system_messages(&second_device, chat_id).await;
+    assert_eq!(
+        sibling_messages
+            .iter()
+            .filter(|message| **message == deletion)
+            .count(),
+        1,
+        "got {sibling_messages:?}"
+    );
+    assert!(
+        !sibling_messages
+            .iter()
+            .any(|message| matches!(message, SystemMessage::Remove(_remover, _removed))),
+        "got {sibling_messages:?}"
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(
+    name = "Test a sibling finds a missed group deletion by resync",
+    skip_all
+)]
+async fn multi_device_missed_group_deletion_is_found_by_resync() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    // Onboarding into the pre-existing group runs in the background.
+    second_device.outbound_service().run_once().await;
+    let first_device = setup.get_user(&alice).user();
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
+    assert!(second_device.chat(&chat_id).await.is_some());
+
+    first_device.delete_chat(chat_id).await?;
+    // The sibling misses the delete commit, so its leaf is still in the group
+    // on the DS and a resync would rejoin the one-member group.
+    discard_queue(&second_device).await;
+    assert_eq!(
+        second_device.chat(&chat_id).await.unwrap().status(),
+        &ChatStatus::Active
+    );
+    let participants = second_device.chat_participants(chat_id).await;
+
+    second_device.enqueue_group_resync(chat_id).await?;
+    second_device.outbound_service().run_once().await;
+
+    assert!(
+        second_device
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .status()
+            .is_inactive()
+    );
+    let sibling_messages = system_messages(&second_device, chat_id).await;
+    assert_eq!(
+        sibling_messages
+            .iter()
+            .filter(|message| **message == SystemMessage::DeleteGroup(alice.clone()))
+            .count(),
+        1,
+        "got {sibling_messages:?}"
+    );
+    assert!(
+        !sibling_messages
+            .iter()
+            .any(|message| matches!(message, SystemMessage::Remove(_remover, _removed))),
+        "got {sibling_messages:?}"
+    );
+    assert!(
+        second_device.resync_status(chat_id).await?.is_none(),
+        "the resync entry is gone"
+    );
+    assert!(
+        second_device.mls_members(chat_id).await?.is_none(),
+        "the MLS group is gone"
+    );
+    assert_eq!(
+        second_device.chat_participants(chat_id).await,
+        participants,
+        "the chat still lists its members"
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test a deleted group takes no further operations", skip_all)]
+async fn multi_device_deleted_group_takes_no_further_operations() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    second_device.outbound_service().run_once().await;
+    let first_device = setup.get_user(&alice).user();
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
+
+    first_device.delete_chat(chat_id).await?;
+    // The sibling's leaf is still in the group, so only the deletion stops
+    // the DS from accepting its commit.
+    discard_queue(&second_device).await;
+
+    let result = second_device.update_key(chat_id).await;
+    assert!(
+        result.is_err(),
+        "the DS accepts a commit on a deleted group"
+    );
+    // The rejection schedules a resync, which finds the deletion.
+    second_device.outbound_service().run_once().await;
+    assert_deletion_announced(&second_device, chat_id, &alice).await;
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(
+    name = "Test a message to a deleted group announces the deletion",
+    skip_all
+)]
+async fn multi_device_message_to_deleted_group_announces_the_deletion() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    second_device.outbound_service().run_once().await;
+    let first_device = setup.get_user(&alice).user();
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
+
+    first_device.delete_chat(chat_id).await?;
+    discard_queue(&second_device).await;
+
+    let content = MimiContent::simple_markdown_message("too late".to_owned(), [5; 16]);
+    second_device
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await?;
+    // The first run has the DS reject the message, the second one resyncs.
+    second_device.outbound_service().run_once().await;
+    second_device.outbound_service().run_once().await;
+    assert_deletion_announced(&second_device, chat_id, &alice).await;
+
+    Ok(())
+}
+
+/// Asserts that `device` ended the chat with exactly one message saying that
+/// `deleter` deleted it, and dropped the group's MLS state.
+async fn assert_deletion_announced(device: &CoreUser, chat_id: ChatId, deleter: &UserId) {
+    assert!(device.chat(&chat_id).await.unwrap().status().is_inactive());
+    let messages = system_messages(device, chat_id).await;
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|message| **message == SystemMessage::DeleteGroup(deleter.clone()))
+            .count(),
+        1,
+        "got {messages:?}"
+    );
+    assert!(
+        device.resync_status(chat_id).await.unwrap().is_none(),
+        "the resync entry is gone"
+    );
+    assert!(
+        device.mls_members(chat_id).await.unwrap().is_none(),
+        "the MLS group is gone"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -1474,6 +1740,13 @@ async fn multi_device_self_group_above_limit_can_shrink() -> anyhow::Result<()> 
     drain_queue(&device_2).await;
     let (device_3, _tmp_3) = link_new_device(&setup, &alice).await;
     let device_1 = setup.get_user(&alice).user();
+    drain_queue(device_1).await;
+    drain_queue(&device_2).await;
+    drain_queue(&device_3).await;
+
+    // Linking makes device 1 upload key packages, which completes only once
+    // it fetches its own commit.
+    device_1.outbound_service().run_once().await;
     drain_queue(device_1).await;
     drain_queue(&device_2).await;
     drain_queue(&device_3).await;

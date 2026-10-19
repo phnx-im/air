@@ -595,6 +595,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<int> dco_decode_StreamSink_CastedPrimitive_usize_Sse(
+    dynamic raw,
+  );
+
+  @protected
   RustStreamSink<ChatDetailsState> dco_decode_StreamSink_chat_details_state_Sse(
     dynamic raw,
   );
@@ -664,7 +669,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AdmissionSession dco_decode_admission_session(dynamic raw);
 
   @protected
-  AirComponent dco_decode_air_component(dynamic raw);
+  AirComponentDebugInfo dco_decode_air_component_debug_info(dynamic raw);
 
   @protected
   AirFeatures dco_decode_air_features(dynamic raw);
@@ -714,7 +719,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AdmissionSession dco_decode_box_autoadd_admission_session(dynamic raw);
 
   @protected
-  AirComponent dco_decode_box_autoadd_air_component(dynamic raw);
+  AirComponentDebugInfo dco_decode_box_autoadd_air_component_debug_info(
+    dynamic raw,
+  );
 
   @protected
   AirFeatures dco_decode_box_autoadd_air_features(dynamic raw);
@@ -1152,7 +1159,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_opt_box_autoadd_add_username_contact_error(dynamic raw);
 
   @protected
-  AirComponent? dco_decode_opt_box_autoadd_air_component(dynamic raw);
+  AirComponentDebugInfo? dco_decode_opt_box_autoadd_air_component_debug_info(
+    dynamic raw,
+  );
 
   @protected
   AirFeatures? dco_decode_opt_box_autoadd_air_features(dynamic raw);
@@ -1930,6 +1939,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<int> sse_decode_StreamSink_CastedPrimitive_usize_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RustStreamSink<ChatDetailsState> sse_decode_StreamSink_chat_details_state_Sse(
     SseDeserializer deserializer,
   );
@@ -2015,7 +2029,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AdmissionSession sse_decode_admission_session(SseDeserializer deserializer);
 
   @protected
-  AirComponent sse_decode_air_component(SseDeserializer deserializer);
+  AirComponentDebugInfo sse_decode_air_component_debug_info(
+    SseDeserializer deserializer,
+  );
 
   @protected
   AirFeatures sse_decode_air_features(SseDeserializer deserializer);
@@ -2067,7 +2083,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  AirComponent sse_decode_box_autoadd_air_component(
+  AirComponentDebugInfo sse_decode_box_autoadd_air_component_debug_info(
     SseDeserializer deserializer,
   );
 
@@ -2643,7 +2659,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  AirComponent? sse_decode_opt_box_autoadd_air_component(
+  AirComponentDebugInfo? sse_decode_opt_box_autoadd_air_component_debug_info(
     SseDeserializer deserializer,
   );
 
@@ -3589,6 +3605,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_CastedPrimitive_usize_Sse(
+    RustStreamSink<int> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_StreamSink_chat_details_state_Sse(
     RustStreamSink<ChatDetailsState> self,
     SseSerializer serializer,
@@ -3691,7 +3713,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_air_component(AirComponent self, SseSerializer serializer);
+  void sse_encode_air_component_debug_info(
+    AirComponentDebugInfo self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_air_features(AirFeatures self, SseSerializer serializer);
@@ -3754,8 +3779,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_air_component(
-    AirComponent self,
+  void sse_encode_box_autoadd_air_component_debug_info(
+    AirComponentDebugInfo self,
     SseSerializer serializer,
   );
 
@@ -4477,8 +4502,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_opt_box_autoadd_air_component(
-    AirComponent? self,
+  void sse_encode_opt_box_autoadd_air_component_debug_info(
+    AirComponentDebugInfo? self,
     SseSerializer serializer,
   );
 

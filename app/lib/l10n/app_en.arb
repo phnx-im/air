@@ -52,6 +52,14 @@
   "@userSettingsScreen_readReceiptsDescription": {
     "description": "Explains that the read receipts toggle applies in both directions."
   },
+  "userSettingsScreen_deleteExpiredContactRequests": "Delete expired contact requests",
+  "@userSettingsScreen_deleteExpiredContactRequests": {
+    "description": "Label of the preference toggle that deletes contact requests once they expire, sent and received ones alike, instead of keeping them in the chats list."
+  },
+  "userSettingsScreen_deleteExpiredContactRequestsDescription": "If turned on, expired contact requests are automatically deleted.",
+  "@userSettingsScreen_deleteExpiredContactRequestsDescription": {
+    "description": "Explains the toggle for deleting expired contact requests. Turning it on also deletes the requests that have already expired."
+  },
   "userSettingsScreen_languageSettingsDescription": "Translations may contain mistakes.",
   "@userSettingsScreen_languageSettingsDescription": {
     "description": "Help text under the language picker in settings. Warns that the app's translations may contain errors."
@@ -712,9 +720,9 @@
   "@linkingDeviceScreen_linking_confirm_button": {
     "description": "Button that confirms linking the new device."
   },
-  "linkingDeviceScreen_instructions_1": "Open Air on your existing device and go to You → Manage devices.",
+  "linkingDeviceScreen_instructions_1": "Open Air on your existing device, then go to You → Devices.",
   "@linkingDeviceScreen_instructions_1": {
-    "description": "First linking step. Names the You tab and the manage devices row as they appear in this locale."
+    "description": "First linking step. Names the You tab and the Devices row as they appear in this locale."
   },
   "linkingDeviceScreen_instructions_2": "Tap \"Link a device\", then scan the QR code or enter the numeric code shown above.",
   "@linkingDeviceScreen_instructions_2": {
@@ -1182,6 +1190,14 @@
   "@systemMessage_connectionRequestUnavailable": {
     "description": "System message in the chat of an incoming contact request that its sender retracted before the user could accept it."
   },
+  "systemMessage_connectionRequestExpired": "Contact request expired.",
+  "@systemMessage_connectionRequestExpired": {
+    "description": "System message in the chat of an incoming contact request the user did not answer within 30 days."
+  },
+  "systemMessage_sentConnectionRequestExpired": "Your contact request expired. If you still want to add this person as a contact, send them a new request.",
+  "@systemMessage_sentConnectionRequestExpired": {
+    "description": "System message in the chat of a contact request the user sent, once 30 days passed without an answer."
+  },
   "sentContactRequest_title": "You sent a contact request",
   "@sentContactRequest_title": {
     "description": "Headline of the card of a contact request the user sent to a username, while the recipient has not answered."
@@ -1224,6 +1240,37 @@
   "sentContactRequest_error_retract": "Failed to retract contact request",
   "@sentContactRequest_error_retract": {
     "description": "Error banner shown when retracting a sent contact request fails."
+  },
+  "contactRequest_expiresInDays": "{count, plural, one {Expires in {count} day} other {Expires in {count} days}}",
+  "@contactRequest_expiresInDays": {
+    "description": "Countdown on the card of an open contact request, sent or received, while a day or more is left. Rounded up, so a new request shows 30 days.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "contactRequest_expiresInHours": "{count, plural, one {Expires in {count} hour} other {Expires in {count} hours}}",
+  "@contactRequest_expiresInHours": {
+    "description": "Countdown on the card of an open contact request, sent or received, while less than a day is left. Rounded up.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "contactRequest_expiresInMinutes": "{count, plural, one {Expires in {count} minute} other {Expires in {count} minutes}}",
+  "@contactRequest_expiresInMinutes": {
+    "description": "Countdown on the card of an open contact request, sent or received, while less than an hour is left. Rounded up.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "contactRequest_expiresInLessThanAMinute": "Expires in less than a minute",
+  "@contactRequest_expiresInLessThanAMinute": {
+    "description": "Countdown on the card of an open contact request, sent or received, in its last minute."
   },
   "retractContactRequestDialog_title": "Retract contact request?",
   "@retractContactRequestDialog_title": {
@@ -1337,6 +1384,16 @@
   "systemMessage_userCreatedGroup": "{user} created the group",
   "@systemMessage_userCreatedGroup": {
     "description": "Notice in the message list when someone creates a group. The name is rendered in bold wherever it lands, so put it where your language needs it.",
+    "placeholders": {
+      "user": {
+        "type": "String"
+      }
+    }
+  },
+
+  "systemMessage_userDeletedChat": "{user} deleted the chat",
+  "@systemMessage_userDeletedChat": {
+    "description": "Notice in the message list when someone deletes the chat for all of its members. The name is rendered in bold wherever it lands, so put it where your language needs it.",
     "placeholders": {
       "user": {
         "type": "String"
@@ -2206,9 +2263,47 @@
   "@contactRequestDialog_avatarHint_desktop": {
     "description": "Desktop version of contactRequestDialog_avatarHint: hint over the blurred picture of someone who is not yet a contact, telling the user they can click to reveal it."
   },
-  "contactRequestDialog_cancel": "Later",
-  "@contactRequestDialog_cancel": {
-    "description": "Button that postpones the contact request without accepting it."
+  "contactRequestDialog_decline": "Decline",
+  "@contactRequestDialog_decline": {
+    "description": "Button on an incoming contact request that declines it without asking. The sender is not told."
+  },
+  "contactRequestDialog_block": "Block",
+  "@contactRequestDialog_block": {
+    "description": "Button on an incoming contact request that blocks its sender, which declines the request. Opens a confirmation dialog."
+  },
+  "contactRequestDialog_error_decline": "Failed to decline contact request",
+  "@contactRequestDialog_error_decline": {
+    "description": "Error shown when declining an incoming contact request fails."
+  },
+  "contactRequestDialog_error_block": "Failed to block the sender of the contact request",
+  "@contactRequestDialog_error_block": {
+    "description": "Error shown when blocking the sender of an incoming contact request fails."
+  },
+  "blockContactRequestDialog_title": "Block {displayName}?",
+  "@blockContactRequestDialog_title": {
+    "description": "Title of the dialog confirming that the sender of an incoming contact request is blocked.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "blockContactRequestDialog_content": "You’ll decline {displayName}’s contact request and won’t receive contact requests or messages from them anymore. They won’t be able to see that you blocked them.",
+  "@blockContactRequestDialog_content": {
+    "description": "Body of the dialog confirming that the sender of an incoming contact request is blocked. Explains that the request is declined as well.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "blockContactRequestDialog_cancel": "Cancel",
+  "@blockContactRequestDialog_cancel": {
+    "description": "Button that closes the dialog without blocking the sender of the contact request."
+  },
+  "blockContactRequestDialog_confirm": "Block",
+  "@blockContactRequestDialog_confirm": {
+    "description": "Destructive button that blocks the sender of the contact request and declines the request."
   },
   "contactRequestDialog_confirm": "Accept",
   "@contactRequestDialog_confirm": {
