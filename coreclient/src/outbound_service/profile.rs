@@ -152,6 +152,7 @@ impl OutboundServiceContext {
                 error @ (JobError::Blocked
                 | JobError::Fatal(_)
                 | JobError::NotFound
+                | JobError::GroupClosed
                 | JobError::Domain(_)),
             ) => {
                 // These error cases must not happen when fetching profiles.

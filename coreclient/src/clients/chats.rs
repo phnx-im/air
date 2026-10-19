@@ -111,7 +111,7 @@ impl CoreUser {
             return self.erase_chat(chat_id).await;
         }
         match self.execute_job(ChatOperation::delete_chat(chat_id)).await {
-            Ok(_) | Err(JobError::NotFound) => {}
+            Ok(_) | Err(JobError::NotFound | JobError::GroupClosed) => {}
             Err(JobError::NetworkError) => {
                 self.db()
                     .with_write_transaction(async |txn| {

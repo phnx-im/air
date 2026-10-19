@@ -93,6 +93,7 @@ message StatusDetails {
     GenerationCollisionDetail generation_collision = 6;
     DeviceLimitReachedDetail device_limit_reached = 7;
     UncommittedSelfRemoveDetail uncommitted_self_remove = 8;
+    GroupClosedDetail group_closed = 9;
   }
 }
 
@@ -112,6 +113,8 @@ enum StatusDetailsCode {
   STATUS_DETAILS_CODE_DEVICE_LIMIT_REACHED = 7;
   // The commit left a self-remove proposal pending on the DS uncommitted
   STATUS_DETAILS_CODE_UNCOMMITTED_SELF_REMOVE = 8;
+  // The group context carries a tombstone, so the group takes no more messages
+  STATUS_DETAILS_CODE_GROUP_CLOSED = 9;
 }
 
 message VersionUnsupportedDetail {
@@ -132,6 +135,8 @@ message TokenQuotaExceededDetail {
 message WrongEpochDetail {}
 
 message UncommittedSelfRemoveDetail {}
+
+message GroupClosedDetail {}
 
 message GenerationCollisionDetail {
   repeated sfixed64 tags = 1;

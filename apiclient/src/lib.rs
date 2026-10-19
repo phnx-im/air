@@ -174,6 +174,9 @@ pub enum RequestErrorKind {
     Network,
     /// Resource not found.
     NotFound,
+    /// The group is closed and takes no more messages, see
+    /// `StatusDetailsCode::GroupClosed`.
+    GroupClosed,
     /// The server refused the request, resending it won't help.
     Rejected,
     /// The server failed to handle the request, a retry may succeed.
@@ -207,7 +210,8 @@ pub(crate) fn classify_status(status: &Status) -> RequestErrorKind {
                         | Detail::AttachmentTooLarge(_)
                         | Detail::WrongEpoch(_)
                         | Detail::UncommittedSelfRemove(_)
-                        | Detail::GenerationCollision(_),
+                        | Detail::GenerationCollision(_)
+                        | Detail::GroupClosed(_),
                     ) => RequestErrorKind::Rejected,
                     // Details we cannot decode, e.g. from a newer server
                     None => RequestErrorKind::ServerError,
@@ -228,7 +232,12 @@ pub(crate) fn classify_status(status: &Status) -> RequestErrorKind {
         {
             RequestErrorKind::Network
         }
-        Code::NotFound => RequestErrorKind::NotFound,
+        Code::NotFound => {
+            match StatusDetails::from_status(status).and_then(|details| details.detail) {
+                Some(Detail::GroupClosed(_)) => RequestErrorKind::GroupClosed,
+                Some(_) | None => RequestErrorKind::NotFound,
+            }
+        }
         Code::Internal | Code::Unknown | Code::Aborted | Code::DataLoss => {
             RequestErrorKind::ServerError
         }

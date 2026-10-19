@@ -138,12 +138,20 @@ impl DsRequestError {
         }
     }
 
+    /// Whether the DS did not find the group or other resource. True for a
+    /// closed group as well, see [`Self::is_group_closed`].
     pub fn is_not_found(&self) -> bool {
         if let Self::Tonic(status) = self {
             matches!(status.code(), Code::NotFound)
         } else {
             false
         }
+    }
+
+    /// Whether the DS rejected the request because the group's context carries
+    /// a tombstone.
+    pub fn is_group_closed(&self) -> bool {
+        matches!(self.kind(), RequestErrorKind::GroupClosed)
     }
 
     pub fn device_limit_reached(&self) -> Option<DeviceLimitReachedDetail> {
@@ -1145,6 +1153,8 @@ mod tests {
 
     use std::{assert_matches, io};
 
+    use airprotos::common::v1::GroupClosedDetail;
+
     #[test]
     fn timeout_is_classified_as_a_network_error() {
         let error = DsRequestError::Timeout(SEND_TIMEOUT);
@@ -1154,6 +1164,22 @@ mod tests {
             "a send we stopped waiting for may still have reached the DS"
         );
         assert!(!error.is_not_found());
+    }
+
+    #[test]
+    fn group_closed_is_a_not_found_with_details() {
+        let status = StatusDetails {
+            code: StatusDetailsCode::GroupClosed.into(),
+            detail: Some(Detail::GroupClosed(GroupClosedDetail {})),
+        }
+        .to_status(Code::NotFound, "Group is closed");
+        let error = DsRequestError::Tonic(status);
+        assert!(error.is_group_closed());
+        assert!(error.is_not_found());
+
+        let error = DsRequestError::Tonic(tonic::Status::not_found("Group not found"));
+        assert!(!error.is_group_closed());
+        assert_matches!(error.kind(), RequestErrorKind::NotFound);
     }
 
     #[test]

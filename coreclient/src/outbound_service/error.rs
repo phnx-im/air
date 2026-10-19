@@ -91,6 +91,7 @@ fn transient_request_error(error: &anyhow::Error) -> Option<OutboundServiceError
             }
             RequestErrorKind::Network => Some(OutboundServiceError::NetworkError),
             RequestErrorKind::NotFound
+            | RequestErrorKind::GroupClosed
             | RequestErrorKind::Rejected
             | RequestErrorKind::ServerError => None,
         }
@@ -128,7 +129,9 @@ impl OutboundServiceError {
             RequestFailure::Network(_) => Self::NetworkError,
             RequestFailure::Recoverable(recoverable) => Self::Recoverable(recoverable),
             // Not found keeps the request error, see `is_ds_not_found_error`
-            RequestFailure::NotFound(error) | RequestFailure::Fatal(error) => Self::Fatal(error),
+            RequestFailure::NotFound(error)
+            | RequestFailure::GroupClosed(error)
+            | RequestFailure::Fatal(error) => Self::Fatal(error),
         }
     }
 }
@@ -143,9 +146,10 @@ where
             JobError::RateLimited { retry_after } => Self::RateLimited { retry_after },
             JobError::Recoverable(error) => Self::Recoverable(error),
             JobError::Fatal(error) => Self::Fatal(error),
-            error @ (JobError::Domain(_) | JobError::Blocked | JobError::NotFound) => {
-                Self::Fatal(error.into())
-            }
+            error @ (JobError::Domain(_)
+            | JobError::Blocked
+            | JobError::NotFound
+            | JobError::GroupClosed) => Self::Fatal(error.into()),
         }
     }
 }
