@@ -4,6 +4,7 @@
 
 //! Turns device link operations into self-group commits.
 
+use airapiclient::{ClassifyRequestError, RequestErrorKind};
 use anyhow::Context as _;
 use tracing::{error, info};
 
@@ -104,7 +105,7 @@ impl OutboundServiceContext {
             .await;
         match deleted {
             Ok(()) => (),
-            Err(error) if error.is_unknown_client() => (),
+            Err(error) if matches!(error.kind(), RequestErrorKind::NotFound) => (),
             Err(error) => return Err(error.into()),
         }
         DeviceLink::delete(self.db.write().await?, link.link_id).await?;

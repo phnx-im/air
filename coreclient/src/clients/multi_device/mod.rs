@@ -9,7 +9,9 @@ mod test_utils;
 #[cfg(test)]
 mod tests;
 
-use airapiclient::{qs_api::QsListenResponder, rs_api::RsRequestError};
+use airapiclient::{
+    ClassifyRequestError, RequestErrorKind, qs_api::QsListenResponder, rs_api::RsRequestError,
+};
 use aircommon::codec::PersistenceCodec;
 use aircommon::credentials::keys::SelfGroupSigningKey;
 use aircommon::crypto::RatchetDecryptionKey;
@@ -63,7 +65,7 @@ use crate::{
         outgoing_requests::OutgoingRequest,
     },
     clients::{
-        CIPHERSUITE, CoreUser, ListenResponse,
+        CIPHERSUITE, CoreUser, ListenQueueError, ListenResponse,
         api_clients::ApiClients,
         block_contact::persistence::{apply_blocked_contacts_update, blocked_contacts_snapshot},
         create_user::QsRegisteredUserState,
@@ -639,7 +641,9 @@ impl CoreUser {
                             return Ok(());
                         }
                     }
-                    Err(error) if error.is_unknown_client() => {
+                    Err(ListenQueueError::Qs(error))
+                        if matches!(error.kind(), RequestErrorKind::NotFound) =>
+                    {
                         return Err(LinkingError::QueueDeleted);
                     }
                     Err(error) => {

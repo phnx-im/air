@@ -99,17 +99,6 @@ impl QsRequestError {
             _ => false,
         }
     }
-
-    /// Whether the QS no longer knows the client the request was made for.
-    pub fn is_unknown_client(&self) -> bool {
-        match self {
-            Self::Tonic(status) => status.code() == tonic::Code::NotFound,
-            Self::LibraryError
-            | Self::Tls(_)
-            | Self::UnexpectedResponse
-            | Self::MissingField(_) => false,
-        }
-    }
 }
 
 impl ApiClient {
