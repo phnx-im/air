@@ -612,17 +612,23 @@ impl CoreUser {
     }
 
     /// Loads the chat and the verified group for the given group id.
+    /// Returns `None` for a chat we left: its group is deleted, but the queue
+    /// still delivers for it until another member commits our removal.
     async fn load_chat_and_group(
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
-    ) -> Result<(Chat, VerifiedGroup)> {
+    ) -> Result<Option<(Chat, VerifiedGroup)>> {
         let chat = Chat::load_by_group_id(&mut *txn, group_id)
             .await?
             .ok_or_else(|| anyhow!("No chat found for group ID {group_id:?}"))?;
-        let group = Group::load_verified(&mut *txn, group_id)
-            .await?
-            .ok_or_else(|| anyhow!("No group found for group ID {group_id:?}"))?;
-        Ok((chat, group))
+        let Some(group) = Group::load_verified(&mut *txn, group_id).await? else {
+            if let ChatStatus::Inactive(_) = chat.status() {
+                debug!(chat_id = %chat.id(), "Dropping message for a group we left");
+                return Ok(None);
+            }
+            bail!("No group found for group ID {group_id:?}");
+        };
+        Ok(Some((chat, group)))
     }
 
     /// Unwraps the result of processing an MLS message.
@@ -679,7 +685,9 @@ impl CoreUser {
 
         // MLSMessage Phase 1: Load the chat and the group.
         let group_id = protocol_message.group_id().clone();
-        let (chat, mut group) = Self::load_chat_and_group(txn, &group_id).await?;
+        let Some((chat, mut group)) = Self::load_chat_and_group(txn, &group_id).await? else {
+            return Ok(QsMessageOutcome::empty());
+        };
 
         // MLSMessage Phase 2: Process the message
         let result = group
@@ -761,7 +769,9 @@ impl CoreUser {
         // The group is loaded regardless of whether it has a pending commit or
         // not.
         let group_id = protocol_message.group_id().clone();
-        let (chat, mut group) = Self::load_chat_and_group(txn, &group_id).await?;
+        let Some((chat, mut group)) = Self::load_chat_and_group(txn, &group_id).await? else {
+            return Ok(QsMessageOutcome::empty());
+        };
 
         // MLSMessage Phase 2: Process the message
         let result = group
@@ -825,7 +835,9 @@ impl CoreUser {
         // The group is loaded regardless of whether it has a pending commit or
         // not.
         let group_id = protocol_message.group_id().t_group_id().clone();
-        let (chat, mut group) = Self::load_chat_and_group(txn, &group_id).await?;
+        let Some((chat, mut group)) = Self::load_chat_and_group(txn, &group_id).await? else {
+            return Ok(QsMessageOutcome::empty());
+        };
 
         // MLSMessage Phase 2: Process the message
         let result = group
@@ -875,8 +887,8 @@ impl CoreUser {
 
         let chat_id = chat.id();
 
-        // Until another member commits our self-remove, we still receive the
-        // group's messages. Drop them, but keep the MLS state in sync.
+        // While a leave is still retried, the group is kept and the queue
+        // delivers its messages. Drop them, but keep the MLS state in sync.
         let left_group =
             chat.chat_type().is_group() && matches!(chat.status(), ChatStatus::Inactive(_));
 
@@ -1638,9 +1650,14 @@ impl CoreUser {
         // Phase 1: Load the group and the sender. Self-group leaves carry a
         // self-group credential instead of a user credential, so the sender of
         // a self-group update is a sibling device of the own user.
-        let group = Group::load_verified(&mut *txn, &params.group_id)
-            .await?
-            .context("No group found")?;
+        let Some(group) = Group::load_verified(&mut *txn, &params.group_id).await? else {
+            if let Some(chat) = Chat::load_by_group_id(&mut *txn, &params.group_id).await?
+                && let ChatStatus::Inactive(_) = chat.status()
+            {
+                return Ok(());
+            }
+            bail!("No group found");
+        };
         let sender_credential = if group.is_self_group() {
             self.inner.key_store.signing_key.credential().clone()
         } else {

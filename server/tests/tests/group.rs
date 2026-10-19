@@ -165,10 +165,11 @@ async fn no_messages_after_leaving_group() {
         .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
         .await;
 
-    // Bob leaves, but nobody commits his removal yet, so he still receives
-    // group messages.
+    // Bob leaves and drops the group, but the DS fans out group messages to
+    // him until somebody commits his removal.
     let bob_user = &setup.get_user(&bob).user;
     bob_user.leave_chat(chat_id).await.unwrap();
+    assert!(bob_user.mls_chat_participants(chat_id).await.is_none());
     let bob_messages_before = bob_user.messages(chat_id, 1024).await.unwrap();
 
     let alice_user = &setup.get_user(&alice).user;
@@ -1062,14 +1063,23 @@ async fn self_update_skips_inactive_chats() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
     let active_chat = setup.create_group(&alice).await;
-    let inactive_chat = setup.create_group(&alice).await;
+
+    // Bob removes Alice from his group, which turns her chat inactive but
+    // keeps the group. A left chat has no group left to self-update.
+    let inactive_chat = setup.create_group(&bob).await;
+    setup
+        .invite_to_group(inactive_chat, &bob, vec![&alice])
+        .await;
+    setup
+        .remove_from_group(inactive_chat, &bob, vec![&alice])
+        .await
+        .unwrap();
 
     let alice_user = setup.get_user(&alice);
     let alice_core = &alice_user.user;
-
-    // Leave one chat to make it inactive
-    alice_core.leave_chat(inactive_chat).await.unwrap();
 
     // Set self_updated_at to the past for both chats
     alice_core

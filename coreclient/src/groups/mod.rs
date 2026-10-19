@@ -3021,6 +3021,22 @@ pub(crate) async fn handle_group_not_found_on_ds(
     Ok(())
 }
 
+/// Deletes the MLS group of a chat we left and records its last members on
+/// the inactive chat. Cascades to `pending_chat_operation` and
+/// `group_membership` via FK.
+pub(crate) async fn delete_left_group(
+    txn: &mut WriteDbTransaction<'_>,
+    chat: &mut crate::Chat,
+    group: &Group,
+) -> anyhow::Result<()> {
+    let past_members = group.members().collect();
+    chat.set_status(&mut *txn, ChatStatus::inactive(past_members))
+        .await?;
+    Resync::remove(&mut *txn, group.group_id()).await?;
+    Group::delete_from_db(txn, group.group_id()).await?;
+    Ok(())
+}
+
 #[cfg(feature = "test_utils")]
 mod test_utils {
     use aircommon::codec::PersistenceCodec;

@@ -22,7 +22,7 @@ use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
     clients::own_client_info::OwnClientInfo,
     db::access::WriteConnection,
-    groups::Group,
+    groups::{Group, delete_left_group},
     job::{Job, JobContext, JobContextDb, JobError, pending_chat_operation::PendingChatOperation},
 };
 
@@ -357,18 +357,20 @@ impl ChatOperation {
                 let mut chat = Chat::load(&mut *txn, &self.chat_id)
                     .await?
                     .with_context(|| format!("No chat with id {}", self.chat_id))?;
-                let group = Group::load_clean_verified(&mut *txn, chat.group_id())
-                    .await?
-                    .with_context(|| format!("No group with id {:?}", chat.group_id()))?;
+                let Some(group) = Group::load_clean_verified(&mut *txn, chat.group_id()).await?
+                else {
+                    // The group is deleted with the leave, so this chat was already left.
+                    if let ChatStatus::Inactive(_) = chat.status() {
+                        return Ok(None);
+                    }
+                    bail!("No group with id {:?}", chat.group_id());
+                };
 
                 // Short-circuit if the group has already a pending self-remove proposal from our
-                // own leaf from other virtual client.
+                // own leaf from another device: the DS holds the leave and the system message is
+                // already recorded.
                 if group.group().has_pending_own_self_remove() {
-                    if !matches!(chat.status(), ChatStatus::Inactive(_)) {
-                        // A leave system message is already recorded. Just deactivate the chat.
-                        chat.set_status(&mut *txn, ChatStatus::inactive(Vec::new()))
-                            .await?;
-                    }
+                    delete_left_group(txn, &mut chat, &group).await?;
                     return Ok(None);
                 }
 

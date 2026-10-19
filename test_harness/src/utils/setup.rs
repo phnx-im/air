@@ -1720,16 +1720,27 @@ impl TestBackend {
         // we probably want a way to track the randomness s.t. we can reproduce
         // tests.
 
+        // The leaver dropped its group with the leave, so it takes no part in
+        // the commit below.
+        self.groups.get_mut(&chat_id).unwrap().remove(leaver_id);
+
         // Now commit to the pending proposal. This also makes everyone else
         // pick up and process their messages. This also tests that group
-        // members were removed correctly from the local group and that the
-        // leaver has turned its chat inactive.
+        // members were removed correctly from the local group.
         self.commit_to_proposals(chat_id, random_member_id.clone())
             .await;
 
-        let group_members = self.groups.get_mut(&chat_id).unwrap();
-
-        group_members.remove(leaver_id);
+        // The leaver drops whatever the queue still delivers for the group.
+        let leaver = &self.users.get(leaver_id).unwrap().user;
+        let qs_messages = leaver.qs_fetch_messages().await.unwrap();
+        let result = leaver.fully_process_qs_messages(qs_messages).await;
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        assert!(result.new_messages.is_empty(), "{:?}", result.new_messages);
+        assert!(leaver.mls_chat_participants(chat_id).await.is_none());
+        assert!(matches!(
+            leaver.chat(&chat_id).await.unwrap().status(),
+            ChatStatus::Inactive(_)
+        ));
 
         Ok(())
     }
