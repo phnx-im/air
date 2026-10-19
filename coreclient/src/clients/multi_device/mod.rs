@@ -939,7 +939,8 @@ impl CoreUser {
                     self.db().read().await.context("open the client store")?,
                     link_id,
                 )
-                .await?
+                .await
+                .context("load the device link")?
                 .context("the device link is gone")?;
                 match link.state {
                     DeviceLinkState::Adding => (),

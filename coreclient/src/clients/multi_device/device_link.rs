@@ -25,7 +25,8 @@ use crate::db::access::{ReadConnection, WriteConnection};
 pub(crate) use super::payloads::SelfGroupJoinRequest;
 
 /// How far a device link has got.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
+#[sqlx(rename_all = "snake_case")]
 pub(crate) enum DeviceLinkState {
     /// The new device's queue exists, but the new device has not asked to
     /// join the self group yet.
@@ -37,27 +38,6 @@ pub(crate) enum DeviceLinkState {
     /// The link will not complete. The outbound service takes the new device
     /// out of the self group if it got in, and deletes its queue.
     Abandoned,
-}
-
-impl DeviceLinkState {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Provisioned => "provisioned",
-            Self::Adding => "adding",
-            Self::Failed => "failed",
-            Self::Abandoned => "abandoned",
-        }
-    }
-
-    fn parse(state: &str) -> anyhow::Result<Self> {
-        Ok(match state {
-            "provisioned" => Self::Provisioned,
-            "adding" => Self::Adding,
-            "failed" => Self::Failed,
-            "abandoned" => Self::Abandoned,
-            other => bail!("unknown device link state {other}"),
-        })
-    }
 }
 
 /// Why the DS refused the add for good.
@@ -85,25 +65,23 @@ pub(crate) struct DeviceLink {
 
 struct SqlDeviceLink {
     link_id: Uuid,
-    state: String,
+    state: DeviceLinkState,
     queue: BlobDecoded<ProvisionedQueue>,
     client_id: Option<Uuid>,
     join_request: Option<BlobDecoded<SelfGroupJoinRequest>>,
     failure: Option<BlobDecoded<DeviceLinkFailure>>,
 }
 
-impl TryFrom<SqlDeviceLink> for DeviceLink {
-    type Error = anyhow::Error;
-
-    fn try_from(row: SqlDeviceLink) -> anyhow::Result<Self> {
-        Ok(Self {
+impl From<SqlDeviceLink> for DeviceLink {
+    fn from(row: SqlDeviceLink) -> Self {
+        Self {
             link_id: row.link_id,
-            state: DeviceLinkState::parse(&row.state)?,
+            state: row.state,
             queue: row.queue.into_inner(),
             client_id: row.client_id,
             join_request: row.join_request.map(BlobDecoded::into_inner),
             failure: row.failure.map(BlobDecoded::into_inner),
-        })
+        }
     }
 }
 
@@ -115,13 +93,12 @@ impl DeviceLink {
         expires_at: DateTime<Utc>,
     ) -> sqlx::Result<Uuid> {
         let link_id = Uuid::new_v4();
-        let state = DeviceLinkState::Provisioned.as_str();
         let queue = BlobEncoded(queue);
         query!(
             "INSERT INTO device_link (link_id, state, queue, expires_at)
             VALUES (?1, ?2, ?3, ?4)",
             link_id,
-            state,
+            DeviceLinkState::Provisioned,
             queue,
             expires_at,
         )
@@ -133,12 +110,12 @@ impl DeviceLink {
     pub(crate) async fn load(
         mut connection: impl ReadConnection,
         link_id: Uuid,
-    ) -> anyhow::Result<Option<Self>> {
+    ) -> sqlx::Result<Option<Self>> {
         let row = query_as!(
             SqlDeviceLink,
             r#"SELECT
                 link_id AS "link_id: _",
-                state,
+                state AS "state: _",
                 queue AS "queue: _",
                 client_id AS "client_id: _",
                 join_request AS "join_request: _",
@@ -149,32 +126,30 @@ impl DeviceLink {
         )
         .fetch_optional(connection.as_mut())
         .await?;
-        row.map(DeviceLink::try_from).transpose()
+        Ok(row.map(DeviceLink::from))
     }
 
     /// The links the outbound service has work for.
     pub(crate) async fn load_actionable(
         mut connection: impl ReadConnection,
-    ) -> anyhow::Result<Vec<Self>> {
-        let adding = DeviceLinkState::Adding.as_str();
-        let abandoned = DeviceLinkState::Abandoned.as_str();
+    ) -> sqlx::Result<Vec<Self>> {
         let rows = query_as!(
             SqlDeviceLink,
             r#"SELECT
                 link_id AS "link_id: _",
-                state,
+                state AS "state: _",
                 queue AS "queue: _",
                 client_id AS "client_id: _",
                 join_request AS "join_request: _",
                 failure AS "failure: _"
             FROM device_link
             WHERE state IN (?1, ?2)"#,
-            adding,
-            abandoned,
+            DeviceLinkState::Adding,
+            DeviceLinkState::Abandoned,
         )
         .fetch_all(connection.as_mut())
         .await?;
-        rows.into_iter().map(DeviceLink::try_from).collect()
+        Ok(rows.into_iter().map(DeviceLink::from).collect())
     }
 
     /// Hands the outbound service the new device's join request.
@@ -186,20 +161,18 @@ impl DeviceLink {
         request: SelfGroupJoinRequest,
         expires_at: DateTime<Utc>,
     ) -> anyhow::Result<()> {
-        let adding = DeviceLinkState::Adding.as_str();
-        let provisioned = DeviceLinkState::Provisioned.as_str();
         let client_id = request.device.client_id;
         let request = BlobEncoded(request);
         let updated = query!(
             "UPDATE device_link
             SET state = ?1, client_id = ?2, join_request = ?3, expires_at = ?4
             WHERE link_id = ?5 AND state = ?6",
-            adding,
+            DeviceLinkState::Adding,
             client_id,
             request,
             expires_at,
             link_id,
-            provisioned,
+            DeviceLinkState::Provisioned,
         )
         .execute(connection.as_mut())
         .await?;
@@ -215,16 +188,14 @@ impl DeviceLink {
         client_id: Uuid,
         failure: DeviceLinkFailure,
     ) -> sqlx::Result<()> {
-        let failed = DeviceLinkState::Failed.as_str();
-        let adding = DeviceLinkState::Adding.as_str();
         let failure = BlobEncoded(failure);
         query!(
             "UPDATE device_link SET state = ?1, failure = ?2
             WHERE client_id = ?3 AND state = ?4",
-            failed,
+            DeviceLinkState::Failed,
             failure,
             client_id,
-            adding,
+            DeviceLinkState::Adding,
         )
         .execute(connection.as_mut())
         .await?;
@@ -236,10 +207,9 @@ impl DeviceLink {
         mut connection: impl WriteConnection,
         link_id: Uuid,
     ) -> sqlx::Result<()> {
-        let abandoned = DeviceLinkState::Abandoned.as_str();
         query!(
             "UPDATE device_link SET state = ?1 WHERE link_id = ?2",
-            abandoned,
+            DeviceLinkState::Abandoned,
             link_id,
         )
         .execute(connection.as_mut())
@@ -252,10 +222,9 @@ impl DeviceLink {
         mut connection: impl WriteConnection,
         now: DateTime<Utc>,
     ) -> sqlx::Result<()> {
-        let abandoned = DeviceLinkState::Abandoned.as_str();
         query!(
             "UPDATE device_link SET state = ?1 WHERE state != ?1 AND expires_at <= ?2",
-            abandoned,
+            DeviceLinkState::Abandoned,
             now,
         )
         .execute(connection.as_mut())
@@ -270,11 +239,10 @@ impl DeviceLink {
         mut connection: impl WriteConnection,
         link_id: Uuid,
     ) -> anyhow::Result<()> {
-        let adding = DeviceLinkState::Adding.as_str();
         let deleted = query!(
             "DELETE FROM device_link WHERE link_id = ?1 AND state = ?2",
             link_id,
-            adding,
+            DeviceLinkState::Adding,
         )
         .execute(connection.as_mut())
         .await?;
