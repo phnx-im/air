@@ -80,6 +80,7 @@ impl QsStreamProcessor {
                 let num_messages = messages.len();
 
                 let processed_messages = core_user.fully_process_qs_messages(messages).await;
+                let has_new_connections = !processed_messages.new_connections.is_empty();
 
                 let result = if processed_messages.processed < num_messages {
                     error!(
@@ -108,8 +109,12 @@ impl QsStreamProcessor {
                     }
                 };
 
-                // Start the background task, but don't wait for it to start
-                drop(core_user.outbound_service().start());
+                // The caller notifies right after this returns, so a new
+                // connection waits for the run that fetches its sender profile.
+                let outbound_run = core_user.outbound_service().start();
+                if has_new_connections {
+                    outbound_run.await;
+                }
 
                 result
             }

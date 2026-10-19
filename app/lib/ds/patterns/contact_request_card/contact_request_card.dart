@@ -18,22 +18,23 @@ sealed class ContactRequestCardActions {
 final class ContactRequestAnswers extends ContactRequestCardActions {
   const ContactRequestAnswers({
     required this.acceptLabel,
-    required this.dismissLabel,
+    required this.declineLabel,
+    required this.blockLabel,
     required this.onAccept,
-    required this.onDismiss,
+    required this.onDecline,
+    required this.onBlock,
     this.isAccepting = false,
   });
 
   final String acceptLabel;
-
-  /// Label for leaving the request unanswered.
-  final String dismissLabel;
-
+  final String declineLabel;
+  final String blockLabel;
   final VoidCallback onAccept;
-  final VoidCallback onDismiss;
+  final VoidCallback onDecline;
+  final VoidCallback onBlock;
 
   /// Whether accepting is in flight. Holds the accept button on a spinner and
-  /// swallows a second tap.
+  /// swallows a second tap. Declining and blocking wait for it too.
   final bool isAccepting;
 }
 
@@ -72,6 +73,7 @@ class ContactRequestCard extends StatefulWidget {
     this.message,
     this.messageLabel,
     this.messageRevealLabel,
+    this.expiresLabel,
     required this.actions,
   }) : assert(
          actions is! ContactRequestAnswers ||
@@ -122,6 +124,10 @@ class ContactRequestCard extends StatefulWidget {
   /// Prompt standing in for the covered note.
   final String? messageRevealLabel;
 
+  /// Countdown to the request's expiry, shown above the actions while the
+  /// request is open.
+  final String? expiresLabel;
+
   final ContactRequestCardActions actions;
 
   @override
@@ -139,6 +145,7 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
     final message = widget.message;
     final subtitle = widget.subtitle;
     final body = widget.body;
+    final expiresLabel = widget.expiresLabel;
 
     return Padding(
       padding: tokens.containerPadding,
@@ -175,6 +182,16 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
                   child: _avatar(palette),
                 ),
                 if (message != null) _note(palette, message),
+                if (expiresLabel != null) ...[
+                  const SizedBox(height: ContactRequestCardTokens.subtitleGap),
+                  Text(
+                    expiresLabel,
+                    textAlign: .center,
+                    style: typeScale.body.xs.style(
+                      color: palette.text.tertiary,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: ContactRequestCardTokens.actionsTopGap),
                 _actions(),
               ],
@@ -270,23 +287,47 @@ class _ContactRequestCardState extends State<ContactRequestCard> {
   Widget _actions() => switch (widget.actions) {
     ContactRequestAnswers(
       :final acceptLabel,
-      :final dismissLabel,
+      :final declineLabel,
+      :final blockLabel,
       :final onAccept,
-      :final onDismiss,
+      :final onDecline,
+      :final onBlock,
       :final isAccepting,
     ) =>
-      Row(
+      Column(
+        mainAxisSize: .min,
+        spacing: ContactRequestCardTokens.actionsGap,
         children: [
-          Expanded(
-            child: Button(
-              size: ButtonSize.large,
-              type: ButtonType.secondary,
-              onPressed: onDismiss,
-              label: dismissLabel,
-            ),
+          Row(
+            spacing: ContactRequestCardTokens.actionsGap,
+            children: [
+              Expanded(
+                child: Button(
+                  size: ButtonSize.large,
+                  type: ButtonType.secondary,
+                  tone: ButtonTone.danger,
+                  state: isAccepting
+                      ? ButtonState.disabled
+                      : ButtonState.active,
+                  onPressed: onBlock,
+                  label: blockLabel,
+                ),
+              ),
+              Expanded(
+                child: Button(
+                  size: ButtonSize.large,
+                  type: ButtonType.secondary,
+                  state: isAccepting
+                      ? ButtonState.disabled
+                      : ButtonState.active,
+                  onPressed: onDecline,
+                  label: declineLabel,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: ContactRequestCardTokens.actionsGap),
-          Expanded(
+          SizedBox(
+            width: double.infinity,
             child: Button(
               size: ButtonSize.large,
               type: ButtonType.primary,

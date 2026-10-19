@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatId,
+    chats::request_expiry,
     db::access::WriteConnection,
     groups::{Group, vc_epoch_retention::sweep_vc_derivation_epochs},
     job::{
@@ -64,6 +65,10 @@ const SELF_UPDATE_INTERVAL: Duration = Duration::days(1);
 /// This is always greater than [`SELF_UPDATE_INTERVAL`].
 const PQ_SELF_UPDATE_INTERVAL: Duration = Duration::days(7);
 
+/// Interval at which expired connection requests are closed. The cards count
+/// down to the minute.
+const CONNECTION_REQUEST_EXPIRY_INTERVAL: Duration = Duration::minutes(1);
+
 /// A task to be executed at some point in the future
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct TimedTask {
@@ -100,6 +105,7 @@ impl OperationData for TimedTask {
                 id.extend(i32::from(*operation_type).to_le_bytes());
             }
             TimedTaskKind::SignedConnectionPackageUpload { .. } => id.push(5),
+            TimedTaskKind::ConnectionRequestExpiry => id.push(6),
         }
         OperationId(id)
     }
@@ -121,6 +127,8 @@ pub(crate) enum TimedTaskKind {
         /// Usernames still to be processed.
         pending_usernames: Vec<UsernameHash>,
     },
+    /// Closes the connection requests whose deadline passed.
+    ConnectionRequestExpiry,
 }
 
 impl TimedTaskKind {
@@ -136,6 +144,7 @@ impl TimedTaskKind {
                 OperationType::ConnectUsername => Duration::minutes(5),
             },
             TimedTaskKind::SignedConnectionPackageUpload { .. } => Duration::minutes(5),
+            TimedTaskKind::ConnectionRequestExpiry => CONNECTION_REQUEST_EXPIRY_INTERVAL,
         }
     }
 }
@@ -175,6 +184,17 @@ mod test_utils {
     impl OutboundService {
         pub async fn schedule_key_package_upload(&self, due_at: DateTime<Utc>) -> sqlx::Result<()> {
             TimedTask::new(TimedTaskKind::KeyPackageUpload)
+                .into_operation()
+                .schedule_at(due_at)
+                .enqueue(self.context.db.write().await?)
+                .await
+        }
+
+        pub async fn schedule_connection_request_expiry(
+            &self,
+            due_at: DateTime<Utc>,
+        ) -> sqlx::Result<()> {
+            TimedTask::new(TimedTaskKind::ConnectionRequestExpiry)
                 .into_operation()
                 .schedule_at(due_at)
                 .enqueue(self.context.db.write().await?)
@@ -320,6 +340,10 @@ impl OutboundServiceContext {
                 .enqueue_if_not_exists(self.db.write().await?)
                 .await?;
         }
+        TimedTask::new(TimedTaskKind::ConnectionRequestExpiry)
+            .into_operation()
+            .enqueue_if_not_exists(self.db.write().await?)
+            .await?;
         self.db
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
                 // Short-circuit loading pending usernames: operation id is independent of the
@@ -379,7 +403,32 @@ impl OutboundServiceContext {
                     .map_err(OutboundServiceError::fatal)?;
                 Ok(None)
             }
+            TimedTaskKind::ConnectionRequestExpiry => {
+                self.expire_connection_requests()
+                    .await
+                    .map_err(OutboundServiceError::fatal)?;
+                Ok(Some(CONNECTION_REQUEST_EXPIRY_INTERVAL))
+            }
         }
+    }
+
+    /// Closes the connection requests whose deadline passed. The deletes of
+    /// their groups on the DS go out with the pending chat operations of the
+    /// next run.
+    async fn expire_connection_requests(&self) -> anyhow::Result<()> {
+        let now = Utc::now();
+        let is_due = self
+            .db
+            .with_read_transaction(async |txn| request_expiry::is_due(txn, now).await)
+            .await?;
+        if !is_due {
+            return Ok(());
+        }
+        self.db
+            .with_write_transaction(async |txn| {
+                request_expiry::expire_due(txn, &self.key_store.signing_key, now).await
+            })
+            .await
     }
 
     /// Refresh usernames whose `refreshed_at` is older than `USERNAME_REFRESH_THRESHOLD`.
@@ -456,7 +505,7 @@ impl OutboundServiceContext {
             }
         }
 
-        Ok(Duration::weeks(1))
+        Ok(Duration::days(1))
     }
 
     /// Ensures the client has Privacy Pass tokens available for all

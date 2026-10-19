@@ -247,6 +247,16 @@ impl ChatMessage {
         Ok(())
     }
 
+    pub(crate) async fn mark_as_edited(
+        &mut self,
+        connection: impl WriteConnection,
+        edited_at: TimeStamp,
+    ) -> sqlx::Result<()> {
+        Self::update_edited_at(connection, self.id(), edited_at).await?;
+        self.set_edited_at(edited_at);
+        Ok(())
+    }
+
     pub fn id_ref(&self) -> &MessageId {
         &self.message_id
     }
@@ -626,6 +636,7 @@ pub enum SystemMessage {
     /// that was not recorded. See [`Self::SentGroupConnectionRequest`].
     NewDirectConnectionChat(UserId),
     CreateGroup(UserId),
+    DeleteGroup(UserId),
     /// We got onboarded into a group after linking.
     Onboarded,
     /// A device, identified by its client id, was linked.
@@ -671,6 +682,11 @@ pub enum SystemMessage {
     /// A connection request we received can no longer be accepted, because
     /// its sender retracted it.
     ConnectionRequestUnavailable,
+    /// The connection requests we received from a sender expired before we
+    /// answered them.
+    ConnectionRequestExpired,
+    /// A connection request we sent expired before the recipient answered it.
+    SentConnectionRequestExpired,
 }
 
 impl EventMessage {
@@ -728,7 +744,8 @@ impl SystemMessage {
             SystemMessage::Add(actor, _) | SystemMessage::Remove(actor, _) => actor.as_ref(),
             SystemMessage::ChangeTitle { user_id, .. }
             | SystemMessage::ChangePicture(user_id)
-            | SystemMessage::CreateGroup(user_id) => Some(user_id),
+            | SystemMessage::CreateGroup(user_id)
+            | SystemMessage::DeleteGroup(user_id) => Some(user_id),
             SystemMessage::ReceivedDirectConnectionRequest { .. }
             | SystemMessage::ReceivedHandleConnectionRequest { .. }
             | SystemMessage::AcceptedConnectionRequest { .. }
@@ -744,7 +761,9 @@ impl SystemMessage {
             | SystemMessage::ReceivedGroupConnectionRequest { .. }
             | SystemMessage::ReceivedAdditionalGroupConnectionRequest { .. }
             | SystemMessage::SentGroupConnectionRequest { .. }
-            | SystemMessage::ConnectionRequestUnavailable => None,
+            | SystemMessage::ConnectionRequestUnavailable
+            | SystemMessage::ConnectionRequestExpired
+            | SystemMessage::SentConnectionRequestExpired => None,
         }
     }
 
@@ -868,9 +887,17 @@ impl SystemMessage {
             SystemMessage::ConnectionRequestUnavailable => {
                 "The contact request is no longer available.".into()
             }
+            SystemMessage::ConnectionRequestExpired => "Contact request expired.".into(),
+            SystemMessage::SentConnectionRequestExpired => "Your contact request expired. If you \
+                still want to add this person as a contact, send them a new request."
+                .into(),
             SystemMessage::CreateGroup(user_id) => {
                 let user_display_name = core_user.user_profile(user_id).await.display_name;
                 format!("{user_display_name} created the group")
+            }
+            SystemMessage::DeleteGroup(deleter) => {
+                let deleter_display_name = core_user.user_profile(deleter).await.display_name;
+                format!("{deleter_display_name} deleted the chat")
             }
             SystemMessage::Onboarded => {
                 "This client has been onboarded into the group after linking".into()

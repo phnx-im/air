@@ -12,7 +12,7 @@ use aircoreclient::{
 };
 use anyhow::Result;
 use tokio_stream::StreamExt;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     api::user::User,
@@ -82,6 +82,7 @@ impl User {
         };
 
         // Invariant: messages are sorted by sequence number
+        let min_sequence_number = messages.first().map(|m| m.sequence_number);
         let max_sequence_number = messages.last().map(|m| m.sequence_number);
 
         let num_messages = messages.len();
@@ -103,6 +104,16 @@ impl User {
             Some(n) => responder.ack(n + 1).await,
             None => {}
         }
+
+        info!(
+            fetched = num_messages,
+            processed = processed_messages.processed,
+            ?min_sequence_number,
+            ?max_sequence_number,
+            acked_up_to = ?max_sequence_number.map(|n| n + 1),
+            drained,
+            "processed QS messages"
+        );
 
         self.user.outbound_service().run_once().await;
 

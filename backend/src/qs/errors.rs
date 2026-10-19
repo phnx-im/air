@@ -21,11 +21,13 @@ pub enum QsEnqueueError<N: NetworkProvider> {
     #[error(transparent)]
     EnqueueError(#[from] EnqueueError),
     /// An error occurred while sending a message to the network
-    #[error("An error occurred while sending a message to the network")]
+    #[error("An error occurred while sending a message to the network: {0}")]
     NetworkError(N::NetworkError),
     /// Storage provider error
-    #[error("Storage provider error")]
-    StorageError,
+    #[error("Storage provider error: {0}")]
+    StorageError(#[from] StorageError),
+    #[error("Error serializing message: {0}")]
+    SerializationError(#[from] tls_codec::Error),
     /// Unrecoverable implementation error
     #[error("Library Error")]
     LibraryError,
@@ -34,11 +36,17 @@ pub enum QsEnqueueError<N: NetworkProvider> {
     InvalidResponse,
 }
 
+impl<N: NetworkProvider> From<sqlx::Error> for QsEnqueueError<N> {
+    fn from(error: sqlx::Error) -> Self {
+        Self::StorageError(error.into())
+    }
+}
+
 /// Error communicating with the As.
 #[derive(Error, Debug)]
 pub enum AsConnectorError {
     /// Error in the underlying storage provider
-    #[error("Error in the underlying storage provider")]
+    #[error("Error in the underlying storage provider: {0}")]
     Storage(#[from] StorageError),
 }
 
@@ -88,8 +96,8 @@ impl From<EncryptionError> for EnqueueError {
 
 #[derive(Debug, Error)]
 pub(super) enum GenerateAndStoreError {
-    #[error("Error generating signature keypair")]
+    #[error("Error generating signature keypair: {0}")]
     KeyGenerationError(#[from] KeyGenerationError),
-    #[error("Error storing key")]
+    #[error("Error storing key: {0}")]
     StorageError(#[from] StorageError),
 }

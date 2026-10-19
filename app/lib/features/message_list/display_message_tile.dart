@@ -86,13 +86,18 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
 
   @override
   Widget build(BuildContext context) {
-    final (chatId, requestState) = context.select(
-      (ChatDetailsCubit cubit) =>
-          (cubit.state.chat?.id, cubit.state.chat?.requestState),
+    final (chatId, requestState, expiresAt) = context.select(
+      (ChatDetailsCubit cubit) => (
+        cubit.state.chat?.id,
+        cubit.state.chat?.requestState,
+        cubit.state.chat?.contactRequestExpiresAt,
+      ),
     );
-    // An open request brings its card. Once it is answered or retracted, the
-    // message that announced it reads as a plain record.
-    final incoming = requestState == ContactRequestState.incoming;
+    // An open request brings its card. Once it is answered, retracted or
+    // expired, the message that announced it reads as a plain record.
+    final incomingChatId = requestState == ContactRequestState.incoming
+        ? chatId
+        : null;
     final outgoingChatId = requestState == ContactRequestState.outgoing
         ? chatId
         : null;
@@ -104,22 +109,26 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
 
     return switch (widget.message) {
       UiSystemMessage_ReceivedDirectConnectionRequest(:final sender)
-          when incoming =>
+          when incomingChatId != null =>
         _request(
           ContactRequestDialog(
+            chatId: incomingChatId,
             sender: sender,
             source: .targetedMessage(originChatTitle: groupChatTitle),
+            expiresAt: expiresAt,
           ),
         ),
       UiSystemMessage_ReceivedHandleConnectionRequest(
         :final sender,
         :final username,
       )
-          when incoming =>
+          when incomingChatId != null =>
         _request(
           ContactRequestDialog(
+            chatId: incomingChatId,
             sender: sender,
             source: .username(username: username),
+            expiresAt: expiresAt,
           ),
         ),
       UiSystemMessage_NewHandleConnectionChat(:final field0)
@@ -128,6 +137,7 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
           SentContactRequestCard(
             chatId: outgoingChatId,
             recipient: .username(field0),
+            expiresAt: expiresAt,
           ),
         ),
       UiSystemMessage_NewDirectConnectionChat(:final field0)
@@ -136,6 +146,7 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
           SentContactRequestCard(
             chatId: outgoingChatId,
             recipient: .user(field0),
+            expiresAt: expiresAt,
           ),
         ),
       UiSystemMessage_SentDirectConnectionRequest(:final recipient)
@@ -144,6 +155,7 @@ class _SystemMessageContentState extends State<_SystemMessageContent> {
           SentContactRequestCard(
             chatId: outgoingChatId,
             recipient: .user(recipient, groupChatTitle: groupChatTitle),
+            expiresAt: expiresAt,
           ),
         ),
       _ => SystemMessage(
@@ -305,6 +317,11 @@ TextSpan buildSystemMessageText(
       [user(creatorId)],
       nameStyle,
     ),
+    UiSystemMessage_DeleteGroup(field0: final deleterId) => emphasizedText(
+      (marks) => loc.systemMessage_userDeletedChat(marks[0]),
+      [user(deleterId)],
+      nameStyle,
+    ),
     UiSystemMessage_NewHandleConnectionChat(:final field0) => TextSpan(
       text: loc.systemMessage_newHandleConnectionChat(field0.plaintext),
     ),
@@ -413,6 +430,12 @@ TextSpan buildSystemMessageText(
     ),
     UiSystemMessage_ConnectionRequestUnavailable() => TextSpan(
       text: loc.systemMessage_connectionRequestUnavailable,
+    ),
+    UiSystemMessage_ConnectionRequestExpired() => TextSpan(
+      text: loc.systemMessage_connectionRequestExpired,
+    ),
+    UiSystemMessage_SentConnectionRequestExpired() => TextSpan(
+      text: loc.systemMessage_sentConnectionRequestExpired,
     ),
   };
 }

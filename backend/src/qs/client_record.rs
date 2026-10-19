@@ -26,12 +26,11 @@ use tracing::{error, info, trace, warn};
 use crate::{
     errors::StorageError,
     messages::intra_backend::DsFanOutPayload,
+    pseudonym::Pseudonymizer,
     qs::{PushNotificationError, queue::Queues},
 };
 
-use super::{
-    PushNotificationProvider, client_pseudonym::ClientPseudonymizer, errors::EnqueueError,
-};
+use super::{PushNotificationProvider, errors::EnqueueError};
 
 /// An enum defining the different kind of messages that are stored in an QS
 /// queue.
@@ -564,13 +563,13 @@ impl QsClientRecord {
     #[tracing::instrument(
         level = "info",
         skip_all,
-        fields(qs_client = %pseudonymizer.pseudonym(&client_id))
+        fields(qs_client = %pseudonymizer.client(&client_id))
     )]
     pub(crate) async fn enqueue(
         txn: &mut PgTransaction<'_>,
         client_id: QsClientId,
         queues: &Queues,
-        pseudonymizer: &ClientPseudonymizer,
+        pseudonymizer: &Pseudonymizer,
         msg: &DsFanOutPayload,
     ) -> Result<Option<QsClientRecord>, EnqueueError> {
         match msg {
@@ -611,12 +610,12 @@ impl QsClientRecord {
     #[tracing::instrument(
         level = "info",
         skip_all,
-        fields(qs_client = %pseudonymizer.pseudonym(&self.client_id))
+        fields(qs_client = %pseudonymizer.client(&self.client_id))
     )]
     pub(crate) async fn send_push_notification(
         &self,
         pool: &PgPool,
-        pseudonymizer: &ClientPseudonymizer,
+        pseudonymizer: &Pseudonymizer,
         push_notification_provider: &impl PushNotificationProvider,
         push_token_key: Option<&PushTokenEarKey>,
     ) {

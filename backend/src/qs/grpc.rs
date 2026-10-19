@@ -551,7 +551,7 @@ impl QueueService for GrpcQs {
             client_id,
             session,
         };
-        let qs_client = self.qs.client_pseudonymizer.pseudonym(&client_id);
+        let qs_client = self.qs.pseudonymizer.client(&client_id);
         let responses = info_span!("qs_listen", %qs_client).in_scope(|| {
             spawn_listen_session(requests, events, self.qs.stop.clone(), handler, "qs")
         });

@@ -118,7 +118,7 @@ impl AuthService {
 pub enum AuthServiceCreationError {
     #[error(transparent)]
     Storage(#[from] StorageError),
-    #[error("Error generating initial credentials")]
+    #[error("Error generating initial credentials: {0}")]
     Credential(#[from] CredentialGenerationError),
 }
 

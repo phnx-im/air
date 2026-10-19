@@ -43,6 +43,8 @@ abstract class UserSettingsCubitBase implements RustOpaqueInterface {
 
   Future<void> setDefaultEmojiSkinTone({required int value});
 
+  Future<void> setDeleteExpiredContactRequests({required bool value});
+
   Future<void> setDeveloperMode({required bool value});
 
   Future<void> setDismissedVersionExpiry({required DateTime value});
@@ -75,6 +77,7 @@ sealed class UserSettings with _$UserSettings {
     @Default(false) bool sendOnEnter,
     @Default(false) bool limitAnimatedImagesLoops,
     @Default(true) bool readReceipts,
+    @Default(false) bool deleteExpiredContactRequests,
     @Default(false) bool developerMode,
     @Default(false) bool experimentalFeatures,
     @Default(0) int defaultEmojiSkinTone,
