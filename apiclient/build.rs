@@ -13,6 +13,9 @@ const REFRESH_ENV: &str = "AIR_REFRESH_BUILD_METADATA";
 /// when unset (local builds).
 const BUILD_NUMBER_ENV: &str = "AIR_BUILD_NUMBER";
 
+/// Set to `true` by CI.
+const CI_ENV: &str = "CI";
+
 /// Used when the git state cannot be determined, e.g. when building from a
 /// source archive.
 const UNKNOWN_COMMIT_HASH: &str = "0000000000000000000000000000000000000000";
@@ -26,9 +29,11 @@ fn main() {
     println!("cargo::rerun-if-changed=build.rs");
     println!("cargo::rerun-if-env-changed={REFRESH_ENV}");
     println!("cargo::rerun-if-env-changed={BUILD_NUMBER_ENV}");
+    println!("cargo::rerun-if-env-changed={CI_ENV}");
 
     let commit_hash = git(&["rev-parse", "HEAD"]).unwrap_or_else(|| UNKNOWN_COMMIT_HASH.to_owned());
-    let dirty = git(&["status", "--porcelain"]).is_some_and(|status| !status.is_empty());
+    let ci = std::env::var(CI_ENV).is_ok_and(|value| value == "true");
+    let dirty = !ci && git(&["status", "--porcelain"]).is_some_and(|status| !status.is_empty());
     let build_number = std::env::var(BUILD_NUMBER_ENV)
         .ok()
         .filter(|value| !value.is_empty())

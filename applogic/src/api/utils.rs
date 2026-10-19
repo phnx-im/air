@@ -12,7 +12,7 @@ use crate::api::user::User;
 
 /// Version of the app: `{major}.{minor}.{patch}[-dev]+[{build_number}.]{commit_hash}`.
 ///
-/// `dev` marks a build from a dirty tree. The build number is omitted when
+/// `dev` marks a local build from a dirty tree. The build number is omitted when
 /// unset (local builds).
 #[frb(sync)]
 pub fn app_version() -> String {
