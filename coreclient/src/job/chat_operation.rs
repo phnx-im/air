@@ -373,14 +373,9 @@ impl ChatOperation {
                 let mut chat = Chat::load(&mut *txn, &self.chat_id)
                     .await?
                     .with_context(|| format!("No chat with id {}", self.chat_id))?;
-                let Some(group) = Group::load_clean_verified(&mut *txn, chat.group_id()).await?
-                else {
-                    // The group is deleted with the leave, so this chat was already left.
-                    if let ChatStatus::Inactive(_) = chat.status() {
-                        return Ok(None);
-                    }
-                    bail!("No group with id {:?}", chat.group_id());
-                };
+                let group = Group::load_clean_verified(&mut *txn, chat.group_id())
+                    .await?
+                    .with_context(|| format!("No group with id {:?}", chat.group_id()))?;
 
                 // Short-circuit if the group has already a pending self-remove proposal from our
                 // own leaf from another device: the DS holds the leave and the system message is
