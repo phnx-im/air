@@ -166,6 +166,23 @@ openmls_traits = { git = "https://github.com/openmls/openmls", rev = "7c94cc351e
 [patch."https://github.com/openmls/openmls"]
 openmls_sqlite_storage = "=0.3.0"
 
+# Optimize the hot paths of debug builds (privacy pass tokens, username hashing,
+# hashing, SQLite). Integration tests spend most of their time there.
+[profile.dev.package.curve25519-dalek]
+opt-level = 3
+[profile.dev.package.voprf-ng]
+opt-level = 3
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3
+[profile.dev.package.sha2]
+opt-level = 3
+[profile.dev.package.hybrid-array]
+opt-level = 3
+[profile.dev.package.libsqlite3-sys]
+opt-level = 3
+
 [profile.release]
 strip = true
 lto = true
