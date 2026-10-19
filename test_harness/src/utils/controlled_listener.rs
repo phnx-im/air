@@ -150,7 +150,6 @@ pub struct ControlledStream {
     inner: Option<TcpStream>,
     connect_info: TcpConnectInfo,
     mode: Arc<AtomicU8>,
-    drop_buf: Box<[u8; 8192]>,
 }
 
 impl ControlledStream {
@@ -159,7 +158,6 @@ impl ControlledStream {
         Self {
             inner: Some(inner),
             mode,
-            drop_buf: Box::new([0u8; 8192]),
             connect_info,
         }
     }
