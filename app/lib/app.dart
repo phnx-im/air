@@ -19,7 +19,6 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/l10n/language_options.dart';
 import 'package:air/l10n/supported_locales.dart';
 import 'package:air/platform/app_lifecycle_handler.dart';
-import 'package:air/platform/background_service.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:air/platform/notifications.dart';
 import 'package:air/share/pending_share.dart';
@@ -52,7 +51,6 @@ class App extends StatefulWidget {
 
 class _AppState extends State<App> {
   final CoreClient _coreClient = CoreClient();
-  final _backgroundService = BackgroundService();
   late final _lifecycleHandler = AppLifecycleHandler(coreClient: _coreClient);
   final _log = Logger('App');
 
@@ -96,8 +94,6 @@ class _AppState extends State<App> {
     // Fetch potential initial notification that launched the app on Android
     // cold start. The share handoff is consumed in `_loadInitialUser`.
     unawaited(consumeInitialNotification(_openedNotificationController.sink));
-
-    _backgroundService.start(runImmediately: true);
   }
 
   /// Routes content the Android share activity handed over.
@@ -121,7 +117,6 @@ class _AppState extends State<App> {
     _openedNotificationController.close();
     _shareHandoffSubscription.cancel();
     _shareHandoffController.close();
-    _backgroundService.stop();
     _userSettingsCubit.close();
     _appLocaleCubit.close();
     _navigationCubit.close();

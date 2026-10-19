@@ -67,6 +67,10 @@ abstract class UserCubitBase implements RustOpaqueInterface {
 
   Future<List<UiContact>> addableContacts({required ChatId chatId});
 
+  /// Emits the app badge count with an initial value and for subsequent
+  /// changes.
+  Stream<int> badgeCountStream();
+
   Future<void> blockContact({required UiUserId userId});
 
   Future<UsernameHash?> checkUsernameExists({required UiUsername username});
