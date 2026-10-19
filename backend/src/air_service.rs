@@ -48,6 +48,14 @@ impl MaxDevices {
         self.0.load(Ordering::Relaxed)
     }
 
+    /// The device limit, or `None` if there is none.
+    pub(crate) fn limit(&self) -> Option<usize> {
+        match self.get() {
+            0 => None,
+            max_devices => Some(usize::try_from(max_devices).unwrap_or(usize::MAX)),
+        }
+    }
+
     #[cfg(feature = "test_utils")]
     pub fn set(&self, max_devices: u32) {
         self.0.store(max_devices, Ordering::Relaxed);

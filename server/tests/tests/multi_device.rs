@@ -7,6 +7,7 @@ use std::{assert_matches, collections::HashSet};
 use aircommon::{
     credentials::LeafCredential,
     identifiers::{UserId, Username},
+    messages::push_token::{PushToken, PushTokenOperator},
 };
 use aircoreclient::{
     ChatId, ChatStatus, ChatType, EventMessage, Message, ReadReceiptsSetting, SystemMessage,
@@ -3530,5 +3531,118 @@ async fn multi_device_cancelled_provisioning_leaves_no_client() -> anyhow::Resul
         "no client DB files may remain: {:?}",
         client_db_files(tmp.path())
     );
+    Ok(())
+}
+
+async fn set_push_token(user: &CoreUser, token: &str) {
+    let push_token = PushToken::new(PushTokenOperator::Apple, token.to_owned());
+    user.update_push_token(Some(push_token)).await.unwrap();
+    user.outbound_service().run_once().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn unlinking_a_device_clears_its_push_token() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice_user = setup.get_user(&alice).user().clone();
+    let (device, _tmp) = link_new_device(&setup, &alice).await;
+    device.outbound_service().run_once().await;
+    drain_queue(&device).await;
+    drain_queue(&alice_user).await;
+
+    set_push_token(&alice_user, "first-device").await;
+    set_push_token(&device, "second-device").await;
+    assert!(
+        setup
+            .qs_client_has_push_token(&alice_user.qs_client_id())
+            .await
+    );
+    assert!(setup.qs_client_has_push_token(&device.qs_client_id()).await);
+    // The second device's outbound run commits to the self group.
+    drain_queue(&alice_user).await;
+
+    alice_user
+        .unlink_device(device.own_client_id().await?)
+        .await?;
+
+    assert!(
+        setup
+            .qs_client_has_push_token(&alice_user.qs_client_id())
+            .await
+    );
+    assert!(!setup.qs_client_has_push_token(&device.qs_client_id()).await);
+
+    // The unlinked device keeps its queue. It still learns of its removal.
+    drain_queue(&device).await;
+    assert!(device.is_account_unlinked().await?);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn self_group_self_update_clears_push_tokens_of_detached_clients() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice_user = setup.get_user(&alice).user().clone();
+    let (device, _tmp) = link_new_device(&setup, &alice).await;
+    device.outbound_service().run_once().await;
+    drain_queue(&device).await;
+    drain_queue(&alice_user).await;
+
+    set_push_token(&alice_user, "first-device").await;
+    set_push_token(&device, "second-device").await;
+    // The second device's outbound run commits to the self group.
+    drain_queue(&alice_user).await;
+    let ghost = alice_user
+        .create_detached_qs_client(PushToken::new(PushTokenOperator::Apple, "ghost".to_owned()))
+        .await?;
+    assert!(setup.qs_client_has_push_token(&ghost).await);
+
+    let self_chat_id = alice_user.self_chat_id().await?.expect("no self chat");
+    alice_user
+        .set_self_updated_at(self_chat_id, DateTime::UNIX_EPOCH)
+        .await?;
+    alice_user
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await?;
+    alice_user.outbound_service().run_once().await;
+    assert!(
+        alice_user.self_updated_at(self_chat_id).await?.unwrap() > DateTime::UNIX_EPOCH,
+        "the self group was not self-updated"
+    );
+
+    assert!(!setup.qs_client_has_push_token(&ghost).await);
+    assert!(
+        setup
+            .qs_client_has_push_token(&alice_user.qs_client_id())
+            .await
+    );
+    assert!(setup.qs_client_has_push_token(&device.qs_client_id()).await);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn linking_a_device_clears_push_tokens_of_detached_clients() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice_user = setup.get_user(&alice).user().clone();
+    set_push_token(&alice_user, "first-device").await;
+    let ghost = alice_user
+        .create_detached_qs_client(PushToken::new(PushTokenOperator::Apple, "ghost".to_owned()))
+        .await?;
+    assert!(setup.qs_client_has_push_token(&ghost).await);
+
+    let (device, _tmp) = link_new_device(&setup, &alice).await;
+
+    assert!(!setup.qs_client_has_push_token(&ghost).await);
+    assert!(
+        setup
+            .qs_client_has_push_token(&alice_user.qs_client_id())
+            .await
+    );
+
+    // The new device registers its push token only after joining. It keeps the token.
+    set_push_token(&device, "second-device").await;
+    assert!(setup.qs_client_has_push_token(&device.qs_client_id()).await);
     Ok(())
 }

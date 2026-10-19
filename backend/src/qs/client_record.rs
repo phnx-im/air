@@ -84,6 +84,7 @@ impl QsClientRecord {
 pub(crate) mod persistence {
     use aircommon::codec::{BlobDecoded, BlobEncoded};
     use sqlx::{PgExecutor, query};
+    use uuid::Uuid;
 
     use super::*;
 
@@ -120,7 +121,7 @@ pub(crate) mod persistence {
             Ok(())
         }
 
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test_utils"))]
         pub(in crate::qs) async fn load(
             connection: impl PgExecutor<'_>,
             client_id: &QsClientId,
@@ -337,6 +338,59 @@ pub(crate) mod persistence {
                 .await?;
             }
             Ok(())
+        }
+
+        /// Counts the given client ids per owning user. The count includes
+        /// deleted clients. It leaves out unknown client ids.
+        pub(in crate::qs) async fn count_by_owner(
+            executor: impl PgExecutor<'_>,
+            client_ids: &[QsClientId],
+        ) -> sqlx::Result<Vec<(QsUserId, i64)>> {
+            let client_ids: Vec<Uuid> = client_ids.iter().map(|id| *id.as_uuid()).collect();
+            let rows = sqlx::query!(
+                r#"SELECT
+                    user_id AS "user_id: QsUserId",
+                    COUNT(*) AS "count!"
+                FROM
+                    qs_client_record
+                WHERE
+                    client_id = ANY($1)
+                GROUP BY
+                    user_id"#,
+                &client_ids,
+            )
+            .fetch_all(executor)
+            .await?;
+            Ok(rows
+                .into_iter()
+                .map(|row| (row.user_id, row.count))
+                .collect())
+        }
+
+        /// Clears the push token of every active client record of `user_id`
+        /// that is not in `keep`.
+        ///
+        /// Returns the number of client records whose push token was cleared.
+        pub(in crate::qs) async fn clear_push_tokens_except(
+            executor: impl PgExecutor<'_>,
+            user_id: &QsUserId,
+            keep: &[QsClientId],
+        ) -> sqlx::Result<u64> {
+            let keep: Vec<Uuid> = keep.iter().map(|id| *id.as_uuid()).collect();
+            let result = sqlx::query!(
+                r#"UPDATE qs_client_record
+                SET encrypted_push_token = NULL
+                WHERE
+                    user_id = $1
+                    AND deleted_at IS NULL
+                    AND encrypted_push_token IS NOT NULL
+                    AND client_id <> ALL($2)"#,
+                user_id as &QsUserId,
+                &keep,
+            )
+            .execute(executor)
+            .await?;
+            Ok(result.rows_affected())
         }
     }
 

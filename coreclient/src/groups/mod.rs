@@ -4,6 +4,7 @@
 
 pub(crate) mod apq_group;
 pub(crate) mod client_auth_info;
+pub(crate) mod client_references;
 pub(crate) mod compatibility;
 pub(crate) mod debug_info;
 // TODO: Allowing dead code here for now. We'll need diffs when we start
@@ -1302,7 +1303,7 @@ impl Group {
 
         // Every leaf of the self group contains the QS client reference of its
         // device. We need to make sure the reference is preserved during a
-        // resync.
+        // resync. The DS rejects a resync that changes the client references.
         let replaced_client_reference = match signer {
             LeafSigningKey::User(_) => None,
             LeafSigningKey::SelfGroup(_) => own_client_reference_extension(&t_ratchet_tree, signer),

@@ -62,7 +62,7 @@ impl UserMetrics {
 
 pub(crate) mod persistence {
     use aircommon::identifiers::QsUserId;
-    use sqlx::{PgExecutor, query_as};
+    use sqlx::{PgExecutor, PgTransaction, query_as};
 
     use crate::errors::StorageError;
 
@@ -112,6 +112,26 @@ pub(crate) mod persistence {
                 })
             })
             .transpose()
+        }
+
+        /// Loads the verifying key and locks the user record until the end of
+        /// the transaction.
+        pub(in crate::qs) async fn load_verifying_key_for_update(
+            txn: &mut PgTransaction<'_>,
+            user_id: &QsUserId,
+        ) -> sqlx::Result<Option<QsUserVerifyingKey>> {
+            sqlx::query_scalar!(
+                r#"SELECT
+                    verifying_key AS "verifying_key: QsUserVerifyingKey"
+                FROM
+                    qs_user_record
+                WHERE
+                    user_id = $1
+                FOR NO KEY UPDATE"#,
+                user_id.as_uuid(),
+            )
+            .fetch_optional(txn.as_mut())
+            .await
         }
 
         pub(in crate::qs) async fn load_verifying_key(
@@ -205,9 +225,16 @@ pub(crate) mod persistence {
         use super::*;
 
         pub(crate) async fn store_random_user_record(pool: &PgPool) -> anyhow::Result<UserRecord> {
+            store_user_record(pool, QsUserVerifyingKey::new_for_test(b"some_key".to_vec())).await
+        }
+
+        pub(crate) async fn store_user_record(
+            pool: &PgPool,
+            verifying_key: QsUserVerifyingKey,
+        ) -> anyhow::Result<UserRecord> {
             let record = UserRecord {
                 user_id: QsUserId::random(),
-                verifying_key: QsUserVerifyingKey::new_for_test(b"some_key".to_vec()),
+                verifying_key,
                 friendship_token: FriendshipToken::random().unwrap(),
             };
             record.store(pool).await?;

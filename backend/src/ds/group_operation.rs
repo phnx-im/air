@@ -797,9 +797,10 @@ impl DsGroupState {
         virtual_client_hint: Option<QsVirtualClientHint>,
     ) -> Result<DsFanOutMessage, GroupOperationError> {
         // Key packages batch to promote on QS if any
-        let key_package_batch = virtual_client_hint
-            .as_ref()
-            .map(|QsVirtualClientHint::PromoteStagedKeyPackages(batch_id)| batch_id.clone());
+        let key_package_batch = match &virtual_client_hint {
+            Some(QsVirtualClientHint::PromoteStagedKeyPackages(batch_id)) => Some(batch_id.clone()),
+            Some(QsVirtualClientHint::ReconcileClients(_)) | None => None,
+        };
         let commit_response = QsQueueMessagePayload::ds_commit_response(
             self.group.group_info().group_context().group_id().clone(),
             (self.group.epoch().as_u64() - 1).into(),

@@ -52,9 +52,10 @@ use tracing::{Span, error, field::Empty, warn};
 use crate::{
     auth_service::AsConnector,
     ds::{
-        attachments::ProvisionObjectError, group_operation::ProcessedApqGroupOperation,
-        group_state::MemberProfile, process::Provider,
+        attachments::ProvisionObjectError, client_references::ClientReferencesSnapshot,
+        group_operation::ProcessedApqGroupOperation, group_state::MemberProfile, process::Provider,
     },
+    errors::GroupOperationError,
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
     qs::QsConnector,
     rate_limiter::{RateLimiter, RlConfig, RlKey, RlOperation, provider::RlPostgresStorage},
@@ -2212,6 +2213,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         .map(|info| info.try_into())
                         .transpose()?,
                 };
+                let client_references_signature = payload
+                    .client_references_signature
+                    .map(TryInto::try_into)
+                    .transpose()?;
+                let client_references_before = ClientReferencesSnapshot::take(group_state);
 
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
@@ -2222,6 +2228,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     group_state
                         .group_operation(params, ear_key, self.ds.max_devices.get())
                         .await?;
+                let virtual_client_hint = client_references_before
+                    .compare(group_state)
+                    .commit_hint(
+                        client_references_signature,
+                        virtual_client_hint,
+                        self.ds.own_domain(),
+                    )
+                    .map_err(GroupOperationError::from)?;
 
                 group_state.proposals.clear();
 
@@ -2328,6 +2342,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         .add_users_info
                         .map(|info| info.try_into())
                         .transpose()?;
+                    let client_references_signature = payload
+                        .client_references_signature
+                        .map(TryInto::try_into)
+                        .transpose()?;
+                    let client_references_before = ClientReferencesSnapshot::take(t_group_state);
                     let (t_add_users_info, pq_add_users_info) =
                         add_users_info.map(|info| info.split()).unzip();
 
@@ -2351,6 +2370,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         pq_add_users_info,
                         self.ds.max_devices.get(),
                     )?;
+                    let virtual_client_hint = client_references_before
+                        .compare(t_group_state)
+                        .commit_hint(
+                            client_references_signature,
+                            virtual_client_hint,
+                            self.ds.own_domain(),
+                        )
+                        .map_err(GroupOperationError::from)?;
 
                     // Fan out the commit message to the destination clients
                     let timestamp = TimeStamp::now();

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n                    verifying_key AS \"verifying_key: QsUserVerifyingKey\"\n                FROM\n                    qs_user_record\n                WHERE\n                    user_id = $1\n                FOR NO KEY UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "verifying_key: QsUserVerifyingKey",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "qs_user_record",
+            "name": "verifying_key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "21e68be43255daa60ca93fe809498151df677b83e74f3e2671c9b6dd0d045219"
+}

@@ -98,6 +98,7 @@ pub struct SpawnedApp {
     pub codes: Vec<String>,
     pub sent_challenges: SentChallenges,
     pub max_devices: [MaxDevices; 3],
+    pub qs_database_url: String,
     db_settings: DatabaseSettings,
     db_names: DbNames,
     stop: CancellationToken,
@@ -295,6 +296,8 @@ pub(crate) async fn spawn_app(
         qs.max_devices_handle(),
     ];
 
+    let qs_database_url = configuration.database.connection_string();
+
     let push_notification_provider = ProductionPushNotificationProvider::new(None, None).unwrap();
 
     let qs_connector = SimpleEnqueueProvider {
@@ -335,6 +338,7 @@ pub(crate) async fn spawn_app(
         codes,
         sent_challenges,
         max_devices,
+        qs_database_url,
         db_settings: configuration.database,
         db_names,
         stop,

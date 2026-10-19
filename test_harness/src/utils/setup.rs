@@ -12,12 +12,13 @@ use std::{
 
 use airbackend::{
     air_service::MaxDevices,
+    qs::Qs,
     settings::{RateLimitsSettings, RegistrationPolicy, RegistrationSettings},
     version::VersionPolicy,
 };
 use aircommon::{
     DEFAULT_MAX_ATTACHMENT_SIZE, OpenMlsRand, RustCrypto,
-    identifiers::{Fqdn, MimiId, UserId, Username},
+    identifiers::{Fqdn, MimiId, QsClientId, UserId, Username},
     registration::RegistrationChallenge,
 };
 use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, *};
@@ -28,6 +29,7 @@ use mimi_content::{
     content_container::{EncryptionAlgorithm, HashAlgorithm},
 };
 use rand::{Rng, RngExt, distr::Alphanumeric, seq::IteratorRandom};
+use sqlx::{Connection, PgConnection};
 use tempfile::TempDir;
 use tokio::{
     task::{LocalEnterGuard, LocalSet, spawn_blocking},
@@ -189,6 +191,8 @@ pub struct TestBackend {
     listener_control_handle: Option<ControlHandle>,
     /// Present only if we spawned a local server.
     max_devices: Option<[MaxDevices; 3]>,
+    /// Present only if we spawned a local server.
+    qs_database_url: Option<String>,
     /// Whether to create APQ groups by default
     ///
     /// Read from the `TEST_WITH_APQ_GROUPS` environment variable.
@@ -277,6 +281,7 @@ impl TestBackend {
             invitation_codes,
             sent_challenges,
             max_devices,
+            qs_database_url,
             _cleanup,
         ) = if let Ok(value) = std::env::var("TEST_SERVER_URL") {
             let url: Url = value.parse().unwrap();
@@ -290,6 +295,7 @@ impl TestBackend {
                 SentChallenges::default(),
                 None,
                 None,
+                None,
             )
         } else {
             let network_provider = MockNetworkProvider::new();
@@ -300,6 +306,7 @@ impl TestBackend {
             let codes = app.codes.clone();
             let sent_challenges = app.sent_challenges.clone();
             let max_devices = app.max_devices.clone();
+            let qs_database_url = app.qs_database_url.clone();
             info!(%listen_addr, "using spawned test server");
             let cleanup: Box<dyn Any> = Box::new(app);
             (
@@ -309,6 +316,7 @@ impl TestBackend {
                 codes,
                 sent_challenges,
                 Some(max_devices),
+                Some(qs_database_url),
                 Some(cleanup),
             )
         };
@@ -330,6 +338,7 @@ impl TestBackend {
             temp_dir: tempfile::tempdir().unwrap(),
             listener_control_handle,
             max_devices,
+            qs_database_url,
             invitation_codes,
             sent_challenges,
             apq_groups,
@@ -347,6 +356,22 @@ impl TestBackend {
         for handle in handles {
             handle.set(max_devices);
         }
+    }
+
+    /// Whether the QS client record has a push token. Only works on a spawned
+    /// server.
+    pub async fn qs_client_has_push_token(&self, client_id: &QsClientId) -> bool {
+        let url = self
+            .qs_database_url
+            .as_ref()
+            .expect("the QS can only be inspected on a spawned server");
+        // We use a short-lived connection. Cleanup can then drop the test databases.
+        let mut connection = PgConnection::connect(url).await.unwrap();
+        let has_push_token = Qs::client_has_push_token(&mut connection, client_id)
+            .await
+            .unwrap();
+        connection.close().await.unwrap();
+        has_push_token
     }
 
     pub fn listener_control_handle(&self) -> &ControlHandle {
