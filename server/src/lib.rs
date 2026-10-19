@@ -40,7 +40,10 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 #[cfg(any(feature = "test_utils", test))]
 use tonic::{Request, Status};
-use tonic::{service::InterceptorLayer, transport::server::Connected};
+use tonic::{
+    service::InterceptorLayer,
+    transport::server::{Connected, TcpIncoming},
+};
 use tonic_health::pb::health_server::{Health, HealthServer};
 use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
 use tower_http::trace::{DefaultOnRequest, DefaultOnResponse, MakeSpan, TraceLayer};
@@ -96,10 +99,11 @@ pub trait IntoStream {
 impl IntoStream for TcpListener {
     type Item = tokio::net::TcpStream;
     type Error = std::io::Error;
-    type Stream = tokio_stream::wrappers::TcpListenerStream;
+    type Stream = TcpIncoming;
 
     fn into_stream(self) -> Self::Stream {
-        tokio_stream::wrappers::TcpListenerStream::new(self)
+        // Disable Nagle's algorithm because it fights with many small writes of gRPC
+        TcpIncoming::from(self).with_nodelay(Some(true))
     }
 }
 
