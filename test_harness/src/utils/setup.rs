@@ -274,7 +274,7 @@ impl TestBackend {
         } else {
             let network_provider = MockNetworkProvider::new();
             let domain: Fqdn = "localhost".parse().unwrap();
-            let app = spawn_app(domain.clone(), network_provider, params).await;
+            let app = Box::pin(spawn_app(domain.clone(), network_provider, params)).await;
             let listen_addr = app.address;
             let control_handle = app.control_handle.clone();
             let codes = app.codes.clone();
