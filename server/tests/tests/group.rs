@@ -154,6 +154,51 @@ async fn leave_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "No messages after leaving test", skip_all)]
+async fn no_messages_after_leaving_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+
+    // Bob leaves and drops the group, but the DS fans out group messages to
+    // him until somebody commits his removal.
+    let bob_user = &setup.get_user(&bob).user;
+    bob_user.leave_chat(chat_id).await.unwrap();
+    assert!(bob_user.mls_chat_participants(chat_id).await.is_none());
+    let bob_messages_before = bob_user.messages(chat_id, 1024).await.unwrap();
+
+    let alice_user = &setup.get_user(&alice).user;
+    let content = MimiContent::simple_markdown_message("Hello".to_owned(), [0; 16]);
+    alice_user
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+
+    let charlie_user = &setup.get_user(&charlie).user;
+    charlie_user.leave_chat(chat_id).await.unwrap();
+
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert!(
+        result.new_messages.is_empty(),
+        "Bob should not get messages after leaving: {:?}",
+        result.new_messages
+    );
+    assert_eq!(
+        bob_user.messages(chat_id, 1024).await.unwrap(),
+        bob_messages_before
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Delete non-APQ group test", skip_all)]
 async fn delete_non_apq_group() {
     let mut setup = TestBackend::single().await;
@@ -1263,14 +1308,23 @@ async fn self_update_skips_inactive_chats() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
     let active_chat = setup.create_group(&alice).await;
-    let inactive_chat = setup.create_group(&alice).await;
+
+    // Bob removes Alice from his group, which turns her chat inactive but
+    // keeps the group. A left chat has no group left to self-update.
+    let inactive_chat = setup.create_group(&bob).await;
+    setup
+        .invite_to_group(inactive_chat, &bob, vec![&alice])
+        .await;
+    setup
+        .remove_from_group(inactive_chat, &bob, vec![&alice])
+        .await
+        .unwrap();
 
     let alice_user = setup.get_user(&alice);
     let alice_core = &alice_user.user;
-
-    // Leave one chat to make it inactive
-    alice_core.leave_chat(inactive_chat).await.unwrap();
 
     // Set self_updated_at to the past for both chats
     alice_core

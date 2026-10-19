@@ -79,9 +79,12 @@ impl CoreUser {
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 let mut removals = Vec::with_capacity(chat_ids.len());
                 for chat_id in chat_ids {
-                    let mut group = Group::load_with_chat_id_clean(&mut *txn, chat_id)
-                        .await?
-                        .with_context(|| format!("Can't find group with chat id {chat_id:?}"))?;
+                    // A left chat has no group anymore
+                    let Some(mut group) =
+                        Group::load_with_chat_id_clean(&mut *txn, chat_id).await?
+                    else {
+                        continue;
+                    };
                     let signer = OwnClientInfo::signer_for_group(
                         &mut *txn,
                         group.group_id(),

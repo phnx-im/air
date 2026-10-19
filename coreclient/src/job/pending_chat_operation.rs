@@ -634,6 +634,7 @@ impl PendingChatOperation {
         };
 
         let mut retry_leave = false;
+        let mut leave_rejected = false;
         let ds_timestamp = match res {
             Ok(ds_timestamp) => ds_timestamp,
             Err(error) => {
@@ -674,6 +675,16 @@ impl PendingChatOperation {
                         self.number_of_attempts < MAX_RETRIES
                     }
                 };
+                // NotFound and GroupClosed mean the group is gone on the DS
+                leave_rejected =
+                    !retry_leave && !matches!(error, JobError::NotFound | JobError::GroupClosed);
+                if leave_rejected {
+                    warn!(
+                        group_id = ?self.group.group_id(),
+                        %error,
+                        "DS rejected the leave, keeping the group"
+                    );
+                }
                 info!(
                     group_id = ?self.group.group_id(),
                     %error,
@@ -714,7 +725,7 @@ impl PendingChatOperation {
                 }
 
                 // Get the past members before merging the commit
-                let past_members: Vec<_> = if is_delete {
+                let past_members: Vec<_> = if is_delete || is_leave {
                     self.group.members().collect()
                 } else {
                     Vec::new()
@@ -782,12 +793,15 @@ impl PendingChatOperation {
                         .await?;
                 }
 
-                let t_self_update_at = Some(ds_timestamp);
-                let pq_self_update_at = self.group.is_apq().then_some(ds_timestamp);
-                self.group
-                    .group_mut()
-                    .store_update(&mut *txn, t_self_update_at, pq_self_update_at)
-                    .await?;
+                let leave_done = is_leave && !retry_leave && !leave_rejected;
+                if !leave_done {
+                    let t_self_update_at = Some(ds_timestamp);
+                    let pq_self_update_at = self.group.is_apq().then_some(ds_timestamp);
+                    self.group
+                        .group_mut()
+                        .store_update(&mut *txn, t_self_update_at, pq_self_update_at)
+                        .await?;
+                }
                 let messages =
                     CoreUser::store_new_messages(&mut *txn, chat.id(), group_messages).await?;
 
@@ -795,9 +809,12 @@ impl PendingChatOperation {
                 // intent it asserted.
                 self.complete_self_group_intent(txn).await?;
 
-                // Unless this is a leave operation that is retried, we can
-                // delete the pending operation now.
-                if !retry_leave {
+                if leave_done {
+                    // The DS holds our self-remove (or the group is gone there),
+                    // so the group is of no further use. This also drops the
+                    // pending operation.
+                    handle_group_not_found_on_ds(txn, self.group.group_id()).await?;
+                } else if !retry_leave {
                     Self::delete(txn, self.group.group_id()).await?;
                 } else {
                     // A leave operation that the DS hasn't confirmed yet is
