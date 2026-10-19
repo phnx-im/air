@@ -61,6 +61,9 @@ service AuthService {
   // The payload must be signed by the username's verifying key. The username's
   // expiration time will be updated. If the username is expired or does not exist,
   // the request will be rejected with `NOT_FOUND`.
+  //
+  // A username that is not due for a refresh is left as it is, and the token is
+  // not redeemed. Another device of the user may have refreshed it first.
   rpc RefreshUsername(RefreshUsernameRequest) returns (RefreshUsernameResponse);
 
   // User Connection API
@@ -571,7 +574,10 @@ message RefreshUsernamePayload {
   optional bytes token = 3;
 }
 
-message RefreshUsernameResponse {}
+message RefreshUsernameResponse {
+  bool skipped = 1;
+  common.v1.Timestamp expires_at = 2;
+}
 
 // connect
 

@@ -73,6 +73,7 @@ pub(crate) enum RequestFailure {
     },
     Network(anyhow::Error),
     NotFound(anyhow::Error),
+    GroupClosed(anyhow::Error),
     Recoverable(Recoverable),
     Fatal(anyhow::Error),
 }
@@ -89,6 +90,7 @@ impl RequestFailure {
             },
             RequestErrorKind::Network => Self::Network(error.into()),
             RequestErrorKind::NotFound => Self::NotFound(error.into()),
+            RequestErrorKind::GroupClosed => Self::GroupClosed(error.into()),
             RequestErrorKind::ServerError => Self::Recoverable(Recoverable::server(error)),
             RequestErrorKind::Rejected => Self::Fatal(error.into()),
         }

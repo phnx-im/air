@@ -28,6 +28,34 @@ impl<T, E: fmt::Display> MissingFieldExt<T, E> for Option<T> {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("invalid {field} length: expected {expected}, got {actual}")]
+pub struct InvalidFieldLength {
+    field: &'static str,
+    expected: usize,
+    actual: usize,
+}
+
+impl InvalidFieldLength {
+    pub(crate) fn check(field: &'static str, bytes: &[u8], expected: usize) -> Result<(), Self> {
+        if bytes.len() == expected {
+            Ok(())
+        } else {
+            Err(Self {
+                field,
+                expected,
+                actual: bytes.len(),
+            })
+        }
+    }
+}
+
+impl From<InvalidFieldLength> for Status {
+    fn from(e: InvalidFieldLength) -> Self {
+        Status::invalid_argument(e.to_string())
+    }
+}
+
 pub struct InvalidTls<F> {
     error: tls_codec::Error,
     field: F,

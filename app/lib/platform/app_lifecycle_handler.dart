@@ -16,7 +16,7 @@ final _log = Logger('AppLifecycle');
 /// Translates Flutter lifecycle events into [AppState] transitions.
 ///
 /// On iOS, entering the background also requests additional background time
-/// to stop the outbound service gracefully and updates the badge count.
+/// to stop the outbound service gracefully.
 class AppLifecycleHandler with WidgetsBindingObserver {
   AppLifecycleHandler({required this._coreClient});
 
@@ -70,11 +70,6 @@ class AppLifecycleHandler with WidgetsBindingObserver {
         // Request additional background time until the outbound service is
         // stopped
         await _prepareForBackground();
-        // only set the badge count if the user is logged in
-        if (_coreClient.maybeUser case final user?) {
-          final count = await user.globalUnreadMessagesCount;
-          await setBadgeCount(count);
-        }
       }
       return;
     }

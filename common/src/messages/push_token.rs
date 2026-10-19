@@ -40,6 +40,10 @@ impl PushToken {
     }
 }
 
+/// Maximum accepted size of an encrypted push token's ciphertext, excluding
+/// the nonce. APNs and FCM tokens are far smaller.
+pub const MAX_ENCRYPTED_PUSH_TOKEN_SIZE: usize = 1024;
+
 #[derive(Debug)]
 pub struct EncryptedPushTokenCtype;
 pub type EncryptedPushToken = Ciphertext<EncryptedPushTokenCtype>;

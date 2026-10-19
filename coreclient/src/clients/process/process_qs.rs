@@ -1104,12 +1104,12 @@ impl CoreUser {
             // others, so it must not silence what our own devices tell us.
             let is_own_report = sender == self.user_id();
             if !read_receipts_enabled && !is_own_report {
-                report
-                    .statuses
-                    .retain(|status| status.status != MessageStatus::Read);
-                if report.statuses.is_empty() {
-                    debug!("Dropping read receipt because read receipts are disabled");
-                    return Ok(Default::default());
+                // A read implies delivery, and the sender may have skipped the
+                // delivery receipt in favor of the read one.
+                for status in &mut report.statuses {
+                    if status.status == MessageStatus::Read {
+                        status.status = MessageStatus::Delivered;
+                    }
                 }
             }
 
@@ -1914,6 +1914,7 @@ mod tests {
                     t_group_id,
                     pq_group_id,
                     NewGroupContext::SelfGroup(GroupData::empty()),
+                    None,
                     None,
                 )?;
                 group.store(&mut *txn).await?;

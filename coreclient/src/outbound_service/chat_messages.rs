@@ -16,7 +16,7 @@ use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::db::access::WriteDbTransaction;
-use crate::groups::{Group, handle_group_not_found_on_ds};
+use crate::groups::{Group, handle_group_closed_on_ds, handle_group_not_found_on_ds};
 use crate::job::JobError;
 use crate::job::chat_operation::{ChatOperation, DerivationEpoch};
 use crate::job::pending_chat_operation::PendingChatOperation;
@@ -378,7 +378,11 @@ impl OutboundServiceContext {
                 if ds_error.is_not_found() {
                     self.db
                         .with_write_transaction(async |txn| {
-                            handle_group_not_found_on_ds(txn, chat.group_id()).await
+                            if ds_error.is_group_closed() {
+                                handle_group_closed_on_ds(txn, chat.group_id()).await
+                            } else {
+                                handle_group_not_found_on_ds(txn, chat.group_id()).await
+                            }
                         })
                         .await
                         .map_err(OutboundServiceError::fatal)?;

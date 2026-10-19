@@ -20,7 +20,9 @@ use aircommon::{
     time::TimeStamp,
 };
 use airprotos::{
-    common::v1::ClientMetadata,
+    common::v1::{
+        ClientMetadata, GroupClosedDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
+    },
     convert::{RefInto, TryFromRef as _, TryRefInto},
     delivery_service::v1::{
         self, delivery_service_server::DeliveryService,
@@ -688,9 +690,17 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 /// Rejects an operation on a group whose context carries a tombstone. Reads
 /// stay possible, so that members that missed the tombstone still learn about
 /// it when they resync.
+///
+/// The status is `NotFound`, which clients without the group closed detail
+/// treat as a gone group.
 fn ensure_no_tombstone(group_state: &DsGroupState) -> Result<(), Status> {
     if group_state.has_tombstone() {
-        return Err(Status::not_found("Group is closed"));
+        let status = StatusDetails {
+            code: StatusDetailsCode::GroupClosed.into(),
+            detail: Some(Detail::GroupClosed(GroupClosedDetail {})),
+        }
+        .to_status(tonic::Code::NotFound, "Group is closed");
+        return Err(status);
     }
     Ok(())
 }

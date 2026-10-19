@@ -73,9 +73,10 @@ use aircommon::{
         },
     },
     mls_group_config::{
-        GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, default_group_required_extensions,
-        default_leaf_node_capabilities, default_mls_group_join_config,
-        default_sender_ratchet_configuration, self_group_leaf_node_capabilities,
+        GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, QS_CLIENT_REFERENCE_EXTENSION_TYPE,
+        default_group_required_extensions, default_leaf_node_capabilities,
+        default_mls_group_join_config, default_sender_ratchet_configuration,
+        self_group_leaf_node_capabilities,
     },
     time::TimeStamp,
     utils::removed_client,
@@ -114,7 +115,7 @@ use crate::{
     groups::{apq_group::PqGroup, client_auth_info::VerifiableUserCredentialExt},
     job::chat_operation::DerivationEpoch,
     key_stores::as_credentials::AsCredentials,
-    outbound_service::resync::Resync,
+    outbound_service::resync::{Resync, ResyncReason},
 };
 
 use openmls::{
@@ -1299,15 +1300,26 @@ impl Group {
             own_user_id,
         );
 
+        // Every leaf of the self group contains the QS client reference of its
+        // device. We need to make sure the reference is preserved during a
+        // resync.
+        let replaced_client_reference = match signer {
+            LeafSigningKey::User(_) => None,
+            LeafSigningKey::SelfGroup(_) => own_client_reference_extension(&t_ratchet_tree, signer),
+        };
+
         let ratchet_tree = ApqRatchetTreeIn::new(t_ratchet_tree, pq_ratchet_tree);
 
         // Build the group
         let mls_group_config = default_mls_group_join_config();
-        let leaf_node_extensions = if vc_group_id.is_some() {
+        let mut leaf_node_extensions = if vc_group_id.is_some() {
             ClientAppData::current_virtual_client().leaf_node_extensions()
         } else {
             ClientAppData::current().leaf_node_extensions()
         };
+        if let Some(extension) = replaced_client_reference {
+            leaf_node_extensions.add(extension)?;
+        }
         let capabilities = match signer {
             LeafSigningKey::User(_) => default_leaf_node_capabilities(),
             LeafSigningKey::SelfGroup(_) => self_group_leaf_node_capabilities(),
@@ -2201,6 +2213,7 @@ impl Group {
         signer: &LeafSigningKey,
         new_group_data: Option<GroupData>,
         derivation_epoch: DerivationEpoch,
+        own_client_reference: &QsReference,
     ) -> Result<GroupOperationParamsOut> {
         // We don't expect there to be a welcome.
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
@@ -2214,6 +2227,7 @@ impl Group {
         let leaf_node_parameters = Self::update_leaf_node_extensions(
             own_leaf_node.extensions(),
             self.own_leaf_capabilities(),
+            self.is_self_group().then_some(own_client_reference),
         )?;
 
         // A leaf shared with sibling emulator clients must be replaced with key
@@ -2308,6 +2322,7 @@ impl Group {
         signer: &LeafSigningKey,
         new_group_data: Option<GroupData>,
         derivation_epoch: DerivationEpoch,
+        own_client_reference: &QsReference,
     ) -> anyhow::Result<ApqGroupOperationParamsOut> {
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
             new_encrypted_user_profile_keys: Vec::new(),
@@ -2317,10 +2332,12 @@ impl Group {
 
         let (component_data, group_context_extensions) = self.group_data_update(new_group_data)?;
 
+        let own_client_reference = self.is_self_group().then_some(own_client_reference);
         let t_own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
         let t_leaf_node_parameters = Self::update_leaf_node_extensions(
             t_own_leaf_node.extensions(),
             self.own_leaf_capabilities(),
+            own_client_reference,
         )?;
         let pq_own_leaf_node = self
             .pq()
@@ -2331,6 +2348,7 @@ impl Group {
         let pq_leaf_node_parameters = Self::update_leaf_node_extensions(
             pq_own_leaf_node.extensions(),
             self.own_leaf_capabilities(),
+            own_client_reference,
         )?;
 
         let vc_group_id = self.resolve_vc_emulation_group(&mut *txn).await?;
@@ -2381,9 +2399,9 @@ impl Group {
     fn update_leaf_node_extensions(
         leaf_node_extensions: &Extensions<LeafNode>,
         capabilities: Capabilities,
+        client_reference: Option<&QsReference>,
     ) -> anyhow::Result<LeafNodeParameters> {
-        let mut leaf_node_parameters =
-            LeafNodeParameters::builder().with_capabilities(capabilities);
+        let mut extensions = leaf_node_extensions.clone();
 
         // Refresh the app data to what this version of the client advertises. Only touch the
         // leaf node extensions if something actually changed.
@@ -2396,20 +2414,33 @@ impl Group {
             // Up to date
             Some(None) => {}
             Some(Some(dict)) => {
-                let mut leaf_node_extensions = leaf_node_extensions.clone();
-                leaf_node_extensions.add_or_replace(Extension::AppDataDictionary(
+                extensions.add_or_replace(Extension::AppDataDictionary(
                     AppDataDictionaryExtension::new(dict),
                 ))?;
-                leaf_node_parameters = leaf_node_parameters.with_extensions(leaf_node_extensions);
             }
             None => {
                 // App data extension is not present, add it with default values
-                let mut leaf_node_extensions = leaf_node_extensions.clone();
-                leaf_node_extensions.add(ClientAppData::current().to_extension())?;
-                leaf_node_parameters = leaf_node_parameters.with_extensions(leaf_node_extensions);
+                extensions.add(ClientAppData::current().to_extension())?;
             }
         }
 
+        // Self groups created by older clients have no client reference on the
+        // creator leaf. Also, clients before 0.23 could drop it during an APQ
+        // self-update. We add it back so that every leaf of the self group
+        // contains one.
+        if let Some(client_reference) = client_reference
+            && extensions
+                .unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE)
+                .is_none()
+        {
+            extensions.add(client_reference_extension(client_reference)?)?;
+        }
+
+        let mut leaf_node_parameters =
+            LeafNodeParameters::builder().with_capabilities(capabilities);
+        if &extensions != leaf_node_extensions {
+            leaf_node_parameters = leaf_node_parameters.with_extensions(extensions);
+        }
         Ok(leaf_node_parameters.build())
     }
 
@@ -2815,6 +2846,36 @@ impl Group {
     }
 }
 
+fn own_client_reference_extension(
+    ratchet_tree: &RatchetTreeIn,
+    signer: &LeafSigningKey,
+) -> Option<Extension> {
+    let signature_key = SignaturePublicKey::from(signer.verifying_key().clone());
+    let leaf = ratchet_tree
+        .leaves()
+        .find(|leaf| leaf.signature_key() == &signature_key)?
+        .clone()
+        .into_unchecked();
+    let client_reference = leaf
+        .extensions()
+        .unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE)?
+        .clone();
+    Some(Extension::Unknown(
+        QS_CLIENT_REFERENCE_EXTENSION_TYPE,
+        client_reference,
+    ))
+}
+
+pub(crate) fn client_reference_extension(
+    client_reference: &QsReference,
+) -> Result<Extension, tls_codec::Error> {
+    // TODO: don't use Extension::Unknown
+    Ok(Extension::Unknown(
+        QS_CLIENT_REFERENCE_EXTENSION_TYPE,
+        UnknownExtension(client_reference.tls_serialize_detached()?),
+    ))
+}
+
 /// Group context contents of a new group
 pub(crate) enum NewGroupContext {
     /// Profile in the legacy group data extension
@@ -3120,6 +3181,32 @@ pub(crate) async fn handle_group_not_found_on_ds(
     // group_membership via FK.
     Group::delete_from_db(txn, group_id).await?;
 
+    Ok(())
+}
+
+/// Handles the DS rejecting a request because the group is closed, i.e. its
+/// context carries a tombstone which we missed when it was added.
+///
+/// Schedules a resync of the group, which finds the tombstone and ends the chat
+/// with a message naming who closed the group. Without an active chat there is
+/// nothing to announce, and the group is cleaned up like one the DS doesn't
+/// know.
+pub(crate) async fn handle_group_closed_on_ds(
+    txn: &mut WriteDbTransaction<'_>,
+    group_id: &GroupId,
+) -> anyhow::Result<()> {
+    let Some(group) = Group::load(&mut *txn, group_id).await? else {
+        return handle_group_not_found_on_ds(txn, group_id).await;
+    };
+    let Some(chat) = crate::Chat::load_by_group_id(&mut *txn, group_id).await? else {
+        return handle_group_not_found_on_ds(txn, group_id).await;
+    };
+    if chat.status().is_inactive() {
+        return handle_group_not_found_on_ds(txn, group_id).await;
+    }
+    Resync::for_group(chat.id(), &group, ResyncReason::FutureEpoch)
+        .enqueue_or_reset(&mut *txn)
+        .await?;
     Ok(())
 }
 
@@ -3642,13 +3729,32 @@ fn to_capabilities_mismatch(error: CreateCommitError) -> anyhow::Result<LeafNode
 
 #[cfg(test)]
 mod tests {
-    use aircommon::mls_group_config::default_leaf_node_capabilities;
-    use airprotos::client::{app_data::ClientAppData, component::AirFeatures};
-    use openmls::prelude::{
-        AppDataDictionary, AppDataDictionaryExtension, Extension, Extensions, LeafNode,
+    use aircommon::{
+        credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
+        crypto::aead::keys::IdentityLinkWrapperKey,
+        identifiers::{QsReference, QualifiedGroupId, UserId},
+        mls_group_config::{
+            QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_leaf_node_capabilities,
+            self_group_leaf_node_capabilities,
+        },
+    };
+    use airprotos::client::{app_data::ClientAppData, component::AirFeatures, group::GroupData};
+    use openmls::{
+        prelude::{
+            AppDataDictionary, AppDataDictionaryExtension, Extension, Extensions, GroupId, LeafNode,
+        },
+        treesync::RatchetTreeIn,
+    };
+    use uuid::Uuid;
+
+    use crate::{
+        db::access::{DbAccess, WriteConnection},
+        utils::{persistence::open_db_in_memory, random_client_reference},
     };
 
-    use super::Group;
+    use super::{
+        Group, NewGroupContext, client_reference_extension, own_client_reference_extension,
+    };
 
     fn extensions_with_dict(dict: AppDataDictionary) -> Extensions<LeafNode> {
         Extensions::from_vec(vec![Extension::AppDataDictionary(
@@ -3662,7 +3768,7 @@ mod tests {
     fn no_app_data_dictionary() {
         let extensions = Extensions::empty();
         let params =
-            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities())
+            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities(), None)
                 .unwrap();
         assert_eq!(
             params.extensions(),
@@ -3675,7 +3781,7 @@ mod tests {
     fn empty_app_data_dictionary() {
         let extensions = extensions_with_dict(AppDataDictionary::new());
         let params =
-            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities())
+            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities(), None)
                 .unwrap();
         assert_eq!(
             params.extensions(),
@@ -3691,7 +3797,7 @@ mod tests {
         };
         let extensions = stale.leaf_node_extensions();
         let params =
-            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities())
+            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities(), None)
                 .unwrap();
         assert_eq!(
             params.extensions(),
@@ -3704,8 +3810,131 @@ mod tests {
     fn up_to_date_app_data_is_left_alone() {
         let extensions = ClientAppData::current().leaf_node_extensions();
         let params =
-            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities())
+            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities(), None)
                 .unwrap();
         assert!(params.extensions().is_none());
+    }
+
+    #[test]
+    fn missing_client_reference_is_added() {
+        let extensions = ClientAppData::current().leaf_node_extensions();
+        let client_reference = random_client_reference();
+        let params = Group::update_leaf_node_extensions(
+            &extensions,
+            self_group_leaf_node_capabilities(),
+            Some(&client_reference),
+        )
+        .unwrap();
+
+        let mut expected = extensions.clone();
+        expected
+            .add(client_reference_extension(&client_reference).unwrap())
+            .unwrap();
+        assert_eq!(params.extensions(), Some(&expected));
+    }
+
+    #[test]
+    fn existing_client_reference_is_kept() {
+        let mut extensions = ClientAppData::current().leaf_node_extensions();
+        extensions
+            .add(client_reference_extension(&random_client_reference()).unwrap())
+            .unwrap();
+        let params = Group::update_leaf_node_extensions(
+            &extensions,
+            self_group_leaf_node_capabilities(),
+            Some(&random_client_reference()),
+        )
+        .unwrap();
+        assert!(params.extensions().is_none());
+    }
+
+    #[test]
+    fn client_reference_is_added_alongside_refreshed_app_data() {
+        let extensions = Extensions::empty();
+        let client_reference = random_client_reference();
+        let params = Group::update_leaf_node_extensions(
+            &extensions,
+            self_group_leaf_node_capabilities(),
+            Some(&client_reference),
+        )
+        .unwrap();
+
+        let extensions = params.extensions().expect("extensions changed");
+        assert!(extensions.app_data_dictionary().is_some());
+        assert!(
+            extensions
+                .unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE)
+                .is_some()
+        );
+    }
+
+    fn random_group_id() -> GroupId {
+        GroupId::from(QualifiedGroupId::new(
+            Uuid::new_v4(),
+            "example.com".parse().unwrap(),
+        ))
+    }
+
+    fn self_group_signer() -> anyhow::Result<LeafSigningKey> {
+        Ok(LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(
+            Uuid::new_v4(),
+        )?))
+    }
+
+    /// The T ratchet tree of a new self group created by `signer`.
+    async fn self_group_ratchet_tree(
+        signer: &LeafSigningKey,
+        creator_client_reference: Option<&QsReference>,
+    ) -> anyhow::Result<RatchetTreeIn> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
+        connection
+            .with_transaction(async |txn| -> anyhow::Result<_> {
+                let (group, _params) = Group::create_apq_group(
+                    &mut *txn,
+                    signer,
+                    UserId::random("example.com".parse()?),
+                    IdentityLinkWrapperKey::random()?,
+                    random_group_id(),
+                    random_group_id(),
+                    NewGroupContext::SelfGroup(GroupData::empty()),
+                    None,
+                    creator_client_reference,
+                )?;
+                Ok(group.mls_group().export_ratchet_tree().into())
+            })
+            .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn own_client_reference_is_read_from_own_leaf() -> anyhow::Result<()> {
+        let signer = self_group_signer()?;
+        let client_reference = random_client_reference();
+        let ratchet_tree = self_group_ratchet_tree(&signer, Some(&client_reference)).await?;
+        assert_eq!(
+            own_client_reference_extension(&ratchet_tree, &signer),
+            Some(client_reference_extension(&client_reference)?)
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn own_leaf_without_client_reference() -> anyhow::Result<()> {
+        let signer = self_group_signer()?;
+        let ratchet_tree = self_group_ratchet_tree(&signer, None).await?;
+        assert_eq!(own_client_reference_extension(&ratchet_tree, &signer), None);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn client_reference_of_another_leaf_is_ignored() -> anyhow::Result<()> {
+        let creator = self_group_signer()?;
+        let ratchet_tree =
+            self_group_ratchet_tree(&creator, Some(&random_client_reference())).await?;
+        assert_eq!(
+            own_client_reference_extension(&ratchet_tree, &self_group_signer()?),
+            None
+        );
+        Ok(())
     }
 }

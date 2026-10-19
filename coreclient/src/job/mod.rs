@@ -164,6 +164,9 @@ pub(crate) enum JobError<E> {
     Blocked,
     #[error("Not found")]
     NotFound,
+    /// The group's context carries a tombstone we missed.
+    #[error("Group closed")]
+    GroupClosed,
     #[error("Recoverable error: {0}")]
     Recoverable(Recoverable),
     #[error(transparent)]
@@ -257,6 +260,7 @@ impl<E> JobError<E> {
                 Self::NetworkError
             }
             RequestFailure::NotFound(_) => Self::NotFound,
+            RequestFailure::GroupClosed(_) => Self::GroupClosed,
             RequestFailure::Recoverable(recoverable) => Self::Recoverable(recoverable),
             RequestFailure::Fatal(error) => Self::Fatal(error),
         }

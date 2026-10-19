@@ -66,7 +66,7 @@ url.workspace = true
 uuid = { workspace = true, features = ["v4"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-notify-rust = "4"
+notify-rust = { version = "4", default-features = false }
 
 # arboard is only supported on desktop platforms, so we only include it for
 # those targets. On Linux, we also want the wayland-data-control feature for
@@ -76,7 +76,7 @@ arboard = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 arboard = { workspace = true, features = ["wayland-data-control"] }
-zbus = "5"
+zbus = "6"
 
 [dev-dependencies]
 mockall.workspace = true

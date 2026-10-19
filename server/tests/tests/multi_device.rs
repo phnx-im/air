@@ -1449,16 +1449,68 @@ async fn multi_device_deleted_group_takes_no_further_operations() -> anyhow::Res
         result.is_err(),
         "the DS accepts a commit on a deleted group"
     );
-    assert!(
-        second_device
-            .chat(&chat_id)
-            .await
-            .unwrap()
-            .status()
-            .is_inactive()
-    );
+    // The rejection schedules a resync, which finds the deletion.
+    second_device.outbound_service().run_once().await;
+    assert_deletion_announced(&second_device, chat_id, &alice).await;
 
     Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(
+    name = "Test a message to a deleted group announces the deletion",
+    skip_all
+)]
+async fn multi_device_message_to_deleted_group_announces_the_deletion() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    second_device.outbound_service().run_once().await;
+    let first_device = setup.get_user(&alice).user();
+    drain_queue(first_device).await;
+    drain_queue(&second_device).await;
+
+    first_device.delete_chat(chat_id).await?;
+    discard_queue(&second_device).await;
+
+    let content = MimiContent::simple_markdown_message("too late".to_owned(), [5; 16]);
+    second_device
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await?;
+    // The first run has the DS reject the message, the second one resyncs.
+    second_device.outbound_service().run_once().await;
+    second_device.outbound_service().run_once().await;
+    assert_deletion_announced(&second_device, chat_id, &alice).await;
+
+    Ok(())
+}
+
+/// Asserts that `device` ended the chat with exactly one message saying that
+/// `deleter` deleted it, and dropped the group's MLS state.
+async fn assert_deletion_announced(device: &CoreUser, chat_id: ChatId, deleter: &UserId) {
+    assert!(device.chat(&chat_id).await.unwrap().status().is_inactive());
+    let messages = system_messages(device, chat_id).await;
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|message| **message == SystemMessage::DeleteGroup(deleter.clone()))
+            .count(),
+        1,
+        "got {messages:?}"
+    );
+    assert!(
+        device.resync_status(chat_id).await.unwrap().is_none(),
+        "the resync entry is gone"
+    );
+    assert!(
+        device.mls_members(chat_id).await.unwrap().is_none(),
+        "the MLS group is gone"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

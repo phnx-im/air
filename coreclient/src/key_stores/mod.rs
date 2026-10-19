@@ -7,9 +7,7 @@ use std::{fmt, iter::once, ops::Deref};
 use aircommon::{
     crypto::hpke::{ClientIdEncryptionKey, HpkeEncryptable},
     identifiers::{ClientConfig, QsClientId, QsReference},
-    mls_group_config::{
-        APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_leaf_node_capabilities,
-    },
+    mls_group_config::{APQ_CIPHERSUITE, default_leaf_node_capabilities},
 };
 use airprotos::client::app_data::ClientAppData;
 use anyhow::{Context, Result, ensure};
@@ -22,17 +20,16 @@ use openmls::{
     group::GroupId,
     prelude::{
         Credential, CredentialType, CredentialWithKey, Extension, KeyPackage, KeyPackageBuilder,
-        KeyPackageRef, LastResortExtension, OpenMlsProvider, SignaturePublicKey, UnknownExtension,
+        KeyPackageRef, LastResortExtension, OpenMlsProvider, SignaturePublicKey,
         VcKeyPackageBatchBuilder,
     },
 };
 use openmls_traits::storage::StorageProvider;
-use tls_codec::Serialize as TlsSerializeTrait;
 
 use crate::{
     clients::{CIPHERSUITE, api_clients::ApiClients},
     db::access::WriteConnection,
-    groups::openmls_provider::AirOpenMlsProvider,
+    groups::{client_reference_extension, openmls_provider::AirOpenMlsProvider},
 };
 
 use aircommon::{
@@ -101,11 +98,7 @@ impl MemoryUserKeyStore {
         };
 
         let client_reference = self.create_own_client_reference(qs_client_id);
-        let client_ref_extension = Extension::Unknown(
-            QS_CLIENT_REFERENCE_EXTENSION_TYPE,
-            UnknownExtension(client_reference.tls_serialize_detached()?),
-        );
-        leaf_node_extensions.add(client_ref_extension)?;
+        leaf_node_extensions.add(client_reference_extension(&client_reference)?)?;
 
         let key_package_extensions = if last_resort {
             let mut extensions = ClientAppData::current().key_package_extensions();
@@ -160,11 +153,7 @@ impl MemoryUserKeyStore {
         };
 
         let client_reference = self.create_own_client_reference(qs_client_id);
-        let client_ref_extension = Extension::Unknown(
-            QS_CLIENT_REFERENCE_EXTENSION_TYPE,
-            UnknownExtension(client_reference.tls_serialize_detached()?),
-        );
-        leaf_node_extensions.add(client_ref_extension)?;
+        leaf_node_extensions.add(client_reference_extension(&client_reference)?)?;
 
         let key_package_extensions = if last_resort {
             let mut extensions = ClientAppData::current().key_package_extensions();
