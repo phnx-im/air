@@ -28,7 +28,7 @@ use crate::{
     db::access::DbAccess,
     job::{Job, JobContext, JobContextDb, JobError},
     key_stores::MemoryUserKeyStore,
-    outbound_service::error::{OutboundServiceError, RunResultExt},
+    outbound_service::error::RunResultExt,
     utils::global_lock::GlobalLock,
 };
 
@@ -404,9 +404,8 @@ impl OutboundServiceContext {
             .await
             .or_abort("queued resyncs")?;
 
-        Box::pin(self.advance_device_links())
+        Box::pin(self.advance_device_links(run_token))
             .await
-            .map_err(OutboundServiceError::fatal)
             .or_abort("device links")?;
 
         let mut stale_groups = Box::pin(self.send_pending_chat_operations(run_token))
