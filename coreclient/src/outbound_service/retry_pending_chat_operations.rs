@@ -97,7 +97,7 @@ impl OutboundServiceContext {
                     // This job has a fatal error. Continue with the next one.
                     continue;
                 }
-                Err(JobError::Blocked | JobError::NotFound) => {
+                Err(JobError::Blocked | JobError::NotFound | JobError::GroupClosed) => {
                     continue;
                 }
                 Err(JobError::Recoverable(error)) => {

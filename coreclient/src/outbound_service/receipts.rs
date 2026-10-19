@@ -24,7 +24,10 @@ use crate::{
     Chat, ChatId, ChatStatus, MessageId,
     chats::StatusRecord,
     db::access::WriteDbTransaction,
-    groups::{Group, handle_group_not_found_on_ds, openmls_provider::AirOpenMlsProvider},
+    groups::{
+        Group, handle_group_closed_on_ds, handle_group_not_found_on_ds,
+        openmls_provider::AirOpenMlsProvider,
+    },
     job::pending_chat_operation::PendingChatOperation,
     outbound_service::{
         error::OutboundServiceError, receipt_queue::DequeuedReceipts, resync::Resync,
@@ -207,7 +210,11 @@ impl OutboundServiceContext {
             if ds_error.is_not_found() {
                 self.db
                     .with_write_transaction(async |txn| {
-                        handle_group_not_found_on_ds(txn, chat.group_id()).await
+                        if ds_error.is_group_closed() {
+                            handle_group_closed_on_ds(txn, chat.group_id()).await
+                        } else {
+                            handle_group_not_found_on_ds(txn, chat.group_id()).await
+                        }
                     })
                     .await
                     .map_err(OutboundServiceError::fatal)?;
@@ -350,7 +357,11 @@ impl OutboundServiceContext {
             if ds_error.is_not_found() {
                 self.db
                     .with_write_transaction(async |txn| {
-                        handle_group_not_found_on_ds(txn, chat.group_id()).await
+                        if ds_error.is_group_closed() {
+                            handle_group_closed_on_ds(txn, chat.group_id()).await
+                        } else {
+                            handle_group_not_found_on_ds(txn, chat.group_id()).await
+                        }
                     })
                     .await
                     .map_err(OutboundServiceError::fatal)?;

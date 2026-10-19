@@ -728,7 +728,9 @@ impl OutboundServiceContext {
         match self.execute_job(job).await {
             Ok(_messages) => Ok(SelfUpdateOutcome::Updated),
             // The operation is no longer applicable to this chat, so we skip it.
-            Err(JobError::NotFound | JobError::Blocked) => Ok(SelfUpdateOutcome::Skipped),
+            Err(JobError::NotFound | JobError::GroupClosed | JobError::Blocked) => {
+                Ok(SelfUpdateOutcome::Skipped)
+            }
             Err(error) => Err(error.into()),
         }
     }

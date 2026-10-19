@@ -46,7 +46,7 @@ use crate::{
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
         Group, PreparedInvitee, VerifiedGroup, client_auth_info::StorableUserCredential,
-        handle_group_not_found_on_ds, self_group::SelfGroup,
+        handle_group_closed_on_ds, handle_group_not_found_on_ds, self_group::SelfGroup,
     },
     job::{
         Job, JobContext, JobContextReadConnection, JobError,
@@ -360,6 +360,20 @@ impl Job for PendingChatOperation {
                     .await?;
                 Err(JobError::NotFound)
             }
+            Err(JobError::GroupClosed) => {
+                let group_id = self.group.group_id().clone();
+                info!(?group_id, "Group closed on DS; scheduling a resync");
+                context
+                    .db
+                    .write()
+                    .await?
+                    .with_transaction(async |txn| {
+                        self.clean_up_in_transaction(txn, true).await?;
+                        handle_group_closed_on_ds(txn, &group_id).await
+                    })
+                    .await?;
+                Err(JobError::GroupClosed)
+            }
             res => res,
         }
     }
@@ -650,6 +664,7 @@ impl PendingChatOperation {
                     JobError::NetworkError | JobError::RateLimited { .. } => true,
                     // Retrying cannot succeed
                     JobError::NotFound
+                    | JobError::GroupClosed
                     | JobError::Fatal(_)
                     | JobError::Domain(_)
                     | JobError::Blocked => false,
