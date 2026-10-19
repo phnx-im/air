@@ -2,9 +2,6 @@
 --
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 --
--- Device links this device is driving as the existing device. The outbound
--- service adds the new device to the self group and, when the link does not
--- complete, takes it out again and deletes its queue.
 CREATE TABLE device_link (
     link_id BLOB NOT NULL PRIMARY KEY,
     state TEXT NOT NULL,
