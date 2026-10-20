@@ -11,12 +11,9 @@ use aircommon::{
 };
 use airprotos::{
     queue_service::v1::{
-        CreateClientPayload, CreateClientRequest, DeleteClientPayload, DeleteClientRequest,
-        DeleteUserPayload, DeleteUserRequest, InitListenPayload, InitListenRequest,
-        PublishApqKeyPackagesPayload, PublishApqKeyPackagesRequest, PublishKeyPackagesPayload,
-        PublishKeyPackagesRequest, QsClientId, QsUserId, StageKeyPackagesPayload,
-        StageKeyPackagesRequest, UpdateClientPayload, UpdateClientRequest, UpdateUserPayload,
-        UpdateUserRequest,
+        CreateClientRequest, DeleteClientRequest, DeleteUserRequest, InitListenRequest,
+        PublishApqKeyPackagesRequest, PublishKeyPackagesRequest, QsClientId, QsUserId,
+        StageKeyPackagesRequest, UpdateClientRequest, UpdateUserRequest,
     },
     signed::{SignedRequest, VerifiableRequest},
 };
@@ -32,24 +29,18 @@ impl GrpcQs {
         request: SignedRequest<R, TAG>,
     ) -> Result<P, Status>
     where
-        R: WithQsUserId<Payload = P> + VerifiableRequest,
+        R: WithQsUserId + VerifiableRequest,
         P: VerifiedStruct<SignedRequest<R, TAG>>,
     {
-        match request.inner().user_id() {
-            // Support for legacy clients which use don't authentication.
-            None => Ok(request.into_inner().into_unverified_payload()),
-            Some(user_id) => {
-                let user_id = user_id?;
-                let verifying_key = UserRecord::load_verifying_key(&self.qs.db_pool, &user_id)
-                    .await
-                    .map_err(|error| {
-                        error!(%error, "failed to load user verifying key");
-                        Status::internal("database error")
-                    })?
-                    .ok_or_else(|| Status::not_found("unknown QS user"))?;
-                self.verify_request(request, &verifying_key)
-            }
-        }
+        let user_id = request.inner().user_id()?;
+        let verifying_key = UserRecord::load_verifying_key(&self.qs.db_pool, &user_id)
+            .await
+            .map_err(|error| {
+                error!(%error, "failed to load user verifying key");
+                Status::internal("database error")
+            })?
+            .ok_or_else(|| Status::not_found("unknown QS user"))?;
+        self.verify_request(request, &verifying_key)
     }
 
     /// Verifies request with QS client authentication.
@@ -58,7 +49,7 @@ impl GrpcQs {
         request: SignedRequest<R, TAG>,
     ) -> Result<P, Status>
     where
-        R: WithQsClientId<Payload = P> + VerifiableRequest,
+        R: WithQsClientId + VerifiableRequest,
         P: VerifiedStruct<SignedRequest<R, TAG>>,
     {
         let (payload, _) = self.verify_client_auth_with_user_id(request).await?;
@@ -67,31 +58,26 @@ impl GrpcQs {
 
     /// Verifies request with QS client authentication.
     ///
-    /// Also returns the user of the client, if the request is authenticated.
+    /// Also returns the user of the client.
     pub(super) async fn verify_client_auth_with_user_id<R, P, const TAG: u32>(
         &self,
         request: SignedRequest<R, TAG>,
-    ) -> Result<(P, Option<identifiers::QsUserId>), Status>
+    ) -> Result<(P, identifiers::QsUserId), Status>
     where
-        R: WithQsClientId<Payload = P> + VerifiableRequest,
+        R: WithQsClientId + VerifiableRequest,
         P: VerifiedStruct<SignedRequest<R, TAG>>,
     {
-        match request.inner().client_id() {
-            // Support for legacy clients which don't use authentication.
-            None => Ok((request.into_inner().into_unverified_payload(), None)),
-            Some(client_id) => {
-                let (verifying_key, user_id) =
-                    QsClientRecord::load_verifying_key_and_user_id(&self.qs.db_pool, &client_id?)
-                        .await
-                        .map_err(|error| {
-                            error!(%error, "failed to load client verifying key");
-                            Status::internal("database error")
-                        })?
-                        .ok_or_else(|| Status::not_found("unknown QS client"))?;
-                let payload = self.verify_request(request, &verifying_key)?;
-                Ok((payload, Some(user_id)))
-            }
-        }
+        let client_id = request.inner().client_id()?;
+        let (verifying_key, user_id) =
+            QsClientRecord::load_verifying_key_and_user_id(&self.qs.db_pool, &client_id)
+                .await
+                .map_err(|error| {
+                    error!(%error, "failed to load client verifying key");
+                    Status::internal("database error")
+                })?
+                .ok_or_else(|| Status::not_found("unknown QS client"))?;
+        let payload = self.verify_request(request, &verifying_key)?;
+        Ok((payload, user_id))
     }
 
     fn verify_request<R, P>(
@@ -112,226 +98,80 @@ impl GrpcQs {
     }
 }
 
-/// QS requests that contain a user id.
+/// QS requests that are authenticated by a QS user.
 pub(super) trait WithQsUserId {
-    type Payload;
-
     fn user_id_proto(&self) -> Option<QsUserId>;
 
-    fn user_id(&self) -> Option<Result<identifiers::QsUserId, Status>> {
-        // For now, not having a user id is not an error. We still have old clients that don't use
-        // authentication.
-        let user_id = self.user_id_proto()?;
-        Some(user_id.try_into().map_err(From::from))
+    fn user_id(&self) -> Result<identifiers::QsUserId, Status> {
+        let user_id = self
+            .user_id_proto()
+            .ok_or_else(|| Status::unauthenticated("missing QS user id"))?;
+        Ok(user_id.try_into()?)
     }
-
-    /// Converts the fields of the request into a payload.
-    ///
-    /// This method is used for requests coming from legacy clients that don't use authentication.
-    fn into_unverified_payload(self) -> Self::Payload;
 }
 
 impl WithQsUserId for UpdateUserRequest {
-    type Payload = UpdateUserPayload;
-
     fn user_id_proto(&self) -> Option<QsUserId> {
         self.payload.as_ref()?.sender
-    }
-
-    fn into_unverified_payload(self) -> Self::Payload {
-        let Self {
-            client_metadata,
-            sender,
-            user_record_auth_key,
-            friendship_token,
-            ..
-        } = self;
-        UpdateUserPayload {
-            client_metadata,
-            sender,
-            user_record_auth_key,
-            friendship_token,
-        }
     }
 }
 
 impl WithQsUserId for DeleteUserRequest {
-    type Payload = DeleteUserPayload;
-
     fn user_id_proto(&self) -> Option<QsUserId> {
         self.payload.as_ref()?.sender
-    }
-
-    fn into_unverified_payload(self) -> Self::Payload {
-        let Self {
-            client_metadata,
-            sender,
-            ..
-        } = self;
-        DeleteUserPayload {
-            client_metadata,
-            sender,
-        }
     }
 }
 
 impl WithQsUserId for CreateClientRequest {
-    type Payload = CreateClientPayload;
-
     fn user_id_proto(&self) -> Option<QsUserId> {
         self.payload.as_ref()?.sender
     }
-
-    fn into_unverified_payload(self) -> Self::Payload {
-        let Self {
-            client_metadata,
-            sender,
-            client_record_auth_key,
-            queue_encryption_key,
-            encrypted_push_token,
-            initial_ratched_secret,
-            ..
-        } = self;
-        CreateClientPayload {
-            client_metadata,
-            sender,
-            client_record_auth_key,
-            queue_encryption_key,
-            encrypted_push_token,
-            initial_ratched_secret,
-        }
-    }
 }
 
-/// QS requests that contain a client id.
+/// QS requests that are authenticated by a QS client.
 pub(super) trait WithQsClientId {
-    type Payload;
-
     fn client_id_proto(&self) -> Option<QsClientId>;
 
-    fn client_id(&self) -> Option<Result<identifiers::QsClientId, Status>> {
-        // For now, not having a client id is not an error. We still have old clients that don't use
-        // authentication.
-        let user_id = self.client_id_proto()?;
-        Some(user_id.try_into().map_err(From::from))
+    fn client_id(&self) -> Result<identifiers::QsClientId, Status> {
+        let client_id = self
+            .client_id_proto()
+            .ok_or_else(|| Status::unauthenticated("missing QS client id"))?;
+        Ok(client_id.try_into()?)
     }
-
-    /// Converts the fields of the request into a payload.
-    ///
-    /// This method is used for requests coming from legacy clients that don't use authentication.
-    fn into_unverified_payload(self) -> Self::Payload;
 }
 
 impl WithQsClientId for UpdateClientRequest {
-    type Payload = UpdateClientPayload;
-
     fn client_id_proto(&self) -> Option<QsClientId> {
         self.payload.as_ref()?.sender
-    }
-
-    fn into_unverified_payload(self) -> Self::Payload {
-        let Self {
-            client_metadata,
-            sender,
-            client_record_auth_key,
-            queue_encryption_key,
-            encrypted_push_token,
-            ..
-        } = self;
-        UpdateClientPayload {
-            client_metadata,
-            sender,
-            client_record_auth_key,
-            queue_encryption_key,
-            encrypted_push_token,
-        }
     }
 }
 
 impl WithQsClientId for DeleteClientRequest {
-    type Payload = DeleteClientPayload;
-
     fn client_id_proto(&self) -> Option<QsClientId> {
         self.payload.as_ref()?.sender
-    }
-
-    fn into_unverified_payload(self) -> Self::Payload {
-        let Self {
-            client_metadata,
-            sender,
-            ..
-        } = self;
-        DeleteClientPayload {
-            client_metadata,
-            sender,
-        }
     }
 }
 
 impl WithQsClientId for PublishKeyPackagesRequest {
-    type Payload = PublishKeyPackagesPayload;
-
     fn client_id_proto(&self) -> Option<QsClientId> {
         self.payload.as_ref()?.client_id
-    }
-
-    fn into_unverified_payload(self) -> Self::Payload {
-        let Self {
-            client_metadata,
-            client_id,
-            key_packages,
-            ..
-        } = self;
-        PublishKeyPackagesPayload {
-            client_metadata,
-            client_id,
-            key_packages,
-        }
     }
 }
 
 impl WithQsClientId for StageKeyPackagesRequest {
-    type Payload = StageKeyPackagesPayload;
-
     fn client_id_proto(&self) -> Option<QsClientId> {
         self.payload.as_ref()?.client_id
-    }
-
-    fn into_unverified_payload(self) -> Self::Payload {
-        unreachable!("Stage key packages are not supported by the legacy API")
     }
 }
 
 impl WithQsClientId for PublishApqKeyPackagesRequest {
-    type Payload = PublishApqKeyPackagesPayload;
-
     fn client_id_proto(&self) -> Option<QsClientId> {
         self.payload.as_ref()?.client_id
-    }
-
-    fn into_unverified_payload(self) -> Self::Payload {
-        unreachable!("APQ key packages are not supported by the legacy API")
     }
 }
 
 impl WithQsClientId for InitListenRequest {
-    type Payload = InitListenPayload;
-
     fn client_id_proto(&self) -> Option<QsClientId> {
         self.payload.as_ref()?.client_id
-    }
-
-    fn into_unverified_payload(self) -> Self::Payload {
-        let Self {
-            client_metadata,
-            client_id,
-            sequence_number_start,
-            ..
-        } = self;
-        InitListenPayload {
-            client_metadata,
-            client_id,
-            sequence_number_start,
-        }
     }
 }
