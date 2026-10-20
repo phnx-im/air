@@ -597,7 +597,7 @@ async fn group_with_blocked_contact() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    setup.get_user(&alice).add_username().await.unwrap();
+    setup.add_username(&alice).await;
 
     let bob = setup.add_user().await;
     let charlie = setup.add_user().await;

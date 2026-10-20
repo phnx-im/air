@@ -117,17 +117,17 @@ impl TestUser {
         self.username_record.lock().clone()
     }
 
-    pub async fn add_username(&self) -> anyhow::Result<UsernameRecord> {
+    pub async fn add_username(&self) -> UsernameRecord {
         if let Some(record) = self.username_record() {
             info!(user_id = ?self.user.user_id(), "Username already exists");
-            return Ok(record);
+            return record;
         }
 
         // In particular, it will replenish the tokens for the username
         self.user.outbound_service().run_once().await;
 
         let user_id_str = format!("uuid-{:?}", self.user.user_id()).replace(['@', '.'], "-");
-        let username = Username::new(user_id_str)?;
+        let username = Username::new(user_id_str).unwrap();
         info!(
             user_id = ?self.user.user_id(),
             username = username.plaintext(),
@@ -136,11 +136,12 @@ impl TestUser {
         let record = self
             .user
             .add_username(username)
-            .await?
-            .context("username is already in use")?;
+            .await
+            .unwrap()
+            .expect("username is already in use");
         *self.username_record.lock() = Some(record.clone());
 
-        Ok(record)
+        record
     }
 
     pub async fn fetch_and_process_qs_messages(&self) -> usize {
@@ -399,6 +400,14 @@ impl TestBackend {
         self.users.get(user_id).unwrap()
     }
 
+    pub async fn add_username(&self, user_id: &UserId) -> UsernameRecord {
+        self.users[user_id].add_username().await
+    }
+
+    pub fn username_record(&self, user_id: &UserId) -> Option<UsernameRecord> {
+        self.users[user_id].username_record()
+    }
+
     pub async fn delete_user(&mut self, user_id: &UserId) {
         let test_user = self.users.remove(user_id).unwrap();
         match test_user.db_dir {
@@ -525,7 +534,7 @@ impl TestBackend {
         info!("Connecting users {user1_id:?} and {user2_id:?}");
 
         let test_user2 = self.users.get(user2_id).unwrap();
-        let user2_username_record = test_user2.add_username().await.unwrap();
+        let user2_username_record = test_user2.add_username().await;
         let username = user2_username_record.username.clone();
 
         let user1 = &self.users[user1_id].user;

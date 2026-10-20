@@ -59,12 +59,6 @@ pub(crate) async fn drain_expecting_success(
     processed
 }
 
-/// Registers a username for `user_id`, which a peer can then request a
-/// connection to.
-pub(crate) async fn add_username(setup: &TestBackend, user_id: &UserId) -> UsernameRecord {
-    setup.get_user(user_id).add_username().await.unwrap()
-}
-
 /// Drains the username queue of `record` and returns the pending chat the
 /// connection offer in it created.
 pub(crate) async fn receive_connection_offer(user: &CoreUser, record: &UsernameRecord) -> ChatId {
@@ -287,7 +281,7 @@ async fn sibling_follows_an_accepted_connection() {
 
     // Bob asks for a connection to alice's handle, and the device that
     // listens on the handle queue accepts it.
-    let record = add_username(&setup, &alice).await;
+    let record = setup.add_username(&alice).await;
     let hash = record.username.calculate_hash().unwrap();
     setup
         .user(&bob)
@@ -380,7 +374,7 @@ async fn sibling_mirrors_a_handle_initiated_connection() {
 
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
 
-    let record = add_username(&setup, &bob).await;
+    let record = setup.add_username(&bob).await;
     let hash = record.username.calculate_hash().unwrap();
     let chat_id = device_a
         .add_contact(record.username.clone(), hash, setup.apq_groups)
@@ -637,7 +631,7 @@ async fn offline_sibling_catches_up_on_an_accepted_connection() {
 
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
 
-    let record = add_username(&setup, &alice).await;
+    let record = setup.add_username(&alice).await;
     let hash = record.username.calculate_hash().unwrap();
     setup
         .user(&bob)
@@ -753,7 +747,7 @@ async fn a_rejected_creation_produces_no_echo() {
 
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
 
-    let record = add_username(&setup, &bob).await;
+    let record = setup.add_username(&bob).await;
 
     let chats_before_a = device_a.ordered_chat_ids().await.unwrap();
     let chats_before_b = device_b.ordered_chat_ids().await.unwrap();
@@ -828,7 +822,7 @@ async fn a_rejected_join_produces_no_echo() {
 
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
 
-    let record = add_username(&setup, &alice).await;
+    let record = setup.add_username(&alice).await;
     let hash = record.username.calculate_hash().unwrap();
     setup
         .user(&bob)

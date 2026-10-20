@@ -233,7 +233,7 @@ async fn blocked_contact() {
     let mut setup = TestBackend::single().await;
     info!("Creating users");
     let alice = setup.add_user().await;
-    setup.get_user(&alice).add_username().await.unwrap();
+    setup.add_username(&alice).await;
     info!("Created alice");
     let bob = setup.add_user().await;
 
@@ -345,7 +345,7 @@ async fn delete_account() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    setup.get_user(&alice).add_username().await.unwrap();
+    setup.add_username(&alice).await;
 
     let bob = setup.add_user().await;
 
@@ -382,7 +382,7 @@ async fn delete_account() {
         .unwrap();
     // Adding a username to the new user should work, because the previous username was
     // deleted.
-    new_alice.add_username().await.unwrap();
+    new_alice.add_username().await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -392,17 +392,15 @@ async fn username_sanity_checks() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
 
-    let bob = setup.get_user(&bob);
-    let username_record = bob.add_username().await.unwrap();
+    let username_record = setup.add_username(&bob).await;
     let bob_username = username_record.username.clone();
     let bob_username_hash = bob_username.calculate_hash().unwrap();
 
     let apq_groups = setup.apq_groups;
-    let alice = setup.get_user(&alice);
-    let username_record = alice.add_username().await.unwrap();
+    let username_record = setup.add_username(&alice).await;
     let alice_username = username_record.username.clone();
     let alice_username_hash = alice_username.calculate_hash().unwrap();
-    let alice_user = &alice.user;
+    let alice_user = setup.user(&alice);
     let res = alice_user
         .add_contact(alice_username.clone(), alice_username_hash, apq_groups)
         .await
@@ -528,8 +526,7 @@ async fn add_contact_and_change_profile() {
 
     let bob = setup.add_user().await;
 
-    let alice_test_user = setup.get_user(&alice);
-    let alice_username_record = alice_test_user.add_username().await.unwrap();
+    let alice_username_record = setup.add_username(&alice).await;
 
     // Add Alice as a contact
     let bob_user = setup.user(&bob);

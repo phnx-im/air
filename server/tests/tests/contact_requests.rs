@@ -12,7 +12,7 @@ use aircoreclient::{
 use airserver_test_harness::utils::setup::TestBackend;
 
 use super::group_bootstrap::{
-    add_username, drain_expecting_success, drain_username_queue, receive_connection_offer,
+    drain_expecting_success, drain_username_queue, receive_connection_offer,
 };
 
 pub(crate) async fn system_messages(device: &CoreUser, chat_id: ChatId) -> Vec<SystemMessage> {
@@ -61,7 +61,7 @@ async fn requests_of_one_sender_fold_into_the_chat_of_the_newest() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
-    let first = add_username(&setup, &bob).await;
+    let first = setup.add_username(&bob).await;
     let second = add_second_username(&setup, &bob).await;
 
     let alice_user = setup.user(&alice);
@@ -124,7 +124,7 @@ async fn an_offer_fetched_after_accepting_a_newer_one_is_dropped() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
-    let first = add_username(&setup, &bob).await;
+    let first = setup.add_username(&bob).await;
     let second = add_second_username(&setup, &bob).await;
 
     let alice_user = setup.user(&alice);
@@ -164,8 +164,8 @@ async fn crossed_requests_leave_one_connection() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
-    let alice_record = add_username(&setup, &alice).await;
-    let bob_record = add_username(&setup, &bob).await;
+    let alice_record = setup.add_username(&alice).await;
+    let bob_record = setup.add_username(&bob).await;
     let alice_user = setup.user(&alice);
     let bob_user = setup.user(&bob);
 

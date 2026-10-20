@@ -19,9 +19,7 @@ use tokio_stream::StreamExt;
 
 use super::{
     contact_requests::{add_second_username, pending_chats_from, system_messages},
-    group_bootstrap::{
-        add_username, drain_expecting_success, link_sibling, receive_connection_offer,
-    },
+    group_bootstrap::{drain_expecting_success, link_sibling, receive_connection_offer},
     multi_device::{assert_inactive, drain_queue, link_new_device, send_and_receive},
 };
 
@@ -41,7 +39,7 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
-    let record = add_username(&setup, &alice).await;
+    let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
     drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
 
@@ -115,7 +113,7 @@ async fn a_streamed_forwarded_request_has_the_sender_profile() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
-    let record = add_username(&setup, &alice).await;
+    let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
     drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
 
@@ -171,7 +169,7 @@ async fn sibling_holding_the_request_follows_the_accept() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
-    let record = add_username(&setup, &alice).await;
+    let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
     drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
 
@@ -229,7 +227,7 @@ async fn sibling_moves_older_requests_into_the_accepted_chat() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
-    let first = add_username(&setup, &alice).await;
+    let first = setup.add_username(&alice).await;
     let second = add_second_username(&setup, &alice).await;
     device_a.outbound_service().run_once().await;
     drain_expecting_success(&device_b, "the sibling failed to follow the usernames").await;
@@ -308,7 +306,7 @@ async fn sibling_fetches_the_profile_the_sender_rotated() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
-    let record = add_username(&setup, &alice).await;
+    let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
     drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
 
@@ -358,7 +356,7 @@ async fn linked_device_gets_open_incoming_requests() {
     setup
         .invite_to_group(group_chat_id, &dave, vec![&alice, &charlie])
         .await;
-    let record = add_username(&setup, &alice).await;
+    let record = setup.add_username(&alice).await;
     let device_a = setup.user(&alice);
 
     // An open request via alice's username from bob, and one through the group
@@ -464,7 +462,7 @@ async fn linked_device_gets_open_outgoing_requests(acceptance: Acceptance) {
     setup
         .invite_to_group(group_chat_id, &dave, vec![&alice, &charlie])
         .await;
-    let record = add_username(&setup, &bob).await;
+    let record = setup.add_username(&bob).await;
     let device_a = setup.user(&alice);
 
     // An open request to bob's username, and one through the group to charlie.
@@ -609,7 +607,7 @@ async fn deleting_a_request_chat_before_forwarding_clears_the_sibling() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
-    let first = add_username(&setup, &alice).await;
+    let first = setup.add_username(&alice).await;
     let second = add_second_username(&setup, &alice).await;
     device_a.outbound_service().run_once().await;
     drain_expecting_success(&device_b, "the sibling failed to follow the usernames").await;
@@ -658,7 +656,7 @@ async fn retracting_a_request_makes_it_unavailable_to_the_recipient() {
     let bob = setup.add_user().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
 
-    let bob_record = add_username(&setup, &bob).await;
+    let bob_record = setup.add_username(&bob).await;
     let chat_id = device_a
         .add_contact(
             bob_record.username.clone(),
@@ -718,7 +716,7 @@ async fn deleting_an_outgoing_request_retracts_it() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
-    let bob_record = add_username(&setup, &bob).await;
+    let bob_record = setup.add_username(&bob).await;
 
     let alice_user = setup.user(&alice);
     let chat_id = alice_user
@@ -749,7 +747,7 @@ async fn retracting_offline_keeps_the_request() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
-    let bob_record = add_username(&setup, &bob).await;
+    let bob_record = setup.add_username(&bob).await;
 
     let alice_user = setup.user(&alice);
     let chat_id = alice_user
@@ -799,7 +797,7 @@ async fn retracting_on_both_devices_erases_the_chat() {
     let bob = setup.add_user().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
 
-    let bob_record = add_username(&setup, &bob).await;
+    let bob_record = setup.add_username(&bob).await;
     let chat_id = device_a
         .add_contact(
             bob_record.username.clone(),
@@ -847,7 +845,7 @@ async fn accepting_falls_back_to_the_older_request() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
-    let first = add_username(&setup, &alice).await;
+    let first = setup.add_username(&alice).await;
     let second = add_second_username(&setup, &alice).await;
     device_a.outbound_service().run_once().await;
     drain_expecting_success(&device_b, "the sibling failed to follow the usernames").await;
@@ -904,7 +902,7 @@ async fn declining_a_request_removes_it_on_the_sibling() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
-    let record = add_username(&setup, &alice).await;
+    let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
     drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
 
@@ -952,7 +950,7 @@ async fn blocking_a_request_sender_declines_on_the_sibling() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
-    let first = add_username(&setup, &alice).await;
+    let first = setup.add_username(&alice).await;
     let second = add_second_username(&setup, &alice).await;
     device_a.outbound_service().run_once().await;
     drain_expecting_success(&device_b, "the sibling failed to follow the usernames").await;
@@ -997,7 +995,7 @@ async fn a_decline_racing_an_accept_keeps_the_connection() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
-    let record = add_username(&setup, &alice).await;
+    let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
     drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
 
@@ -1116,7 +1114,7 @@ async fn an_expired_request_closes_on_the_sibling_and_is_unavailable() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
-    let bob_record = add_username(&setup, &bob).await;
+    let bob_record = setup.add_username(&bob).await;
     let chat_id = send_mirrored_request(&setup, &device_a, &device_b, &bob_record).await;
     let bob_user = setup.user(&bob);
     let bob_chat_id = receive_connection_offer(bob_user, &bob_record).await;
@@ -1163,7 +1161,7 @@ async fn an_echoed_expiry_delete_keeps_the_record() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
-    let bob_record = add_username(&setup, &bob).await;
+    let bob_record = setup.add_username(&bob).await;
     let alice_user = setup.user(&alice);
     // Only a plain MLS echo can be fed back to the sender.
     let chat_id = alice_user
@@ -1206,7 +1204,7 @@ async fn a_request_fetched_past_its_deadline_is_dropped() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
-    let record = add_username(&setup, &alice).await;
+    let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
     drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
     let bob_user = setup.user(&bob);
@@ -1252,7 +1250,7 @@ async fn a_request_expiring_on_both_devices_keeps_one_record() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
-    let bob_record = add_username(&setup, &bob).await;
+    let bob_record = setup.add_username(&bob).await;
     let chat_id = send_mirrored_request(&setup, &device_a, &device_b, &bob_record).await;
 
     for device in [&device_a, &device_b] {
@@ -1288,7 +1286,7 @@ async fn expired_requests_go_when_the_user_chose_so() {
         .unwrap();
     device_a.outbound_service().run_once().await;
     drain_expecting_success(&device_b, "the sibling failed to take the setting").await;
-    let bob_record = add_username(&setup, &bob).await;
+    let bob_record = setup.add_username(&bob).await;
     let chat_id = send_mirrored_request(&setup, &device_a, &device_b, &bob_record).await;
 
     for device in [&device_a, &device_b] {
