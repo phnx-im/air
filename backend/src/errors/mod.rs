@@ -76,8 +76,6 @@ pub(super) enum QueueError {
     Storage(#[from] StorageError),
     /// Payload receiver closed
     PayloadReceiverClosed,
-    /// Client not found
-    ClientNotFound,
 }
 
 impl From<sqlx::Error> for QueueError {
@@ -107,7 +105,6 @@ impl From<QueueError> for Status {
                 Self::internal("Database error")
             }
             QueueError::PayloadReceiverClosed => Self::internal(msg),
-            QueueError::ClientNotFound => Self::not_found(msg),
         }
     }
 }

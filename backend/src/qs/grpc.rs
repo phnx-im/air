@@ -30,7 +30,6 @@ use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::{error, info_span, warn};
 
 use crate::{
-    errors::QueueError,
     listen_session::{ListenRequestHandler, spawn_listen_session},
     qs::{
         client_record::QsClientRecord,
@@ -509,17 +508,8 @@ impl QueueService for GrpcQs {
             .await?;
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
-        let user_id = match user_id {
-            Some(user_id) => user_id,
-            // Legacy clients are not authenticated. Like for authenticated
-            // clients, the user may be deleted.
-            None => {
-                QsClientRecord::load_auth_record(&self.qs.db_pool, &client_id)
-                    .await
-                    .map_err(QueueError::from)?
-                    .ok_or(QueueError::ClientNotFound)?
-                    .user_id
-            }
+        let Some(user_id) = user_id else {
+            return Err(Status::unauthenticated("missing client authentication"));
         };
         let (session, queue_messages) = self
             .qs
