@@ -15,12 +15,10 @@ use airprotos::{
     auth_service::v1::OperationType,
     client::signed_connection_package::{AnyConnectionPackage, AnyConnectionPackageIn},
 };
-use airserver_test_harness::utils::setup::TestBackend;
+use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::{TimeZone, Utc};
 use tokio::task::spawn_blocking;
 use tokio_stream::StreamExt;
-
-use super::contact_requests::system_messages;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Connect users test", skip_all)]
@@ -43,13 +41,13 @@ async fn connect_users_via_user_handle() {
             .map(|contact| contact.user_id)
             .collect();
         assert_eq!(&contacts, std::slice::from_ref(contact));
-        let chat = user.chat(&chat_id).await.unwrap();
+        let chat = user.expect_chat(chat_id).await;
         assert_eq!(chat.chat_type(), &ChatType::Connection(contact.clone()));
         assert_eq!(user.unread_messages_count(chat_id).await, 0);
     }
 
     assert_eq!(
-        system_messages(alice_user, chat_id).await,
+        alice_user.system_messages(chat_id).await,
         [
             SystemMessage::NewHandleConnectionChat(username.clone()),
             SystemMessage::ReceivedConnectionConfirmation {
@@ -59,7 +57,7 @@ async fn connect_users_via_user_handle() {
         ]
     );
     assert_eq!(
-        system_messages(bob_user, chat_id).await,
+        bob_user.system_messages(chat_id).await,
         [
             SystemMessage::ReceivedHandleConnectionRequest {
                 sender: alice.clone(),
@@ -328,12 +326,7 @@ async fn connect_users_via_targeted_message() {
 
     // Charlie picks up his messages
     let charlie_user = setup.user(&charlie);
-    let qs_messages = charlie_user.qs_fetch_messages().await.unwrap();
-    let mut result = charlie_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Charlie should process Bob's targeted message without errors"
-    );
+    let mut result = charlie_user.drain().await;
 
     // Charlie accepts the connection request
     charlie_user
@@ -373,12 +366,7 @@ async fn connect_users_via_targeted_message() {
     );
 
     // Now Bob picks up his messages
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Charlie's response without errors"
-    );
+    bob_user.drain().await;
     // Bob should have a system message indicating that Charlie accepted the connection
     let messages = bob_user.messages(bob_chat_id, 1).await.unwrap();
     let Message::Event(EventMessage::System(SystemMessage::ReceivedConnectionConfirmation {
@@ -432,13 +420,7 @@ async fn connect_from_group(
         .unwrap();
 
     let peer_user = setup.user(peer);
-    let qs_messages = peer_user.qs_fetch_messages().await.unwrap();
-    let mut result = peer_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "peer should process the connection request without errors: {:?}",
-        result.errors
-    );
+    let mut result = peer_user.drain().await;
     let peer_chat_id = result.new_connections.pop().unwrap();
     peer_user
         .accept_contact_request(peer_chat_id)
@@ -446,13 +428,7 @@ async fn connect_from_group(
         .unwrap()
         .unwrap();
 
-    let qs_messages = initiator_user.qs_fetch_messages().await.unwrap();
-    let result = initiator_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "initiator should process the confirmation without errors: {:?}",
-        result.errors
-    );
+    initiator_user.drain().await;
 
     assert!(initiator_user.contact(peer).await.is_some());
     assert!(peer_user.contact(initiator).await.is_some());
@@ -530,13 +506,7 @@ async fn resync_connection_group() {
     );
 
     let alice_user = setup.user(&alice);
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Alice should process Bob's rejoin without errors: {:?}",
-        result.errors
-    );
+    alice_user.drain().await;
 
     setup.send_message(chat_id, &bob, vec![&alice], None).await;
     setup.send_message(chat_id, &alice, vec![&bob], None).await;
@@ -547,13 +517,7 @@ async fn resync_connection_group() {
     } else {
         alice_user.update_key(chat_id).await.unwrap();
     }
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Alice's follow-up commit without errors: {:?}",
-        result.errors
-    );
+    bob_user.drain().await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

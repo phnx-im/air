@@ -7,19 +7,20 @@ use std::slice;
 use aircoreclient::{
     ChatStatus, DisplayName, EventMessage, Message, MessageDraft, SystemMessage, UserProfile,
     clients::{
-        MarkChatAsRead, listen_response,
+        MarkChatAsRead,
         process::qs_stream::{QsProcessEventResult, QsStreamProcessor},
     },
 };
-use airserver_test_harness::utils::setup::{TestBackend, expected_display_name};
+use airserver_test_harness::utils::{
+    core_user_ext::CoreUserExt,
+    setup::{TestBackend, expected_display_name},
+};
 use chrono::{DateTime, Duration, Utc};
 use mimi_content::MimiContent;
 use tokio_stream::StreamExt;
 use tracing::info;
 
-use super::{
-    attachment::test_picture_bytes, contact_requests::system_messages, multi_device::discard_queue,
-};
+use super::attachment::test_picture_bytes;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Create group test", skip_all)]
@@ -228,20 +229,13 @@ async fn delete_group_as_sole_member() {
     assert!(alice_user.ds_has_group(chat_id).await.unwrap());
 
     alice_user.delete_chat(chat_id).await.unwrap();
-    let messages = system_messages(alice_user, chat_id).await;
+    let messages = alice_user.system_messages(chat_id).await;
     assert_eq!(
         count(&messages, &SystemMessage::DeleteGroup(alice.clone())),
         1,
         "got {messages:?}"
     );
-    assert!(
-        alice_user
-            .chat(&chat_id)
-            .await
-            .unwrap()
-            .status()
-            .is_inactive()
-    );
+    assert!(alice_user.expect_chat(chat_id).await.status().is_inactive());
     assert!(
         !alice_user.ds_has_group(chat_id).await.unwrap(),
         "the DS deletes the group of a sole member"
@@ -265,7 +259,7 @@ async fn missed_delete_commit_then_resync() {
     let bob_user = setup.user(&bob);
     let late_messages = bob_user.qs_fetch_messages().await.unwrap();
     assert_eq!(
-        bob_user.chat(&chat_id).await.unwrap().status(),
+        bob_user.expect_chat(chat_id).await.status(),
         &ChatStatus::Active
     );
     let participants = bob_user.chat_participants(chat_id).await.unwrap();
@@ -273,15 +267,8 @@ async fn missed_delete_commit_then_resync() {
     bob_user.enqueue_group_resync(chat_id).await.unwrap();
     bob_user.outbound_service().run_once().await;
 
-    assert!(
-        bob_user
-            .chat(&chat_id)
-            .await
-            .unwrap()
-            .status()
-            .is_inactive()
-    );
-    let messages = system_messages(bob_user, chat_id).await;
+    assert!(bob_user.expect_chat(chat_id).await.status().is_inactive());
+    let messages = bob_user.system_messages(chat_id).await;
     assert_eq!(
         count(&messages, &SystemMessage::DeleteGroup(alice.clone())),
         1,
@@ -303,7 +290,7 @@ async fn missed_delete_commit_then_resync() {
     );
 
     bob_user.fully_process_qs_messages(late_messages).await;
-    let messages = system_messages(bob_user, chat_id).await;
+    let messages = bob_user.system_messages(chat_id).await;
     assert_eq!(
         count(&messages, &SystemMessage::DeleteGroup(alice.clone())),
         1,
@@ -328,19 +315,12 @@ async fn missed_removal_then_resync() {
         .unwrap();
 
     let bob_user = setup.user(&bob);
-    discard_queue(bob_user).await;
+    bob_user.discard_queue().await;
     let participants = bob_user.chat_participants(chat_id).await.unwrap();
     bob_user.enqueue_group_resync(chat_id).await.unwrap();
     bob_user.outbound_service().run_once().await;
 
-    assert!(
-        bob_user
-            .chat(&chat_id)
-            .await
-            .unwrap()
-            .status()
-            .is_inactive()
-    );
+    assert!(bob_user.expect_chat(chat_id).await.status().is_inactive());
     assert!(
         bob_user.resync_status(chat_id).await.unwrap().is_none(),
         "the resync entry is gone"
@@ -350,7 +330,7 @@ async fn missed_removal_then_resync() {
         Some(participants),
         "the chat still lists its members"
     );
-    let messages = system_messages(bob_user, chat_id).await;
+    let messages = bob_user.system_messages(chat_id).await;
     assert_eq!(
         count(&messages, &SystemMessage::DeleteGroup(alice.clone())),
         0,
@@ -379,18 +359,11 @@ async fn missed_deletion_without_tombstone_then_resync() {
         .unwrap();
 
     let bob_user = setup.user(&bob);
-    discard_queue(bob_user).await;
+    bob_user.discard_queue().await;
     bob_user.enqueue_group_resync(chat_id).await.unwrap();
     bob_user.outbound_service().run_once().await;
 
-    assert!(
-        bob_user
-            .chat(&chat_id)
-            .await
-            .unwrap()
-            .status()
-            .is_inactive()
-    );
+    assert!(bob_user.expect_chat(chat_id).await.status().is_inactive());
     assert!(
         bob_user.resync_status(chat_id).await.unwrap().is_none(),
         "the resync entry is gone"
@@ -417,31 +390,15 @@ async fn delete_group_without_tombstone() {
         .delete_chat_without_tombstone(chat_id)
         .await
         .unwrap();
-    assert!(
-        alice_user
-            .chat(&chat_id)
-            .await
-            .unwrap()
-            .status()
-            .is_inactive()
-    );
-    let messages = system_messages(alice_user, chat_id).await;
+    assert!(alice_user.expect_chat(chat_id).await.status().is_inactive());
+    let messages = alice_user.system_messages(chat_id).await;
     assert_eq!(count(&messages, &bobs_removal), 1, "got {messages:?}");
     assert_eq!(deletions(&messages), 0, "got {messages:?}");
 
     let bob_user = setup.user(&bob);
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(result.errors.is_empty(), "{:?}", result.errors);
-    assert!(
-        bob_user
-            .chat(&chat_id)
-            .await
-            .unwrap()
-            .status()
-            .is_inactive()
-    );
-    let messages = system_messages(bob_user, chat_id).await;
+    bob_user.drain().await;
+    assert!(bob_user.expect_chat(chat_id).await.status().is_inactive());
+    let messages = bob_user.system_messages(chat_id).await;
     assert_eq!(count(&messages, &bobs_removal), 1, "got {messages:?}");
     assert_eq!(deletions(&messages), 0, "got {messages:?}");
 }
@@ -547,10 +504,7 @@ async fn update_user_profile_on_group_join() {
 
     // Charlie accepts the invitation.
     let charlie_user = setup.user(&charlie);
-    let charlie_qs_messages = charlie_user.qs_fetch_messages().await.unwrap();
-    charlie_user
-        .fully_process_qs_messages(charlie_qs_messages)
-        .await;
+    charlie_user.drain().await;
 
     // Bob now invites Alice
     bob_user
@@ -572,18 +526,12 @@ async fn update_user_profile_on_group_join() {
 
     // Alice accepts the invitation.
     let alice_user = setup.user(&alice);
-    let alice_qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    alice_user
-        .fully_process_qs_messages(alice_qs_messages)
-        .await;
+    alice_user.drain().await;
 
     // While processing her messages, Alice should have issued a profile update
 
     // Charlie picks up his messages.
-    let charlie_qs_messages = charlie_user.qs_fetch_messages().await.unwrap();
-    charlie_user
-        .fully_process_qs_messages(charlie_qs_messages)
-        .await;
+    charlie_user.drain().await;
     charlie_user.outbound_service().run_once().await;
 
     // Charlie should now have Alice's new profile.
@@ -671,9 +619,8 @@ async fn update_group_data() {
         .unwrap();
 
     let expected_picture = alice_user
-        .chat(&chat_id)
+        .expect_chat(chat_id)
         .await
-        .unwrap()
         .attributes()
         .unwrap()
         .picture()
@@ -684,18 +631,11 @@ async fn update_group_data() {
     for user_id in [&bob, &charlie] {
         let user = setup.user(user_id);
         // Fetch and process messages to get the update
-        let qs_messages = user.qs_fetch_messages().await.unwrap();
-        let result = user.fully_process_qs_messages(qs_messages).await;
-        assert!(
-            result.errors.is_empty(),
-            "{:?} should process Alice's update without errors",
-            user_id
-        );
+        user.drain().await;
         user.outbound_service().run_once().await;
         let actual_picture = user
-            .chat(&chat_id)
+            .expect_chat(chat_id)
             .await
-            .unwrap()
             .attributes()
             .unwrap()
             .picture()
@@ -715,17 +655,10 @@ async fn update_group_data() {
     for user_id in [&alice, &charlie] {
         let user = setup.user(user_id);
         // Fetch and process messages to get the update
-        let qs_messages = user.qs_fetch_messages().await.unwrap();
-        let result = user.fully_process_qs_messages(qs_messages).await;
-        assert!(
-            result.errors.is_empty(),
-            "{:?} should process Bob's update without errors",
-            user_id
-        );
+        user.drain().await;
         let actual_title = user
-            .chat(&chat_id)
+            .expect_chat(chat_id)
             .await
-            .unwrap()
             .attributes()
             .unwrap()
             .title
@@ -778,9 +711,8 @@ async fn own_pending_commit_merges_group_data_and_clears_pending_op() {
     );
     assert_ne!(
         alice_user
-            .chat(&chat_id)
+            .expect_chat(chat_id)
             .await
-            .unwrap()
             .attributes()
             .unwrap()
             .title,
@@ -798,9 +730,8 @@ async fn own_pending_commit_merges_group_data_and_clears_pending_op() {
     // The arm must apply the group data (title) ...
     assert_eq!(
         alice_user
-            .chat(&chat_id)
+            .expect_chat(chat_id)
             .await
-            .unwrap()
             .attributes()
             .unwrap()
             .title,
@@ -838,7 +769,7 @@ async fn fetch_group_profile_on_invite() {
         .unwrap();
 
     // Record Alice's group attributes (title and resized picture)
-    let alice_chat = alice_user.chat(&chat_id).await.unwrap();
+    let alice_chat = alice_user.expect_chat(chat_id).await;
     let attributes = alice_chat.attributes().unwrap().clone();
     let expected_title = attributes.title;
     let expected_picture = attributes.picture;
@@ -851,16 +782,10 @@ async fn fetch_group_profile_on_invite() {
 
     // Bob processes the invitation: this schedules a FetchGroupProfileOperation
     let bob_user = setup.user(&bob);
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process invitation without errors: {:?}",
-        result.errors
-    );
+    bob_user.drain().await;
 
     // Bob sees the group title immediately after processing the invitation, but not the picture
-    let bob_chat = bob_user.chat(&chat_id).await.unwrap();
+    let bob_chat = bob_user.expect_chat(chat_id).await;
     assert_eq!(bob_chat.attributes().unwrap().title(), &expected_title);
 
     // Bob runs the outbound service: this executes FetchGroupProfileOperation,
@@ -868,7 +793,7 @@ async fn fetch_group_profile_on_invite() {
     bob_user.outbound_service().run_once().await;
 
     // Bob should have the correct group attributes after fetching the encrypted profile
-    let bob_chat = bob_user.chat(&chat_id).await.unwrap();
+    let bob_chat = bob_user.expect_chat(chat_id).await;
     assert_eq!(bob_chat.attributes().unwrap().title(), &expected_title);
     assert_eq!(bob_chat.attributes().unwrap().picture, expected_picture);
 
@@ -904,12 +829,12 @@ async fn fetch_group_profile_on_update() {
     let chat_id = setup.create_group(&alice).await;
     setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
 
-    let chat = setup.user(&alice).chat(&chat_id).await.unwrap();
+    let chat = setup.user(&alice).expect_chat(chat_id).await;
     let title = chat.attributes().unwrap().title().to_owned();
 
     // Bob sees the group title of group immediately
     let bob_user = setup.user(&bob);
-    let bob_chat = bob_user.chat(&chat_id).await.unwrap();
+    let bob_chat = bob_user.expect_chat(chat_id).await;
     assert_eq!(bob_chat.attributes().unwrap().title(), &title);
 
     // Alice updates the group title and picture
@@ -925,24 +850,18 @@ async fn fetch_group_profile_on_update() {
         .unwrap();
 
     // Record Alice's stored picture (may be resized relative to test_picture_bytes)
-    let chat = alice_user.chat(&chat_id).await.unwrap();
+    let chat = alice_user.expect_chat(chat_id).await;
     let expected_picture = chat.attributes().unwrap().picture.clone();
 
     // Bob fetches Alice's commits: this schedules FetchGroupProfileOperations
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Alice's updates without errors: {:?}",
-        result.errors
-    );
+    bob_user.drain().await;
 
     // Bob runs the outbound service: this executes FetchGroupProfileOperations,
     // downloading and decrypting the new encrypted group profile from object storage
     bob_user.outbound_service().run_once().await;
 
     // Bob should see the updated title and picture
-    let bob_chat = bob_user.chat(&chat_id).await.unwrap();
+    let bob_chat = bob_user.expect_chat(chat_id).await;
     assert_eq!(bob_chat.attributes().unwrap().title(), &new_title);
     assert_eq!(
         bob_chat.attributes().unwrap().picture(),
@@ -974,36 +893,17 @@ async fn missed_commit() {
         .await
         .unwrap();
 
-    let charlie_qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user
-        .fully_process_qs_messages(charlie_qs_messages)
-        .await;
-    assert!(
-        result.errors.is_empty(),
-        "Alice should process Charlie's invitation without errors"
-    );
+    alice_user.drain().await;
 
     // Bob misses the invitation commit
     let bob_user = setup.user(&bob);
-    let (stream, responder) = bob_user.listen_queue().await.unwrap();
-    let sequence_number = stream
-        .map_while(|message| match message.ok()?.event {
-            Some(listen_response::Event::Message(queue_message)) => {
-                Some(queue_message.sequence_number)
-            }
-            _ => None,
-        })
-        .fold(0, |_, sequence_number| sequence_number)
-        .await;
-    // Throw away all messages
-    responder.ack(sequence_number + 1).await;
+    bob_user.discard_queue().await;
 
     // Bob tries to leave the group; this works but only locally
     bob_user.leave_chat(chat_id).await.unwrap();
 
     // ... and Alice still has 3 members
-    let messages = alice_user.qs_fetch_messages().await.unwrap();
-    alice_user.fully_process_qs_messages(messages).await;
+    alice_user.drain().await;
     assert_eq!(
         alice_user
             .mls_members(chat_id)
@@ -1017,8 +917,7 @@ async fn missed_commit() {
 
     // ... and Charlie still has 3 members
     let charlie_user = setup.user(&charlie);
-    let messages = charlie_user.qs_fetch_messages().await.unwrap();
-    charlie_user.fully_process_qs_messages(messages).await;
+    charlie_user.drain().await;
     assert_eq!(
         charlie_user
             .mls_members(chat_id)
@@ -1039,12 +938,9 @@ async fn missed_commit() {
         .invite_users(chat_id, slice::from_ref(&bob))
         .await
         .unwrap();
-    let messages = alice_user.qs_fetch_messages().await.unwrap();
-    alice_user.fully_process_qs_messages(messages).await;
-    let messages = bob_user.qs_fetch_messages().await.unwrap();
-    bob_user.fully_process_qs_messages(messages).await;
-    let messages = charlie_user.qs_fetch_messages().await.unwrap();
-    charlie_user.fully_process_qs_messages(messages).await;
+    alice_user.drain().await;
+    bob_user.drain().await;
+    charlie_user.drain().await;
 
     // Now everyone sees 3 members
     assert_eq!(
@@ -1394,9 +1290,8 @@ async fn update_group_profile_in_group_with_profile_component() {
         .unwrap();
     assert_eq!(
         alice_user
-            .chat(&chat_id)
+            .expect_chat(chat_id)
             .await
-            .unwrap()
             .attributes()
             .unwrap()
             .title(),
@@ -1410,18 +1305,11 @@ async fn update_group_profile_in_group_with_profile_component() {
     );
 
     // Bob sees the new title
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Alice's update without errors: {:?}",
-        result.errors
-    );
+    bob_user.drain().await;
     assert_eq!(
         bob_user
-            .chat(&chat_id)
+            .expect_chat(chat_id)
             .await
-            .unwrap()
             .attributes()
             .unwrap()
             .title(),
@@ -1435,9 +1323,8 @@ async fn update_group_profile_in_group_with_profile_component() {
         .await
         .unwrap();
     let expected_picture = bob_user
-        .chat(&chat_id)
+        .expect_chat(chat_id)
         .await
-        .unwrap()
         .attributes()
         .unwrap()
         .picture()
@@ -1445,15 +1332,9 @@ async fn update_group_profile_in_group_with_profile_component() {
         .to_owned();
 
     // Alice fetches the new external group profile
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Alice should process Bob's update without errors: {:?}",
-        result.errors
-    );
+    alice_user.drain().await;
     alice_user.outbound_service().run_once().await;
-    let alice_chat = alice_user.chat(&chat_id).await.unwrap();
+    let alice_chat = alice_user.expect_chat(chat_id).await;
     assert_eq!(alice_chat.attributes().unwrap().title(), &title);
     assert_eq!(
         alice_chat.attributes().unwrap().picture(),
@@ -1570,12 +1451,7 @@ async fn apq_leave_removes_member_from_both_t_and_pq() {
     alice_user.leave_chat(chat_id).await.unwrap();
 
     // Bob picks up Alice's self-remove proposal.
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Alice's self-remove without errors"
-    );
+    bob_user.drain().await;
 
     let debug_info = bob_user.chat_debug_info(chat_id).await.unwrap();
     let pq = debug_info
@@ -1598,16 +1474,10 @@ async fn apq_leave_removes_member_from_both_t_and_pq() {
     bob_user.update_apq_key(chat_id).await.unwrap();
 
     // Charlie picks up the commit ...
-    let qs_messages = charlie_user.qs_fetch_messages().await.unwrap();
-    let result = charlie_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Charlie should process the self-remove commit without errors"
-    );
+    charlie_user.drain().await;
 
     // ... and Alice learns she was removed.
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    alice_user.fully_process_qs_messages(qs_messages).await;
+    alice_user.drain().await;
 
     // Both Bob and Charlie must have committed the removal on the T and PQ
     // groups: Alice is gone, nothing is left pending, and the PQ epoch advanced.
@@ -1635,7 +1505,7 @@ async fn apq_leave_removes_member_from_both_t_and_pq() {
     }
 
     // Alice's chat is now inactive.
-    let alice_chat = alice_user.chat(&chat_id).await.unwrap();
+    let alice_chat = alice_user.expect_chat(chat_id).await;
     assert!(
         matches!(alice_chat.status(), ChatStatus::Inactive(_)),
         "Alice's chat must be inactive after being removed from the APQ group"
@@ -1706,7 +1576,7 @@ async fn apq_delete_removes_member_from_both_t_and_pq() {
     );
 
     // Alice's chat is now inactive.
-    let alice_chat = alice_user.chat(&chat_id).await.unwrap();
+    let alice_chat = alice_user.expect_chat(chat_id).await;
     assert!(
         matches!(alice_chat.status(), ChatStatus::Inactive(_)),
         "deleter's chat must be inactive after deleting the APQ group"
@@ -1714,13 +1584,8 @@ async fn apq_delete_removes_member_from_both_t_and_pq() {
 
     // Bob and Charlie pick up the delete commit and their chats go inactive.
     for (label, user) in [("Bob", bob_user), ("Charlie", charlie_user)] {
-        let qs_messages = user.qs_fetch_messages().await.unwrap();
-        let result = user.fully_process_qs_messages(qs_messages).await;
-        assert!(
-            result.errors.is_empty(),
-            "{label} should process the APQ delete commit without errors"
-        );
-        let chat = user.chat(&chat_id).await.unwrap();
+        user.drain().await;
+        let chat = user.expect_chat(chat_id).await;
         assert!(
             matches!(chat.status(), ChatStatus::Inactive(_)),
             "{label}'s chat must be inactive after the APQ group was deleted"

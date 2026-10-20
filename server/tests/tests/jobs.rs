@@ -49,7 +49,7 @@ use std::time::Duration;
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{ChatId, ChatStatus};
-use airserver_test_harness::utils::setup::TestBackend;
+use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use tokio::time::sleep;
 
 async fn setup_group_with_contacts() -> (TestBackend, UserId, UserId, UserId, ChatId) {
@@ -145,12 +145,7 @@ async fn commit_response_merges_pending_commit() {
         .await
         .expect_err("expected remove to fail due to network error");
 
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "processing commit response should succeed"
-    );
+    alice_user.drain().await;
 
     let members = alice_user.chat_participants(chat_id).await.unwrap();
     assert!(!members.contains(&charlie));
@@ -188,12 +183,7 @@ async fn wrong_epoch_marks_pending_waiting_and_commit_clears_it() {
         .await
         .expect_err("pending operation waiting for queue response should fail immediately");
 
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "processing incoming commit should succeed"
-    );
+    alice_user.drain().await;
 
     let members = alice_user.chat_participants(chat_id).await.unwrap();
     assert!(members.contains(&charlie));
@@ -234,13 +224,7 @@ async fn apq_self_remove_is_committed_on_both_legs() {
     let charlie_user = setup.user(&charlie);
     charlie_user.leave_chat(chat_id).await.unwrap();
 
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Charlie's self-remove proposal without errors: {:?}",
-        result.errors
-    );
+    bob_user.drain().await;
 
     let before = bob_user.chat_debug_info(chat_id).await.unwrap();
     let pq_before = before.pq.clone().expect("APQ group must have a PQ group");
@@ -306,12 +290,7 @@ async fn apq_wrong_epoch_recovery_keeps_t_and_pq_rosters_consistent() {
 
     // Alice processes Bob's winning commit, which must discard her stale pending
     // commit on both the T and the PQ group.
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "processing incoming commit should succeed"
-    );
+    alice_user.drain().await;
 
     let pending_after = alice_user
         .pending_chat_operation_info(chat_id)
@@ -385,9 +364,7 @@ async fn network_errors_do_not_spend_attempts() {
     assert_eq!(pending.number_of_attempts, 0);
 
     // The first commit reached the DS, its queue response resolves the op
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(result.errors.is_empty());
+    alice_user.drain().await;
 
     let pending_after = alice_user
         .pending_chat_operation_info(chat_id)
@@ -414,7 +391,7 @@ async fn leave_with_wrong_epoch_applies_locally_and_keeps_pending() {
 
     alice_user.leave_chat(chat_id).await.unwrap();
 
-    let chat = alice_user.chat(&chat_id).await.unwrap();
+    let chat = alice_user.expect_chat(chat_id).await;
     assert!(matches!(chat.status(), ChatStatus::Inactive(_)));
 
     let pending = alice_user
@@ -429,22 +406,12 @@ async fn leave_with_wrong_epoch_applies_locally_and_keeps_pending() {
 
     // Running the outbound service after fetching and processing messages
     // should retry the leave and eventually delete the pending operation.
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "processing incoming commit should succeed"
-    );
+    alice_user.drain().await;
     alice_user.outbound_service().run_once().await;
 
     // Have Bob fetch and process messages to make sure that if Alice's leave
     // was retried and succeeded.
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should be able to process messages after Alice's leave is retried and succeeds"
-    );
+    bob_user.drain().await;
 
     let chat_participants = bob_user.chat_participants(chat_id).await.unwrap();
     assert!(chat_participants.len() == 1);
@@ -476,21 +443,11 @@ async fn pending_leave_is_deleted_when_another_member_commits_self_remove() {
         .expect("pending leave should remain after dropped response");
     assert_eq!(pending.operation_type, "leave");
 
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Alice's self-remove proposal without errors"
-    );
+    bob_user.drain().await;
 
     bob_user.update_key(chat_id).await.unwrap();
 
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Alice should process Bob's commit without errors"
-    );
+    alice_user.drain().await;
 
     let pending_after = alice_user
         .pending_chat_operation_info(chat_id)
@@ -523,13 +480,7 @@ async fn commit_that_ignores_a_pending_self_remove_is_rejected() {
         "rejected operation should be cleaned up, not parked"
     );
 
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Alice's self-remove proposal without errors: {:?}",
-        result.errors
-    );
+    bob_user.drain().await;
 
     bob_user
         .update_key(chat_id)
@@ -586,9 +537,8 @@ async fn assert_retried_delete_reaches_the_contact(
     assert!(alice_user.chat(&chat_id).await.is_none());
 
     let bob_user = setup.user(bob);
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    bob_user.fully_process_qs_messages(qs_messages).await;
-    let chat = bob_user.chat(&chat_id).await.unwrap();
+    bob_user.drain().await;
+    let chat = bob_user.expect_chat(chat_id).await;
     assert!(matches!(chat.status(), ChatStatus::Inactive(_)));
 }
 

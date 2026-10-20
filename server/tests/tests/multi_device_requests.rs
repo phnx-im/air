@@ -12,15 +12,15 @@ use aircoreclient::{
         process::qs_stream::{QsProcessEventResult, QsStreamProcessor},
     },
 };
-use airserver_test_harness::utils::setup::TestBackend;
+use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::{DateTime, Duration, Utc};
 use tokio::time::timeout;
 use tokio_stream::StreamExt;
 
 use super::{
-    contact_requests::{add_second_username, pending_chats_from, system_messages},
-    group_bootstrap::{drain_expecting_success, link_sibling, receive_connection_offer},
-    multi_device::{assert_inactive, drain_queue, link_new_device, send_and_receive},
+    contact_requests::{add_second_username, pending_chats_from},
+    group_bootstrap::{link_sibling, receive_connection_offer},
+    multi_device::{assert_inactive, link_new_device, send_and_receive},
 };
 
 /// Whether the chat holds a system message matching `predicate`.
@@ -29,7 +29,7 @@ async fn has_system_message(
     chat_id: ChatId,
     predicate: impl Fn(&SystemMessage) -> bool,
 ) -> bool {
-    system_messages(device, chat_id).await.iter().any(predicate)
+    device.system_messages(chat_id).await.iter().any(predicate)
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -41,7 +41,7 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
+    device_b.drain().await;
 
     let bob_user = setup.user(&bob);
     let bob_chat_id = bob_user
@@ -59,14 +59,13 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
         .unwrap();
     device_a.outbound_service().run_once().await;
 
-    let processed =
-        drain_expecting_success(&device_b, "the sibling failed to take the request").await;
+    let processed = device_b.drain().await;
     assert_eq!(
         processed.new_connections,
         vec![chat_id],
         "the forwarded request should raise a notification"
     );
-    let chat_b = device_b.chat(&chat_id).await.unwrap();
+    let chat_b = device_b.expect_chat(chat_id).await;
     assert_eq!(
         chat_b.chat_type(),
         &ChatType::PendingConnection(bob.clone())
@@ -88,8 +87,8 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
         .unwrap()
         .unwrap();
 
-    drain_expecting_success(&device_a, "the device failed to follow the accept").await;
-    let chat_a = device_a.chat(&chat_id).await.unwrap();
+    device_a.drain().await;
+    let chat_a = device_a.expect_chat(chat_id).await;
     assert_eq!(chat_a.chat_type(), &ChatType::Connection(bob.clone()));
     let remaining_hashes = device_a
         .connection_package_hashes(&record.username)
@@ -101,8 +100,8 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
         "the device drops the key of the package the offer consumed"
     );
 
-    drain_expecting_success(bob_user, "bob failed to follow the accept").await;
-    let chat_bob = bob_user.chat(&chat_id).await.unwrap();
+    bob_user.drain().await;
+    let chat_bob = bob_user.expect_chat(chat_id).await;
     assert_eq!(chat_bob.chat_type(), &ChatType::Connection(alice.clone()));
 }
 
@@ -115,7 +114,7 @@ async fn a_streamed_forwarded_request_has_the_sender_profile() {
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
+    device_b.drain().await;
 
     // A default display name is the same fallback a missing profile shows.
     let bob_user = setup.user(&bob);
@@ -171,7 +170,7 @@ async fn sibling_holding_the_request_follows_the_accept() {
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
+    device_b.drain().await;
 
     let bob_user = setup.user(&bob);
     bob_user
@@ -181,7 +180,7 @@ async fn sibling_holding_the_request_follows_the_accept() {
         .unwrap();
     let chat_id = receive_connection_offer(&device_a, &record).await;
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to take the request").await;
+    device_b.drain().await;
     assert_eq!(pending_chats_from(&device_b, &bob).await, vec![chat_id]);
 
     device_a
@@ -190,8 +189,7 @@ async fn sibling_holding_the_request_follows_the_accept() {
         .unwrap()
         .unwrap();
 
-    let processed =
-        drain_expecting_success(&device_b, "the sibling failed to follow the accept").await;
+    let processed = device_b.drain().await;
     assert_eq!(
         processed.removed_chats,
         vec![chat_id],
@@ -199,7 +197,7 @@ async fn sibling_holding_the_request_follows_the_accept() {
     );
     assert!(pending_chats_from(&device_b, &bob).await.is_empty());
     assert_eq!(
-        device_b.chat(&chat_id).await.unwrap().chat_type(),
+        device_b.expect_chat(chat_id).await.chat_type(),
         &ChatType::Connection(bob.clone())
     );
     assert_eq!(device_b.contact(&bob).await.unwrap().chat_id, chat_id);
@@ -215,7 +213,7 @@ async fn sibling_holding_the_request_follows_the_accept() {
         "the acceptance should name the username of the request"
     );
 
-    drain_queue(bob_user).await;
+    bob_user.drain().await;
     send_and_receive(bob_user, &[&device_a, &device_b], chat_id, "hello alice").await;
     send_and_receive(&device_b, &[&device_a, bob_user], chat_id, "hello bob").await;
 }
@@ -230,7 +228,7 @@ async fn sibling_moves_older_requests_into_the_accepted_chat() {
     let first = setup.add_username(&alice).await;
     let second = add_second_username(&setup, &alice).await;
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to follow the usernames").await;
+    device_b.drain().await;
 
     let bob_user = setup.user(&bob);
     for record in [&first, &second] {
@@ -242,7 +240,7 @@ async fn sibling_moves_older_requests_into_the_accepted_chat() {
     }
     let first_chat_id = receive_connection_offer(&device_a, &first).await;
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to take the first request").await;
+    device_b.drain().await;
 
     // The newer request is accepted before it reaches the sibling, which only
     // knows the older one. The outbox then drops the newer one.
@@ -255,8 +253,7 @@ async fn sibling_moves_older_requests_into_the_accepted_chat() {
         .unwrap();
     device_a.outbound_service().run_once().await;
 
-    let processed =
-        drain_expecting_success(&device_b, "the sibling failed to follow the accept").await;
+    let processed = device_b.drain().await;
     assert_eq!(
         processed.removed_chats,
         vec![first_chat_id],
@@ -265,7 +262,7 @@ async fn sibling_moves_older_requests_into_the_accepted_chat() {
     assert!(device_b.chat(&first_chat_id).await.is_none());
     assert!(pending_chats_from(&device_b, &bob).await.is_empty());
     assert_eq!(
-        device_b.chat(&second_chat_id).await.unwrap().chat_type(),
+        device_b.expect_chat(second_chat_id).await.chat_type(),
         &ChatType::Connection(bob.clone())
     );
     assert_eq!(
@@ -282,7 +279,7 @@ async fn sibling_moves_older_requests_into_the_accepted_chat() {
         "the older request should move into the accepted chat"
     );
 
-    drain_queue(bob_user).await;
+    bob_user.drain().await;
     send_and_receive(
         bob_user,
         &[&device_a, &device_b],
@@ -308,7 +305,7 @@ async fn sibling_fetches_the_profile_the_sender_rotated() {
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
+    device_b.drain().await;
 
     // The offer carries the profile key from before the rotation.
     let bob_user = setup.user(&bob);
@@ -331,7 +328,7 @@ async fn sibling_fetches_the_profile_the_sender_rotated() {
     assert_eq!(device_a.user_profile(&bob).await.display_name, display_name);
     device_a.outbound_service().run_once().await;
 
-    drain_expecting_success(&device_b, "the sibling failed to take the request").await;
+    device_b.drain().await;
     device_b.outbound_service().run_once().await;
     assert_eq!(
         device_b.user_profile(&bob).await.display_name,
@@ -373,15 +370,14 @@ async fn linked_device_gets_open_incoming_requests() {
         .add_contact_from_group(group_chat_id, alice.clone(), setup.apq_groups)
         .await
         .unwrap();
-    let processed =
-        drain_expecting_success(device_a, "alice failed to take the group request").await;
+    let processed = device_a.drain().await;
     let [group_request_chat_id] = processed.new_connections.as_slice() else {
         panic!("expected one request, got {:?}", processed.new_connections);
     };
 
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
 
-    let username_chat = device_b.chat(&username_chat_id).await.unwrap();
+    let username_chat = device_b.expect_chat(username_chat_id).await;
     assert_eq!(
         username_chat.chat_type(),
         &ChatType::PendingConnection(bob.clone())
@@ -416,9 +412,9 @@ async fn linked_device_gets_open_incoming_requests() {
             .unwrap()
             .unwrap();
     }
-    drain_expecting_success(&device_a, "the device failed to follow the accepts").await;
+    device_a.drain().await;
     assert_eq!(
-        device_a.chat(&username_chat_id).await.unwrap().chat_type(),
+        device_a.expect_chat(username_chat_id).await.chat_type(),
         &ChatType::Connection(bob.clone())
     );
     assert_eq!(
@@ -477,20 +473,19 @@ async fn linked_device_gets_open_outgoing_requests(acceptance: Acceptance) {
         .unwrap();
 
     let (device_b, _tmp) = link_new_device(&setup, &alice).await;
-    drain_queue(device_a).await;
+    device_a.drain().await;
     if let Acceptance::AfterOnboarding = acceptance {
         device_b.outbound_service().run_once().await;
-        drain_queue(device_a).await;
-        drain_queue(&device_b).await;
+        device_a.drain().await;
+        device_b.drain().await;
         assert_eq!(
-            device_b.chat(&username_chat_id).await.unwrap().chat_type(),
+            device_b.expect_chat(username_chat_id).await.chat_type(),
             &ChatType::HandleConnection(record.username.clone())
         );
         assert_eq!(
             device_b
-                .chat(&group_request_chat_id)
+                .expect_chat(group_request_chat_id)
                 .await
-                .unwrap()
                 .chat_type(),
             &ChatType::TargetedMessageConnection(charlie.clone())
         );
@@ -510,7 +505,7 @@ async fn linked_device_gets_open_outgoing_requests(acceptance: Acceptance) {
         .unwrap()
         .unwrap();
     let charlie_user = setup.user(&charlie);
-    drain_expecting_success(charlie_user, "charlie failed to take the request").await;
+    charlie_user.drain().await;
     charlie_user
         .accept_contact_request(group_request_chat_id)
         .await
@@ -520,28 +515,24 @@ async fn linked_device_gets_open_outgoing_requests(acceptance: Acceptance) {
     match acceptance {
         Acceptance::AfterOnboarding => {}
         Acceptance::BeforeOnboardingJoinsFirst => {
-            drain_expecting_success(&device_b, "the new device failed on the joins").await;
+            device_b.drain().await;
             device_b.outbound_service().run_once().await;
         }
         Acceptance::BeforeOnboardingJoinsLast => {
             device_b.outbound_service().run_once().await;
-            drain_expecting_success(&device_b, "the new device failed on the joins").await;
+            device_b.drain().await;
         }
     }
 
     for (label, device) in [("original", device_a), ("new", &device_b)] {
-        drain_expecting_success(device, "a device failed to follow the accepts").await;
+        device.drain().await;
         assert_eq!(
-            device.chat(&username_chat_id).await.unwrap().chat_type(),
+            device.expect_chat(username_chat_id).await.chat_type(),
             &ChatType::Connection(bob.clone()),
             "the {label} device should see the connection to bob"
         );
         assert_eq!(
-            device
-                .chat(&group_request_chat_id)
-                .await
-                .unwrap()
-                .chat_type(),
+            device.expect_chat(group_request_chat_id).await.chat_type(),
             &ChatType::Connection(charlie.clone()),
             "the {label} device should see the connection to charlie"
         );
@@ -610,7 +601,7 @@ async fn deleting_a_request_chat_before_forwarding_clears_the_sibling() {
     let first = setup.add_username(&alice).await;
     let second = add_second_username(&setup, &alice).await;
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to follow the usernames").await;
+    device_b.drain().await;
 
     let bob_user = setup.user(&bob);
     for record in [&first, &second] {
@@ -623,7 +614,7 @@ async fn deleting_a_request_chat_before_forwarding_clears_the_sibling() {
 
     let first_chat_id = receive_connection_offer(&device_a, &first).await;
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to take the first request").await;
+    device_b.drain().await;
     assert!(device_b.chat(&first_chat_id).await.is_some());
 
     // The newer request takes over the chat, which alice deletes before the
@@ -634,7 +625,7 @@ async fn deleting_a_request_chat_before_forwarding_clears_the_sibling() {
     device_a.erase_chat(second_chat_id).await.unwrap();
     device_a.outbound_service().run_once().await;
 
-    drain_expecting_success(&device_b, "the sibling failed to follow the deletion").await;
+    device_b.drain().await;
     assert!(
         pending_chats_from(&device_b, &bob).await.is_empty(),
         "the sibling should drop the older request too"
@@ -666,18 +657,18 @@ async fn retracting_a_request_makes_it_unavailable_to_the_recipient() {
         .await
         .unwrap()
         .unwrap();
-    drain_expecting_success(&device_b, "the sibling failed to mirror the request").await;
+    device_b.drain().await;
     let bob_user = setup.user(&bob);
     let bob_chat_id = receive_connection_offer(bob_user, &bob_record).await;
 
     device_a.retract_contact_request(chat_id).await.unwrap();
     assert_erased(&device_a, chat_id, "retracting").await;
     // The siblings share the sender's leaf, so they get the delete commit.
-    drain_expecting_success(&device_b, "the sibling failed to follow the deletion").await;
+    device_b.drain().await;
     assert_erased(&device_b, chat_id, "sibling").await;
     // The self-group deletion finds the chat gone already.
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to take the deletion").await;
+    device_b.drain().await;
     assert!(
         device_b.retract_contact_request(chat_id).await.is_err(),
         "an erased request cannot be retracted again"
@@ -767,7 +758,7 @@ async fn retracting_offline_keeps_the_request() {
         .retract_contact_request(chat_id)
         .await
         .expect_err("expected the retraction to fail due to a network error");
-    let chat = alice_user.chat(&chat_id).await.unwrap();
+    let chat = alice_user.expect_chat(chat_id).await;
     assert_eq!(chat.status(), &ChatStatus::Active);
     assert!(
         alice_user
@@ -807,8 +798,8 @@ async fn retracting_on_both_devices_erases_the_chat() {
         .await
         .unwrap()
         .unwrap();
-    drain_expecting_success(&device_b, "the sibling failed to mirror the request").await;
-    drain_expecting_success(&device_a, "the sender failed to take its own echo").await;
+    device_b.drain().await;
+    device_a.drain().await;
 
     device_a.retract_contact_request(chat_id).await.unwrap();
     device_b.retract_contact_request(chat_id).await.unwrap();
@@ -818,8 +809,7 @@ async fn retracting_on_both_devices_erases_the_chat() {
     // Both devices erased the group, so the delete commit queued for them has
     // nowhere to go.
     for device in [&device_a, &device_b] {
-        let queued = device.qs_fetch_messages().await.unwrap();
-        let processed = device.fully_process_qs_messages(queued).await;
+        let processed = device.drain_unchecked().await;
         assert!(
             processed
                 .errors
@@ -832,7 +822,7 @@ async fn retracting_on_both_devices_erases_the_chat() {
 
     for (device, sibling) in [(&device_a, &device_b), (&device_b, &device_a)] {
         device.outbound_service().run_once().await;
-        drain_expecting_success(sibling, "a device failed to take the deletion").await;
+        sibling.drain().await;
     }
     assert_erased(&device_a, chat_id, "first").await;
     assert_erased(&device_b, chat_id, "late").await;
@@ -848,7 +838,7 @@ async fn accepting_falls_back_to_the_older_request() {
     let first = setup.add_username(&alice).await;
     let second = add_second_username(&setup, &alice).await;
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to follow the usernames").await;
+    device_b.drain().await;
 
     let bob_user = setup.user(&bob);
     let mut sent = Vec::new();
@@ -864,7 +854,7 @@ async fn accepting_falls_back_to_the_older_request() {
     let newer_chat_id = receive_connection_offer(&device_a, &second).await;
     assert_eq!([older_chat_id, newer_chat_id], sent.as_slice());
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to take the requests").await;
+    device_b.drain().await;
 
     bob_user
         .retract_contact_request(newer_chat_id)
@@ -881,17 +871,17 @@ async fn accepting_falls_back_to_the_older_request() {
         "the older request should be accepted"
     );
     assert!(device_a.chat(&newer_chat_id).await.is_none());
-    let chat = device_a.chat(&older_chat_id).await.unwrap();
+    let chat = device_a.expect_chat(older_chat_id).await;
     assert_eq!(chat.chat_type(), &ChatType::Connection(bob.clone()));
 
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to follow the accept").await;
+    device_b.drain().await;
     assert!(pending_chats_from(&device_b, &bob).await.is_empty());
-    let chat_b = device_b.chat(&older_chat_id).await.unwrap();
+    let chat_b = device_b.expect_chat(older_chat_id).await;
     assert_eq!(chat_b.chat_type(), &ChatType::Connection(bob.clone()));
 
-    drain_expecting_success(bob_user, "bob failed to take the accept").await;
-    let bob_chat = bob_user.chat(&older_chat_id).await.unwrap();
+    bob_user.drain().await;
+    let bob_chat = bob_user.expect_chat(older_chat_id).await;
     assert_eq!(bob_chat.chat_type(), &ChatType::Connection(alice.clone()));
 }
 
@@ -904,7 +894,7 @@ async fn declining_a_request_removes_it_on_the_sibling() {
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
+    device_b.drain().await;
 
     let bob_user = setup.user(&bob);
     let bob_chat_id = bob_user
@@ -914,7 +904,7 @@ async fn declining_a_request_removes_it_on_the_sibling() {
         .unwrap();
     let chat_id = receive_connection_offer(&device_a, &record).await;
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to take the request").await;
+    device_b.drain().await;
     assert!(device_b.chat(&chat_id).await.is_some());
 
     device_b.decline_contact_request(chat_id).await.unwrap();
@@ -925,8 +915,7 @@ async fn declining_a_request_removes_it_on_the_sibling() {
     );
     device_b.outbound_service().run_once().await;
 
-    let processed =
-        drain_expecting_success(&device_a, "the device failed to take the decline").await;
+    let processed = device_a.drain().await;
     assert_eq!(
         processed.removed_chats,
         vec![chat_id],
@@ -935,8 +924,8 @@ async fn declining_a_request_removes_it_on_the_sibling() {
     assert!(device_a.chat(&chat_id).await.is_none());
 
     // The sender is not told.
-    drain_queue(bob_user).await;
-    let bob_chat = bob_user.chat(&bob_chat_id).await.unwrap();
+    bob_user.drain().await;
+    let bob_chat = bob_user.expect_chat(bob_chat_id).await;
     assert!(bob_chat.is_unconfirmed());
     assert_eq!(bob_chat.status(), &ChatStatus::Active);
 }
@@ -953,7 +942,7 @@ async fn blocking_a_request_sender_declines_on_the_sibling() {
     let first = setup.add_username(&alice).await;
     let second = add_second_username(&setup, &alice).await;
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to follow the usernames").await;
+    device_b.drain().await;
 
     let bob_user = setup.user(&bob);
     for record in [&first, &second] {
@@ -965,14 +954,14 @@ async fn blocking_a_request_sender_declines_on_the_sibling() {
     }
     receive_connection_offer(&device_a, &first).await;
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to take the first request").await;
+    device_b.drain().await;
     let second_chat_id = receive_connection_offer(&device_a, &second).await;
 
     device_b.block_contact(bob.clone()).await.unwrap();
     assert!(pending_chats_from(&device_b, &bob).await.is_empty());
     device_b.outbound_service().run_once().await;
 
-    let processed = drain_expecting_success(&device_a, "the device failed to take the block").await;
+    let processed = device_a.drain().await;
     assert!(
         processed.removed_chats.contains(&second_chat_id),
         "the notification of the declined requests is stale, got {:?}",
@@ -983,7 +972,7 @@ async fn blocking_a_request_sender_declines_on_the_sibling() {
         "the device should decline the request the blocking sibling did not know"
     );
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to drain").await;
+    device_b.drain().await;
     assert!(pending_chats_from(&device_b, &bob).await.is_empty());
 }
 
@@ -997,7 +986,7 @@ async fn a_decline_racing_an_accept_keeps_the_connection() {
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
+    device_b.drain().await;
 
     let bob_user = setup.user(&bob);
     bob_user
@@ -1007,7 +996,7 @@ async fn a_decline_racing_an_accept_keeps_the_connection() {
         .unwrap();
     let chat_id = receive_connection_offer(&device_a, &record).await;
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to take the request").await;
+    device_b.drain().await;
 
     device_a
         .accept_contact_request(chat_id)
@@ -1017,7 +1006,7 @@ async fn a_decline_racing_an_accept_keeps_the_connection() {
     device_b.decline_contact_request(chat_id).await.unwrap();
     device_b.outbound_service().run_once().await;
 
-    drain_expecting_success(&device_a, "the device failed to take the decline").await;
+    device_a.drain().await;
     assert_eq!(
         device_a
             .chat(&chat_id)
@@ -1026,7 +1015,7 @@ async fn a_decline_racing_an_accept_keeps_the_connection() {
         Some(ChatType::Connection(bob.clone())),
         "the accepting device should keep the connection"
     );
-    drain_expecting_success(&device_b, "the sibling failed to follow the accept").await;
+    device_b.drain().await;
     assert_eq!(
         device_b
             .chat(&chat_id)
@@ -1036,7 +1025,7 @@ async fn a_decline_racing_an_accept_keeps_the_connection() {
         "the declining sibling should follow the accept"
     );
 
-    drain_queue(bob_user).await;
+    bob_user.drain().await;
     send_and_receive(bob_user, &[&device_a, &device_b], chat_id, "hello alice").await;
 }
 
@@ -1060,8 +1049,8 @@ async fn send_mirrored_request(
         .await
         .unwrap()
         .unwrap();
-    drain_expecting_success(device_b, "the sibling failed to mirror the request").await;
-    drain_expecting_success(device_a, "the sender failed to take its own echo").await;
+    device_b.drain().await;
+    device_a.drain().await;
     let expires_at = request_expires_at(device_a, chat_id).await;
     assert!(expires_at.is_some());
     assert_eq!(
@@ -1073,7 +1062,7 @@ async fn send_mirrored_request(
 }
 
 async fn request_expires_at(device: &CoreUser, chat_id: ChatId) -> Option<DateTime<Utc>> {
-    let chat = device.chat(&chat_id).await.unwrap();
+    let chat = device.expect_chat(chat_id).await;
     device.contact_request_expires_at(&chat).await.unwrap()
 }
 
@@ -1091,7 +1080,7 @@ async fn expire_requests(device: &CoreUser) {
 /// expiring, as its last message.
 async fn assert_sent_request_expired(device: &CoreUser, chat_id: ChatId, label: &str) {
     assert_inactive(device, chat_id, None, label).await;
-    let messages = system_messages(device, chat_id).await;
+    let messages = device.system_messages(chat_id).await;
     let records = messages
         .iter()
         .filter(|message| matches!(message, SystemMessage::SentConnectionRequestExpired))
@@ -1132,7 +1121,7 @@ async fn an_expired_request_closes_on_the_sibling_and_is_unavailable() {
     // so it gets the delete commit, and keeps the chat as a record.
     device_a.outbound_service().run_once().await;
     assert_sent_request_expired(&device_a, chat_id, "sender").await;
-    drain_expecting_success(&device_b, "the sibling failed to follow the expiry").await;
+    device_b.drain().await;
     assert_sent_request_expired(&device_b, chat_id, "sibling").await;
 
     let accepted = bob_user.accept_contact_request(bob_chat_id).await.unwrap();
@@ -1206,7 +1195,7 @@ async fn a_request_fetched_past_its_deadline_is_dropped() {
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
+    device_b.drain().await;
     let bob_user = setup.user(&bob);
     bob_user
         .add_contact(record.username.clone(), record.hash, setup.apq_groups)
@@ -1235,7 +1224,7 @@ async fn a_request_fetched_past_its_deadline_is_dropped() {
     assert!(pending_chats_from(&device_a, &bob).await.is_empty());
 
     device_a.outbound_service().run_once().await;
-    drain_queue(&device_b).await;
+    device_b.drain().await;
     assert!(
         pending_chats_from(&device_b, &bob).await.is_empty(),
         "an expired offer should not be forwarded"
@@ -1263,12 +1252,12 @@ async fn a_request_expiring_on_both_devices_keeps_one_record() {
     // The first delete wins. The sibling gets its commit while its own delete
     // is still parked.
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to follow the expiry").await;
+    device_b.drain().await;
     assert_sent_request_expired(&device_b, chat_id, "sibling").await;
 
     // The parked delete finds the group gone.
     device_b.outbound_service().run_once().await;
-    drain_queue(&device_a).await;
+    device_a.drain().await;
     assert_sent_request_expired(&device_a, chat_id, "first").await;
     assert_sent_request_expired(&device_b, chat_id, "sibling").await;
 }
@@ -1285,7 +1274,7 @@ async fn expired_requests_go_when_the_user_chose_so() {
         .await
         .unwrap();
     device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to take the setting").await;
+    device_b.drain().await;
     let bob_record = setup.add_username(&bob).await;
     let chat_id = send_mirrored_request(&setup, &device_a, &device_b, &bob_record).await;
 
@@ -1306,7 +1295,7 @@ async fn expired_requests_go_when_the_user_chose_so() {
         "the sender should delete the record once the group is gone"
     );
 
-    drain_expecting_success(&device_b, "the sibling failed to follow the expiry").await;
+    device_b.drain().await;
     expire_requests(&device_b).await;
     assert!(
         device_b.chat(&chat_id).await.is_none(),

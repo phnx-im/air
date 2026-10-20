@@ -16,7 +16,10 @@ use aircoreclient::{
     clients::{CoreUser, MarkChatAsRead, store::ClientRecord},
 };
 use airprotos::auth_service::v1::OperationType;
-use airserver_test_harness::utils::setup::{TestBackend, TestUser};
+use airserver_test_harness::utils::{
+    core_user_ext::CoreUserExt,
+    setup::{TestBackend, TestUser},
+};
 use mimi_content::MimiContent;
 use rand::RngExt;
 use tracing::info;
@@ -104,8 +107,7 @@ async fn exchange_user_profiles() {
         .await
         .unwrap();
 
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    bob_user.fully_process_qs_messages(qs_messages).await;
+    bob_user.drain().await;
     bob_user.outbound_service().run_once().await;
 
     let alice_user_profile = bob_user.user_profile(&alice).await;
@@ -241,15 +243,13 @@ async fn blocked_contact() {
     setup.send_message(chat_id, &alice, vec![&bob], None).await;
     setup.send_message(chat_id, &bob, vec![&alice], None).await;
 
-    let alice_test_user = setup.get_user(&alice);
-    let alice_user = &alice_test_user.user;
-    let bob_test_user = setup.get_user(&bob);
-    let bob_user = &bob_test_user.user;
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
 
     alice_user.block_contact(bob.clone()).await.unwrap();
 
-    alice_test_user.fetch_and_process_qs_messages().await;
-    bob_test_user.fetch_and_process_qs_messages().await;
+    alice_user.drain().await;
+    bob_user.drain().await;
 
     // Not possible to send a message to Bob
     let msg = MimiContent::simple_markdown_message("Hello".into(), [0; 16]);
@@ -258,7 +258,7 @@ async fn blocked_contact() {
         .await;
     res.unwrap_err().downcast::<BlockedContactError>().unwrap();
 
-    assert_eq!(bob_test_user.fetch_and_process_qs_messages().await, 0);
+    assert_eq!(bob_user.drain().await.processed, 0);
 
     // Updating Alice's profile is not communicated to Bob
     alice_user
@@ -269,7 +269,7 @@ async fn blocked_contact() {
         })
         .await
         .unwrap();
-    assert_eq!(bob_test_user.fetch_and_process_qs_messages().await, 0);
+    assert_eq!(bob_user.drain().await.processed, 0);
 
     // Updating Bob's profile is not communicated to Alice
     bob_user
@@ -281,7 +281,7 @@ async fn blocked_contact() {
         .await
         .unwrap();
     // We get the message but it is dropped
-    let messages = alice_test_user.user.qs_fetch_messages().await.unwrap();
+    let messages = alice_user.qs_fetch_messages().await.unwrap();
     assert_eq!(messages.len(), 1);
     let res = alice_user.fully_process_qs_messages(messages).await;
     assert!(res.is_empty(), "message is dropped");
@@ -291,21 +291,17 @@ async fn blocked_contact() {
         .send_message(chat_id, msg, None, MarkChatAsRead::Yes)
         .await
         .unwrap();
-    bob_test_user.user.outbound_service().run_once().await;
+    bob_user.outbound_service().run_once().await;
     // We get the message but it is dropped
-    let messages = alice_test_user.user.qs_fetch_messages().await.unwrap();
+    let messages = alice_user.qs_fetch_messages().await.unwrap();
     assert_eq!(messages.len(), 1);
-    let res = alice_test_user
-        .user
-        .fully_process_qs_messages(messages)
-        .await;
+    let res = alice_user.fully_process_qs_messages(messages).await;
     assert!(res.is_empty(), "message is dropped");
 
     // Bob cannot establish a new connection with Alice
-    let alice_username = alice_test_user.username_record().unwrap().username;
+    let alice_username = setup.username_record(&alice).unwrap().username;
     let alice_username_hash = alice_username.calculate_hash().unwrap();
-    bob_test_user
-        .user
+    bob_user
         .add_contact(
             alice_username.clone(),
             alice_username_hash,
@@ -314,25 +310,16 @@ async fn blocked_contact() {
         .await
         .expect("fatal error")
         .expect("non-fatal error");
-    let mut messages = alice_test_user
-        .user
-        .fetch_username_messages()
-        .await
-        .unwrap();
+    let mut messages = alice_user.fetch_username_messages().await.unwrap();
     assert_eq!(messages.len(), 1);
 
-    let res = alice_test_user
-        .user
+    let res = alice_user
         .process_username_queue_message(alice_username, messages.pop().unwrap())
         .await;
     res.unwrap_err().downcast::<BlockedContactError>().unwrap();
 
     // Unblock Bob
-    alice_test_user
-        .user
-        .unblock_contact(bob.clone())
-        .await
-        .unwrap();
+    alice_user.unblock_contact(bob.clone()).await.unwrap();
 
     // Sending messages works again
     setup.send_message(chat_id, &alice, vec![&bob], None).await;
@@ -361,9 +348,7 @@ async fn delete_account() {
 
     // Check that Alice left the group
     let bob_user = setup.user(&bob);
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(result.errors.is_empty());
+    bob_user.drain().await;
 
     let participants = setup
         .user(&bob)
@@ -569,21 +554,10 @@ async fn add_contact_and_change_profile() {
         .unwrap();
 
     // Send message from Alice to Bob
-    alice_user
-        .send_message(
-            alice_bob_chat_id,
-            MimiContent::simple_markdown_message("hello".to_owned(), [0; 16]),
-            None,
-            MarkChatAsRead::Yes,
-        )
-        .await
-        .unwrap();
-    alice_user.outbound_service().run_once().await;
+    alice_user.send_text(alice_bob_chat_id, "hello").await;
 
     // Bob receives invitation acceptance and sees the message from Alice
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let res = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(res.errors.is_empty());
+    bob_user.drain().await;
 
     let messages = bob_user.messages(bob_alice_chat_id, 10).await.unwrap();
     assert_eq!(messages.len(), 3);

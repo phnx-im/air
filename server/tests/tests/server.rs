@@ -21,10 +21,10 @@ use aircommon::{
     registration::{AdmissionSession, ChallengeKind, RegistrationChallenge},
 };
 use aircoreclient::{
-    ChatId, DisplayName, EventMessage, Message, SystemMessage, UserProfile,
+    ChatId, DisplayName, SystemMessage, UserProfile,
     clients::{
-        CoreUser, ListenResponse, MarkChatAsRead, listen_response,
-        process::process_qs::ProcessedQsMessages, registration::RegistrationError,
+        ListenResponse, MarkChatAsRead, listen_response, process::process_qs::ProcessedQsMessages,
+        registration::RegistrationError,
     },
     outbound_service::{APQ_KEY_PACKAGES, KEY_PACKAGES},
 };
@@ -35,7 +35,10 @@ use airprotos::{
     delivery_service::v1::delivery_service_server,
     queue_service::v1::{VersionStatus, queue_service_server},
 };
-use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams, TestUser};
+use airserver_test_harness::utils::{
+    core_user_ext::CoreUserExt,
+    setup::{TestBackend, TestBackendParams, TestUser},
+};
 use chrono::{DateTime, Utc};
 use mimi_content::{MessageStatus, MimiContent};
 use semver::Version;
@@ -89,7 +92,7 @@ async fn rate_limit() {
             .unwrap();
         alice.outbound_service().run_once().await;
 
-        let message = alice.last_message(chat_id).await.unwrap().unwrap();
+        let message = alice.expect_last_message(chat_id).await;
 
         // Due to the indirection of the outbound service, we can't just check
         // for errors while sending. Instead, we just check whether the message
@@ -116,34 +119,16 @@ async fn rate_limit() {
 
     info!("sending message after rate limit tokens replenished");
     const FINAL_TEXT: &str = "after replenish";
-    alice
-        .send_message(
-            chat_id,
-            MimiContent::simple_markdown_message(FINAL_TEXT.into(), [0; 16]), // simple seed for testing
-            None,
-            MarkChatAsRead::Yes,
-        )
-        .await
-        .unwrap();
-    alice.outbound_service().run_once().await;
-
-    let message = alice.last_message(chat_id).await.unwrap().unwrap();
+    let message = alice.send_text(chat_id, FINAL_TEXT).await;
     assert!(message.is_sent());
-    let held = alice.message(held_id).await.unwrap().unwrap();
+    let held = alice.expect_message(held_id).await;
     assert!(held.is_sent());
     assert_ne!(held.status(), MessageStatus::Error);
 
     // Bob receives the held message before the later one
-    let bob = setup.get_user(&bob);
-    bob.fetch_and_process_qs_messages().await;
-    let texts: Vec<String> = bob
-        .user
-        .messages(chat_id, 1000)
-        .await
-        .unwrap()
-        .iter()
-        .filter_map(|m| m.message().mimi_content()?.string_rendering().ok())
-        .collect();
+    let bob = setup.user(&bob);
+    bob.drain().await;
+    let texts = bob.text_messages(chat_id).await;
     let held_pos = texts.iter().position(|t| *t == held_text).unwrap();
     let final_pos = texts.iter().position(|t| t == FINAL_TEXT).unwrap();
     assert!(held_pos < final_pos);
@@ -328,12 +313,7 @@ async fn update_and_send_message(
     alice_user.update_key(contact_chat_id).await.unwrap();
     // bob creates a message based on his (old) epoch for alice
     let bob_user = setup.user(bob);
-    let msg = MimiContent::simple_markdown_message("message".to_owned(), [0; 16]);
-    bob_user
-        .send_message(contact_chat_id, msg, None, MarkChatAsRead::Yes)
-        .await
-        .unwrap();
-    bob_user.outbound_service().run_once().await;
+    bob_user.send_text(contact_chat_id, "message").await;
     // alice fetches and processes bob's message
     let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
     alice_user.fully_process_qs_messages(qs_messages).await
@@ -506,18 +486,13 @@ async fn resync() {
     alice_user.update_key(chat_id).await.unwrap();
 
     // Bob fetches and processes the update
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    bob_user.drain().await;
     // Run outbound service to complete the rejoin process
     bob_user.outbound_service().run_once().await;
     // Instead of throwing an error, Bob should have re-synced as part of processing the update.
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Alice's update and message without errors"
-    );
 
     // The resync diff should surface Charlie's addition without an actor.
-    let messages = system_messages(bob_user, chat_id).await;
+    let messages = bob_user.system_messages(chat_id).await;
     let actorless_charlie_adds = messages
         .iter()
         .filter(|message| matches!(message, SystemMessage::Add(None, added) if added == &charlie))
@@ -538,13 +513,7 @@ async fn resync() {
     );
 
     // Alice processes Bob's rejoin
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-
-    assert!(
-        result.errors.is_empty(),
-        "Alice should process Bob's rejoin without errors"
-    );
+    alice_user.drain().await;
 
     // Bob should have rejoined the group and should be able to send a message.
     setup
@@ -562,12 +531,7 @@ async fn resync() {
         .await
         .unwrap();
 
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Alice's message without errors"
-    );
+    bob_user.drain().await;
 
     // Now Alice leaves the group, which means that if Bob resyncs again, he
     // should commit the SelfRemove proposal in the process.
@@ -600,17 +564,12 @@ async fn resync() {
             .collect()
     );
 
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    bob_user.drain().await;
     bob_user.outbound_service().run_once().await;
     // Instead of throwing an error, Bob should have re-synced as part of processing the update.
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Alice's update without errors"
-    );
 
     // The resync committed Alice's SelfRemove, which Bob cannot attribute.
-    let messages = system_messages(bob_user, chat_id).await;
+    let messages = bob_user.system_messages(chat_id).await;
     let actorless_alice_removes = messages
         .iter()
         .filter(
@@ -697,7 +656,7 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
     responder.ack(message.sequence_number + 1).await;
     responder.close(&mut stream).await;
 
-    let group_id = bob_user.chat(&chat_id).await.unwrap().group_id;
+    let group_id = bob_user.expect_chat(chat_id).await.group_id;
 
     // Bob's own commit is rejected with a wrong epoch: parked, nothing else.
     bob_user
@@ -720,17 +679,7 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
 
     // Alice sends a message from the epoch Bob missed. Processing it proves the desync and
     // schedules the resync.
-    alice_user
-        .send_message(
-            chat_id,
-            MimiContent::simple_markdown_message("message".to_owned(), [0; 16]),
-            None,
-            MarkChatAsRead::Yes,
-        )
-        .await
-        .unwrap();
-    // Sending only queues the message, the outbound service delivers it.
-    alice_user.outbound_service().run_once().await;
+    alice_user.send_text(chat_id, "message").await;
 
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     assert_eq!(qs_messages.len(), 1, "Bob should receive Alice's message");
@@ -755,9 +704,7 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
     );
 
     // Alice processes Bob's rejoin and Bob can send again.
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(result.errors.is_empty());
+    alice_user.drain().await;
 
     setup.send_message(chat_id, &bob, vec![&alice], None).await;
 }
@@ -836,12 +783,7 @@ async fn resync_valid_group_succeeds() {
 
     // Alice processes Bob's rejoin commit.
     let alice_user = setup.user(&alice);
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Alice should process Bob's rejoin without errors"
-    );
+    alice_user.drain().await;
 
     // Bob should be able to send messages normally.
     setup.send_message(chat_id, &bob, vec![&alice], None).await;
@@ -855,12 +797,7 @@ async fn resync_valid_group_succeeds() {
         alice_user.update_key(chat_id).await.unwrap();
     }
 
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Alice's follow-up commit without errors"
-    );
+    bob_user.drain().await;
 }
 
 /// Resync with holes in the leaf nodes: Alice creates a group with Bob,
@@ -901,13 +838,7 @@ async fn resync_with_blank_leaf_succeeds() {
     // Alice and Dave observe Charlie's proposal.
     for user_id in [&alice, &dave] {
         let user = setup.user(user_id);
-        let qs_messages = user.qs_fetch_messages().await.unwrap();
-        let result = user.fully_process_qs_messages(qs_messages).await;
-        assert!(
-            result.errors.is_empty(),
-            "{user_id:?} should process Charlie's proposal without errors: {:?}",
-            result.errors
-        );
+        user.drain().await;
     }
 
     // Dave changes his profile. This rotates his user profile key, so Alice's post-resync profile
@@ -948,22 +879,10 @@ async fn resync_with_blank_leaf_succeeds() {
     assert_eq!(dave_profile.display_name, dave_display_name);
 
     // Alice must not have received her own external commit from the DS.
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Alice should process her queue without errors: {:?}",
-        result.errors
-    );
+    alice_user.drain().await;
 
     // Dave processes Alice's rejoin commit.
-    let qs_messages = dave_user.qs_fetch_messages().await.unwrap();
-    let result = dave_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Dave should process Alice's rejoin without errors: {:?}",
-        result.errors
-    );
+    dave_user.drain().await;
 
     // Now Dave resyncs as well.
     dave_user.enqueue_group_resync(chat_id).await.unwrap();
@@ -984,21 +903,10 @@ async fn resync_with_blank_leaf_succeeds() {
     dave_user.outbound_service().run_once().await;
 
     // Dave must not have received his own external commit from the DS.
-    let qs_messages = dave_user.qs_fetch_messages().await.unwrap();
-    let result = dave_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Dave should process his queue without errors: {:?}",
-        result.errors
-    );
+    dave_user.drain().await;
 
     // Alice processes Dave's rejoin commit.
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Alice should process Dave's rejoin without errors"
-    );
+    alice_user.drain().await;
 
     // Both group members should agree on the group membership.
     let expected_members: HashSet<_> = [alice.clone(), dave.clone()].into_iter().collect();
@@ -1011,35 +919,13 @@ async fn resync_with_blank_leaf_succeeds() {
     //
     // Note: the external commit re-added Dave at the leftmost blank leaf (Bob's old position), i.e.
     // his leaf index changed.
-    dave_user
-        .send_message(
-            chat_id,
-            MimiContent::simple_markdown_message("message".to_owned(), [0; 16]),
-            None,
-            MarkChatAsRead::Yes,
-        )
-        .await
-        .unwrap();
-    // Actually send the queued message to the DS.
-    dave_user.outbound_service().run_once().await;
+    dave_user.send_text(chat_id, "message").await;
 
     // Alice receives the message.
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Alice should process Dave's message without errors: {:?}",
-        result.errors
-    );
+    alice_user.drain().await;
 
     // The DS must not fan out Dave's own message back to him.
-    let qs_messages = dave_user.qs_fetch_messages().await.unwrap();
-    let result = dave_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Dave should not receive his own message: {:?}",
-        result.errors
-    );
+    dave_user.drain().await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -1061,12 +947,7 @@ async fn key_package_upload() {
             .await
             .unwrap();
         let bob_user = setup.user(&bob);
-        let messages = bob_user.qs_fetch_messages().await.unwrap();
-        let res = bob_user.fully_process_qs_messages(messages).await;
-        assert!(
-            res.errors.is_empty(),
-            "Bob should process Alice's invitation without errors"
-        );
+        bob_user.drain().await;
         bob_user
             .mls_members(chat_id)
             .await
@@ -1666,16 +1547,7 @@ async fn listen_stream_durable_acks() {
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let alice_user = setup.user(&alice);
-    alice_user
-        .send_message(
-            chat_id,
-            MimiContent::simple_markdown_message("hello bob".to_owned(), [0; 16]),
-            None,
-            MarkChatAsRead::Yes,
-        )
-        .await
-        .unwrap();
-    alice_user.outbound_service().run_once().await;
+    alice_user.send_text(chat_id, "hello bob").await;
 
     // Bob receives the message on the listen stream and acks it.
     let bob_user = setup.user(&bob);
@@ -1716,17 +1588,4 @@ async fn listen_stream_durable_acks() {
         })),
         "acked message is not redelivered"
     );
-}
-
-/// All system messages the user stores for the chat.
-async fn system_messages(user: &CoreUser, chat_id: ChatId) -> Vec<SystemMessage> {
-    user.messages(chat_id, 100)
-        .await
-        .unwrap()
-        .iter()
-        .filter_map(|message| match message.message() {
-            Message::Event(EventMessage::System(system_message)) => Some(system_message.clone()),
-            _ => None,
-        })
-        .collect()
 }

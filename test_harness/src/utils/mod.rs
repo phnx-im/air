@@ -9,6 +9,7 @@ use std::{
 };
 
 pub mod controlled_listener;
+pub mod core_user_ext;
 pub mod setup;
 
 use airbackend::{

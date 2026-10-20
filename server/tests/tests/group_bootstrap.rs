@@ -10,17 +10,14 @@ use std::time::Duration;
 use aircommon::identifiers::UserId;
 use aircoreclient::{
     ChatId, ChatStatus, ChatType, EventMessage, Message, SystemMessage, UsernameRecord,
-    clients::{CoreUser, MarkChatAsRead, process::process_qs::ProcessedQsMessages},
+    clients::CoreUser,
 };
-use airserver_test_harness::utils::setup::TestBackend;
-use mimi_content::MimiContent;
+use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use tempfile::TempDir;
 use tokio::time::timeout;
 use tokio_stream::StreamExt;
 
-use super::multi_device::{
-    count_messages_with_text, drain_queue, link_new_device, send_and_receive,
-};
+use super::multi_device::{link_new_device, send_and_receive};
 
 /// Links a second device to `user_id` and brings both devices up to date.
 ///
@@ -34,29 +31,14 @@ pub(crate) async fn link_sibling(
     // Onboarding into the pre-existing groups runs in the background.
     device_b.outbound_service().run_once().await;
     let device_a = setup.user(user_id).clone();
-    drain_queue(&device_a).await;
-    drain_queue(&device_b).await;
+    device_a.drain().await;
+    device_b.drain().await;
     // Linking makes device a upload key packages, which completes only once it
     // fetches its own commit.
     device_a.outbound_service().run_once().await;
-    drain_queue(&device_a).await;
-    drain_queue(&device_b).await;
+    device_a.drain().await;
+    device_b.drain().await;
     (device_a, device_b, tmp)
-}
-
-/// Drains `device`'s queue and asserts that every message was processed.
-pub(crate) async fn drain_expecting_success(
-    device: &CoreUser,
-    context: &str,
-) -> ProcessedQsMessages {
-    let queued = device.qs_fetch_messages().await.unwrap();
-    let processed = device.fully_process_qs_messages(queued).await;
-    assert!(
-        processed.errors.is_empty(),
-        "{context}: {:?}",
-        processed.errors
-    );
-    processed
 }
 
 /// Drains the username queue of `record` and returns the pending chat the
@@ -131,7 +113,7 @@ async fn sibling_follows_a_created_group_chat(apq: bool) {
         setup.create_non_apq_group(&alice).await
     };
 
-    drain_expecting_success(&device_b, "the sibling failed to install the created group").await;
+    device_b.drain().await;
 
     let chat_a = device_a
         .chat(&chat_id)
@@ -173,9 +155,9 @@ async fn sibling_follows_a_created_group_chat(apq: bool) {
         .invite_users(chat_id, std::slice::from_ref(&bob))
         .await
         .unwrap();
-    drain_expecting_success(&device_b, "the sibling failed to follow the add commit").await;
+    device_b.drain().await;
     let bob_user = setup.user(&bob);
-    drain_queue(bob_user).await;
+    bob_user.drain().await;
 
     assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after the add commit").await;
 
@@ -218,9 +200,8 @@ async fn the_acting_devices_own_echo_is_ignored() {
     let chat_id = setup.create_non_apq_group(&alice).await;
     let before = device_a.group_epoch_and_own_index(chat_id).await.unwrap();
     let title = device_a
-        .chat(&chat_id)
+        .expect_chat(chat_id)
         .await
-        .unwrap()
         .attributes()
         .unwrap()
         .title()
@@ -251,9 +232,8 @@ async fn the_acting_devices_own_echo_is_ignored() {
     );
     assert_eq!(
         device_a
-            .chat(&chat_id)
+            .expect_chat(chat_id)
             .await
-            .unwrap()
             .attributes()
             .unwrap()
             .title(),
@@ -266,7 +246,7 @@ async fn the_acting_devices_own_echo_is_ignored() {
     );
 
     // The sibling, which does not have the group yet, still installs it.
-    drain_expecting_success(&device_b, "the sibling failed to install the created group").await;
+    device_b.drain().await;
     assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after the creation echo").await;
 }
 
@@ -297,8 +277,7 @@ async fn sibling_follows_an_accepted_connection() {
         .unwrap()
         .unwrap();
 
-    let processed =
-        drain_expecting_success(&device_b, "the sibling failed to install the accepted chat").await;
+    let processed = device_b.drain().await;
     // The user accepted this on another of their own devices, so the echo must
     // not raise a notification here.
     assert!(
@@ -348,7 +327,7 @@ async fn sibling_follows_an_accepted_connection() {
     assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after the join echo").await;
 
     let bob_user = setup.user(&bob);
-    drain_queue(bob_user).await;
+    bob_user.drain().await;
     send_and_receive(
         &device_b,
         &[bob_user, &device_a],
@@ -382,7 +361,7 @@ async fn sibling_mirrors_a_handle_initiated_connection() {
         .unwrap()
         .unwrap();
 
-    drain_expecting_success(&device_b, "the sibling failed to mirror the pending chat").await;
+    device_b.drain().await;
 
     let chat_b = device_b
         .chat(&chat_id)
@@ -421,15 +400,11 @@ async fn sibling_mirrors_a_handle_initiated_connection() {
         .unwrap()
         .unwrap();
 
-    drain_expecting_success(
-        &device_a,
-        "the initiating device failed to follow the accept",
-    )
-    .await;
-    drain_expecting_success(&device_b, "the sibling failed to follow the accept").await;
+    device_a.drain().await;
+    device_b.drain().await;
 
     for (label, device) in [("initiating", &device_a), ("sibling", &device_b)] {
-        let chat = device.chat(&chat_id).await.unwrap();
+        let chat = device.expect_chat(chat_id).await;
         assert_eq!(
             chat.chat_type(),
             &ChatType::Connection(bob.clone()),
@@ -475,7 +450,7 @@ async fn sibling_mirrors_a_targeted_message_connection() {
         .await
         .unwrap();
 
-    drain_expecting_success(&device_b, "the sibling failed to mirror the pending chat").await;
+    device_b.drain().await;
 
     let chat_b = device_b
         .chat(&chat_id)
@@ -498,7 +473,7 @@ async fn sibling_mirrors_a_targeted_message_connection() {
         .expect("the sibling should have a targeted message contact");
     assert_eq!(contact_b.user_id, contact_a.user_id);
     assert_eq!(contact_b.chat_id, contact_a.chat_id);
-    let group_id = device_a.chat(&group_chat_id).await.unwrap().group_id;
+    let group_id = device_a.expect_chat(group_chat_id).await.group_id;
     assert_eq!(contact_a.origin_group_id.as_ref(), Some(&group_id));
     assert_eq!(contact_b.origin_group_id.as_ref(), Some(&group_id));
     for (label, device) in [("initiating", &device_a), ("sibling", &device_b)] {
@@ -519,27 +494,19 @@ async fn sibling_mirrors_a_targeted_message_connection() {
 
     // Charlie picks the targeted message up and accepts.
     let charlie_user = setup.user(&charlie);
-    drain_expecting_success(
-        charlie_user,
-        "charlie failed to process the targeted message",
-    )
-    .await;
+    charlie_user.drain().await;
     charlie_user
         .accept_contact_request(chat_id)
         .await
         .unwrap()
         .unwrap();
 
-    drain_expecting_success(
-        &device_a,
-        "the initiating device failed to follow the accept",
-    )
-    .await;
-    drain_expecting_success(&device_b, "the sibling failed to follow the accept").await;
+    device_a.drain().await;
+    device_b.drain().await;
 
     for (label, device) in [("initiating", &device_a), ("sibling", &device_b)] {
         assert_eq!(
-            device.chat(&chat_id).await.unwrap().chat_type(),
+            device.expect_chat(chat_id).await.chat_type(),
             &ChatType::Connection(charlie.clone()),
             "the {label} device should see a confirmed connection"
         );
@@ -579,31 +546,27 @@ async fn offline_sibling_catches_up_on_a_created_group() {
         .unwrap();
 
     let bob_user = setup.user(&bob);
-    drain_queue(bob_user).await;
+    bob_user.drain().await;
 
     // Several commits move the group past the epoch the snapshot holds.
     for _ in 0..3 {
         device_a.update_key(chat_id).await.unwrap();
-        drain_queue(bob_user).await;
+        bob_user.drain().await;
     }
-    bob_user
-        .send_message(
-            chat_id,
-            MimiContent::simple_markdown_message(TEXT.to_owned(), [41u8; 16]),
-            None,
-            MarkChatAsRead::Yes,
-        )
-        .await
-        .unwrap();
-    bob_user.outbound_service().run_once().await;
-    drain_queue(&device_a).await;
+    bob_user.send_text(chat_id, TEXT).await;
+    device_a.drain().await;
 
     // Coming back, the sibling joins at the creation epoch and walks its queue
     // forward from there without losing anything.
-    drain_expecting_success(&device_b, "the sibling failed to catch up").await;
+    device_b.drain().await;
     assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after catching up").await;
     assert_eq!(
-        count_messages_with_text(&device_b, chat_id, TEXT).await,
+        device_b
+            .text_messages(chat_id)
+            .await
+            .iter()
+            .filter(|rendered| *rendered == TEXT)
+            .count(),
         1,
         "the sibling should see the message that predates its comeback"
     );
@@ -649,31 +612,27 @@ async fn offline_sibling_catches_up_on_an_accepted_connection() {
 
     // The sibling stays offline while the group moves on.
     let bob_user = setup.user(&bob);
-    drain_queue(bob_user).await;
+    bob_user.drain().await;
     for _ in 0..3 {
         bob_user.update_key(chat_id).await.unwrap();
-        drain_queue(&device_a).await;
+        device_a.drain().await;
     }
-    bob_user
-        .send_message(
-            chat_id,
-            MimiContent::simple_markdown_message(TEXT.to_owned(), [42u8; 16]),
-            None,
-            MarkChatAsRead::Yes,
-        )
-        .await
-        .unwrap();
-    bob_user.outbound_service().run_once().await;
-    drain_queue(&device_a).await;
+    bob_user.send_text(chat_id, TEXT).await;
+    device_a.drain().await;
 
-    drain_expecting_success(&device_b, "the sibling failed to catch up").await;
+    device_b.drain().await;
     assert_eq!(
-        device_b.chat(&chat_id).await.unwrap().chat_type(),
+        device_b.expect_chat(chat_id).await.chat_type(),
         &ChatType::Connection(bob.clone())
     );
     assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after catching up").await;
     assert_eq!(
-        count_messages_with_text(&device_b, chat_id, TEXT).await,
+        device_b
+            .text_messages(chat_id)
+            .await
+            .iter()
+            .filter(|rendered| *rendered == TEXT)
+            .count(),
         1,
         "the sibling should see the message that predates its comeback"
     );
@@ -713,7 +672,7 @@ async fn a_rejected_group_chat_produces_no_echo() {
         "the acting device should have discarded the chat of a rejected group"
     );
 
-    let processed = drain_expecting_success(&device_b, "the sibling processed stray traffic").await;
+    let processed = device_b.drain().await;
     assert!(
         processed.new_chats.is_empty() && processed.new_connections.is_empty(),
         "a rejected creation must not reach the sibling"
@@ -730,7 +689,7 @@ async fn a_rejected_group_chat_produces_no_echo() {
         .create_chat("accepted by the DS".to_owned(), None, setup.apq_groups)
         .await
         .unwrap();
-    drain_expecting_success(&device_b, "the sibling failed to install the retried group").await;
+    device_b.drain().await;
     assert!(
         device_b.chat(&chat_id).await.is_some(),
         "the sibling should install the group of the accepted retry"
@@ -780,7 +739,7 @@ async fn a_rejected_creation_produces_no_echo() {
         "the acting device should have discarded the partial contact"
     );
 
-    let processed = drain_expecting_success(&device_b, "the sibling processed stray traffic").await;
+    let processed = device_b.drain().await;
     assert!(
         processed.new_chats.is_empty() && processed.new_connections.is_empty(),
         "a rejected creation must not reach the sibling"
@@ -802,11 +761,7 @@ async fn a_rejected_creation_produces_no_echo() {
         .await
         .unwrap()
         .unwrap();
-    drain_expecting_success(
-        &device_b,
-        "the sibling failed to mirror the retried creation",
-    )
-    .await;
+    device_b.drain().await;
     assert!(
         device_b.chat(&chat_id).await.is_some(),
         "the sibling should mirror the chat of the accepted retry"
@@ -841,7 +796,7 @@ async fn a_rejected_join_produces_no_echo() {
         .expect_err("the DS rejection should surface as an error");
     tracing::info!(%error, "the DS rejected the connection group join");
 
-    let processed = drain_expecting_success(&device_b, "the sibling processed stray traffic").await;
+    let processed = device_b.drain().await;
     assert!(
         processed.new_chats.is_empty() && processed.new_connections.is_empty(),
         "a rejected join must not reach the sibling"
@@ -857,7 +812,7 @@ async fn a_rejected_join_produces_no_echo() {
         .await
         .unwrap()
         .unwrap();
-    drain_expecting_success(&device_b, "the sibling failed to install the retried join").await;
+    device_b.drain().await;
     assert_eq!(
         device_b
             .chat(&chat_id)
@@ -911,7 +866,7 @@ async fn a_failed_offer_send_keeps_the_created_group() {
     );
 
     // The DS accepted the creation, so the sibling has the group either way.
-    drain_expecting_success(&device_b, "the sibling failed to mirror the created group").await;
+    device_b.drain().await;
     assert_eq!(
         device_b
             .chat(&chat_id)

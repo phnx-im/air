@@ -36,7 +36,9 @@ use tracing::info;
 use url::Url;
 use uuid::Uuid;
 
-use crate::utils::{SentChallenges, controlled_listener::ControlHandle, spawn_app};
+use crate::utils::{
+    SentChallenges, controlled_listener::ControlHandle, core_user_ext::CoreUserExt, spawn_app,
+};
 
 #[derive(Debug)]
 pub struct TestUser {
@@ -142,14 +144,6 @@ impl TestUser {
         *self.username_record.lock() = Some(record.clone());
 
         record
-    }
-
-    pub async fn fetch_and_process_qs_messages(&self) -> usize {
-        let qs_messages = self.user.qs_fetch_messages().await.unwrap();
-        let n = qs_messages.len();
-        let processed_messages = self.user.fully_process_qs_messages(qs_messages).await;
-        assert_eq!(processed_messages.processed, n);
-        n
     }
 }
 
@@ -396,10 +390,6 @@ impl TestBackend {
         &self.users[user_id].user
     }
 
-    pub fn get_user(&self, user_id: &UserId) -> &TestUser {
-        self.users.get(user_id).unwrap()
-    }
-
     pub async fn add_username(&self, user_id: &UserId) -> UsernameRecord {
         self.users[user_id].add_username().await
     }
@@ -569,8 +559,8 @@ impl TestBackend {
             .unwrap()
             .unwrap();
 
-        self.users[user1_id].fetch_and_process_qs_messages().await;
-        self.users[user2_id].fetch_and_process_qs_messages().await;
+        self.user(user1_id).drain().await;
+        self.user(user2_id).drain().await;
         // Fetches the profile of the new contact
         for user_id in [user1_id, user2_id] {
             self.users[user_id].user.outbound_service().run_once().await;
@@ -1061,8 +1051,7 @@ impl TestBackend {
     }
 
     pub async fn own_leaf_index(&self, user_id: &UserId, chat_id: ChatId) -> u32 {
-        self.get_user(user_id)
-            .user
+        self.user(user_id)
             .group_epoch_and_own_index(chat_id)
             .await
             .unwrap()
@@ -1075,7 +1064,7 @@ impl TestBackend {
     pub async fn settle(&self, user_ids: &[&UserId]) {
         for _ in 0..3 {
             for user_id in user_ids {
-                let user = &self.get_user(user_id).user;
+                let user = self.user(user_id);
                 let qs_messages = user.qs_fetch_messages().await.unwrap();
                 user.fully_process_qs_messages(qs_messages).await;
                 user.outbound_service().run_once().await;
@@ -1086,8 +1075,7 @@ impl TestBackend {
     pub async fn invite_and_settle(&self, inviter: &UserId, chat_id: ChatId, invitees: &[&UserId]) {
         let invitee_ids: Vec<_> = invitees.iter().map(|id| (*id).clone()).collect();
         let invite_result = self
-            .get_user(inviter)
-            .user
+            .user(inviter)
             .invite_users(chat_id, &invitee_ids)
             .await
             .unwrap();
@@ -1110,7 +1098,7 @@ impl TestBackend {
         context: &str,
     ) {
         for member in members {
-            let profile = self.get_user(observer).user.user_profile(member).await;
+            let profile = self.user(observer).user_profile(member).await;
             assert_ne!(
                 profile,
                 UserProfile::from_user_id(member),

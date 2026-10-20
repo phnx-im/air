@@ -9,12 +9,10 @@ use aircoreclient::{
     ChatId, ChatMessage, MessageId, MimiContentExt, ReadReceiptsSetting,
     clients::{CoreUser, MarkChatAsRead},
 };
-use airserver_test_harness::utils::setup::{TestBackend, TestUser};
+use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use indexmap::indexmap;
 use mimi_content::{MessageStatus, MimiContent};
 use rand::{RngExt, distr::Alphanumeric};
-
-use super::multi_device::{count_messages_with_text, drain_queue};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Edit message", skip_all)]
@@ -45,49 +43,28 @@ async fn edit_is_delivered_when_original_receipt_is_still_queued() {
 
     let alice_user = setup.user(&alice);
     let bob_user = setup.user(&bob);
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    alice_user.fully_process_qs_messages(qs_messages).await;
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    bob_user.fully_process_qs_messages(qs_messages).await;
+    alice_user.drain().await;
+    bob_user.drain().await;
 
     // Alice sends and edits before Bob picks up either message.
-    let content = MimiContent::simple_markdown_message("hello".to_owned(), [7; 16]);
-    alice_user
-        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
-        .await
-        .unwrap();
-    alice_user.outbound_service().run_once().await;
-    let original = alice_user.last_message(chat_id).await.unwrap().unwrap();
+    let original = alice_user.send_text(chat_id, "hello").await;
     assert!(original.is_sent());
-    let edit = MimiContent::simple_markdown_message("edited".to_owned(), [8; 16]);
-    alice_user
-        .send_message(chat_id, edit, Some(original.clone()), MarkChatAsRead::Yes)
-        .await
-        .unwrap();
-    alice_user.outbound_service().run_once().await;
+    alice_user.send_edit(&original, "edited").await;
 
     // Bob applies both at once, so the receipt for the original is still
     // queued when the one for the edit is scheduled.
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let processed = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(processed.errors.is_empty());
+    bob_user.drain().await;
     bob_user.outbound_service().run_once().await;
 
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    alice_user.fully_process_qs_messages(qs_messages).await;
-    let status = alice_user
-        .message(original.id())
-        .await
-        .unwrap()
-        .unwrap()
-        .status();
+    alice_user.drain().await;
+    let status = alice_user.expect_message(original.id()).await.status();
     assert_eq!(status, MessageStatus::Delivered);
 }
 
 /// Marks the chat as read until its last message and sends the read receipts
 /// this produced. Returns what was newly read.
 async fn read_chat(user: &CoreUser, chat_id: ChatId) -> Vec<(MessageId, MimiId)> {
-    let last_message = user.last_message(chat_id).await.unwrap().unwrap();
+    let last_message = user.expect_last_message(chat_id).await;
     let (_, read) = user
         .mark_chat_as_read(chat_id, last_message.id())
         .await
@@ -103,13 +80,8 @@ async fn read_chat(user: &CoreUser, chat_id: ChatId) -> Vec<(MessageId, MimiId)>
     read
 }
 
-async fn fetch_and_process(user: &CoreUser) {
-    let qs_messages = user.qs_fetch_messages().await.unwrap();
-    user.fully_process_qs_messages(qs_messages).await;
-}
-
 async fn own_message_status(user: &CoreUser, message_id: MessageId) -> MessageStatus {
-    user.message(message_id).await.unwrap().unwrap().status()
+    user.expect_message(message_id).await.status()
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -126,13 +98,8 @@ async fn stale_read_receipt_does_not_apply_to_edited_message() {
     let bob_user = setup.user(&bob);
 
     // Alice edits before Bob reads the original.
-    let original = alice_user.message(message_id).await.unwrap().unwrap();
-    let edit = MimiContent::simple_markdown_message("edited".to_owned(), [8; 16]);
-    alice_user
-        .send_message(chat_id, edit, Some(original), MarkChatAsRead::Yes)
-        .await
-        .unwrap();
-    alice_user.outbound_service().run_once().await;
+    let original = alice_user.expect_message(message_id).await;
+    alice_user.send_edit(&original, "edited").await;
     assert_eq!(
         own_message_status(alice_user, message_id).await,
         MessageStatus::Unread
@@ -141,16 +108,16 @@ async fn stale_read_receipt_does_not_apply_to_edited_message() {
     // Bob reads the original. The receipt names the replaced version.
     let read = read_chat(bob_user, chat_id).await;
     assert_eq!(read.len(), 1);
-    fetch_and_process(alice_user).await;
+    alice_user.drain().await;
     assert_eq!(
         own_message_status(alice_user, message_id).await,
         MessageStatus::Unread
     );
 
     // Only the receipt for the edited version counts.
-    fetch_and_process(bob_user).await;
+    bob_user.drain().await;
     bob_user.outbound_service().run_once().await;
-    fetch_and_process(alice_user).await;
+    alice_user.drain().await;
     assert_eq!(
         own_message_status(alice_user, message_id).await,
         MessageStatus::Delivered
@@ -174,11 +141,7 @@ async fn delete_message() {
         .await;
 
     let alice_user = setup.user(&alice);
-    let last_message = alice_user
-        .last_message(chat_alice_bob)
-        .await
-        .unwrap()
-        .unwrap();
+    let last_message = alice_user.expect_last_message(chat_alice_bob).await;
 
     let string = {
         last_message
@@ -231,10 +194,8 @@ async fn no_receipts_for_deleted_message() {
 
     let message_id = setup
         .user(&alice)
-        .last_message(chat_alice_bob)
+        .expect_last_message(chat_alice_bob)
         .await
-        .unwrap()
-        .unwrap()
         .id();
 
     setup.delete_message(&alice, vec![&bob], message_id).await;
@@ -245,11 +206,7 @@ async fn no_receipts_for_deleted_message() {
     bob_user.outbound_service().run_once().await;
 
     // Opening the chat must not report a read status for the deletion either.
-    let bob_last_message = bob_user
-        .last_message(chat_alice_bob)
-        .await
-        .unwrap()
-        .unwrap();
+    let bob_last_message = bob_user.expect_last_message(chat_alice_bob).await;
     let (_, marked_as_read) = bob_user
         .mark_chat_as_read(chat_alice_bob, bob_last_message.id())
         .await
@@ -257,14 +214,9 @@ async fn no_receipts_for_deleted_message() {
     assert!(marked_as_read.is_empty());
     bob_user.outbound_service().run_once().await;
 
-    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    setup.user(&alice).drain().await;
 
-    let deleted = setup
-        .user(&alice)
-        .message(message_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let deleted = setup.user(&alice).expect_message(message_id).await;
     assert_eq!(deleted.status(), MessageStatus::Deleted);
 }
 
@@ -472,18 +424,16 @@ async fn mark_as_read() {
     }
 
     let num_messages = 10;
-    let alice_test_user = setup.get_user(&alice);
-    let alice = &alice_test_user.user;
+    let alice = setup.user(&alice);
     send_messages(alice, alice_bob_chat, num_messages).await;
 
     // Message status starts at Unread
-    let last_message = alice.last_message(alice_bob_chat).await.unwrap().unwrap();
+    let last_message = alice.expect_last_message(alice_bob_chat).await;
     assert_eq!(last_message.status(), MessageStatus::Unread);
 
     // All messages should be unread
-    let bob_test_user = setup.get_user(&bob);
-    bob_test_user.fetch_and_process_qs_messages().await;
-    let bob_user = &bob_test_user.user;
+    let bob_user = setup.user(&bob);
+    bob_user.drain().await;
     let unread_message_count = bob_user.unread_messages_count(alice_bob_chat).await;
     assert_eq!(unread_message_count, num_messages);
     let global_unread_message_count = bob_user.global_unread_messages_count().await.unwrap();
@@ -493,17 +443,13 @@ async fn mark_as_read() {
     bob_user.outbound_service().run_once().await;
 
     // Alice sees the delivery receipt
-    let num_processed = alice_test_user.fetch_and_process_qs_messages().await;
+    let num_processed = alice.drain().await.processed;
     assert_eq!(num_processed, 1);
-    let last_message = alice.last_message(alice_bob_chat).await.unwrap().unwrap();
+    let last_message = alice.expect_last_message(alice_bob_chat).await;
     assert_eq!(last_message.status(), MessageStatus::Delivered);
 
     // Bob reads the messages
-    let last_message = bob_user
-        .last_message(alice_bob_chat)
-        .await
-        .unwrap()
-        .unwrap();
+    let last_message = bob_user.expect_last_message(alice_bob_chat).await;
     let last_message_id = last_message.id();
     let last_message_mimi_id = last_message.message().mimi_id().unwrap();
     bob_user
@@ -517,9 +463,9 @@ async fn mark_as_read() {
     bob_user.outbound_service().run_once().await;
 
     // Alice sees the read receipt
-    let num_processed = alice_test_user.fetch_and_process_qs_messages().await;
+    let num_processed = alice.drain().await.processed;
     assert_eq!(num_processed, 1);
-    let last_message = alice.last_message(alice_bob_chat).await.unwrap().unwrap();
+    let last_message = alice.expect_last_message(alice_bob_chat).await;
     assert_eq!(last_message.status(), MessageStatus::Read);
 
     // Let's send some messages between bob and charlie s.t. we can test the
@@ -527,8 +473,7 @@ async fn mark_as_read() {
     let charlie = setup.user(&charlie);
     let messages_sent = send_messages(charlie, bob_charlie_chat, num_messages).await;
 
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let bob_messages_sent = bob_user.fully_process_qs_messages(qs_messages).await;
+    let bob_messages_sent = bob_user.drain().await;
 
     // Let's mark all but the last two messages as read (we subtract 3, because
     // the vector is 0-indexed).
@@ -560,38 +505,26 @@ async fn read_receipts_setting() {
 
     // Establish a direct chat between Alice and Bob.
     let alice_bob_chat = setup.connect_users(&alice, &bob).await;
-    let alice_test_user = setup.get_user(&alice);
-    let alice_user = &alice_test_user.user;
-    let bob_test_user = setup.get_user(&bob);
-    let bob_user = &bob_test_user.user;
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
 
     async fn send_and_process_delivery(
-        sender: &TestUser,
-        receiver: &TestUser,
+        sender: &CoreUser,
+        receiver: &CoreUser,
         chat_id: ChatId,
         message: &str,
     ) {
         // Send a message and process delivery receipts on both ends.
-        sender
-            .user
-            .send_message(
-                chat_id,
-                MimiContent::simple_markdown_message(message.into(), [0; 16]),
-                None,
-                MarkChatAsRead::Yes,
-            )
-            .await
-            .unwrap();
-        sender.user.outbound_service().run_once().await;
+        sender.send_text(chat_id, message).await;
 
-        receiver.fetch_and_process_qs_messages().await;
-        receiver.user.outbound_service().run_once().await;
-        sender.fetch_and_process_qs_messages().await;
+        receiver.drain().await;
+        receiver.outbound_service().run_once().await;
+        sender.drain().await;
     }
 
     async fn send_read_receipt(user: &CoreUser, chat_id: ChatId) {
         // Enqueue a read receipt for the most recent message in the chat.
-        let last_message = user.last_message(chat_id).await.unwrap().unwrap();
+        let last_message = user.expect_last_message(chat_id).await;
         let last_message_id = last_message.id();
         let last_message_mimi_id = last_message.message().mimi_id().unwrap();
         user.outbound_service()
@@ -611,27 +544,13 @@ async fn read_receipts_setting() {
         .unwrap();
     // Send a message and ensure delivery receipts are processed before read
     // receipts.
-    send_and_process_delivery(
-        alice_test_user,
-        bob_test_user,
-        alice_bob_chat,
-        "receipts on",
-    )
-    .await;
-    let last_message = alice_user
-        .last_message(alice_bob_chat)
-        .await
-        .unwrap()
-        .unwrap();
+    send_and_process_delivery(alice_user, bob_user, alice_bob_chat, "receipts on").await;
+    let last_message = alice_user.expect_last_message(alice_bob_chat).await;
     assert_eq!(last_message.status(), MessageStatus::Delivered);
     // Bob sends a read receipt and Alice should receive it.
     send_read_receipt(bob_user, alice_bob_chat).await;
-    alice_test_user.fetch_and_process_qs_messages().await;
-    let last_message = alice_user
-        .last_message(alice_bob_chat)
-        .await
-        .unwrap()
-        .unwrap();
+    alice_user.drain().await;
+    let last_message = alice_user.expect_last_message(alice_bob_chat).await;
     assert_eq!(last_message.status(), MessageStatus::Read);
 
     // We disable read receipts
@@ -640,28 +559,14 @@ async fn read_receipts_setting() {
         .await
         .unwrap();
     // Send a message and confirm the delivery receipt is still processed.
-    send_and_process_delivery(
-        alice_test_user,
-        bob_test_user,
-        alice_bob_chat,
-        "receipts off",
-    )
-    .await;
-    let last_message = alice_user
-        .last_message(alice_bob_chat)
-        .await
-        .unwrap()
-        .unwrap();
+    send_and_process_delivery(alice_user, bob_user, alice_bob_chat, "receipts off").await;
+    let last_message = alice_user.expect_last_message(alice_bob_chat).await;
     assert_eq!(last_message.status(), MessageStatus::Delivered);
     // Bob sends a read receipt but Alice should ignore it, the last message is
     // therefore still a delivery receipt.
     send_read_receipt(bob_user, alice_bob_chat).await;
-    alice_test_user.fetch_and_process_qs_messages().await;
-    let last_message = alice_user
-        .last_message(alice_bob_chat)
-        .await
-        .unwrap()
-        .unwrap();
+    alice_user.drain().await;
+    let last_message = alice_user.expect_last_message(alice_bob_chat).await;
     assert_eq!(last_message.status(), MessageStatus::Delivered);
 }
 
@@ -692,7 +597,7 @@ async fn delete_message_in_group() {
 
     // Get the message content before deletion
     let alice_user = setup.user(&alice);
-    let last_message = alice_user.last_message(group_chat).await.unwrap().unwrap();
+    let last_message = alice_user.expect_last_message(group_chat).await;
     let original_content = last_message
         .message()
         .mimi_content()
@@ -767,8 +672,7 @@ async fn delete_message_preserves_other_messages() {
     alice_user.outbound_service().run_once().await;
 
     // Bob receives all messages
-    let bob_test_user = setup.get_user(&bob);
-    bob_test_user.fetch_and_process_qs_messages().await;
+    bob_user.drain().await;
 
     // Helper to filter only our test messages (not system messages)
     let is_test_message = |m: &&ChatMessage| {
@@ -805,8 +709,7 @@ async fn delete_message_preserves_other_messages() {
 
     // Alice deletes the middle message using the proper API
     let message_to_delete_id = message_to_delete.id();
-    let alice_test_user = setup.get_user(&alice);
-    alice_test_user.fetch_and_process_qs_messages().await;
+    alice_user.drain().await;
     alice_user
         .delete_message_for_everyone(chat_id, message_to_delete_id)
         .await
@@ -814,7 +717,7 @@ async fn delete_message_preserves_other_messages() {
     alice_user.outbound_service().run_once().await;
 
     // Bob receives the deletion
-    bob_test_user.fetch_and_process_qs_messages().await;
+    bob_user.drain().await;
 
     // Verify first and third messages still have their original content
     let bob_messages = bob_user.messages(chat_id, 10).await.unwrap();
@@ -867,7 +770,7 @@ async fn delete_edited_message() {
     setup.edit_message(chat_id, &alice, vec![&bob]).await;
 
     let alice_user = setup.user(&alice);
-    let last_message = alice_user.last_message(chat_id).await.unwrap().unwrap();
+    let last_message = alice_user.expect_last_message(chat_id).await;
 
     // Get the edited content for verification
     let edited_content = {
@@ -995,7 +898,7 @@ async fn recoverable_send_failure_is_retried() {
         .await
         .unwrap();
 
-    let stored = alice_user.message(message.id()).await.unwrap().unwrap();
+    let stored = alice_user.expect_message(message.id()).await;
     assert!(
         stored.is_sent(),
         "a transient failure must not stop the message from being sent"
@@ -1007,9 +910,14 @@ async fn recoverable_send_failure_is_retried() {
     );
 
     let bob_user = setup.user(&bob);
-    drain_queue(bob_user).await;
+    bob_user.drain().await;
     assert_eq!(
-        count_messages_with_text(bob_user, chat_id, TEXT).await,
+        bob_user
+            .text_messages(chat_id)
+            .await
+            .iter()
+            .filter(|rendered| *rendered == TEXT)
+            .count(),
         1,
         "the recipient receives the retried message exactly once"
     );
@@ -1042,20 +950,25 @@ async fn lost_response_is_retried_and_deduplicated() {
         .await
         .unwrap();
 
-    let stored = alice_user.message(message.id()).await.unwrap().unwrap();
+    let stored = alice_user.expect_message(message.id()).await;
     assert!(
         stored.is_sent(),
         "a lost response must not stop the message from being sent"
     );
 
     let bob_user = setup.user(&bob);
-    drain_queue(bob_user).await;
+    bob_user.drain().await;
     assert_eq!(
-        count_messages_with_text(bob_user, chat_id, TEXT).await,
+        bob_user
+            .text_messages(chat_id)
+            .await
+            .iter()
+            .filter(|rendered| *rendered == TEXT)
+            .count(),
         1,
         "the recipient deduplicates the two deliveries of the same message"
     );
-    let bob_message = bob_user.last_message(chat_id).await.unwrap().unwrap();
+    let bob_message = bob_user.expect_last_message(chat_id).await;
     assert_eq!(
         bob_message
             .message()
@@ -1112,34 +1025,34 @@ async fn fatal_send_failure_fails_only_that_message() {
         .unwrap();
 
     assert_eq!(
-        alice_user
-            .message(doomed.id())
-            .await
-            .unwrap()
-            .unwrap()
-            .status(),
+        alice_user.expect_message(doomed.id()).await.status(),
         MessageStatus::Error,
         "a message the DS rejects for good must be marked as failed"
     );
     assert!(
-        alice_user
-            .message(healthy.id())
-            .await
-            .unwrap()
-            .unwrap()
-            .is_sent(),
+        alice_user.expect_message(healthy.id()).await.is_sent(),
         "a fatal failure must not fail the rest of the queue"
     );
 
     let bob_user = setup.user(&bob);
-    drain_queue(bob_user).await;
+    bob_user.drain().await;
     assert_eq!(
-        count_messages_with_text(bob_user, chat_id, HEALTHY_TEXT).await,
+        bob_user
+            .text_messages(chat_id)
+            .await
+            .iter()
+            .filter(|rendered| *rendered == HEALTHY_TEXT)
+            .count(),
         1,
         "the message queued behind the failed one is delivered"
     );
     assert_eq!(
-        count_messages_with_text(bob_user, chat_id, DOOMED_TEXT).await,
+        bob_user
+            .text_messages(chat_id)
+            .await
+            .iter()
+            .filter(|rendered| *rendered == DOOMED_TEXT)
+            .count(),
         0,
         "the rejected message never reaches the recipient"
     );
@@ -1165,7 +1078,7 @@ async fn sending_commits_pending_proposals() {
     setup.user(&bob).leave_chat(chat_id).await.unwrap();
 
     let alice_user = setup.user(&alice);
-    drain_queue(alice_user).await;
+    alice_user.drain().await;
     assert_eq!(
         alice_user.pending_removes(chat_id).await.unwrap(),
         vec![bob.clone()],
@@ -1189,12 +1102,7 @@ async fn sending_commits_pending_proposals() {
         .unwrap();
 
     assert!(
-        alice_user
-            .message(message.id())
-            .await
-            .unwrap()
-            .unwrap()
-            .is_sent(),
+        alice_user.expect_message(message.id()).await.is_sent(),
         "the send path commits the pending proposal instead of failing"
     );
     assert!(
@@ -1215,9 +1123,14 @@ async fn sending_commits_pending_proposals() {
     );
 
     let charlie_user = setup.user(&charlie);
-    drain_queue(charlie_user).await;
+    charlie_user.drain().await;
     assert_eq!(
-        count_messages_with_text(charlie_user, chat_id, TEXT).await,
+        charlie_user
+            .text_messages(chat_id)
+            .await
+            .iter()
+            .filter(|rendered| *rendered == TEXT)
+            .count(),
         1,
         "the remaining member receives the message"
     );
@@ -1327,8 +1240,7 @@ async fn delete_message_with_attachment() {
         let alice_user = setup.user(&alice);
 
         // Fetch and process QS messages first
-        let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-        alice_user.fully_process_qs_messages(qs_messages).await;
+        alice_user.drain().await;
 
         // Delete the specific message by ID
         alice_user
@@ -1341,8 +1253,7 @@ async fn delete_message_with_attachment() {
     // Bob receives the deletion
     {
         let bob_user = setup.user(&bob);
-        let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-        bob_user.fully_process_qs_messages(qs_messages).await;
+        bob_user.drain().await;
     }
 
     // Verify: Message is NullPart for Alice (the sender)
@@ -1589,7 +1500,7 @@ async fn react_to_message() {
     );
 
     // Alice receives and stores the reaction on her copy of the message.
-    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    setup.user(&alice).drain().await;
     assert_eq!(
         setup
             .user(&alice)
@@ -1616,7 +1527,7 @@ async fn delete_reaction() {
         .await
         .unwrap();
     bob_user.outbound_service().run_once().await;
-    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    setup.user(&alice).drain().await;
     assert_eq!(
         setup
             .user(&alice)
@@ -1642,7 +1553,7 @@ async fn delete_reaction() {
             .unwrap()
             .is_empty()
     );
-    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    setup.user(&alice).drain().await;
     assert!(
         setup
             .user(&alice)
@@ -1688,7 +1599,7 @@ async fn queued_reaction_survives_network_error() {
         expected
     );
 
-    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    setup.user(&alice).drain().await;
     assert_eq!(
         setup
             .user(&alice)
@@ -1734,7 +1645,7 @@ async fn reaction_add_and_retract_stay_in_order() {
             .is_empty()
     );
 
-    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    setup.user(&alice).drain().await;
     assert!(
         setup
             .user(&alice)
@@ -1773,7 +1684,7 @@ async fn multiple_reactions_per_user() {
         .unwrap();
     bob_user.outbound_service().run_once().await;
 
-    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    setup.user(&alice).drain().await;
     assert_eq!(
         setup
             .user(&alice)
@@ -1824,7 +1735,7 @@ async fn reactions_in_group() {
     charlie_user.outbound_service().run_once().await;
 
     // Alice sees who reacted with what — the basis for the "who reacted" view.
-    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    setup.user(&alice).drain().await;
     assert_eq!(
         setup
             .user(&alice)
@@ -1854,8 +1765,7 @@ async fn react_notifies_message_author() {
 
     // Alice processes and is notified about the reaction on her own message.
     let alice_user = setup.user(&alice);
-    let qs = alice_user.qs_fetch_messages().await.unwrap();
-    let processed = alice_user.fully_process_qs_messages(qs).await;
+    let processed = alice_user.drain().await;
     assert_eq!(processed.reaction_notifications.len(), 1);
     assert_eq!(processed.reaction_notifications[0].reactor, bob);
     assert_eq!(processed.reaction_notifications[0].emoji, "🫪");
@@ -1866,8 +1776,7 @@ async fn react_notifies_message_author() {
         .await
         .unwrap();
     bob_user.outbound_service().run_once().await;
-    let qs = alice_user.qs_fetch_messages().await.unwrap();
-    let processed = alice_user.fully_process_qs_messages(qs).await;
+    let processed = alice_user.drain().await;
     assert!(processed.reaction_notifications.is_empty());
 }
 
@@ -1904,24 +1813,20 @@ async fn no_notification_for_reaction_on_others_message() {
 
     // Alice (a bystander) is not notified — it's not her message.
     let alice_user = setup.user(&alice);
-    let qs = alice_user.qs_fetch_messages().await.unwrap();
-    let processed = alice_user.fully_process_qs_messages(qs).await;
+    let processed = alice_user.drain().await;
     assert!(processed.reaction_notifications.is_empty());
 
     // Bob (the author) is notified.
     let bob_user = setup.user(&bob);
-    let qs = bob_user.qs_fetch_messages().await.unwrap();
-    let processed = bob_user.fully_process_qs_messages(qs).await;
+    let processed = bob_user.drain().await;
     assert_eq!(processed.reaction_notifications.len(), 1);
     assert_eq!(processed.reaction_notifications[0].reactor, charlie);
 }
 
 /// The mimi content currently stored for the message.
 async fn stored_content(user: &CoreUser, message_id: MessageId) -> MimiContent {
-    user.message(message_id)
+    user.expect_message(message_id)
         .await
-        .unwrap()
-        .unwrap()
         .message()
         .mimi_content()
         .unwrap()
@@ -1931,12 +1836,7 @@ async fn stored_content(user: &CoreUser, message_id: MessageId) -> MimiContent {
 /// Fetches and processes the user's queue after a replayed edit, asserting
 /// that the replay neither fails nor is stored as a new message.
 async fn process_replayed_edit(user: &CoreUser) {
-    let qs_messages = user.qs_fetch_messages().await.unwrap();
-    let processed = user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        processed.errors.is_empty(),
-        "processing a replayed edit failed"
-    );
+    let processed = user.drain().await;
     assert!(
         processed.new_messages.is_empty(),
         "a replayed edit must not be stored as a new message"
@@ -1979,12 +1879,7 @@ async fn edit_replay_is_ignored() {
     process_replayed_edit(setup.user(&bob)).await;
 
     // The replay must not revert the second edit.
-    let bob_message = setup
-        .user(&bob)
-        .last_message(chat_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let bob_message = setup.user(&bob).expect_last_message(chat_id).await;
     assert_eq!(
         bob_message.message().mimi_content(),
         Some(&second_edit),
@@ -2012,12 +1907,7 @@ async fn peer_read_receipt_does_not_move_our_read_marker() {
 
     // The invite helper leaves a message from every member behind. Clear Alice's
     // marker, so what follows is about Charlie's message alone.
-    let newest = setup
-        .user(&alice)
-        .last_message(group_chat_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let newest = setup.user(&alice).expect_last_message(group_chat_id).await;
     setup
         .user(&alice)
         .mark_chat_as_read(group_chat_id, newest.id())
@@ -2029,17 +1919,14 @@ async fn peer_read_receipt_does_not_move_our_read_marker() {
         .send_message(group_chat_id, &charlie, vec![&alice, &bob], None)
         .await;
 
-    let alice_test_user = setup.get_user(&alice);
-    let alice_user = &alice_test_user.user;
+    let alice_user = setup.user(&alice);
     assert_eq!(alice_user.unread_messages_count(group_chat_id).await, 1);
 
     // Bob reads it and reports that to the whole group, Alice included.
     let bob_user = setup.user(&bob);
     let bobs_copy = bob_user
-        .message(sent.recipient_message_id(&bob))
-        .await
-        .unwrap()
-        .unwrap();
+        .expect_message(sent.recipient_message_id(&bob))
+        .await;
     bob_user
         .outbound_service()
         .enqueue_receipts(
@@ -2055,14 +1942,12 @@ async fn peer_read_receipt_does_not_move_our_read_marker() {
         .unwrap();
     bob_user.outbound_service().run_once().await;
 
-    alice_test_user.fetch_and_process_qs_messages().await;
+    alice_user.drain().await;
 
     // Alice records Bob's status ...
     let alices_copy = alice_user
-        .message(sent.recipient_message_id(&alice))
-        .await
-        .unwrap()
-        .unwrap();
+        .expect_message(sent.recipient_message_id(&alice))
+        .await;
     assert_eq!(
         alices_copy.status(),
         MessageStatus::Read,

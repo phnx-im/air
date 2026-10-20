@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::UserId;
-use aircoreclient::clients::{CoreUser, process::process_qs::ProcessedQsMessages};
-use airserver_test_harness::utils::setup::TestBackend;
+use aircoreclient::clients::CoreUser;
+use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::Utc;
 use tempfile::TempDir;
 
@@ -20,27 +20,9 @@ async fn link_sibling(
     user_id: &UserId,
 ) -> anyhow::Result<(CoreUser, TempDir)> {
     let (device_b, tmp) = link_new_device(setup, user_id).await;
-    setup
-        .get_user(user_id)
-        .fetch_and_process_qs_messages()
-        .await;
-    drain_queue(&device_b).await?;
+    setup.user(user_id).drain().await;
+    device_b.drain().await;
     Ok((device_b, tmp))
-}
-
-/// Fetches and processes a device's queue, asserting that every message was
-/// processed without error.
-async fn drain_queue(device: &CoreUser) -> anyhow::Result<ProcessedQsMessages> {
-    let messages = device.qs_fetch_messages().await?;
-    let expected = messages.len();
-    let processed = device.fully_process_qs_messages(messages).await;
-    assert!(
-        processed.errors.is_empty(),
-        "queue processing failed: {:?}",
-        processed.errors
-    );
-    assert_eq!(processed.processed, expected, "not all messages processed");
-    Ok(processed)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -67,8 +49,7 @@ async fn self_group_resync_re_registers_the_derivation_epoch() -> anyhow::Result
     // The key package upload at the end only goes through the self group with
     // a sibling.
     let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
-    let test_user = setup.get_user(&user_id);
-    let user = &test_user.user;
+    let user = setup.user(&user_id);
 
     assert!(
         user.self_group_has_derivation_epoch().await?,
@@ -94,7 +75,7 @@ async fn self_group_resync_re_registers_the_derivation_epoch() -> anyhow::Result
         .schedule_key_package_upload(Utc::now())
         .await?;
     user.outbound_service().run_once().await;
-    test_user.fetch_and_process_qs_messages().await;
+    user.drain().await;
     assert!(
         user.self_group_pending_operation_info().await?.is_none(),
         "upload cycle should have completed"
@@ -115,8 +96,7 @@ async fn key_package_upload_via_self_group_waits_for_commit_response() -> anyhow
     let mut setup = TestBackend::single().await;
     let user_id = setup.add_user().await;
     let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
-    let test_user = setup.get_user(&user_id);
-    let user = &test_user.user;
+    let user = setup.user(&user_id);
 
     // Baseline: the initial publish-path upload from user creation
     let live_before = user.live_key_package_refs().await?;
@@ -153,7 +133,7 @@ async fn key_package_upload_via_self_group_waits_for_commit_response() -> anyhow
     );
 
     // Process the DsCommitResponse
-    let processed = test_user.fetch_and_process_qs_messages().await;
+    let processed = user.drain().await.processed;
     assert!(processed >= 1, "expected at least the commit response");
 
     // The response finalizes the upload: job gone, commit merged in both
@@ -225,13 +205,12 @@ async fn key_packages_from_self_group_upload_are_served_and_usable() -> anyhow::
 
     // Full upload cycle for alice
     {
-        let test_user = setup.get_user(&alice);
-        let user = &test_user.user;
+        let user = setup.user(&alice);
         user.outbound_service()
             .schedule_key_package_upload(Utc::now())
             .await?;
         user.outbound_service().run_once().await;
-        test_user.fetch_and_process_qs_messages().await;
+        user.drain().await;
         assert!(
             user.self_group_pending_operation_info().await?.is_none(),
             "upload cycle should have completed"
@@ -264,8 +243,7 @@ async fn key_package_upload_recovers_from_staging_failure() -> anyhow::Result<()
     let mut setup = TestBackend::single().await;
     let user_id = setup.add_user().await;
     let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
-    let test_user = setup.get_user(&user_id);
-    let user = &test_user.user;
+    let user = setup.user(&user_id);
 
     let live_before = user.live_key_package_refs().await?;
     let epochs_before = user.self_group_epochs().await?;
@@ -300,7 +278,7 @@ async fn key_package_upload_recovers_from_staging_failure() -> anyhow::Result<()
         .schedule_key_package_upload(Utc::now())
         .await?;
     user.outbound_service().run_once().await;
-    test_user.fetch_and_process_qs_messages().await;
+    user.drain().await;
 
     assert!(user.self_group_pending_operation_info().await?.is_none());
     let live_after = user.live_key_package_refs().await?;
@@ -317,8 +295,7 @@ async fn key_package_upload_backs_off_while_pending() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let user_id = setup.add_user().await;
     let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
-    let test_user = setup.get_user(&user_id);
-    let user = &test_user.user;
+    let user = setup.user(&user_id);
 
     // First upload: job ends up waiting for the commit response
     user.outbound_service()
@@ -347,7 +324,7 @@ async fn key_package_upload_backs_off_while_pending() -> anyhow::Result<()> {
     assert_eq!(user.self_group_epochs().await?, epochs);
 
     // The commit response completes the first upload despite the interleaved run
-    test_user.fetch_and_process_qs_messages().await;
+    user.drain().await;
     assert!(user.self_group_pending_operation_info().await?.is_none());
     let live_first = user.live_key_package_refs().await?;
 
@@ -356,7 +333,7 @@ async fn key_package_upload_backs_off_while_pending() -> anyhow::Result<()> {
         .schedule_key_package_upload(Utc::now())
         .await?;
     user.outbound_service().run_once().await;
-    test_user.fetch_and_process_qs_messages().await;
+    user.drain().await;
 
     assert!(user.self_group_pending_operation_info().await?.is_none());
     let live_second = user.live_key_package_refs().await?;
@@ -374,8 +351,7 @@ async fn mismatched_upload_commit_abandons_job() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let user_id = setup.add_user().await;
     let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
-    let test_user = setup.get_user(&user_id);
-    let user = &test_user.user;
+    let user = setup.user(&user_id);
 
     let live_before = user.live_key_package_refs().await?;
     let (t_epoch, _) = user
@@ -391,7 +367,7 @@ async fn mismatched_upload_commit_abandons_job() -> anyhow::Result<()> {
     // Fork the local job state from the commit the DS accepted, then let the
     // real `DsCommitResponse` arrive through the queue.
     user.corrupt_self_group_upload_batch_id().await?;
-    test_user.fetch_and_process_qs_messages().await;
+    user.drain().await;
 
     // The commit is merged (the group must not fall behind the DS), but the
     // job is abandoned without marking the batch live.
@@ -417,8 +393,8 @@ async fn multi_device_sibling_derives_key_packages_from_upload_commit() -> anyho
     let (device_b, _tmp) = link_new_device(&setup, &alice).await;
 
     // Both devices start from the merged linking commit.
-    setup.get_user(&alice).fetch_and_process_qs_messages().await;
-    drain_queue(&device_b).await?;
+    setup.user(&alice).drain().await;
+    device_b.drain().await;
 
     let live_before = device_b.live_key_package_refs().await?;
     assert_eq!(
@@ -429,13 +405,12 @@ async fn multi_device_sibling_derives_key_packages_from_upload_commit() -> anyho
 
     // Device A runs a full upload cycle, including the echo that marks the batch live.
     {
-        let test_user = setup.get_user(&alice);
-        let user = &test_user.user;
+        let user = setup.user(&alice);
         user.outbound_service()
             .schedule_key_package_upload(Utc::now())
             .await?;
         user.outbound_service().run_once().await;
-        test_user.fetch_and_process_qs_messages().await;
+        user.drain().await;
         assert!(
             user.self_group_pending_operation_info().await?.is_none(),
             "upload cycle should have completed"
@@ -448,7 +423,7 @@ async fn multi_device_sibling_derives_key_packages_from_upload_commit() -> anyho
     );
 
     // Processing A's self-group commit makes A's batch B's live set too.
-    drain_queue(&device_b).await?;
+    device_b.drain().await;
     assert_eq!(
         device_b.live_key_package_refs().await?,
         live_a,
@@ -467,18 +442,17 @@ async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling
     setup.connect_users(&alice, &bob).await;
 
     let (device_b, _tmp) = link_new_device(&setup, &alice).await;
-    setup.get_user(&alice).fetch_and_process_qs_messages().await;
-    drain_queue(&device_b).await?;
+    setup.user(&alice).drain().await;
+    device_b.drain().await;
 
     // Device A publishes a fresh batch via the self-group.
     {
-        let test_user = setup.get_user(&alice);
-        let user = &test_user.user;
+        let user = setup.user(&alice);
         user.outbound_service()
             .schedule_key_package_upload(Utc::now())
             .await?;
         user.outbound_service().run_once().await;
-        test_user.fetch_and_process_qs_messages().await;
+        user.drain().await;
         assert!(
             user.self_group_pending_operation_info().await?.is_none(),
             "upload cycle should have completed"
@@ -486,14 +460,14 @@ async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling
     }
 
     // Device B derives the batch from A's commit.
-    drain_queue(&device_b).await?;
+    device_b.drain().await;
 
     // Bob invites Alice, consuming a key package from the batch.
     let chat_id = setup.create_group(&bob).await;
     setup.invite_to_group(chat_id, &bob, vec![&alice]).await;
 
     // Device B joins from the same welcome, using key material it derived rather than generated.
-    let processed = drain_queue(&device_b).await?;
+    let processed = device_b.drain().await;
     assert!(
         processed
             .new_chats
@@ -504,7 +478,7 @@ async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling
 
     // And it stays a working member of the group.
     setup.send_message(chat_id, &bob, vec![&alice], None).await;
-    let processed = drain_queue(&device_b).await?;
+    let processed = device_b.drain().await;
     assert!(
         processed
             .new_messages
@@ -518,38 +492,34 @@ async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling
 
 #[tokio::test(flavor = "multi_thread")]
 async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> anyhow::Result<()> {
-    use aircoreclient::clients::MarkChatAsRead;
-    use mimi_content::MimiContent;
-
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
 
     let (device_b, _tmp) = link_new_device(&setup, &alice).await;
-    setup.get_user(&alice).fetch_and_process_qs_messages().await;
-    drain_queue(&device_b).await?;
+    setup.user(&alice).drain().await;
+    device_b.drain().await;
 
     // Device A publishes a fresh batch via the self-group.
     {
-        let test_user = setup.get_user(&alice);
-        let user = &test_user.user;
+        let user = setup.user(&alice);
         user.outbound_service()
             .schedule_key_package_upload(Utc::now())
             .await?;
         user.outbound_service().run_once().await;
-        test_user.fetch_and_process_qs_messages().await;
+        user.drain().await;
         assert!(
             user.self_group_pending_operation_info().await?.is_none(),
             "upload cycle should have completed"
         );
     }
-    drain_queue(&device_b).await?;
+    device_b.drain().await;
 
     // Bob invites Alice: device B joins from the same welcome.
     let chat_id = setup.create_group(&bob).await;
     setup.invite_to_group(chat_id, &bob, vec![&alice]).await;
-    let processed = drain_queue(&device_b).await?;
+    let processed = device_b.drain().await;
     assert!(
         processed
             .new_chats
@@ -560,7 +530,7 @@ async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> an
 
     // Device A sends: device B must see the echo.
     setup.send_message(chat_id, &alice, vec![&bob], None).await;
-    let processed = drain_queue(&device_b).await?;
+    let processed = device_b.drain().await;
     assert!(
         processed
             .new_messages
@@ -573,12 +543,8 @@ async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> an
     );
 
     // Device B sends: device A must see the echo.
-    let content = MimiContent::simple_markdown_message("from device b".to_owned(), [9u8; 16]);
-    device_b
-        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
-        .await?;
-    device_b.outbound_service().run_once().await;
-    let processed = drain_queue(setup.user(&alice)).await?;
+    device_b.send_text(chat_id, "from device b").await;
+    let processed = setup.user(&alice).drain().await;
     assert!(
         processed
             .new_messages
@@ -592,7 +558,7 @@ async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> an
 
     // Bob sends: both devices see it.
     setup.send_message(chat_id, &bob, vec![&alice], None).await;
-    let processed = drain_queue(&device_b).await?;
+    let processed = device_b.drain().await;
     assert!(
         processed
             .new_messages

@@ -6,33 +6,16 @@
 //! one connection.
 
 use aircommon::identifiers::{UserId, Username};
-use aircoreclient::{
-    ChatId, ChatType, EventMessage, Message, SystemMessage, UsernameRecord, clients::CoreUser,
-};
-use airserver_test_harness::utils::setup::TestBackend;
+use aircoreclient::{ChatId, ChatType, SystemMessage, UsernameRecord, clients::CoreUser};
+use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 
-use super::group_bootstrap::{
-    drain_expecting_success, drain_username_queue, receive_connection_offer,
-};
-
-pub(crate) async fn system_messages(device: &CoreUser, chat_id: ChatId) -> Vec<SystemMessage> {
-    device
-        .messages(chat_id, 100)
-        .await
-        .unwrap()
-        .into_iter()
-        .filter_map(|message| match message.message() {
-            Message::Event(EventMessage::System(system)) => Some(system.clone()),
-            _ => None,
-        })
-        .collect()
-}
+use super::group_bootstrap::{drain_username_queue, receive_connection_offer};
 
 /// The chats of pending contact requests from `sender`.
 pub(crate) async fn pending_chats_from(device: &CoreUser, sender: &UserId) -> Vec<ChatId> {
     let mut chats = Vec::new();
     for chat_id in device.ordered_chat_ids().await.unwrap() {
-        let chat = device.chat(&chat_id).await.unwrap();
+        let chat = device.expect_chat(chat_id).await;
         if chat.chat_type() == &ChatType::PendingConnection(sender.clone()) {
             chats.push(chat_id);
         }
@@ -86,7 +69,7 @@ async fn requests_of_one_sender_fold_into_the_chat_of_the_newest() {
         bob_user.chat(&sent[0]).await.is_none(),
         "the newer request took over the chat of the older one"
     );
-    let messages = system_messages(bob_user, chat_id).await;
+    let messages = bob_user.system_messages(chat_id).await;
     assert!(
         messages.contains(&SystemMessage::ReceivedHandleConnectionRequest {
             sender: alice.clone(),
@@ -105,10 +88,10 @@ async fn requests_of_one_sender_fold_into_the_chat_of_the_newest() {
         .await
         .unwrap()
         .unwrap();
-    drain_expecting_success(alice_user, "alice failed to follow the accept").await;
+    alice_user.drain().await;
 
     assert_eq!(
-        alice_user.chat(&sent[1]).await.unwrap().chat_type(),
+        alice_user.expect_chat(sent[1]).await.chat_type(),
         &ChatType::Connection(bob.clone())
     );
     assert!(
@@ -145,7 +128,7 @@ async fn an_offer_fetched_after_accepting_a_newer_one_is_dropped() {
         .await
         .unwrap()
         .unwrap();
-    drain_expecting_success(alice_user, "alice failed to follow the accept").await;
+    alice_user.drain().await;
 
     assert_eq!(drain_username_queue(bob_user, &first).await, None);
     assert!(
@@ -153,7 +136,7 @@ async fn an_offer_fetched_after_accepting_a_newer_one_is_dropped() {
         "an offer from a connected contact is stale"
     );
     assert_eq!(
-        bob_user.chat(&chat_id).await.unwrap().chat_type(),
+        bob_user.expect_chat(chat_id).await.chat_type(),
         &ChatType::Connection(alice.clone())
     );
 }
@@ -197,7 +180,7 @@ async fn crossed_requests_leave_one_connection() {
         .await
         .unwrap()
         .unwrap();
-    drain_expecting_success(bob_user, "bob failed to follow the accept").await;
+    bob_user.drain().await;
 
     assert!(
         bob_user.chat(&alice_request_at_bob).await.is_none(),
@@ -232,7 +215,7 @@ async fn asking_back_from_a_group_opens_the_pending_request() {
         .add_contact_from_group(group_chat_id, bob.clone(), setup.apq_groups)
         .await
         .unwrap();
-    let processed = drain_expecting_success(bob_user, "bob failed to take the request").await;
+    let processed = bob_user.drain().await;
     let [bob_chat_id] = processed.new_connections.as_slice() else {
         panic!("expected one request, got {:?}", processed.new_connections);
     };
@@ -248,9 +231,9 @@ async fn asking_back_from_a_group_opens_the_pending_request() {
         .await
         .unwrap()
         .unwrap();
-    drain_expecting_success(alice_user, "alice failed to follow the accept").await;
+    alice_user.drain().await;
     assert_eq!(
-        alice_user.chat(&alice_chat_id).await.unwrap().chat_type(),
+        alice_user.expect_chat(alice_chat_id).await.chat_type(),
         &ChatType::Connection(bob.clone())
     );
     assert_eq!(alice_user.contacts().await.unwrap().len(), 2);
