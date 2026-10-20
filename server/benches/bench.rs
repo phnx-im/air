@@ -84,7 +84,7 @@ fn benchmarks(c: &mut Criterion) {
                 for _ in 0..iter {
                     let time = Instant::now();
                     setup
-                        .send_message(chat_alice_bob, &alice, vec![&bob], None)
+                        .send_message(chat_alice_bob, &alice, &[&bob], None)
                         .await;
                     elapsed += time.elapsed()
                 }
@@ -115,9 +115,9 @@ fn benchmarks(c: &mut Criterion) {
                 for _ in 0..iter {
                     // Create an independent group for Alice
                     let chat_id = setup.create_group(&alice).await;
-                    let bobs = bobs.iter().collect();
+                    let bobs: Vec<_> = bobs.iter().collect();
                     let time = Instant::now();
-                    setup.invite_to_group(chat_id, &alice, bobs).await;
+                    setup.invite_to_group(chat_id, &alice, &bobs).await;
                     elapsed += time.elapsed();
                 }
                 elapsed
@@ -129,7 +129,7 @@ fn benchmarks(c: &mut Criterion) {
         let setup = setup.lock().await;
         let chat_id = setup.create_group(&alice).await;
         setup
-            .invite_to_group(chat_id, &alice, bobs.iter().collect())
+            .invite_to_group(chat_id, &alice, &bobs.iter().collect::<Vec<_>>())
             .await;
         chat_id
     });
@@ -143,9 +143,9 @@ fn benchmarks(c: &mut Criterion) {
             async move {
                 let setup = setup.lock().await;
                 for _ in 0..iter {
-                    let bobs = bobs.iter().collect();
+                    let bobs: Vec<_> = bobs.iter().collect();
                     let time = Instant::now();
-                    setup.send_message(chat_id, &alice, bobs, None).await;
+                    setup.send_message(chat_id, &alice, &bobs, None).await;
                     elapsed += time.elapsed();
                 }
                 elapsed

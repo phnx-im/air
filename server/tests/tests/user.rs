@@ -25,14 +25,12 @@ use rand::RngExt;
 use tracing::info;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Create user", skip_all)]
 async fn create_user() {
     let mut setup = TestBackend::single().await;
     setup.add_user().await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "User profile exchange test", skip_all)]
 async fn exchange_user_profiles() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -116,7 +114,6 @@ async fn exchange_user_profiles() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "User persistence test", skip_all)]
 async fn client_persistence() {
     // Create and persist the user.
     let mut setup = TestBackend::single().await;
@@ -163,7 +160,6 @@ async fn client_persistence() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test server error if unknown user", skip_all)]
 async fn error_if_user_doesnt_exist() {
     let mut setup = TestBackend::single().await;
 
@@ -204,7 +200,6 @@ async fn error_if_user_doesnt_exist() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Delete user test", skip_all)]
 async fn delete_user() {
     let mut setup = TestBackend::single().await;
 
@@ -229,7 +224,6 @@ async fn delete_user() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Blocked contact", skip_all)]
 async fn blocked_contact() {
     info!("Setting up setup");
     let mut setup = TestBackend::single().await;
@@ -240,8 +234,8 @@ async fn blocked_contact() {
     let bob = setup.add_user().await;
 
     let chat_id = setup.connect_users(&alice, &bob).await;
-    setup.send_message(chat_id, &alice, vec![&bob], None).await;
-    setup.send_message(chat_id, &bob, vec![&alice], None).await;
+    setup.send_message(chat_id, &alice, &[&bob], None).await;
+    setup.send_message(chat_id, &bob, &[&alice], None).await;
 
     let alice_user = setup.user(&alice);
     let bob_user = setup.user(&bob);
@@ -322,12 +316,11 @@ async fn blocked_contact() {
     alice_user.unblock_contact(bob.clone()).await.unwrap();
 
     // Sending messages works again
-    setup.send_message(chat_id, &alice, vec![&bob], None).await;
-    setup.send_message(chat_id, &bob, vec![&alice], None).await;
+    setup.send_message(chat_id, &alice, &[&bob], None).await;
+    setup.send_message(chat_id, &bob, &[&alice], None).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Delete account", skip_all)]
 async fn delete_account() {
     let mut setup = TestBackend::single().await;
 
@@ -340,7 +333,7 @@ async fn delete_account() {
 
     // Create a group with Alice and Bob
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     // Delete the account
     let db_path = None;
@@ -371,7 +364,6 @@ async fn delete_account() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Username sanity checks test", skip_all)]
 async fn username_sanity_checks() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -414,7 +406,6 @@ async fn username_sanity_checks() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Check username exists", skip_all)]
 async fn check_username_exists() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -452,7 +443,6 @@ async fn check_username_exists() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Safety codes", skip_all)]
 async fn safety_codes() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -464,7 +454,7 @@ async fn safety_codes() {
 
     let group_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(group_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(group_id, &alice, &[&bob, &charlie])
         .await;
 
     // Have everyone compute everyones safety code and verify that they match
@@ -504,7 +494,6 @@ async fn safety_codes() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Adding a contact and changing user profile", skip_all)]
 async fn add_contact_and_change_profile() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -585,7 +574,6 @@ async fn add_contact_and_change_profile() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Request invitation code", skip_all)]
 async fn request_invitation_code() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -632,7 +620,6 @@ async fn request_invitation_code() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Mark invitation code as copied", skip_all)]
 async fn mark_invitation_code_as_copied() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;

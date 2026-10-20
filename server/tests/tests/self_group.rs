@@ -219,19 +219,15 @@ async fn key_packages_from_self_group_upload_are_served_and_usable() -> anyhow::
 
     // Plain group: the invite consumes one of alice's T key packages from the batch
     let chat_id = setup.create_group(&bob).await;
-    setup.invite_to_group(chat_id, &bob, vec![&alice]).await;
-    setup.send_message(chat_id, &bob, vec![&alice], None).await;
-    setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    setup.invite_to_group(chat_id, &bob, &[&alice]).await;
+    setup.send_message(chat_id, &bob, &[&alice], None).await;
+    setup.send_message(chat_id, &alice, &[&bob], None).await;
 
     // APQ group: the invite consumes one of alice's APQ key packages from the batch
     let apq_chat_id = setup.create_apq_group(&bob).await;
-    setup.invite_to_group(apq_chat_id, &bob, vec![&alice]).await;
-    setup
-        .send_message(apq_chat_id, &bob, vec![&alice], None)
-        .await;
-    setup
-        .send_message(apq_chat_id, &alice, vec![&bob], None)
-        .await;
+    setup.invite_to_group(apq_chat_id, &bob, &[&alice]).await;
+    setup.send_message(apq_chat_id, &bob, &[&alice], None).await;
+    setup.send_message(apq_chat_id, &alice, &[&bob], None).await;
 
     Ok(())
 }
@@ -464,7 +460,7 @@ async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling
 
     // Bob invites Alice, consuming a key package from the batch.
     let chat_id = setup.create_group(&bob).await;
-    setup.invite_to_group(chat_id, &bob, vec![&alice]).await;
+    setup.invite_to_group(chat_id, &bob, &[&alice]).await;
 
     // Device B joins from the same welcome, using key material it derived rather than generated.
     let processed = device_b.drain().await;
@@ -477,7 +473,7 @@ async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling
     );
 
     // And it stays a working member of the group.
-    setup.send_message(chat_id, &bob, vec![&alice], None).await;
+    setup.send_message(chat_id, &bob, &[&alice], None).await;
     let processed = device_b.drain().await;
     assert!(
         processed
@@ -518,7 +514,7 @@ async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> an
 
     // Bob invites Alice: device B joins from the same welcome.
     let chat_id = setup.create_group(&bob).await;
-    setup.invite_to_group(chat_id, &bob, vec![&alice]).await;
+    setup.invite_to_group(chat_id, &bob, &[&alice]).await;
     let processed = device_b.drain().await;
     assert!(
         processed
@@ -529,7 +525,7 @@ async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> an
     );
 
     // Device A sends: device B must see the echo.
-    setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    setup.send_message(chat_id, &alice, &[&bob], None).await;
     let processed = device_b.drain().await;
     assert!(
         processed
@@ -557,7 +553,7 @@ async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> an
     );
 
     // Bob sends: both devices see it.
-    setup.send_message(chat_id, &bob, vec![&alice], None).await;
+    setup.send_message(chat_id, &bob, &[&alice], None).await;
     let processed = device_b.drain().await;
     assert!(
         processed

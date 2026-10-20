@@ -202,7 +202,6 @@ async fn self_chat_id(user: &CoreUser) -> ChatId {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test multi-device linking session", skip_all)]
 async fn multi_device_linking_session() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -214,10 +213,10 @@ async fn multi_device_linking_session() {
     // Alice already has two groups before the new device is linked. The
     // linked device should inherit them, not just the self-group.
     let chat_id_1 = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id_1, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id_1, &alice, &[&bob]).await;
 
     let chat_id_2 = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id_2, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id_2, &alice, &[&bob]).await;
 
     let (new_device, _tmp) = link_new_device(&setup, &alice).await;
 
@@ -396,9 +395,7 @@ async fn multi_device_linking_session() {
     // A commit that replaces the shared leaf for some other reason
     // has to derive the new leaf from the emulation epoch too,
     // or the sibling emulator client will break.
-    setup
-        .invite_to_group(chat_id_1, &alice, vec![&charlie])
-        .await;
+    setup.invite_to_group(chat_id_1, &alice, &[&charlie]).await;
 
     new_device.drain().await;
     assert_eq!(
@@ -439,7 +436,7 @@ async fn multi_device_linking_session() {
 
     // Same for a removal.
     setup
-        .remove_from_group(chat_id_1, &alice, vec![&charlie])
+        .remove_from_group(chat_id_1, &alice, &[&charlie])
         .await
         .unwrap();
 
@@ -482,10 +479,6 @@ async fn multi_device_linking_session() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(
-    name = "Test attachment upload and download in the self-group",
-    skip_all
-)]
 async fn multi_device_self_group_attachment() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -536,7 +529,6 @@ async fn multi_device_self_group_attachment() {
 
 // Linking with a session ID that was never registered returns an error.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test link with nonexistent session ID", skip_all)]
 async fn multi_device_link_with_nonexistent_session_id() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -561,7 +553,6 @@ async fn multi_device_link_with_nonexistent_session_id() {
 // A session can only be claimed once; a second link attempt on the same session ID
 // must fail even when called by the same user.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test second link attempt returns error", skip_all)]
 async fn multi_device_second_link_attempt_returns_error() {
     let mut setup = TestBackend::single().await;
     let domain = setup.domain().clone();
@@ -612,7 +603,6 @@ async fn multi_device_second_link_attempt_returns_error() {
 // Two concurrent linking sessions must not interfere with each other.
 // Each new device must be linked to the correct existing device.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test concurrent linking sessions don't interfere", skip_all)]
 async fn multi_device_concurrent_linking_sessions_dont_interfere() {
     let mut setup = TestBackend::single().await;
     let domain = setup.domain().clone();
@@ -691,7 +681,6 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
 // self-group commit, in both directions. This is also the proof that the DS
 // passes commits carrying AppEphemeral proposals through.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test settings sync across linked devices", skip_all)]
 async fn multi_device_settings_sync() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -780,7 +769,6 @@ async fn multi_device_settings_sync() {
 // A setting stored before any linking travels to the new device in the
 // provisioning package and is applied during bootstrap.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test settings travel in the linking payload", skip_all)]
 async fn multi_device_settings_in_linking_payload() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -803,10 +791,6 @@ async fn multi_device_settings_in_linking_payload() {
 // The new device's metadata entry rides on the self-group add commit itself, so
 // linking costs exactly one commit.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(
-    name = "Test linking publishes the device entry in one commit",
-    skip_all
-)]
 async fn multi_device_link_publishes_device_entry_without_extra_commit() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -848,7 +832,6 @@ async fn multi_device_link_publishes_device_entry_without_extra_commit() {
 // loser gives the setting up when it processes the winner's commit, so both
 // devices converge on the DS-order winner.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test settings race converges on the DS order", skip_all)]
 async fn multi_device_settings_race_converges() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -929,7 +912,6 @@ async fn multi_device_settings_race_converges() {
 // own and losing the race for an allowance epoch the first device has already
 // locked.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test linked devices hold identical tokens", skip_all)]
 async fn multi_device_token_issuance_is_idempotent() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -995,7 +977,6 @@ async fn multi_device_token_issuance_is_idempotent() {
 // provisioning snapshot cannot help, so the test puts both devices into exactly
 // the state a rotation leaves behind.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test linked devices agree on a fresh token seed", skip_all)]
 async fn multi_device_token_seed_agreement() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1062,7 +1043,6 @@ fn fresh_username() -> Username {
 // requests to it. The spending device therefore publishes the position it
 // spent, which names the same token on every device.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test a redeemed token is dropped by the sibling", skip_all)]
 async fn multi_device_redeemed_token_is_removed_from_sibling() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1136,14 +1116,13 @@ async fn multi_device_redeemed_token_is_removed_from_sibling() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test a chat deletion reaches the sibling", skip_all)]
 async fn multi_device_deleted_chat_is_erased_on_sibling() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     let (second_device, _tmp) = link_new_device(&setup, &alice).await;
     // Onboarding into the pre-existing group runs in the background.
@@ -1193,10 +1172,6 @@ async fn multi_device_deleted_chat_is_erased_on_sibling() -> anyhow::Result<()> 
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(
-    name = "Test a sole member's group deletion reaches the sibling",
-    skip_all
-)]
 async fn multi_device_sole_member_group_deletion_reaches_the_sibling() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1255,17 +1230,13 @@ async fn multi_device_sole_member_group_deletion_reaches_the_sibling() -> anyhow
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(
-    name = "Test a sibling finds a missed group deletion by resync",
-    skip_all
-)]
 async fn multi_device_missed_group_deletion_is_found_by_resync() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     let (second_device, _tmp) = link_new_device(&setup, &alice).await;
     // Onboarding into the pre-existing group runs in the background.
@@ -1328,14 +1299,13 @@ async fn multi_device_missed_group_deletion_is_found_by_resync() -> anyhow::Resu
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test a deleted group takes no further operations", skip_all)]
 async fn multi_device_deleted_group_takes_no_further_operations() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     let (second_device, _tmp) = link_new_device(&setup, &alice).await;
     second_device.outbound_service().run_once().await;
@@ -1361,17 +1331,13 @@ async fn multi_device_deleted_group_takes_no_further_operations() -> anyhow::Res
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(
-    name = "Test a message to a deleted group announces the deletion",
-    skip_all
-)]
 async fn multi_device_message_to_deleted_group_announces_the_deletion() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     let (second_device, _tmp) = link_new_device(&setup, &alice).await;
     second_device.outbound_service().run_once().await;
@@ -1418,14 +1384,13 @@ async fn assert_deletion_announced(device: &CoreUser, chat_id: ChatId, deleter: 
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test a local deletion reaches the sibling", skip_all)]
 async fn multi_device_deleted_message_is_removed_from_sibling() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     let (second_device, _tmp) = link_new_device(&setup, &alice).await;
     // Onboarding into the pre-existing group runs in the background.
@@ -1511,7 +1476,6 @@ async fn multi_device_deleted_message_is_removed_from_sibling() -> anyhow::Resul
 // sibling registered. The provisioning package therefore carries the redeemed
 // positions, pending or not.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test a new device skips redeemed tokens", skip_all)]
 async fn multi_device_new_device_skips_redeemed_tokens() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1605,7 +1569,6 @@ async fn assert_link_rejected_at_limit(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test device limit", skip_all)]
 async fn multi_device_link_rejected_at_device_limit() -> anyhow::Result<()> {
     let mut setup = TestBackend::single_with_params(TestBackendParams {
         max_devices: Some(2),
@@ -1647,7 +1610,6 @@ async fn multi_device_link_rejected_at_device_limit() -> anyhow::Result<()> {
 /// A self group above the device limit (e.g. after the limit was lowered)
 /// still accepts commits that don't grow it, so the user can sync and unlink.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test self group above the device limit", skip_all)]
 async fn multi_device_self_group_above_limit_can_shrink() -> anyhow::Result<()> {
     let mut setup = TestBackend::single_with_params(TestBackendParams {
         max_devices: Some(3),
@@ -1723,7 +1685,6 @@ async fn multi_device_self_group_above_limit_can_shrink() -> anyhow::Result<()> 
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test linking a third device", skip_all)]
 async fn multi_device_linking_a_third_device() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1735,9 +1696,7 @@ async fn multi_device_linking_a_third_device() {
     // commits are broadcast to all of Alice's emulator queues. The connection
     // group with bob is a second such group.
     let group_chat_id = setup.create_group(&alice).await;
-    setup
-        .invite_to_group(group_chat_id, &alice, vec![&bob])
-        .await;
+    setup.invite_to_group(group_chat_id, &alice, &[&bob]).await;
 
     let (device_2, _tmp_2) = link_new_device(&setup, &alice).await;
     // Device 2's onboarding replaces Alice's own, not-yet-virtual leaf, and
@@ -1829,7 +1788,6 @@ async fn multi_device_linking_a_third_device() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test onboarding after the self group advanced", skip_all)]
 async fn multi_device_onboarding_after_self_group_advanced() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1837,9 +1795,7 @@ async fn multi_device_onboarding_after_self_group_advanced() {
     setup.connect_users(&alice, &bob).await;
 
     let group_chat_id = setup.create_group(&alice).await;
-    setup
-        .invite_to_group(group_chat_id, &alice, vec![&bob])
-        .await;
+    setup.invite_to_group(group_chat_id, &alice, &[&bob]).await;
 
     let (device_2, _tmp_2) = link_new_device(&setup, &alice).await;
     device_2.outbound_service().run_once().await;
@@ -1901,7 +1857,6 @@ async fn multi_device_onboarding_after_self_group_advanced() {
 // Linking a third device fans the add commit out to the existing non-initiating
 // device, which must process the self-group add without desynchronizing.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test third device link keeps siblings in sync", skip_all)]
 async fn multi_device_third_device_link() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1945,7 +1900,6 @@ async fn multi_device_third_device_link() {
 /// key. A leaf built with the regular user credential defaults would be
 /// rejected by the DS and by the sibling (RFC 9420 valn0104).
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test self-update in the self group", skip_all)]
 async fn multi_device_self_update_in_self_group() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -2237,7 +2191,6 @@ async fn multi_device_rename_propagates_to_the_sibling() -> anyhow::Result<()> {
 /// commit replaces the shared virtual-client leaf, so it has to be derived from
 /// the self group's emulation epoch.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Remove a member from a linked device", skip_all)]
 async fn multi_device_remove_member_from_linked_device() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -2248,7 +2201,7 @@ async fn multi_device_remove_member_from_linked_device() -> anyhow::Result<()> {
 
     let chat_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
 
     let (new_device, _tmp) = link_new_device(&setup, &alice).await;
@@ -2284,7 +2237,6 @@ async fn multi_device_remove_member_from_linked_device() -> anyhow::Result<()> {
 /// able to run a group operation: those encrypt the own user profile key for
 /// the commit, so the device has to keep knowing which key is its own.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Remove a member after a profile rotation", skip_all)]
 async fn multi_device_remove_member_after_sibling_rotated_the_profile() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -2295,7 +2247,7 @@ async fn multi_device_remove_member_after_sibling_rotated_the_profile() -> anyho
 
     let chat_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
 
     let (new_device, _tmp) = link_new_device(&setup, &alice).await;
@@ -2338,7 +2290,6 @@ async fn multi_device_remove_member_after_sibling_rotated_the_profile() -> anyho
 /// capabilities. Rejoining with the user credential would be rejected, since
 /// the self group accepts only self-group credentials.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test resync of the self group", skip_all)]
 async fn multi_device_self_group_resync() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -2390,7 +2341,6 @@ async fn multi_device_self_group_resync() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test a linked device inherits connection chats", skip_all)]
 async fn multi_device_inherits_connection_chats() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -2491,7 +2441,6 @@ async fn multi_device_inherits_connection_chats() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test blocked connection chats are not inherited", skip_all)]
 async fn multi_device_skips_blocked_connection_chats() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -2538,7 +2487,6 @@ async fn one_unread_message_on_both_devices(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test read markers follow a sibling", skip_all)]
 async fn multi_device_read_markers_follow_a_sibling() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -2604,7 +2552,6 @@ async fn multi_device_read_markers_follow_a_sibling() {
 
 /// With read receipts disabled, the read receipts travel through the self group.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test read markers via the self group", skip_all)]
 async fn multi_device_read_markers_via_the_self_group() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -2666,7 +2613,6 @@ async fn multi_device_read_markers_via_the_self_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test an own echo confirms an unconfirmed send", skip_all)]
 async fn multi_device_own_echo_confirms_unconfirmed_send() {
     const TEXT: &str = "the DS response to this one got lost";
 
@@ -2775,7 +2721,6 @@ async fn multi_device_own_echo_confirms_unconfirmed_send() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test an own echo confirms an unconfirmed edit", skip_all)]
 async fn multi_device_own_echo_confirms_unconfirmed_edit() {
     const TEXT: &str = "original text";
     const EDITED_TEXT: &str = "edited, the DS response to this one got lost";
@@ -2906,7 +2851,7 @@ async fn setup_group_with_linked_device() -> (
 
     let chat_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
 
     let (new_device, tmp) = link_new_device(&setup, &alice).await;
@@ -3069,7 +3014,6 @@ async fn leave_and_follow(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Leave a group from the linked device", skip_all)]
 async fn multi_device_leave_from_linked_device_is_followed_by_the_sibling() {
     let (setup, alice, bob, charlie, chat_id, new_device, _tmp) =
         setup_group_with_linked_device().await;
@@ -3088,7 +3032,6 @@ async fn multi_device_leave_from_linked_device_is_followed_by_the_sibling() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Leave a group from the old device", skip_all)]
 async fn multi_device_leave_from_old_device_is_followed_by_the_linked_device() {
     let (setup, alice, bob, charlie, chat_id, new_device, _tmp) =
         setup_group_with_linked_device().await;
@@ -3110,7 +3053,6 @@ async fn multi_device_leave_from_old_device_is_followed_by_the_linked_device() {
 /// DS fans the retry out to the shared leaf again, and the sibling must treat
 /// it as the duplicate it is.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Retried leave is ignored by the sibling", skip_all)]
 async fn multi_device_retried_leave_is_ignored_by_the_sibling() {
     let (setup, alice, bob, charlie, chat_id, new_device, _tmp) =
         setup_group_with_linked_device().await;
@@ -3173,7 +3115,6 @@ async fn multi_device_retried_leave_is_ignored_by_the_sibling() {
 /// with a duplicate record or a stuck pending operation, and the group must
 /// still converge on the commit.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Both devices leave before the commit", skip_all)]
 async fn multi_device_both_devices_leave_before_the_commit() {
     let (setup, alice, bob, charlie, chat_id, new_device, _tmp) =
         setup_group_with_linked_device().await;
@@ -3326,7 +3267,6 @@ fn client_db_files(db_path: &std::path::Path) -> Vec<String> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test cancelled provisioning", skip_all)]
 async fn multi_device_cancelled_provisioning_leaves_no_client() -> anyhow::Result<()> {
     let setup = TestBackend::single().await;
     let tmp = TempDir::new()?;

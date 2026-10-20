@@ -39,7 +39,6 @@ pub(crate) fn test_picture_bytes() -> Vec<u8> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Send attachment test", skip_all)]
 async fn send_attachment() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -48,7 +47,7 @@ async fn send_attachment() {
 
     let attachment = vec![0x00, 0x01, 0x02, 0x03];
     let (_message_id, external_part) = setup
-        .send_attachment(chat_id, &alice, vec![&bob], &attachment, "test.bin")
+        .send_attachment(chat_id, &alice, &[&bob], &attachment, "test.bin")
         .await
         .unwrap();
 
@@ -111,7 +110,6 @@ async fn send_attachment() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Send image attachment test", skip_all)]
 async fn send_image_attachment() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -131,7 +129,7 @@ async fn send_image_attachment() {
 
     let attachment = BASE64_STANDARD.decode(SAMPLE_PNG_BASE64).unwrap();
     let (_message_id, external_part) = setup
-        .send_attachment(chat_id, &alice, vec![&bob], &attachment, "test.png")
+        .send_attachment(chat_id, &alice, &[&bob], &attachment, "test.png")
         .await
         .unwrap();
 
@@ -203,7 +201,6 @@ async fn send_image_attachment() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Attachment too large", skip_all)]
 async fn attachment_too_large() {
     const MAX_ATTACHMENT_SIZE: u64 = 1023;
 
@@ -223,7 +220,7 @@ async fn attachment_too_large() {
     let encrypted_size = attachment.len() as u64 + 2 + 16;
 
     let result = setup
-        .send_attachment(chat_id, &alice, vec![&bob], &attachment, "test.bin")
+        .send_attachment(chat_id, &alice, &[&bob], &attachment, "test.bin")
         .await;
     let error = result.unwrap_err();
     match error {

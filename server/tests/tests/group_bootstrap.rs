@@ -178,19 +178,16 @@ async fn sibling_follows_a_created_group_chat(apq: bool) {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Sibling follows a created group chat", skip_all)]
 async fn sibling_follows_a_created_t_group_chat() {
     sibling_follows_a_created_group_chat(false).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Sibling follows a created APQ group chat", skip_all)]
 async fn sibling_follows_a_created_apq_group_chat() {
     sibling_follows_a_created_group_chat(true).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Acting device ignores its own echo", skip_all)]
 async fn the_acting_devices_own_echo_is_ignored() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -251,7 +248,6 @@ async fn the_acting_devices_own_echo_is_ignored() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Sibling follows an accepted connection", skip_all)]
 async fn sibling_follows_an_accepted_connection() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -345,7 +341,6 @@ async fn sibling_follows_an_accepted_connection() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Sibling mirrors a handle-initiated connection", skip_all)]
 async fn sibling_mirrors_a_handle_initiated_connection() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -427,7 +422,6 @@ async fn sibling_mirrors_a_handle_initiated_connection() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Sibling mirrors a targeted-message connection", skip_all)]
 async fn sibling_mirrors_a_targeted_message_connection() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -440,7 +434,7 @@ async fn sibling_mirrors_a_targeted_message_connection() {
     setup.connect_users(&bob, &charlie).await;
     let group_chat_id = setup.create_group(&bob).await;
     setup
-        .invite_to_group(group_chat_id, &bob, vec![&alice, &charlie])
+        .invite_to_group(group_chat_id, &bob, &[&alice, &charlie])
         .await;
 
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
@@ -527,7 +521,6 @@ async fn sibling_mirrors_a_targeted_message_connection() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Offline sibling catches up on a created group", skip_all)]
 async fn offline_sibling_catches_up_on_a_created_group() {
     const TEXT: &str = "sent while the sibling was away";
 
@@ -581,10 +574,6 @@ async fn offline_sibling_catches_up_on_a_created_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(
-    name = "Offline sibling catches up on an accepted connection",
-    skip_all
-)]
 async fn offline_sibling_catches_up_on_an_accepted_connection() {
     const TEXT: &str = "sent while the sibling was away";
 
@@ -647,7 +636,6 @@ async fn offline_sibling_catches_up_on_an_accepted_connection() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "A rejected group chat produces no echo", skip_all)]
 async fn a_rejected_group_chat_produces_no_echo() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -698,7 +686,6 @@ async fn a_rejected_group_chat_produces_no_echo() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "A rejected creation produces no echo", skip_all)]
 async fn a_rejected_creation_produces_no_echo() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -769,7 +756,6 @@ async fn a_rejected_creation_produces_no_echo() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "A rejected join produces no echo", skip_all)]
 async fn a_rejected_join_produces_no_echo() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -825,7 +811,6 @@ async fn a_rejected_join_produces_no_echo() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "A failed offer send keeps the created group", skip_all)]
 async fn a_failed_offer_send_keeps_the_created_group() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -836,7 +821,7 @@ async fn a_failed_offer_send_keeps_the_created_group() {
     setup.connect_users(&bob, &charlie).await;
     let group_chat_id = setup.create_group(&bob).await;
     setup
-        .invite_to_group(group_chat_id, &bob, vec![&alice, &charlie])
+        .invite_to_group(group_chat_id, &bob, &[&alice, &charlie])
         .await;
 
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;

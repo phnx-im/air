@@ -15,7 +15,6 @@ use mimi_content::{MessageStatus, MimiContent};
 use rand::{RngExt, distr::Alphanumeric};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Edit message", skip_all)]
 async fn edit_message() {
     let mut setup = TestBackend::single().await;
 
@@ -27,14 +26,13 @@ async fn edit_message() {
     let chat_alice_bob = setup.connect_users(&alice, &bob).await;
 
     setup
-        .send_message(chat_alice_bob, &alice, vec![&bob], None)
+        .send_message(chat_alice_bob, &alice, &[&bob], None)
         .await;
 
-    setup.edit_message(chat_alice_bob, &alice, vec![&bob]).await;
+    setup.edit_message(chat_alice_bob, &alice, &[&bob]).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Edit delivered while original receipt queued", skip_all)]
 async fn edit_is_delivered_when_original_receipt_is_still_queued() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -85,14 +83,13 @@ async fn own_message_status(user: &CoreUser, message_id: MessageId) -> MessageSt
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Stale read receipt does not apply to edit", skip_all)]
 async fn stale_read_receipt_does_not_apply_to_edited_message() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    let sent = setup.send_message(chat_id, &alice, &[&bob], None).await;
     let message_id = sent.own_message_id;
     let alice_user = setup.user(&alice);
     let bob_user = setup.user(&bob);
@@ -125,7 +122,6 @@ async fn stale_read_receipt_does_not_apply_to_edited_message() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Delete message", skip_all)]
 async fn delete_message() {
     let mut setup = TestBackend::single().await;
 
@@ -137,7 +133,7 @@ async fn delete_message() {
     let chat_alice_bob = setup.connect_users(&alice, &bob).await;
 
     setup
-        .send_message(chat_alice_bob, &alice, vec![&bob], None)
+        .send_message(chat_alice_bob, &alice, &[&bob], None)
         .await;
 
     let alice_user = setup.user(&alice);
@@ -154,7 +150,7 @@ async fn delete_message() {
 
     assert!(
         !setup
-            .scan_database(&string, false, vec![&alice, &bob])
+            .scan_database(&string, false, &[&alice, &bob])
             .await
             .is_empty(),
     );
@@ -164,7 +160,7 @@ async fn delete_message() {
     assert_eq!(alice_user.global_unread_messages_count().await.unwrap(), 0);
 
     setup
-        .delete_message(&alice, vec![&bob], last_message.id())
+        .delete_message(&alice, &[&bob], last_message.id())
         .await;
 
     // After delete-for-everyone, Alice should still have 0 unread messages
@@ -172,15 +168,12 @@ async fn delete_message() {
     assert_eq!(alice_user.global_unread_messages_count().await.unwrap(), 0);
 
     assert_eq!(
-        setup
-            .scan_database(&string, false, vec![&alice, &bob])
-            .await,
+        setup.scan_database(&string, false, &[&alice, &bob]).await,
         Vec::<String>::new()
     );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "No receipts for a deletion", skip_all)]
 async fn no_receipts_for_deleted_message() {
     let mut setup = TestBackend::single().await;
 
@@ -189,7 +182,7 @@ async fn no_receipts_for_deleted_message() {
     let chat_alice_bob = setup.connect_users(&alice, &bob).await;
 
     setup
-        .send_message(chat_alice_bob, &alice, vec![&bob], None)
+        .send_message(chat_alice_bob, &alice, &[&bob], None)
         .await;
 
     let message_id = setup
@@ -198,7 +191,7 @@ async fn no_receipts_for_deleted_message() {
         .await
         .id();
 
-    setup.delete_message(&alice, vec![&bob], message_id).await;
+    setup.delete_message(&alice, &[&bob], message_id).await;
 
     // Bob has processed the deletion, so anything he scheduled for it goes out
     // now.
@@ -221,7 +214,6 @@ async fn no_receipts_for_deleted_message() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Delete messages that were replied to", skip_all)]
 async fn delete_messages_and_check_replies() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
 
@@ -231,18 +223,18 @@ async fn delete_messages_and_check_replies() -> anyhow::Result<()> {
     let chat_alice_bob = setup.connect_users(&alice, &bob).await;
 
     let alice_says_hi_to_bob = setup
-        .send_message(chat_alice_bob, &alice, vec![&bob], None)
+        .send_message(chat_alice_bob, &alice, &[&bob], None)
         .await;
 
     let bob_says_hi_to_alice = setup
-        .send_message(chat_alice_bob, &bob, vec![&alice], None)
+        .send_message(chat_alice_bob, &bob, &[&alice], None)
         .await;
 
     let bob_replies_to_alice = setup
         .send_message(
             chat_alice_bob,
             &bob,
-            vec![&alice],
+            &[&alice],
             Some(&alice_says_hi_to_bob.mimi_id),
         )
         .await;
@@ -252,14 +244,14 @@ async fn delete_messages_and_check_replies() -> anyhow::Result<()> {
         .send_message(
             chat_alice_bob,
             &bob,
-            vec![&alice],
+            &[&alice],
             Some(&bob_says_hi_to_alice.mimi_id),
         )
         .await;
 
     // Alice deletes her original message for everyone
     setup
-        .delete_message(&alice, vec![&bob], alice_says_hi_to_bob.own_message_id)
+        .delete_message(&alice, &[&bob], alice_says_hi_to_bob.own_message_id)
         .await;
 
     // Check that the reply show that they're deleted on Alice's device
@@ -350,7 +342,6 @@ async fn delete_messages_and_check_replies() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Message retrieval test", skip_all)]
 async fn retrieve_chat_messages() {
     let mut setup = TestBackend::single().await;
 
@@ -389,7 +380,6 @@ async fn retrieve_chat_messages() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Marking messages as read test", skip_all)]
 async fn mark_as_read() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -497,7 +487,6 @@ async fn mark_as_read() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Read receipts setting test", skip_all)]
 async fn read_receipts_setting() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -571,7 +560,6 @@ async fn read_receipts_setting() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Delete message in group", skip_all)]
 async fn delete_message_in_group() {
     let mut setup = TestBackend::single().await;
 
@@ -587,12 +575,12 @@ async fn delete_message_in_group() {
     // Create a group and invite bob and charlie
     let group_chat = setup.create_group(&alice).await;
     setup
-        .invite_to_group(group_chat, &alice, vec![&bob, &charlie])
+        .invite_to_group(group_chat, &alice, &[&bob, &charlie])
         .await;
 
     // Alice sends a message to the group
     setup
-        .send_message(group_chat, &alice, vec![&bob, &charlie], None)
+        .send_message(group_chat, &alice, &[&bob, &charlie], None)
         .await;
 
     // Get the message content before deletion
@@ -608,20 +596,20 @@ async fn delete_message_in_group() {
     // Verify message exists on all users
     assert!(
         !setup
-            .scan_database(&original_content, false, vec![&alice, &bob, &charlie])
+            .scan_database(&original_content, false, &[&alice, &bob, &charlie])
             .await
             .is_empty()
     );
 
     // Alice deletes the message
     setup
-        .delete_message(&alice, vec![&bob, &charlie], last_message.id())
+        .delete_message(&alice, &[&bob, &charlie], last_message.id())
         .await;
 
     // Verify the content is no longer in any database
     assert_eq!(
         setup
-            .scan_database(&original_content, false, vec![&alice, &bob, &charlie])
+            .scan_database(&original_content, false, &[&alice, &bob, &charlie])
             .await,
         Vec::<String>::new()
     );
@@ -648,7 +636,6 @@ async fn delete_message_in_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Delete message preserves other messages", skip_all)]
 async fn delete_message_preserves_other_messages() {
     let mut setup = TestBackend::single().await;
 
@@ -754,7 +741,6 @@ async fn delete_message_preserves_other_messages() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Delete edited message", skip_all)]
 async fn delete_edited_message() {
     let mut setup = TestBackend::single().await;
 
@@ -764,10 +750,10 @@ async fn delete_edited_message() {
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     // Alice sends a message
-    setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    setup.send_message(chat_id, &alice, &[&bob], None).await;
 
     // Alice edits the message
-    setup.edit_message(chat_id, &alice, vec![&bob]).await;
+    setup.edit_message(chat_id, &alice, &[&bob]).await;
 
     let alice_user = setup.user(&alice);
     let last_message = alice_user.expect_last_message(chat_id).await;
@@ -791,20 +777,20 @@ async fn delete_edited_message() {
     // Verify edited content exists
     assert!(
         !setup
-            .scan_database(&edited_content, false, vec![&alice, &bob])
+            .scan_database(&edited_content, false, &[&alice, &bob])
             .await
             .is_empty()
     );
 
     // Alice deletes the edited message
     setup
-        .delete_message(&alice, vec![&bob], last_message.id())
+        .delete_message(&alice, &[&bob], last_message.id())
         .await;
 
     // Verify the edited content is no longer present
     assert_eq!(
         setup
-            .scan_database(&edited_content, false, vec![&alice, &bob])
+            .scan_database(&edited_content, false, &[&alice, &bob])
             .await,
         Vec::<String>::new()
     );
@@ -866,7 +852,6 @@ async fn message_sending_failures() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Recoverable send failure is retried", skip_all)]
 async fn recoverable_send_failure_is_retried() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -924,7 +909,6 @@ async fn recoverable_send_failure_is_retried() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Lost DS response is retried and deduplicated", skip_all)]
 async fn lost_response_is_retried_and_deduplicated() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -981,7 +965,6 @@ async fn lost_response_is_retried_and_deduplicated() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Fatal send failure fails only that message", skip_all)]
 async fn fatal_send_failure_fails_only_that_message() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1059,7 +1042,6 @@ async fn fatal_send_failure_fails_only_that_message() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Sending commits pending proposals", skip_all)]
 async fn sending_commits_pending_proposals() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1071,7 +1053,7 @@ async fn sending_commits_pending_proposals() {
 
     let chat_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
 
     // Bob leaves, which proposes his own removal. Nobody commits it for Alice.
@@ -1137,7 +1119,6 @@ async fn sending_commits_pending_proposals() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Delete message with attachment", skip_all)]
 async fn delete_message_with_attachment() {
     let mut setup = TestBackend::single().await;
 
@@ -1153,7 +1134,7 @@ async fn delete_message_with_attachment() {
         .send_attachment(
             chat_id,
             &alice,
-            vec![&bob],
+            &[&bob],
             b"test attachment data",
             "test.bin",
         )
@@ -1316,7 +1297,6 @@ async fn delete_message_with_attachment() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Send message collision tags: no collision", skip_all)]
 async fn send_message_collision_tags_no_collision() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1338,7 +1318,6 @@ async fn send_message_collision_tags_no_collision() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Send message collision tags: first tag collides", skip_all)]
 async fn send_message_collision_tags_first_collides() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1378,7 +1357,6 @@ async fn send_message_collision_tags_first_collides() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Send message collision tags: second tag collides", skip_all)]
 async fn send_message_collision_tags_second_collides() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1418,7 +1396,6 @@ async fn send_message_collision_tags_second_collides() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Send message collision tags: all tags collide", skip_all)]
 async fn send_message_collision_tags_all_collide() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1449,7 +1426,6 @@ async fn send_message_collision_tags_all_collide() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Send message collision tags: from different users", skip_all)]
 async fn send_message_collision_tags_from_different_users_never_collide() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1473,7 +1449,6 @@ async fn send_message_collision_tags_from_different_users_never_collide() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "React to a message", skip_all)]
 async fn react_to_message() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1481,7 +1456,7 @@ async fn react_to_message() {
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     // Alice sends a message; Bob reacts to it.
-    let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    let sent = setup.send_message(chat_id, &alice, &[&bob], None).await;
 
     let bob_user = setup.user(&bob);
     bob_user
@@ -1512,14 +1487,13 @@ async fn react_to_message() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Delete a reaction", skip_all)]
 async fn delete_reaction() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    let sent = setup.send_message(chat_id, &alice, &[&bob], None).await;
 
     let bob_user = setup.user(&bob);
     bob_user
@@ -1565,14 +1539,13 @@ async fn delete_reaction() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Queued reaction survives network error", skip_all)]
 async fn queued_reaction_survives_network_error() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    let sent = setup.send_message(chat_id, &alice, &[&bob], None).await;
     let bob_target = sent.recipient_message_id(&bob);
 
     let bob_user = setup.user(&bob);
@@ -1611,14 +1584,13 @@ async fn queued_reaction_survives_network_error() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Reaction add and retract stay in order", skip_all)]
 async fn reaction_add_and_retract_stay_in_order() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    let sent = setup.send_message(chat_id, &alice, &[&bob], None).await;
     let bob_target = sent.recipient_message_id(&bob);
 
     let bob_user = setup.user(&bob);
@@ -1657,14 +1629,13 @@ async fn reaction_add_and_retract_stay_in_order() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Multiple reactions per user", skip_all)]
 async fn multiple_reactions_per_user() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    let sent = setup.send_message(chat_id, &alice, &[&bob], None).await;
     let bob_target = sent.recipient_message_id(&bob);
 
     let bob_user = setup.user(&bob);
@@ -1696,7 +1667,6 @@ async fn multiple_reactions_per_user() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Reactions in a group", skip_all)]
 async fn reactions_in_group() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1708,12 +1678,12 @@ async fn reactions_in_group() {
 
     let group_chat = setup.create_group(&alice).await;
     setup
-        .invite_to_group(group_chat, &alice, vec![&bob, &charlie])
+        .invite_to_group(group_chat, &alice, &[&bob, &charlie])
         .await;
 
     // Alice posts; Bob and Charlie each react with a different emoji.
     let sent = setup
-        .send_message(group_chat, &alice, vec![&bob, &charlie], None)
+        .send_message(group_chat, &alice, &[&bob, &charlie], None)
         .await;
 
     let bob_user = setup.user(&bob);
@@ -1747,7 +1717,6 @@ async fn reactions_in_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Notified about reactions on own message", skip_all)]
 async fn react_notifies_message_author() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1755,7 +1724,7 @@ async fn react_notifies_message_author() {
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     // Alice sends a message; Bob reacts to it.
-    let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    let sent = setup.send_message(chat_id, &alice, &[&bob], None).await;
     let bob_user = setup.user(&bob);
     bob_user
         .send_reaction(chat_id, sent.recipient_message_id(&bob), "🫪".to_owned())
@@ -1781,7 +1750,6 @@ async fn react_notifies_message_author() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "No notification for reactions on others' messages", skip_all)]
 async fn no_notification_for_reaction_on_others_message() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1793,12 +1761,12 @@ async fn no_notification_for_reaction_on_others_message() {
 
     let group_chat = setup.create_group(&alice).await;
     setup
-        .invite_to_group(group_chat, &alice, vec![&bob, &charlie])
+        .invite_to_group(group_chat, &alice, &[&bob, &charlie])
         .await;
 
     // Bob posts; Charlie reacts to Bob's message.
     let sent = setup
-        .send_message(group_chat, &bob, vec![&alice, &charlie], None)
+        .send_message(group_chat, &bob, &[&alice, &charlie], None)
         .await;
     let charlie_user = setup.user(&charlie);
     charlie_user
@@ -1844,7 +1812,6 @@ async fn process_replayed_edit(user: &CoreUser) {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Replayed edits are ignored", skip_all)]
 async fn edit_replay_is_ignored() {
     let mut setup = TestBackend::single().await;
 
@@ -1852,8 +1819,8 @@ async fn edit_replay_is_ignored() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    setup.send_message(chat_id, &alice, vec![&bob], None).await;
-    let message_id = setup.edit_message(chat_id, &alice, vec![&bob]).await;
+    setup.send_message(chat_id, &alice, &[&bob], None).await;
+    let message_id = setup.edit_message(chat_id, &alice, &[&bob]).await;
     let first_edit = stored_content(setup.user(&alice), message_id).await;
 
     // Bob receives the first edit a second time. The replay must not be
@@ -1867,7 +1834,7 @@ async fn edit_replay_is_ignored() {
 
     // A second edit still applies. A replay that lands in the edit history
     // would block it.
-    setup.edit_message(chat_id, &alice, vec![&bob]).await;
+    setup.edit_message(chat_id, &alice, &[&bob]).await;
     let second_edit = stored_content(setup.user(&alice), message_id).await;
 
     // Bob receives the first edit a third time, now as a superseded version.
@@ -1887,11 +1854,10 @@ async fn edit_replay_is_ignored() {
     );
 
     // The replays did not pollute the edit history: a third edit applies.
-    setup.edit_message(chat_id, &alice, vec![&bob]).await;
+    setup.edit_message(chat_id, &alice, &[&bob]).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Peer read receipt keeps our unread count", skip_all)]
 async fn peer_read_receipt_does_not_move_our_read_marker() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1902,7 +1868,7 @@ async fn peer_read_receipt_does_not_move_our_read_marker() {
 
     let group_chat_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(group_chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(group_chat_id, &alice, &[&bob, &charlie])
         .await;
 
     // The invite helper leaves a message from every member behind. Clear Alice's
@@ -1916,7 +1882,7 @@ async fn peer_read_receipt_does_not_move_our_read_marker() {
 
     // Charlie writes. Neither Alice nor Bob has read it.
     let sent = setup
-        .send_message(group_chat_id, &charlie, vec![&alice, &bob], None)
+        .send_message(group_chat_id, &charlie, &[&alice, &bob], None)
         .await;
 
     let alice_user = setup.user(&alice);

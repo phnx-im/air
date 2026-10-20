@@ -15,7 +15,6 @@ use tracing::info;
 /// The test spawns a processing task and aborts it at a random point in its execution,
 /// repeating until all messages are known to be accessible or a loss is detected.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-#[tracing::instrument(name = "Process QS messages cancellation safety", skip_all)]
 async fn process_qs_messages_cancellation_safety() {
     let mut setup = TestBackend::single().await;
 

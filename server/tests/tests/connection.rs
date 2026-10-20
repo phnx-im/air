@@ -21,7 +21,6 @@ use tokio::task::spawn_blocking;
 use tokio_stream::StreamExt;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Connect users test", skip_all)]
 async fn connect_users_via_user_handle() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -72,7 +71,6 @@ async fn connect_users_via_user_handle() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "A connection request spends a token", skip_all)]
 async fn connection_request_spends_a_token() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -124,7 +122,6 @@ async fn connection_request_spends_a_token() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Connect users via signed connection package", skip_all)]
 async fn connect_users_via_user_handle_uses_signed_package() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -170,7 +167,6 @@ async fn drain_connection_packages(client: &ApiClient, hash: UsernameHash) -> an
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Signed connection package upload task", skip_all)]
 async fn signed_connection_package_upload_task_replenishes_username() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let bob = setup.add_user().await;
@@ -211,7 +207,6 @@ async fn signed_connection_package_upload_task_replenishes_username() -> anyhow:
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Signed connection package upload task retry", skip_all)]
 async fn signed_connection_package_upload_task_retries_pending_username() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let bob = setup.add_user().await;
@@ -252,10 +247,6 @@ async fn signed_connection_package_upload_task_retries_pending_username() -> any
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(
-    name = "Signed connection package upload task unknown username",
-    skip_all
-)]
 async fn signed_connection_package_upload_task_drops_unknown_username() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let bob = setup.add_user().await;
@@ -279,7 +270,6 @@ async fn signed_connection_package_upload_task_drops_unknown_username() -> anyho
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Connect users via targeted message", skip_all)]
 async fn connect_users_via_targeted_message() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -293,7 +283,7 @@ async fn connect_users_via_targeted_message() {
     // Alice creates a group and invites Bob and Charlie
     let group_chat_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(group_chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(group_chat_id, &alice, &[&bob, &charlie])
         .await;
 
     // Bob now connects to Charlie via a targeted message sent through the
@@ -436,7 +426,6 @@ async fn connect_from_group(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Connect users via user handle in APQ mode", skip_all)]
 async fn connect_users_via_user_handle_apq() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -446,7 +435,6 @@ async fn connect_users_via_user_handle_apq() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Connection group stays T when APQ is not requested", skip_all)]
 async fn connect_users_via_user_handle_not_requested_stays_t() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -457,7 +445,6 @@ async fn connect_users_via_user_handle_not_requested_stays_t() {
 /// The connection request rides the APQ origin group as a T targeted message, and the connection
 /// group itself is APQ.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Connect users via targeted message in APQ mode", skip_all)]
 async fn connect_users_via_targeted_message_apq() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -469,7 +456,7 @@ async fn connect_users_via_targeted_message_apq() {
 
     let group_chat_id = setup.create_apq_group(&alice).await;
     setup
-        .invite_to_group(group_chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(group_chat_id, &alice, &[&bob, &charlie])
         .await;
 
     let (bob_chat_id, charlie_chat_id) =
@@ -481,16 +468,15 @@ async fn connect_users_via_targeted_message_apq() {
     assert_eq!(charlie_user.chat_is_apq(charlie_chat_id).await, Some(true));
 
     setup
-        .send_message(bob_chat_id, &bob, vec![&charlie], None)
+        .send_message(bob_chat_id, &bob, &[&charlie], None)
         .await;
     setup
-        .send_message(bob_chat_id, &charlie, vec![&bob], None)
+        .send_message(bob_chat_id, &charlie, &[&bob], None)
         .await;
 }
 
 /// A connection group is resynced with the same machinery as any other group.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Resync connection group", skip_all)]
 async fn resync_connection_group() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -508,8 +494,8 @@ async fn resync_connection_group() {
     let alice_user = setup.user(&alice);
     alice_user.drain().await;
 
-    setup.send_message(chat_id, &bob, vec![&alice], None).await;
-    setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    setup.send_message(chat_id, &bob, &[&alice], None).await;
+    setup.send_message(chat_id, &alice, &[&bob], None).await;
 
     // A commit touching both legs after the resync shows that they are at compatible epochs.
     if setup.apq_groups {
@@ -521,7 +507,6 @@ async fn resync_connection_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Sanity checks for targeted message connections", skip_all)]
 async fn sanity_checks_for_targeted_message_connections() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -535,7 +520,7 @@ async fn sanity_checks_for_targeted_message_connections() {
     // Alice creates a group and invites Bob and Charlie
     let group_chat_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(group_chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(group_chat_id, &alice, &[&bob, &charlie])
         .await;
 
     // Alice shouldn't be able to add Bob as a contact from the group, since they are already connected.
@@ -569,7 +554,6 @@ async fn sanity_checks_for_targeted_message_connections() {
 /// Test that the timestamp on a received connection request reflects when the
 /// request was sent (server's enqueue time), not when the recipient processed it.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Connection request timestamp test", skip_all)]
 async fn connection_request_has_server_timestamp() {
     let mut setup = TestBackend::single().await;
     let apq_groups = setup.apq_groups;
@@ -668,7 +652,6 @@ async fn connection_request_has_server_timestamp() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "DS records the connection group joiner", skip_all)]
 async fn ds_room_state_contains_connection_group_joiner() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;

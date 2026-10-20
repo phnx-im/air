@@ -62,14 +62,14 @@ async fn setup_group_with_contacts() -> (TestBackend, UserId, UserId, UserId, Ch
     setup.connect_users(&alice, &charlie).await;
 
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     (setup, alice, bob, charlie, chat_id)
 }
 
 async fn setup_group_with_charlie_member() -> (TestBackend, UserId, UserId, UserId, ChatId) {
     let (setup, alice, bob, charlie, chat_id) = setup_group_with_contacts().await;
-    setup.invite_to_group(chat_id, &alice, vec![&charlie]).await;
+    setup.invite_to_group(chat_id, &alice, &[&charlie]).await;
     (setup, alice, bob, charlie, chat_id)
 }
 
@@ -210,8 +210,8 @@ async fn setup_apq_group_with_charlie_member() -> (TestBackend, UserId, UserId, 
     setup.connect_users(&alice, &charlie).await;
 
     let chat_id = setup.create_apq_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
-    setup.invite_to_group(chat_id, &alice, vec![&charlie]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&charlie]).await;
 
     (setup, alice, bob, charlie, chat_id)
 }

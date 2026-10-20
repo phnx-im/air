@@ -52,7 +52,6 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Rate limit test", skip_all)]
 async fn rate_limit() {
     const PERIOD: Duration = Duration::from_millis(100);
     let mut setup = TestBackend::single_with_params(TestBackendParams {
@@ -135,7 +134,6 @@ async fn rate_limit() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "User deletion triggers", skip_all)]
 async fn user_deletion_triggers() {
     let mut setup = TestBackend::single().await;
     // Create alice and bob
@@ -153,7 +151,7 @@ async fn user_deletion_triggers() {
     // Alice creates a group and invites bob and charlie
     let chat_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
 
     // Bob should have a user profile for charlie now, even though they
@@ -233,7 +231,6 @@ async fn grpc_method_aliases() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Health check test", skip_all)]
 async fn health_check() {
     let setup = TestBackend::single().await;
     let channel = Channel::from_shared(setup.server_url().to_string())
@@ -267,7 +264,6 @@ async fn health_check() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Max past epochs", skip_all)]
 async fn max_past_epochs() {
     let mut setup = TestBackend::single().await;
 
@@ -320,7 +316,6 @@ async fn update_and_send_message(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Ratchet tolerance", skip_all)]
 async fn ratchet_tolerance() {
     let mut setup = TestBackend::single().await;
 
@@ -444,7 +439,6 @@ async fn ratchet_tolerance() {
 // }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Resync", skip_all)]
 async fn resync() {
     let mut setup = TestBackend::single().await;
 
@@ -458,7 +452,7 @@ async fn resync() {
     setup.connect_users(&alice, &charlie).await;
 
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     // To trigger resync, we have Alice add Charlie to the group and Bob
     // fetching, but not processing the commit.
@@ -517,7 +511,7 @@ async fn resync() {
 
     // Bob should have rejoined the group and should be able to send a message.
     setup
-        .send_message(chat_id, &bob, vec![&alice, &charlie], None)
+        .send_message(chat_id, &bob, &[&alice, &charlie], None)
         .await;
 
     // When Alice sends another message, Bob should be able to process it without errors.
@@ -615,9 +609,7 @@ async fn resync() {
     );
 
     // Messages should reach Charlie.
-    setup
-        .send_message(chat_id, &bob, vec![&charlie], None)
-        .await;
+    setup.send_message(chat_id, &bob, &[&charlie], None).await;
 
     // Charlie should also only see Bob in the group.
     let charlie_user = setup.user(&charlie);
@@ -632,7 +624,6 @@ async fn resync() {
 /// A wrong-epoch answer to our own commit parks it and nothing more. Only a message from an epoch
 /// ahead of ours schedules the resync.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Wrong epoch on own commit", skip_all)]
 async fn wrong_epoch_on_own_commit_does_not_resync() {
     let mut setup = TestBackend::single().await;
 
@@ -641,7 +632,7 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
     setup.connect_users(&alice, &bob).await;
 
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     // Alice commits. Bob acks the commit without processing it, so he is one epoch behind.
     let alice_user = setup.user(&alice);
@@ -706,7 +697,7 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
     // Alice processes Bob's rejoin and Bob can send again.
     alice_user.drain().await;
 
-    setup.send_message(chat_id, &bob, vec![&alice], None).await;
+    setup.send_message(chat_id, &bob, &[&alice], None).await;
 }
 
 /// When the DS returns "group not found" for a resync, the client must stop
@@ -717,7 +708,6 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
 /// test uses a fabricated group_id that only exists in the resync queue, so only
 /// the resync removal can be verified here.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Resync deleted group", skip_all)]
 async fn resync_group_not_found_cleans_up_local_state() {
     let mut setup = TestBackend::single().await;
 
@@ -726,7 +716,7 @@ async fn resync_group_not_found_cleans_up_local_state() {
     setup.connect_users(&alice, &bob).await;
 
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     // Enqueue a resync with a fabricated group_id that doesn't exist on the
     // server. This simulates a group that was deleted or garbage-collected
@@ -754,7 +744,6 @@ async fn resync_group_not_found_cleans_up_local_state() {
 /// Baseline test: resync for an existing group succeeds and the user can
 /// continue communicating normally afterwards.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Resync valid group", skip_all)]
 async fn resync_valid_group_succeeds() {
     let mut setup = TestBackend::single().await;
 
@@ -763,7 +752,7 @@ async fn resync_valid_group_succeeds() {
     setup.connect_users(&alice, &bob).await;
 
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     // Bob enqueues a resync for the group.
     let bob_user = setup.user(&bob);
@@ -786,7 +775,7 @@ async fn resync_valid_group_succeeds() {
     alice_user.drain().await;
 
     // Bob should be able to send messages normally.
-    setup.send_message(chat_id, &bob, vec![&alice], None).await;
+    setup.send_message(chat_id, &bob, &[&alice], None).await;
 
     // Alice performs a further commit-based operation (for APQ groups, one that touches both legs).
     // Bob must process it cleanly, which for APQ groups also verifies that the resync left the T
@@ -807,7 +796,6 @@ async fn resync_valid_group_succeeds() {
 /// the chat, which puts a pending SelfRemove proposal (for leaf index 2) on
 /// the DS. Alice resyncs first, then Dave; both resyncs must succeed.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Resync with blank leaf", skip_all)]
 async fn resync_with_blank_leaf_succeeds() {
     let mut setup = TestBackend::single().await;
 
@@ -821,12 +809,12 @@ async fn resync_with_blank_leaf_succeeds() {
 
     let chat_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie, &dave])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie, &dave])
         .await;
 
     // Removing Bob blanks his leaf, creating a hole in the leaf nodes.
     setup
-        .remove_from_group(chat_id, &alice, vec![&bob])
+        .remove_from_group(chat_id, &alice, &[&bob])
         .await
         .unwrap();
 
@@ -929,7 +917,6 @@ async fn resync_with_blank_leaf_succeeds() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Key Package Upload", skip_all)]
 async fn key_package_upload() {
     let mut setup = TestBackend::single_with_params(TestBackendParams::no_rate_limits()).await;
     let alice = setup.add_user().await;
@@ -996,7 +983,6 @@ async fn key_package_upload() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Invitation code", skip_all)]
 async fn invitation_code() {
     const UNREDEEMABLE_CODE: &str = "E111E000";
     let setup = TestBackend::single_with_params(TestBackendParams {
@@ -1065,7 +1051,6 @@ async fn invitation_code() {
 /// a challenge, and a challenge-verified registration that leaves the counters
 /// where they were.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Adaptive registration gate", skip_all)]
 async fn adaptive_registration_gate() {
     let setup = TestBackend::single_with_params(TestBackendParams {
         registration: adaptive_registration(2, 100),
@@ -1138,7 +1123,6 @@ async fn adaptive_registration_gate() {
 /// The total threshold closes the gate for an address that has registered
 /// nothing itself.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Adaptive registration total threshold", skip_all)]
 async fn adaptive_registration_total_threshold() {
     let setup = TestBackend::single_with_params(TestBackendParams {
         registration: adaptive_registration(100, 1),
@@ -1164,7 +1148,6 @@ async fn adaptive_registration_total_threshold() {
 /// An open gate leaves a code the request carried anyway unspent, so a gate
 /// that opens between discovery and registration does not burn it.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "An open gate ignores a code", skip_all)]
 async fn an_open_gate_ignores_a_code() {
     // Room to spare on both thresholds, so the gate is open while codes exist.
     let setup = TestBackend::single_with_params(TestBackendParams {
@@ -1187,7 +1170,6 @@ async fn an_open_gate_ignores_a_code() {
 /// The push-admission challenge end to end, from opening a session to finding
 /// the endpoint's quota spent.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Push admission registration", skip_all)]
 async fn push_admission_registration() {
     let setup = TestBackend::single_with_params(TestBackendParams {
         registration: RegistrationSettings {
@@ -1314,10 +1296,6 @@ fn adaptive_registration(per_ip: u64, total: u64) -> RegistrationSettings {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(
-    name = "Unsupported client version on listen username and queue",
-    skip_all
-)]
 async fn unsupported_client_version() {
     let setup = TestBackend::single_with_params(TestBackendParams {
         version_policy: VersionPolicy::new(vec![VersionExpiration {
@@ -1373,7 +1351,6 @@ async fn skip_version_status(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Version status on listen queue", skip_all)]
 async fn listen_queue_version_status() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1400,7 +1377,6 @@ async fn listen_queue_version_status() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Expiring version status on listen queue", skip_all)]
 async fn listen_queue_version_status_expiring() {
     let expires_on = Utc::now() + chrono::Duration::days(10);
     let mut setup = TestBackend::single_with_params(TestBackendParams {
@@ -1432,7 +1408,6 @@ async fn listen_queue_version_status_expiring() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Listen stream eviction", skip_all)]
 async fn listen_stream_eviction() {
     let mut setup = TestBackend::single_with_params(TestBackendParams {
         max_devices: Some(2),
@@ -1538,7 +1513,6 @@ async fn listen_stream_eviction() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Listen stream durable acks", skip_all)]
 async fn listen_stream_durable_acks() {
     let mut setup = TestBackend::single().await;
 

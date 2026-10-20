@@ -39,7 +39,6 @@ pub(crate) async fn add_second_username(setup: &TestBackend, user_id: &UserId) -
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Requests of one sender fold", skip_all)]
 async fn requests_of_one_sender_fold_into_the_chat_of_the_newest() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -102,7 +101,6 @@ async fn requests_of_one_sender_fold_into_the_chat_of_the_newest() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Older offer fetched after accepting", skip_all)]
 async fn an_offer_fetched_after_accepting_a_newer_one_is_dropped() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -142,7 +140,6 @@ async fn an_offer_fetched_after_accepting_a_newer_one_is_dropped() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Mutual requests", skip_all)]
 async fn crossed_requests_leave_one_connection() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -195,7 +192,6 @@ async fn crossed_requests_leave_one_connection() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Asking back from a group", skip_all)]
 async fn asking_back_from_a_group_opens_the_pending_request() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -206,7 +202,7 @@ async fn asking_back_from_a_group_opens_the_pending_request() {
     setup.connect_users(&charlie, &bob).await;
     let group_chat_id = setup.create_group(&charlie).await;
     setup
-        .invite_to_group(group_chat_id, &charlie, vec![&alice, &bob])
+        .invite_to_group(group_chat_id, &charlie, &[&alice, &bob])
         .await;
     let alice_user = setup.user(&alice);
     let bob_user = setup.user(&bob);

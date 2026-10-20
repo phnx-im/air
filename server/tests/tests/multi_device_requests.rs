@@ -33,7 +33,6 @@ async fn has_system_message(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Request received by a sibling", skip_all)]
 async fn request_fetched_by_one_device_reaches_its_sibling() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -106,7 +105,6 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Streamed forwarded request has the sender profile", skip_all)]
 async fn a_streamed_forwarded_request_has_the_sender_profile() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -162,7 +160,6 @@ async fn a_streamed_forwarded_request_has_the_sender_profile() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Sibling with the request follows the accept", skip_all)]
 async fn sibling_holding_the_request_follows_the_accept() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -219,7 +216,6 @@ async fn sibling_holding_the_request_follows_the_accept() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Sibling moves older requests into the accepted chat", skip_all)]
 async fn sibling_moves_older_requests_into_the_accepted_chat() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -297,7 +293,6 @@ async fn sibling_moves_older_requests_into_the_accepted_chat() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Sibling fetches a rotated sender profile", skip_all)]
 async fn sibling_fetches_the_profile_the_sender_rotated() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -338,7 +333,6 @@ async fn sibling_fetches_the_profile_the_sender_rotated() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Linked device gets open requests", skip_all)]
 async fn linked_device_gets_open_incoming_requests() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -351,7 +345,7 @@ async fn linked_device_gets_open_incoming_requests() {
     setup.connect_users(&dave, &charlie).await;
     let group_chat_id = setup.create_group(&dave).await;
     setup
-        .invite_to_group(group_chat_id, &dave, vec![&alice, &charlie])
+        .invite_to_group(group_chat_id, &dave, &[&alice, &charlie])
         .await;
     let record = setup.add_username(&alice).await;
     let device_a = setup.user(&alice);
@@ -456,7 +450,7 @@ async fn linked_device_gets_open_outgoing_requests(acceptance: Acceptance) {
     setup.connect_users(&dave, &charlie).await;
     let group_chat_id = setup.create_group(&dave).await;
     setup
-        .invite_to_group(group_chat_id, &dave, vec![&alice, &charlie])
+        .invite_to_group(group_chat_id, &dave, &[&alice, &charlie])
         .await;
     let record = setup.add_username(&bob).await;
     let device_a = setup.user(&alice);
@@ -574,25 +568,21 @@ async fn linked_device_gets_open_outgoing_requests(acceptance: Acceptance) {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Requests accepted after onboarding", skip_all)]
 async fn outgoing_requests_accepted_after_onboarding() {
     linked_device_gets_open_outgoing_requests(Acceptance::AfterOnboarding).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Requests accepted before onboarding, joins first", skip_all)]
 async fn outgoing_requests_accepted_before_onboarding_joins_first() {
     linked_device_gets_open_outgoing_requests(Acceptance::BeforeOnboardingJoinsFirst).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Requests accepted before onboarding, joins last", skip_all)]
 async fn outgoing_requests_accepted_before_onboarding_joins_last() {
     linked_device_gets_open_outgoing_requests(Acceptance::BeforeOnboardingJoinsLast).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Deleting a request chat before forwarding", skip_all)]
 async fn deleting_a_request_chat_before_forwarding_clears_the_sibling() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -640,7 +630,6 @@ async fn assert_erased(device: &CoreUser, chat_id: ChatId, label: &str) {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Retracted request", skip_all)]
 async fn retracting_a_request_makes_it_unavailable_to_the_recipient() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -702,7 +691,6 @@ async fn retracting_a_request_makes_it_unavailable_to_the_recipient() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Deleting an outgoing request", skip_all)]
 async fn deleting_an_outgoing_request_retracts_it() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -733,7 +721,6 @@ async fn deleting_an_outgoing_request_retracts_it() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Retracting offline", skip_all)]
 async fn retracting_offline_keeps_the_request() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -781,7 +768,6 @@ async fn retracting_offline_keeps_the_request() {
 /// Both devices retract the request before either learns about the other's
 /// retraction. The second one finds the group gone.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Retracting on both devices", skip_all)]
 async fn retracting_on_both_devices_erases_the_chat() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -829,7 +815,6 @@ async fn retracting_on_both_devices_erases_the_chat() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Accepting falls back to an older request", skip_all)]
 async fn accepting_falls_back_to_the_older_request() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -886,7 +871,6 @@ async fn accepting_falls_back_to_the_older_request() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Declined request leaves the sibling", skip_all)]
 async fn declining_a_request_removes_it_on_the_sibling() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -933,7 +917,6 @@ async fn declining_a_request_removes_it_on_the_sibling() {
 /// The blocking device knows only the first request. The second one is still
 /// waiting to be forwarded when the block arrives.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Blocking a request sender", skip_all)]
 async fn blocking_a_request_sender_declines_on_the_sibling() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -978,7 +961,6 @@ async fn blocking_a_request_sender_declines_on_the_sibling() {
 
 /// The sibling declines before it learns that the device accepted.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Decline racing an accept", skip_all)]
 async fn a_decline_racing_an_accept_keeps_the_connection() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1097,7 +1079,6 @@ async fn assert_sent_request_expired(device: &CoreUser, chat_id: ChatId, label: 
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Expired request", skip_all)]
 async fn an_expired_request_closes_on_the_sibling_and_is_unavailable() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1145,7 +1126,6 @@ async fn an_expired_request_closes_on_the_sibling_and_is_unavailable() {
 /// The DS echoes the delete of the expired request's group before its response
 /// arrives.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Echoed expiry delete", skip_all)]
 async fn an_echoed_expiry_delete_keeps_the_record() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1187,7 +1167,6 @@ async fn an_echoed_expiry_delete_keeps_the_record() {
 /// The device holding the username comes online after the deadline of a
 /// request sent to it.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Request fetched past its deadline", skip_all)]
 async fn a_request_fetched_past_its_deadline_is_dropped() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1233,7 +1212,6 @@ async fn a_request_fetched_past_its_deadline_is_dropped() {
 
 /// Both devices are online when the request expires.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Request expiring on both devices", skip_all)]
 async fn a_request_expiring_on_both_devices_keeps_one_record() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1263,7 +1241,6 @@ async fn a_request_expiring_on_both_devices_keeps_one_record() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Deleting expired requests", skip_all)]
 async fn expired_requests_go_when_the_user_chose_so() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;

@@ -23,7 +23,6 @@ use tracing::info;
 use super::attachment::test_picture_bytes;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Create group test", skip_all)]
 async fn create_group() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -31,7 +30,6 @@ async fn create_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Create empty group", skip_all)]
 async fn create_empty_group() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -53,7 +51,6 @@ async fn create_empty_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Invite to group test", skip_all)]
 async fn invite_to_group() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -63,12 +60,11 @@ async fn invite_to_group() {
     setup.connect_users(&alice, &charlie).await;
     let chat_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Invite to group test", skip_all)]
 async fn update_group() {
     let mut setup = TestBackend::single().await;
     info!("Adding users");
@@ -81,14 +77,13 @@ async fn update_group() {
     let chat_id = setup.create_group(&alice).await;
     info!("Inviting to group");
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
     info!("Updating group");
     setup.update_group(chat_id, &bob).await
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Remove from group test", skip_all)]
 async fn remove_from_group() {
     let mut setup = TestBackend::single().await;
 
@@ -102,7 +97,7 @@ async fn remove_from_group() {
     setup.connect_users(&alice, &dave).await;
     let chat_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie, &dave])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie, &dave])
         .await;
     // Check that Charlie has a user profile stored for bob, even though
     // he hasn't connected with them.
@@ -111,7 +106,7 @@ async fn remove_from_group() {
     assert!(charlie_user_profile_bob.user_id == bob);
 
     setup
-        .remove_from_group(chat_id, &alice, vec![&bob])
+        .remove_from_group(chat_id, &alice, &[&bob])
         .await
         .unwrap();
 
@@ -122,39 +117,36 @@ async fn remove_from_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-#[tracing::instrument(name = "Re-add to group test", skip_all)]
 async fn re_add_client() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
     for _ in 0..10 {
         setup
-            .remove_from_group(chat_id, &alice, vec![&bob])
+            .remove_from_group(chat_id, &alice, &[&bob])
             .await
             .unwrap();
-        setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+        setup.invite_to_group(chat_id, &alice, &[&bob]).await;
     }
-    setup.send_message(chat_id, &alice, vec![&bob], None).await;
-    setup.send_message(chat_id, &bob, vec![&alice], None).await;
+    setup.send_message(chat_id, &alice, &[&bob], None).await;
+    setup.send_message(chat_id, &bob, &[&alice], None).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Invite to group test", skip_all)]
 async fn leave_group() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
     setup.leave_group(chat_id, &bob).await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Delete non-APQ group test", skip_all)]
 async fn delete_non_apq_group() {
     let mut setup = TestBackend::single().await;
 
@@ -165,13 +157,12 @@ async fn delete_non_apq_group() {
     setup.connect_users(&alice, &charlie).await;
     let chat_id = setup.create_non_apq_group(&alice).await;
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
     setup.delete_group(chat_id, &alice).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Delete APQ group test", skip_all)]
 async fn delete_apq_group() {
     let mut setup = TestBackend::single().await;
 
@@ -182,13 +173,12 @@ async fn delete_apq_group() {
     setup.connect_users(&alice, &charlie).await;
     let chat_id = setup.create_apq_group(&alice).await;
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
     setup.delete_group(chat_id, &alice).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Delete APQ group by invitee", skip_all)]
 async fn delete_apq_group_by_invitee() {
     let mut setup = TestBackend::single().await;
 
@@ -199,7 +189,7 @@ async fn delete_apq_group_by_invitee() {
     setup.connect_users(&alice, &charlie).await;
     let chat_id = setup.create_apq_group(&alice).await;
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
     setup.delete_group(chat_id, &bob).await;
 }
@@ -219,7 +209,6 @@ fn count(messages: &[SystemMessage], expected: &SystemMessage) -> usize {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Delete group as sole member", skip_all)]
 async fn delete_group_as_sole_member() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -243,14 +232,13 @@ async fn delete_group_as_sole_member() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Missed delete commit then resync", skip_all)]
 async fn missed_delete_commit_then_resync() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     let alice_user = setup.user(&alice);
     alice_user.delete_chat(chat_id).await.unwrap();
@@ -299,14 +287,13 @@ async fn missed_delete_commit_then_resync() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Missed removal then resync", skip_all)]
 async fn missed_removal_then_resync() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     let alice_user = setup.user(&alice);
     alice_user
@@ -339,7 +326,6 @@ async fn missed_removal_then_resync() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Missed deletion without a tombstone then resync", skip_all)]
 async fn missed_deletion_without_tombstone_then_resync() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -349,7 +335,7 @@ async fn missed_deletion_without_tombstone_then_resync() {
     setup.connect_users(&alice, &charlie).await;
     let chat_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
 
     let alice_user = setup.user(&alice);
@@ -371,14 +357,13 @@ async fn missed_deletion_without_tombstone_then_resync() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Delete group without a tombstone", skip_all)]
 async fn delete_group_without_tombstone() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     let bobs_removal = SystemMessage::Remove(Some(alice.clone()), bob.clone());
     let deletions =
@@ -404,7 +389,6 @@ async fn delete_group_without_tombstone() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Store draft after delete", skip_all)]
 async fn store_draft_after_delete() {
     let mut setup = TestBackend::single().await;
 
@@ -427,7 +411,6 @@ async fn store_draft_after_delete() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Room policy", skip_all)]
 async fn room_policy() {
     let mut setup = TestBackend::single().await;
 
@@ -444,20 +427,20 @@ async fn room_policy() {
     // Create an independent group and invite bob.
     let chat_id = setup.create_group(&alice).await;
 
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     // Bob can invite charlie
-    setup.invite_to_group(chat_id, &bob, vec![&charlie]).await;
+    setup.invite_to_group(chat_id, &bob, &[&charlie]).await;
 
     // Charlie can kick alice
     setup
-        .remove_from_group(chat_id, &charlie, vec![&alice])
+        .remove_from_group(chat_id, &charlie, &[&alice])
         .await
         .unwrap();
 
     // Charlie can kick bob
     setup
-        .remove_from_group(chat_id, &charlie, vec![&bob])
+        .remove_from_group(chat_id, &charlie, &[&bob])
         .await
         .unwrap();
 
@@ -467,7 +450,6 @@ async fn room_policy() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Update user profile on group join test", skip_all)]
 async fn update_user_profile_on_group_join() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -540,7 +522,6 @@ async fn update_user_profile_on_group_join() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Group with blocked contacts", skip_all)]
 async fn group_with_blocked_contact() {
     let mut setup = TestBackend::single().await;
 
@@ -556,15 +537,15 @@ async fn group_with_blocked_contact() {
     // Create a group with alice, bob and charlie
     let chat_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
 
     // Sending messages works before blocking
     setup
-        .send_message(chat_id, &alice, vec![&bob, &charlie], None)
+        .send_message(chat_id, &alice, &[&bob, &charlie], None)
         .await;
     setup
-        .send_message(chat_id, &bob, vec![&alice, &charlie], None)
+        .send_message(chat_id, &bob, &[&alice, &charlie], None)
         .await;
 
     // Block bob
@@ -573,15 +554,14 @@ async fn group_with_blocked_contact() {
 
     // Messages are still sent and received
     setup
-        .send_message(chat_id, &bob, vec![&alice, &charlie], None)
+        .send_message(chat_id, &bob, &[&alice, &charlie], None)
         .await;
     setup
-        .send_message(chat_id, &alice, vec![&bob, &charlie], None)
+        .send_message(chat_id, &alice, &[&bob, &charlie], None)
         .await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Send message test", skip_all)]
 async fn send_message() {
     info!("Setting up setup");
     let mut setup = TestBackend::single().await;
@@ -589,12 +569,11 @@ async fn send_message() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
-    setup.send_message(chat_id, &alice, vec![&bob], None).await;
-    setup.send_message(chat_id, &bob, vec![&alice], None).await;
+    setup.send_message(chat_id, &alice, &[&bob], None).await;
+    setup.send_message(chat_id, &bob, &[&alice], None).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Update group data", skip_all)]
 async fn update_group_data() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -607,7 +586,7 @@ async fn update_group_data() {
     // Alice creates a group and invites Bob and Charlie
     let chat_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
 
     // Alice updates the group picture
@@ -679,7 +658,6 @@ async fn update_group_data() {
 ///
 /// This is what would happen in the scenario of virtual-clients.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Own pending commit merge test", skip_all)]
 async fn own_pending_commit_merges_group_data_and_clears_pending_op() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -687,7 +665,7 @@ async fn own_pending_commit_merges_group_data_and_clears_pending_op() {
 
     let _alice_bob_chat = setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     let alice_user = setup.user(&alice);
 
@@ -753,7 +731,6 @@ async fn own_pending_commit_merges_group_data_and_clears_pending_op() {
 /// object storage via the outbound service and sees the correct group attributes (title and
 /// picture).
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Fetch group profile on invite", skip_all)]
 async fn fetch_group_profile_on_invite() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -819,7 +796,6 @@ async fn fetch_group_profile_on_invite() {
 /// Tests that after a group title and picture update, other members fetch the new encrypted group
 /// profile via the outbound service and see the updated attributes.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Fetch group profile on update", skip_all)]
 async fn fetch_group_profile_on_update() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -827,7 +803,7 @@ async fn fetch_group_profile_on_update() {
     setup.connect_users(&alice, &bob).await;
 
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     let chat = setup.user(&alice).expect_chat(chat_id).await;
     let title = chat.attributes().unwrap().title().to_owned();
@@ -872,7 +848,6 @@ async fn fetch_group_profile_on_update() {
 /// This test checks that bob can leave a group where he missed a commit. He leaves the group only
 /// locally. Other user can remove the bob correctly (commit is merged), and add him again.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Missed commit", skip_all)]
 async fn missed_commit() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -884,7 +859,7 @@ async fn missed_commit() {
 
     // Alice creates a group and invites Bob
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     // Alice invites Charlie
     let alice_user = setup.user(&alice);
@@ -1200,7 +1175,6 @@ async fn self_update_skips_inactive_chats() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "QS stream processor partially processes messages", skip_all)]
 async fn qs_stream_processor_partially_processes_messages() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1208,9 +1182,7 @@ async fn qs_stream_processor_partially_processes_messages() {
 
     let connection_chat_id = setup.connect_users(&alice, &bob).await;
     let group_chat_id = setup.create_group(&alice).await;
-    setup
-        .invite_to_group(group_chat_id, &alice, vec![&bob])
-        .await;
+    setup.invite_to_group(group_chat_id, &alice, &[&bob]).await;
 
     // Remove bob chat only locally on their client
     setup.user(&bob).erase_chat(group_chat_id).await.unwrap();
@@ -1258,10 +1230,6 @@ async fn qs_stream_processor_partially_processes_messages() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(
-    name = "Update group profile in a group with profile component",
-    skip_all
-)]
 async fn update_group_profile_in_group_with_profile_component() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1271,7 +1239,7 @@ async fn update_group_profile_in_group_with_profile_component() {
     let chat_id = setup
         .create_group_with_profile_component(&alice, setup.apq_groups)
         .await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     let alice_user = setup.user(&alice);
     let bob_user = setup.user(&bob);
@@ -1343,7 +1311,6 @@ async fn update_group_profile_in_group_with_profile_component() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Create APQ group test", skip_all)]
 async fn create_apq_group() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1351,7 +1318,6 @@ async fn create_apq_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "APQ self-update updates both T and PQ timestamps", skip_all)]
 async fn apq_self_update_updates_both_timestamps() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1393,7 +1359,6 @@ async fn apq_self_update_updates_both_timestamps() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Invite to APQ group test", skip_all)]
 async fn invite_to_apq_group() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1403,12 +1368,11 @@ async fn invite_to_apq_group() {
     setup.connect_users(&alice, &charlie).await;
     let chat_id = setup.create_apq_group(&alice).await;
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Send message in APQ group test", skip_all)]
 async fn send_message_in_apq_group() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
@@ -1418,13 +1382,13 @@ async fn send_message_in_apq_group() {
     setup.connect_users(&alice, &charlie).await;
     let chat_id = setup.create_apq_group(&alice).await;
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
     setup
-        .send_message(chat_id, &alice, vec![&bob, &charlie], None)
+        .send_message(chat_id, &alice, &[&bob, &charlie], None)
         .await;
     setup
-        .send_message(chat_id, &bob, vec![&alice, &charlie], None)
+        .send_message(chat_id, &bob, &[&alice, &charlie], None)
         .await;
 }
 
@@ -1440,8 +1404,8 @@ async fn apq_leave_removes_member_from_both_t_and_pq() {
     setup.connect_users(&alice, &charlie).await;
 
     let chat_id = setup.create_apq_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
-    setup.invite_to_group(chat_id, &alice, vec![&charlie]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&charlie]).await;
 
     let alice_user = setup.user(&alice);
     let bob_user = setup.user(&bob);
@@ -1524,8 +1488,8 @@ async fn apq_delete_removes_member_from_both_t_and_pq() {
     setup.connect_users(&alice, &charlie).await;
 
     let chat_id = setup.create_apq_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
-    setup.invite_to_group(chat_id, &alice, vec![&charlie]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&charlie]).await;
 
     let alice_user = setup.user(&alice);
     let bob_user = setup.user(&bob);
@@ -1605,7 +1569,6 @@ async fn apq_delete_removes_member_from_both_t_and_pq() {
 /// up: later commits carry added members' profile keys in their AAD, which
 /// would re-deliver the keys and hide the problem.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Stale welcome epoch keeps profile keys", skip_all)]
 async fn stale_welcome_epoch_preserves_profile_keys() {
     let mut setup = TestBackend::single().await;
 

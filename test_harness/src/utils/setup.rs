@@ -589,7 +589,7 @@ impl TestBackend {
         &self,
         chat_id: ChatId,
         sender_id: &'a UserId,
-        recipients: Vec<&'a UserId>,
+        recipients: &[&'a UserId],
         in_reply_to: Option<&'a MimiId>,
     ) -> SentMessage<'a> {
         let recipient_strings = recipients
@@ -646,7 +646,7 @@ impl TestBackend {
         );
 
         let mut recipients_message_ids = HashMap::new();
-        for recipient_id in recipients {
+        for &recipient_id in recipients {
             let recipient = self.users.get(recipient_id).unwrap();
             let recipient_user = &recipient.user;
 
@@ -691,7 +691,7 @@ impl TestBackend {
         &self,
         chat_id: ChatId,
         sender_id: &UserId,
-        recipients: Vec<&UserId>,
+        recipients: &[&UserId],
     ) -> MessageId {
         let test_sender = self.users.get(sender_id).unwrap();
         let sender = &test_sender.user;
@@ -752,7 +752,7 @@ impl TestBackend {
         );
         target_message.set_edited_at(message.edited_at().unwrap());
 
-        for recipient_id in &recipients {
+        for recipient_id in recipients {
             let recipient = self.users.get(recipient_id).unwrap();
             let recipient_user = &recipient.user;
 
@@ -788,7 +788,7 @@ impl TestBackend {
     pub async fn delete_message(
         &self,
         sender_id: &UserId,
-        recipients: Vec<&UserId>,
+        recipients: &[&UserId],
         message_id: MessageId,
     ) -> MessageId {
         let test_sender = self.users.get(sender_id).unwrap();
@@ -818,7 +818,7 @@ impl TestBackend {
         assert_eq!(message.timestamp(), deleted_at);
         assert_eq!(message.edited_at(), None);
 
-        for recipient_id in &recipients {
+        for recipient_id in recipients {
             let recipient = self.users.get(recipient_id).unwrap();
             let recipient_user = &recipient.user;
 
@@ -852,7 +852,7 @@ impl TestBackend {
         &self,
         chat_id: ChatId,
         sender_id: &UserId,
-        recipients: Vec<&UserId>,
+        recipients: &[&UserId],
         attachment: &[u8],
         filename: &str,
     ) -> Result<(MessageId, NestedPart), ProvisionAttachmentError> {
@@ -922,7 +922,7 @@ impl TestBackend {
             _ => panic!("unexpected attachment type"),
         };
 
-        for recipient_id in &recipients {
+        for recipient_id in recipients {
             let recipient = self.users.get(recipient_id).unwrap();
             let recipient_user = &recipient.user;
 
@@ -971,14 +971,9 @@ impl TestBackend {
     }
 
     /// This function goes through all tables of the database and returns all columns that contain the query.
-    pub async fn scan_database(
-        &self,
-        query: &str,
-        strict: bool,
-        users: Vec<&UserId>,
-    ) -> Vec<String> {
+    pub async fn scan_database(&self, query: &str, strict: bool, users: &[&UserId]) -> Vec<String> {
         let mut result = Vec::new();
-        for user_id in &users {
+        for user_id in users {
             let user = self.users.get(user_id).unwrap();
             let user = &user.user;
 
@@ -1119,7 +1114,7 @@ impl TestBackend {
         &self,
         chat_id: ChatId,
         inviter_id: &UserId,
-        invitees: Vec<&UserId>,
+        invitees: &[&UserId],
     ) {
         let invitee_strings = invitees
             .iter()
@@ -1179,7 +1174,7 @@ impl TestBackend {
 
         // Now that the invitation is out, have the invitees and all other group
         // members fetch and process QS messages.
-        for invitee_id in &invitees {
+        for invitee_id in invitees {
             let test_invitee = self.users.get(invitee_id).unwrap();
             let invitee = &test_invitee.user;
             let mut invitee_chats_before = invitee.chats().await;
@@ -1261,7 +1256,7 @@ impl TestBackend {
         {
             let mut groups = self.groups.lock();
             let group_members = groups.get_mut(&chat_id).unwrap();
-            for invitee_id in &invitees {
+            for invitee_id in invitees {
                 let unique_member = group_members.insert((*invitee_id).clone());
                 assert!(unique_member);
             }
@@ -1270,16 +1265,15 @@ impl TestBackend {
         // Now send messages to check that the group works properly. This also
         // ensures that everyone involved has picked up their messages from the
         // QS and that notifications are flushed.
-        self.send_message(chat_id, inviter_id, invitees.clone(), None)
-            .await;
-        for invitee_id in &invitees {
+        self.send_message(chat_id, inviter_id, invitees, None).await;
+        for invitee_id in invitees {
             let recipients: Vec<_> = invitees
                 .iter()
                 .filter(|&name| name != invitee_id)
                 .chain([&inviter_id])
                 .cloned()
                 .collect();
-            self.send_message(chat_id, invitee_id, recipients, None)
+            self.send_message(chat_id, invitee_id, &recipients, None)
                 .await;
         }
     }
@@ -1290,7 +1284,7 @@ impl TestBackend {
         &self,
         chat_id: ChatId,
         remover_id: &UserId,
-        removed_ids: Vec<&UserId>,
+        removed_ids: &[&UserId],
     ) -> anyhow::Result<()> {
         let removed_strings = removed_ids
             .iter()
@@ -1342,7 +1336,7 @@ impl TestBackend {
         let removed_set: HashSet<_> = removed_ids.iter().map(|&user_id| user_id.clone()).collect();
         assert_eq!(removed_members, removed_set);
 
-        for removed_id in &removed_ids {
+        for removed_id in removed_ids {
             let test_removed = self.users.get(removed_id).unwrap();
             let removed = &test_removed.user;
             let removed_chats_before = removed.chats().await.into_iter().collect::<HashSet<_>>();
@@ -1379,7 +1373,7 @@ impl TestBackend {
         let group_members = {
             let mut groups = self.groups.lock();
             let group_members = groups.get_mut(&chat_id).unwrap();
-            for removed_id in &removed_ids {
+            for removed_id in removed_ids {
                 let remove_successful = group_members.remove(removed_id);
                 assert!(remove_successful);
             }
