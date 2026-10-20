@@ -53,14 +53,11 @@ use uuid::Uuid;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn rate_limit() {
-    // Refilling must stay negligible next to the sending loop, even when it
-    // is slowed down by parallel tests.
-    const PERIOD: Duration = Duration::from_secs(1);
-    const BURST: u32 = 100; // must be large enough to survive setup calls
+    const PERIOD: Duration = Duration::from_millis(100);
     let mut setup = TestBackend::single_with_params(TestBackendParams {
         rate_limits: Some(RateLimitsSettings {
             period: PERIOD,
-            burst: BURST,
+            burst: 100, // must be large enough to survive setup calls
         }),
         ..Default::default()
     })
@@ -80,7 +77,15 @@ async fn rate_limit() {
     let mut held_id = None;
 
     // should stop with `resource_exhausted = true` at some point
-    for i in 0..2 * BURST {
+    for i in 0..10 {
+        // All requests from this host share one bucket. Cheap fetches empty it
+        // much faster than it refills, so the send right after is limited.
+        for _ in 0..1000 {
+            if alice.qs_fetch_messages().await.is_err() {
+                break;
+            }
+        }
+
         info!(i, "sending message");
         alice
             .send_message(
