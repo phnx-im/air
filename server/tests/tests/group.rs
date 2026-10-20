@@ -602,7 +602,7 @@ async fn group_with_blocked_contact() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    setup.get_user_mut(&alice).add_username().await.unwrap();
+    setup.get_user(&alice).add_username().await.unwrap();
 
     let bob = setup.add_user().await;
     let charlie = setup.add_user().await;
@@ -718,7 +718,7 @@ async fn update_group_data() {
         .unwrap();
 
     for user_id in [&alice, &charlie] {
-        let user = &setup.get_user_mut(user_id).user;
+        let user = &setup.get_user(user_id).user;
         // Fetch and process messages to get the update
         let qs_messages = user.qs_fetch_messages().await.unwrap();
         let result = user.fully_process_qs_messages(qs_messages).await;

@@ -1338,8 +1338,8 @@ async fn delete_message_with_attachment() {
     // Alice deletes the message (network deletion)
     // Note: We need to delete the specific attachment message, not just the last message
     {
-        let alice_test_user = setup.get_user_mut(&alice);
-        let alice_user = &mut alice_test_user.user;
+        let alice_test_user = setup.get_user(&alice);
+        let alice_user = &alice_test_user.user;
 
         // Fetch and process QS messages first
         let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
@@ -1355,8 +1355,8 @@ async fn delete_message_with_attachment() {
 
     // Bob receives the deletion
     {
-        let bob_test_user = setup.get_user_mut(&bob);
-        let bob_user = &mut bob_test_user.user;
+        let bob_test_user = setup.get_user(&bob);
+        let bob_user = &bob_test_user.user;
         let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
         bob_user.fully_process_qs_messages(qs_messages).await;
     }

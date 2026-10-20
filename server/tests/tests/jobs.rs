@@ -68,7 +68,7 @@ async fn setup_group_with_contacts() -> (TestBackend, UserId, UserId, UserId, Ch
 }
 
 async fn setup_group_with_charlie_member() -> (TestBackend, UserId, UserId, UserId, ChatId) {
-    let (mut setup, alice, bob, charlie, chat_id) = setup_group_with_contacts().await;
+    let (setup, alice, bob, charlie, chat_id) = setup_group_with_contacts().await;
     setup.invite_to_group(chat_id, &alice, vec![&charlie]).await;
     (setup, alice, bob, charlie, chat_id)
 }

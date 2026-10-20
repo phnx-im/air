@@ -62,7 +62,7 @@ pub(crate) async fn drain_expecting_success(
 /// Registers a username for `user_id`, which a peer can then request a
 /// connection to.
 pub(crate) async fn add_username(setup: &mut TestBackend, user_id: &UserId) -> UsernameRecord {
-    setup.get_user_mut(user_id).add_username().await.unwrap()
+    setup.get_user(user_id).add_username().await.unwrap()
 }
 
 /// Drains the username queue of `record` and returns the pending chat the

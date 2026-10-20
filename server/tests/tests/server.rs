@@ -290,7 +290,7 @@ async fn max_past_epochs() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    setup.get_user_mut(&alice).add_username().await.unwrap();
+    setup.get_user(&alice).add_username().await.unwrap();
 
     let bob = setup.add_user().await;
 
@@ -349,7 +349,7 @@ async fn ratchet_tolerance() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    setup.get_user_mut(&alice).add_username().await.unwrap();
+    setup.get_user(&alice).add_username().await.unwrap();
 
     let bob = setup.add_user().await;
 
@@ -473,7 +473,7 @@ async fn resync() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    setup.get_user_mut(&alice).add_username().await.unwrap();
+    setup.get_user(&alice).add_username().await.unwrap();
 
     let bob = setup.add_user().await;
     let charlie = setup.add_user().await;
@@ -1582,7 +1582,7 @@ async fn listen_stream_eviction() {
     .await;
     let alice = setup.add_user().await;
 
-    let alice_test_user = setup.get_user_mut(&alice);
+    let alice_test_user = setup.get_user(&alice);
     let username_record = alice_test_user.add_username().await.unwrap();
 
     let alice_user = alice_test_user.user.clone();

@@ -234,7 +234,7 @@ async fn blocked_contact() {
     let mut setup = TestBackend::single().await;
     info!("Creating users");
     let alice = setup.add_user().await;
-    setup.get_user_mut(&alice).add_username().await.unwrap();
+    setup.get_user(&alice).add_username().await.unwrap();
     info!("Created alice");
     let bob = setup.add_user().await;
 
@@ -303,12 +303,7 @@ async fn blocked_contact() {
     assert!(res.is_empty(), "message is dropped");
 
     // Bob cannot establish a new connection with Alice
-    let alice_username = alice_test_user
-        .username_record
-        .as_ref()
-        .unwrap()
-        .username
-        .clone();
+    let alice_username = alice_test_user.username_record().unwrap().username;
     let alice_username_hash = alice_username.calculate_hash().unwrap();
     bob_test_user
         .user
@@ -351,7 +346,7 @@ async fn delete_account() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    setup.get_user_mut(&alice).add_username().await.unwrap();
+    setup.get_user(&alice).add_username().await.unwrap();
 
     let bob = setup.add_user().await;
 
@@ -394,7 +389,7 @@ async fn delete_account() {
 
     // After deletion, adding the user again should work.
     // Note: Since the user is ephemeral, there is nothing to test on the client side.
-    let mut new_alice = TestUser::try_new(&alice, setup.server_url(), Some("DUMMY007"))
+    let new_alice = TestUser::try_new(&alice, setup.server_url(), Some("DUMMY007"))
         .await
         .unwrap();
     // Adding a username to the new user should work, because the previous username was
@@ -409,13 +404,13 @@ async fn username_sanity_checks() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
 
-    let bob = setup.get_user_mut(&bob);
+    let bob = setup.get_user(&bob);
     let username_record = bob.add_username().await.unwrap();
     let bob_username = username_record.username.clone();
     let bob_username_hash = bob_username.calculate_hash().unwrap();
 
     let apq_groups = setup.apq_groups;
-    let alice = setup.get_user_mut(&alice);
+    let alice = setup.get_user(&alice);
     let username_record = alice.add_username().await.unwrap();
     let alice_username = username_record.username.clone();
     let alice_username_hash = alice_username.calculate_hash().unwrap();
@@ -550,7 +545,7 @@ async fn add_contact_and_change_profile() {
 
     let bob = setup.add_user().await;
 
-    let alice_test_user = setup.get_user_mut(&alice);
+    let alice_test_user = setup.get_user(&alice);
     let alice_username_record = alice_test_user.add_username().await.unwrap();
 
     // Add Alice as a contact

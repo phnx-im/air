@@ -30,12 +30,7 @@ async fn connect_users_via_user_handle() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let username = setup
-        .get_user(&bob)
-        .username_record
-        .clone()
-        .unwrap()
-        .username;
+    let username = setup.get_user(&bob).username_record().unwrap().username;
     let alice_user = setup.get_user(&alice).user();
     let bob_user = setup.get_user(&bob).user();
 
@@ -84,7 +79,7 @@ async fn connection_request_spends_a_token() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
-    let record = setup.get_user_mut(&bob).add_username().await.unwrap();
+    let record = setup.get_user(&bob).add_username().await.unwrap();
 
     let alice_user = setup.get_user(&alice).user().clone();
     let before = alice_user
@@ -137,7 +132,7 @@ async fn connect_users_via_user_handle_uses_signed_package() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
 
-    let record = setup.get_user_mut(&bob).add_username().await.unwrap();
+    let record = setup.get_user(&bob).add_username().await.unwrap();
 
     // A new client asks for a signed package and gets one, carrying the
     // owner's features.
@@ -181,7 +176,7 @@ async fn drain_connection_packages(client: &ApiClient, hash: UsernameHash) -> an
 async fn signed_connection_package_upload_task_replenishes_username() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let bob = setup.add_user().await;
-    let record = setup.get_user_mut(&bob).add_username().await?;
+    let record = setup.get_user(&bob).add_username().await?;
     let user = setup.get_user(&bob).user();
     let client = ApiClient::with_endpoint(&setup.server_url())?;
 
@@ -222,7 +217,7 @@ async fn signed_connection_package_upload_task_replenishes_username() -> anyhow:
 async fn signed_connection_package_upload_task_retries_pending_username() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let bob = setup.add_user().await;
-    let record = setup.get_user_mut(&bob).add_username().await?;
+    let record = setup.get_user(&bob).add_username().await?;
     let user = setup.get_user(&bob).user();
 
     // The upload fails with a network error.
@@ -625,13 +620,13 @@ async fn connection_request_has_server_timestamp() {
     let bob = setup.add_user().await;
 
     // Bob adds a username
-    let test_bob = setup.get_user_mut(&bob);
+    let test_bob = setup.get_user(&bob);
     let bob_username_record = test_bob.add_username().await.unwrap();
     let bob_username = bob_username_record.username.clone();
 
     // Alice sends a connection request to Bob
-    let test_alice = setup.get_user_mut(&alice);
-    let alice_user = &mut test_alice.user;
+    let test_alice = setup.get_user(&alice);
+    let alice_user = &test_alice.user;
     let username_hash = spawn_blocking({
         let username = bob_username.clone();
         move || username.calculate_hash().unwrap()
@@ -646,8 +641,8 @@ async fn connection_request_has_server_timestamp() {
         .expect("non-fatal error");
 
     // Bob fetches and processes the connection request
-    let test_bob = setup.get_user_mut(&bob);
-    let bob_user = &mut test_bob.user;
+    let test_bob = setup.get_user(&bob);
+    let bob_user = &test_bob.user;
     let (mut stream, responder) = bob_user
         .listen_username(&bob_username_record)
         .await
