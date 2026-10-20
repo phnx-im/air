@@ -1,0 +1,3 @@
+CFBundleDisplayName = "Air";
+NSCameraUsageDescription = "Air 使用相机拍摄要在聊天中发送的照片，并在关联设备时扫描二维码。";
+NSPhotoLibraryUsageDescription = "Air 使用你的照片图库在聊天中发送照片，以及设置头像和群组图片。";
