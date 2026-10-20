@@ -23,7 +23,11 @@ use airprotos::{
 use tonic::Status;
 use tracing::error;
 
-use crate::qs::{client_record::QsClientRecord, grpc::GrpcQs, user_record::UserRecord};
+use crate::qs::{
+    client_record::{ClientAuthRecord, OwnerState, QsClientRecord},
+    grpc::GrpcQs,
+    user_record::UserRecord,
+};
 
 impl GrpcQs {
     /// Verifies request with QS user authentication.
@@ -53,6 +57,8 @@ impl GrpcQs {
     }
 
     /// Verifies request with QS client authentication.
+    ///
+    /// Fails for clients of deleted users.
     pub(super) async fn verify_client_auth<R, P, const TAG: u32>(
         &self,
         request: SignedRequest<R, TAG>,
@@ -61,16 +67,34 @@ impl GrpcQs {
         R: WithQsClientId<Payload = P> + VerifiableRequest,
         P: VerifiedStruct<SignedRequest<R, TAG>>,
     {
-        let (payload, _) = self.verify_client_auth_with_user_id(request).await?;
+        let (payload, _) = self
+            .verify_client_auth_with(request, ClientAuthScope::ActiveUser)
+            .await?;
         Ok(payload)
     }
 
-    /// Verifies request with QS client authentication.
+    /// Verifies request with QS client authentication for accessing the
+    /// client's own queue.
+    ///
+    /// Notably, this function succeeds for clients of deleted users.
     ///
     /// Also returns the user of the client, if the request is authenticated.
-    pub(super) async fn verify_client_auth_with_user_id<R, P, const TAG: u32>(
+    pub(super) async fn verify_queue_client_auth_with_user_id<R, P, const TAG: u32>(
         &self,
         request: SignedRequest<R, TAG>,
+    ) -> Result<(P, Option<identifiers::QsUserId>), Status>
+    where
+        R: WithQsClientId<Payload = P> + VerifiableRequest,
+        P: VerifiedStruct<SignedRequest<R, TAG>>,
+    {
+        self.verify_client_auth_with(request, ClientAuthScope::Queue)
+            .await
+    }
+
+    async fn verify_client_auth_with<R, P, const TAG: u32>(
+        &self,
+        request: SignedRequest<R, TAG>,
+        scope: ClientAuthScope,
     ) -> Result<(P, Option<identifiers::QsUserId>), Status>
     where
         R: WithQsClientId<Payload = P> + VerifiableRequest,
@@ -80,14 +104,25 @@ impl GrpcQs {
             // Support for legacy clients which don't use authentication.
             None => Ok((request.into_inner().into_unverified_payload(), None)),
             Some(client_id) => {
-                let (verifying_key, user_id) =
-                    QsClientRecord::load_verifying_key_and_user_id(&self.qs.db_pool, &client_id?)
-                        .await
-                        .map_err(|error| {
-                            error!(%error, "failed to load client verifying key");
-                            Status::internal("database error")
-                        })?
-                        .ok_or_else(|| Status::not_found("unknown QS client"))?;
+                let client_id = client_id?;
+                let ClientAuthRecord {
+                    verifying_key,
+                    user_id,
+                    owner_state,
+                } = QsClientRecord::load_auth_record(&self.qs.db_pool, &client_id)
+                    .await
+                    .map_err(|error| {
+                        error!(%error, "failed to load client verifying key");
+                        Status::internal("database error")
+                    })?
+                    .ok_or_else(|| Status::not_found("unknown QS client"))?;
+                match (scope, owner_state) {
+                    (ClientAuthScope::ActiveUser, OwnerState::Deleted) => {
+                        return Err(Status::not_found("unknown QS client"));
+                    }
+                    (ClientAuthScope::ActiveUser, OwnerState::Active)
+                    | (ClientAuthScope::Queue, OwnerState::Active | OwnerState::Deleted) => {}
+                }
                 let payload = self.verify_request(request, &verifying_key)?;
                 Ok((payload, Some(user_id)))
             }
@@ -110,6 +145,11 @@ impl GrpcQs {
             SignatureVerificationError::LibraryError(_) => Status::internal("unrecoverable error"),
         })
     }
+}
+
+enum ClientAuthScope {
+    Queue,
+    ActiveUser,
 }
 
 /// QS requests that contain a user id.
