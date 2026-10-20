@@ -590,7 +590,29 @@ impl TestBackend {
         chat_id: ChatId,
         sender_id: &'a UserId,
         recipients: &[&'a UserId],
-        in_reply_to: Option<&'a MimiId>,
+    ) -> SentMessage<'a> {
+        self.send_message_inner(chat_id, sender_id, recipients, None)
+            .await
+    }
+
+    /// Like [`Self::send_message`], but replies to the message `in_reply_to`.
+    pub async fn send_reply<'a>(
+        &self,
+        chat_id: ChatId,
+        sender_id: &'a UserId,
+        recipients: &[&'a UserId],
+        in_reply_to: &MimiId,
+    ) -> SentMessage<'a> {
+        self.send_message_inner(chat_id, sender_id, recipients, Some(in_reply_to))
+            .await
+    }
+
+    async fn send_message_inner<'a>(
+        &self,
+        chat_id: ChatId,
+        sender_id: &'a UserId,
+        recipients: &[&'a UserId],
+        in_reply_to: Option<&MimiId>,
     ) -> SentMessage<'a> {
         let recipient_strings = recipients
             .iter()
@@ -1265,7 +1287,7 @@ impl TestBackend {
         // Now send messages to check that the group works properly. This also
         // ensures that everyone involved has picked up their messages from the
         // QS and that notifications are flushed.
-        self.send_message(chat_id, inviter_id, invitees, None).await;
+        self.send_message(chat_id, inviter_id, invitees).await;
         for invitee_id in invitees {
             let recipients: Vec<_> = invitees
                 .iter()
@@ -1273,8 +1295,7 @@ impl TestBackend {
                 .chain([&inviter_id])
                 .cloned()
                 .collect();
-            self.send_message(chat_id, invitee_id, &recipients, None)
-                .await;
+            self.send_message(chat_id, invitee_id, &recipients).await;
         }
     }
 

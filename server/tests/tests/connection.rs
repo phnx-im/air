@@ -467,12 +467,8 @@ async fn connect_users_via_targeted_message_apq() {
     assert_eq!(bob_user.chat_is_apq(bob_chat_id).await, Some(true));
     assert_eq!(charlie_user.chat_is_apq(charlie_chat_id).await, Some(true));
 
-    setup
-        .send_message(bob_chat_id, &bob, &[&charlie], None)
-        .await;
-    setup
-        .send_message(bob_chat_id, &charlie, &[&bob], None)
-        .await;
+    setup.send_message(bob_chat_id, &bob, &[&charlie]).await;
+    setup.send_message(bob_chat_id, &charlie, &[&bob]).await;
 }
 
 /// A connection group is resynced with the same machinery as any other group.
@@ -494,8 +490,8 @@ async fn resync_connection_group() {
     let alice_user = setup.user(&alice);
     alice_user.drain().await;
 
-    setup.send_message(chat_id, &bob, &[&alice], None).await;
-    setup.send_message(chat_id, &alice, &[&bob], None).await;
+    setup.send_message(chat_id, &bob, &[&alice]).await;
+    setup.send_message(chat_id, &alice, &[&bob]).await;
 
     // A commit touching both legs after the resync shows that they are at compatible epochs.
     if setup.apq_groups {

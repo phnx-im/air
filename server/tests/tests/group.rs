@@ -131,8 +131,8 @@ async fn re_add_client() {
             .unwrap();
         setup.invite_to_group(chat_id, &alice, &[&bob]).await;
     }
-    setup.send_message(chat_id, &alice, &[&bob], None).await;
-    setup.send_message(chat_id, &bob, &[&alice], None).await;
+    setup.send_message(chat_id, &alice, &[&bob]).await;
+    setup.send_message(chat_id, &bob, &[&alice]).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -541,24 +541,16 @@ async fn group_with_blocked_contact() {
         .await;
 
     // Sending messages works before blocking
-    setup
-        .send_message(chat_id, &alice, &[&bob, &charlie], None)
-        .await;
-    setup
-        .send_message(chat_id, &bob, &[&alice, &charlie], None)
-        .await;
+    setup.send_message(chat_id, &alice, &[&bob, &charlie]).await;
+    setup.send_message(chat_id, &bob, &[&alice, &charlie]).await;
 
     // Block bob
     let alice_user = setup.user(&alice);
     alice_user.block_contact(bob.clone()).await.unwrap();
 
     // Messages are still sent and received
-    setup
-        .send_message(chat_id, &bob, &[&alice, &charlie], None)
-        .await;
-    setup
-        .send_message(chat_id, &alice, &[&bob, &charlie], None)
-        .await;
+    setup.send_message(chat_id, &bob, &[&alice, &charlie]).await;
+    setup.send_message(chat_id, &alice, &[&bob, &charlie]).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -569,8 +561,8 @@ async fn send_message() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
-    setup.send_message(chat_id, &alice, &[&bob], None).await;
-    setup.send_message(chat_id, &bob, &[&alice], None).await;
+    setup.send_message(chat_id, &alice, &[&bob]).await;
+    setup.send_message(chat_id, &bob, &[&alice]).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -1384,12 +1376,8 @@ async fn send_message_in_apq_group() {
     setup
         .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
-    setup
-        .send_message(chat_id, &alice, &[&bob, &charlie], None)
-        .await;
-    setup
-        .send_message(chat_id, &bob, &[&alice, &charlie], None)
-        .await;
+    setup.send_message(chat_id, &alice, &[&bob, &charlie]).await;
+    setup.send_message(chat_id, &bob, &[&alice, &charlie]).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

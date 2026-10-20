@@ -83,9 +83,7 @@ fn benchmarks(c: &mut Criterion) {
                 let setup = setup.lock().await;
                 for _ in 0..iter {
                     let time = Instant::now();
-                    setup
-                        .send_message(chat_alice_bob, &alice, &[&bob], None)
-                        .await;
+                    setup.send_message(chat_alice_bob, &alice, &[&bob]).await;
                     elapsed += time.elapsed()
                 }
                 elapsed
@@ -145,7 +143,7 @@ fn benchmarks(c: &mut Criterion) {
                 for _ in 0..iter {
                     let bobs: Vec<_> = bobs.iter().collect();
                     let time = Instant::now();
-                    setup.send_message(chat_id, &alice, &bobs, None).await;
+                    setup.send_message(chat_id, &alice, &bobs).await;
                     elapsed += time.elapsed();
                 }
                 elapsed

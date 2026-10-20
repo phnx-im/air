@@ -234,8 +234,8 @@ async fn blocked_contact() {
     let bob = setup.add_user().await;
 
     let chat_id = setup.connect_users(&alice, &bob).await;
-    setup.send_message(chat_id, &alice, &[&bob], None).await;
-    setup.send_message(chat_id, &bob, &[&alice], None).await;
+    setup.send_message(chat_id, &alice, &[&bob]).await;
+    setup.send_message(chat_id, &bob, &[&alice]).await;
 
     let alice_user = setup.user(&alice);
     let bob_user = setup.user(&bob);
@@ -316,8 +316,8 @@ async fn blocked_contact() {
     alice_user.unblock_contact(bob.clone()).await.unwrap();
 
     // Sending messages works again
-    setup.send_message(chat_id, &alice, &[&bob], None).await;
-    setup.send_message(chat_id, &bob, &[&alice], None).await;
+    setup.send_message(chat_id, &alice, &[&bob]).await;
+    setup.send_message(chat_id, &bob, &[&alice]).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

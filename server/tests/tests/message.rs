@@ -25,9 +25,7 @@ async fn edit_message() {
     // Connect them
     let chat_alice_bob = setup.connect_users(&alice, &bob).await;
 
-    setup
-        .send_message(chat_alice_bob, &alice, &[&bob], None)
-        .await;
+    setup.send_message(chat_alice_bob, &alice, &[&bob]).await;
 
     setup.edit_message(chat_alice_bob, &alice, &[&bob]).await;
 }
@@ -89,7 +87,7 @@ async fn stale_read_receipt_does_not_apply_to_edited_message() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let sent = setup.send_message(chat_id, &alice, &[&bob], None).await;
+    let sent = setup.send_message(chat_id, &alice, &[&bob]).await;
     let message_id = sent.own_message_id;
     let alice_user = setup.user(&alice);
     let bob_user = setup.user(&bob);
@@ -132,9 +130,7 @@ async fn delete_message() {
     // Connect them
     let chat_alice_bob = setup.connect_users(&alice, &bob).await;
 
-    setup
-        .send_message(chat_alice_bob, &alice, &[&bob], None)
-        .await;
+    setup.send_message(chat_alice_bob, &alice, &[&bob]).await;
 
     let alice_user = setup.user(&alice);
     let last_message = alice_user.expect_last_message(chat_alice_bob).await;
@@ -181,9 +177,7 @@ async fn no_receipts_for_deleted_message() {
     let bob = setup.add_user().await;
     let chat_alice_bob = setup.connect_users(&alice, &bob).await;
 
-    setup
-        .send_message(chat_alice_bob, &alice, &[&bob], None)
-        .await;
+    setup.send_message(chat_alice_bob, &alice, &[&bob]).await;
 
     let message_id = setup
         .user(&alice)
@@ -222,30 +216,26 @@ async fn delete_messages_and_check_replies() -> anyhow::Result<()> {
     let bob = setup.add_user().await;
     let chat_alice_bob = setup.connect_users(&alice, &bob).await;
 
-    let alice_says_hi_to_bob = setup
-        .send_message(chat_alice_bob, &alice, &[&bob], None)
-        .await;
+    let alice_says_hi_to_bob = setup.send_message(chat_alice_bob, &alice, &[&bob]).await;
 
-    let bob_says_hi_to_alice = setup
-        .send_message(chat_alice_bob, &bob, &[&alice], None)
-        .await;
+    let bob_says_hi_to_alice = setup.send_message(chat_alice_bob, &bob, &[&alice]).await;
 
     let bob_replies_to_alice = setup
-        .send_message(
+        .send_reply(
             chat_alice_bob,
             &bob,
             &[&alice],
-            Some(&alice_says_hi_to_bob.mimi_id),
+            &alice_says_hi_to_bob.mimi_id,
         )
         .await;
 
     // Bob replies to his own message
     let bob_replies_to_self = setup
-        .send_message(
+        .send_reply(
             chat_alice_bob,
             &bob,
             &[&alice],
-            Some(&bob_says_hi_to_alice.mimi_id),
+            &bob_says_hi_to_alice.mimi_id,
         )
         .await;
 
@@ -580,7 +570,7 @@ async fn delete_message_in_group() {
 
     // Alice sends a message to the group
     setup
-        .send_message(group_chat, &alice, &[&bob, &charlie], None)
+        .send_message(group_chat, &alice, &[&bob, &charlie])
         .await;
 
     // Get the message content before deletion
@@ -750,7 +740,7 @@ async fn delete_edited_message() {
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     // Alice sends a message
-    setup.send_message(chat_id, &alice, &[&bob], None).await;
+    setup.send_message(chat_id, &alice, &[&bob]).await;
 
     // Alice edits the message
     setup.edit_message(chat_id, &alice, &[&bob]).await;
@@ -1456,7 +1446,7 @@ async fn react_to_message() {
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     // Alice sends a message; Bob reacts to it.
-    let sent = setup.send_message(chat_id, &alice, &[&bob], None).await;
+    let sent = setup.send_message(chat_id, &alice, &[&bob]).await;
 
     let bob_user = setup.user(&bob);
     bob_user
@@ -1493,7 +1483,7 @@ async fn delete_reaction() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let sent = setup.send_message(chat_id, &alice, &[&bob], None).await;
+    let sent = setup.send_message(chat_id, &alice, &[&bob]).await;
 
     let bob_user = setup.user(&bob);
     bob_user
@@ -1545,7 +1535,7 @@ async fn queued_reaction_survives_network_error() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let sent = setup.send_message(chat_id, &alice, &[&bob], None).await;
+    let sent = setup.send_message(chat_id, &alice, &[&bob]).await;
     let bob_target = sent.recipient_message_id(&bob);
 
     let bob_user = setup.user(&bob);
@@ -1590,7 +1580,7 @@ async fn reaction_add_and_retract_stay_in_order() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let sent = setup.send_message(chat_id, &alice, &[&bob], None).await;
+    let sent = setup.send_message(chat_id, &alice, &[&bob]).await;
     let bob_target = sent.recipient_message_id(&bob);
 
     let bob_user = setup.user(&bob);
@@ -1635,7 +1625,7 @@ async fn multiple_reactions_per_user() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let sent = setup.send_message(chat_id, &alice, &[&bob], None).await;
+    let sent = setup.send_message(chat_id, &alice, &[&bob]).await;
     let bob_target = sent.recipient_message_id(&bob);
 
     let bob_user = setup.user(&bob);
@@ -1683,7 +1673,7 @@ async fn reactions_in_group() {
 
     // Alice posts; Bob and Charlie each react with a different emoji.
     let sent = setup
-        .send_message(group_chat, &alice, &[&bob, &charlie], None)
+        .send_message(group_chat, &alice, &[&bob, &charlie])
         .await;
 
     let bob_user = setup.user(&bob);
@@ -1724,7 +1714,7 @@ async fn react_notifies_message_author() {
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     // Alice sends a message; Bob reacts to it.
-    let sent = setup.send_message(chat_id, &alice, &[&bob], None).await;
+    let sent = setup.send_message(chat_id, &alice, &[&bob]).await;
     let bob_user = setup.user(&bob);
     bob_user
         .send_reaction(chat_id, sent.recipient_message_id(&bob), "🫪".to_owned())
@@ -1766,7 +1756,7 @@ async fn no_notification_for_reaction_on_others_message() {
 
     // Bob posts; Charlie reacts to Bob's message.
     let sent = setup
-        .send_message(group_chat, &bob, &[&alice, &charlie], None)
+        .send_message(group_chat, &bob, &[&alice, &charlie])
         .await;
     let charlie_user = setup.user(&charlie);
     charlie_user
@@ -1819,7 +1809,7 @@ async fn edit_replay_is_ignored() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    setup.send_message(chat_id, &alice, &[&bob], None).await;
+    setup.send_message(chat_id, &alice, &[&bob]).await;
     let message_id = setup.edit_message(chat_id, &alice, &[&bob]).await;
     let first_edit = stored_content(setup.user(&alice), message_id).await;
 
@@ -1882,7 +1872,7 @@ async fn peer_read_receipt_does_not_move_our_read_marker() {
 
     // Charlie writes. Neither Alice nor Bob has read it.
     let sent = setup
-        .send_message(group_chat_id, &charlie, &[&alice, &bob], None)
+        .send_message(group_chat_id, &charlie, &[&alice, &bob])
         .await;
 
     let alice_user = setup.user(&alice);

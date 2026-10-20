@@ -510,9 +510,7 @@ async fn resync() {
     alice_user.drain().await;
 
     // Bob should have rejoined the group and should be able to send a message.
-    setup
-        .send_message(chat_id, &bob, &[&alice, &charlie], None)
-        .await;
+    setup.send_message(chat_id, &bob, &[&alice, &charlie]).await;
 
     // When Alice sends another message, Bob should be able to process it without errors.
     alice_user
@@ -609,7 +607,7 @@ async fn resync() {
     );
 
     // Messages should reach Charlie.
-    setup.send_message(chat_id, &bob, &[&charlie], None).await;
+    setup.send_message(chat_id, &bob, &[&charlie]).await;
 
     // Charlie should also only see Bob in the group.
     let charlie_user = setup.user(&charlie);
@@ -697,7 +695,7 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
     // Alice processes Bob's rejoin and Bob can send again.
     alice_user.drain().await;
 
-    setup.send_message(chat_id, &bob, &[&alice], None).await;
+    setup.send_message(chat_id, &bob, &[&alice]).await;
 }
 
 /// When the DS returns "group not found" for a resync, the client must stop
@@ -775,7 +773,7 @@ async fn resync_valid_group_succeeds() {
     alice_user.drain().await;
 
     // Bob should be able to send messages normally.
-    setup.send_message(chat_id, &bob, &[&alice], None).await;
+    setup.send_message(chat_id, &bob, &[&alice]).await;
 
     // Alice performs a further commit-based operation (for APQ groups, one that touches both legs).
     // Bob must process it cleanly, which for APQ groups also verifies that the resync left the T
