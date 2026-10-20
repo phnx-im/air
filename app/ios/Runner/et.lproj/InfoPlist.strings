@@ -1,0 +1,3 @@
+CFBundleDisplayName = "Air";
+NSCameraUsageDescription = "Air kasutab kaamerat, et teha su vestluste jaoks pilte ja skannida seadme linkimisel QR-koodi.";
+NSPhotoLibraryUsageDescription = "Air kasutab su fototeeki, et saata vestlustes pilte ja määrata profiili- ja grupipilte.";

@@ -127,6 +127,7 @@
 		AE1234560000000000000003 /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		AE1234560000000000000005 /* sv */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = sv; path = sv.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		AE1234560000000000000006 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		AE123456000000000000000E /* et */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = et; path = et.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		AE975A052C472F0B00007EF7 /* NotificationService.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AE975A072C472F0B00007EF7 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		AE975A092C472F0B00007EF7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -417,6 +418,7 @@
 				en,
 				de,
 				es,
+				et,
 				fr,
 				pt,
 				"pt-PT",
@@ -628,6 +630,7 @@
 				AE1234560000000000000002 /* de */,
 				AE1234560000000000000003 /* fr */,
 				AE1234560000000000000005 /* sv */,
+				AE123456000000000000000E /* et */,
 			);
 			name = InfoPlist.strings;
 			sourceTree = "<group>";
