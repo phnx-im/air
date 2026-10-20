@@ -27,22 +27,19 @@ async fn process_qs_messages_cancellation_safety() {
 
     const NUM_MESSAGES: usize = 5;
 
-    let alice_user = setup.user(&alice);
     for idx in 0..NUM_MESSAGES {
         let msg = MimiContent::simple_markdown_message("Hello bob".into(), [idx as u8; 16]);
-        alice_user
+        alice
             .send_message(chat_id, msg, None, MarkChatAsRead::Yes)
             .await
             .unwrap();
     }
-    alice_user.outbound_service().run_once().await;
-
-    let bob_user = setup.user(&bob);
+    alice.outbound_service().run_once().await;
 
     // Abort a processing task after a random short delay.
     const MAX_ATTEMPTS: usize = 50;
     for _ in 0..MAX_ATTEMPTS {
-        let messages = bob_user.qs_fetch_messages().await.unwrap();
+        let messages = bob.qs_fetch_messages().await.unwrap();
         if messages.is_empty() {
             break;
         }
@@ -53,21 +50,21 @@ async fn process_qs_messages_cancellation_safety() {
 
         tokio::select! {
             _ = tokio::time::sleep(Duration::from_micros(delay_us)) => {},
-            _ = bob_user.fully_process_qs_messages(messages) => {},
+            _ = bob.fully_process_qs_messages(messages) => {},
         }
     }
 
     // Final pass without aborting
-    let remaining = bob_user.qs_fetch_messages().await.unwrap();
+    let remaining = bob.qs_fetch_messages().await.unwrap();
     info!(
         num_messages = remaining.len(),
         "processing remaining messages"
     );
     if !remaining.is_empty() {
-        bob_user.fully_process_qs_messages(remaining).await;
+        bob.fully_process_qs_messages(remaining).await;
     }
 
-    let unread = bob_user.unread_messages_count(chat_id).await;
+    let unread = bob.unread_messages_count(chat_id).await;
     assert_eq!(
         unread, NUM_MESSAGES,
         "messages lost after cancelled processing"

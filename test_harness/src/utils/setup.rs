@@ -48,6 +48,33 @@ pub struct TestUser {
     username_record: Mutex<Option<UsernameRecord>>,
 }
 
+/// Something that identifies a user: its id or one of its clients.
+pub trait HasUserId {
+    fn user_id(&self) -> &UserId;
+}
+
+impl HasUserId for UserId {
+    fn user_id(&self) -> &UserId {
+        self
+    }
+}
+
+impl<T: HasUserId + ?Sized> HasUserId for &T {
+    fn user_id(&self) -> &UserId {
+        (**self).user_id()
+    }
+}
+
+impl HasUserId for CoreUser {
+    fn user_id(&self) -> &UserId {
+        CoreUser::user_id(self)
+    }
+}
+
+fn to_user_ids<'a>(users: &[&'a impl HasUserId]) -> Vec<&'a UserId> {
+    users.iter().map(|&user| user.user_id()).collect()
+}
+
 impl AsRef<CoreUser> for TestUser {
     fn as_ref(&self) -> &CoreUser {
         &self.user
@@ -368,16 +395,17 @@ impl TestBackend {
             .len()
     }
 
-    pub async fn add_persisted_user(&mut self) -> UserId {
+    pub async fn add_persisted_user(&mut self) -> CoreUser {
         let user_id = self.random_user_id();
         let path = self.temp_dir.path().to_str().unwrap();
         info!(%path, ?user_id, "Creating persisted user");
         let user = TestUser::new_persisted(&user_id, self.server_url(), path).await;
-        self.users.insert(user_id.clone(), user);
-        user_id
+        let core_user = user.user.clone();
+        self.users.insert(user_id, user);
+        core_user
     }
 
-    pub async fn add_users<const N: usize>(&mut self) -> [UserId; N] {
+    pub async fn add_users<const N: usize>(&mut self) -> [CoreUser; N] {
         let mut user_ids = Vec::with_capacity(N);
         for _ in 0..N {
             user_ids.push(self.add_user().await);
@@ -385,15 +413,17 @@ impl TestBackend {
         user_ids.try_into().unwrap()
     }
 
-    pub async fn add_user(&mut self) -> UserId {
+    pub async fn add_user(&mut self) -> CoreUser {
         let user_id = self.random_user_id();
         info!(?user_id, "Creating user");
         let user = TestUser::new(&user_id, self.server_url()).await;
-        self.users.insert(user_id.clone(), user);
-        user_id
+        let core_user = user.user.clone();
+        self.users.insert(user_id, user);
+        core_user
     }
 
-    pub fn user(&self, user_id: &UserId) -> &CoreUser {
+    pub fn user(&self, user_id: &impl HasUserId) -> &CoreUser {
+        let user_id = user_id.user_id();
         &self.users[user_id].user
     }
 
@@ -401,15 +431,18 @@ impl TestBackend {
         self.groups.lock()[&chat_id].clone()
     }
 
-    pub async fn add_username(&self, user_id: &UserId) -> UsernameRecord {
+    pub async fn add_username(&self, user_id: &impl HasUserId) -> UsernameRecord {
+        let user_id = user_id.user_id();
         self.users[user_id].add_username().await
     }
 
-    pub fn username_record(&self, user_id: &UserId) -> Option<UsernameRecord> {
+    pub fn username_record(&self, user_id: &impl HasUserId) -> Option<UsernameRecord> {
+        let user_id = user_id.user_id();
         self.users[user_id].username_record()
     }
 
-    pub async fn delete_user(&mut self, user_id: &UserId) {
+    pub async fn delete_user(&mut self, user_id: &impl HasUserId) {
+        let user_id = user_id.user_id();
         let test_user = self.users.remove(user_id).unwrap();
         match test_user.db_dir {
             Some(db_dir) => test_user.user.delete(db_dir.as_str()).await.unwrap(),
@@ -419,7 +452,8 @@ impl TestBackend {
 
     /// This has the updater commit an update, but without the checks ensuring
     /// that the group state remains unchanged.
-    pub async fn commit_to_proposals(&self, chat_id: ChatId, updater_id: UserId) {
+    pub async fn commit_to_proposals(&self, chat_id: ChatId, updater: &impl HasUserId) {
+        let updater_id = updater.user_id().clone();
         info!(
             "{updater_id:?} performs an update in group {}",
             chat_id.uuid()
@@ -475,7 +509,8 @@ impl TestBackend {
         }
     }
 
-    pub async fn update_group(&self, chat_id: ChatId, updater_id: &UserId) {
+    pub async fn update_group(&self, chat_id: ChatId, updater_id: &impl HasUserId) {
+        let updater_id = updater_id.user_id();
         info!(
             "{updater_id:?} performs an update in group {}",
             chat_id.uuid()
@@ -503,17 +538,35 @@ impl TestBackend {
     }
 
     /// Connects two users through an APQ connection group, regardless of [`Self::apq_groups`].
-    pub async fn connect_users_apq(&self, user1_id: &UserId, user2_id: &UserId) -> ChatId {
+    pub async fn connect_users_apq(
+        &self,
+        user1_id: &impl HasUserId,
+        user2_id: &impl HasUserId,
+    ) -> ChatId {
+        let user1_id = user1_id.user_id();
+        let user2_id = user2_id.user_id();
         self.connect_users_inner(user1_id, user2_id, true).await
     }
 
     /// Connects two users through a plain (non-APQ) connection group, regardless of
     /// [`Self::apq_groups`].
-    pub async fn connect_users_non_apq(&self, user1_id: &UserId, user2_id: &UserId) -> ChatId {
+    pub async fn connect_users_non_apq(
+        &self,
+        user1_id: &impl HasUserId,
+        user2_id: &impl HasUserId,
+    ) -> ChatId {
+        let user1_id = user1_id.user_id();
+        let user2_id = user2_id.user_id();
         self.connect_users_inner(user1_id, user2_id, false).await
     }
 
-    pub async fn connect_users(&self, user1_id: &UserId, user2_id: &UserId) -> ChatId {
+    pub async fn connect_users(
+        &self,
+        user1_id: &impl HasUserId,
+        user2_id: &impl HasUserId,
+    ) -> ChatId {
+        let user1_id = user1_id.user_id();
+        let user2_id = user2_id.user_id();
         self.connect_users_inner(user1_id, user2_id, self.apq_groups)
             .await
     }
@@ -580,9 +633,12 @@ impl TestBackend {
     pub async fn send_message<'a>(
         &self,
         chat_id: ChatId,
-        sender_id: &'a UserId,
-        recipients: &[&'a UserId],
+        sender_id: &'a impl HasUserId,
+        recipients: &[&'a impl HasUserId],
     ) -> SentMessage<'a> {
+        let recipients = to_user_ids(recipients);
+        let recipients = &recipients[..];
+        let sender_id = sender_id.user_id();
         self.send_message_inner(chat_id, sender_id, recipients, None)
             .await
     }
@@ -591,10 +647,13 @@ impl TestBackend {
     pub async fn send_reply<'a>(
         &self,
         chat_id: ChatId,
-        sender_id: &'a UserId,
-        recipients: &[&'a UserId],
+        sender_id: &'a impl HasUserId,
+        recipients: &[&'a impl HasUserId],
         in_reply_to: &MimiId,
     ) -> SentMessage<'a> {
+        let recipients = to_user_ids(recipients);
+        let recipients = &recipients[..];
+        let sender_id = sender_id.user_id();
         self.send_message_inner(chat_id, sender_id, recipients, Some(in_reply_to))
             .await
     }
@@ -689,9 +748,12 @@ impl TestBackend {
     pub async fn edit_message(
         &self,
         chat_id: ChatId,
-        sender_id: &UserId,
-        recipients: &[&UserId],
+        sender_id: &impl HasUserId,
+        recipients: &[&impl HasUserId],
     ) -> MessageId {
+        let recipients = to_user_ids(recipients);
+        let recipients = &recipients[..];
+        let sender_id = sender_id.user_id();
         let sender = self.user(sender_id);
 
         let last_messages = sender.messages(chat_id, 1).await.unwrap();
@@ -770,10 +832,13 @@ impl TestBackend {
 
     pub async fn delete_message(
         &self,
-        sender_id: &UserId,
-        recipients: &[&UserId],
+        sender_id: &impl HasUserId,
+        recipients: &[&impl HasUserId],
         message_id: MessageId,
     ) -> MessageId {
+        let recipients = to_user_ids(recipients);
+        let recipients = &recipients[..];
+        let sender_id = sender_id.user_id();
         let sender = self.user(sender_id);
 
         let message = sender.message(message_id).await.unwrap().unwrap();
@@ -826,11 +891,14 @@ impl TestBackend {
     pub async fn send_attachment(
         &self,
         chat_id: ChatId,
-        sender_id: &UserId,
-        recipients: &[&UserId],
+        sender_id: &impl HasUserId,
+        recipients: &[&impl HasUserId],
         attachment: &[u8],
         filename: &str,
     ) -> Result<(MessageId, NestedPart), ProvisionAttachmentError> {
+        let recipients = to_user_ids(recipients);
+        let recipients = &recipients[..];
+        let sender_id = sender_id.user_id();
         let recipient_strings = recipients
             .iter()
             .map(|n| format!("{n:?}"))
@@ -940,7 +1008,14 @@ impl TestBackend {
     }
 
     /// This function goes through all tables of the database and returns all columns that contain the query.
-    pub async fn scan_database(&self, query: &str, strict: bool, users: &[&UserId]) -> Vec<String> {
+    pub async fn scan_database(
+        &self,
+        query: &str,
+        strict: bool,
+        users: &[&impl HasUserId],
+    ) -> Vec<String> {
+        let users = to_user_ids(users);
+        let users = &users[..];
         let mut result = Vec::new();
         for user_id in users {
             let user = self.user(user_id);
@@ -951,17 +1026,20 @@ impl TestBackend {
         result
     }
 
-    pub async fn create_apq_group(&self, user_id: &UserId) -> ChatId {
+    pub async fn create_apq_group(&self, user_id: &impl HasUserId) -> ChatId {
+        let user_id = user_id.user_id();
         self.create_group_inner(user_id, GroupKind::Apq(true)).await
     }
 
     /// Creates a plain (non-APQ) group, regardless of [`Self::apq_groups`].
-    pub async fn create_non_apq_group(&self, user_id: &UserId) -> ChatId {
+    pub async fn create_non_apq_group(&self, user_id: &impl HasUserId) -> ChatId {
+        let user_id = user_id.user_id();
         self.create_group_inner(user_id, GroupKind::Apq(false))
             .await
     }
 
-    pub async fn create_group(&self, user_id: &UserId) -> ChatId {
+    pub async fn create_group(&self, user_id: &impl HasUserId) -> ChatId {
+        let user_id = user_id.user_id();
         self.create_group_inner(user_id, GroupKind::Apq(self.apq_groups))
             .await
     }
@@ -969,22 +1047,37 @@ impl TestBackend {
     /// Creates a group whose profile is stored in the group profile component.
     pub async fn create_group_with_profile_component(
         &self,
-        user_id: &UserId,
+        user_id: &impl HasUserId,
         is_apq: bool,
     ) -> ChatId {
+        let user_id = user_id.user_id();
         self.create_group_inner(user_id, GroupKind::ProfileComponent(is_apq))
             .await
     }
 
     /// Connects `owner` to each member, creates a group and invites the
     /// members.
-    pub async fn connected_group(&self, owner: &UserId, members: &[&UserId]) -> ChatId {
+    pub async fn connected_group(
+        &self,
+        owner: &impl HasUserId,
+        members: &[&impl HasUserId],
+    ) -> ChatId {
+        let members = to_user_ids(members);
+        let members = &members[..];
+        let owner = owner.user_id();
         self.connected_group_inner(owner, members, GroupKind::Apq(self.apq_groups))
             .await
     }
 
     /// Like [`Self::connected_group`], but always creates an APQ group.
-    pub async fn connected_apq_group(&self, owner: &UserId, members: &[&UserId]) -> ChatId {
+    pub async fn connected_apq_group(
+        &self,
+        owner: &impl HasUserId,
+        members: &[&impl HasUserId],
+    ) -> ChatId {
+        let members = to_user_ids(members);
+        let members = &members[..];
+        let owner = owner.user_id();
         self.connected_group_inner(owner, members, GroupKind::Apq(true))
             .await
     }
@@ -1039,7 +1132,8 @@ impl TestBackend {
         chat_id
     }
 
-    pub async fn own_leaf_index(&self, user_id: &UserId, chat_id: ChatId) -> u32 {
+    pub async fn own_leaf_index(&self, user_id: &impl HasUserId, chat_id: ChatId) -> u32 {
+        let user_id = user_id.user_id();
         self.user(user_id)
             .group_epoch_and_own_index(chat_id)
             .await
@@ -1050,7 +1144,9 @@ impl TestBackend {
 
     /// Drains each user until their queue is empty and their outbound work
     /// (the scheduled profile fetches among it) has run.
-    pub async fn settle(&self, user_ids: &[&UserId]) {
+    pub async fn settle(&self, user_ids: &[&impl HasUserId]) {
+        let user_ids = to_user_ids(user_ids);
+        let user_ids = &user_ids[..];
         for _ in 0..3 {
             for user_id in user_ids {
                 let user = self.user(user_id);
@@ -1060,7 +1156,15 @@ impl TestBackend {
         }
     }
 
-    pub async fn invite_and_settle(&self, inviter: &UserId, chat_id: ChatId, invitees: &[&UserId]) {
+    pub async fn invite_and_settle(
+        &self,
+        inviter: &impl HasUserId,
+        chat_id: ChatId,
+        invitees: &[&impl HasUserId],
+    ) {
+        let invitees = to_user_ids(invitees);
+        let invitees = &invitees[..];
+        let inviter = inviter.user_id();
         let invitee_ids: Vec<_> = invitees.iter().map(|id| (*id).clone()).collect();
         let invite_result = self
             .user(inviter)
@@ -1081,10 +1185,13 @@ impl TestBackend {
     /// the uuid-derived fallback that a missing profile key produces.
     pub async fn assert_profiles_resolve(
         &self,
-        observer: &UserId,
-        members: &[&UserId],
+        observer: &impl HasUserId,
+        members: &[&impl HasUserId],
         context: &str,
     ) {
+        let members = to_user_ids(members);
+        let members = &members[..];
+        let observer = observer.user_id();
         for member in members {
             let profile = self.user(observer).user_profile(member).await;
             assert_ne!(
@@ -1106,9 +1213,12 @@ impl TestBackend {
     pub async fn invite_to_group(
         &self,
         chat_id: ChatId,
-        inviter_id: &UserId,
-        invitees: &[&UserId],
+        inviter_id: &impl HasUserId,
+        invitees: &[&impl HasUserId],
     ) {
+        let invitees = to_user_ids(invitees);
+        let invitees = &invitees[..];
+        let inviter_id = inviter_id.user_id();
         let invitee_strings = invitees
             .iter()
             .map(|n| format!("{n:?}"))
@@ -1256,9 +1366,12 @@ impl TestBackend {
     pub async fn remove_from_group(
         &self,
         chat_id: ChatId,
-        remover_id: &UserId,
-        removed_ids: &[&UserId],
+        remover_id: &impl HasUserId,
+        removed_ids: &[&impl HasUserId],
     ) -> anyhow::Result<()> {
+        let removed_ids = to_user_ids(removed_ids);
+        let removed_ids = &removed_ids[..];
+        let remover_id = remover_id.user_id();
         let removed_strings = removed_ids
             .iter()
             .map(|n| format!("{n:?}"))
@@ -1372,7 +1485,12 @@ impl TestBackend {
     }
 
     /// Has the leaver leave the given group.
-    pub async fn leave_group(&self, chat_id: ChatId, leaver_id: &UserId) -> anyhow::Result<()> {
+    pub async fn leave_group(
+        &self,
+        chat_id: ChatId,
+        leaver_id: &impl HasUserId,
+    ) -> anyhow::Result<()> {
+        let leaver_id = leaver_id.user_id();
         info!("{leaver_id:?} leaves the group with id {}", chat_id.uuid());
 
         // Get random member that observes the proposal and can commit it later
@@ -1422,8 +1540,7 @@ impl TestBackend {
         // pick up and process their messages. This also tests that group
         // members were removed correctly from the local group and that the
         // leaver has turned its chat inactive.
-        self.commit_to_proposals(chat_id, random_member_id.clone())
-            .await;
+        self.commit_to_proposals(chat_id, random_member_id).await;
 
         self.groups
             .lock()
@@ -1434,7 +1551,8 @@ impl TestBackend {
         Ok(())
     }
 
-    pub async fn delete_group(&self, chat_id: ChatId, deleter_id: &UserId) {
+    pub async fn delete_group(&self, chat_id: ChatId, deleter_id: &impl HasUserId) {
+        let deleter_id = deleter_id.user_id();
         info!(
             "{deleter_id:?} deletes the group with id {}",
             chat_id.uuid()

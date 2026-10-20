@@ -43,15 +43,11 @@ async fn exchange_user_profiles() {
     let alice_profile_picture = Asset::Value(png_bytes.clone());
 
     let alice_profile = UserProfile {
-        user_id: alice.clone(),
+        user_id: alice.user_id().clone(),
         display_name: alice_display_name.clone(),
         profile_picture: Some(alice_profile_picture.clone()),
     };
-    let alice_user = setup.user(&alice);
-    alice_user
-        .set_own_user_profile(alice_profile)
-        .await
-        .unwrap();
+    alice.set_own_user_profile(alice_profile).await.unwrap();
 
     let bob = setup.add_user().await;
 
@@ -59,22 +55,18 @@ async fn exchange_user_profiles() {
     let bob_display_name: DisplayName = "B0b".parse().unwrap();
     let bob_profile_picture = Asset::Value(png_bytes.clone());
     let bob_user_profile = UserProfile {
-        user_id: bob.clone(),
+        user_id: bob.user_id().clone(),
         display_name: bob_display_name.clone(),
         profile_picture: Some(bob_profile_picture.clone()),
     };
 
-    let bob_user = setup.user(&bob);
-    bob_user
-        .set_own_user_profile(bob_user_profile)
-        .await
-        .unwrap();
-    let new_profile = bob_user.own_user_profile().await.unwrap();
+    bob.set_own_user_profile(bob_user_profile).await.unwrap();
+    let new_profile = bob.own_user_profile().await.unwrap();
     let Asset::Value(compressed_profile_picture) = new_profile.profile_picture.unwrap().clone();
 
     setup.connect_users(&alice, &bob).await;
 
-    let bob_user_profile = setup.user(&alice).user_profile(&bob).await;
+    let bob_user_profile = alice.user_profile(bob.user_id()).await;
 
     let profile_picture = bob_user_profile
         .profile_picture
@@ -88,27 +80,25 @@ async fn exchange_user_profiles() {
 
     assert!(bob_user_profile.display_name == bob_display_name);
 
-    let alice_user = setup.user(&alice);
-
-    let alice_user_profile = alice_user.user_profile(&alice).await;
+    let alice_user_profile = alice.user_profile(alice.user_id()).await;
 
     assert_eq!(alice_user_profile.display_name, alice_display_name);
 
     let new_user_profile = UserProfile {
-        user_id: alice.clone(),
+        user_id: alice.user_id().clone(),
         display_name: "New Alice".parse().unwrap(),
         profile_picture: None,
     };
 
-    alice_user
+    alice
         .set_own_user_profile(new_user_profile.clone())
         .await
         .unwrap();
 
-    bob_user.drain().await;
-    bob_user.outbound_service().run_once().await;
+    bob.drain().await;
+    bob.outbound_service().run_once().await;
 
-    let alice_user_profile = bob_user.user_profile(&alice).await;
+    let alice_user_profile = bob.user_profile(alice.user_id()).await;
 
     assert_eq!(alice_user_profile, new_user_profile);
 }
@@ -126,7 +116,7 @@ async fn client_persistence() {
         .await
         .unwrap()
         .into_iter()
-        .find(|record| record.user_id == alice)
+        .find(|record| record.user_id == *alice.user_id())
         .unwrap()
         .client_record_id;
     let client_db_path = db_path.join(format!("{client_record_id}.db"));
@@ -164,18 +154,17 @@ async fn error_if_user_doesnt_exist() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    let alice_user = setup.user(&alice);
 
     let username = Username::new("non-existent".to_owned()).unwrap();
     let hash = username.calculate_hash().unwrap();
-    let tokens_before: BTreeSet<_> = alice_user
+    let tokens_before: BTreeSet<_> = alice
         .cached_privacy_pass_tokens(OperationType::ConnectUsername)
         .await
         .unwrap()
         .into_iter()
         .collect();
 
-    let res = alice_user
+    let res = alice
         .add_contact(username, hash, setup.apq_groups)
         .await
         .unwrap();
@@ -183,7 +172,7 @@ async fn error_if_user_doesnt_exist() {
     assert_matches!(res, Err(AddUsernameContactError::UsernameNotFound));
 
     // The AS did not redeem the token, so the request costs nothing.
-    let tokens_after: BTreeSet<_> = alice_user
+    let tokens_after: BTreeSet<_> = alice
         .cached_privacy_pass_tokens(OperationType::ConnectUsername)
         .await
         .unwrap()
@@ -191,7 +180,7 @@ async fn error_if_user_doesnt_exist() {
         .collect();
     assert_eq!(tokens_after, tokens_before);
     assert!(
-        alice_user
+        alice
             .pending_redeemed_token_broadcasts()
             .await
             .unwrap()
@@ -205,7 +194,7 @@ async fn delete_user() {
 
     let alice = setup.add_user().await;
     // Adding another user with the same id should fail.
-    match TestUser::try_new(&alice, setup.server_url(), Some("DUMMY007")).await {
+    match TestUser::try_new(alice.user_id(), setup.server_url(), Some("DUMMY007")).await {
         Ok(_) => panic!("Should not be able to create a user with the same id"),
         Err(e) => match e.downcast_ref::<AsRequestError>().unwrap() {
             AsRequestError::Tonic(status) => {
@@ -218,7 +207,7 @@ async fn delete_user() {
     setup.delete_user(&alice).await;
     // After deletion, adding the user again should work.
     // Note: Since the user is ephemeral, there is nothing to test on the client side.
-    TestUser::try_new(&alice, setup.server_url(), Some("DUMMY007"))
+    TestUser::try_new(alice.user_id(), setup.server_url(), Some("DUMMY007"))
         .await
         .unwrap();
 }
@@ -237,83 +226,77 @@ async fn blocked_contact() {
     setup.send_message(chat_id, &alice, &[&bob]).await;
     setup.send_message(chat_id, &bob, &[&alice]).await;
 
-    let alice_user = setup.user(&alice);
-    let bob_user = setup.user(&bob);
+    alice.block_contact(bob.user_id().clone()).await.unwrap();
 
-    alice_user.block_contact(bob.clone()).await.unwrap();
-
-    alice_user.drain().await;
-    bob_user.drain().await;
+    alice.drain().await;
+    bob.drain().await;
 
     // Not possible to send a message to Bob
     let msg = MimiContent::simple_markdown_message("Hello".into(), [0; 16]);
-    let res = alice_user
+    let res = alice
         .send_message(chat_id, msg.clone(), None, MarkChatAsRead::Yes)
         .await;
     res.unwrap_err().downcast::<BlockedContactError>().unwrap();
 
-    assert_eq!(bob_user.drain().await.processed, 0);
+    assert_eq!(bob.drain().await.processed, 0);
 
     // Updating Alice's profile is not communicated to Bob
-    alice_user
+    alice
         .update_user_profile(UserProfile {
-            user_id: alice.clone(),
+            user_id: alice.user_id().clone(),
             display_name: "Alice in Wonderland".parse().unwrap(),
             profile_picture: None,
         })
         .await
         .unwrap();
-    assert_eq!(bob_user.drain().await.processed, 0);
+    assert_eq!(bob.drain().await.processed, 0);
 
     // Updating Bob's profile is not communicated to Alice
-    bob_user
-        .update_user_profile(UserProfile {
-            user_id: bob.clone(),
-            display_name: "Annoying Bob".parse().unwrap(),
-            profile_picture: None,
-        })
-        .await
-        .unwrap();
+    bob.update_user_profile(UserProfile {
+        user_id: bob.user_id().clone(),
+        display_name: "Annoying Bob".parse().unwrap(),
+        profile_picture: None,
+    })
+    .await
+    .unwrap();
     // We get the message but it is dropped
-    let messages = alice_user.qs_fetch_messages().await.unwrap();
+    let messages = alice.qs_fetch_messages().await.unwrap();
     assert_eq!(messages.len(), 1);
-    let res = alice_user.fully_process_qs_messages(messages).await;
+    let res = alice.fully_process_qs_messages(messages).await;
     assert!(res.is_empty(), "message is dropped");
 
     // Messages from bob are dropped
-    bob_user
-        .send_message(chat_id, msg, None, MarkChatAsRead::Yes)
+    bob.send_message(chat_id, msg, None, MarkChatAsRead::Yes)
         .await
         .unwrap();
-    bob_user.outbound_service().run_once().await;
+    bob.outbound_service().run_once().await;
     // We get the message but it is dropped
-    let messages = alice_user.qs_fetch_messages().await.unwrap();
+    let messages = alice.qs_fetch_messages().await.unwrap();
     assert_eq!(messages.len(), 1);
-    let res = alice_user.fully_process_qs_messages(messages).await;
+    let res = alice.fully_process_qs_messages(messages).await;
     assert!(res.is_empty(), "message is dropped");
 
     // Bob cannot establish a new connection with Alice
     let alice_username = setup.username_record(&alice).unwrap().username;
     let alice_username_hash = alice_username.calculate_hash().unwrap();
-    bob_user
-        .add_contact(
-            alice_username.clone(),
-            alice_username_hash,
-            setup.apq_groups,
-        )
-        .await
-        .expect("fatal error")
-        .expect("non-fatal error");
-    let mut messages = alice_user.fetch_username_messages().await.unwrap();
+    bob.add_contact(
+        alice_username.clone(),
+        alice_username_hash,
+        setup.apq_groups,
+    )
+    .await
+    .expect("fatal error")
+    .expect("non-fatal error");
+    let mut messages = alice.fetch_username_messages().await.unwrap();
     assert_eq!(messages.len(), 1);
 
-    let res = alice_user
+    let res = alice
         .process_username_queue_message(alice_username, messages.pop().unwrap())
         .await;
     res.unwrap_err().downcast::<BlockedContactError>().unwrap();
 
     // Unblock Bob
-    alice_user.unblock_contact(bob.clone()).await.unwrap();
+    alice.unblock_contact(bob.user_id().clone()).await.unwrap();
 
     // Sending messages works again
     setup.send_message(chat_id, &alice, &[&bob]).await;
@@ -337,25 +320,24 @@ async fn delete_account() {
 
     // Delete the account
     let db_path = None;
-    setup.user(&alice).delete_account(db_path).await.unwrap();
+    alice.delete_account(db_path).await.unwrap();
 
     // Check that Alice left the group
-    let bob_user = setup.user(&bob);
-    bob_user.drain().await;
+    bob.drain().await;
 
     let participants = setup
         .user(&bob)
         .chat_participants(contact_chat_id)
         .await
         .unwrap();
-    assert_eq!(participants, [bob.clone()].into_iter().collect());
+    assert_eq!(participants, [bob.user_id().clone()].into_iter().collect());
 
-    let participants = setup.user(&bob).chat_participants(chat_id).await.unwrap();
-    assert_eq!(participants, [bob.clone()].into_iter().collect());
+    let participants = bob.chat_participants(chat_id).await.unwrap();
+    assert_eq!(participants, [bob.user_id().clone()].into_iter().collect());
 
     // After deletion, adding the user again should work.
     // Note: Since the user is ephemeral, there is nothing to test on the client side.
-    let new_alice = TestUser::try_new(&alice, setup.server_url(), Some("DUMMY007"))
+    let new_alice = TestUser::try_new(alice.user_id(), setup.server_url(), Some("DUMMY007"))
         .await
         .unwrap();
     // Adding a username to the new user should work, because the previous username was
@@ -376,8 +358,7 @@ async fn username_sanity_checks() {
     let username_record = setup.add_username(&alice).await;
     let alice_username = username_record.username.clone();
     let alice_username_hash = alice_username.calculate_hash().unwrap();
-    let alice_user = setup.user(&alice);
-    let res = alice_user
+    let res = alice
         .add_contact(alice_username.clone(), alice_username_hash, apq_groups)
         .await
         .unwrap();
@@ -388,12 +369,12 @@ async fn username_sanity_checks() {
     );
 
     // Try to add Bob twice
-    let res = alice_user
+    let res = alice
         .add_contact(bob_username.clone(), bob_username_hash, apq_groups)
         .await
         .unwrap();
     assert_matches!(res, Ok(_), "Should be able to add Bob as contact");
-    let res = alice_user
+    let res = alice
         .add_contact(bob_username.clone(), bob_username_hash, apq_groups)
         .await
         .unwrap();
@@ -408,30 +389,26 @@ async fn username_sanity_checks() {
 async fn check_username_exists() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let alice_user = setup.user(&alice);
 
     let random_number = rand::rng().random_range(100_000..1_000_000);
     let alice_username = Username::new(format!("alice-{}", random_number)).unwrap();
 
-    let hash = alice_user
+    let hash = alice
         .check_username_exists(alice_username.clone())
         .await
         .unwrap();
     assert!(hash.is_none(), "Alice's username should not exist yet");
 
-    alice_user
-        .add_username(alice_username.clone())
-        .await
-        .unwrap();
+    alice.add_username(alice_username.clone()).await.unwrap();
 
-    let hash = alice_user
+    let hash = alice
         .check_username_exists(alice_username.clone())
         .await
         .unwrap();
     assert!(hash.is_some(), "Alice's username should exist");
 
-    alice_user.remove_username(&alice_username).await.unwrap();
-    let hash = alice_user
+    alice.remove_username(&alice_username).await.unwrap();
+    let hash = alice
         .check_username_exists(alice_username.clone())
         .await
         .unwrap();
@@ -453,19 +430,21 @@ async fn safety_codes() {
     let mut codes = HashMap::new();
     for computing_user in &users {
         for user in users {
-            let user_code = setup.user(computing_user).safety_code(user).await.unwrap();
+            let user_code = computing_user.safety_code(user.user_id()).await.unwrap();
 
             // If this is the first time we see a code for this user, store it
             // and continue.
-            let Some(expected_code) = codes.get(user) else {
-                codes.insert(user.clone(), user_code);
+            let Some(expected_code) = codes.get(user.user_id()) else {
+                codes.insert(user.user_id().clone(), user_code);
                 continue;
             };
 
             assert_eq!(
-                &user_code, expected_code,
+                &user_code,
+                expected_code,
                 "Safety code for {:?} computed by {:?} does not match",
-                user, computing_user
+                user.user_id(),
+                computing_user.user_id()
             );
             let expected_code_chunks = expected_code.to_chunks();
             let user_code_chunks = user_code.to_chunks();
@@ -476,9 +455,11 @@ async fn safety_codes() {
                 );
             }
             assert_eq!(
-                expected_code_chunks, user_code_chunks,
+                expected_code_chunks,
+                user_code_chunks,
                 "Safety code chunks for {:?} computed by {:?} do not match",
-                user, computing_user
+                user.user_id(),
+                computing_user.user_id()
             );
         }
     }
@@ -492,8 +473,7 @@ async fn add_contact_and_change_profile() {
     let alice_username_record = setup.add_username(&alice).await;
 
     // Add Alice as a contact
-    let bob_user = setup.user(&bob);
-    let bob_alice_chat_id = bob_user
+    let bob_alice_chat_id = bob
         .add_contact(
             alice_username_record.username.clone(),
             alice_username_record.hash,
@@ -505,39 +485,35 @@ async fn add_contact_and_change_profile() {
 
     // Change Bob's profile
     let bob_user_profile = UserProfile {
-        user_id: bob.clone(),
+        user_id: bob.user_id().clone(),
         display_name: "B0b".parse().unwrap(),
         profile_picture: None,
     };
 
-    bob_user
-        .set_own_user_profile(bob_user_profile)
-        .await
-        .unwrap();
+    bob.set_own_user_profile(bob_user_profile).await.unwrap();
 
     // Fetch invitation from Bob and accept it
-    let alice_user = setup.user(&alice);
-    let mut messages = alice_user.fetch_username_messages().await.unwrap();
+    let mut messages = alice.fetch_username_messages().await.unwrap();
     assert_eq!(messages.len(), 1);
-    let alice_bob_chat_id = alice_user
+    let alice_bob_chat_id = alice
         .process_username_queue_message(alice_username_record.username, messages.pop().unwrap())
         .await
         .unwrap()
         .expect("the offer should create a pending chat")
         .chat_id;
-    alice_user
+    alice
         .accept_contact_request(alice_bob_chat_id)
         .await
         .unwrap()
         .unwrap();
 
     // Send message from Alice to Bob
-    alice_user.send_text(alice_bob_chat_id, "hello").await;
+    alice.send_text(alice_bob_chat_id, "hello").await;
 
     // Bob receives invitation acceptance and sees the message from Alice
-    bob_user.drain().await;
+    bob.drain().await;
 
-    let messages = bob_user.messages(bob_alice_chat_id, 10).await.unwrap();
+    let messages = bob.messages(bob_alice_chat_id, 10).await.unwrap();
     assert_eq!(messages.len(), 3);
     assert_matches!(
         messages[0].message(),
@@ -566,13 +542,12 @@ async fn add_contact_and_change_profile() {
 async fn request_invitation_code() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let alice_user = setup.user(&alice);
 
     // No codes in the local store yet.
-    let codes_before = alice_user.load_invitation_codes().await.unwrap();
+    let codes_before = alice.load_invitation_codes().await.unwrap();
     assert!(codes_before.is_empty());
 
-    let token_ids = alice_user.load_invitation_token_ids().await.unwrap();
+    let token_ids = alice.load_invitation_token_ids().await.unwrap();
     assert!(
         !token_ids.is_empty(),
         "should have tokens after replenishment"
@@ -581,7 +556,7 @@ async fn request_invitation_code() {
     let token_id = token_ids.into_iter().next().unwrap();
 
     // Request the code
-    let code = alice_user
+    let code = alice
         .request_invitation_code(token_id)
         .await
         .unwrap()
@@ -594,13 +569,13 @@ async fn request_invitation_code() {
     );
 
     // Code is persisted in the local store
-    let codes_after = alice_user.load_invitation_codes().await.unwrap();
+    let codes_after = alice.load_invitation_codes().await.unwrap();
     assert_eq!(codes_after.len(), 1);
     assert_eq!(codes_after[0].code, code.code);
     assert!(!codes_after[0].copied);
 
     // The consumed token is gone
-    let token_ids_after = alice_user.load_invitation_token_ids().await.unwrap();
+    let token_ids_after = alice.load_invitation_token_ids().await.unwrap();
     assert_eq!(
         token_ids_after.len(),
         token_count_before - 1,
@@ -612,9 +587,8 @@ async fn request_invitation_code() {
 async fn mark_invitation_code_as_copied() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let alice_user = setup.user(&alice);
 
-    let token_id = alice_user
+    let token_id = alice
         .load_invitation_token_ids()
         .await
         .unwrap()
@@ -622,18 +596,18 @@ async fn mark_invitation_code_as_copied() {
         .next()
         .unwrap();
 
-    let code = alice_user
+    let code = alice
         .request_invitation_code(token_id)
         .await
         .unwrap()
         .unwrap();
 
-    alice_user
+    alice
         .mark_invitation_code_as_copied(&code.code)
         .await
         .unwrap();
 
-    let stored = alice_user.load_invitation_codes().await.unwrap();
+    let stored = alice.load_invitation_codes().await.unwrap();
     assert_eq!(stored.len(), 1);
     assert!(stored[0].copied, "code should be marked as copied");
 }

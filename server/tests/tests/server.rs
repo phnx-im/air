@@ -23,8 +23,8 @@ use aircommon::{
 use aircoreclient::{
     ChatId, DisplayName, SystemMessage, UserProfile,
     clients::{
-        ListenResponse, MarkChatAsRead, listen_response, process::process_qs::ProcessedQsMessages,
-        registration::RegistrationError,
+        CoreUser, ListenResponse, MarkChatAsRead, listen_response,
+        process::process_qs::ProcessedQsMessages, registration::RegistrationError,
     },
     outbound_service::{APQ_KEY_PACKAGES, KEY_PACKAGES},
 };
@@ -70,8 +70,6 @@ async fn rate_limit() {
 
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
-
-    let alice = setup.user(&alice);
 
     let mut resource_exhausted = false;
     let mut held_id = None;
@@ -132,7 +130,6 @@ async fn rate_limit() {
     assert_ne!(held.status(), MessageStatus::Error);
 
     // Bob receives the held message before the later one
-    let bob = setup.user(&bob);
     bob.drain().await;
     let texts = bob.text_messages(chat_id).await;
     let held_pos = texts.iter().position(|t| *t == held_text).unwrap();
@@ -161,18 +158,17 @@ async fn user_deletion_triggers() {
 
     // Bob should have a user profile for charlie now, even though they
     // are not connected.
-    let bob_user = setup.user(&bob);
-    let bob_user_profile_charlie = bob_user.user_profile(&charlie).await;
-    assert!(bob_user_profile_charlie.user_id == charlie);
+    let bob_user_profile_charlie = bob.user_profile(charlie.user_id()).await;
+    assert!(bob_user_profile_charlie.user_id == *charlie.user_id());
 
     // Now charlie leaves the group
     setup.leave_group(chat_id, &charlie).await.unwrap();
     // Bob should not have a user profile for charlie anymore.
 
-    let bob_user_profile_charlie = bob_user.user_profile(&charlie).await;
+    let bob_user_profile_charlie = bob.user_profile(charlie.user_id()).await;
     assert_eq!(
         bob_user_profile_charlie,
-        aircoreclient::UserProfile::from_user_id(&charlie)
+        aircoreclient::UserProfile::from_user_id(charlie.user_id())
     );
 }
 
@@ -286,7 +282,7 @@ async fn max_past_epochs() {
     // Create MAX_PAST_EPOCHS updates and send a message from Bob to Alice after
     // each update.
     for _ in 0..MAX_PAST_EPOCHS {
-        let result = update_and_send_message(&setup, contact_chat_id, &alice, &bob).await;
+        let result = update_and_send_message(contact_chat_id, &alice, &bob).await;
         assert!(
             result.errors.is_empty(),
             "Alice should process Bob's message without errors"
@@ -294,7 +290,7 @@ async fn max_past_epochs() {
     }
 
     // Repeat one more time, this time we expect an error
-    let result = update_and_send_message(&setup, contact_chat_id, &alice, &bob).await;
+    let result = update_and_send_message(contact_chat_id, &alice, &bob).await;
     let error = &result.errors[0].to_string();
     assert_eq!(
         error.to_string(),
@@ -304,20 +300,17 @@ async fn max_past_epochs() {
 }
 
 async fn update_and_send_message(
-    setup: &TestBackend,
     contact_chat_id: ChatId,
-    alice: &UserId,
-    bob: &UserId,
+    alice: &CoreUser,
+    bob: &CoreUser,
 ) -> ProcessedQsMessages {
-    let alice_user = setup.user(alice);
     // alice creates an update and sends it to the ds
-    alice_user.update_key(contact_chat_id).await.unwrap();
+    alice.update_key(contact_chat_id).await.unwrap();
     // bob creates a message based on his (old) epoch for alice
-    let bob_user = setup.user(bob);
-    bob_user.send_text(contact_chat_id, "message").await;
+    bob.send_text(contact_chat_id, "message").await;
     // alice fetches and processes bob's message
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    alice_user.fully_process_qs_messages(qs_messages).await
+    let qs_messages = alice.qs_fetch_messages().await.unwrap();
+    alice.fully_process_qs_messages(qs_messages).await
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -333,21 +326,19 @@ async fn ratchet_tolerance() {
 
     // To test the tolerance of the ratchet, we have Alice send a bunch of
     // messages and then give Bob only the last one to process.
-    let alice_user = setup.user(&alice);
     for _ in 0..5 {
         let msg = MimiContent::simple_markdown_message("message".to_owned(), [0; 16]);
-        alice_user
+        alice
             .send_message(contact_chat_id, msg, None, MarkChatAsRead::Yes)
             .await
             .unwrap();
     }
-    alice_user.outbound_service().run_once().await;
+    alice.outbound_service().run_once().await;
 
-    let bob_user = setup.user(&bob);
-    let mut qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let mut qs_messages = bob.qs_fetch_messages().await.unwrap();
     // Give Bob only the last message to process
     let last_message = qs_messages.pop().unwrap();
-    let result = bob_user.fully_process_qs_messages(vec![last_message]).await;
+    let result = bob.fully_process_qs_messages(vec![last_message]).await;
     assert!(
         result.errors.is_empty(),
         "Bob should process Alice's last message without errors"
@@ -460,40 +451,38 @@ async fn resync() {
 
     // To trigger resync, we have Alice add Charlie to the group and Bob
     // fetching, but not processing the commit.
-    let alice_user = setup.user(&alice);
 
     // Alice creates a invites charlie and sends the commit to the DS
-    alice_user
-        .invite_users(chat_id, slice::from_ref(&charlie))
+    alice
+        .invite_users(chat_id, slice::from_ref(charlie.user_id()))
         .await
         .unwrap();
 
     // Bob fetches the invite and acks it s.t. it's removed from the queue,
     // but does not process it. This is to simulate Bob missing the commit.
-    let bob_user = setup.user(&bob);
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let qs_messages = bob.qs_fetch_messages().await.unwrap();
     let [message] = qs_messages.as_slice() else {
         panic!("Bob should have one message in the queue");
     };
-    let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
+    let (mut stream, responder) = bob.listen_queue().await.unwrap();
     responder.ack(message.sequence_number + 1).await;
     responder.close(&mut stream).await;
 
     // Alice performs an update, which bob fetches and processes, triggering a
     // resync.
-    alice_user.update_key(chat_id).await.unwrap();
+    alice.update_key(chat_id).await.unwrap();
 
     // Bob fetches and processes the update
-    bob_user.drain().await;
+    bob.drain().await;
     // Run outbound service to complete the rejoin process
-    bob_user.outbound_service().run_once().await;
+    bob.outbound_service().run_once().await;
     // Instead of throwing an error, Bob should have re-synced as part of processing the update.
 
     // The resync diff should surface Charlie's addition without an actor.
-    let messages = bob_user.system_messages(chat_id).await;
+    let messages = bob.system_messages(chat_id).await;
     let actorless_charlie_adds = messages
         .iter()
-        .filter(|message| matches!(message, SystemMessage::Add(None, added) if added == &charlie))
+        .filter(|message| matches!(message, SystemMessage::Add(None, added) if added == charlie.user_id()))
         .count();
     assert_eq!(
         actorless_charlie_adds, 1,
@@ -502,7 +491,7 @@ async fn resync() {
     let charlie_adds_with_actor = messages
         .iter()
         .filter(
-            |message| matches!(message, SystemMessage::Add(Some(_), added) if added == &charlie),
+            |message| matches!(message, SystemMessage::Add(Some(_), added) if added == charlie.user_id()),
         )
         .count();
     assert_eq!(
@@ -511,13 +500,13 @@ async fn resync() {
     );
 
     // Alice processes Bob's rejoin
-    alice_user.drain().await;
+    alice.drain().await;
 
     // Bob should have rejoined the group and should be able to send a message.
     setup.send_message(chat_id, &bob, &[&alice, &charlie]).await;
 
     // When Alice sends another message, Bob should be able to process it without errors.
-    alice_user
+    alice
         .send_message(
             chat_id,
             MimiContent::simple_markdown_message("message".to_owned(), [0; 16]),
@@ -527,49 +516,53 @@ async fn resync() {
         .await
         .unwrap();
 
-    bob_user.drain().await;
+    bob.drain().await;
 
     // Now Alice leaves the group, which means that if Bob resyncs again, he
     // should commit the SelfRemove proposal in the process.
 
     // Alice sends an update, which Bob misses again.
-    alice_user.update_key(chat_id).await.unwrap();
+    alice.update_key(chat_id).await.unwrap();
 
     // Bob fetches the update and acks it s.t. it's removed from the queue,
     // but does not process it. This is to simulate Bob missing the commit.
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let qs_messages = bob.qs_fetch_messages().await.unwrap();
     let [message] = qs_messages.as_slice() else {
         panic!("Bob should have one message in the queue");
     };
-    let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
+    let (mut stream, responder) = bob.listen_queue().await.unwrap();
     responder.ack(message.sequence_number + 1).await;
     responder.close(&mut stream).await;
 
     // Now Alice leaves the group, which means that if Bob resyncs again, he
     // should commit the SelfRemove proposal in the process.
-    alice_user.leave_chat(chat_id).await.unwrap();
+    alice.leave_chat(chat_id).await.unwrap();
 
     // Bob fetches and processes his messages, which should trigger a resync.
 
     // Alice is still part of the group.
-    let participants = bob_user.group_members(chat_id).await.unwrap();
+    let participants = bob.group_members(chat_id).await.unwrap();
     assert_eq!(
         participants,
-        [alice.clone(), bob.clone(), charlie.clone()]
-            .into_iter()
-            .collect()
+        [
+            alice.user_id().clone(),
+            bob.user_id().clone(),
+            charlie.user_id().clone()
+        ]
+        .into_iter()
+        .collect()
     );
 
-    bob_user.drain().await;
-    bob_user.outbound_service().run_once().await;
+    bob.drain().await;
+    bob.outbound_service().run_once().await;
     // Instead of throwing an error, Bob should have re-synced as part of processing the update.
 
     // The resync committed Alice's SelfRemove, which Bob cannot attribute.
-    let messages = bob_user.system_messages(chat_id).await;
+    let messages = bob.system_messages(chat_id).await;
     let actorless_alice_removes = messages
         .iter()
         .filter(
-            |message| matches!(message, SystemMessage::Remove(None, removed) if removed == &alice),
+            |message| matches!(message, SystemMessage::Remove(None, removed) if removed == alice.user_id()),
         )
         .count();
     assert_eq!(
@@ -579,7 +572,7 @@ async fn resync() {
     let alice_removes_with_actor = messages
         .iter()
         .filter(|message| {
-            matches!(message, SystemMessage::Remove(Some(_), removed) if removed == &alice)
+            matches!(message, SystemMessage::Remove(Some(_), removed) if removed == alice.user_id())
         })
         .count();
     assert_eq!(
@@ -604,22 +597,25 @@ async fn resync() {
     );
 
     // Alice not in the group anymore.
-    let participants = bob_user.group_members(chat_id).await.unwrap();
+    let participants = bob.group_members(chat_id).await.unwrap();
     assert_eq!(
         participants,
-        [bob.clone(), charlie.clone()].into_iter().collect()
+        [bob.user_id().clone(), charlie.user_id().clone()]
+            .into_iter()
+            .collect()
     );
 
     // Messages should reach Charlie.
     setup.send_message(chat_id, &bob, &[&charlie]).await;
 
     // Charlie should also only see Bob in the group.
-    let charlie_user = setup.user(&charlie);
 
-    let participants = charlie_user.group_members(chat_id).await.unwrap();
+    let participants = charlie.group_members(chat_id).await.unwrap();
     assert_eq!(
         participants,
-        [bob.clone(), charlie.clone()].into_iter().collect()
+        [bob.user_id().clone(), charlie.user_id().clone()]
+            .into_iter()
+            .collect()
     );
 }
 
@@ -633,67 +629,63 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
     let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
     // Alice commits. Bob acks the commit without processing it, so he is one epoch behind.
-    let alice_user = setup.user(&alice);
-    alice_user.update_key(chat_id).await.unwrap();
+    alice.update_key(chat_id).await.unwrap();
 
-    let bob_user = setup.user(&bob);
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let qs_messages = bob.qs_fetch_messages().await.unwrap();
     let [message] = qs_messages.as_slice() else {
         panic!("Bob should have one message in the queue");
     };
-    let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
+    let (mut stream, responder) = bob.listen_queue().await.unwrap();
     responder.ack(message.sequence_number + 1).await;
     responder.close(&mut stream).await;
 
-    let group_id = bob_user.expect_chat(chat_id).await.group_id;
+    let group_id = bob.expect_chat(chat_id).await.group_id;
 
     // Bob's own commit is rejected with a wrong epoch: parked, nothing else.
-    bob_user
-        .update_key(chat_id)
+    bob.update_key(chat_id)
         .await
         .expect_err("commit at a stale epoch must be rejected");
-    let pending = bob_user
+    let pending = bob
         .pending_chat_operation_info(chat_id)
         .await
         .unwrap()
         .expect("rejected commit should be parked");
     assert_eq!(pending.request_status, "waiting_for_queue_response");
-    assert!(bob_user.resync_status(chat_id).await.unwrap().is_none());
-    assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
+    assert!(bob.resync_status(chat_id).await.unwrap().is_none());
+    assert!(!bob.chat_is_pending(&group_id).await.unwrap());
 
     // An outbound run changes nothing either.
-    bob_user.outbound_service().run_once().await;
-    assert!(bob_user.resync_status(chat_id).await.unwrap().is_none());
-    assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
+    bob.outbound_service().run_once().await;
+    assert!(bob.resync_status(chat_id).await.unwrap().is_none());
+    assert!(!bob.chat_is_pending(&group_id).await.unwrap());
 
     // Alice sends a message from the epoch Bob missed. Processing it proves the desync and
     // schedules the resync.
-    alice_user.send_text(chat_id, "message").await;
+    alice.send_text(chat_id, "message").await;
 
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let qs_messages = bob.qs_fetch_messages().await.unwrap();
     assert_eq!(qs_messages.len(), 1, "Bob should receive Alice's message");
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    let result = bob.fully_process_qs_messages(qs_messages).await;
     assert!(
         result.errors.is_empty(),
         "a message from a future epoch must schedule a resync, not fail"
     );
-    assert!(bob_user.resync_status(chat_id).await.unwrap().is_some());
-    assert!(bob_user.chat_is_pending(&group_id).await.unwrap());
+    assert!(bob.resync_status(chat_id).await.unwrap().is_some());
+    assert!(bob.chat_is_pending(&group_id).await.unwrap());
 
     // The resync replaces the group state, which also drops the parked commit.
-    bob_user.outbound_service().run_once().await;
-    assert!(bob_user.resync_status(chat_id).await.unwrap().is_none());
-    assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
+    bob.outbound_service().run_once().await;
+    assert!(bob.resync_status(chat_id).await.unwrap().is_none());
+    assert!(!bob.chat_is_pending(&group_id).await.unwrap());
     assert!(
-        bob_user
-            .pending_chat_operation_info(chat_id)
+        bob.pending_chat_operation_info(chat_id)
             .await
             .unwrap()
             .is_none()
     );
 
     // Alice processes Bob's rejoin and Bob can send again.
-    alice_user.drain().await;
+    alice.drain().await;
 
     setup.send_message(chat_id, &bob, &[&alice]).await;
 }
@@ -715,22 +707,20 @@ async fn resync_group_not_found_cleans_up_local_state() {
     // Enqueue a resync with a fabricated group_id that doesn't exist on the
     // server. This simulates a group that was deleted or garbage-collected
     // server-side while the client still had a stale resync entry.
-    let bob_user = setup.user(&bob);
-    bob_user
-        .enqueue_resync_for_nonexistent_group(chat_id, "localhost")
+    bob.enqueue_resync_for_nonexistent_group(chat_id, "localhost")
         .await
         .unwrap();
     assert!(
-        bob_user.resync_status(chat_id).await.unwrap().is_some(),
+        bob.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
     // Bob runs the outbound service. The resync hits "group not found"
     // and must not loop forever.
-    bob_user.outbound_service().run_once().await;
+    bob.outbound_service().run_once().await;
 
     assert!(
-        bob_user.resync_status(chat_id).await.unwrap().is_none(),
+        bob.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have been removed after group not found"
     );
 }
@@ -745,24 +735,22 @@ async fn resync_valid_group_succeeds() {
     let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
     // Bob enqueues a resync for the group.
-    let bob_user = setup.user(&bob);
-    bob_user.enqueue_group_resync(chat_id).await.unwrap();
+    bob.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
-        bob_user.resync_status(chat_id).await.unwrap().is_some(),
+        bob.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
     // Run outbound service — resync should succeed.
-    bob_user.outbound_service().run_once().await;
+    bob.outbound_service().run_once().await;
 
     assert!(
-        bob_user.resync_status(chat_id).await.unwrap().is_none(),
+        bob.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have completed"
     );
 
     // Alice processes Bob's rejoin commit.
-    let alice_user = setup.user(&alice);
-    alice_user.drain().await;
+    alice.drain().await;
 
     // Bob should be able to send messages normally.
     setup.send_message(chat_id, &bob, &[&alice]).await;
@@ -771,12 +759,12 @@ async fn resync_valid_group_succeeds() {
     // Bob must process it cleanly, which for APQ groups also verifies that the resync left the T
     // and PQ legs at compatible epochs (PSK continuity).
     if setup.apq_groups {
-        alice_user.update_apq_key(chat_id).await.unwrap();
+        alice.update_apq_key(chat_id).await.unwrap();
     } else {
-        alice_user.update_key(chat_id).await.unwrap();
+        alice.update_key(chat_id).await.unwrap();
     }
 
-    bob_user.drain().await;
+    bob.drain().await;
 }
 
 /// Resync with holes in the leaf nodes: Alice creates a group with Bob,
@@ -802,100 +790,97 @@ async fn resync_with_blank_leaf_succeeds() {
 
     // Charlie leaves the chat. This puts a pending SelfRemove proposal for leaf index 2 on the DS,
     // which is committed by the next resync's external commit.
-    let charlie_user = setup.user(&charlie);
-    charlie_user.leave_chat(chat_id).await.unwrap();
+    charlie.leave_chat(chat_id).await.unwrap();
 
     // Alice and Dave observe Charlie's proposal.
-    for user_id in [&alice, &dave] {
-        let user = setup.user(user_id);
+    for user in [&alice, &dave] {
         user.drain().await;
     }
 
     // Dave changes his profile. This rotates his user profile key, so Alice's post-resync profile
     // fetch must decrypt it with the key from the external commit info.
-    let dave_user = setup.user(&dave);
     let dave_display_name: DisplayName = "D4v3".parse().unwrap();
-    dave_user
-        .set_own_user_profile(UserProfile {
-            user_id: dave.clone(),
-            display_name: dave_display_name.clone(),
-            profile_picture: None,
-        })
-        .await
-        .unwrap();
+    dave.set_own_user_profile(UserProfile {
+        user_id: dave.user_id().clone(),
+        display_name: dave_display_name.clone(),
+        profile_picture: None,
+    })
+    .await
+    .unwrap();
 
     // Alice resyncs first.
-    let alice_user = setup.user(&alice);
-    alice_user.enqueue_group_resync(chat_id).await.unwrap();
+    alice.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
-        alice_user.resync_status(chat_id).await.unwrap().is_some(),
+        alice.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
     // Run outbound service — resync should succeed despite the blank leaves.
-    alice_user.outbound_service().run_once().await;
+    alice.outbound_service().run_once().await;
 
     assert!(
-        alice_user.resync_status(chat_id).await.unwrap().is_none(),
+        alice.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have completed"
     );
 
     // Run the outbound service again to process the user profile fetch operations enqueued by the
     // resync.
-    alice_user.outbound_service().run_once().await;
+    alice.outbound_service().run_once().await;
 
     // Alice should see Dave's updated profile after the resync.
-    let dave_profile = alice_user.user_profile(&dave).await;
+    let dave_profile = alice.user_profile(dave.user_id()).await;
     assert_eq!(dave_profile.display_name, dave_display_name);
 
     // Alice must not have received her own external commit from the DS.
-    alice_user.drain().await;
+    alice.drain().await;
 
     // Dave processes Alice's rejoin commit.
-    dave_user.drain().await;
+    dave.drain().await;
 
     // Now Dave resyncs as well.
-    dave_user.enqueue_group_resync(chat_id).await.unwrap();
+    dave.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
-        dave_user.resync_status(chat_id).await.unwrap().is_some(),
+        dave.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
-    dave_user.outbound_service().run_once().await;
+    dave.outbound_service().run_once().await;
 
     assert!(
-        dave_user.resync_status(chat_id).await.unwrap().is_none(),
+        dave.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have completed"
     );
 
     // Run the outbound service again to process the user profile fetch operations enqueued by the
     // resync.
-    dave_user.outbound_service().run_once().await;
+    dave.outbound_service().run_once().await;
 
     // Dave must not have received his own external commit from the DS.
-    dave_user.drain().await;
+    dave.drain().await;
 
     // Alice processes Dave's rejoin commit.
-    alice_user.drain().await;
+    alice.drain().await;
 
     // Both group members should agree on the group membership.
-    let expected_members: HashSet<_> = [alice.clone(), dave.clone()].into_iter().collect();
-    let participants = alice_user.group_members(chat_id).await.unwrap();
+    let expected_members: HashSet<_> = [alice.user_id().clone(), dave.user_id().clone()]
+        .into_iter()
+        .collect();
+    let participants = alice.group_members(chat_id).await.unwrap();
     assert_eq!(participants, expected_members);
-    let participants = dave_user.group_members(chat_id).await.unwrap();
+    let participants = dave.group_members(chat_id).await.unwrap();
     assert_eq!(participants, expected_members);
 
     // Dave sends a message.
     //
     // Note: the external commit re-added Dave at the leftmost blank leaf (Bob's old position), i.e.
     // his leaf index changed.
-    dave_user.send_text(chat_id, "message").await;
+    dave.send_text(chat_id, "message").await;
 
     // Alice receives the message.
-    alice_user.drain().await;
+    alice.drain().await;
 
     // The DS must not fan out Dave's own message back to him.
-    dave_user.drain().await;
+    dave.drain().await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -909,15 +894,12 @@ async fn key_package_upload() {
 
     let create_chat_and_invite_bob = async |setup: &TestBackend| {
         let chat_id = setup.create_group(&alice).await;
-        let alice_user = setup.user(&alice);
-        alice_user
-            .invite_users(chat_id, slice::from_ref(&bob))
+        alice
+            .invite_users(chat_id, slice::from_ref(bob.user_id()))
             .await
             .unwrap();
-        let bob_user = setup.user(&bob);
-        bob_user.drain().await;
-        bob_user
-            .mls_members(chat_id)
+        bob.drain().await;
+        bob.mls_members(chat_id)
             .await
             .unwrap()
             .unwrap()
@@ -946,14 +928,12 @@ async fn key_package_upload() {
     );
 
     // Bob uploads new KeyPackages
-    let bob_user = setup.user(&bob);
     let now = Utc::now();
-    bob_user
-        .outbound_service()
+    bob.outbound_service()
         .schedule_key_package_upload(now - chrono::Duration::minutes(5))
         .await
         .unwrap();
-    bob_user.outbound_service().run_once().await;
+    bob.outbound_service().run_once().await;
 
     // Invite Bob again, should get a new KeyPackage
     let bob_encryption_key = create_chat_and_invite_bob(&setup).await;
@@ -1335,9 +1315,8 @@ async fn skip_version_status(
 async fn listen_queue_version_status() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let alice_user = setup.user(&alice);
 
-    let (mut stream, _responder) = alice_user.listen_queue().await.unwrap();
+    let (mut stream, _responder) = alice.listen_queue().await.unwrap();
 
     // The first event reports the version status, then the queue-empty sentinel follows.
     assert_matches!(
@@ -1370,9 +1349,8 @@ async fn listen_queue_version_status_expiring() {
     .await;
 
     let alice = setup.add_user().await;
-    let alice_user = setup.user(&alice);
 
-    let (mut stream, _responder) = alice_user.listen_queue().await.unwrap();
+    let (mut stream, _responder) = alice.listen_queue().await.unwrap();
 
     // The first event reports the upcoming expiry, then the queue-empty sentinel follows.
     let response = stream.next().await.unwrap().unwrap();
@@ -1398,18 +1376,17 @@ async fn listen_stream_eviction() {
     let alice = setup.add_user().await;
 
     let username_record = setup.add_username(&alice).await;
-    let alice_user = setup.user(&alice);
 
     // Every device of the user listens to the same username, so username
     // message streams run side by side up to the device limit.
-    let (mut stream_a, _responder_a) = alice_user.listen_username(&username_record).await.unwrap();
+    let (mut stream_a, _responder_a) = alice.listen_username(&username_record).await.unwrap();
     assert_matches!(
         stream_a.next().await,
         Some(None),
         "should receive empty message"
     );
 
-    let (mut stream_b, _responder_b) = alice_user.listen_username(&username_record).await.unwrap();
+    let (mut stream_b, _responder_b) = alice.listen_username(&username_record).await.unwrap();
     assert_matches!(
         stream_b.next().await,
         Some(None),
@@ -1426,7 +1403,7 @@ async fn listen_stream_eviction() {
     }
 
     // Beyond the device limit, the oldest username stream is evicted.
-    let (mut stream_c, _responder_c) = alice_user.listen_username(&username_record).await.unwrap();
+    let (mut stream_c, _responder_c) = alice.listen_username(&username_record).await.unwrap();
     assert_matches!(
         stream_c.next().await,
         Some(None),
@@ -1450,7 +1427,7 @@ async fn listen_stream_eviction() {
     }
 
     // QS events stream is evicted when another stream is opened
-    let (mut stream_a, _responder_a) = alice_user.listen_queue().await.unwrap();
+    let (mut stream_a, _responder_a) = alice.listen_queue().await.unwrap();
     skip_version_status(&mut stream_a).await;
     assert_matches!(
         stream_a.next().await,
@@ -1459,7 +1436,7 @@ async fn listen_stream_eviction() {
         }))
     );
 
-    let (mut stream_b, _responder_b) = alice_user.listen_queue().await.unwrap();
+    let (mut stream_b, _responder_b) = alice.listen_queue().await.unwrap();
     skip_version_status(&mut stream_b).await;
     assert_matches!(
         stream_b.next().await,
@@ -1500,12 +1477,10 @@ async fn listen_stream_durable_acks() {
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let alice_user = setup.user(&alice);
-    alice_user.send_text(chat_id, "hello bob").await;
+    alice.send_text(chat_id, "hello bob").await;
 
     // Bob receives the message on the listen stream and acks it.
-    let bob_user = setup.user(&bob);
-    let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
+    let (mut stream, responder) = bob.listen_queue().await.unwrap();
     skip_version_status(&mut stream).await;
     let sequence_number = match stream.next().await {
         Some(Ok(ListenResponse {
@@ -1533,7 +1508,7 @@ async fn listen_stream_durable_acks() {
     assert_matches!(terminal, None, "stream closes with OK");
 
     // On reconnect, the acked message is not redelivered.
-    let (mut stream, _responder) = bob_user.listen_queue().await.unwrap();
+    let (mut stream, _responder) = bob.listen_queue().await.unwrap();
     skip_version_status(&mut stream).await;
     assert_matches!(
         stream.next().await,
