@@ -40,6 +40,11 @@ const MIN_DESCRIPTION_LENGTH: usize = 10;
 /// so a translation ending in 。 counts as ending in '.'.
 const TERMINAL_MARKS: &[(char, char)] = &[('.', '。'), ('?', '？'), ('!', '！'), (':', '：')];
 
+/// Greek writes the question mark as ';', which is a plain semicolon in every
+/// other locale. A Latin '?' in Greek text is a mistake.
+const GREEK_FILE: &str = "app_el.arb";
+const GREEK_QUESTION_MARK: char = ';';
+
 #[derive(Args, Debug)]
 pub(crate) struct ValidateArgs {
     /// Resolve relative paths against this directory.
@@ -379,6 +384,7 @@ fn check_locale(locale: &ArbFile, template: &ArbFile, report: &mut Report) {
         check_protected_terms(&context, report);
         check_line_breaks(&context, report);
         check_terminal_punctuation(&context, report);
+        check_greek_question_marks(&context, report);
     }
 }
 
@@ -509,7 +515,12 @@ fn check_terminal_punctuation(context: &KeyContext<'_>, report: &mut Report) {
         return;
     }
     let source_mark = terminal_mark(source);
-    let translation_mark = terminal_mark(translation);
+    let translation_mark =
+        if context.file == GREEK_FILE && translation.ends_with(GREEK_QUESTION_MARK) {
+            Some(GREEK_QUESTION_MARK)
+        } else {
+            terminal_mark(translation)
+        };
     if source_mark.map(ascii_mark) == translation_mark.map(ascii_mark) {
         return;
     }
@@ -536,17 +547,44 @@ fn terminal_mark(text: &str) -> Option<char> {
     })
 }
 
-/// The ASCII form of a terminal mark, so its fullwidth twin compares equal.
+/// The ASCII form of a terminal mark, so its fullwidth twin and the Greek
+/// question mark compare equal.
 fn ascii_mark(mark: char) -> char {
+    if mark == GREEK_QUESTION_MARK {
+        return '?';
+    }
     TERMINAL_MARKS
         .iter()
         .find(|(_, wide)| *wide == mark)
         .map_or(mark, |(ascii, _)| *ascii)
 }
 
+fn check_greek_question_marks(context: &KeyContext<'_>, report: &mut Report) {
+    if context.file == GREEK_FILE && context.translation.contains('?') {
+        report.push(
+            context.file,
+            context.key,
+            "contains '?' but Greek writes the question mark as ';'",
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn findings_for(file: &str, source: &str, translation: &str) -> usize {
+        let context = KeyContext {
+            file,
+            key: "key",
+            source,
+            translation,
+        };
+        let mut report = Report::default();
+        check_terminal_punctuation(&context, &mut report);
+        check_greek_question_marks(&context, &mut report);
+        report.findings.len()
+    }
 
     #[test]
     fn word_matching_respects_boundaries() {
@@ -569,6 +607,38 @@ mod tests {
         assert_eq!(terminal_mark("请检查该网址：").map(ascii_mark), Some(':'));
         assert_eq!(terminal_mark("Copied to clipboard."), Some('.'));
         assert_eq!(terminal_mark("已复制到剪贴板"), None);
+    }
+
+    #[test]
+    fn greek_questions_end_with_a_semicolon() {
+        assert_eq!(
+            findings_for(GREEK_FILE, "Delete chat?", "Διαγραφή συνομιλίας;"),
+            0
+        );
+        assert_eq!(
+            findings_for(GREEK_FILE, "Delete chat?", "Διαγραφή συνομιλίας?"),
+            1
+        );
+        assert_eq!(
+            findings_for(GREEK_FILE, "Delete chat.", "Διαγραφή συνομιλίας;"),
+            1
+        );
+        assert_eq!(
+            findings_for(GREEK_FILE, "Delete chat", "Διαγραφή συνομιλίας;"),
+            1
+        );
+    }
+
+    #[test]
+    fn semicolons_end_no_question_outside_greek() {
+        assert_eq!(
+            findings_for("app_fr.arb", "Delete chat?", "Supprimer la discussion ;"),
+            1
+        );
+        assert_eq!(
+            findings_for("app_fr.arb", "Delete chat?", "Supprimer la discussion ?"),
+            0
+        );
     }
 
     #[test]
