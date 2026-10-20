@@ -333,12 +333,7 @@ async fn linked_device_gets_open_incoming_requests() {
     let [alice, bob, charlie, dave] = setup.add_users().await;
 
     // Alice and charlie share a group, through dave.
-    setup.connect_users(&dave, &alice).await;
-    setup.connect_users(&dave, &charlie).await;
-    let group_chat_id = setup.create_group(&dave).await;
-    setup
-        .invite_to_group(group_chat_id, &dave, &[&alice, &charlie])
-        .await;
+    let group_chat_id = setup.connected_group(&dave, &[&alice, &charlie]).await;
     let record = setup.add_username(&alice).await;
     let device_a = setup.user(&alice);
 
@@ -435,12 +430,7 @@ async fn linked_device_gets_open_outgoing_requests(acceptance: Acceptance) {
     let [alice, bob, charlie, dave] = setup.add_users().await;
 
     // Alice and charlie share a group, through dave.
-    setup.connect_users(&dave, &alice).await;
-    setup.connect_users(&dave, &charlie).await;
-    let group_chat_id = setup.create_group(&dave).await;
-    setup
-        .invite_to_group(group_chat_id, &dave, &[&alice, &charlie])
-        .await;
+    let group_chat_id = setup.connected_group(&dave, &[&alice, &charlie]).await;
     let record = setup.add_username(&bob).await;
     let device_a = setup.user(&alice);
 

@@ -1117,9 +1117,7 @@ async fn multi_device_redeemed_token_is_removed_from_sibling() {
 async fn multi_device_deleted_chat_is_erased_on_sibling() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    setup.connect_users(&alice, &bob).await;
-    let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
     let (second_device, _tmp) = link_new_device(&setup, &alice).await;
     // Onboarding into the pre-existing group runs in the background.
@@ -1230,9 +1228,7 @@ async fn multi_device_sole_member_group_deletion_reaches_the_sibling() -> anyhow
 async fn multi_device_missed_group_deletion_is_found_by_resync() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    setup.connect_users(&alice, &bob).await;
-    let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
     let (second_device, _tmp) = link_new_device(&setup, &alice).await;
     // Onboarding into the pre-existing group runs in the background.
@@ -1298,9 +1294,7 @@ async fn multi_device_missed_group_deletion_is_found_by_resync() -> anyhow::Resu
 async fn multi_device_deleted_group_takes_no_further_operations() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    setup.connect_users(&alice, &bob).await;
-    let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
     let (second_device, _tmp) = link_new_device(&setup, &alice).await;
     second_device.outbound_service().run_once().await;
@@ -1329,9 +1323,7 @@ async fn multi_device_deleted_group_takes_no_further_operations() -> anyhow::Res
 async fn multi_device_message_to_deleted_group_announces_the_deletion() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    setup.connect_users(&alice, &bob).await;
-    let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
     let (second_device, _tmp) = link_new_device(&setup, &alice).await;
     second_device.outbound_service().run_once().await;
@@ -1381,9 +1373,7 @@ async fn assert_deletion_announced(device: &CoreUser, chat_id: ChatId, deleter: 
 async fn multi_device_deleted_message_is_removed_from_sibling() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    setup.connect_users(&alice, &bob).await;
-    let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
     let (second_device, _tmp) = link_new_device(&setup, &alice).await;
     // Onboarding into the pre-existing group runs in the background.
@@ -1783,10 +1773,7 @@ async fn multi_device_linking_a_third_device() {
 async fn multi_device_onboarding_after_self_group_advanced() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    setup.connect_users(&alice, &bob).await;
-
-    let group_chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(group_chat_id, &alice, &[&bob]).await;
+    let group_chat_id = setup.connected_group(&alice, &[&bob]).await;
 
     let (device_2, _tmp_2) = link_new_device(&setup, &alice).await;
     device_2.outbound_service().run_once().await;

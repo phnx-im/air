@@ -425,12 +425,7 @@ async fn sibling_mirrors_a_targeted_message_connection() {
 
     // Bob knows both, so he can put alice and charlie into one group without
     // them being connected.
-    setup.connect_users(&bob, &alice).await;
-    setup.connect_users(&bob, &charlie).await;
-    let group_chat_id = setup.create_group(&bob).await;
-    setup
-        .invite_to_group(group_chat_id, &bob, &[&alice, &charlie])
-        .await;
+    let group_chat_id = setup.connected_group(&bob, &[&alice, &charlie]).await;
 
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
 
@@ -806,12 +801,7 @@ async fn a_failed_offer_send_keeps_the_created_group() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 
-    setup.connect_users(&bob, &alice).await;
-    setup.connect_users(&bob, &charlie).await;
-    let group_chat_id = setup.create_group(&bob).await;
-    setup
-        .invite_to_group(group_chat_id, &bob, &[&alice, &charlie])
-        .await;
+    let group_chat_id = setup.connected_group(&bob, &[&alice, &charlie]).await;
 
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
 

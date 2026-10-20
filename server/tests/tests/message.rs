@@ -1018,13 +1018,7 @@ async fn sending_commits_pending_proposals() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 
-    setup.connect_users(&alice, &bob).await;
-    setup.connect_users(&alice, &charlie).await;
-
-    let chat_id = setup.create_group(&alice).await;
-    setup
-        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
-        .await;
+    let chat_id = setup.connected_group(&alice, &[&bob, &charlie]).await;
 
     // Bob leaves, which proposes his own removal. Nobody commits it for Alice.
     setup.user(&bob).leave_chat(chat_id).await.unwrap();
@@ -1630,13 +1624,7 @@ async fn reactions_in_group() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 
-    setup.connect_users(&alice, &bob).await;
-    setup.connect_users(&alice, &charlie).await;
-
-    let group_chat = setup.create_group(&alice).await;
-    setup
-        .invite_to_group(group_chat, &alice, &[&bob, &charlie])
-        .await;
+    let group_chat = setup.connected_group(&alice, &[&bob, &charlie]).await;
 
     // Alice posts; Bob and Charlie each react with a different emoji.
     let sent = setup
@@ -1710,13 +1698,7 @@ async fn no_notification_for_reaction_on_others_message() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 
-    setup.connect_users(&alice, &bob).await;
-    setup.connect_users(&alice, &charlie).await;
-
-    let group_chat = setup.create_group(&alice).await;
-    setup
-        .invite_to_group(group_chat, &alice, &[&bob, &charlie])
-        .await;
+    let group_chat = setup.connected_group(&alice, &[&bob, &charlie]).await;
 
     // Bob posts; Charlie reacts to Bob's message.
     let sent = setup
@@ -1814,13 +1796,7 @@ async fn edit_replay_is_ignored() {
 async fn peer_read_receipt_does_not_move_our_read_marker() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
-    setup.connect_users(&alice, &bob).await;
-    setup.connect_users(&alice, &charlie).await;
-
-    let group_chat_id = setup.create_group(&alice).await;
-    setup
-        .invite_to_group(group_chat_id, &alice, &[&bob, &charlie])
-        .await;
+    let group_chat_id = setup.connected_group(&alice, &[&bob, &charlie]).await;
 
     // The invite helper leaves a message from every member behind. Clear Alice's
     // marker, so what follows is about Charlie's message alone.

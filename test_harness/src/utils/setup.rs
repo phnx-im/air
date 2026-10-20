@@ -1038,6 +1038,33 @@ impl TestBackend {
             .await
     }
 
+    /// Connects `owner` to each member, creates a group and invites the
+    /// members.
+    pub async fn connected_group(&self, owner: &UserId, members: &[&UserId]) -> ChatId {
+        self.connected_group_inner(owner, members, GroupKind::Apq(self.apq_groups))
+            .await
+    }
+
+    /// Like [`Self::connected_group`], but always creates an APQ group.
+    pub async fn connected_apq_group(&self, owner: &UserId, members: &[&UserId]) -> ChatId {
+        self.connected_group_inner(owner, members, GroupKind::Apq(true))
+            .await
+    }
+
+    async fn connected_group_inner(
+        &self,
+        owner: &UserId,
+        members: &[&UserId],
+        kind: GroupKind,
+    ) -> ChatId {
+        for member in members {
+            self.connect_users(owner, member).await;
+        }
+        let chat_id = self.create_group_inner(owner, kind).await;
+        self.invite_to_group(chat_id, owner, members).await;
+        chat_id
+    }
+
     async fn create_group_inner(&self, user_id: &UserId, kind: GroupKind) -> ChatId {
         let test_user = self.users.get(user_id).unwrap();
         let user = &test_user.user;

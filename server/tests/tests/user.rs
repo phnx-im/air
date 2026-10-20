@@ -446,13 +446,7 @@ async fn safety_codes() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 
-    let _alice_bob_id = setup.connect_users(&alice, &bob).await;
-    let _alice_charlie_id = setup.connect_users(&alice, &charlie).await;
-
-    let group_id = setup.create_group(&alice).await;
-    setup
-        .invite_to_group(group_id, &alice, &[&bob, &charlie])
-        .await;
+    setup.connected_group(&alice, &[&bob, &charlie]).await;
 
     // Have everyone compute everyones safety code and verify that they match
     let users = [&alice, &bob, &charlie];

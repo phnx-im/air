@@ -442,13 +442,7 @@ async fn connect_users_via_targeted_message_apq() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 
-    setup.connect_users(&alice, &bob).await;
-    setup.connect_users(&alice, &charlie).await;
-
-    let group_chat_id = setup.create_apq_group(&alice).await;
-    setup
-        .invite_to_group(group_chat_id, &alice, &[&bob, &charlie])
-        .await;
+    let group_chat_id = setup.connected_apq_group(&alice, &[&bob, &charlie]).await;
 
     let (bob_chat_id, charlie_chat_id) =
         connect_from_group(&setup, group_chat_id, &bob, &charlie, true).await;

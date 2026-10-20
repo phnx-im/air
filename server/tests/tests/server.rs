@@ -53,11 +53,14 @@ use uuid::Uuid;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn rate_limit() {
-    const PERIOD: Duration = Duration::from_millis(100);
+    // Refilling must stay negligible next to the sending loop, even when it
+    // is slowed down by parallel tests.
+    const PERIOD: Duration = Duration::from_secs(1);
+    const BURST: u32 = 100; // must be large enough to survive setup calls
     let mut setup = TestBackend::single_with_params(TestBackendParams {
         rate_limits: Some(RateLimitsSettings {
             period: PERIOD,
-            burst: 100, // must be large enough to survive setup calls
+            burst: BURST,
         }),
         ..Default::default()
     })
@@ -77,7 +80,7 @@ async fn rate_limit() {
     let mut held_id = None;
 
     // should stop with `resource_exhausted = true` at some point
-    for i in 0..100 {
+    for i in 0..2 * BURST {
         info!(i, "sending message");
         alice
             .send_message(
@@ -622,10 +625,7 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob] = setup.add_users().await;
-    setup.connect_users(&alice, &bob).await;
-
-    let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
     // Alice commits. Bob acks the commit without processing it, so he is one epoch behind.
     let alice_user = setup.user(&alice);
@@ -705,10 +705,7 @@ async fn resync_group_not_found_cleans_up_local_state() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob] = setup.add_users().await;
-    setup.connect_users(&alice, &bob).await;
-
-    let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
     // Enqueue a resync with a fabricated group_id that doesn't exist on the
     // server. This simulates a group that was deleted or garbage-collected
@@ -740,10 +737,7 @@ async fn resync_valid_group_succeeds() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob] = setup.add_users().await;
-    setup.connect_users(&alice, &bob).await;
-
-    let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
     // Bob enqueues a resync for the group.
     let bob_user = setup.user(&bob);
@@ -791,13 +785,8 @@ async fn resync_with_blank_leaf_succeeds() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob, charlie, dave] = setup.add_users().await;
-    setup.connect_users(&alice, &bob).await;
-    setup.connect_users(&alice, &charlie).await;
-    setup.connect_users(&alice, &dave).await;
-
-    let chat_id = setup.create_group(&alice).await;
-    setup
-        .invite_to_group(chat_id, &alice, &[&bob, &charlie, &dave])
+    let chat_id = setup
+        .connected_group(&alice, &[&bob, &charlie, &dave])
         .await;
 
     // Removing Bob blanks his leaf, creating a hole in the leaf nodes.

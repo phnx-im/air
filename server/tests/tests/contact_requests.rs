@@ -193,12 +193,7 @@ async fn asking_back_from_a_group_opens_the_pending_request() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
     // Alice and Bob share a group, through Charlie.
-    setup.connect_users(&charlie, &alice).await;
-    setup.connect_users(&charlie, &bob).await;
-    let group_chat_id = setup.create_group(&charlie).await;
-    setup
-        .invite_to_group(group_chat_id, &charlie, &[&alice, &bob])
-        .await;
+    let group_chat_id = setup.connected_group(&charlie, &[&alice, &bob]).await;
     let alice_user = setup.user(&alice);
     let bob_user = setup.user(&bob);
 
