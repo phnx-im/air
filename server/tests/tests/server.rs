@@ -68,8 +68,7 @@ async fn rate_limit() {
         return;
     }
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let alice = setup.user(&alice);
@@ -137,9 +136,7 @@ async fn rate_limit() {
 async fn user_deletion_triggers() {
     let mut setup = TestBackend::single().await;
     // Create alice and bob
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     // Connect alice and bob
     setup.connect_users(&alice, &bob).await;
@@ -445,8 +442,7 @@ async fn resync() {
     let alice = setup.add_user().await;
     setup.add_username(&alice).await;
 
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [bob, charlie] = setup.add_users().await;
 
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
@@ -625,8 +621,7 @@ async fn resync() {
 async fn wrong_epoch_on_own_commit_does_not_resync() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
 
     let chat_id = setup.create_group(&alice).await;
@@ -709,8 +704,7 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
 async fn resync_group_not_found_cleans_up_local_state() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
 
     let chat_id = setup.create_group(&alice).await;
@@ -745,8 +739,7 @@ async fn resync_group_not_found_cleans_up_local_state() {
 async fn resync_valid_group_succeeds() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
 
     let chat_id = setup.create_group(&alice).await;
@@ -797,10 +790,7 @@ async fn resync_valid_group_succeeds() {
 async fn resync_with_blank_leaf_succeeds() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
-    let dave = setup.add_user().await;
+    let [alice, bob, charlie, dave] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
     setup.connect_users(&alice, &dave).await;
@@ -917,8 +907,7 @@ async fn resync_with_blank_leaf_succeeds() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn key_package_upload() {
     let mut setup = TestBackend::single_with_params(TestBackendParams::no_rate_limits()).await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     // Exhaust Bob's key packages
     // We collect Bob's encryption keys. They should be unique every time.
@@ -1514,8 +1503,7 @@ async fn listen_stream_eviction() {
 async fn listen_stream_durable_acks() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let alice_user = setup.user(&alice);

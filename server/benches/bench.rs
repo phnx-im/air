@@ -25,8 +25,7 @@ fn benchmarks(c: &mut Criterion) {
 
     let (alice, bob, chat_alice_bob) = runtime.block_on(async {
         let mut setup = setup.lock().await;
-        let alice = setup.add_user().await;
-        let bob = setup.add_user().await;
+        let [alice, bob] = setup.add_users().await;
         let chat_id = setup.connect_users(&alice, &bob).await;
         (alice, bob, chat_id)
     });
@@ -61,8 +60,7 @@ fn benchmarks(c: &mut Criterion) {
             async move {
                 let mut setup = setup.lock().await;
                 for _ in 0..iter {
-                    let initiator = setup.add_user().await;
-                    let responder = setup.add_user().await;
+                    let [initiator, responder] = setup.add_users().await;
                     let time = Instant::now();
                     setup.connect_users(&initiator, &responder).await;
                     elapsed += time.elapsed();

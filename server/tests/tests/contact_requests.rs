@@ -41,8 +41,7 @@ pub(crate) async fn add_second_username(setup: &TestBackend, user_id: &UserId) -
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn requests_of_one_sender_fold_into_the_chat_of_the_newest() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let first = setup.add_username(&bob).await;
     let second = add_second_username(&setup, &bob).await;
 
@@ -103,8 +102,7 @@ async fn requests_of_one_sender_fold_into_the_chat_of_the_newest() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn an_offer_fetched_after_accepting_a_newer_one_is_dropped() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let first = setup.add_username(&bob).await;
     let second = add_second_username(&setup, &bob).await;
 
@@ -142,8 +140,7 @@ async fn an_offer_fetched_after_accepting_a_newer_one_is_dropped() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn crossed_requests_leave_one_connection() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let alice_record = setup.add_username(&alice).await;
     let bob_record = setup.add_username(&bob).await;
     let alice_user = setup.user(&alice);
@@ -194,9 +191,7 @@ async fn crossed_requests_leave_one_connection() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn asking_back_from_a_group_opens_the_pending_request() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
     // Alice and Bob share a group, through Charlie.
     setup.connect_users(&charlie, &alice).await;
     setup.connect_users(&charlie, &bob).await;

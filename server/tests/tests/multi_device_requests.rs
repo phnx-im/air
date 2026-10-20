@@ -35,8 +35,7 @@ async fn has_system_message(
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn request_fetched_by_one_device_reaches_its_sibling() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
@@ -107,8 +106,7 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn a_streamed_forwarded_request_has_the_sender_profile() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
@@ -162,8 +160,7 @@ async fn a_streamed_forwarded_request_has_the_sender_profile() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn sibling_holding_the_request_follows_the_accept() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
@@ -218,8 +215,7 @@ async fn sibling_holding_the_request_follows_the_accept() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn sibling_moves_older_requests_into_the_accepted_chat() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let first = setup.add_username(&alice).await;
     let second = add_second_username(&setup, &alice).await;
@@ -295,8 +291,7 @@ async fn sibling_moves_older_requests_into_the_accepted_chat() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn sibling_fetches_the_profile_the_sender_rotated() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
@@ -335,10 +330,7 @@ async fn sibling_fetches_the_profile_the_sender_rotated() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn linked_device_gets_open_incoming_requests() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
-    let dave = setup.add_user().await;
+    let [alice, bob, charlie, dave] = setup.add_users().await;
 
     // Alice and charlie share a group, through dave.
     setup.connect_users(&dave, &alice).await;
@@ -440,10 +432,7 @@ enum Acceptance {
 /// onboards at.
 async fn linked_device_gets_open_outgoing_requests(acceptance: Acceptance) {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
-    let dave = setup.add_user().await;
+    let [alice, bob, charlie, dave] = setup.add_users().await;
 
     // Alice and charlie share a group, through dave.
     setup.connect_users(&dave, &alice).await;
@@ -585,8 +574,7 @@ async fn outgoing_requests_accepted_before_onboarding_joins_last() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn deleting_a_request_chat_before_forwarding_clears_the_sibling() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let first = setup.add_username(&alice).await;
     let second = add_second_username(&setup, &alice).await;
@@ -632,8 +620,7 @@ async fn assert_erased(device: &CoreUser, chat_id: ChatId, label: &str) {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn retracting_a_request_makes_it_unavailable_to_the_recipient() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
 
     let bob_record = setup.add_username(&bob).await;
@@ -693,8 +680,7 @@ async fn retracting_a_request_makes_it_unavailable_to_the_recipient() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn deleting_an_outgoing_request_retracts_it() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let bob_record = setup.add_username(&bob).await;
 
     let alice_user = setup.user(&alice);
@@ -723,8 +709,7 @@ async fn deleting_an_outgoing_request_retracts_it() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn retracting_offline_keeps_the_request() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let bob_record = setup.add_username(&bob).await;
 
     let alice_user = setup.user(&alice);
@@ -770,8 +755,7 @@ async fn retracting_offline_keeps_the_request() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn retracting_on_both_devices_erases_the_chat() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
 
     let bob_record = setup.add_username(&bob).await;
@@ -817,8 +801,7 @@ async fn retracting_on_both_devices_erases_the_chat() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn accepting_falls_back_to_the_older_request() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let first = setup.add_username(&alice).await;
     let second = add_second_username(&setup, &alice).await;
@@ -873,8 +856,7 @@ async fn accepting_falls_back_to_the_older_request() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn declining_a_request_removes_it_on_the_sibling() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
@@ -919,8 +901,7 @@ async fn declining_a_request_removes_it_on_the_sibling() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn blocking_a_request_sender_declines_on_the_sibling() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let first = setup.add_username(&alice).await;
     let second = add_second_username(&setup, &alice).await;
@@ -963,8 +944,7 @@ async fn blocking_a_request_sender_declines_on_the_sibling() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn a_decline_racing_an_accept_keeps_the_connection() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
@@ -1081,8 +1061,7 @@ async fn assert_sent_request_expired(device: &CoreUser, chat_id: ChatId, label: 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn an_expired_request_closes_on_the_sibling_and_is_unavailable() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let bob_record = setup.add_username(&bob).await;
     let chat_id = send_mirrored_request(&setup, &device_a, &device_b, &bob_record).await;
@@ -1128,8 +1107,7 @@ async fn an_expired_request_closes_on_the_sibling_and_is_unavailable() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn an_echoed_expiry_delete_keeps_the_record() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let bob_record = setup.add_username(&bob).await;
     let alice_user = setup.user(&alice);
     // Only a plain MLS echo can be fed back to the sender.
@@ -1169,8 +1147,7 @@ async fn an_echoed_expiry_delete_keeps_the_record() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn a_request_fetched_past_its_deadline_is_dropped() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
@@ -1214,8 +1191,7 @@ async fn a_request_fetched_past_its_deadline_is_dropped() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn a_request_expiring_on_both_devices_keeps_one_record() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     let bob_record = setup.add_username(&bob).await;
     let chat_id = send_mirrored_request(&setup, &device_a, &device_b, &bob_record).await;
@@ -1243,8 +1219,7 @@ async fn a_request_expiring_on_both_devices_keeps_one_record() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn expired_requests_go_when_the_user_chose_so() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
     device_a
         .set_synced_user_setting(&DeleteExpiredContactRequestsSetting(true))

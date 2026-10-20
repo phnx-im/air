@@ -198,8 +198,7 @@ async fn single_device_uploads_key_packages_via_publish() -> anyhow::Result<()> 
 #[tokio::test(flavor = "multi_thread")]
 async fn key_packages_from_self_group_upload_are_served_and_usable() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     let (_device_b, _tmp) = link_sibling(&setup, &alice).await?;
 
@@ -433,8 +432,7 @@ async fn multi_device_sibling_derives_key_packages_from_upload_commit() -> anyho
 async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling()
 -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
 
     let (device_b, _tmp) = link_new_device(&setup, &alice).await;
@@ -489,8 +487,7 @@ async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling
 #[tokio::test(flavor = "multi_thread")]
 async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
 
     let (device_b, _tmp) = link_new_device(&setup, &alice).await;

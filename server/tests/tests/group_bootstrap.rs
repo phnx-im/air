@@ -101,8 +101,7 @@ async fn assert_same_epoch_and_leaf(
 /// A sibling installs a group chat its sibling created and can use it.
 async fn sibling_follows_a_created_group_chat(apq: bool) {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
 
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
@@ -250,8 +249,7 @@ async fn the_acting_devices_own_echo_is_ignored() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn sibling_follows_an_accepted_connection() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
 
@@ -343,8 +341,7 @@ async fn sibling_follows_an_accepted_connection() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn sibling_mirrors_a_handle_initiated_connection() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
 
@@ -424,9 +421,7 @@ async fn sibling_mirrors_a_handle_initiated_connection() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn sibling_mirrors_a_targeted_message_connection() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     // Bob knows both, so he can put alice and charlie into one group without
     // them being connected.
@@ -525,8 +520,7 @@ async fn offline_sibling_catches_up_on_a_created_group() {
     const TEXT: &str = "sent while the sibling was away";
 
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
 
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
@@ -578,8 +572,7 @@ async fn offline_sibling_catches_up_on_an_accepted_connection() {
     const TEXT: &str = "sent while the sibling was away";
 
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
 
@@ -688,8 +681,7 @@ async fn a_rejected_group_chat_produces_no_echo() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn a_rejected_creation_produces_no_echo() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
 
@@ -758,8 +750,7 @@ async fn a_rejected_creation_produces_no_echo() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn a_rejected_join_produces_no_echo() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
 
@@ -813,9 +804,7 @@ async fn a_rejected_join_produces_no_echo() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn a_failed_offer_send_keeps_the_created_group() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     setup.connect_users(&bob, &alice).await;
     setup.connect_users(&bob, &charlie).await;

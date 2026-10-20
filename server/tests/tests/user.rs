@@ -366,8 +366,7 @@ async fn delete_account() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn username_sanity_checks() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     let username_record = setup.add_username(&bob).await;
     let bob_username = username_record.username.clone();
@@ -445,9 +444,7 @@ async fn check_username_exists() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn safety_codes() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     let _alice_bob_id = setup.connect_users(&alice, &bob).await;
     let _alice_charlie_id = setup.connect_users(&alice, &charlie).await;
@@ -496,9 +493,7 @@ async fn safety_codes() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn add_contact_and_change_profile() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     let alice_username_record = setup.add_username(&alice).await;
 

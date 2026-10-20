@@ -41,8 +41,7 @@ pub(crate) fn test_picture_bytes() -> Vec<u8> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn send_attachment() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let attachment = vec![0x00, 0x01, 0x02, 0x03];
@@ -112,8 +111,7 @@ async fn send_attachment() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn send_image_attachment() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     // A base64 encoded blue PNG image 100x75 pixels.
@@ -210,8 +208,7 @@ async fn attachment_too_large() {
     })
     .await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let attachment = vec![0; MAX_ATTACHMENT_SIZE as usize + 1];

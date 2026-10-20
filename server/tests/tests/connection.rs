@@ -23,8 +23,7 @@ use tokio_stream::StreamExt;
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn connect_users_via_user_handle() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let username = setup.username_record(&bob).unwrap().username;
@@ -73,8 +72,7 @@ async fn connect_users_via_user_handle() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn connection_request_spends_a_token() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let record = setup.add_username(&bob).await;
 
     let alice_user = setup.user(&alice);
@@ -124,8 +122,7 @@ async fn connection_request_spends_a_token() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn connect_users_via_user_handle_uses_signed_package() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     let record = setup.add_username(&bob).await;
 
@@ -272,9 +269,7 @@ async fn signed_connection_package_upload_task_drops_unknown_username() -> anyho
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn connect_users_via_targeted_message() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     // Alice is connected to Bob and Charlie, but Bob and Charlie are not connected.
     setup.connect_users(&alice, &bob).await;
@@ -428,8 +423,7 @@ async fn connect_from_group(
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn connect_users_via_user_handle_apq() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     // Asserts the APQ-ness on both sides and exchanges messages both ways.
     setup.connect_users_apq(&alice, &bob).await;
 }
@@ -437,8 +431,7 @@ async fn connect_users_via_user_handle_apq() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn connect_users_via_user_handle_not_requested_stays_t() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users_non_apq(&alice, &bob).await;
 }
 
@@ -447,9 +440,7 @@ async fn connect_users_via_user_handle_not_requested_stays_t() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn connect_users_via_targeted_message_apq() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
@@ -475,8 +466,7 @@ async fn connect_users_via_targeted_message_apq() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn resync_connection_group() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let bob_user = setup.user(&bob);
@@ -505,9 +495,7 @@ async fn resync_connection_group() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn sanity_checks_for_targeted_message_connections() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     // Alice is connected to Bob and Charlie, but Bob and Charlie are not connected.
     setup.connect_users(&alice, &bob).await;
@@ -554,8 +542,7 @@ async fn connection_request_has_server_timestamp() {
     let mut setup = TestBackend::single().await;
     let apq_groups = setup.apq_groups;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     // Bob adds a username
     let bob_username_record = setup.add_username(&bob).await;
@@ -650,8 +637,7 @@ async fn connection_request_has_server_timestamp() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn ds_room_state_contains_connection_group_joiner() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let users = setup.user(&bob).ds_room_state_users(chat_id).await.unwrap();

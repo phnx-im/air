@@ -54,9 +54,7 @@ use tokio::time::sleep;
 
 async fn setup_group_with_contacts() -> (TestBackend, UserId, UserId, UserId, ChatId) {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
@@ -202,9 +200,7 @@ async fn wrong_epoch_marks_pending_waiting_and_commit_clears_it() {
 
 async fn setup_apq_group_with_charlie_member() -> (TestBackend, UserId, UserId, UserId, ChatId) {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
@@ -498,8 +494,7 @@ async fn delete_chat_with_a_network_error(
     lose_response: bool,
 ) -> (TestBackend, UserId, UserId, ChatId) {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
     let alice_user = setup.user(&alice);
 

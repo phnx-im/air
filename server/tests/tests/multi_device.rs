@@ -204,8 +204,7 @@ async fn self_chat_id(user: &CoreUser) -> ChatId {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_linking_session() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     let charlie = setup.add_user().await;
     setup.connect_users(&alice, &charlie).await;
@@ -607,8 +606,7 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
     let mut setup = TestBackend::single().await;
     let domain = setup.domain().clone();
     let server_url = setup.server_url();
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     let (alice_session_tx, mut alice_session_rx) = tokio::sync::mpsc::channel(1);
     let (bob_session_tx, mut bob_session_rx) = tokio::sync::mpsc::channel(1);
@@ -1118,8 +1116,7 @@ async fn multi_device_redeemed_token_is_removed_from_sibling() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_deleted_chat_is_erased_on_sibling() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
     setup.invite_to_group(chat_id, &alice, &[&bob]).await;
@@ -1232,8 +1229,7 @@ async fn multi_device_sole_member_group_deletion_reaches_the_sibling() -> anyhow
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_missed_group_deletion_is_found_by_resync() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
     setup.invite_to_group(chat_id, &alice, &[&bob]).await;
@@ -1301,8 +1297,7 @@ async fn multi_device_missed_group_deletion_is_found_by_resync() -> anyhow::Resu
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_deleted_group_takes_no_further_operations() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
     setup.invite_to_group(chat_id, &alice, &[&bob]).await;
@@ -1333,8 +1328,7 @@ async fn multi_device_deleted_group_takes_no_further_operations() -> anyhow::Res
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_message_to_deleted_group_announces_the_deletion() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
     setup.invite_to_group(chat_id, &alice, &[&bob]).await;
@@ -1386,8 +1380,7 @@ async fn assert_deletion_announced(device: &CoreUser, chat_id: ChatId, deleter: 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_deleted_message_is_removed_from_sibling() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
     setup.invite_to_group(chat_id, &alice, &[&bob]).await;
@@ -1687,8 +1680,7 @@ async fn multi_device_self_group_above_limit_can_shrink() -> anyhow::Result<()> 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_linking_a_third_device() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let connection_chat_id = setup.connect_users(&alice, &bob).await;
 
     // A higher-level group Alice is already a member of. Every device linked
@@ -1790,8 +1782,7 @@ async fn multi_device_linking_a_third_device() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_onboarding_after_self_group_advanced() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
 
     let group_chat_id = setup.create_group(&alice).await;
@@ -2193,8 +2184,7 @@ async fn multi_device_rename_propagates_to_the_sibling() -> anyhow::Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_remove_member_from_linked_device() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     let charlie = setup.add_user().await;
     setup.connect_users(&alice, &charlie).await;
@@ -2239,8 +2229,7 @@ async fn multi_device_remove_member_from_linked_device() -> anyhow::Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_remove_member_after_sibling_rotated_the_profile() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     let charlie = setup.add_user().await;
     setup.connect_users(&alice, &charlie).await;
@@ -2343,8 +2332,7 @@ async fn multi_device_self_group_resync() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_inherits_connection_chats() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let connection_chat_id = setup.connect_users(&alice, &bob).await;
 
     let (new_device, _tmp) = link_new_device(&setup, &alice).await;
@@ -2443,8 +2431,7 @@ async fn multi_device_inherits_connection_chats() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_skips_blocked_connection_chats() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let connection_chat_id = setup.connect_users(&alice, &bob).await;
 
     setup.user(&alice).block_contact(bob.clone()).await.unwrap();
@@ -2489,8 +2476,7 @@ async fn one_unread_message_on_both_devices(
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_read_markers_follow_a_sibling() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let (device_2, _tmp_2) =
@@ -2554,8 +2540,7 @@ async fn multi_device_read_markers_follow_a_sibling() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_read_markers_via_the_self_group() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let (device_2, _tmp_2) =
@@ -2617,8 +2602,7 @@ async fn multi_device_own_echo_confirms_unconfirmed_send() {
     const TEXT: &str = "the DS response to this one got lost";
 
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     // Linking turns alice's leaf into a virtual-client leaf shared by both
@@ -2727,8 +2711,7 @@ async fn multi_device_own_echo_confirms_unconfirmed_edit() {
     const FINAL_TEXT: &str = "edited a second time";
 
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     // Linking turns alice's leaf into a virtual-client leaf shared by both
@@ -2843,8 +2826,7 @@ async fn setup_group_with_linked_device() -> (
     TempDir,
 ) {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     let charlie = setup.add_user().await;
     setup.connect_users(&alice, &charlie).await;

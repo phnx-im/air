@@ -378,6 +378,14 @@ impl TestBackend {
         user_id
     }
 
+    pub async fn add_users<const N: usize>(&mut self) -> [UserId; N] {
+        let mut user_ids = Vec::with_capacity(N);
+        for _ in 0..N {
+            user_ids.push(self.add_user().await);
+        }
+        user_ids.try_into().unwrap()
+    }
+
     pub async fn add_user(&mut self) -> UserId {
         let user_id = self.random_user_id();
         info!(?user_id, "Creating user");

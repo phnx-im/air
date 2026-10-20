@@ -53,9 +53,7 @@ async fn create_empty_group() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn invite_to_group() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
     let chat_id = setup.create_group(&alice).await;
@@ -68,9 +66,7 @@ async fn invite_to_group() {
 async fn update_group() {
     let mut setup = TestBackend::single().await;
     info!("Adding users");
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
     info!("Connecting users");
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
@@ -87,10 +83,7 @@ async fn update_group() {
 async fn remove_from_group() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
-    let dave = setup.add_user().await;
+    let [alice, bob, charlie, dave] = setup.add_users().await;
 
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
@@ -119,8 +112,7 @@ async fn remove_from_group() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn re_add_client() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
     setup.invite_to_group(chat_id, &alice, &[&bob]).await;
@@ -138,8 +130,7 @@ async fn re_add_client() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn leave_group() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
     setup.invite_to_group(chat_id, &alice, &[&bob]).await;
@@ -150,9 +141,7 @@ async fn leave_group() {
 async fn delete_non_apq_group() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
     let chat_id = setup.create_non_apq_group(&alice).await;
@@ -166,9 +155,7 @@ async fn delete_non_apq_group() {
 async fn delete_apq_group() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
     let chat_id = setup.create_apq_group(&alice).await;
@@ -182,9 +169,7 @@ async fn delete_apq_group() {
 async fn delete_apq_group_by_invitee() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
     let chat_id = setup.create_apq_group(&alice).await;
@@ -234,8 +219,7 @@ async fn delete_group_as_sole_member() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn missed_delete_commit_then_resync() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
     setup.invite_to_group(chat_id, &alice, &[&bob]).await;
@@ -289,8 +273,7 @@ async fn missed_delete_commit_then_resync() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn missed_removal_then_resync() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
     setup.invite_to_group(chat_id, &alice, &[&bob]).await;
@@ -328,9 +311,7 @@ async fn missed_removal_then_resync() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn missed_deletion_without_tombstone_then_resync() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
     let chat_id = setup.create_group(&alice).await;
@@ -359,8 +340,7 @@ async fn missed_deletion_without_tombstone_then_resync() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn delete_group_without_tombstone() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
     setup.invite_to_group(chat_id, &alice, &[&bob]).await;
@@ -415,9 +395,7 @@ async fn room_policy() {
     let mut setup = TestBackend::single().await;
 
     // Create alice and bob
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     // Connect them
     let _chat_alice_bob = setup.connect_users(&alice, &bob).await;
@@ -452,9 +430,7 @@ async fn room_policy() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn update_user_profile_on_group_join() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     // Alice and Bob are connected.
     let _alice_bob_chat = setup.connect_users(&alice, &bob).await;
@@ -528,8 +504,7 @@ async fn group_with_blocked_contact() {
     let alice = setup.add_user().await;
     setup.add_username(&alice).await;
 
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [bob, charlie] = setup.add_users().await;
 
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
@@ -558,8 +533,7 @@ async fn send_message() {
     info!("Setting up setup");
     let mut setup = TestBackend::single().await;
     info!("Creating users");
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
     setup.send_message(chat_id, &alice, &[&bob]).await;
     setup.send_message(chat_id, &bob, &[&alice]).await;
@@ -568,9 +542,7 @@ async fn send_message() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn update_group_data() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     let _alice_bob_chat = setup.connect_users(&alice, &bob).await;
     let _alice_charlie_chat = setup.connect_users(&alice, &charlie).await;
@@ -652,8 +624,7 @@ async fn update_group_data() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn own_pending_commit_merges_group_data_and_clears_pending_op() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     let _alice_bob_chat = setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
@@ -725,8 +696,7 @@ async fn own_pending_commit_merges_group_data_and_clears_pending_op() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn fetch_group_profile_on_invite() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
 
     let chat_id = setup.create_group(&alice).await;
@@ -790,8 +760,7 @@ async fn fetch_group_profile_on_invite() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn fetch_group_profile_on_update() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
 
     let chat_id = setup.create_group(&alice).await;
@@ -842,9 +811,7 @@ async fn fetch_group_profile_on_update() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn missed_commit() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
@@ -941,8 +908,7 @@ async fn missed_commit() {
 async fn confirmation_via_queue() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
@@ -1169,8 +1135,7 @@ async fn self_update_skips_inactive_chats() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn qs_stream_processor_partially_processes_messages() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     let connection_chat_id = setup.connect_users(&alice, &bob).await;
     let group_chat_id = setup.create_group(&alice).await;
@@ -1224,8 +1189,7 @@ async fn qs_stream_processor_partially_processes_messages() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn update_group_profile_in_group_with_profile_component() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
 
     let chat_id = setup
@@ -1353,9 +1317,7 @@ async fn apq_self_update_updates_both_timestamps() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn invite_to_apq_group() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
     let chat_id = setup.create_apq_group(&alice).await;
@@ -1367,9 +1329,7 @@ async fn invite_to_apq_group() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn send_message_in_apq_group() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
     let chat_id = setup.create_apq_group(&alice).await;
@@ -1384,9 +1344,7 @@ async fn send_message_in_apq_group() {
 async fn apq_leave_removes_member_from_both_t_and_pq() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
@@ -1468,9 +1426,7 @@ async fn apq_leave_removes_member_from_both_t_and_pq() {
 async fn apq_delete_removes_member_from_both_t_and_pq() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;

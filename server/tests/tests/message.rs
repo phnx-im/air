@@ -19,8 +19,7 @@ async fn edit_message() {
     let mut setup = TestBackend::single().await;
 
     // Create alice and bob
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     // Connect them
     let chat_alice_bob = setup.connect_users(&alice, &bob).await;
@@ -33,8 +32,7 @@ async fn edit_message() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn edit_is_delivered_when_original_receipt_is_still_queued() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let alice_user = setup.user(&alice);
@@ -83,8 +81,7 @@ async fn own_message_status(user: &CoreUser, message_id: MessageId) -> MessageSt
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn stale_read_receipt_does_not_apply_to_edited_message() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let sent = setup.send_message(chat_id, &alice, &[&bob]).await;
@@ -124,8 +121,7 @@ async fn delete_message() {
     let mut setup = TestBackend::single().await;
 
     // Create alice and bob
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     // Connect them
     let chat_alice_bob = setup.connect_users(&alice, &bob).await;
@@ -173,8 +169,7 @@ async fn delete_message() {
 async fn no_receipts_for_deleted_message() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_alice_bob = setup.connect_users(&alice, &bob).await;
 
     setup.send_message(chat_alice_bob, &alice, &[&bob]).await;
@@ -212,8 +207,7 @@ async fn delete_messages_and_check_replies() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
 
     // Create Alice and Bob and connect them
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_alice_bob = setup.connect_users(&alice, &bob).await;
 
     let alice_says_hi_to_bob = setup.send_message(chat_alice_bob, &alice, &[&bob]).await;
@@ -335,8 +329,7 @@ async fn delete_messages_and_check_replies() -> anyhow::Result<()> {
 async fn retrieve_chat_messages() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     let chat_id = setup.connect_users(&alice, &bob).await;
 
@@ -372,9 +365,7 @@ async fn retrieve_chat_messages() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn mark_as_read() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     let alice_bob_chat = setup.connect_users(&alice, &bob).await;
     let bob_charlie_chat = setup.connect_users(&bob, &charlie).await;
@@ -479,8 +470,7 @@ async fn mark_as_read() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn read_receipts_setting() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     // Establish a direct chat between Alice and Bob.
     let alice_bob_chat = setup.connect_users(&alice, &bob).await;
@@ -554,9 +544,7 @@ async fn delete_message_in_group() {
     let mut setup = TestBackend::single().await;
 
     // Create alice, bob, and charlie
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     // Connect alice with bob and charlie (needed for group invites)
     setup.connect_users(&alice, &bob).await;
@@ -629,8 +617,7 @@ async fn delete_message_in_group() {
 async fn delete_message_preserves_other_messages() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     let chat_id = setup.connect_users(&alice, &bob).await;
 
@@ -734,8 +721,7 @@ async fn delete_message_preserves_other_messages() {
 async fn delete_edited_message() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     let chat_id = setup.connect_users(&alice, &bob).await;
 
@@ -808,8 +794,7 @@ async fn delete_edited_message() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn message_sending_failures() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     let chat_id = setup.connect_users(&alice, &bob).await;
 
@@ -844,8 +829,7 @@ async fn message_sending_failures() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn recoverable_send_failure_is_retried() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let alice_user = setup.user(&alice);
@@ -901,8 +885,7 @@ async fn recoverable_send_failure_is_retried() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn lost_response_is_retried_and_deduplicated() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let alice_user = setup.user(&alice);
@@ -957,8 +940,7 @@ async fn lost_response_is_retried_and_deduplicated() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn fatal_send_failure_fails_only_that_message() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let alice_user = setup.user(&alice);
@@ -1034,9 +1016,7 @@ async fn fatal_send_failure_fails_only_that_message() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn sending_commits_pending_proposals() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
@@ -1113,8 +1093,7 @@ async fn delete_message_with_attachment() {
     let mut setup = TestBackend::single().await;
 
     // Create alice and bob
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     // Connect them
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -1289,8 +1268,7 @@ async fn delete_message_with_attachment() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn send_message_collision_tags_no_collision() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let alice_user = setup.user(&alice);
@@ -1310,8 +1288,7 @@ async fn send_message_collision_tags_no_collision() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn send_message_collision_tags_first_collides() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let alice_user = setup.user(&alice);
@@ -1349,8 +1326,7 @@ async fn send_message_collision_tags_first_collides() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn send_message_collision_tags_second_collides() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let alice_user = setup.user(&alice);
@@ -1388,8 +1364,7 @@ async fn send_message_collision_tags_second_collides() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn send_message_collision_tags_all_collide() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let alice_user = setup.user(&alice);
@@ -1418,8 +1393,7 @@ async fn send_message_collision_tags_all_collide() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn send_message_collision_tags_from_different_users_never_collide() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let alice_user = setup.user(&alice);
@@ -1441,8 +1415,7 @@ async fn send_message_collision_tags_from_different_users_never_collide() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn react_to_message() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     // Alice sends a message; Bob reacts to it.
@@ -1479,8 +1452,7 @@ async fn react_to_message() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn delete_reaction() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let sent = setup.send_message(chat_id, &alice, &[&bob]).await;
@@ -1531,8 +1503,7 @@ async fn delete_reaction() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn queued_reaction_survives_network_error() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let sent = setup.send_message(chat_id, &alice, &[&bob]).await;
@@ -1576,8 +1547,7 @@ async fn queued_reaction_survives_network_error() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn reaction_add_and_retract_stay_in_order() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let sent = setup.send_message(chat_id, &alice, &[&bob]).await;
@@ -1621,8 +1591,7 @@ async fn reaction_add_and_retract_stay_in_order() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multiple_reactions_per_user() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let sent = setup.send_message(chat_id, &alice, &[&bob]).await;
@@ -1659,9 +1628,7 @@ async fn multiple_reactions_per_user() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn reactions_in_group() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
@@ -1709,8 +1676,7 @@ async fn reactions_in_group() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn react_notifies_message_author() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     // Alice sends a message; Bob reacts to it.
@@ -1742,9 +1708,7 @@ async fn react_notifies_message_author() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn no_notification_for_reaction_on_others_message() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
@@ -1805,8 +1769,7 @@ async fn process_replayed_edit(user: &CoreUser) {
 async fn edit_replay_is_ignored() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     setup.send_message(chat_id, &alice, &[&bob]).await;
@@ -1850,9 +1813,7 @@ async fn edit_replay_is_ignored() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn peer_read_receipt_does_not_move_our_read_marker() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
 
