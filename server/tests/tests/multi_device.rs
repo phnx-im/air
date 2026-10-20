@@ -159,7 +159,7 @@ async fn link_new_device_named(
     let new_device_task = tokio::spawn(async move {
         let tmp = TempDir::new().unwrap();
         let db_path = tmp.path().to_str().unwrap();
-        let new_device = CoreUser::multi_device_provision_client(
+        let new_device = CoreUser::new_linked(
             db_path,
             domain,
             Some(server_url),
@@ -563,7 +563,7 @@ async fn multi_device_second_link_attempt_returns_error() {
     let new_device_task = tokio::spawn(async move {
         let tmp = TempDir::new().unwrap();
         let db_path = tmp.path().to_str().unwrap();
-        let new_device = CoreUser::multi_device_provision_client(
+        let new_device = CoreUser::new_linked(
             db_path,
             domain,
             Some(server_url),
@@ -616,7 +616,7 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
     let alice_new_device = tokio::spawn(async move {
         let tmp = TempDir::new().unwrap();
         let db_path = tmp.path().to_str().unwrap();
-        let new_device = CoreUser::multi_device_provision_client(
+        let new_device = CoreUser::new_linked(
             db_path,
             alice_domain,
             Some(alice_server_url),
@@ -634,7 +634,7 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
     let bob_new_device = tokio::spawn(async move {
         let tmp = TempDir::new().unwrap();
         let db_path = tmp.path().to_str().unwrap();
-        let new_device = CoreUser::multi_device_provision_client(
+        let new_device = CoreUser::new_linked(
             db_path,
             bob_domain,
             Some(bob_server_url),
@@ -1508,7 +1508,7 @@ async fn assert_link_rejected_at_limit(
     let new_device_task = tokio::spawn({
         let db_path = db_path.clone();
         async move {
-            CoreUser::multi_device_provision_client(
+            CoreUser::new_linked(
                 &db_path,
                 domain,
                 Some(server_url),
@@ -3248,16 +3248,7 @@ async fn multi_device_cancelled_provisioning_leaves_no_client() -> anyhow::Resul
         let server_url = setup.server_url();
         let db_path = db_path.clone();
         let cancel = cancel.clone();
-        async move {
-            CoreUser::multi_device_provision_client(
-                &db_path,
-                domain,
-                Some(server_url),
-                session_tx,
-                cancel,
-            )
-            .await
-        }
+        async move { CoreUser::new_linked(&db_path, domain, Some(server_url), session_tx, cancel).await }
     });
     recv_session_id(&mut session_rx).await;
 

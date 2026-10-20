@@ -162,7 +162,7 @@ pub async fn multi_device_provision_client(
     };
 
     let linking_session = async {
-        let event = match CoreUser::multi_device_provision_client(
+        let event = match CoreUser::new_linked(
             &db_path,
             domain,
             None,
