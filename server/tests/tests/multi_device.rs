@@ -514,19 +514,10 @@ async fn multi_device_second_link_attempt_returns_error() {
     let (session_tx, mut session_rx) = tokio::sync::mpsc::channel(1);
 
     let new_device_task = tokio::spawn(async move {
-        let tmp = TempDir::new().unwrap();
-        let db_path = tmp.path().to_str().unwrap();
-        let new_device = CoreUser::new_linked(
-            db_path,
-            domain,
-            Some(server_url),
-            session_tx,
-            CancellationToken::new(),
-        )
-        .await
-        .unwrap()
-        .unwrap();
-        (new_device, tmp)
+        CoreUser::new_linked_ephemeral(domain, server_url, session_tx)
+            .await
+            .unwrap()
+            .unwrap()
     });
 
     let session_id = recv_session_id(&mut session_rx).await;
@@ -567,37 +558,19 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
     let alice_domain = domain.clone();
     let alice_server_url = server_url.clone();
     let alice_new_device = tokio::spawn(async move {
-        let tmp = TempDir::new().unwrap();
-        let db_path = tmp.path().to_str().unwrap();
-        let new_device = CoreUser::new_linked(
-            db_path,
-            alice_domain,
-            Some(alice_server_url),
-            alice_session_tx,
-            CancellationToken::new(),
-        )
-        .await
-        .unwrap()
-        .unwrap();
-        (new_device, tmp)
+        CoreUser::new_linked_ephemeral(alice_domain, alice_server_url, alice_session_tx)
+            .await
+            .unwrap()
+            .unwrap()
     });
 
     let bob_domain = domain.clone();
     let bob_server_url = server_url.clone();
     let bob_new_device = tokio::spawn(async move {
-        let tmp = TempDir::new().unwrap();
-        let db_path = tmp.path().to_str().unwrap();
-        let new_device = CoreUser::new_linked(
-            db_path,
-            bob_domain,
-            Some(bob_server_url),
-            bob_session_tx,
-            CancellationToken::new(),
-        )
-        .await
-        .unwrap()
-        .unwrap();
-        (new_device, tmp)
+        CoreUser::new_linked_ephemeral(bob_domain, bob_server_url, bob_session_tx)
+            .await
+            .unwrap()
+            .unwrap()
     });
 
     let alice_session_id = recv_session_id(&mut alice_session_rx).await;
@@ -621,8 +594,8 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
         .unwrap();
 
     // Each new device must be linked to the correct existing virtual client.
-    let (alice_device, _a_tmp) = alice_new_device.await.unwrap();
-    let (bob_device, _b_tmp) = bob_new_device.await.unwrap();
+    let alice_device = alice_new_device.await.unwrap();
+    let bob_device = bob_new_device.await.unwrap();
     assert_eq!(alice_device.qs_user_id(), setup.user(&alice).qs_user_id());
     assert_eq!(bob_device.qs_user_id(), setup.user(&bob).qs_user_id());
     assert_ne!(alice_device.qs_user_id(), bob_device.qs_user_id());

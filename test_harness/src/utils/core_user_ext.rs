@@ -174,6 +174,10 @@ impl CoreUserExt for CoreUser {
                 .or(chat_id);
             responder.ack(message_id.into()).await;
         }
+        // The acks are only applied once the server closes the stream after we
+        // half-closed it. Otherwise the next listen redelivers the messages.
+        drop(responder);
+        while let Ok(Some(_)) = timeout(Duration::from_secs(5), stream.next()).await {}
         chat_id
     }
 
