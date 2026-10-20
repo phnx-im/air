@@ -304,6 +304,9 @@ impl Stream for ControlledIncoming {
                     drop(stream);
                     Poll::Pending
                 } else {
+                    if let Err(error) = stream.set_nodelay(true) {
+                        return Poll::Ready(Some(Err(error)));
+                    }
                     let wrapped = ControlledStream::new(stream, me.mode.clone());
                     Poll::Ready(Some(Ok(wrapped)))
                 }
