@@ -19,8 +19,7 @@ use tokio_stream::StreamExt;
 
 use super::{
     contact_requests::{add_second_username, pending_chats_from},
-    group_bootstrap::{link_sibling, receive_connection_offer},
-    multi_device::{assert_inactive, link_new_device, send_and_receive},
+    multi_device::{assert_inactive, send_and_receive},
 };
 
 /// Whether the chat holds a system message matching `predicate`.
@@ -36,7 +35,8 @@ async fn has_system_message(
 async fn request_fetched_by_one_device_reaches_its_sibling() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
     device_b.drain().await;
@@ -49,7 +49,7 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
         .unwrap();
 
     // Only the device that holds the username fetches the offer.
-    let chat_id = receive_connection_offer(&device_a, &record).await;
+    let chat_id = device_a.receive_connection_offer(&record).await;
     assert_eq!(chat_id, bob_chat_id);
     let package_hashes = device_a
         .connection_package_hashes(&record.username)
@@ -107,7 +107,8 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
 async fn a_streamed_forwarded_request_has_the_sender_profile() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
     device_b.drain().await;
@@ -128,7 +129,7 @@ async fn a_streamed_forwarded_request_has_the_sender_profile() {
         .await
         .unwrap()
         .unwrap();
-    let chat_id = receive_connection_offer(&device_a, &record).await;
+    let chat_id = device_a.receive_connection_offer(&record).await;
     device_a.outbound_service().run_once().await;
 
     let (mut stream, responder) = device_b.listen_queue().await.unwrap();
@@ -161,7 +162,8 @@ async fn a_streamed_forwarded_request_has_the_sender_profile() {
 async fn sibling_holding_the_request_follows_the_accept() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
     device_b.drain().await;
@@ -172,7 +174,7 @@ async fn sibling_holding_the_request_follows_the_accept() {
         .await
         .unwrap()
         .unwrap();
-    let chat_id = receive_connection_offer(&device_a, &record).await;
+    let chat_id = device_a.receive_connection_offer(&record).await;
     device_a.outbound_service().run_once().await;
     device_b.drain().await;
     assert_eq!(pending_chats_from(&device_b, &bob).await, vec![chat_id]);
@@ -208,15 +210,16 @@ async fn sibling_holding_the_request_follows_the_accept() {
     );
 
     bob_user.drain().await;
-    send_and_receive(bob_user, &[&device_a, &device_b], chat_id, "hello alice").await;
-    send_and_receive(&device_b, &[&device_a, bob_user], chat_id, "hello bob").await;
+    send_and_receive(bob_user, &[device_a, &device_b], chat_id, "hello alice").await;
+    send_and_receive(&device_b, &[device_a, bob_user], chat_id, "hello bob").await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn sibling_moves_older_requests_into_the_accepted_chat() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
     let first = setup.add_username(&alice).await;
     let second = add_second_username(&setup, &alice).await;
     device_a.outbound_service().run_once().await;
@@ -230,13 +233,13 @@ async fn sibling_moves_older_requests_into_the_accepted_chat() {
             .unwrap()
             .unwrap();
     }
-    let first_chat_id = receive_connection_offer(&device_a, &first).await;
+    let first_chat_id = device_a.receive_connection_offer(&first).await;
     device_a.outbound_service().run_once().await;
     device_b.drain().await;
 
     // The newer request is accepted before it reaches the sibling, which only
     // knows the older one. The outbox then drops the newer one.
-    let second_chat_id = receive_connection_offer(&device_a, &second).await;
+    let second_chat_id = device_a.receive_connection_offer(&second).await;
     assert_ne!(second_chat_id, first_chat_id);
     device_a
         .accept_contact_request(second_chat_id)
@@ -274,14 +277,14 @@ async fn sibling_moves_older_requests_into_the_accepted_chat() {
     bob_user.drain().await;
     send_and_receive(
         bob_user,
-        &[&device_a, &device_b],
+        &[device_a, &device_b],
         second_chat_id,
         "hello alice",
     )
     .await;
     send_and_receive(
         &device_b,
-        &[&device_a, bob_user],
+        &[device_a, bob_user],
         second_chat_id,
         "hello bob",
     )
@@ -292,7 +295,8 @@ async fn sibling_moves_older_requests_into_the_accepted_chat() {
 async fn sibling_fetches_the_profile_the_sender_rotated() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
     device_b.drain().await;
@@ -314,7 +318,7 @@ async fn sibling_fetches_the_profile_the_sender_rotated() {
         .await
         .unwrap();
 
-    receive_connection_offer(&device_a, &record).await;
+    device_a.receive_connection_offer(&record).await;
     assert_eq!(device_a.user_profile(&bob).await.display_name, display_name);
     device_a.outbound_service().run_once().await;
 
@@ -345,7 +349,7 @@ async fn linked_device_gets_open_incoming_requests() {
         .await
         .unwrap()
         .unwrap();
-    let username_chat_id = receive_connection_offer(device_a, &record).await;
+    let username_chat_id = device_a.receive_connection_offer(&record).await;
     setup
         .user(&charlie)
         .add_contact_from_group(group_chat_id, alice.clone(), setup.apq_groups)
@@ -356,7 +360,8 @@ async fn linked_device_gets_open_incoming_requests() {
         panic!("expected one request, got {:?}", processed.new_connections);
     };
 
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
 
     let username_chat = device_b.expect_chat(username_chat_id).await;
     assert_eq!(
@@ -445,7 +450,7 @@ async fn linked_device_gets_open_outgoing_requests(acceptance: Acceptance) {
         .await
         .unwrap();
 
-    let (device_b, _tmp) = link_new_device(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_linked_device().await;
     device_a.drain().await;
     if let Acceptance::AfterOnboarding = acceptance {
         device_b.outbound_service().run_once().await;
@@ -471,7 +476,7 @@ async fn linked_device_gets_open_outgoing_requests(acceptance: Acceptance) {
     }
 
     let bob_user = setup.user(&bob);
-    receive_connection_offer(bob_user, &record).await;
+    bob_user.receive_connection_offer(&record).await;
     bob_user
         .accept_contact_request(username_chat_id)
         .await
@@ -565,7 +570,8 @@ async fn outgoing_requests_accepted_before_onboarding_joins_last() {
 async fn deleting_a_request_chat_before_forwarding_clears_the_sibling() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
     let first = setup.add_username(&alice).await;
     let second = add_second_username(&setup, &alice).await;
     device_a.outbound_service().run_once().await;
@@ -580,14 +586,14 @@ async fn deleting_a_request_chat_before_forwarding_clears_the_sibling() {
             .unwrap();
     }
 
-    let first_chat_id = receive_connection_offer(&device_a, &first).await;
+    let first_chat_id = device_a.receive_connection_offer(&first).await;
     device_a.outbound_service().run_once().await;
     device_b.drain().await;
     assert!(device_b.chat(&first_chat_id).await.is_some());
 
     // The newer request takes over the chat, which alice deletes before the
     // request reaches the sibling.
-    let second_chat_id = receive_connection_offer(&device_a, &second).await;
+    let second_chat_id = device_a.receive_connection_offer(&second).await;
     assert_ne!(second_chat_id, first_chat_id);
     let _ = device_a.delete_chat(second_chat_id).await;
     device_a.erase_chat(second_chat_id).await.unwrap();
@@ -611,7 +617,8 @@ async fn assert_erased(device: &CoreUser, chat_id: ChatId, label: &str) {
 async fn retracting_a_request_makes_it_unavailable_to_the_recipient() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
 
     let bob_record = setup.add_username(&bob).await;
     let chat_id = device_a
@@ -625,10 +632,10 @@ async fn retracting_a_request_makes_it_unavailable_to_the_recipient() {
         .unwrap();
     device_b.drain().await;
     let bob_user = setup.user(&bob);
-    let bob_chat_id = receive_connection_offer(bob_user, &bob_record).await;
+    let bob_chat_id = bob_user.receive_connection_offer(&bob_record).await;
 
     device_a.retract_contact_request(chat_id).await.unwrap();
-    assert_erased(&device_a, chat_id, "retracting").await;
+    assert_erased(device_a, chat_id, "retracting").await;
     // The siblings share the sender's leaf, so they get the delete commit.
     device_b.drain().await;
     assert_erased(&device_b, chat_id, "sibling").await;
@@ -684,7 +691,7 @@ async fn deleting_an_outgoing_request_retracts_it() {
         .unwrap()
         .unwrap();
     let bob_user = setup.user(&bob);
-    let bob_chat_id = receive_connection_offer(bob_user, &bob_record).await;
+    let bob_chat_id = bob_user.receive_connection_offer(&bob_record).await;
 
     alice_user.delete_chat(chat_id).await.unwrap();
     alice_user.erase_chat(chat_id).await.unwrap();
@@ -713,7 +720,7 @@ async fn retracting_offline_keeps_the_request() {
         .unwrap()
         .unwrap();
     let bob_user = setup.user(&bob);
-    let bob_chat_id = receive_connection_offer(bob_user, &bob_record).await;
+    let bob_chat_id = bob_user.receive_connection_offer(&bob_record).await;
 
     setup.listener_control_handle().set_drop_next_request();
     alice_user
@@ -746,7 +753,8 @@ async fn retracting_offline_keeps_the_request() {
 async fn retracting_on_both_devices_erases_the_chat() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
 
     let bob_record = setup.add_username(&bob).await;
     let chat_id = device_a
@@ -763,12 +771,12 @@ async fn retracting_on_both_devices_erases_the_chat() {
 
     device_a.retract_contact_request(chat_id).await.unwrap();
     device_b.retract_contact_request(chat_id).await.unwrap();
-    assert_erased(&device_a, chat_id, "first").await;
+    assert_erased(device_a, chat_id, "first").await;
     assert_erased(&device_b, chat_id, "late").await;
 
     // Both devices erased the group, so the delete commit queued for them has
     // nowhere to go.
-    for device in [&device_a, &device_b] {
+    for device in [device_a, &device_b] {
         let processed = device.drain_unchecked().await;
         assert!(
             processed
@@ -780,11 +788,11 @@ async fn retracting_on_both_devices_erases_the_chat() {
         );
     }
 
-    for (device, sibling) in [(&device_a, &device_b), (&device_b, &device_a)] {
+    for (device, sibling) in [(device_a, &device_b), (&device_b, device_a)] {
         device.outbound_service().run_once().await;
         sibling.drain().await;
     }
-    assert_erased(&device_a, chat_id, "first").await;
+    assert_erased(device_a, chat_id, "first").await;
     assert_erased(&device_b, chat_id, "late").await;
 }
 
@@ -792,7 +800,8 @@ async fn retracting_on_both_devices_erases_the_chat() {
 async fn accepting_falls_back_to_the_older_request() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
     let first = setup.add_username(&alice).await;
     let second = add_second_username(&setup, &alice).await;
     device_a.outbound_service().run_once().await;
@@ -808,8 +817,8 @@ async fn accepting_falls_back_to_the_older_request() {
             .unwrap();
         sent.push(chat_id);
     }
-    let older_chat_id = receive_connection_offer(&device_a, &first).await;
-    let newer_chat_id = receive_connection_offer(&device_a, &second).await;
+    let older_chat_id = device_a.receive_connection_offer(&first).await;
+    let newer_chat_id = device_a.receive_connection_offer(&second).await;
     assert_eq!([older_chat_id, newer_chat_id], sent.as_slice());
     device_a.outbound_service().run_once().await;
     device_b.drain().await;
@@ -847,7 +856,8 @@ async fn accepting_falls_back_to_the_older_request() {
 async fn declining_a_request_removes_it_on_the_sibling() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
     device_b.drain().await;
@@ -858,7 +868,7 @@ async fn declining_a_request_removes_it_on_the_sibling() {
         .await
         .unwrap()
         .unwrap();
-    let chat_id = receive_connection_offer(&device_a, &record).await;
+    let chat_id = device_a.receive_connection_offer(&record).await;
     device_a.outbound_service().run_once().await;
     device_b.drain().await;
     assert!(device_b.chat(&chat_id).await.is_some());
@@ -892,7 +902,8 @@ async fn declining_a_request_removes_it_on_the_sibling() {
 async fn blocking_a_request_sender_declines_on_the_sibling() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
     let first = setup.add_username(&alice).await;
     let second = add_second_username(&setup, &alice).await;
     device_a.outbound_service().run_once().await;
@@ -906,10 +917,10 @@ async fn blocking_a_request_sender_declines_on_the_sibling() {
             .unwrap()
             .unwrap();
     }
-    receive_connection_offer(&device_a, &first).await;
+    device_a.receive_connection_offer(&first).await;
     device_a.outbound_service().run_once().await;
     device_b.drain().await;
-    let second_chat_id = receive_connection_offer(&device_a, &second).await;
+    let second_chat_id = device_a.receive_connection_offer(&second).await;
 
     device_b.block_contact(bob.clone()).await.unwrap();
     assert!(pending_chats_from(&device_b, &bob).await.is_empty());
@@ -922,7 +933,7 @@ async fn blocking_a_request_sender_declines_on_the_sibling() {
         processed.removed_chats
     );
     assert!(
-        pending_chats_from(&device_a, &bob).await.is_empty(),
+        pending_chats_from(device_a, &bob).await.is_empty(),
         "the device should decline the request the blocking sibling did not know"
     );
     device_a.outbound_service().run_once().await;
@@ -935,7 +946,8 @@ async fn blocking_a_request_sender_declines_on_the_sibling() {
 async fn a_decline_racing_an_accept_keeps_the_connection() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
     device_b.drain().await;
@@ -946,7 +958,7 @@ async fn a_decline_racing_an_accept_keeps_the_connection() {
         .await
         .unwrap()
         .unwrap();
-    let chat_id = receive_connection_offer(&device_a, &record).await;
+    let chat_id = device_a.receive_connection_offer(&record).await;
     device_a.outbound_service().run_once().await;
     device_b.drain().await;
 
@@ -978,7 +990,7 @@ async fn a_decline_racing_an_accept_keeps_the_connection() {
     );
 
     bob_user.drain().await;
-    send_and_receive(bob_user, &[&device_a, &device_b], chat_id, "hello alice").await;
+    send_and_receive(bob_user, &[device_a, &device_b], chat_id, "hello alice").await;
 }
 
 /// More than the lifetime of a connection request.
@@ -1052,25 +1064,26 @@ async fn assert_sent_request_expired(device: &CoreUser, chat_id: ChatId, label: 
 async fn an_expired_request_closes_on_the_sibling_and_is_unavailable() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
     let bob_record = setup.add_username(&bob).await;
-    let chat_id = send_mirrored_request(&setup, &device_a, &device_b, &bob_record).await;
+    let chat_id = send_mirrored_request(&setup, device_a, &device_b, &bob_record).await;
     let bob_user = setup.user(&bob);
-    let bob_chat_id = receive_connection_offer(bob_user, &bob_record).await;
+    let bob_chat_id = bob_user.receive_connection_offer(&bob_record).await;
 
-    for device in [&device_a, &device_b] {
+    for device in [device_a, &device_b] {
         device
             .backdate_contact_request(chat_id, PAST_THE_DEADLINE)
             .await
             .unwrap();
     }
-    expire_requests(&device_a).await;
-    assert_sent_request_expired(&device_a, chat_id, "sender").await;
+    expire_requests(device_a).await;
+    assert_sent_request_expired(device_a, chat_id, "sender").await;
 
     // The next run deletes the group on the DS. The sibling shares the leaf,
     // so it gets the delete commit, and keeps the chat as a record.
     device_a.outbound_service().run_once().await;
-    assert_sent_request_expired(&device_a, chat_id, "sender").await;
+    assert_sent_request_expired(device_a, chat_id, "sender").await;
     device_b.drain().await;
     assert_sent_request_expired(&device_b, chat_id, "sibling").await;
 
@@ -1138,7 +1151,8 @@ async fn an_echoed_expiry_delete_keeps_the_record() {
 async fn a_request_fetched_past_its_deadline_is_dropped() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
     let record = setup.add_username(&alice).await;
     device_a.outbound_service().run_once().await;
     device_b.drain().await;
@@ -1167,7 +1181,7 @@ async fn a_request_fetched_past_its_deadline_is_dropped() {
         .unwrap();
     responder.ack(message_id.into()).await;
     assert!(stored.is_none(), "an expired offer should not be stored");
-    assert!(pending_chats_from(&device_a, &bob).await.is_empty());
+    assert!(pending_chats_from(device_a, &bob).await.is_empty());
 
     device_a.outbound_service().run_once().await;
     device_b.drain().await;
@@ -1182,11 +1196,12 @@ async fn a_request_fetched_past_its_deadline_is_dropped() {
 async fn a_request_expiring_on_both_devices_keeps_one_record() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
     let bob_record = setup.add_username(&bob).await;
-    let chat_id = send_mirrored_request(&setup, &device_a, &device_b, &bob_record).await;
+    let chat_id = send_mirrored_request(&setup, device_a, &device_b, &bob_record).await;
 
-    for device in [&device_a, &device_b] {
+    for device in [device_a, &device_b] {
         device
             .backdate_contact_request(chat_id, PAST_THE_DEADLINE)
             .await
@@ -1202,7 +1217,7 @@ async fn a_request_expiring_on_both_devices_keeps_one_record() {
     // The parked delete finds the group gone.
     device_b.outbound_service().run_once().await;
     device_a.drain().await;
-    assert_sent_request_expired(&device_a, chat_id, "first").await;
+    assert_sent_request_expired(device_a, chat_id, "first").await;
     assert_sent_request_expired(&device_b, chat_id, "sibling").await;
 }
 
@@ -1210,7 +1225,8 @@ async fn a_request_expiring_on_both_devices_keeps_one_record() {
 async fn expired_requests_go_when_the_user_chose_so() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
     device_a
         .set_synced_user_setting(&DeleteExpiredContactRequestsSetting(true))
         .await
@@ -1218,9 +1234,9 @@ async fn expired_requests_go_when_the_user_chose_so() {
     device_a.outbound_service().run_once().await;
     device_b.drain().await;
     let bob_record = setup.add_username(&bob).await;
-    let chat_id = send_mirrored_request(&setup, &device_a, &device_b, &bob_record).await;
+    let chat_id = send_mirrored_request(&setup, device_a, &device_b, &bob_record).await;
 
-    for device in [&device_a, &device_b] {
+    for device in [device_a, &device_b] {
         device
             .backdate_contact_request(chat_id, PAST_THE_DEADLINE)
             .await
@@ -1228,10 +1244,10 @@ async fn expired_requests_go_when_the_user_chose_so() {
     }
     // The record stays while the group delete is parked, since erasing the
     // chat would drop it.
-    expire_requests(&device_a).await;
-    assert_sent_request_expired(&device_a, chat_id, "sender").await;
+    expire_requests(device_a).await;
+    assert_sent_request_expired(device_a, chat_id, "sender").await;
     device_a.outbound_service().run_once().await;
-    expire_requests(&device_a).await;
+    expire_requests(device_a).await;
     assert!(
         device_a.chat(&chat_id).await.is_none(),
         "the sender should delete the record once the group is gone"

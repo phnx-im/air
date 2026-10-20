@@ -5,73 +5,12 @@
 //! Sibling emulator clients following a group one of their siblings created or
 //! externally joined.
 
-use std::time::Duration;
-
-use aircommon::identifiers::UserId;
 use aircoreclient::{
-    ChatId, ChatStatus, ChatType, EventMessage, Message, SystemMessage, UsernameRecord,
-    clients::CoreUser,
+    ChatId, ChatStatus, ChatType, EventMessage, Message, SystemMessage, clients::CoreUser,
 };
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
-use tempfile::TempDir;
-use tokio::time::timeout;
-use tokio_stream::StreamExt;
 
-use super::multi_device::{link_new_device, send_and_receive};
-
-/// Links a second device to `user_id` and brings both devices up to date.
-///
-/// Returns the original device and the new one. The [`TempDir`] holds the new
-/// device's database and must stay alive as long as it is used.
-pub(crate) async fn link_sibling(
-    setup: &TestBackend,
-    user_id: &UserId,
-) -> (CoreUser, CoreUser, TempDir) {
-    let (device_b, tmp) = link_new_device(setup, user_id).await;
-    // Onboarding into the pre-existing groups runs in the background.
-    device_b.outbound_service().run_once().await;
-    let device_a = setup.user(user_id).clone();
-    device_a.drain().await;
-    device_b.drain().await;
-    // Linking makes device a upload key packages, which completes only once it
-    // fetches its own commit.
-    device_a.outbound_service().run_once().await;
-    device_a.drain().await;
-    device_b.drain().await;
-    (device_a, device_b, tmp)
-}
-
-/// Drains the username queue of `record` and returns the pending chat the
-/// connection offer in it created.
-pub(crate) async fn receive_connection_offer(user: &CoreUser, record: &UsernameRecord) -> ChatId {
-    drain_username_queue(user, record)
-        .await
-        .expect("the connection offer should have created a pending chat")
-}
-
-/// Drains the username queue of `record` and returns the pending chat a
-/// connection offer in it created, if any.
-pub(crate) async fn drain_username_queue(
-    user: &CoreUser,
-    record: &UsernameRecord,
-) -> Option<ChatId> {
-    let (mut stream, responder) = user.listen_username(record).await.unwrap();
-    let mut chat_id = None;
-    while let Some(Some(message)) = timeout(Duration::from_millis(500), stream.next())
-        .await
-        .unwrap()
-    {
-        let message_id = message.message_id.unwrap();
-        chat_id = user
-            .process_username_queue_message(record.username.clone(), message)
-            .await
-            .unwrap()
-            .map(|stored| stored.chat_id)
-            .or(chat_id);
-        responder.ack(message_id.into()).await;
-    }
-    chat_id
-}
+use super::multi_device::send_and_receive;
 
 /// Asserts that both devices sit on the same epoch and share the virtual
 /// client's leaf in `chat_id`.
@@ -104,7 +43,8 @@ async fn sibling_follows_a_created_group_chat(apq: bool) {
     let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
 
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
 
     let chat_id = if apq {
         setup.create_apq_group(&alice).await
@@ -132,7 +72,7 @@ async fn sibling_follows_a_created_group_chat(apq: bool) {
         "the sibling should read the title out of the snapshot"
     );
 
-    assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after the creation echo").await;
+    assert_same_epoch_and_leaf(device_a, &device_b, chat_id, "after the creation echo").await;
 
     // Only the group's own creation is recorded, not a second one from the
     // echo.
@@ -158,18 +98,18 @@ async fn sibling_follows_a_created_group_chat(apq: bool) {
     let bob_user = setup.user(&bob);
     bob_user.drain().await;
 
-    assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after the add commit").await;
+    assert_same_epoch_and_leaf(device_a, &device_b, chat_id, "after the add commit").await;
 
     send_and_receive(
         &device_b,
-        &[bob_user, &device_a],
+        &[bob_user, device_a],
         chat_id,
         "hello from the sibling",
     )
     .await;
     send_and_receive(
         bob_user,
-        &[&device_b, &device_a],
+        &[&device_b, device_a],
         chat_id,
         "hello from the third party",
     )
@@ -191,7 +131,8 @@ async fn the_acting_devices_own_echo_is_ignored() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
 
     let chat_id = setup.create_non_apq_group(&alice).await;
     let before = device_a.group_epoch_and_own_index(chat_id).await.unwrap();
@@ -243,7 +184,7 @@ async fn the_acting_devices_own_echo_is_ignored() {
 
     // The sibling, which does not have the group yet, still installs it.
     device_b.drain().await;
-    assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after the creation echo").await;
+    assert_same_epoch_and_leaf(device_a, &device_b, chat_id, "after the creation echo").await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -251,7 +192,8 @@ async fn sibling_follows_an_accepted_connection() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
 
     // Bob asks for a connection to alice's handle, and the device that
     // listens on the handle queue accepts it.
@@ -264,7 +206,7 @@ async fn sibling_follows_an_accepted_connection() {
         .unwrap()
         .unwrap();
 
-    let chat_id = receive_connection_offer(&device_a, &record).await;
+    let chat_id = device_a.receive_connection_offer(&record).await;
     device_a
         .accept_contact_request(chat_id)
         .await
@@ -318,20 +260,20 @@ async fn sibling_follows_an_accepted_connection() {
         Some(setup.apq_groups),
         "the connection group should follow the test profile"
     );
-    assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after the join echo").await;
+    assert_same_epoch_and_leaf(device_a, &device_b, chat_id, "after the join echo").await;
 
     let bob_user = setup.user(&bob);
     bob_user.drain().await;
     send_and_receive(
         &device_b,
-        &[bob_user, &device_a],
+        &[bob_user, device_a],
         chat_id,
         "hello bob, from the sibling",
     )
     .await;
     send_and_receive(
         bob_user,
-        &[&device_b, &device_a],
+        &[&device_b, device_a],
         chat_id,
         "hello alice, from bob",
     )
@@ -343,7 +285,8 @@ async fn sibling_mirrors_a_handle_initiated_connection() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
 
     let record = setup.add_username(&bob).await;
     let hash = record.username.calculate_hash().unwrap();
@@ -373,7 +316,7 @@ async fn sibling_mirrors_a_handle_initiated_connection() {
             .find(|contact| contact.chat_id == chat_id)
             .expect("the device should have a username contact for the pending chat")
     };
-    let contact_a = contact_of(&device_a).await;
+    let contact_a = contact_of(device_a).await;
     let contact_b = contact_of(&device_b).await;
     assert_eq!(contact_b.username, contact_a.username);
     assert_eq!(
@@ -381,11 +324,11 @@ async fn sibling_mirrors_a_handle_initiated_connection() {
         "the sibling needs the offer hash to recognize the peer's PSK"
     );
 
-    assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after the creation echo").await;
+    assert_same_epoch_and_leaf(device_a, &device_b, chat_id, "after the creation echo").await;
 
     // Bob accepts.
     let bob_user = setup.user(&bob);
-    let bob_chat_id = receive_connection_offer(bob_user, &record).await;
+    let bob_chat_id = bob_user.receive_connection_offer(&record).await;
     bob_user
         .accept_contact_request(bob_chat_id)
         .await
@@ -395,7 +338,7 @@ async fn sibling_mirrors_a_handle_initiated_connection() {
     device_a.drain().await;
     device_b.drain().await;
 
-    for (label, device) in [("initiating", &device_a), ("sibling", &device_b)] {
+    for (label, device) in [("initiating", device_a), ("sibling", &device_b)] {
         let chat = device.expect_chat(chat_id).await;
         assert_eq!(
             chat.chat_type(),
@@ -408,10 +351,10 @@ async fn sibling_mirrors_a_handle_initiated_connection() {
         );
     }
 
-    assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after the peer's accept").await;
+    assert_same_epoch_and_leaf(device_a, &device_b, chat_id, "after the peer's accept").await;
     send_and_receive(
         &device_b,
-        &[bob_user, &device_a],
+        &[bob_user, device_a],
         chat_id,
         "hello bob, from the sibling",
     )
@@ -427,7 +370,8 @@ async fn sibling_mirrors_a_targeted_message_connection() {
     // them being connected.
     let group_chat_id = setup.connected_group(&bob, &[&alice, &charlie]).await;
 
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
 
     let chat_id = device_a
         .add_contact_from_group(group_chat_id, charlie.clone(), setup.apq_groups)
@@ -460,7 +404,7 @@ async fn sibling_mirrors_a_targeted_message_connection() {
     let group_id = device_a.expect_chat(group_chat_id).await.group_id;
     assert_eq!(contact_a.origin_group_id.as_ref(), Some(&group_id));
     assert_eq!(contact_b.origin_group_id.as_ref(), Some(&group_id));
-    for (label, device) in [("initiating", &device_a), ("sibling", &device_b)] {
+    for (label, device) in [("initiating", device_a), ("sibling", &device_b)] {
         let messages = device.messages(chat_id, 1).await.unwrap();
         assert!(
             matches!(
@@ -474,7 +418,7 @@ async fn sibling_mirrors_a_targeted_message_connection() {
         );
     }
 
-    assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after the creation echo").await;
+    assert_same_epoch_and_leaf(device_a, &device_b, chat_id, "after the creation echo").await;
 
     // Charlie picks the targeted message up and accepts.
     let charlie_user = setup.user(&charlie);
@@ -488,7 +432,7 @@ async fn sibling_mirrors_a_targeted_message_connection() {
     device_a.drain().await;
     device_b.drain().await;
 
-    for (label, device) in [("initiating", &device_a), ("sibling", &device_b)] {
+    for (label, device) in [("initiating", device_a), ("sibling", &device_b)] {
         assert_eq!(
             device.expect_chat(chat_id).await.chat_type(),
             &ChatType::Connection(charlie.clone()),
@@ -500,10 +444,10 @@ async fn sibling_mirrors_a_targeted_message_connection() {
         );
     }
 
-    assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after the peer's accept").await;
+    assert_same_epoch_and_leaf(device_a, &device_b, chat_id, "after the peer's accept").await;
     send_and_receive(
         &device_b,
-        &[charlie_user, &device_a],
+        &[charlie_user, device_a],
         chat_id,
         "hello charlie, from the sibling",
     )
@@ -518,7 +462,8 @@ async fn offline_sibling_catches_up_on_a_created_group() {
     let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
 
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
 
     // The sibling stops draining its queue from here on.
     let chat_id = setup.create_non_apq_group(&alice).await;
@@ -541,7 +486,7 @@ async fn offline_sibling_catches_up_on_a_created_group() {
     // Coming back, the sibling joins at the creation epoch and walks its queue
     // forward from there without losing anything.
     device_b.drain().await;
-    assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after catching up").await;
+    assert_same_epoch_and_leaf(device_a, &device_b, chat_id, "after catching up").await;
     assert_eq!(
         device_b
             .text_messages(chat_id)
@@ -555,7 +500,7 @@ async fn offline_sibling_catches_up_on_a_created_group() {
 
     send_and_receive(
         &device_b,
-        &[bob_user, &device_a],
+        &[bob_user, device_a],
         chat_id,
         "hello from the sibling that caught up",
     )
@@ -569,7 +514,8 @@ async fn offline_sibling_catches_up_on_an_accepted_connection() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
 
     let record = setup.add_username(&alice).await;
     let hash = record.username.calculate_hash().unwrap();
@@ -580,7 +526,7 @@ async fn offline_sibling_catches_up_on_an_accepted_connection() {
         .unwrap()
         .unwrap();
 
-    let chat_id = receive_connection_offer(&device_a, &record).await;
+    let chat_id = device_a.receive_connection_offer(&record).await;
     device_a
         .accept_contact_request(chat_id)
         .await
@@ -602,7 +548,7 @@ async fn offline_sibling_catches_up_on_an_accepted_connection() {
         device_b.expect_chat(chat_id).await.chat_type(),
         &ChatType::Connection(bob.clone())
     );
-    assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after catching up").await;
+    assert_same_epoch_and_leaf(device_a, &device_b, chat_id, "after catching up").await;
     assert_eq!(
         device_b
             .text_messages(chat_id)
@@ -616,7 +562,7 @@ async fn offline_sibling_catches_up_on_an_accepted_connection() {
 
     send_and_receive(
         &device_b,
-        &[bob_user, &device_a],
+        &[bob_user, device_a],
         chat_id,
         "hello bob, from the sibling that caught up",
     )
@@ -628,7 +574,8 @@ async fn a_rejected_group_chat_produces_no_echo() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
 
     let chats_before_a = device_a.ordered_chat_ids().await.unwrap();
     let chats_before_b = device_b.ordered_chat_ids().await.unwrap();
@@ -670,7 +617,7 @@ async fn a_rejected_group_chat_produces_no_echo() {
         device_b.chat(&chat_id).await.is_some(),
         "the sibling should install the group of the accepted retry"
     );
-    assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after the retried creation").await;
+    assert_same_epoch_and_leaf(device_a, &device_b, chat_id, "after the retried creation").await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -678,7 +625,8 @@ async fn a_rejected_creation_produces_no_echo() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
 
     let record = setup.add_username(&bob).await;
 
@@ -747,7 +695,8 @@ async fn a_rejected_join_produces_no_echo() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
 
     let record = setup.add_username(&alice).await;
     let hash = record.username.calculate_hash().unwrap();
@@ -757,7 +706,7 @@ async fn a_rejected_join_produces_no_echo() {
         .await
         .unwrap()
         .unwrap();
-    let chat_id = receive_connection_offer(&device_a, &record).await;
+    let chat_id = device_a.receive_connection_offer(&record).await;
 
     // The accept fetches the external commit info first, so the rejection has
     // to skip that request to land on the join itself.
@@ -793,7 +742,7 @@ async fn a_rejected_join_produces_no_echo() {
             .chat_type(),
         &ChatType::Connection(bob.clone())
     );
-    assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after the retried join").await;
+    assert_same_epoch_and_leaf(device_a, &device_b, chat_id, "after the retried join").await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -803,7 +752,8 @@ async fn a_failed_offer_send_keeps_the_created_group() {
 
     let group_chat_id = setup.connected_group(&bob, &[&alice, &charlie]).await;
 
-    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_synced_device().await;
+    let device_a = setup.user(&alice);
 
     // The group id request and the create go through, the targeted message
     // carrying the connection offer does not.
@@ -839,5 +789,5 @@ async fn a_failed_offer_send_keeps_the_created_group() {
             .chat_type(),
         &ChatType::TargetedMessageConnection(charlie.clone())
     );
-    assert_same_epoch_and_leaf(&device_a, &device_b, chat_id, "after the creation echo").await;
+    assert_same_epoch_and_leaf(device_a, &device_b, chat_id, "after the creation echo").await;
 }

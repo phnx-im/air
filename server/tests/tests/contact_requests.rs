@@ -9,8 +9,6 @@ use aircommon::identifiers::{UserId, Username};
 use aircoreclient::{ChatId, ChatType, SystemMessage, UsernameRecord, clients::CoreUser};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 
-use super::group_bootstrap::{drain_username_queue, receive_connection_offer};
-
 /// The chats of pending contact requests from `sender`.
 pub(crate) async fn pending_chats_from(device: &CoreUser, sender: &UserId) -> Vec<ChatId> {
     let mut chats = Vec::new();
@@ -57,8 +55,8 @@ async fn requests_of_one_sender_fold_into_the_chat_of_the_newest() {
         sent.push(chat_id);
     }
 
-    receive_connection_offer(bob_user, &first).await;
-    let chat_id = receive_connection_offer(bob_user, &second).await;
+    bob_user.receive_connection_offer(&first).await;
+    let chat_id = bob_user.receive_connection_offer(&second).await;
     assert_eq!(
         chat_id, sent[1],
         "the chat is the one of the newest request"
@@ -118,7 +116,7 @@ async fn an_offer_fetched_after_accepting_a_newer_one_is_dropped() {
 
     // The newer offer is accepted while the older one still waits in its
     // queue.
-    let chat_id = receive_connection_offer(bob_user, &second).await;
+    let chat_id = bob_user.receive_connection_offer(&second).await;
     bob_user
         .accept_contact_request(chat_id)
         .await
@@ -126,7 +124,7 @@ async fn an_offer_fetched_after_accepting_a_newer_one_is_dropped() {
         .unwrap();
     alice_user.drain().await;
 
-    assert_eq!(drain_username_queue(bob_user, &first).await, None);
+    assert_eq!(bob_user.drain_username_queue(&first).await, None);
     assert!(
         pending_chats_from(bob_user, &alice).await.is_empty(),
         "an offer from a connected contact is stale"
@@ -167,8 +165,8 @@ async fn crossed_requests_leave_one_connection() {
 
     // Alice accepts Bob's request. Bob's copy of Alice's request goes once he
     // learns of the connection.
-    let bob_request_at_alice = receive_connection_offer(alice_user, &alice_record).await;
-    let alice_request_at_bob = receive_connection_offer(bob_user, &bob_record).await;
+    let bob_request_at_alice = alice_user.receive_connection_offer(&alice_record).await;
+    let alice_request_at_bob = bob_user.receive_connection_offer(&bob_record).await;
     alice_user
         .accept_contact_request(bob_request_at_alice)
         .await

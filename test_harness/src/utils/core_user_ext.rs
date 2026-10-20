@@ -2,11 +2,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::time::Duration;
+
 use aircoreclient::{
     Chat, ChatId, ChatMessage, EventMessage, MarkChatAsRead, Message, MessageId, SystemMessage,
+    UsernameRecord,
     clients::{CoreUser, listen_response::Event, process::process_qs::ProcessedQsMessages},
 };
 use mimi_content::MimiContent;
+use tokio::time::timeout;
 use tokio_stream::StreamExt;
 
 const MAX_MESSAGES: usize = 100;
@@ -20,6 +24,18 @@ pub trait CoreUserExt {
     async fn drain_unchecked(&self) -> ProcessedQsMessages;
     /// Ack the queue without processing it.
     async fn discard_queue(&self);
+
+    /// Process the username queue of `record` and return the pending chat a
+    /// connection offer in it created, if any.
+    async fn drain_username_queue(&self, record: &UsernameRecord) -> Option<ChatId>;
+    /// Same as [`drain_username_queue`], but expects a connection offer.
+    async fn receive_connection_offer(&self, record: &UsernameRecord) -> ChatId;
+
+    /// Link a new ephemeral device to this user and return it.
+    async fn add_linked_device(&self) -> CoreUser;
+    /// Same as [`add_linked_device`], but also onboard the new device into this
+    /// user's groups and process all follow-up traffic on both devices.
+    async fn add_synced_device(&self) -> CoreUser;
 
     /// Send a text message and return the sent message.
     async fn send_text(&self, chat_id: ChatId, text: &str) -> ChatMessage;
@@ -140,5 +156,48 @@ impl CoreUserExt for CoreUser {
             .await
             .unwrap()
             .unwrap_or_else(|| panic!("message {message_id:?} not found"))
+    }
+
+    async fn drain_username_queue(&self, record: &UsernameRecord) -> Option<ChatId> {
+        let (mut stream, responder) = self.listen_username(record).await.unwrap();
+        let mut chat_id = None;
+        while let Some(Some(message)) = timeout(Duration::from_millis(500), stream.next())
+            .await
+            .unwrap()
+        {
+            let message_id = message.message_id.unwrap();
+            chat_id = self
+                .process_username_queue_message(record.username.clone(), message)
+                .await
+                .unwrap()
+                .map(|stored| stored.chat_id)
+                .or(chat_id);
+            responder.ack(message_id.into()).await;
+        }
+        chat_id
+    }
+
+    async fn receive_connection_offer(&self, record: &UsernameRecord) -> ChatId {
+        self.drain_username_queue(record)
+            .await
+            .expect("the connection offer should have created a pending chat")
+    }
+
+    async fn add_linked_device(&self) -> CoreUser {
+        self.link_ephemeral_device().await.unwrap()
+    }
+
+    async fn add_synced_device(&self) -> CoreUser {
+        let device = self.add_linked_device().await;
+        // Onboarding into the pre-existing groups runs in the background.
+        device.outbound_service().run_once().await;
+        self.drain().await;
+        device.drain().await;
+        // Linking makes this device upload key packages, which completes only
+        // once it fetches its own commit.
+        self.outbound_service().run_once().await;
+        self.drain().await;
+        device.drain().await;
+        device
     }
 }

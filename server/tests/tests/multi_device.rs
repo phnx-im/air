@@ -137,53 +137,6 @@ async fn recv_session_id(
     }
 }
 
-/// Provisions a fresh device and links it to `user_id`'s existing device,
-/// returning the new device. The [`TempDir`] holds the new device's database
-/// and must stay alive as long as the device is used.
-pub(crate) async fn link_new_device(setup: &TestBackend, user_id: &UserId) -> (CoreUser, TempDir) {
-    link_new_device_named(setup, user_id, "").await
-}
-
-/// Like [`link_new_device`], but names the new device the way the confirming
-/// user would. An empty `name` leaves the new device's own default in place.
-async fn link_new_device_named(
-    setup: &TestBackend,
-    user_id: &UserId,
-    name: &str,
-) -> (CoreUser, TempDir) {
-    let domain = setup.domain().clone();
-    let server_url = setup.server_url();
-
-    let (session_tx, mut session_rx) = tokio::sync::mpsc::channel(1);
-
-    let new_device_task = tokio::spawn(async move {
-        let tmp = TempDir::new().unwrap();
-        let db_path = tmp.path().to_str().unwrap();
-        let new_device = CoreUser::new_linked(
-            db_path,
-            domain,
-            Some(server_url),
-            session_tx,
-            CancellationToken::new(),
-        )
-        .await
-        .unwrap()
-        .unwrap();
-        (new_device, tmp)
-    });
-
-    let session_id = recv_session_id(&mut session_rx).await;
-
-    setup
-        .user(user_id)
-        .multi_device_link_client(session_id, ignore_connected(), confirm_with_name(name))
-        .await
-        .unwrap()
-        .unwrap();
-
-    new_device_task.await.unwrap()
-}
-
 /// The device's locally stored read-receipts setting. `None` means unset.
 async fn read_receipts(user: &CoreUser) -> Option<bool> {
     user.user_setting::<ReadReceiptsSetting>()
@@ -217,7 +170,7 @@ async fn multi_device_linking_session() {
     let chat_id_2 = setup.create_group(&alice).await;
     setup.invite_to_group(chat_id_2, &alice, &[&bob]).await;
 
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_device = setup.user(&alice).add_linked_device().await;
 
     let old_device = setup.user(&alice);
     assert_eq!(
@@ -481,7 +434,7 @@ async fn multi_device_linking_session() {
 async fn multi_device_self_group_attachment() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_device = setup.user(&alice).add_linked_device().await;
     let old_device = setup.user(&alice);
     old_device.drain().await;
     new_device.drain().await;
@@ -682,7 +635,7 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
 async fn multi_device_settings_sync() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_device = setup.user(&alice).add_linked_device().await;
     let old_device = setup.user(&alice);
 
     // Bring both devices to the self-group's latest epoch.
@@ -779,7 +732,7 @@ async fn multi_device_settings_in_linking_payload() {
         .unwrap();
     assert_eq!(read_receipts(old_device).await, Some(false));
 
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_device = setup.user(&alice).add_linked_device().await;
 
     // The new device starts from the snapshot in the provisioning package,
     // without processing any queue messages.
@@ -795,7 +748,7 @@ async fn multi_device_link_publishes_device_entry_without_extra_commit() {
     let old_device = setup.user(&alice);
 
     let old_id = old_device.own_client_id().await.unwrap();
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_device = setup.user(&alice).add_linked_device().await;
     let new_id = new_device.own_client_id().await.unwrap();
 
     // No outbound run and no queue drain: both sides already hold both entries.
@@ -833,7 +786,7 @@ async fn multi_device_link_publishes_device_entry_without_extra_commit() {
 async fn multi_device_settings_race_converges() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_device = setup.user(&alice).add_linked_device().await;
     let old_device = setup.user(&alice);
 
     old_device.drain().await;
@@ -931,7 +884,7 @@ async fn multi_device_token_issuance_is_idempotent() {
         "the first device must hold tokens"
     );
 
-    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    let second_device = setup.user(&alice).add_linked_device().await;
 
     // The linking payload carried the agreed seeds, so the new device starts out
     // agreeing rather than proposing.
@@ -979,7 +932,7 @@ async fn multi_device_token_seed_agreement() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let first_device = setup.user(&alice);
-    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    let second_device = setup.user(&alice).add_linked_device().await;
 
     for device in [first_device, &second_device] {
         device.reset_privacy_pass_for_key_rotation().await.unwrap();
@@ -1047,7 +1000,7 @@ async fn multi_device_redeemed_token_is_removed_from_sibling() {
     let first_device = setup.user(&alice);
 
     first_device.outbound_service().run_once().await;
-    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    let second_device = setup.user(&alice).add_linked_device().await;
     second_device.outbound_service().run_once().await;
     // Catch up on the echo of our own add commit and on the new device's own
     // self-group commits, so the broadcast below is built at the DS epoch.
@@ -1119,17 +1072,8 @@ async fn multi_device_deleted_chat_is_erased_on_sibling() -> anyhow::Result<()> 
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
-    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
-    // Onboarding into the pre-existing group runs in the background.
-    second_device.outbound_service().run_once().await;
+    let second_device = setup.user(&alice).add_synced_device().await;
     let first_device = setup.user(&alice);
-    first_device.drain().await;
-    second_device.drain().await;
-    // Linking makes the first device upload key packages, which completes only
-    // once it fetches its own commit.
-    first_device.outbound_service().run_once().await;
-    first_device.drain().await;
-    second_device.drain().await;
     assert!(second_device.chat(&chat_id).await.is_some());
 
     first_device.delete_chat(chat_id).await?;
@@ -1172,12 +1116,8 @@ async fn multi_device_sole_member_group_deletion_reaches_the_sibling() -> anyhow
     let alice = setup.add_user().await;
     let chat_id = setup.create_group(&alice).await;
 
-    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
-    // Onboarding into the pre-existing group runs in the background.
-    second_device.outbound_service().run_once().await;
+    let second_device = setup.user(&alice).add_synced_device().await;
     let first_device = setup.user(&alice);
-    first_device.drain().await;
-    second_device.drain().await;
     assert!(second_device.chat(&chat_id).await.is_some());
     assert!(first_device.ds_has_group(chat_id).await?);
 
@@ -1230,12 +1170,8 @@ async fn multi_device_missed_group_deletion_is_found_by_resync() -> anyhow::Resu
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
-    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
-    // Onboarding into the pre-existing group runs in the background.
-    second_device.outbound_service().run_once().await;
+    let second_device = setup.user(&alice).add_synced_device().await;
     let first_device = setup.user(&alice);
-    first_device.drain().await;
-    second_device.drain().await;
     assert!(second_device.chat(&chat_id).await.is_some());
 
     first_device.delete_chat(chat_id).await?;
@@ -1296,11 +1232,8 @@ async fn multi_device_deleted_group_takes_no_further_operations() -> anyhow::Res
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
-    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
-    second_device.outbound_service().run_once().await;
+    let second_device = setup.user(&alice).add_synced_device().await;
     let first_device = setup.user(&alice);
-    first_device.drain().await;
-    second_device.drain().await;
 
     first_device.delete_chat(chat_id).await?;
     // The sibling's leaf is still in the group, so only the deletion stops
@@ -1325,11 +1258,8 @@ async fn multi_device_message_to_deleted_group_announces_the_deletion() -> anyho
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
-    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
-    second_device.outbound_service().run_once().await;
+    let second_device = setup.user(&alice).add_synced_device().await;
     let first_device = setup.user(&alice);
-    first_device.drain().await;
-    second_device.drain().await;
 
     first_device.delete_chat(chat_id).await?;
     second_device.discard_queue().await;
@@ -1375,12 +1305,8 @@ async fn multi_device_deleted_message_is_removed_from_sibling() -> anyhow::Resul
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
-    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
-    // Onboarding into the pre-existing group runs in the background.
-    second_device.outbound_service().run_once().await;
+    let second_device = setup.user(&alice).add_synced_device().await;
     let first_device = setup.user(&alice);
-    first_device.drain().await;
-    second_device.drain().await;
 
     let bob_device = setup.user(&bob);
     bob_device.drain().await;
@@ -1475,7 +1401,7 @@ async fn multi_device_new_device_skips_redeemed_tokens() {
     );
     let remaining = cached_tokens(first_device).await;
 
-    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    let second_device = setup.user(&alice).add_linked_device().await;
     second_device.outbound_service().run_once().await;
 
     assert_eq!(
@@ -1559,7 +1485,7 @@ async fn multi_device_link_rejected_at_device_limit() -> anyhow::Result<()> {
     })
     .await;
     let alice = setup.add_user().await;
-    let (device_2, _tmp_2) = link_new_device(&setup, &alice).await;
+    let device_2 = setup.user(&alice).add_linked_device().await;
     let device_1 = setup.user(&alice);
     device_1.drain().await;
     device_2.drain().await;
@@ -1578,7 +1504,7 @@ async fn multi_device_link_rejected_at_device_limit() -> anyhow::Result<()> {
 
     // After unlinking a device, linking works again.
     device_1.unlink_device(b_id).await?;
-    let (device_3, _tmp_3b) = link_new_device(&setup, &alice).await;
+    let device_3 = setup.user(&alice).add_linked_device().await;
     let c_id = device_3.own_client_id().await?;
     let members: HashSet<_> = device_1
         .self_group_client_ids()
@@ -1600,9 +1526,9 @@ async fn multi_device_self_group_above_limit_can_shrink() -> anyhow::Result<()> 
     })
     .await;
     let alice = setup.add_user().await;
-    let (device_2, _tmp_2) = link_new_device(&setup, &alice).await;
+    let device_2 = setup.user(&alice).add_linked_device().await;
     device_2.drain().await;
-    let (device_3, _tmp_3) = link_new_device(&setup, &alice).await;
+    let device_3 = setup.user(&alice).add_linked_device().await;
     let device_1 = setup.user(&alice);
     device_1.drain().await;
     device_2.drain().await;
@@ -1680,12 +1606,12 @@ async fn multi_device_linking_a_third_device() {
     let group_chat_id = setup.create_group(&alice).await;
     setup.invite_to_group(group_chat_id, &alice, &[&bob]).await;
 
-    let (device_2, _tmp_2) = link_new_device(&setup, &alice).await;
+    let device_2 = setup.user(&alice).add_linked_device().await;
     // Device 2's onboarding replaces Alice's own, not-yet-virtual leaf, and
     // turns it into a virtual-client leaf.
     device_2.outbound_service().run_once().await;
 
-    let (device_3, _tmp_3) = link_new_device(&setup, &alice).await;
+    let device_3 = setup.user(&alice).add_linked_device().await;
 
     let device_1 = setup.user(&alice);
 
@@ -1775,17 +1701,17 @@ async fn multi_device_onboarding_after_self_group_advanced() {
     let [alice, bob] = setup.add_users().await;
     let group_chat_id = setup.connected_group(&alice, &[&bob]).await;
 
-    let (device_2, _tmp_2) = link_new_device(&setup, &alice).await;
+    let device_2 = setup.user(&alice).add_linked_device().await;
     device_2.outbound_service().run_once().await;
 
     // Device 3's onboarding into the group is queued here, but not sent yet.
-    let (device_3, _tmp_3) = link_new_device(&setup, &alice).await;
+    let device_3 = setup.user(&alice).add_linked_device().await;
 
     // Linking a fourth device advances the self group, so the emulation epoch
     // current when device 3 was linked is now stale. Device 4 registers
     // emulation epochs only from its own join onwards, so it cannot follow a
     // commit derived from that older epoch.
-    let (device_4, _tmp_4) = link_new_device(&setup, &alice).await;
+    let device_4 = setup.user(&alice).add_linked_device().await;
 
     let device_1 = setup.user(&alice);
     device_1.drain().await;
@@ -1839,11 +1765,11 @@ async fn multi_device_third_device_link() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
-    let (second_device, _tmp2) = link_new_device(&setup, &alice).await;
+    let second_device = setup.user(&alice).add_linked_device().await;
     // Bring the second device fully up to date before the third link.
     second_device.drain().await;
 
-    let (third_device, _tmp3) = link_new_device(&setup, &alice).await;
+    let third_device = setup.user(&alice).add_linked_device().await;
 
     // The second device processes the add commit for the third device.
     second_device.drain().await;
@@ -1881,7 +1807,7 @@ async fn multi_device_third_device_link() {
 async fn multi_device_self_update_in_self_group() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_device = setup.user(&alice).add_linked_device().await;
     let old_device = setup.user(&alice);
 
     // Bring both devices to the self-group's latest epoch.
@@ -1954,7 +1880,7 @@ async fn multi_device_self_update_in_self_group() {
 async fn multi_device_linked_devices_converge_on_both_devices() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_device = setup.user(&alice).add_linked_device().await;
     let old_device = setup.user(&alice);
 
     old_device.drain().await;
@@ -1992,7 +1918,11 @@ async fn multi_device_linked_devices_converge_on_both_devices() -> anyhow::Resul
 async fn multi_device_link_uses_the_confirmed_device_name() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let (new_device, _tmp) = link_new_device_named(&setup, &alice, "Work laptop").await;
+    let new_device = setup
+        .user(&alice)
+        .link_ephemeral_device_named("Work laptop")
+        .await
+        .unwrap();
     let old_device = setup.user(&alice);
 
     old_device.drain().await;
@@ -2020,7 +1950,11 @@ async fn multi_device_link_uses_the_confirmed_device_name() -> anyhow::Result<()
 async fn multi_device_link_blank_name_keeps_the_device_default() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let (new_device, _tmp) = link_new_device_named(&setup, &alice, "   ").await;
+    let new_device = setup
+        .user(&alice)
+        .link_ephemeral_device_named("   ")
+        .await
+        .unwrap();
     let old_device = setup.user(&alice);
 
     old_device.drain().await;
@@ -2046,7 +1980,7 @@ async fn multi_device_link_blank_name_keeps_the_device_default() -> anyhow::Resu
 async fn multi_device_unlink_removes_only_the_target_leaf() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_device = setup.user(&alice).add_linked_device().await;
     let old_device = setup.user(&alice);
     old_device.drain().await;
     new_device.drain().await;
@@ -2073,7 +2007,7 @@ async fn multi_device_unlink_removes_only_the_target_leaf() -> anyhow::Result<()
 async fn multi_device_unlinked_device_flags_itself() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_device = setup.user(&alice).add_linked_device().await;
     let old_device = setup.user(&alice);
     old_device.drain().await;
     new_device.drain().await;
@@ -2100,7 +2034,7 @@ async fn multi_device_unlinked_device_flags_itself() -> anyhow::Result<()> {
 async fn multi_device_unlink_unknown_client_id_is_an_error() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_device = setup.user(&alice).add_linked_device().await;
     let old_device = setup.user(&alice);
     old_device.drain().await;
     new_device.drain().await;
@@ -2121,7 +2055,7 @@ async fn multi_device_unlink_unknown_client_id_is_an_error() -> anyhow::Result<(
 async fn multi_device_unlink_self_is_an_error() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_device = setup.user(&alice).add_linked_device().await;
     let old_device = setup.user(&alice);
     old_device.drain().await;
     new_device.drain().await;
@@ -2144,7 +2078,7 @@ async fn multi_device_unlink_self_is_an_error() -> anyhow::Result<()> {
 async fn multi_device_rename_propagates_to_the_sibling() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_device = setup.user(&alice).add_linked_device().await;
     let old_device = setup.user(&alice);
     old_device.drain().await;
     new_device.drain().await;
@@ -2181,13 +2115,8 @@ async fn multi_device_remove_member_from_linked_device() -> anyhow::Result<()> {
         .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
 
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
-    // Onboarding into the pre-existing group runs in the background.
-    new_device.outbound_service().run_once().await;
-
+    let new_device = setup.user(&alice).add_synced_device().await;
     let old_device = setup.user(&alice);
-    old_device.drain().await;
-    new_device.drain().await;
 
     new_device
         .remove_users(chat_id, vec![charlie.clone()])
@@ -2226,12 +2155,8 @@ async fn multi_device_remove_member_after_sibling_rotated_the_profile() -> anyho
         .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
 
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
-    new_device.outbound_service().run_once().await;
-
+    let new_device = setup.user(&alice).add_synced_device().await;
     let old_device = setup.user(&alice);
-    old_device.drain().await;
-    new_device.drain().await;
 
     // The sibling rotates the user profile key and announces it to every group.
     old_device
@@ -2269,7 +2194,7 @@ async fn multi_device_remove_member_after_sibling_rotated_the_profile() -> anyho
 async fn multi_device_self_group_resync() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_device = setup.user(&alice).add_linked_device().await;
     let old_device = setup.user(&alice);
 
     // Bring both devices to the self-group's latest epoch.
@@ -2322,7 +2247,7 @@ async fn multi_device_inherits_connection_chats() {
     let [alice, bob] = setup.add_users().await;
     let connection_chat_id = setup.connect_users(&alice, &bob).await;
 
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_device = setup.user(&alice).add_linked_device().await;
     new_device.outbound_service().run_once().await;
 
     assert!(
@@ -2423,7 +2348,7 @@ async fn multi_device_skips_blocked_connection_chats() {
 
     setup.user(&alice).block_contact(bob.clone()).await.unwrap();
 
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_device = setup.user(&alice).add_linked_device().await;
     new_device.outbound_service().run_once().await;
 
     assert!(
@@ -2437,8 +2362,8 @@ async fn one_unread_message_on_both_devices(
     alice: &UserId,
     bob: &UserId,
     chat_id: ChatId,
-) -> (CoreUser, TempDir) {
-    let (device_2, tmp_2) = link_new_device(setup, alice).await;
+) -> CoreUser {
+    let device_2 = setup.user(alice).add_linked_device().await;
     // Device 2's onboarding turns Alice's leaf into a virtual-client leaf, which
     // is what fans a message out to both of her devices in the first place.
     device_2.outbound_service().run_once().await;
@@ -2457,7 +2382,7 @@ async fn one_unread_message_on_both_devices(
     assert_eq!(device_1.unread_messages_count(chat_id).await, 1);
     assert_eq!(device_2.unread_messages_count(chat_id).await, 1);
 
-    (device_2, tmp_2)
+    device_2
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -2466,8 +2391,7 @@ async fn multi_device_read_markers_follow_a_sibling() {
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let (device_2, _tmp_2) =
-        one_unread_message_on_both_devices(&setup, &alice, &bob, chat_id).await;
+    let device_2 = one_unread_message_on_both_devices(&setup, &alice, &bob, chat_id).await;
     let device_1 = setup.user(&alice);
 
     // Device 1 reads the message and sends the receipt for it.
@@ -2530,8 +2454,7 @@ async fn multi_device_read_markers_via_the_self_group() {
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let (device_2, _tmp_2) =
-        one_unread_message_on_both_devices(&setup, &alice, &bob, chat_id).await;
+    let device_2 = one_unread_message_on_both_devices(&setup, &alice, &bob, chat_id).await;
     let device_1 = setup.user(&alice);
 
     for device in [device_1, &device_2] {
@@ -2594,7 +2517,7 @@ async fn multi_device_own_echo_confirms_unconfirmed_send() {
 
     // Linking turns alice's leaf into a virtual-client leaf shared by both
     // devices, which is what makes the DS echo decryptable for the sender.
-    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    let second_device = setup.user(&alice).add_linked_device().await;
     second_device.outbound_service().run_once().await;
 
     let first_device = setup.user(&alice);
@@ -2703,7 +2626,7 @@ async fn multi_device_own_echo_confirms_unconfirmed_edit() {
 
     // Linking turns alice's leaf into a virtual-client leaf shared by both
     // devices, which is what makes the DS echo decryptable for the sender.
-    let (second_device, _tmp) = link_new_device(&setup, &alice).await;
+    let second_device = setup.user(&alice).add_linked_device().await;
     second_device.outbound_service().run_once().await;
 
     let first_device = setup.user(&alice);
@@ -2803,15 +2726,8 @@ async fn multi_device_own_echo_confirms_unconfirmed_edit() {
 /// Alice in a group with Bob and Charlie, plus a second linked device of Alice
 /// that has onboarded itself into the group. Both of Alice's devices are
 /// drained, so they sit on the same epoch of the shared leaf.
-async fn setup_group_with_linked_device() -> (
-    TestBackend,
-    UserId,
-    UserId,
-    UserId,
-    ChatId,
-    CoreUser,
-    TempDir,
-) {
+async fn setup_group_with_linked_device() -> (TestBackend, UserId, UserId, UserId, ChatId, CoreUser)
+{
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
@@ -2823,13 +2739,9 @@ async fn setup_group_with_linked_device() -> (
         .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
 
-    let (new_device, tmp) = link_new_device(&setup, &alice).await;
-    // Onboarding into the pre-existing group runs in the background.
-    new_device.outbound_service().run_once().await;
-    setup.user(&alice).drain().await;
-    new_device.drain().await;
+    let new_device = setup.user(&alice).add_synced_device().await;
 
-    (setup, alice, bob, charlie, chat_id, new_device, tmp)
+    (setup, alice, bob, charlie, chat_id, new_device)
 }
 
 /// The client ids of every "device was linked" system message the device
@@ -2984,8 +2896,7 @@ async fn leave_and_follow(
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_leave_from_linked_device_is_followed_by_the_sibling() {
-    let (setup, alice, bob, charlie, chat_id, new_device, _tmp) =
-        setup_group_with_linked_device().await;
+    let (setup, alice, bob, charlie, chat_id, new_device) = setup_group_with_linked_device().await;
     let old_device = setup.user(&alice);
 
     leave_and_follow(
@@ -3002,8 +2913,7 @@ async fn multi_device_leave_from_linked_device_is_followed_by_the_sibling() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_leave_from_old_device_is_followed_by_the_linked_device() {
-    let (setup, alice, bob, charlie, chat_id, new_device, _tmp) =
-        setup_group_with_linked_device().await;
+    let (setup, alice, bob, charlie, chat_id, new_device) = setup_group_with_linked_device().await;
     let old_device = setup.user(&alice);
 
     leave_and_follow(
@@ -3023,8 +2933,7 @@ async fn multi_device_leave_from_old_device_is_followed_by_the_linked_device() {
 /// it as the duplicate it is.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_retried_leave_is_ignored_by_the_sibling() {
-    let (setup, alice, bob, charlie, chat_id, new_device, _tmp) =
-        setup_group_with_linked_device().await;
+    let (setup, alice, bob, charlie, chat_id, new_device) = setup_group_with_linked_device().await;
     let old_device = setup.user(&alice);
     let all_members: HashSet<UserId> = [&alice, &bob, &charlie].into_iter().cloned().collect();
 
@@ -3085,8 +2994,7 @@ async fn multi_device_retried_leave_is_ignored_by_the_sibling() {
 /// still converge on the commit.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_both_devices_leave_before_the_commit() {
-    let (setup, alice, bob, charlie, chat_id, new_device, _tmp) =
-        setup_group_with_linked_device().await;
+    let (setup, alice, bob, charlie, chat_id, new_device) = setup_group_with_linked_device().await;
     let old_device = setup.user(&alice);
     let all_members: HashSet<UserId> = [&alice, &bob, &charlie].into_iter().cloned().collect();
     let remaining: HashSet<UserId> = [&bob, &charlie].into_iter().cloned().collect();
@@ -3171,7 +3079,7 @@ async fn next_sibling_client_state(
 async fn multi_device_sibling_client_state() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_device = setup.user(&alice).add_linked_device().await;
     let old_device = setup.user(&alice);
 
     let (mut old_stream, old_responder) = old_device.listen_queue().await.unwrap();

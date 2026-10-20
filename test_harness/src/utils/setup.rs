@@ -30,8 +30,7 @@ use mimi_content::{
 use parking_lot::Mutex;
 use rand::{RngExt, distr::Alphanumeric};
 use tempfile::TempDir;
-use tokio::{task::spawn_blocking, time::timeout};
-use tokio_stream::StreamExt;
+use tokio::task::spawn_blocking;
 use tracing::info;
 use url::Url;
 use uuid::Uuid;
@@ -549,18 +548,7 @@ impl TestBackend {
             .expect("non-fatal error");
 
         let user2 = &self.users[user2_id].user;
-        let (mut stream, responder) = user2.listen_username(&user2_username_record).await.unwrap();
-        while let Some(Some(message)) = timeout(Duration::from_millis(500), stream.next())
-            .await
-            .unwrap()
-        {
-            let message_id = message.message_id.unwrap();
-            user2
-                .process_username_queue_message(username.clone(), message)
-                .await
-                .unwrap();
-            responder.ack(message_id.into()).await;
-        }
+        user2.drain_username_queue(&user2_username_record).await;
         user2
             .accept_contact_request(chat_id)
             .await

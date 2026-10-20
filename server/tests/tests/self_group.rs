@@ -6,23 +6,14 @@ use aircommon::identifiers::UserId;
 use aircoreclient::clients::CoreUser;
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::Utc;
-use tempfile::TempDir;
-
-use super::multi_device::link_new_device;
 
 /// Links a second device to `user_id`, so that key packages are uploaded via
 /// the self group, and brings both devices past the linking commit.
-///
-/// The [`TempDir`] holds the new device's database and must stay alive as
-/// long as it is used.
-async fn link_sibling(
-    setup: &TestBackend,
-    user_id: &UserId,
-) -> anyhow::Result<(CoreUser, TempDir)> {
-    let (device_b, tmp) = link_new_device(setup, user_id).await;
+async fn link_sibling(setup: &TestBackend, user_id: &UserId) -> CoreUser {
+    let device_b = setup.user(user_id).add_linked_device().await;
     setup.user(user_id).drain().await;
     device_b.drain().await;
-    Ok((device_b, tmp))
+    device_b
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -48,7 +39,7 @@ async fn self_group_resync_re_registers_the_derivation_epoch() -> anyhow::Result
     let user_id = setup.add_user().await;
     // The key package upload at the end only goes through the self group with
     // a sibling.
-    let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
+    let _device_b = link_sibling(&setup, &user_id).await;
     let user = setup.user(&user_id);
 
     assert!(
@@ -95,7 +86,7 @@ async fn self_group_resync_re_registers_the_derivation_epoch() -> anyhow::Result
 async fn key_package_upload_via_self_group_waits_for_commit_response() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let user_id = setup.add_user().await;
-    let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
+    let _device_b = link_sibling(&setup, &user_id).await;
     let user = setup.user(&user_id);
 
     // Baseline: the initial publish-path upload from user creation
@@ -200,7 +191,7 @@ async fn key_packages_from_self_group_upload_are_served_and_usable() -> anyhow::
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
-    let (_device_b, _tmp) = link_sibling(&setup, &alice).await?;
+    let _device_b = link_sibling(&setup, &alice).await;
 
     // Full upload cycle for alice
     {
@@ -237,7 +228,7 @@ async fn key_packages_from_self_group_upload_are_served_and_usable() -> anyhow::
 async fn key_package_upload_recovers_from_staging_failure() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let user_id = setup.add_user().await;
-    let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
+    let _device_b = link_sibling(&setup, &user_id).await;
     let user = setup.user(&user_id);
 
     let live_before = user.live_key_package_refs().await?;
@@ -289,7 +280,7 @@ async fn key_package_upload_recovers_from_staging_failure() -> anyhow::Result<()
 async fn key_package_upload_backs_off_while_pending() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let user_id = setup.add_user().await;
-    let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
+    let _device_b = link_sibling(&setup, &user_id).await;
     let user = setup.user(&user_id);
 
     // First upload: job ends up waiting for the commit response
@@ -345,7 +336,7 @@ async fn key_package_upload_backs_off_while_pending() -> anyhow::Result<()> {
 async fn mismatched_upload_commit_abandons_job() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let user_id = setup.add_user().await;
-    let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
+    let _device_b = link_sibling(&setup, &user_id).await;
     let user = setup.user(&user_id);
 
     let live_before = user.live_key_package_refs().await?;
@@ -385,7 +376,7 @@ async fn mismatched_upload_commit_abandons_job() -> anyhow::Result<()> {
 async fn multi_device_sibling_derives_key_packages_from_upload_commit() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let (device_b, _tmp) = link_new_device(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_linked_device().await;
 
     // Both devices start from the merged linking commit.
     setup.user(&alice).drain().await;
@@ -435,7 +426,7 @@ async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling
     let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
 
-    let (device_b, _tmp) = link_new_device(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_linked_device().await;
     setup.user(&alice).drain().await;
     device_b.drain().await;
 
@@ -490,7 +481,7 @@ async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> an
     let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
 
-    let (device_b, _tmp) = link_new_device(&setup, &alice).await;
+    let device_b = setup.user(&alice).add_linked_device().await;
     setup.user(&alice).drain().await;
     device_b.drain().await;
 
