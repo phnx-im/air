@@ -47,7 +47,7 @@ async fn drain_queue(device: &CoreUser) -> anyhow::Result<ProcessedQsMessages> {
 async fn ensure_self_group_creates_apq_group() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let user_id = setup.add_user().await;
-    let user = &setup.get_user(&user_id).user;
+    let user = setup.user(&user_id);
 
     user.ensure_self_group().await?;
 
@@ -193,7 +193,7 @@ async fn key_package_upload_via_self_group_waits_for_commit_response() -> anyhow
 async fn single_device_uploads_key_packages_via_publish() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let user_id = setup.add_user().await;
-    let user = &setup.get_user(&user_id).user;
+    let user = setup.user(&user_id);
 
     user.ensure_self_group().await?;
     let live_before = user.live_key_package_refs().await?;
@@ -441,7 +441,7 @@ async fn multi_device_sibling_derives_key_packages_from_upload_commit() -> anyho
             "upload cycle should have completed"
         );
     }
-    let live_a = setup.get_user(&alice).user.live_key_package_refs().await?;
+    let live_a = setup.user(&alice).live_key_package_refs().await?;
     assert!(
         !live_a.0.is_empty() && !live_a.1.is_empty(),
         "the uploader should have live plain and APQ key packages"
@@ -578,7 +578,7 @@ async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> an
         .send_message(chat_id, content, None, MarkChatAsRead::Yes)
         .await?;
     device_b.outbound_service().run_once().await;
-    let processed = drain_queue(setup.get_user(&alice).user()).await?;
+    let processed = drain_queue(setup.user(&alice)).await?;
     assert!(
         processed
             .new_messages

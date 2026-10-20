@@ -46,7 +46,7 @@ async fn exchange_user_profiles() {
         display_name: alice_display_name.clone(),
         profile_picture: Some(alice_profile_picture.clone()),
     };
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     alice_user
         .set_own_user_profile(alice_profile)
         .await
@@ -63,7 +63,7 @@ async fn exchange_user_profiles() {
         profile_picture: Some(bob_profile_picture.clone()),
     };
 
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     bob_user
         .set_own_user_profile(bob_user_profile)
         .await
@@ -73,7 +73,7 @@ async fn exchange_user_profiles() {
 
     setup.connect_users(&alice, &bob).await;
 
-    let bob_user_profile = setup.get_user(&alice).user.user_profile(&bob).await;
+    let bob_user_profile = setup.user(&alice).user_profile(&bob).await;
 
     let profile_picture = bob_user_profile
         .profile_picture
@@ -87,7 +87,7 @@ async fn exchange_user_profiles() {
 
     assert!(bob_user_profile.display_name == bob_display_name);
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     let alice_user_profile = alice_user.user_profile(&alice).await;
 
@@ -104,7 +104,6 @@ async fn exchange_user_profiles() {
         .await
         .unwrap();
 
-    let bob_user = &setup.get_user(&bob).user;
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     bob_user.fully_process_qs_messages(qs_messages).await;
     bob_user.outbound_service().run_once().await;
@@ -167,7 +166,7 @@ async fn error_if_user_doesnt_exist() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     let username = Username::new("non-existent".to_owned()).unwrap();
     let hash = username.calculate_hash().unwrap();
@@ -358,33 +357,22 @@ async fn delete_account() {
 
     // Delete the account
     let db_path = None;
-    setup
-        .get_user(&alice)
-        .user
-        .delete_account(db_path)
-        .await
-        .unwrap();
+    setup.user(&alice).delete_account(db_path).await.unwrap();
 
     // Check that Alice left the group
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     let result = bob_user.fully_process_qs_messages(qs_messages).await;
     assert!(result.errors.is_empty());
 
     let participants = setup
-        .get_user(&bob)
-        .user
+        .user(&bob)
         .chat_participants(contact_chat_id)
         .await
         .unwrap();
     assert_eq!(participants, [bob.clone()].into_iter().collect());
 
-    let participants = setup
-        .get_user(&bob)
-        .user
-        .chat_participants(chat_id)
-        .await
-        .unwrap();
+    let participants = setup.user(&bob).chat_participants(chat_id).await.unwrap();
     assert_eq!(participants, [bob.clone()].into_iter().collect());
 
     // After deletion, adding the user again should work.
@@ -447,7 +435,7 @@ async fn username_sanity_checks() {
 async fn check_username_exists() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     let random_number = rand::rng().random_range(100_000..1_000_000);
     let alice_username = Username::new(format!("alice-{}", random_number)).unwrap();
@@ -501,12 +489,7 @@ async fn safety_codes() {
     let mut codes = HashMap::new();
     for computing_user in &users {
         for user in users {
-            let user_code = setup
-                .get_user(computing_user)
-                .user
-                .safety_code(user)
-                .await
-                .unwrap();
+            let user_code = setup.user(computing_user).safety_code(user).await.unwrap();
 
             // If this is the first time we see a code for this user, store it
             // and continue.
@@ -549,7 +532,7 @@ async fn add_contact_and_change_profile() {
     let alice_username_record = alice_test_user.add_username().await.unwrap();
 
     // Add Alice as a contact
-    let bob_user = setup.get_user(&bob).user.clone();
+    let bob_user = setup.user(&bob);
     let bob_alice_chat_id = bob_user
         .add_contact(
             alice_username_record.username.clone(),
@@ -573,7 +556,7 @@ async fn add_contact_and_change_profile() {
         .unwrap();
 
     // Fetch invitation from Bob and accept it
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     let mut messages = alice_user.fetch_username_messages().await.unwrap();
     assert_eq!(messages.len(), 1);
     let alice_bob_chat_id = alice_user
@@ -601,7 +584,6 @@ async fn add_contact_and_change_profile() {
     alice_user.outbound_service().run_once().await;
 
     // Bob receives invitation acceptance and sees the message from Alice
-    let bob_user = &setup.get_user(&bob).user;
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     let res = bob_user.fully_process_qs_messages(qs_messages).await;
     assert!(res.errors.is_empty());
@@ -636,7 +618,7 @@ async fn add_contact_and_change_profile() {
 async fn request_invitation_code() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     // No codes in the local store yet.
     let codes_before = alice_user.load_invitation_codes().await.unwrap();
@@ -683,7 +665,7 @@ async fn request_invitation_code() {
 async fn mark_invitation_code_as_copied() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     let token_id = alice_user
         .load_invitation_token_ids()

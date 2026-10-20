@@ -76,7 +76,7 @@ async fn setup_group_with_charlie_member() -> (TestBackend, UserId, UserId, User
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn pending_chat_operation_is_executed_before_chat_operation() {
     let (setup, alice, bob, charlie, chat_id) = setup_group_with_charlie_member().await;
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     setup.listener_control_handle().set_drop_next_request();
     let _ = alice_user
@@ -99,7 +99,7 @@ async fn pending_chat_operation_is_executed_before_chat_operation() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn chat_operation_fails_if_pending_operation_fails() {
     let (setup, alice, _bob, charlie, chat_id) = setup_group_with_charlie_member().await;
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     setup.listener_control_handle().set_drop_next_response();
     let _ = alice_user
@@ -137,7 +137,7 @@ async fn chat_operation_fails_if_pending_operation_fails() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn commit_response_merges_pending_commit() {
     let (setup, alice, _bob, charlie, chat_id) = setup_group_with_charlie_member().await;
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     setup.listener_control_handle().set_drop_next_response();
     let _ = alice_user
@@ -159,8 +159,8 @@ async fn commit_response_merges_pending_commit() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn wrong_epoch_marks_pending_waiting_and_commit_clears_it() {
     let (setup, alice, bob, charlie, chat_id) = setup_group_with_charlie_member().await;
-    let alice_user = &setup.get_user(&alice).user;
-    let bob_user = &setup.get_user(&bob).user;
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
 
     setup.listener_control_handle().set_drop_next_request();
     let _ = alice_user
@@ -229,9 +229,9 @@ async fn setup_apq_group_with_charlie_member() -> (TestBackend, UserId, UserId, 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn apq_self_remove_is_committed_on_both_legs() {
     let (setup, alice, bob, charlie, chat_id) = setup_apq_group_with_charlie_member().await;
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
 
-    let charlie_user = &setup.get_user(&charlie).user;
+    let charlie_user = setup.user(&charlie);
     charlie_user.leave_chat(chat_id).await.unwrap();
 
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
@@ -280,8 +280,8 @@ async fn apq_self_remove_is_committed_on_both_legs() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn apq_wrong_epoch_recovery_keeps_t_and_pq_rosters_consistent() {
     let (setup, alice, bob, charlie, chat_id) = setup_apq_group_with_charlie_member().await;
-    let alice_user = &setup.get_user(&alice).user;
-    let bob_user = &setup.get_user(&bob).user;
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
 
     setup.listener_control_handle().set_drop_next_request();
     let _ = alice_user
@@ -358,7 +358,7 @@ async fn apq_wrong_epoch_recovery_keeps_t_and_pq_rosters_consistent() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn network_errors_do_not_spend_attempts() {
     let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     setup.listener_control_handle().set_drop_next_response();
     let _ = alice_user
@@ -406,8 +406,8 @@ async fn network_errors_do_not_spend_attempts() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn leave_with_wrong_epoch_applies_locally_and_keeps_pending() {
     let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
-    let alice_user = &setup.get_user(&alice).user;
-    let bob_user = &setup.get_user(&bob).user;
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
 
     // Bob advances the epoch; Alice does not process the commit.
     bob_user.update_key(chat_id).await.unwrap();
@@ -463,8 +463,8 @@ async fn leave_with_wrong_epoch_applies_locally_and_keeps_pending() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn pending_leave_is_deleted_when_another_member_commits_self_remove() {
     let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
-    let alice_user = &setup.get_user(&alice).user;
-    let bob_user = &setup.get_user(&bob).user;
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
 
     setup.listener_control_handle().set_drop_next_response();
     alice_user.leave_chat(chat_id).await.unwrap();
@@ -505,8 +505,8 @@ async fn pending_leave_is_deleted_when_another_member_commits_self_remove() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn commit_that_ignores_a_pending_self_remove_is_rejected() {
     let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
-    let alice_user = &setup.get_user(&alice).user;
-    let bob_user = &setup.get_user(&bob).user;
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
 
     alice_user.leave_chat(chat_id).await.unwrap();
 
@@ -550,7 +550,7 @@ async fn delete_chat_with_a_network_error(
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
-    let alice_user = setup.get_user(&alice).user.clone();
+    let alice_user = setup.user(&alice);
 
     if lose_response {
         setup.listener_control_handle().set_drop_next_response();
@@ -581,11 +581,11 @@ async fn assert_retried_delete_reaches_the_contact(
     bob: &UserId,
     chat_id: ChatId,
 ) {
-    let alice_user = &setup.get_user(alice).user;
+    let alice_user = setup.user(alice);
     alice_user.delete_and_erase_chat(chat_id).await.unwrap();
     assert!(alice_user.chat(&chat_id).await.is_none());
 
-    let bob_user = &setup.get_user(bob).user;
+    let bob_user = setup.user(bob);
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     bob_user.fully_process_qs_messages(qs_messages).await;
     let chat = bob_user.chat(&chat_id).await.unwrap();

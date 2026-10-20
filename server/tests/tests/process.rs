@@ -28,7 +28,7 @@ async fn process_qs_messages_cancellation_safety() {
 
     const NUM_MESSAGES: usize = 5;
 
-    let alice_user = setup.get_user(&alice).user.clone();
+    let alice_user = setup.user(&alice);
     for idx in 0..NUM_MESSAGES {
         let msg = MimiContent::simple_markdown_message("Hello bob".into(), [idx as u8; 16]);
         alice_user
@@ -38,7 +38,7 @@ async fn process_qs_messages_cancellation_safety() {
     }
     alice_user.outbound_service().run_once().await;
 
-    let bob_user = setup.get_user(&bob).user.clone();
+    let bob_user = setup.user(&bob);
 
     // Abort a processing task after a random short delay.
     const MAX_ATTEMPTS: usize = 50;

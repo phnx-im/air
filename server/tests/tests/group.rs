@@ -36,7 +36,7 @@ async fn create_empty_group() {
     let alice = setup.add_user().await;
     let chat_id = setup.create_group(&alice).await;
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     // Inviting an empty user list should be a no-op
     let result = alice_user
@@ -105,7 +105,7 @@ async fn remove_from_group() {
         .await;
     // Check that Charlie has a user profile stored for bob, even though
     // he hasn't connected with them.
-    let charlie_user = &setup.get_user(&charlie).user;
+    let charlie_user = setup.user(&charlie);
     let charlie_user_profile_bob = charlie_user.user_profile(&bob).await;
     assert!(charlie_user_profile_bob.user_id == bob);
 
@@ -116,7 +116,6 @@ async fn remove_from_group() {
 
     // Now that charlie is not in a group with Bob anymore, the user profile
     // should be the default one derived from the client id.
-    let charlie_user = &setup.get_user(&charlie).user;
     let charlie_user_profile_bob = charlie_user.user_profile(&bob).await;
     assert_eq!(charlie_user_profile_bob, UserProfile::from_user_id(&bob));
 }
@@ -225,7 +224,7 @@ async fn delete_group_as_sole_member() {
     let alice = setup.add_user().await;
     let chat_id = setup.create_group(&alice).await;
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     assert!(alice_user.ds_has_group(chat_id).await.unwrap());
 
     alice_user.delete_chat(chat_id).await.unwrap();
@@ -259,11 +258,11 @@ async fn missed_delete_commit_then_resync() {
     let chat_id = setup.create_group(&alice).await;
     setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     alice_user.delete_chat(chat_id).await.unwrap();
 
     // Bob misses the delete commit and only gets to it after the resync.
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     let late_messages = bob_user.qs_fetch_messages().await.unwrap();
     assert_eq!(
         bob_user.chat(&chat_id).await.unwrap().status(),
@@ -322,13 +321,13 @@ async fn missed_removal_then_resync() {
     let chat_id = setup.create_group(&alice).await;
     setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     alice_user
         .remove_users(chat_id, vec![bob.clone()])
         .await
         .unwrap();
 
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     discard_queue(bob_user).await;
     let participants = bob_user.chat_participants(chat_id).await.unwrap();
     bob_user.enqueue_group_resync(chat_id).await.unwrap();
@@ -373,13 +372,13 @@ async fn missed_deletion_without_tombstone_then_resync() {
         .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
         .await;
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     alice_user
         .delete_chat_without_tombstone(chat_id)
         .await
         .unwrap();
 
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     discard_queue(bob_user).await;
     bob_user.enqueue_group_resync(chat_id).await.unwrap();
     bob_user.outbound_service().run_once().await;
@@ -413,7 +412,7 @@ async fn delete_group_without_tombstone() {
         |messages: &[SystemMessage]| count(messages, &SystemMessage::DeleteGroup(alice.clone()));
 
     // Alice deletes the group as clients before the tombstone do.
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     alice_user
         .delete_chat_without_tombstone(chat_id)
         .await
@@ -430,7 +429,7 @@ async fn delete_group_without_tombstone() {
     assert_eq!(count(&messages, &bobs_removal), 1, "got {messages:?}");
     assert_eq!(deletions(&messages), 0, "got {messages:?}");
 
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     let result = bob_user.fully_process_qs_messages(qs_messages).await;
     assert!(result.errors.is_empty(), "{:?}", result.errors);
@@ -455,7 +454,7 @@ async fn store_draft_after_delete() {
     let alice = setup.add_user().await;
     let chat_id = setup.create_apq_group(&alice).await;
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     let _ = alice_user.delete_chat(chat_id).await;
     alice_user
         .erase_chat(chat_id)
@@ -531,8 +530,7 @@ async fn update_user_profile_on_group_join() {
         profile_picture: None,
     };
     setup
-        .get_user(&alice)
-        .user
+        .user(&alice)
         .set_own_user_profile(alice_profile)
         .await
         .unwrap();
@@ -541,21 +539,20 @@ async fn update_user_profile_on_group_join() {
     // He creates a group and invites Charlie.
     let chat_id = setup.create_group(&bob).await;
 
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     bob_user
         .invite_users(chat_id, slice::from_ref(&charlie))
         .await
         .unwrap();
 
     // Charlie accepts the invitation.
-    let charlie_user = &setup.get_user(&charlie).user;
+    let charlie_user = setup.user(&charlie);
     let charlie_qs_messages = charlie_user.qs_fetch_messages().await.unwrap();
     charlie_user
         .fully_process_qs_messages(charlie_qs_messages)
         .await;
 
     // Bob now invites Alice
-    let bob_user = &setup.get_user(&bob).user;
     bob_user
         .invite_users(chat_id, slice::from_ref(&alice))
         .await
@@ -563,7 +560,6 @@ async fn update_user_profile_on_group_join() {
 
     // Charlie processes his messages again, fetching Alice's profile will fail because it tries to
     // download Alice's old profile.
-    let charlie_user = &setup.get_user(&charlie).user;
     charlie_user.qs_fetch_messages().await.unwrap();
     charlie_user.outbound_service().run_once().await;
 
@@ -575,7 +571,7 @@ async fn update_user_profile_on_group_join() {
     );
 
     // Alice accepts the invitation.
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     let alice_qs_messages = alice_user.qs_fetch_messages().await.unwrap();
     alice_user
         .fully_process_qs_messages(alice_qs_messages)
@@ -584,7 +580,6 @@ async fn update_user_profile_on_group_join() {
     // While processing her messages, Alice should have issued a profile update
 
     // Charlie picks up his messages.
-    let charlie_user = &setup.get_user(&charlie).user;
     let charlie_qs_messages = charlie_user.qs_fetch_messages().await.unwrap();
     charlie_user
         .fully_process_qs_messages(charlie_qs_messages)
@@ -625,7 +620,7 @@ async fn group_with_blocked_contact() {
         .await;
 
     // Block bob
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     alice_user.block_contact(bob.clone()).await.unwrap();
 
     // Messages are still sent and received
@@ -668,7 +663,7 @@ async fn update_group_data() {
         .await;
 
     // Alice updates the group picture
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     let picture = test_picture_bytes();
     alice_user
         .set_chat_picture(chat_id, Some(picture.clone()))
@@ -687,7 +682,7 @@ async fn update_group_data() {
 
     // Bob and Charlie should now have the updated group picture
     for user_id in [&bob, &charlie] {
-        let user = &setup.get_user(user_id).user;
+        let user = setup.user(user_id);
         // Fetch and process messages to get the update
         let qs_messages = user.qs_fetch_messages().await.unwrap();
         let result = user.fully_process_qs_messages(qs_messages).await;
@@ -711,14 +706,14 @@ async fn update_group_data() {
 
     // Now Bob updates the group title
     let title = "New Group Title".to_string();
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     bob_user
         .set_chat_title(chat_id, title.clone())
         .await
         .unwrap();
 
     for user_id in [&alice, &charlie] {
-        let user = &setup.get_user(user_id).user;
+        let user = setup.user(user_id);
         // Fetch and process messages to get the update
         let qs_messages = user.qs_fetch_messages().await.unwrap();
         let result = user.fully_process_qs_messages(qs_messages).await;
@@ -761,7 +756,7 @@ async fn own_pending_commit_merges_group_data_and_clears_pending_op() {
     let chat_id = setup.create_group(&alice).await;
     setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     // Stage Alice's title-change commit WITHOUT merging it. This leaves a
     // pending commit and a stored pending chat operation, and hands back the
@@ -836,7 +831,7 @@ async fn fetch_group_profile_on_invite() {
 
     let chat_id = setup.create_group(&alice).await;
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     alice_user
         .set_chat_picture(chat_id, Some(test_picture_bytes()))
         .await
@@ -855,7 +850,7 @@ async fn fetch_group_profile_on_invite() {
         .unwrap();
 
     // Bob processes the invitation: this schedules a FetchGroupProfileOperation
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     let result = bob_user.fully_process_qs_messages(qs_messages).await;
     assert!(
@@ -909,17 +904,17 @@ async fn fetch_group_profile_on_update() {
     let chat_id = setup.create_group(&alice).await;
     setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
 
-    let chat = setup.get_user(&alice).user.chat(&chat_id).await.unwrap();
+    let chat = setup.user(&alice).chat(&chat_id).await.unwrap();
     let title = chat.attributes().unwrap().title().to_owned();
 
     // Bob sees the group title of group immediately
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     let bob_chat = bob_user.chat(&chat_id).await.unwrap();
     assert_eq!(bob_chat.attributes().unwrap().title(), &title);
 
     // Alice updates the group title and picture
     let new_title = "Updated Group Title".to_string();
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     alice_user
         .set_chat_title(chat_id, new_title.clone())
         .await
@@ -934,7 +929,6 @@ async fn fetch_group_profile_on_update() {
     let expected_picture = chat.attributes().unwrap().picture.clone();
 
     // Bob fetches Alice's commits: this schedules FetchGroupProfileOperations
-    let bob_user = &setup.get_user(&bob).user;
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     let result = bob_user.fully_process_qs_messages(qs_messages).await;
     assert!(
@@ -974,7 +968,7 @@ async fn missed_commit() {
     setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
 
     // Alice invites Charlie
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     alice_user
         .invite_users(chat_id, slice::from_ref(&charlie))
         .await
@@ -990,7 +984,7 @@ async fn missed_commit() {
     );
 
     // Bob misses the invitation commit
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     let (stream, responder) = bob_user.listen_queue().await.unwrap();
     let sequence_number = stream
         .map_while(|message| match message.ok()?.event {
@@ -1022,7 +1016,7 @@ async fn missed_commit() {
     );
 
     // ... and Charlie still has 3 members
-    let charlie_user = &setup.get_user(&charlie).user;
+    let charlie_user = setup.user(&charlie);
     let messages = charlie_user.qs_fetch_messages().await.unwrap();
     charlie_user.fully_process_qs_messages(messages).await;
     assert_eq!(
@@ -1090,19 +1084,18 @@ async fn confirmation_via_queue() {
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
 
-    let alice_user = setup.get_user(&alice);
-    let alice_core = &alice_user.user;
+    let alice_user = setup.user(&alice);
 
     // Make server drop connection instead of sending responses
     setup.listener_control_handle().set_drop_next_response();
 
-    let _ = alice_core
+    let _ = alice_user
         .invite_users(chat_id, &[bob])
         .await
         .expect_err("No error despite server dropping messages");
 
     // Bob should not be in the group.
-    let number_of_members = alice_core
+    let number_of_members = alice_user
         .mls_members(chat_id)
         .await
         .unwrap()
@@ -1115,12 +1108,12 @@ async fn confirmation_via_queue() {
 
     // At this point, Alice has a pending commit. Once she receives the
     // confirmation from the queue, she should be able to create another commit.
-    let qs_messages = alice_core.qs_fetch_messages().await.unwrap();
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
     println!("Number of QS messages: {}", qs_messages.len());
-    alice_core.fully_process_qs_messages(qs_messages).await;
+    alice_user.fully_process_qs_messages(qs_messages).await;
 
     // Bob should now be in the group.
-    let number_of_members = alice_core
+    let number_of_members = alice_user
         .mls_members(chat_id)
         .await
         .unwrap()
@@ -1128,7 +1121,7 @@ async fn confirmation_via_queue() {
         .len();
     assert_eq!(number_of_members, 2);
 
-    alice_core
+    alice_user
         .update_key(chat_id)
         .await
         .expect("No error despite server dropping messages");
@@ -1150,13 +1143,12 @@ async fn self_update() {
         chat_ids.push(setup.create_group(&alice).await);
     }
 
-    let alice_user = setup.get_user(&alice);
-    let alice_core = &alice_user.user;
+    let alice_user = setup.user(&alice);
 
     // Initially, all chats are self-updated at creation time
     let mut self_updated_at = Vec::new();
     for chat_id in &chat_ids {
-        let at = alice_core.self_updated_at(*chat_id).await.unwrap().unwrap();
+        let at = alice_user.self_updated_at(*chat_id).await.unwrap().unwrap();
         assert!(
             created_at <= at && at <= created_at + Duration::seconds(10),
             "Self update is not within 10 seconds of now",
@@ -1166,26 +1158,26 @@ async fn self_update() {
 
     // Set self_updated_at to the past and schedule a self update
     for chat_id in &chat_ids {
-        alice_core
+        alice_user
             .set_self_updated_at(*chat_id, DateTime::UNIX_EPOCH)
             .await
             .unwrap();
     }
     // Run the outbound service to update the chats
-    alice_core
+    alice_user
         .outbound_service()
         .schedule_self_update(DateTime::UNIX_EPOCH)
         .await
         .unwrap();
-    alice_core.outbound_service().run_once().await;
+    alice_user.outbound_service().run_once().await;
 
     // The outbound service updates the chats in batches of 5
     for (idx, chat_id) in chat_ids.iter().take(UPDATE_BATCH_SIZE).enumerate() {
-        let at = alice_core.self_updated_at(*chat_id).await.unwrap().unwrap();
+        let at = alice_user.self_updated_at(*chat_id).await.unwrap().unwrap();
         assert!(self_updated_at[idx] < at, "Self update not happened",);
     }
     assert_eq!(
-        alice_core
+        alice_user
             .self_updated_at(chat_ids[UPDATE_BATCH_SIZE])
             .await
             .unwrap()
@@ -1195,14 +1187,14 @@ async fn self_update() {
     );
 
     // Another run should update the remaining chat
-    alice_core
+    alice_user
         .outbound_service()
         .schedule_self_update(DateTime::UNIX_EPOCH)
         .await
         .unwrap();
-    alice_core.outbound_service().run_once().await;
+    alice_user.outbound_service().run_once().await;
 
-    let at = alice_core
+    let at = alice_user
         .self_updated_at(chat_ids[UPDATE_BATCH_SIZE])
         .await
         .unwrap()
@@ -1221,33 +1213,32 @@ async fn self_update_continues_after_a_broken_chat() {
     let broken_chat = setup.create_group(&alice).await;
     let healthy_chat = setup.create_group(&alice).await;
 
-    let alice_user = setup.get_user(&alice);
-    let alice_core = &alice_user.user;
+    let alice_user = setup.user(&alice);
 
     // Chats are updated ordered by their self-update time, so the broken chat comes first.
-    alice_core
+    alice_user
         .set_self_updated_at(broken_chat, DateTime::UNIX_EPOCH)
         .await
         .unwrap();
     let healthy_updated_at = DateTime::UNIX_EPOCH + Duration::seconds(1);
-    alice_core
+    alice_user
         .set_self_updated_at(healthy_chat, healthy_updated_at)
         .await
         .unwrap();
 
-    alice_core
+    alice_user
         .corrupt_mls_group_state(broken_chat)
         .await
         .unwrap();
 
-    alice_core
+    alice_user
         .outbound_service()
         .schedule_self_update(DateTime::UNIX_EPOCH)
         .await
         .unwrap();
-    alice_core.outbound_service().run_once().await;
+    alice_user.outbound_service().run_once().await;
 
-    let at = alice_core
+    let at = alice_user
         .self_updated_at(healthy_chat)
         .await
         .unwrap()
@@ -1266,32 +1257,31 @@ async fn self_update_skips_inactive_chats() {
     let active_chat = setup.create_group(&alice).await;
     let inactive_chat = setup.create_group(&alice).await;
 
-    let alice_user = setup.get_user(&alice);
-    let alice_core = &alice_user.user;
+    let alice_user = setup.user(&alice);
 
     // Leave one chat to make it inactive
-    alice_core.leave_chat(inactive_chat).await.unwrap();
+    alice_user.leave_chat(inactive_chat).await.unwrap();
 
     // Set self_updated_at to the past for both chats
-    alice_core
+    alice_user
         .set_self_updated_at(active_chat, DateTime::UNIX_EPOCH)
         .await
         .unwrap();
-    alice_core
+    alice_user
         .set_self_updated_at(inactive_chat, DateTime::UNIX_EPOCH)
         .await
         .unwrap();
 
     // Run the outbound service
-    alice_core
+    alice_user
         .outbound_service()
         .schedule_self_update(DateTime::UNIX_EPOCH)
         .await
         .unwrap();
-    alice_core.outbound_service().run_once().await;
+    alice_user.outbound_service().run_once().await;
 
     // The active chat should have been self-updated
-    let active_at = alice_core
+    let active_at = alice_user
         .self_updated_at(active_chat)
         .await
         .unwrap()
@@ -1303,7 +1293,7 @@ async fn self_update_skips_inactive_chats() {
 
     // The inactive chat should NOT have been self-updated
     assert_eq!(
-        alice_core
+        alice_user
             .self_updated_at(inactive_chat)
             .await
             .unwrap()
@@ -1327,14 +1317,9 @@ async fn qs_stream_processor_partially_processes_messages() {
         .await;
 
     // Remove bob chat only locally on their client
-    setup
-        .get_user(&bob)
-        .user
-        .erase_chat(group_chat_id)
-        .await
-        .unwrap();
+    setup.user(&bob).erase_chat(group_chat_id).await.unwrap();
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     let content = MimiContent::simple_markdown_message("Hello from Alice!".to_owned(), [0; 16]);
 
@@ -1357,7 +1342,7 @@ async fn qs_stream_processor_partially_processes_messages() {
         .unwrap();
     alice_user.outbound_service().run_once().await;
 
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
 
     let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
     let mut processor = QsStreamProcessor::new(Some(responder));
@@ -1392,8 +1377,8 @@ async fn update_group_profile_in_group_with_profile_component() {
         .await;
     setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
 
-    let alice_user = &setup.get_user(&alice).user;
-    let bob_user = &setup.get_user(&bob).user;
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
     for user in [alice_user, bob_user] {
         assert!(user.has_group_profile_component(chat_id).await.unwrap());
         // The profile is read from the component, not from the group data extension.
@@ -1491,33 +1476,32 @@ async fn apq_self_update_updates_both_timestamps() {
     let alice = setup.add_user().await;
     let chat_id = setup.create_apq_group(&alice).await;
 
-    let alice_user = setup.get_user(&alice);
-    let alice_core = &alice_user.user;
+    let alice_user = setup.user(&alice);
 
     let now = Utc::now();
 
     // Force both T and PQ self_updated_at to the past so the joint APQ
     // self-update is triggered.
-    alice_core
+    alice_user
         .set_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
         .await
         .unwrap();
-    alice_core
+    alice_user
         .set_pq_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
         .await
         .unwrap();
 
     // Run the outbound service to perform the self-update.
-    alice_core
+    alice_user
         .outbound_service()
         .schedule_self_update(DateTime::UNIX_EPOCH)
         .await
         .unwrap();
-    alice_core.outbound_service().run_once().await;
+    alice_user.outbound_service().run_once().await;
 
     // Both T and PQ self_updated_at should now be advanced past now.
-    let after_t = alice_core.self_updated_at(chat_id).await.unwrap().unwrap();
-    let after_pq = alice_core
+    let after_t = alice_user.self_updated_at(chat_id).await.unwrap().unwrap();
+    let after_pq = alice_user
         .pq_self_updated_at(chat_id)
         .await
         .unwrap()
@@ -1578,9 +1562,9 @@ async fn apq_leave_removes_member_from_both_t_and_pq() {
     setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
     setup.invite_to_group(chat_id, &alice, vec![&charlie]).await;
 
-    let alice_user = &setup.get_user(&alice).user;
-    let bob_user = &setup.get_user(&bob).user;
-    let charlie_user = &setup.get_user(&charlie).user;
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
+    let charlie_user = setup.user(&charlie);
 
     // Alice leaves the APQ group.
     alice_user.leave_chat(chat_id).await.unwrap();
@@ -1673,9 +1657,9 @@ async fn apq_delete_removes_member_from_both_t_and_pq() {
     setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
     setup.invite_to_group(chat_id, &alice, vec![&charlie]).await;
 
-    let alice_user = &setup.get_user(&alice).user;
-    let bob_user = &setup.get_user(&bob).user;
-    let charlie_user = &setup.get_user(&charlie).user;
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
+    let charlie_user = setup.user(&charlie);
 
     // Snapshot the PQ epoch before the delete so we can assert it advanced.
     let pq_epoch_before = alice_user
@@ -1776,8 +1760,7 @@ async fn stale_welcome_epoch_preserves_profile_keys() {
             profile_picture: None,
         };
         setup
-            .get_user(member)
-            .user
+            .user(member)
             .set_own_user_profile(profile)
             .await
             .unwrap();
@@ -1792,8 +1775,7 @@ async fn stale_welcome_epoch_preserves_profile_keys() {
     // Alice invites Bob. Bob's Welcome describes this epoch, with Charlie
     // still in the group. Bob does not touch his queue yet.
     setup
-        .get_user(&alice)
-        .user
+        .user(&alice)
         .invite_users(chat_id, slice::from_ref(&bob))
         .await
         .unwrap();
@@ -1801,8 +1783,7 @@ async fn stale_welcome_epoch_preserves_profile_keys() {
 
     // The group moves on: Charlie's leaf is vacated and handed to Eve.
     setup
-        .get_user(&alice)
-        .user
+        .user(&alice)
         .remove_users(chat_id, vec![charlie.clone()])
         .await
         .unwrap();
@@ -1817,11 +1798,11 @@ async fn stale_welcome_epoch_preserves_profile_keys() {
 
     // Bob processes his Welcome and nothing else, so his view is the epoch the
     // Welcome describes rather than the group's current one.
-    let queued = setup.get_user(&bob).user.qs_fetch_messages().await.unwrap();
+    let queued = setup.user(&bob).qs_fetch_messages().await.unwrap();
     let mut joined = false;
     let mut consumed = 0usize;
     for message in queued {
-        let bob_user = &setup.get_user(&bob).user;
+        let bob_user = setup.user(&bob);
         bob_user.fully_process_qs_messages(vec![message]).await;
         consumed += 1;
         if bob_user.chat_participants(chat_id).await.is_some() {
@@ -1836,32 +1817,17 @@ async fn stale_welcome_epoch_preserves_profile_keys() {
     tracing::info!(consumed, "messages Bob processed before joining");
     // Everything still queued is deliberately left unprocessed.
     for _ in 0..3 {
-        setup
-            .get_user(&bob)
-            .user
-            .outbound_service()
-            .run_once()
-            .await;
+        setup.user(&bob).outbound_service().run_once().await;
     }
 
     // Bob is at the Welcome's epoch, where Charlie is still a member.
-    let bob_view = setup
-        .get_user(&bob)
-        .user
-        .chat_participants(chat_id)
-        .await
-        .unwrap();
+    let bob_view = setup.user(&bob).chat_participants(chat_id).await.unwrap();
     // Bob's two views of the same group must agree. The ratchet tree is the
     // epoch his Welcome describes; the participant list is derived from the
     // room state that came with it. If the DS answers with a current room
     // state, the list names whoever holds a leaf now rather than who held it
     // at that epoch.
-    let mls_view = setup
-        .get_user(&bob)
-        .user
-        .group_members(chat_id)
-        .await
-        .unwrap();
+    let mls_view = setup.user(&bob).group_members(chat_id).await.unwrap();
     assert_eq!(
         bob_view, mls_view,
         "Bob's participant list disagrees with his own ratchet tree: the two \

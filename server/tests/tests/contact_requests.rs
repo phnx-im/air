@@ -42,7 +42,7 @@ pub(crate) async fn pending_chats_from(device: &CoreUser, sender: &UserId) -> Ve
 
 /// A username of `user_id` besides the one the harness registers.
 pub(crate) async fn add_second_username(setup: &TestBackend, user_id: &UserId) -> UsernameRecord {
-    let user = setup.get_user(user_id).user().clone();
+    let user = setup.user(user_id);
     user.outbound_service().run_once().await;
     let suffix: String = user_id
         .uuid()
@@ -61,11 +61,11 @@ async fn requests_of_one_sender_fold_into_the_chat_of_the_newest() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
-    let first = add_username(&mut setup, &bob).await;
+    let first = add_username(&setup, &bob).await;
     let second = add_second_username(&setup, &bob).await;
 
-    let alice_user = setup.get_user(&alice).user().clone();
-    let bob_user = setup.get_user(&bob).user().clone();
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
     let mut sent = Vec::new();
     for record in [&first, &second] {
         let chat_id = alice_user
@@ -76,8 +76,8 @@ async fn requests_of_one_sender_fold_into_the_chat_of_the_newest() {
         sent.push(chat_id);
     }
 
-    receive_connection_offer(&bob_user, &first).await;
-    let chat_id = receive_connection_offer(&bob_user, &second).await;
+    receive_connection_offer(bob_user, &first).await;
+    let chat_id = receive_connection_offer(bob_user, &second).await;
     assert_eq!(
         chat_id, sent[1],
         "the chat is the one of the newest request"
@@ -86,7 +86,7 @@ async fn requests_of_one_sender_fold_into_the_chat_of_the_newest() {
         bob_user.chat(&sent[0]).await.is_none(),
         "the newer request took over the chat of the older one"
     );
-    let messages = system_messages(&bob_user, chat_id).await;
+    let messages = system_messages(bob_user, chat_id).await;
     assert!(
         messages.contains(&SystemMessage::ReceivedHandleConnectionRequest {
             sender: alice.clone(),
@@ -105,14 +105,14 @@ async fn requests_of_one_sender_fold_into_the_chat_of_the_newest() {
         .await
         .unwrap()
         .unwrap();
-    drain_expecting_success(&alice_user, "alice failed to follow the accept").await;
+    drain_expecting_success(alice_user, "alice failed to follow the accept").await;
 
     assert_eq!(
         alice_user.chat(&sent[1]).await.unwrap().chat_type(),
         &ChatType::Connection(bob.clone())
     );
     assert!(
-        pending_chats_from(&bob_user, &alice).await.is_empty(),
+        pending_chats_from(bob_user, &alice).await.is_empty(),
         "accepting settles the older request too"
     );
     assert_eq!(bob_user.contacts().await.unwrap().len(), 1);
@@ -124,11 +124,11 @@ async fn an_offer_fetched_after_accepting_a_newer_one_is_dropped() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
-    let first = add_username(&mut setup, &bob).await;
+    let first = add_username(&setup, &bob).await;
     let second = add_second_username(&setup, &bob).await;
 
-    let alice_user = setup.get_user(&alice).user().clone();
-    let bob_user = setup.get_user(&bob).user().clone();
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
     for record in [&first, &second] {
         alice_user
             .add_contact(record.username.clone(), record.hash, setup.apq_groups)
@@ -139,17 +139,17 @@ async fn an_offer_fetched_after_accepting_a_newer_one_is_dropped() {
 
     // The newer offer is accepted while the older one still waits in its
     // queue.
-    let chat_id = receive_connection_offer(&bob_user, &second).await;
+    let chat_id = receive_connection_offer(bob_user, &second).await;
     bob_user
         .accept_contact_request(chat_id)
         .await
         .unwrap()
         .unwrap();
-    drain_expecting_success(&alice_user, "alice failed to follow the accept").await;
+    drain_expecting_success(alice_user, "alice failed to follow the accept").await;
 
-    assert_eq!(drain_username_queue(&bob_user, &first).await, None);
+    assert_eq!(drain_username_queue(bob_user, &first).await, None);
     assert!(
-        pending_chats_from(&bob_user, &alice).await.is_empty(),
+        pending_chats_from(bob_user, &alice).await.is_empty(),
         "an offer from a connected contact is stale"
     );
     assert_eq!(
@@ -164,10 +164,10 @@ async fn crossed_requests_leave_one_connection() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
-    let alice_record = add_username(&mut setup, &alice).await;
-    let bob_record = add_username(&mut setup, &bob).await;
-    let alice_user = setup.get_user(&alice).user().clone();
-    let bob_user = setup.get_user(&bob).user().clone();
+    let alice_record = add_username(&setup, &alice).await;
+    let bob_record = add_username(&setup, &bob).await;
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
 
     alice_user
         .add_contact(
@@ -190,14 +190,14 @@ async fn crossed_requests_leave_one_connection() {
 
     // Alice accepts Bob's request. Bob's copy of Alice's request goes once he
     // learns of the connection.
-    let bob_request_at_alice = receive_connection_offer(&alice_user, &alice_record).await;
-    let alice_request_at_bob = receive_connection_offer(&bob_user, &bob_record).await;
+    let bob_request_at_alice = receive_connection_offer(alice_user, &alice_record).await;
+    let alice_request_at_bob = receive_connection_offer(bob_user, &bob_record).await;
     alice_user
         .accept_contact_request(bob_request_at_alice)
         .await
         .unwrap()
         .unwrap();
-    drain_expecting_success(&bob_user, "bob failed to follow the accept").await;
+    drain_expecting_success(bob_user, "bob failed to follow the accept").await;
 
     assert!(
         bob_user.chat(&alice_request_at_bob).await.is_none(),
@@ -225,14 +225,14 @@ async fn asking_back_from_a_group_opens_the_pending_request() {
     setup
         .invite_to_group(group_chat_id, &charlie, vec![&alice, &bob])
         .await;
-    let alice_user = setup.get_user(&alice).user().clone();
-    let bob_user = setup.get_user(&bob).user().clone();
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
 
     let alice_chat_id = alice_user
         .add_contact_from_group(group_chat_id, bob.clone(), setup.apq_groups)
         .await
         .unwrap();
-    let processed = drain_expecting_success(&bob_user, "bob failed to take the request").await;
+    let processed = drain_expecting_success(bob_user, "bob failed to take the request").await;
     let [bob_chat_id] = processed.new_connections.as_slice() else {
         panic!("expected one request, got {:?}", processed.new_connections);
     };
@@ -248,7 +248,7 @@ async fn asking_back_from_a_group_opens_the_pending_request() {
         .await
         .unwrap()
         .unwrap();
-    drain_expecting_success(&alice_user, "alice failed to follow the accept").await;
+    drain_expecting_success(alice_user, "alice failed to follow the accept").await;
     assert_eq!(
         alice_user.chat(&alice_chat_id).await.unwrap().chat_type(),
         &ChatType::Connection(bob.clone())

@@ -70,7 +70,7 @@ async fn rate_limit() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let alice = &setup.get_user(&alice);
+    let alice = setup.user(&alice);
 
     let mut resource_exhausted = false;
     let mut held_id = None;
@@ -79,7 +79,6 @@ async fn rate_limit() {
     for i in 0..100 {
         info!(i, "sending message");
         alice
-            .user
             .send_message(
                 chat_id,
                 MimiContent::simple_markdown_message(format!("Hello bob {i}"), [0; 16]), // simple seed for testing
@@ -88,9 +87,9 @@ async fn rate_limit() {
             )
             .await
             .unwrap();
-        alice.user.outbound_service().run_once().await;
+        alice.outbound_service().run_once().await;
 
-        let message = alice.user.last_message(chat_id).await.unwrap().unwrap();
+        let message = alice.last_message(chat_id).await.unwrap().unwrap();
 
         // Due to the indirection of the outbound service, we can't just check
         // for errors while sending. Instead, we just check whether the message
@@ -118,7 +117,6 @@ async fn rate_limit() {
     info!("sending message after rate limit tokens replenished");
     const FINAL_TEXT: &str = "after replenish";
     alice
-        .user
         .send_message(
             chat_id,
             MimiContent::simple_markdown_message(FINAL_TEXT.into(), [0; 16]), // simple seed for testing
@@ -127,11 +125,11 @@ async fn rate_limit() {
         )
         .await
         .unwrap();
-    alice.user.outbound_service().run_once().await;
+    alice.outbound_service().run_once().await;
 
-    let message = alice.user.last_message(chat_id).await.unwrap().unwrap();
+    let message = alice.last_message(chat_id).await.unwrap().unwrap();
     assert!(message.is_sent());
-    let held = alice.user.message(held_id).await.unwrap().unwrap();
+    let held = alice.message(held_id).await.unwrap().unwrap();
     assert!(held.is_sent());
     assert_ne!(held.status(), MessageStatus::Error);
 
@@ -175,7 +173,7 @@ async fn user_deletion_triggers() {
 
     // Bob should have a user profile for charlie now, even though they
     // are not connected.
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     let bob_user_profile_charlie = bob_user.user_profile(&charlie).await;
     assert!(bob_user_profile_charlie.user_id == charlie);
 
@@ -183,8 +181,7 @@ async fn user_deletion_triggers() {
     setup.leave_group(chat_id, &charlie).await.unwrap();
     // Bob should not have a user profile for charlie anymore.
 
-    let bob = setup.get_user(&bob);
-    let bob_user_profile_charlie = bob.user.user_profile(&charlie).await;
+    let bob_user_profile_charlie = bob_user.user_profile(&charlie).await;
     assert_eq!(
         bob_user_profile_charlie,
         aircoreclient::UserProfile::from_user_id(&charlie)
@@ -303,7 +300,7 @@ async fn max_past_epochs() {
     // Create MAX_PAST_EPOCHS updates and send a message from Bob to Alice after
     // each update.
     for _ in 0..MAX_PAST_EPOCHS {
-        let result = update_and_send_message(&mut setup, contact_chat_id, &alice, &bob).await;
+        let result = update_and_send_message(&setup, contact_chat_id, &alice, &bob).await;
         assert!(
             result.errors.is_empty(),
             "Alice should process Bob's message without errors"
@@ -311,7 +308,7 @@ async fn max_past_epochs() {
     }
 
     // Repeat one more time, this time we expect an error
-    let result = update_and_send_message(&mut setup, contact_chat_id, &alice, &bob).await;
+    let result = update_and_send_message(&setup, contact_chat_id, &alice, &bob).await;
     let error = &result.errors[0].to_string();
     assert_eq!(
         error.to_string(),
@@ -321,16 +318,16 @@ async fn max_past_epochs() {
 }
 
 async fn update_and_send_message(
-    setup: &mut TestBackend,
+    setup: &TestBackend,
     contact_chat_id: ChatId,
     alice: &UserId,
     bob: &UserId,
 ) -> ProcessedQsMessages {
-    let alice_user = &setup.get_user(alice).user;
+    let alice_user = setup.user(alice);
     // alice creates an update and sends it to the ds
     alice_user.update_key(contact_chat_id).await.unwrap();
     // bob creates a message based on his (old) epoch for alice
-    let bob_user = &setup.get_user(bob).user;
+    let bob_user = setup.user(bob);
     let msg = MimiContent::simple_markdown_message("message".to_owned(), [0; 16]);
     bob_user
         .send_message(contact_chat_id, msg, None, MarkChatAsRead::Yes)
@@ -338,7 +335,6 @@ async fn update_and_send_message(
         .unwrap();
     bob_user.outbound_service().run_once().await;
     // alice fetches and processes bob's message
-    let alice_user = &setup.get_user(alice).user;
     let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
     alice_user.fully_process_qs_messages(qs_messages).await
 }
@@ -357,7 +353,7 @@ async fn ratchet_tolerance() {
 
     // To test the tolerance of the ratchet, we have Alice send a bunch of
     // messages and then give Bob only the last one to process.
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     for _ in 0..5 {
         let msg = MimiContent::simple_markdown_message("message".to_owned(), [0; 16]);
         alice_user
@@ -367,7 +363,7 @@ async fn ratchet_tolerance() {
     }
     alice_user.outbound_service().run_once().await;
 
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     let mut qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     // Give Bob only the last message to process
     let last_message = qs_messages.pop().unwrap();
@@ -419,7 +415,7 @@ async fn ratchet_tolerance() {
 //     const NUM_CLIENTS: usize = 2;
 //     let mut join_set = JoinSet::new();
 
-//     let bob_user = setup.get_user(&bob).user.clone();
+//     let bob_user = setup.user(&bob).clone();
 //     let (processed, processed_rx) = tokio::sync::watch::channel(0);
 
 //     for _ in 0..NUM_CLIENTS {
@@ -486,7 +482,7 @@ async fn resync() {
 
     // To trigger resync, we have Alice add Charlie to the group and Bob
     // fetching, but not processing the commit.
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     // Alice creates a invites charlie and sends the commit to the DS
     alice_user
@@ -496,7 +492,7 @@ async fn resync() {
 
     // Bob fetches the invite and acks it s.t. it's removed from the queue,
     // but does not process it. This is to simulate Bob missing the commit.
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     let [message] = qs_messages.as_slice() else {
         panic!("Bob should have one message in the queue");
@@ -507,11 +503,9 @@ async fn resync() {
 
     // Alice performs an update, which bob fetches and processes, triggering a
     // resync.
-    let alice_user = &setup.get_user(&alice).user;
     alice_user.update_key(chat_id).await.unwrap();
 
     // Bob fetches and processes the update
-    let bob_user = &setup.get_user(&bob).user;
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     let result = bob_user.fully_process_qs_messages(qs_messages).await;
     // Run outbound service to complete the rejoin process
@@ -543,8 +537,6 @@ async fn resync() {
         "Bob never processed the invite commit, so no add with an actor"
     );
 
-    let alice_user = &setup.get_user(&alice).user;
-
     // Alice processes Bob's rejoin
     let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
     let result = alice_user.fully_process_qs_messages(qs_messages).await;
@@ -559,8 +551,6 @@ async fn resync() {
         .send_message(chat_id, &bob, vec![&alice, &charlie], None)
         .await;
 
-    let alice_user = &setup.get_user(&alice).user;
-
     // When Alice sends another message, Bob should be able to process it without errors.
     alice_user
         .send_message(
@@ -572,7 +562,6 @@ async fn resync() {
         .await
         .unwrap();
 
-    let bob_user = &setup.get_user(&bob).user;
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     let result = bob_user.fully_process_qs_messages(qs_messages).await;
     assert!(
@@ -582,14 +571,12 @@ async fn resync() {
 
     // Now Alice leaves the group, which means that if Bob resyncs again, he
     // should commit the SelfRemove proposal in the process.
-    let alice_user = &setup.get_user(&alice).user;
 
     // Alice sends an update, which Bob misses again.
     alice_user.update_key(chat_id).await.unwrap();
 
     // Bob fetches the update and acks it s.t. it's removed from the queue,
     // but does not process it. This is to simulate Bob missing the commit.
-    let bob_user = &setup.get_user(&bob).user;
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     let [message] = qs_messages.as_slice() else {
         panic!("Bob should have one message in the queue");
@@ -600,11 +587,9 @@ async fn resync() {
 
     // Now Alice leaves the group, which means that if Bob resyncs again, he
     // should commit the SelfRemove proposal in the process.
-    let alice_user = &setup.get_user(&alice).user;
     alice_user.leave_chat(chat_id).await.unwrap();
 
     // Bob fetches and processes his messages, which should trigger a resync.
-    let bob_user = &setup.get_user(&bob).user;
 
     // Alice is still part of the group.
     let participants = bob_user.group_members(chat_id).await.unwrap();
@@ -676,7 +661,7 @@ async fn resync() {
         .await;
 
     // Charlie should also only see Bob in the group.
-    let charlie_user = &setup.get_user(&charlie).user;
+    let charlie_user = setup.user(&charlie);
 
     let participants = charlie_user.group_members(chat_id).await.unwrap();
     assert_eq!(
@@ -700,10 +685,10 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
     setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
 
     // Alice commits. Bob acks the commit without processing it, so he is one epoch behind.
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     alice_user.update_key(chat_id).await.unwrap();
 
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     let [message] = qs_messages.as_slice() else {
         panic!("Bob should have one message in the queue");
@@ -799,7 +784,7 @@ async fn resync_group_not_found_cleans_up_local_state() {
     // Enqueue a resync with a fabricated group_id that doesn't exist on the
     // server. This simulates a group that was deleted or garbage-collected
     // server-side while the client still had a stale resync entry.
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     bob_user
         .enqueue_resync_for_nonexistent_group(chat_id, "localhost")
         .await
@@ -834,7 +819,7 @@ async fn resync_valid_group_succeeds() {
     setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
 
     // Bob enqueues a resync for the group.
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     bob_user.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
         bob_user.resync_status(chat_id).await.unwrap().is_some(),
@@ -850,7 +835,7 @@ async fn resync_valid_group_succeeds() {
     );
 
     // Alice processes Bob's rejoin commit.
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
     let result = alice_user.fully_process_qs_messages(qs_messages).await;
     assert!(
@@ -864,14 +849,12 @@ async fn resync_valid_group_succeeds() {
     // Alice performs a further commit-based operation (for APQ groups, one that touches both legs).
     // Bob must process it cleanly, which for APQ groups also verifies that the resync left the T
     // and PQ legs at compatible epochs (PSK continuity).
-    let alice_user = &setup.get_user(&alice).user;
     if setup.apq_groups {
         alice_user.update_apq_key(chat_id).await.unwrap();
     } else {
         alice_user.update_key(chat_id).await.unwrap();
     }
 
-    let bob_user = &setup.get_user(&bob).user;
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     let result = bob_user.fully_process_qs_messages(qs_messages).await;
     assert!(
@@ -912,12 +895,12 @@ async fn resync_with_blank_leaf_succeeds() {
 
     // Charlie leaves the chat. This puts a pending SelfRemove proposal for leaf index 2 on the DS,
     // which is committed by the next resync's external commit.
-    let charlie_user = &setup.get_user(&charlie).user;
+    let charlie_user = setup.user(&charlie);
     charlie_user.leave_chat(chat_id).await.unwrap();
 
     // Alice and Dave observe Charlie's proposal.
     for user_id in [&alice, &dave] {
-        let user = &setup.get_user(user_id).user;
+        let user = setup.user(user_id);
         let qs_messages = user.qs_fetch_messages().await.unwrap();
         let result = user.fully_process_qs_messages(qs_messages).await;
         assert!(
@@ -929,7 +912,7 @@ async fn resync_with_blank_leaf_succeeds() {
 
     // Dave changes his profile. This rotates his user profile key, so Alice's post-resync profile
     // fetch must decrypt it with the key from the external commit info.
-    let dave_user = &setup.get_user(&dave).user;
+    let dave_user = setup.user(&dave);
     let dave_display_name: DisplayName = "D4v3".parse().unwrap();
     dave_user
         .set_own_user_profile(UserProfile {
@@ -941,7 +924,7 @@ async fn resync_with_blank_leaf_succeeds() {
         .unwrap();
 
     // Alice resyncs first.
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     alice_user.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
         alice_user.resync_status(chat_id).await.unwrap().is_some(),
@@ -974,7 +957,6 @@ async fn resync_with_blank_leaf_succeeds() {
     );
 
     // Dave processes Alice's rejoin commit.
-    let dave_user = &setup.get_user(&dave).user;
     let qs_messages = dave_user.qs_fetch_messages().await.unwrap();
     let result = dave_user.fully_process_qs_messages(qs_messages).await;
     assert!(
@@ -1011,7 +993,6 @@ async fn resync_with_blank_leaf_succeeds() {
     );
 
     // Alice processes Dave's rejoin commit.
-    let alice_user = &setup.get_user(&alice).user;
     let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
     let result = alice_user.fully_process_qs_messages(qs_messages).await;
     assert!(
@@ -1023,7 +1004,6 @@ async fn resync_with_blank_leaf_succeeds() {
     let expected_members: HashSet<_> = [alice.clone(), dave.clone()].into_iter().collect();
     let participants = alice_user.group_members(chat_id).await.unwrap();
     assert_eq!(participants, expected_members);
-    let dave_user = &setup.get_user(&dave).user;
     let participants = dave_user.group_members(chat_id).await.unwrap();
     assert_eq!(participants, expected_members);
 
@@ -1044,7 +1024,6 @@ async fn resync_with_blank_leaf_succeeds() {
     dave_user.outbound_service().run_once().await;
 
     // Alice receives the message.
-    let alice_user = &setup.get_user(&alice).user;
     let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
     let result = alice_user.fully_process_qs_messages(qs_messages).await;
     assert!(
@@ -1054,7 +1033,6 @@ async fn resync_with_blank_leaf_succeeds() {
     );
 
     // The DS must not fan out Dave's own message back to him.
-    let dave_user = &setup.get_user(&dave).user;
     let qs_messages = dave_user.qs_fetch_messages().await.unwrap();
     let result = dave_user.fully_process_qs_messages(qs_messages).await;
     assert!(
@@ -1075,14 +1053,14 @@ async fn key_package_upload() {
     // We collect Bob's encryption keys. They should be unique every time.
     let mut encryption_keys = HashSet::new();
 
-    let create_chat_and_invite_bob = async |setup: &mut TestBackend| {
+    let create_chat_and_invite_bob = async |setup: &TestBackend| {
         let chat_id = setup.create_group(&alice).await;
-        let alice_user = &setup.get_user(&alice).user;
+        let alice_user = setup.user(&alice);
         alice_user
             .invite_users(chat_id, slice::from_ref(&bob))
             .await
             .unwrap();
-        let bob_user = &setup.get_user(&bob).user;
+        let bob_user = setup.user(&bob);
         let messages = bob_user.qs_fetch_messages().await.unwrap();
         let res = bob_user.fully_process_qs_messages(messages).await;
         assert!(
@@ -1108,18 +1086,18 @@ async fn key_package_upload() {
     } + 1;
 
     for _ in 0..n {
-        let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
+        let bob_encryption_key = create_chat_and_invite_bob(&setup).await;
         assert!(encryption_keys.insert(bob_encryption_key));
     }
 
-    let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
+    let bob_encryption_key = create_chat_and_invite_bob(&setup).await;
     assert!(
         !encryption_keys.insert(bob_encryption_key),
         "Alice should have reused Bob's last resort KeyPackage"
     );
 
     // Bob uploads new KeyPackages
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     let now = Utc::now();
     bob_user
         .outbound_service()
@@ -1129,7 +1107,7 @@ async fn key_package_upload() {
     bob_user.outbound_service().run_once().await;
 
     // Invite Bob again, should get a new KeyPackage
-    let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
+    let bob_encryption_key = create_chat_and_invite_bob(&setup).await;
     assert!(
         n <= 1 || encryption_keys.insert(bob_encryption_key),
         "Bob should have a new KeyPackage after uploading new ones"
@@ -1518,7 +1496,7 @@ async fn skip_version_status(
 async fn listen_queue_version_status() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let alice_user = setup.get_user(&alice).user.clone();
+    let alice_user = setup.user(&alice);
 
     let (mut stream, _responder) = alice_user.listen_queue().await.unwrap();
 
@@ -1554,7 +1532,7 @@ async fn listen_queue_version_status_expiring() {
     .await;
 
     let alice = setup.add_user().await;
-    let alice_user = setup.get_user(&alice).user.clone();
+    let alice_user = setup.user(&alice);
 
     let (mut stream, _responder) = alice_user.listen_queue().await.unwrap();
 
@@ -1689,7 +1667,7 @@ async fn listen_stream_durable_acks() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     alice_user
         .send_message(
             chat_id,
@@ -1702,7 +1680,7 @@ async fn listen_stream_durable_acks() {
     alice_user.outbound_service().run_once().await;
 
     // Bob receives the message on the listen stream and acks it.
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
     skip_version_status(&mut stream).await;
     let sequence_number = match stream.next().await {

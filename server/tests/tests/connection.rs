@@ -31,8 +31,8 @@ async fn connect_users_via_user_handle() {
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let username = setup.get_user(&bob).username_record().unwrap().username;
-    let alice_user = setup.get_user(&alice).user();
-    let bob_user = setup.get_user(&bob).user();
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
 
     for (user, contact) in [(alice_user, &bob), (bob_user, &alice)] {
         let contacts: Vec<_> = user
@@ -81,7 +81,7 @@ async fn connection_request_spends_a_token() {
     let bob = setup.add_user().await;
     let record = setup.get_user(&bob).add_username().await.unwrap();
 
-    let alice_user = setup.get_user(&alice).user().clone();
+    let alice_user = setup.user(&alice);
     let before = alice_user
         .cached_privacy_pass_tokens(OperationType::ConnectUsername)
         .await
@@ -177,7 +177,7 @@ async fn signed_connection_package_upload_task_replenishes_username() -> anyhow:
     let mut setup = TestBackend::single().await;
     let bob = setup.add_user().await;
     let record = setup.get_user(&bob).add_username().await?;
-    let user = setup.get_user(&bob).user();
+    let user = setup.user(&bob);
     let client = ApiClient::with_endpoint(&setup.server_url())?;
 
     // Use up the packages published on creation, so that new ones are observable.
@@ -218,7 +218,7 @@ async fn signed_connection_package_upload_task_retries_pending_username() -> any
     let mut setup = TestBackend::single().await;
     let bob = setup.add_user().await;
     let record = setup.get_user(&bob).add_username().await?;
-    let user = setup.get_user(&bob).user();
+    let user = setup.user(&bob);
 
     // The upload fails with a network error.
     setup.listener_control_handle().set_drop_all();
@@ -261,7 +261,7 @@ async fn signed_connection_package_upload_task_retries_pending_username() -> any
 async fn signed_connection_package_upload_task_drops_unknown_username() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let bob = setup.add_user().await;
-    let user = setup.get_user(&bob).user();
+    let user = setup.user(&bob);
 
     // A username which does not exist locally is treated as done.
     user.outbound_service()
@@ -300,7 +300,7 @@ async fn connect_users_via_targeted_message() {
 
     // Bob now connects to Charlie via a targeted message sent through the
     // shared group.
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     let bob_chat_id = bob_user
         .add_contact_from_group(group_chat_id, charlie.clone(), setup.apq_groups)
         .await
@@ -327,7 +327,7 @@ async fn connect_users_via_targeted_message() {
     assert_eq!(*origin_chat_id, group_chat_id);
 
     // Charlie picks up his messages
-    let charlie_user = &setup.get_user(&charlie).user;
+    let charlie_user = setup.user(&charlie);
     let qs_messages = charlie_user.qs_fetch_messages().await.unwrap();
     let mut result = charlie_user.fully_process_qs_messages(qs_messages).await;
     assert!(
@@ -373,7 +373,6 @@ async fn connect_users_via_targeted_message() {
     );
 
     // Now Bob picks up his messages
-    let bob_user = &setup.get_user(&bob).user;
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     let result = bob_user.fully_process_qs_messages(qs_messages).await;
     assert!(
@@ -400,7 +399,6 @@ async fn connect_users_via_targeted_message() {
         bob_contact.is_some(),
         "Bob should have Charlie as a contact"
     );
-    let charlie_user = &setup.get_user(&charlie).user;
     let charlie_contact = charlie_user.contact(&bob).await;
     assert!(
         charlie_contact.is_some(),
@@ -427,13 +425,13 @@ async fn connect_from_group(
     peer: &UserId,
     prefer_apq: bool,
 ) -> (ChatId, ChatId) {
-    let initiator_user = &setup.get_user(initiator).user;
+    let initiator_user = setup.user(initiator);
     let initiator_chat_id = initiator_user
         .add_contact_from_group(group_chat_id, peer.clone(), prefer_apq)
         .await
         .unwrap();
 
-    let peer_user = &setup.get_user(peer).user;
+    let peer_user = setup.user(peer);
     let qs_messages = peer_user.qs_fetch_messages().await.unwrap();
     let mut result = peer_user.fully_process_qs_messages(qs_messages).await;
     assert!(
@@ -501,8 +499,8 @@ async fn connect_users_via_targeted_message_apq() {
     let (bob_chat_id, charlie_chat_id) =
         connect_from_group(&setup, group_chat_id, &bob, &charlie, true).await;
 
-    let bob_user = &setup.get_user(&bob).user;
-    let charlie_user = &setup.get_user(&charlie).user;
+    let bob_user = setup.user(&bob);
+    let charlie_user = setup.user(&charlie);
     assert_eq!(bob_user.chat_is_apq(bob_chat_id).await, Some(true));
     assert_eq!(charlie_user.chat_is_apq(charlie_chat_id).await, Some(true));
 
@@ -523,7 +521,7 @@ async fn resync_connection_group() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     bob_user.enqueue_group_resync(chat_id).await.unwrap();
     bob_user.outbound_service().run_once().await;
     assert!(
@@ -531,7 +529,7 @@ async fn resync_connection_group() {
         "resync should have completed"
     );
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
     let result = alice_user.fully_process_qs_messages(qs_messages).await;
     assert!(
@@ -544,13 +542,11 @@ async fn resync_connection_group() {
     setup.send_message(chat_id, &alice, vec![&bob], None).await;
 
     // A commit touching both legs after the resync shows that they are at compatible epochs.
-    let alice_user = &setup.get_user(&alice).user;
     if setup.apq_groups {
         alice_user.update_apq_key(chat_id).await.unwrap();
     } else {
         alice_user.update_key(chat_id).await.unwrap();
     }
-    let bob_user = &setup.get_user(&bob).user;
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
     let result = bob_user.fully_process_qs_messages(qs_messages).await;
     assert!(
@@ -579,8 +575,7 @@ async fn sanity_checks_for_targeted_message_connections() {
         .await;
 
     // Alice shouldn't be able to add Bob as a contact from the group, since they are already connected.
-    let alice = setup.get_user(&alice);
-    let alice_user = &alice.user;
+    let alice_user = setup.user(&alice);
     let res = alice_user
         .add_contact_from_group(group_chat_id, bob.clone(), setup.apq_groups)
         .await;
@@ -591,8 +586,7 @@ async fn sanity_checks_for_targeted_message_connections() {
 
     // Bob now connects to Charlie via a targeted message sent through the
     // shared group.
-    let bob = setup.get_user(&bob);
-    let bob_user = &bob.user;
+    let bob_user = setup.user(&bob);
     bob_user
         .add_contact_from_group(group_chat_id, charlie.clone(), setup.apq_groups)
         .await
@@ -625,8 +619,7 @@ async fn connection_request_has_server_timestamp() {
     let bob_username = bob_username_record.username.clone();
 
     // Alice sends a connection request to Bob
-    let test_alice = setup.get_user(&alice);
-    let alice_user = &test_alice.user;
+    let alice_user = setup.user(&alice);
     let username_hash = spawn_blocking({
         let username = bob_username.clone();
         move || username.calculate_hash().unwrap()
@@ -641,8 +634,7 @@ async fn connection_request_has_server_timestamp() {
         .expect("non-fatal error");
 
     // Bob fetches and processes the connection request
-    let test_bob = setup.get_user(&bob);
-    let bob_user = &test_bob.user;
+    let bob_user = setup.user(&bob);
     let (mut stream, responder) = bob_user
         .listen_username(&bob_username_record)
         .await
@@ -720,12 +712,7 @@ async fn ds_room_state_contains_connection_group_joiner() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let users = setup
-        .get_user(&bob)
-        .user
-        .ds_room_state_users(chat_id)
-        .await
-        .unwrap();
+    let users = setup.user(&bob).ds_room_state_users(chat_id).await.unwrap();
 
     assert_eq!(
         users,

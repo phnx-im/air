@@ -391,16 +391,16 @@ impl TestBackend {
         user_id
     }
 
+    pub fn user(&self, user_id: &UserId) -> &CoreUser {
+        &self.users[user_id].user
+    }
+
     pub fn get_user(&self, user_id: &UserId) -> &TestUser {
         self.users.get(user_id).unwrap()
     }
 
-    pub fn take_user(&mut self, user_id: &UserId) -> TestUser {
-        self.users.remove(user_id).unwrap()
-    }
-
     pub async fn delete_user(&mut self, user_id: &UserId) {
-        let test_user = self.take_user(user_id);
+        let test_user = self.users.remove(user_id).unwrap();
         match test_user.db_dir {
             Some(db_dir) => test_user.user.delete(db_dir.as_str()).await.unwrap(),
             None => test_user.user.delete_ephemeral().await.unwrap(),

@@ -70,8 +70,7 @@ async fn send_attachment() {
         _ => panic!("unexpected attachment type"),
     };
 
-    let bob_test_user = setup.get_user(&bob);
-    let bob = &bob_test_user.user;
+    let bob = setup.user(&bob);
 
     let pending_attachments = bob.pending_attachments().await.unwrap();
     assert_eq!(pending_attachments.len(), 1);
@@ -136,8 +135,8 @@ async fn send_image_attachment() {
         .await
         .unwrap();
 
-    let alice = setup.get_user(&alice);
-    alice.user.outbound_service().run_once().await;
+    let alice = setup.user(&alice);
+    alice.outbound_service().run_once().await;
 
     match &external_part {
         NestedPart::ExternalPart {
@@ -163,8 +162,7 @@ async fn send_image_attachment() {
         _ => panic!("unexpected attachment type"),
     };
 
-    let bob_test_user = setup.get_user(&bob);
-    let bob = &bob_test_user.user;
+    let bob = setup.user(&bob);
 
     let pending_attachments = bob.pending_attachments().await.unwrap();
     assert_eq!(pending_attachments.len(), 1);

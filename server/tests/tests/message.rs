@@ -43,8 +43,8 @@ async fn edit_is_delivered_when_original_receipt_is_still_queued() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let alice_user = setup.get_user(&alice).user().clone();
-    let bob_user = setup.get_user(&bob).user().clone();
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
     let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
     alice_user.fully_process_qs_messages(qs_messages).await;
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
@@ -122,8 +122,8 @@ async fn stale_read_receipt_does_not_apply_to_edited_message() {
 
     let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
     let message_id = sent.own_message_id;
-    let alice_user = setup.get_user(&alice).user().clone();
-    let bob_user = setup.get_user(&bob).user().clone();
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
 
     // Alice edits before Bob reads the original.
     let original = alice_user.message(message_id).await.unwrap().unwrap();
@@ -134,25 +134,25 @@ async fn stale_read_receipt_does_not_apply_to_edited_message() {
         .unwrap();
     alice_user.outbound_service().run_once().await;
     assert_eq!(
-        own_message_status(&alice_user, message_id).await,
+        own_message_status(alice_user, message_id).await,
         MessageStatus::Unread
     );
 
     // Bob reads the original. The receipt names the replaced version.
-    let read = read_chat(&bob_user, chat_id).await;
+    let read = read_chat(bob_user, chat_id).await;
     assert_eq!(read.len(), 1);
-    fetch_and_process(&alice_user).await;
+    fetch_and_process(alice_user).await;
     assert_eq!(
-        own_message_status(&alice_user, message_id).await,
+        own_message_status(alice_user, message_id).await,
         MessageStatus::Unread
     );
 
     // Only the receipt for the edited version counts.
-    fetch_and_process(&bob_user).await;
+    fetch_and_process(bob_user).await;
     bob_user.outbound_service().run_once().await;
-    fetch_and_process(&alice_user).await;
+    fetch_and_process(alice_user).await;
     assert_eq!(
-        own_message_status(&alice_user, message_id).await,
+        own_message_status(alice_user, message_id).await,
         MessageStatus::Delivered
     );
 }
@@ -173,7 +173,7 @@ async fn delete_message() {
         .send_message(chat_alice_bob, &alice, vec![&bob], None)
         .await;
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     let last_message = alice_user
         .last_message(chat_alice_bob)
         .await
@@ -197,7 +197,6 @@ async fn delete_message() {
     );
 
     // Alice (sender) should have 0 unread messages
-    let alice_user = &setup.get_user(&alice).user;
     assert_eq!(alice_user.unread_messages_count(chat_alice_bob).await, 0);
     assert_eq!(alice_user.global_unread_messages_count().await.unwrap(), 0);
 
@@ -206,7 +205,6 @@ async fn delete_message() {
         .await;
 
     // After delete-for-everyone, Alice should still have 0 unread messages
-    let alice_user = &setup.get_user(&alice).user;
     assert_eq!(alice_user.unread_messages_count(chat_alice_bob).await, 0);
     assert_eq!(alice_user.global_unread_messages_count().await.unwrap(), 0);
 
@@ -232,8 +230,7 @@ async fn no_receipts_for_deleted_message() {
         .await;
 
     let message_id = setup
-        .get_user(&alice)
-        .user
+        .user(&alice)
         .last_message(chat_alice_bob)
         .await
         .unwrap()
@@ -244,29 +241,26 @@ async fn no_receipts_for_deleted_message() {
 
     // Bob has processed the deletion, so anything he scheduled for it goes out
     // now.
-    let bob_test_user = setup.get_user(&bob);
-    bob_test_user.user.outbound_service().run_once().await;
+    let bob_user = setup.user(&bob);
+    bob_user.outbound_service().run_once().await;
 
     // Opening the chat must not report a read status for the deletion either.
-    let bob_last_message = bob_test_user
-        .user
+    let bob_last_message = bob_user
         .last_message(chat_alice_bob)
         .await
         .unwrap()
         .unwrap();
-    let (_, marked_as_read) = bob_test_user
-        .user
+    let (_, marked_as_read) = bob_user
         .mark_chat_as_read(chat_alice_bob, bob_last_message.id())
         .await
         .unwrap();
     assert!(marked_as_read.is_empty());
-    bob_test_user.user.outbound_service().run_once().await;
+    bob_user.outbound_service().run_once().await;
 
     setup.get_user(&alice).fetch_and_process_qs_messages().await;
 
     let deleted = setup
-        .get_user(&alice)
-        .user
+        .user(&alice)
         .message(message_id)
         .await
         .unwrap()
@@ -317,7 +311,7 @@ async fn delete_messages_and_check_replies() -> anyhow::Result<()> {
         .await;
 
     // Check that the reply show that they're deleted on Alice's device
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     let alice_says_hi_to_bob = alice_user
         .message(alice_says_hi_to_bob.own_message_id)
@@ -354,7 +348,7 @@ async fn delete_messages_and_check_replies() -> anyhow::Result<()> {
     );
 
     // Now we do the same on Bob's device, with a twist...
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
 
     // ...bob also deletes his original message locally
     bob_user
@@ -413,7 +407,7 @@ async fn retrieve_chat_messages() {
 
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     let number_of_messages = 10;
     let mut messages_sent = vec![];
@@ -433,8 +427,7 @@ async fn retrieve_chat_messages() {
 
     // Let's see what Alice's messages for this chat look like.
     let messages_retrieved = setup
-        .get_user(&alice)
-        .user
+        .user(&alice)
         .messages(chat_id, number_of_messages)
         .await
         .unwrap();
@@ -531,8 +524,7 @@ async fn mark_as_read() {
 
     // Let's send some messages between bob and charlie s.t. we can test the
     // global unread messages count.
-    let charlie_test_user = setup.get_user(&charlie);
-    let charlie = &charlie_test_user.user;
+    let charlie = setup.user(&charlie);
     let messages_sent = send_messages(charlie, bob_charlie_chat, num_messages).await;
 
     let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
@@ -699,7 +691,7 @@ async fn delete_message_in_group() {
         .await;
 
     // Get the message content before deletion
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     let last_message = alice_user.last_message(group_chat).await.unwrap().unwrap();
     let original_content = last_message
         .message()
@@ -731,7 +723,7 @@ async fn delete_message_in_group() {
 
     // Verify the message still exists but with NullPart content for all users
     for user_id in [&alice, &bob, &charlie] {
-        let user = &setup.get_user(user_id).user;
+        let user = setup.user(user_id);
         let messages = user.messages(group_chat, 10).await.unwrap();
         // Find a content message (not system messages)
         let content_messages: Vec<_> = messages
@@ -760,8 +752,8 @@ async fn delete_message_preserves_other_messages() {
 
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let alice_user = &setup.get_user(&alice).user;
-    let bob_user = &setup.get_user(&bob).user;
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
 
     // Send three messages with distinct content
     let contents = ["First message", "Second message to delete", "Third message"];
@@ -874,7 +866,7 @@ async fn delete_edited_message() {
     // Alice edits the message
     setup.edit_message(chat_id, &alice, vec![&bob]).await;
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     let last_message = alice_user.last_message(chat_id).await.unwrap().unwrap();
 
     // Get the edited content for verification
@@ -915,7 +907,6 @@ async fn delete_edited_message() {
     );
 
     // Verify the message exists but with NullPart content
-    let alice_user = &setup.get_user(&alice).user;
     let alice_messages = alice_user.messages(chat_id, 10).await.unwrap();
     let content_messages: Vec<_> = alice_messages
         .iter()
@@ -943,7 +934,7 @@ async fn message_sending_failures() {
 
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     let content = MimiContent::simple_markdown_message("Hello".to_string(), [0; 16]);
 
@@ -979,7 +970,7 @@ async fn recoverable_send_failure_is_retried() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let alice_user = setup.get_user(&alice).user();
+    let alice_user = setup.user(&alice);
     // Flush what the connection setup left queued, so that the injected failure
     // lands on the message sent below.
     alice_user.outbound_service().run_once().await;
@@ -1015,7 +1006,7 @@ async fn recoverable_send_failure_is_retried() {
         "a retried message must not be marked as failed"
     );
 
-    let bob_user = setup.get_user(&bob).user();
+    let bob_user = setup.user(&bob);
     drain_queue(bob_user).await;
     assert_eq!(
         count_messages_with_text(bob_user, chat_id, TEXT).await,
@@ -1032,7 +1023,7 @@ async fn lost_response_is_retried_and_deduplicated() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let alice_user = setup.get_user(&alice).user();
+    let alice_user = setup.user(&alice);
     alice_user.outbound_service().run_once().await;
 
     const TEXT: &str = "delivered twice, stored once";
@@ -1057,7 +1048,7 @@ async fn lost_response_is_retried_and_deduplicated() {
         "a lost response must not stop the message from being sent"
     );
 
-    let bob_user = setup.get_user(&bob).user();
+    let bob_user = setup.user(&bob);
     drain_queue(bob_user).await;
     assert_eq!(
         count_messages_with_text(bob_user, chat_id, TEXT).await,
@@ -1084,7 +1075,7 @@ async fn fatal_send_failure_fails_only_that_message() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let alice_user = setup.get_user(&alice).user();
+    let alice_user = setup.user(&alice);
     alice_user.outbound_service().run_once().await;
 
     const DOOMED_TEXT: &str = "rejected for good";
@@ -1140,7 +1131,7 @@ async fn fatal_send_failure_fails_only_that_message() {
         "a fatal failure must not fail the rest of the queue"
     );
 
-    let bob_user = setup.get_user(&bob).user();
+    let bob_user = setup.user(&bob);
     drain_queue(bob_user).await;
     assert_eq!(
         count_messages_with_text(bob_user, chat_id, HEALTHY_TEXT).await,
@@ -1171,14 +1162,9 @@ async fn sending_commits_pending_proposals() {
         .await;
 
     // Bob leaves, which proposes his own removal. Nobody commits it for Alice.
-    setup
-        .get_user(&bob)
-        .user()
-        .leave_chat(chat_id)
-        .await
-        .unwrap();
+    setup.user(&bob).leave_chat(chat_id).await.unwrap();
 
-    let alice_user = setup.get_user(&alice).user();
+    let alice_user = setup.user(&alice);
     drain_queue(alice_user).await;
     assert_eq!(
         alice_user.pending_removes(chat_id).await.unwrap(),
@@ -1228,7 +1214,7 @@ async fn sending_commits_pending_proposals() {
         "Bob is removed by the commit"
     );
 
-    let charlie_user = setup.get_user(&charlie).user();
+    let charlie_user = setup.user(&charlie);
     drain_queue(charlie_user).await;
     assert_eq!(
         count_messages_with_text(charlie_user, chat_id, TEXT).await,
@@ -1263,7 +1249,7 @@ async fn delete_message_with_attachment() {
 
     // Get the actual message_id of the last message (the attachment message)
     let message_id = {
-        let alice_user = &setup.get_user(&alice).user;
+        let alice_user = setup.user(&alice);
         let messages = alice_user.messages(chat_id, 10).await.unwrap();
         // Find the attachment message (has ExternalPart)
         let attachment_msg = messages
@@ -1287,7 +1273,7 @@ async fn delete_message_with_attachment() {
 
     // Verify attachment exists before deletion
     {
-        let alice_user = &setup.get_user(&alice).user;
+        let alice_user = setup.user(&alice);
         let attachment_infos = alice_user.attachment_infos_for_message(message_id).await;
         assert_eq!(
             attachment_infos.len(),
@@ -1298,7 +1284,7 @@ async fn delete_message_with_attachment() {
 
     // Bob downloads the attachment (so he has an attachment record to verify deletion)
     {
-        let bob_user = &setup.get_user(&bob).user;
+        let bob_user = setup.user(&bob);
         let messages = bob_user.messages(chat_id, 10).await.unwrap();
         let attachment_msg = messages
             .iter()
@@ -1338,8 +1324,7 @@ async fn delete_message_with_attachment() {
     // Alice deletes the message (network deletion)
     // Note: We need to delete the specific attachment message, not just the last message
     {
-        let alice_test_user = setup.get_user(&alice);
-        let alice_user = &alice_test_user.user;
+        let alice_user = setup.user(&alice);
 
         // Fetch and process QS messages first
         let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
@@ -1355,15 +1340,14 @@ async fn delete_message_with_attachment() {
 
     // Bob receives the deletion
     {
-        let bob_test_user = setup.get_user(&bob);
-        let bob_user = &bob_test_user.user;
+        let bob_user = setup.user(&bob);
         let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
         bob_user.fully_process_qs_messages(qs_messages).await;
     }
 
     // Verify: Message is NullPart for Alice (the sender)
     {
-        let alice_user = &setup.get_user(&alice).user;
+        let alice_user = setup.user(&alice);
         let messages = alice_user.messages(chat_id, 10).await.unwrap();
         let deleted = messages
             .iter()
@@ -1377,7 +1361,7 @@ async fn delete_message_with_attachment() {
 
     // Verify: Bob received the deletion (message is NullPart)
     {
-        let bob_user = &setup.get_user(&bob).user;
+        let bob_user = setup.user(&bob);
         let messages = bob_user.messages(chat_id, 10).await.unwrap();
         // Find the message that was originally an attachment but is now NullPart
         let deleted = messages
@@ -1392,7 +1376,7 @@ async fn delete_message_with_attachment() {
     }
 
     // Verify: Attachment record is deleted for the sender (Alice)
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
     let attachment_infos = alice_user.attachment_infos_for_message(message_id).await;
     assert!(
         attachment_infos.is_empty(),
@@ -1401,7 +1385,7 @@ async fn delete_message_with_attachment() {
 
     // Verify: Attachment record is deleted for Bob (the receiver)
     {
-        let bob_user = &setup.get_user(&bob).user;
+        let bob_user = setup.user(&bob);
         let messages = bob_user.messages(chat_id, 10).await.unwrap();
         // Find the deleted message (NullPart)
         let deleted_msg = messages
@@ -1428,7 +1412,7 @@ async fn send_message_collision_tags_no_collision() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     alice_user
         .send_message_with_fixed_collision_tags(
@@ -1450,7 +1434,7 @@ async fn send_message_collision_tags_first_collides() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     let first_message_tags = vec![
         SendMessageCollisionTag::generation(0xAAi64),
@@ -1490,7 +1474,7 @@ async fn send_message_collision_tags_second_collides() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     alice_user
         .send_message_with_fixed_collision_tags(
@@ -1530,7 +1514,7 @@ async fn send_message_collision_tags_all_collide() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let alice_user = &setup.get_user(&alice).user;
+    let alice_user = setup.user(&alice);
 
     let tags = vec![
         SendMessageCollisionTag::generation(0xAAi64),
@@ -1561,8 +1545,8 @@ async fn send_message_collision_tags_from_different_users_never_collide() {
     let bob = setup.add_user().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let alice_user = &setup.get_user(&alice).user;
-    let bob_user = &setup.get_user(&bob).user;
+    let alice_user = setup.user(&alice);
+    let bob_user = setup.user(&bob);
 
     let content = MimiContent::simple_markdown_message("collision-test".into(), [0u8; 16]);
 
@@ -1588,7 +1572,7 @@ async fn react_to_message() {
     // Alice sends a message; Bob reacts to it.
     let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
 
-    let bob_user = setup.get_user(&bob).user();
+    let bob_user = setup.user(&bob);
     bob_user
         .send_reaction(chat_id, sent.recipient_message_id(&bob), "🫪".to_owned())
         .await
@@ -1608,8 +1592,7 @@ async fn react_to_message() {
     setup.get_user(&alice).fetch_and_process_qs_messages().await;
     assert_eq!(
         setup
-            .get_user(&alice)
-            .user()
+            .user(&alice)
             .message_reactions(sent.own_message_id)
             .await
             .unwrap(),
@@ -1627,7 +1610,7 @@ async fn delete_reaction() {
 
     let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
 
-    let bob_user = setup.get_user(&bob).user();
+    let bob_user = setup.user(&bob);
     bob_user
         .send_reaction(chat_id, sent.recipient_message_id(&bob), "🫪".to_owned())
         .await
@@ -1636,8 +1619,7 @@ async fn delete_reaction() {
     setup.get_user(&alice).fetch_and_process_qs_messages().await;
     assert_eq!(
         setup
-            .get_user(&alice)
-            .user()
+            .user(&alice)
             .message_reactions(sent.own_message_id)
             .await
             .unwrap()
@@ -1646,7 +1628,6 @@ async fn delete_reaction() {
     );
 
     // Bob retracts the reaction.
-    let bob_user = setup.get_user(&bob).user();
     bob_user
         .delete_reaction(chat_id, sent.recipient_message_id(&bob), "🫪".to_owned())
         .await
@@ -1664,8 +1645,7 @@ async fn delete_reaction() {
     setup.get_user(&alice).fetch_and_process_qs_messages().await;
     assert!(
         setup
-            .get_user(&alice)
-            .user()
+            .user(&alice)
             .message_reactions(sent.own_message_id)
             .await
             .unwrap()
@@ -1684,7 +1664,7 @@ async fn queued_reaction_survives_network_error() {
     let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
     let bob_target = sent.recipient_message_id(&bob);
 
-    let bob_user = setup.get_user(&bob).user();
+    let bob_user = setup.user(&bob);
     // Flush the delivery receipt, otherwise the run aborts before reactions
     bob_user.outbound_service().run_once().await;
     setup.listener_control_handle().set_drop_all();
@@ -1711,8 +1691,7 @@ async fn queued_reaction_survives_network_error() {
     setup.get_user(&alice).fetch_and_process_qs_messages().await;
     assert_eq!(
         setup
-            .get_user(&alice)
-            .user()
+            .user(&alice)
             .message_reactions(sent.own_message_id)
             .await
             .unwrap(),
@@ -1731,7 +1710,7 @@ async fn reaction_add_and_retract_stay_in_order() {
     let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
     let bob_target = sent.recipient_message_id(&bob);
 
-    let bob_user = setup.get_user(&bob).user();
+    let bob_user = setup.user(&bob);
     // Flush the delivery receipt, otherwise the run aborts before reactions
     bob_user.outbound_service().run_once().await;
     setup.listener_control_handle().set_drop_all();
@@ -1758,8 +1737,7 @@ async fn reaction_add_and_retract_stay_in_order() {
     setup.get_user(&alice).fetch_and_process_qs_messages().await;
     assert!(
         setup
-            .get_user(&alice)
-            .user()
+            .user(&alice)
             .message_reactions(sent.own_message_id)
             .await
             .unwrap()
@@ -1778,7 +1756,7 @@ async fn multiple_reactions_per_user() {
     let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
     let bob_target = sent.recipient_message_id(&bob);
 
-    let bob_user = setup.get_user(&bob).user();
+    let bob_user = setup.user(&bob);
     // Two distinct emojis are independent reactions.
     bob_user
         .send_reaction(chat_id, bob_target, "🫪".to_owned())
@@ -1798,8 +1776,7 @@ async fn multiple_reactions_per_user() {
     setup.get_user(&alice).fetch_and_process_qs_messages().await;
     assert_eq!(
         setup
-            .get_user(&alice)
-            .user()
+            .user(&alice)
             .message_reactions(sent.own_message_id)
             .await
             .unwrap(),
@@ -1828,14 +1805,14 @@ async fn reactions_in_group() {
         .send_message(group_chat, &alice, vec![&bob, &charlie], None)
         .await;
 
-    let bob_user = setup.get_user(&bob).user();
+    let bob_user = setup.user(&bob);
     bob_user
         .send_reaction(group_chat, sent.recipient_message_id(&bob), "🫪".to_owned())
         .await
         .unwrap();
     bob_user.outbound_service().run_once().await;
 
-    let charlie_user = setup.get_user(&charlie).user();
+    let charlie_user = setup.user(&charlie);
     charlie_user
         .send_reaction(
             group_chat,
@@ -1850,8 +1827,7 @@ async fn reactions_in_group() {
     setup.get_user(&alice).fetch_and_process_qs_messages().await;
     assert_eq!(
         setup
-            .get_user(&alice)
-            .user()
+            .user(&alice)
             .message_reactions(sent.own_message_id)
             .await
             .unwrap(),
@@ -1869,7 +1845,7 @@ async fn react_notifies_message_author() {
 
     // Alice sends a message; Bob reacts to it.
     let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
-    let bob_user = setup.get_user(&bob).user();
+    let bob_user = setup.user(&bob);
     bob_user
         .send_reaction(chat_id, sent.recipient_message_id(&bob), "🫪".to_owned())
         .await
@@ -1877,7 +1853,7 @@ async fn react_notifies_message_author() {
     bob_user.outbound_service().run_once().await;
 
     // Alice processes and is notified about the reaction on her own message.
-    let alice_user = setup.get_user(&alice).user();
+    let alice_user = setup.user(&alice);
     let qs = alice_user.qs_fetch_messages().await.unwrap();
     let processed = alice_user.fully_process_qs_messages(qs).await;
     assert_eq!(processed.reaction_notifications.len(), 1);
@@ -1885,13 +1861,11 @@ async fn react_notifies_message_author() {
     assert_eq!(processed.reaction_notifications[0].emoji, "🫪");
 
     // Retracting it produces no notification.
-    let bob_user = setup.get_user(&bob).user();
     bob_user
         .delete_reaction(chat_id, sent.recipient_message_id(&bob), "🫪".to_owned())
         .await
         .unwrap();
     bob_user.outbound_service().run_once().await;
-    let alice_user = setup.get_user(&alice).user();
     let qs = alice_user.qs_fetch_messages().await.unwrap();
     let processed = alice_user.fully_process_qs_messages(qs).await;
     assert!(processed.reaction_notifications.is_empty());
@@ -1917,7 +1891,7 @@ async fn no_notification_for_reaction_on_others_message() {
     let sent = setup
         .send_message(group_chat, &bob, vec![&alice, &charlie], None)
         .await;
-    let charlie_user = setup.get_user(&charlie).user();
+    let charlie_user = setup.user(&charlie);
     charlie_user
         .send_reaction(
             group_chat,
@@ -1929,13 +1903,13 @@ async fn no_notification_for_reaction_on_others_message() {
     charlie_user.outbound_service().run_once().await;
 
     // Alice (a bystander) is not notified — it's not her message.
-    let alice_user = setup.get_user(&alice).user();
+    let alice_user = setup.user(&alice);
     let qs = alice_user.qs_fetch_messages().await.unwrap();
     let processed = alice_user.fully_process_qs_messages(qs).await;
     assert!(processed.reaction_notifications.is_empty());
 
     // Bob (the author) is notified.
-    let bob_user = setup.get_user(&bob).user();
+    let bob_user = setup.user(&bob);
     let qs = bob_user.qs_fetch_messages().await.unwrap();
     let processed = bob_user.fully_process_qs_messages(qs).await;
     assert_eq!(processed.reaction_notifications.len(), 1);
@@ -1980,36 +1954,33 @@ async fn edit_replay_is_ignored() {
 
     setup.send_message(chat_id, &alice, vec![&bob], None).await;
     let message_id = setup.edit_message(chat_id, &alice, vec![&bob]).await;
-    let first_edit = stored_content(setup.get_user(&alice).user(), message_id).await;
+    let first_edit = stored_content(setup.user(&alice), message_id).await;
 
     // Bob receives the first edit a second time. The replay must not be
     // applied again.
     setup
-        .get_user(&alice)
-        .user()
+        .user(&alice)
         .send_mimi_content_without_confirmation(chat_id, first_edit.clone())
         .await
         .unwrap();
-    process_replayed_edit(setup.get_user(&bob).user()).await;
+    process_replayed_edit(setup.user(&bob)).await;
 
     // A second edit still applies. A replay that lands in the edit history
     // would block it.
     setup.edit_message(chat_id, &alice, vec![&bob]).await;
-    let second_edit = stored_content(setup.get_user(&alice).user(), message_id).await;
+    let second_edit = stored_content(setup.user(&alice), message_id).await;
 
     // Bob receives the first edit a third time, now as a superseded version.
     setup
-        .get_user(&alice)
-        .user()
+        .user(&alice)
         .send_mimi_content_without_confirmation(chat_id, first_edit)
         .await
         .unwrap();
-    process_replayed_edit(setup.get_user(&bob).user()).await;
+    process_replayed_edit(setup.user(&bob)).await;
 
     // The replay must not revert the second edit.
     let bob_message = setup
-        .get_user(&bob)
-        .user()
+        .user(&bob)
         .last_message(chat_id)
         .await
         .unwrap()
@@ -2042,15 +2013,13 @@ async fn peer_read_receipt_does_not_move_our_read_marker() {
     // The invite helper leaves a message from every member behind. Clear Alice's
     // marker, so what follows is about Charlie's message alone.
     let newest = setup
-        .get_user(&alice)
-        .user
+        .user(&alice)
         .last_message(group_chat_id)
         .await
         .unwrap()
         .unwrap();
     setup
-        .get_user(&alice)
-        .user
+        .user(&alice)
         .mark_chat_as_read(group_chat_id, newest.id())
         .await
         .unwrap();
@@ -2065,7 +2034,7 @@ async fn peer_read_receipt_does_not_move_our_read_marker() {
     assert_eq!(alice_user.unread_messages_count(group_chat_id).await, 1);
 
     // Bob reads it and reports that to the whole group, Alice included.
-    let bob_user = &setup.get_user(&bob).user;
+    let bob_user = setup.user(&bob);
     let bobs_copy = bob_user
         .message(sent.recipient_message_id(&bob))
         .await
