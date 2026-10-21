@@ -531,3 +531,33 @@ pub(crate) mod persistence {
         }
     }
 }
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use sqlx::PgPool;
+
+    use super::*;
+
+    /// Puts messages with the sequence numbers `0..n` into the queue.
+    pub(crate) async fn enqueue_test_messages(
+        pool: &PgPool,
+        queue_id: QsClientId,
+        n: u64,
+    ) -> anyhow::Result<()> {
+        for sequence_number in 0..n {
+            let message = QueueMessage {
+                sequence_number,
+                ..Default::default()
+            };
+            Queue::enqueue(pool, queue_id, &message).await?;
+        }
+        Ok(())
+    }
+
+    pub(crate) async fn queue_len(pool: &PgPool, queue_id: QsClientId) -> sqlx::Result<i64> {
+        sqlx::query_scalar("SELECT COUNT(*) FROM qs_queues WHERE queue_id = $1")
+            .bind(queue_id)
+            .fetch_one(pool)
+            .await
+    }
+}

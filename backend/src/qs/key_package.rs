@@ -115,7 +115,7 @@ pub(super) trait StorableKeyPackage<'q>: Sized + Send + Sync + Unpin {
                     SELECT p.id, p.key_package, p.is_last_resort
                     FROM {table_name} p
                     INNER JOIN qs_user_record u ON p.user_id = u.user_id
-                    WHERE u.friendship_token = $1
+                    WHERE u.friendship_token = $1 AND u.deleted_at IS NULL
                     ORDER BY p.is_last_resort ASC
                     LIMIT 1
                     FOR UPDATE OF p SKIP LOCKED

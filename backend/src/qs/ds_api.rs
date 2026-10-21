@@ -273,8 +273,8 @@ mod tests {
             PushNotificationError,
             client_reconciliation::tests::{init_qs, reference, signed_reconciliation, store_user},
             client_record::persistence::tests::store_random_client_record,
-            queue::Queue,
-            user_record::persistence::tests::store_random_user_record,
+            queue::{Queue, tests::queue_len},
+            user_record::{UserRecord, persistence::tests::store_random_user_record},
         },
     };
 
@@ -304,6 +304,43 @@ mod tests {
         }
     }
 
+    fn queue_message_payload(payload: &[u8]) -> DsFanOutPayload {
+        DsFanOutPayload::QueueMessage(QsQueueMessagePayload {
+            timestamp: TimeStamp::now(),
+            message_type: QsQueueMessageType::WelcomeBundle,
+            payload: payload.to_vec(),
+        })
+    }
+
+    async fn fan_out_message(
+        pool: &PgPool,
+        domain: Fqdn,
+        client_id: QsClientId,
+        payload: DsFanOutPayload,
+        broadcast_to_all_client_queues: bool,
+    ) -> anyhow::Result<DsFanOutMessage> {
+        let decryption_key = StorableClientIdDecryptionKey::load(pool)
+            .await?
+            .expect("missing QS decryption key");
+        let sealed_reference =
+            decryption_key
+                .encryption_key()
+                .seal_client_config(ClientConfig {
+                    client_id,
+                    push_token_ear_key: None,
+                })?;
+        Ok(DsFanOutMessage {
+            payload,
+            client_reference: QsReference {
+                client_homeserver_domain: domain,
+                sealed_reference,
+            },
+            suppress_notifications: false.into(),
+            broadcast_to_all_client_queues: broadcast_to_all_client_queues.into(),
+            virtual_client_hint: None,
+        })
+    }
+
     #[sqlx::test]
     async fn enqueue_message_fans_out_to_all_active_clients(pool: PgPool) -> anyhow::Result<()> {
         let domain: Fqdn = "example.com".parse()?;
@@ -321,32 +358,15 @@ mod tests {
         let client_a = store_random_client_record(&pool, user.user_id).await?;
         let client_b = store_random_client_record(&pool, user.user_id).await?;
 
-        let decryption_key = StorableClientIdDecryptionKey::load(&pool)
-            .await?
-            .expect("missing QS decryption key");
-        let sealed_reference =
-            decryption_key
-                .encryption_key()
-                .seal_client_config(ClientConfig {
-                    client_id: client_a.client_id,
-                    push_token_ear_key: None,
-                })?;
-
         let expected_payload = b"fan-out test";
-        let message = DsFanOutMessage {
-            payload: DsFanOutPayload::QueueMessage(QsQueueMessagePayload {
-                timestamp: TimeStamp::now(),
-                message_type: QsQueueMessageType::WelcomeBundle,
-                payload: expected_payload.to_vec(),
-            }),
-            client_reference: QsReference {
-                client_homeserver_domain: domain.clone(),
-                sealed_reference,
-            },
-            suppress_notifications: false.into(),
-            broadcast_to_all_client_queues: true.into(),
-            virtual_client_hint: None,
-        };
+        let message = fan_out_message(
+            &pool,
+            domain,
+            client_a.client_id,
+            queue_message_payload(expected_payload),
+            true,
+        )
+        .await?;
 
         qs.enqueue_message(
             &NoopPushNotificationProvider,
@@ -387,12 +407,6 @@ mod tests {
         }
     }
 
-    async fn queue_len(pool: &PgPool, client_id: &QsClientId) -> anyhow::Result<usize> {
-        let mut buf = VecDeque::new();
-        Queue::fetch_into(pool, client_id, 0, 10, &mut buf).await?;
-        Ok(buf.len())
-    }
-
     #[sqlx::test]
     async fn enqueue_message_reconciles_clients_with_the_echo(pool: PgPool) -> anyhow::Result<()> {
         let qs = init_qs(&pool).await?;
@@ -413,7 +427,7 @@ mod tests {
         )
         .await?;
 
-        assert_eq!(queue_len(&pool, &sender.client_id).await?, 1);
+        assert_eq!(queue_len(&pool, sender.client_id).await?, 1);
         assert!(Qs::client_has_push_token(&pool, &sender.client_id).await?);
         assert!(!Qs::client_has_push_token(&pool, &ghost.client_id).await?);
         Ok(())
@@ -443,8 +457,44 @@ mod tests {
         )
         .await?;
 
-        assert_eq!(queue_len(&pool, &sender.client_id).await?, 1);
+        assert_eq!(queue_len(&pool, sender.client_id).await?, 1);
         assert!(Qs::client_has_push_token(&pool, &ghost.client_id).await?);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn enqueue_message_skips_deleted_user(pool: PgPool) -> anyhow::Result<()> {
+        let domain: Fqdn = "example.com".parse()?;
+        let qs = Qs::initialize(
+            pool.clone(),
+            domain.clone(),
+            Default::default(),
+            0,
+            CancellationToken::new(),
+        )
+        .await?;
+
+        let user = store_random_user_record(&pool).await?;
+        let client = store_random_client_record(&pool, user.user_id).await?;
+        UserRecord::soft_delete(&pool, user.user_id).await?;
+
+        let payload = queue_message_payload(b"direct fan-out test");
+        let message =
+            fan_out_message(&pool, domain, client.client_id, payload.clone(), false).await?;
+
+        let result = qs
+            .enqueue_in_own_transaction(client.client_id, &payload)
+            .await;
+        assert!(matches!(result, Err(EnqueueError::ClientNotFound)));
+        qs.enqueue_message(
+            &NoopPushNotificationProvider,
+            &UnreachableNetworkProvider,
+            message,
+        )
+        .await?;
+
+        assert_eq!(queue_len(&pool, client.client_id).await?, 0);
+
         Ok(())
     }
 }

@@ -76,8 +76,6 @@ pub(super) enum QueueError {
     Storage(#[from] StorageError),
     /// Payload receiver closed
     PayloadReceiverClosed,
-    /// Client not found
-    ClientNotFound,
 }
 
 impl From<sqlx::Error> for QueueError {
@@ -107,7 +105,6 @@ impl From<QueueError> for Status {
                 Self::internal("Database error")
             }
             QueueError::PayloadReceiverClosed => Self::internal(msg),
-            QueueError::ClientNotFound => Self::not_found(msg),
         }
     }
 }
@@ -284,12 +281,10 @@ impl From<GroupDeletionError> for Status {
         match e {
             GroupDeletionError::InvalidMessage => Status::invalid_argument(msg),
             GroupDeletionError::ProcessingError(error) => {
-                error!(%error, "Failed to process assisted message");
-                Status::internal("Error processing message")
+                ProcessErrorKind::from(&error).into_status(&error, Status::invalid_argument)
             }
             GroupDeletionError::ApqProcessingError(error) => {
-                error!(%error, "Failed to process APQ assisted message");
-                Status::internal("Error processing message")
+                ProcessErrorKind::from(&error).into_status(&error, Status::invalid_argument)
             }
             GroupDeletionError::MergeCommitError(error) => {
                 error!(%error, "Failed merging commit");

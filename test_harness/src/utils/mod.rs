@@ -98,7 +98,6 @@ pub struct SpawnedApp {
     pub codes: Vec<String>,
     pub sent_challenges: SentChallenges,
     pub max_devices: [MaxDevices; 3],
-    pub qs_database_url: String,
     db_settings: DatabaseSettings,
     db_names: DbNames,
     stop: CancellationToken,
@@ -122,6 +121,12 @@ impl DbNames {
 }
 
 impl SpawnedApp {
+    pub(crate) fn qs_database_url(&self) -> String {
+        let mut db_settings = self.db_settings.clone();
+        db_settings.name = self.db_names.qs.to_string();
+        db_settings.connection_string()
+    }
+
     async fn cleanup(&mut self) {
         // Drop test databases
         for db_name in [self.db_names.as_, self.db_names.ds, self.db_names.qs] {
@@ -296,8 +301,6 @@ pub(crate) async fn spawn_app(
         qs.max_devices_handle(),
     ];
 
-    let qs_database_url = configuration.database.connection_string();
-
     let push_notification_provider = ProductionPushNotificationProvider::new(None, None).unwrap();
 
     let qs_connector = SimpleEnqueueProvider {
@@ -338,7 +341,6 @@ pub(crate) async fn spawn_app(
         codes,
         sent_challenges,
         max_devices,
-        qs_database_url,
         db_settings: configuration.database,
         db_names,
         stop,

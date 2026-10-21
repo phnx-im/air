@@ -37,7 +37,7 @@ pub(super) enum ReconcileRejection {
     MultipleOwners,
     /// Sender of the commit is not among the client references
     SenderNotIncluded,
-    /// Owner of the client references has no user record
+    /// Owner of the client references has no active user record
     UnknownUser,
     /// Signature does not match the client references
     InvalidSignature,
@@ -285,6 +285,21 @@ pub(super) mod tests {
 
         assert_eq!(outcome, ReconcileOutcome::Rejected(InvalidSignature));
         assert!(Qs::client_has_push_token(&pool, &victim_sibling.client_id).await?);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn rejects_deleted_user(pool: PgPool) -> anyhow::Result<()> {
+        let qs = init_qs(&pool).await?;
+        let (user_id, signing_key) = store_user(&pool).await?;
+        let first = store_random_client_record(&pool, user_id).await?;
+        UserRecord::soft_delete(&pool, user_id).await?;
+
+        let client_references = vec![reference(&qs, first.client_id).await?];
+        let reconciliation = signed_reconciliation(&qs, client_references, &signing_key).await?;
+        let outcome = reconcile(&qs, &first.client_id, reconciliation).await?;
+
+        assert_eq!(outcome, ReconcileOutcome::Rejected(UnknownUser));
         Ok(())
     }
 

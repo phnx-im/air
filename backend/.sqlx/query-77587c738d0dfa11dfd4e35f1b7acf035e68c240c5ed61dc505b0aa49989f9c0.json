@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT\n                    verifying_key as \"verifying_key: QsUserVerifyingKey\",\n                    friendship_token as \"friendship_token: FriendshipToken\"\n                FROM\n                    qs_user_record\n                WHERE\n                    user_id = $1",
+  "query": "SELECT\n                    verifying_key as \"verifying_key: QsUserVerifyingKey\",\n                    friendship_token as \"friendship_token: FriendshipToken\"\n                FROM\n                    qs_user_record\n                WHERE\n                    user_id = $1\n                    AND deleted_at IS NULL",
   "describe": {
     "columns": [
       {
@@ -36,5 +36,5 @@
       false
     ]
   },
-  "hash": "24f96787546b36a6c56403cd16b0995c8768652c816f247a23162ac169b229af"
+  "hash": "77587c738d0dfa11dfd4e35f1b7acf035e68c240c5ed61dc505b0aa49989f9c0"
 }

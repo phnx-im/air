@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT\n                    verifying_key AS \"verifying_key: QsUserVerifyingKey\"\n                FROM\n                    qs_user_record\n                WHERE\n                    user_id = $1\n                FOR NO KEY UPDATE",
+  "query": "SELECT\n                    verifying_key AS \"verifying_key: QsUserVerifyingKey\"\n                FROM\n                    qs_user_record\n                WHERE\n                    user_id = $1\n                    AND deleted_at IS NULL\n                FOR NO KEY UPDATE",
   "describe": {
     "columns": [
       {
@@ -24,5 +24,5 @@
       false
     ]
   },
-  "hash": "21e68be43255daa60ca93fe809498151df677b83e74f3e2671c9b6dd0d045219"
+  "hash": "c7268479115716ec8545a095dc68f25e03c1c614272bde7b70f4d1702a30ea68"
 }

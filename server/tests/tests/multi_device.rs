@@ -3052,6 +3052,39 @@ async fn setup_group_with_linked_device() -> (
     (setup, alice, bob, charlie, chat_id, new_device, tmp)
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Leave a group before its creation echo", skip_all)]
+async fn multi_device_leave_before_own_creation_echo() {
+    let (setup, alice, bob, _charlie, _chat_id, new_device, _tmp) =
+        setup_group_with_linked_device().await;
+    let creator = setup.get_user(&alice).user();
+
+    // The linked device has no profile of bob, so the old device creates.
+    let chat_id = creator
+        .create_chat("left early".to_owned(), None, setup.apq_groups)
+        .await
+        .unwrap();
+    creator
+        .invite_users(chat_id, std::slice::from_ref(&bob))
+        .await
+        .unwrap();
+    creator.leave_chat(chat_id).await.unwrap();
+
+    // The creator still has its own creation echo queued.
+    drain_queue_ok(creator, "the creator failed to process its own echo").await;
+    let past_members: HashSet<UserId> = [&alice, &bob].into_iter().cloned().collect();
+    assert_inactive(
+        creator,
+        chat_id,
+        Some(&past_members),
+        "the echo must not revive the chat",
+    )
+    .await;
+    assert!(creator.mls_chat_participants(chat_id).await.is_none());
+
+    drain_queue_ok(&new_device, "the sibling failed to follow the group").await;
+}
+
 /// Drains the device's queue and fails the test if any message could not be
 /// processed.
 async fn drain_queue_ok(user: &CoreUser, what: &str) {
@@ -3096,9 +3129,7 @@ async fn count_self_removes(user: &CoreUser, chat_id: ChatId, user_id: &UserId) 
 }
 
 /// Asserts that the device's chat is inactive. With `past_members` given,
-/// also asserts whom the chat remembers. A leave only records the members
-/// once the removal is committed, so the check right after the leave passes
-/// `None`.
+/// also asserts whom the chat remembers.
 pub(crate) async fn assert_inactive(
     user: &CoreUser,
     chat_id: ChatId,
@@ -3136,11 +3167,15 @@ async fn leave_and_follow(
     assert_inactive(
         leaver,
         chat_id,
-        None,
+        Some(&all_members),
         "the leaver turns the chat inactive right away",
     )
     .await;
     assert_eq!(count_self_removes(leaver, chat_id, alice).await, 1);
+    assert!(
+        leaver.mls_chat_participants(chat_id).await.is_none(),
+        "the leaver drops the group with the leave"
+    );
 
     // The DS fans the self-remove back to the shared leaf, so the sibling learns
     // about it from the queue, like any other member does.
@@ -3279,7 +3314,11 @@ async fn multi_device_retried_leave_is_ignored_by_the_sibling() {
         .unwrap()
         .expect("the leave must stay pending after the dropped response");
     assert_eq!(pending.operation_type, "leave");
-    assert_inactive(old_device, chat_id, None, "the leaver").await;
+    assert_inactive(old_device, chat_id, Some(&all_members), "the leaver").await;
+    assert!(
+        old_device.mls_chat_participants(chat_id).await.is_some(),
+        "the leaver keeps the group for the retry"
+    );
 
     // The DS did accept the proposal, so the sibling sees it once.
     drain_queue_ok(&new_device, "the sibling failed to process the self-remove").await;
@@ -3296,6 +3335,10 @@ async fn multi_device_retried_leave_is_ignored_by_the_sibling() {
             .unwrap()
             .is_none(),
         "the retry must complete the pending leave"
+    );
+    assert!(
+        old_device.mls_chat_participants(chat_id).await.is_none(),
+        "the completed leave drops the group"
     );
 
     drain_queue_ok(
@@ -3346,26 +3389,22 @@ async fn multi_device_both_devices_leave_before_the_commit() {
     )
     .await;
 
-    // The user leaves on the other device as well.
+    // The user leaves on the other device as well. The DS already holds the
+    // leave of the shared leaf, so nothing is sent.
     old_device.leave_chat(chat_id).await.unwrap();
-    assert_inactive(old_device, chat_id, None, "the second leaver").await;
+    assert_inactive(old_device, chat_id, Some(&all_members), "the second leaver").await;
 
-    drain_queue_ok(
-        &new_device,
-        "the first leaver failed to process the second leave",
-    )
-    .await;
-    drain_queue_ok(old_device, "the second leaver failed to process its echo").await;
+    drain_queue_ok(&new_device, "the first leaver failed to process its queue").await;
+    drain_queue_ok(old_device, "the second leaver failed to process its queue").await;
     for (device, what) in [(&new_device, "first leaver"), (old_device, "second leaver")] {
         assert_eq!(
             count_self_removes(device, chat_id, &alice).await,
             1,
             "the {what} must record the leave exactly once"
         );
-        assert_eq!(
-            device.pending_removes(chat_id).await.unwrap(),
-            vec![alice.clone()],
-            "the {what} must hold a single pending removal"
+        assert!(
+            device.mls_chat_participants(chat_id).await.is_none(),
+            "the {what} must drop the group"
         );
     }
 

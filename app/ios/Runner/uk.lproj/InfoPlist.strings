@@ -1,0 +1,3 @@
+CFBundleDisplayName = "Air";
+NSCameraUsageDescription = "Air використовує камеру, щоб знімати фото для ваших чатів і сканувати QR-код під час прив’язки пристрою.";
+NSPhotoLibraryUsageDescription = "Air використовує вашу медіатеку, щоб надсилати фото в чати та вибирати фото профілю й групи.";
