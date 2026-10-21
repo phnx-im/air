@@ -91,7 +91,7 @@ impl MemoryUserKeyStore {
     /// seals the signature to the QS.
     pub(crate) fn seal_client_references_signature(
         &self,
-        client_references: Vec<QsReference>,
+        client_references: impl IntoIterator<Item = QsReference>,
     ) -> Result<SealedClientReferencesSignature, LibraryError> {
         SealedClientReferencesSignature::seal(
             client_references,

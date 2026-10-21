@@ -1867,6 +1867,8 @@ pub mod test_utils {
 #[cfg(test)]
 pub(crate) mod tests {
 
+    use std::collections::HashSet;
+
     use aircommon::{
         credentials::{
             keys::{LeafSigningKey, SelfGroupSigningKey, UserSigningKey},
@@ -2195,7 +2197,7 @@ pub(crate) mod tests {
         // The repair changes the references. The commit therefore signs them.
         assert_eq!(
             group.client_references_to_sign(false)?,
-            Some(vec![own_client_reference])
+            Some(HashSet::from([own_client_reference]))
         );
         Ok(())
     }
@@ -2218,7 +2220,7 @@ pub(crate) mod tests {
         assert_eq!(group.client_references_to_sign(false)?, None);
         assert_eq!(
             group.client_references_to_sign(true)?,
-            Some(vec![creator_client_reference])
+            Some(HashSet::from([creator_client_reference]))
         );
         Ok(())
     }

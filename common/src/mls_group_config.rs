@@ -70,7 +70,7 @@ impl EncodedClientReference {
     }
 }
 
-#[cfg(feature = "test_utils")]
+#[cfg(test)]
 impl From<Vec<u8>> for EncodedClientReference {
     fn from(encoded: Vec<u8>) -> Self {
         Self(encoded)

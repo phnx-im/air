@@ -5,14 +5,15 @@
 //! Rules for the QS client references in the leaves of a self group.
 //!
 //! The leaves of a user's self group contain QS client references. The QS
-//! uses them to learn which client records of the user belong to a device. A
-//! commit that changes the references must contain a signature by the user. We
-//! forward the signature to the QS.
+//! uses them to learn which client records of the user belong to a device.
+//! [`ClientReferencesChange`] decides when a commit needs a signature by the
+//! user. We forward the signature to the QS.
 
 use aircommon::{
     identifiers::Fqdn,
-    messages::client_references::SealedClientReferencesSignature,
-    mls_group_config::{EncodedClientReference, leaf_client_reference},
+    messages::client_references::{
+        ClientReferencesChange, SealedClientReferencesSignature, SelfGroupReferences,
+    },
 };
 use mls_assist::group::Group;
 use thiserror::Error;
@@ -27,10 +28,8 @@ pub(crate) enum ClientReferencesError {
     MissingSignature,
     #[error("Unexpected client references signature")]
     UnexpectedSignature,
-    #[error("Client references signature while a self-group leaf has no client reference")]
+    #[error("Client references signature while a self-group leaf has no valid client reference")]
     IncompleteReferences,
-    #[error("Invalid client reference in a self-group leaf")]
-    InvalidReference,
     #[error("Client reference of another domain in a self-group leaf")]
     ForeignReference,
     #[error("Commit carries both a key package upload and a client references signature")]
@@ -49,95 +48,38 @@ pub(super) enum ClientReferencesSnapshot {
 impl ClientReferencesSnapshot {
     pub(super) fn take(group_state: &DsGroupState) -> Self {
         if group_state.is_self_group() {
-            Self::SelfGroup(SelfGroupReferences::from_group(group_state.group()))
+            Self::SelfGroup(self_group_references(group_state.group()))
         } else {
             Self::OtherGroup
         }
     }
 
-    pub(super) fn compare(self, after: &DsGroupState) -> ClientReferencesChange {
+    pub(super) fn compare(self, after: &DsGroupState) -> GroupReferencesChange {
         match self {
-            Self::OtherGroup => ClientReferencesChange::OtherGroup,
+            Self::OtherGroup => GroupReferencesChange::OtherGroup,
             Self::SelfGroup(before) => {
-                let after = SelfGroupReferences::from_group(after.group());
-                ClientReferencesChange::between(before, after)
+                let after = self_group_references(after.group());
+                GroupReferencesChange::SelfGroup(ClientReferencesChange::between(before, after))
             }
         }
     }
 }
 
-/// The client references of all leaves of a self group. We sort them to make
-/// them independent of the order of the leaves.
-#[derive(Debug, PartialEq, Eq)]
-pub(super) enum SelfGroupReferences {
-    /// At least one leaf has no client reference.
-    Incomplete(Vec<Option<EncodedClientReference>>),
-    Complete(Vec<EncodedClientReference>),
-}
-
-impl SelfGroupReferences {
-    fn from_group(group: &Group) -> Self {
-        let slots = group
-            .members()
-            .map(|member| group.leaf(member.index).and_then(leaf_client_reference))
-            .collect();
-        Self::from_slots(slots)
-    }
-
-    fn from_slots(mut slots: Vec<Option<EncodedClientReference>>) -> Self {
-        slots.sort();
-        if slots.iter().all(Option::is_some) {
-            Self::Complete(slots.into_iter().flatten().collect())
-        } else {
-            Self::Incomplete(slots)
-        }
-    }
-
-    fn into_reconciliation(
-        self,
-        signature: SealedClientReferencesSignature,
-        own_domain: &Fqdn,
-    ) -> Result<ClientReferencesReconciliation, ClientReferencesError> {
-        let encoded_references = match self {
-            Self::Incomplete(_) => return Err(ClientReferencesError::IncompleteReferences),
-            Self::Complete(encoded_references) => encoded_references,
-        };
-        let mut client_references = Vec::with_capacity(encoded_references.len());
-        for encoded in encoded_references {
-            let client_reference = encoded
-                .decode()
-                .map_err(|_| ClientReferencesError::InvalidReference)?;
-            if &client_reference.client_homeserver_domain != own_domain {
-                return Err(ClientReferencesError::ForeignReference);
-            }
-            client_references.push(client_reference);
-        }
-        Ok(ClientReferencesReconciliation {
-            client_references,
-            signature,
-        })
-    }
+fn self_group_references(group: &Group) -> SelfGroupReferences {
+    // Every member has a leaf.
+    let leaves = group
+        .members()
+        .filter_map(|member| group.leaf(member.index));
+    SelfGroupReferences::from_leaves(leaves)
 }
 
 /// What a commit or resync did to the client references of a group.
-pub(super) enum ClientReferencesChange {
+pub(super) enum GroupReferencesChange {
     OtherGroup,
-    Unchanged(SelfGroupReferences),
-    Changed {
-        before: SelfGroupReferences,
-        after: SelfGroupReferences,
-    },
+    SelfGroup(ClientReferencesChange),
 }
 
-impl ClientReferencesChange {
-    fn between(before: SelfGroupReferences, after: SelfGroupReferences) -> Self {
-        if before == after {
-            Self::Unchanged(after)
-        } else {
-            Self::Changed { before, after }
-        }
-    }
-
+impl GroupReferencesChange {
     /// Checks the signature of a commit over the client references. Returns the
     /// hint for the QS. `key_package_hint` is the other hint a commit may
     /// contain.
@@ -157,35 +99,36 @@ impl ClientReferencesChange {
         }
     }
 
-    /// A commit that changes the client references of a self group requires a
-    /// signature over the references after the commit. Other commits to a self
-    /// group may contain one.
+    /// Applies the rule of [`ClientReferencesChange`]. Commits to other groups
+    /// contain no signature.
     fn reconciliation(
         self,
         signature: Option<SealedClientReferencesSignature>,
         own_domain: &Fqdn,
     ) -> Result<Option<ClientReferencesReconciliation>, ClientReferencesError> {
-        use SelfGroupReferences::{Complete, Incomplete};
         match (self, signature) {
             (Self::OtherGroup, None) => Ok(None),
             (Self::OtherGroup, Some(_)) => Err(ClientReferencesError::UnexpectedSignature),
-            (Self::Unchanged(_), None) => Ok(None),
-            (
-                Self::Changed {
-                    before: Incomplete(_),
-                    after: _,
-                },
-                None,
-            ) => Ok(None),
-            (
-                Self::Changed {
-                    before: Complete(_),
-                    after: _,
-                },
-                None,
-            ) => Err(ClientReferencesError::MissingSignature),
-            (Self::Unchanged(after) | Self::Changed { before: _, after }, Some(signature)) => {
-                after.into_reconciliation(signature, own_domain).map(Some)
+            (Self::SelfGroup(change), None) => {
+                if change.requires_signature() {
+                    Err(ClientReferencesError::MissingSignature)
+                } else {
+                    Ok(None)
+                }
+            }
+            (Self::SelfGroup(change), Some(signature)) => {
+                let client_references = change
+                    .into_signed_references()
+                    .ok_or(ClientReferencesError::IncompleteReferences)?;
+                for client_reference in &client_references {
+                    if &client_reference.client_homeserver_domain != own_domain {
+                        return Err(ClientReferencesError::ForeignReference);
+                    }
+                }
+                Ok(Some(ClientReferencesReconciliation {
+                    client_references: client_references.into_iter().collect(),
+                    signature,
+                }))
             }
         }
     }
@@ -194,40 +137,40 @@ impl ClientReferencesChange {
     /// they are.
     pub(super) fn check_resync(&self) -> Result<(), ClientReferencesError> {
         match self {
-            Self::OtherGroup | Self::Unchanged(_) => Ok(()),
-            Self::Changed {
+            Self::OtherGroup | Self::SelfGroup(ClientReferencesChange::Unchanged(_)) => Ok(()),
+            Self::SelfGroup(ClientReferencesChange::Changed {
                 before: _,
                 after: _,
-            } => Err(ClientReferencesError::ResyncChangesReferences),
+            }) => Err(ClientReferencesError::ResyncChangesReferences),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use aircommon::{
         crypto::hpke::ClientIdDecryptionKey,
-        identifiers::{QsClientId, QsReference},
-        messages::client_references::SealedClientReferencesSignature,
+        identifiers::{ClientConfig, QsClientId, QsReference},
         virtual_client::KeyPackageBatchId,
     };
     use mls_assist::{
         openmls::{components::vc_derivation_info::EpochId, prelude::LeafNodeIndex},
         openmls_traits::types::HpkeCiphertext,
     };
-    use tls_codec::Serialize;
 
-    use super::{ClientReferencesError::*, *};
+    use super::{ClientReferencesError::*, SelfGroupReferences::Incomplete, *};
 
     fn own_domain() -> Fqdn {
         "example.com".parse().unwrap()
     }
 
-    fn encoded_reference(domain: Fqdn) -> EncodedClientReference {
+    fn client_reference(domain: Fqdn) -> QsReference {
         let decryption_key = ClientIdDecryptionKey::generate().unwrap();
         let sealed_reference = decryption_key
             .encryption_key()
-            .seal_client_config(aircommon::identifiers::ClientConfig {
+            .seal_client_config(ClientConfig {
                 client_id: QsClientId::random(&mut rand::rng()),
                 push_token_ear_key: None,
             })
@@ -236,19 +179,18 @@ mod tests {
             client_homeserver_domain: domain,
             sealed_reference,
         }
-        .tls_serialize_detached()
-        .unwrap()
-        .into()
     }
 
-    fn change(
-        before: &[Option<&EncodedClientReference>],
-        after: &[Option<&EncodedClientReference>],
-    ) -> ClientReferencesChange {
-        let references = |slots: &[Option<&EncodedClientReference>]| {
-            SelfGroupReferences::from_slots(slots.iter().map(|slot| slot.cloned()).collect())
-        };
-        ClientReferencesChange::between(references(before), references(after))
+    fn complete(client_references: &[&QsReference]) -> SelfGroupReferences {
+        let mut set = HashSet::new();
+        for client_reference in client_references {
+            set.insert((*client_reference).clone());
+        }
+        SelfGroupReferences::Complete(set)
+    }
+
+    fn change(before: SelfGroupReferences, after: SelfGroupReferences) -> GroupReferencesChange {
+        GroupReferencesChange::SelfGroup(ClientReferencesChange::between(before, after))
     }
 
     fn key_package_hint() -> Option<QsVirtualClientHint> {
@@ -269,7 +211,7 @@ mod tests {
     }
 
     fn reconcile(
-        change: ClientReferencesChange,
+        change: GroupReferencesChange,
         signature: Option<SealedClientReferencesSignature>,
     ) -> Result<Option<usize>, ClientReferencesError> {
         let reconciliation = change.reconciliation(signature, &own_domain())?;
@@ -278,80 +220,44 @@ mod tests {
 
     #[test]
     fn changed_references_require_a_signature() {
-        let a = encoded_reference(own_domain());
-        let b = encoded_reference(own_domain());
-        let before = vec![Some(&a)];
-        let added = vec![Some(&a), Some(&b)];
-        let removed = vec![Some(&b)];
+        let a = client_reference(own_domain());
+        let b = client_reference(own_domain());
+        let added = || change(complete(&[&a]), complete(&[&a, &b]));
 
-        assert_eq!(
-            reconcile(change(&before, &added), None),
-            Err(MissingSignature)
-        );
-        assert_eq!(
-            reconcile(change(&added, &removed), None),
-            Err(MissingSignature)
-        );
-        assert_eq!(reconcile(change(&before, &added), signature()), Ok(Some(2)));
-        assert_eq!(
-            reconcile(change(&added, &removed), signature()),
-            Ok(Some(1))
-        );
+        assert_eq!(reconcile(added(), None), Err(MissingSignature));
+        assert_eq!(reconcile(added(), signature()), Ok(Some(2)));
     }
 
     #[test]
     fn unchanged_references_take_an_optional_signature() {
-        let a = encoded_reference(own_domain());
-        let b = encoded_reference(own_domain());
-        let before = vec![Some(&a), Some(&b)];
-        // A resync may move a leaf. Moving a leaf does not change the references.
-        let moved = vec![Some(&b), Some(&a)];
+        let a = client_reference(own_domain());
+        let b = client_reference(own_domain());
+        let unchanged = || change(complete(&[&a, &b]), complete(&[&a, &b]));
 
-        assert_eq!(reconcile(change(&before, &before), None), Ok(None));
-        assert_eq!(reconcile(change(&before, &moved), None), Ok(None));
-        assert_eq!(
-            reconcile(change(&before, &before), signature()),
-            Ok(Some(2))
-        );
+        assert_eq!(reconcile(unchanged(), None), Ok(None));
+        assert_eq!(reconcile(unchanged(), signature()), Ok(Some(2)));
     }
 
     #[test]
     fn complete_references_stay_complete() {
-        let a = encoded_reference(own_domain());
-        let b = encoded_reference(own_domain());
-        let before = vec![Some(&a), Some(&b)];
-        let dropped = vec![Some(&a), None];
+        let a = client_reference(own_domain());
+        let b = client_reference(own_domain());
+        let dropped = || change(complete(&[&a, &b]), Incomplete);
 
-        assert_eq!(
-            reconcile(change(&before, &dropped), None),
-            Err(MissingSignature)
-        );
-        assert_eq!(
-            reconcile(change(&before, &dropped), signature()),
-            Err(IncompleteReferences)
-        );
+        assert_eq!(reconcile(dropped(), None), Err(MissingSignature));
+        assert_eq!(reconcile(dropped(), signature()), Err(IncompleteReferences));
     }
 
     #[test]
     fn incomplete_references_are_not_checked() {
-        let a = encoded_reference(own_domain());
-        let b = encoded_reference(own_domain());
-        let c = encoded_reference(own_domain());
-        let before = vec![None, None, Some(&c)];
-        let repaired = vec![Some(&a), None, Some(&c)];
-        let added = vec![None, None, Some(&c), Some(&b)];
-        let removed = vec![None, None];
-        let completed = vec![Some(&a), Some(&b), Some(&c)];
+        let a = client_reference(own_domain());
+        let completed = || change(Incomplete, complete(&[&a]));
 
-        for after in [&before, &repaired, &added, &removed, &completed] {
-            assert_eq!(reconcile(change(&before, after), None), Ok(None));
-        }
+        assert_eq!(reconcile(completed(), None), Ok(None));
+        assert_eq!(reconcile(completed(), signature()), Ok(Some(1)));
+        assert_eq!(reconcile(change(Incomplete, Incomplete), None), Ok(None));
         assert_eq!(
-            reconcile(change(&before, &completed), signature()),
-            Ok(Some(3))
-        );
-        assert_eq!(
-            reconcile(change(&before, &repaired), signature()),
+            reconcile(change(Incomplete, Incomplete), signature()),
             Err(IncompleteReferences)
         );
     }
@@ -359,21 +265,24 @@ mod tests {
     #[test]
     fn other_groups_take_no_signature() {
         assert!(matches!(
-            ClientReferencesChange::OtherGroup.commit_hint(None, key_package_hint(), &own_domain()),
+            GroupReferencesChange::OtherGroup.commit_hint(None, key_package_hint(), &own_domain()),
             Ok(Some(QsVirtualClientHint::PromoteStagedKeyPackages(_)))
         ));
         assert!(matches!(
-            ClientReferencesChange::OtherGroup.commit_hint(signature(), None, &own_domain()),
+            GroupReferencesChange::OtherGroup.commit_hint(signature(), None, &own_domain()),
             Err(UnexpectedSignature)
         ));
     }
 
     #[test]
     fn signature_excludes_key_package_upload() {
-        let a = encoded_reference(own_domain());
-        let before = vec![Some(&a)];
+        let a = client_reference(own_domain());
         let commit_hint = |signature, key_package_hint| {
-            change(&before, &before).commit_hint(signature, key_package_hint, &own_domain())
+            change(complete(&[&a]), complete(&[&a])).commit_hint(
+                signature,
+                key_package_hint,
+                &own_domain(),
+            )
         };
 
         assert!(matches!(
@@ -392,43 +301,29 @@ mod tests {
 
     #[test]
     fn resync_keeps_the_references() {
-        let a = encoded_reference(own_domain());
-        let b = encoded_reference(own_domain());
-        let before = vec![Some(&a), Some(&b)];
+        let a = client_reference(own_domain());
+        let b = client_reference(own_domain());
+        let before = || complete(&[&a, &b]);
 
-        assert_eq!(ClientReferencesChange::OtherGroup.check_resync(), Ok(()));
-        let moved = vec![Some(&b), Some(&a)];
-        assert_eq!(change(&before, &moved).check_resync(), Ok(()));
-        let dropped = vec![Some(&a), None];
+        assert_eq!(GroupReferencesChange::OtherGroup.check_resync(), Ok(()));
+        assert_eq!(change(before(), before()).check_resync(), Ok(()));
         assert_eq!(
-            change(&before, &dropped).check_resync(),
+            change(before(), Incomplete).check_resync(),
             Err(ResyncChangesReferences)
         );
-        let removed = vec![Some(&b)];
         assert_eq!(
-            change(&before, &removed).check_resync(),
+            change(before(), complete(&[&b])).check_resync(),
             Err(ResyncChangesReferences)
         );
-        let incomplete = vec![None];
-        assert_eq!(change(&incomplete, &incomplete).check_resync(), Ok(()));
+        assert_eq!(change(Incomplete, Incomplete).check_resync(), Ok(()));
     }
 
     #[test]
-    fn rejects_invalid_and_foreign_references() {
-        let a = encoded_reference(own_domain());
-        let invalid = EncodedClientReference::from(vec![0xff]);
-        let foreign = encoded_reference("other.example.com".parse().unwrap());
-        let before = vec![Some(&a)];
+    fn rejects_foreign_references() {
+        let a = client_reference(own_domain());
+        let foreign = client_reference("other.example.com".parse().unwrap());
+        let added = change(complete(&[&a]), complete(&[&a, &foreign]));
 
-        let after = vec![Some(&a), Some(&invalid)];
-        assert_eq!(
-            reconcile(change(&before, &after), signature()),
-            Err(InvalidReference)
-        );
-        let after = vec![Some(&a), Some(&foreign)];
-        assert_eq!(
-            reconcile(change(&before, &after), signature()),
-            Err(ForeignReference)
-        );
+        assert_eq!(reconcile(added, signature()), Err(ForeignReference));
     }
 }

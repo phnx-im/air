@@ -9,54 +9,41 @@
 //! The QS then clears the push tokens of our client records that no leaf
 //! names.
 
+use std::collections::HashSet;
+
 use aircommon::{
     identifiers::QsReference,
-    messages::client_references::SealedClientReferencesSignature,
-    mls_group_config::{EncodedClientReference, leaf_client_reference},
+    messages::client_references::{
+        ClientReferencesChange, SealedClientReferencesSignature, SelfGroupReferences,
+    },
 };
 use anyhow::Context;
-use openmls::{
-    prelude::{MlsGroup, StagedCommit},
-    treesync::RatchetTree,
-};
+use openmls::prelude::{MlsGroup, StagedCommit};
 use openmls_rust_crypto::RustCrypto;
 
 use crate::{groups::Group, key_stores::MemoryUserKeyStore};
 
-/// The client references of all leaves before and after a commit, sorted.
-#[derive(Debug, PartialEq, Eq)]
-struct ClientReferencesChange {
-    before: Vec<Option<EncodedClientReference>>,
-    after: Vec<Option<EncodedClientReference>>,
+fn pending_change(
+    mls_group: &MlsGroup,
+    staged_commit: &StagedCommit,
+) -> anyhow::Result<ClientReferencesChange> {
+    let tree = mls_group.export_ratchet_tree();
+    let before = SelfGroupReferences::from_leaves(tree.leaves());
+    let tree = staged_commit
+        .export_ratchet_tree(&RustCrypto::default(), tree)?
+        .context("pending commit without a ratchet tree")?;
+    let after = SelfGroupReferences::from_leaves(tree.leaves());
+    Ok(ClientReferencesChange::between(before, after))
 }
 
-impl ClientReferencesChange {
-    fn of_pending_commit(
-        mls_group: &MlsGroup,
-        staged_commit: &StagedCommit,
-    ) -> anyhow::Result<Self> {
-        let tree = mls_group.export_ratchet_tree();
-        let before = sorted_client_references(&tree);
-        let tree = staged_commit
-            .export_ratchet_tree(&RustCrypto::default(), tree)?
-            .context("pending commit without a ratchet tree")?;
-        let after = sorted_client_references(&tree);
-        Ok(Self { before, after })
+fn references_to_sign(
+    change: ClientReferencesChange,
+    sign_unchanged: bool,
+) -> Option<HashSet<QsReference>> {
+    match change {
+        ClientReferencesChange::Unchanged(_) if !sign_unchanged => None,
+        change => change.into_signed_references(),
     }
-
-    /// We sign nothing while a leaf has no reference. The DS has the same rule.
-    fn references_to_sign(self, sign_unchanged: bool) -> Option<Vec<EncodedClientReference>> {
-        if !sign_unchanged && self.before == self.after {
-            return None;
-        }
-        self.after.into_iter().collect()
-    }
-}
-
-fn sorted_client_references(tree: &RatchetTree) -> Vec<Option<EncodedClientReference>> {
-    let mut client_references: Vec<_> = tree.leaves().map(leaf_client_reference).collect();
-    client_references.sort();
-    client_references
 }
 
 impl Group {
@@ -71,7 +58,7 @@ impl Group {
     pub(crate) fn client_references_to_sign(
         &self,
         sign_unchanged: bool,
-    ) -> anyhow::Result<Option<Vec<QsReference>>> {
+    ) -> anyhow::Result<Option<HashSet<QsReference>>> {
         if !self.is_self_group() {
             return Ok(None);
         }
@@ -79,15 +66,8 @@ impl Group {
         let staged_commit = mls_group
             .pending_commit()
             .context("self-group operation without a pending commit")?;
-        let change = ClientReferencesChange::of_pending_commit(mls_group, staged_commit)?;
-        let Some(encoded) = change.references_to_sign(sign_unchanged) else {
-            return Ok(None);
-        };
-        let mut client_references = Vec::with_capacity(encoded.len());
-        for encoded in encoded {
-            client_references.push(encoded.decode()?);
-        }
-        Ok(Some(client_references))
+        let change = pending_change(mls_group, staged_commit)?;
+        Ok(references_to_sign(change, sign_unchanged))
     }
 
     /// Signs the references of [`Self::client_references_to_sign`] for the DS
@@ -108,56 +88,55 @@ impl Group {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::utils::random_client_reference;
 
-    fn encoded(byte: u8) -> EncodedClientReference {
-        vec![byte].into()
+    use super::{SelfGroupReferences::Incomplete, *};
+
+    fn set(client_references: &[&QsReference]) -> HashSet<QsReference> {
+        let mut set = HashSet::new();
+        for client_reference in client_references {
+            set.insert((*client_reference).clone());
+        }
+        set
     }
 
-    fn change(before: &[Option<u8>], after: &[Option<u8>]) -> ClientReferencesChange {
-        let encode = |slots: &[Option<u8>]| {
-            let mut slots: Vec<_> = slots.iter().map(|slot| slot.map(encoded)).collect();
-            slots.sort();
-            slots
-        };
-        ClientReferencesChange {
-            before: encode(before),
-            after: encode(after),
-        }
+    fn complete(client_references: &[&QsReference]) -> SelfGroupReferences {
+        SelfGroupReferences::Complete(set(client_references))
+    }
+
+    fn change(before: SelfGroupReferences, after: SelfGroupReferences) -> ClientReferencesChange {
+        ClientReferencesChange::between(before, after)
     }
 
     #[test]
     fn signs_changed_references() {
-        let added = change(&[Some(1)], &[Some(1), Some(2)]);
-        assert_eq!(
-            added.references_to_sign(false),
-            Some(vec![encoded(1), encoded(2)])
-        );
-        let removed = change(&[Some(1), Some(2)], &[Some(2)]);
-        assert_eq!(removed.references_to_sign(false), Some(vec![encoded(2)]));
-        let repaired = change(&[None, Some(2)], &[Some(1), Some(2)]);
-        assert_eq!(
-            repaired.references_to_sign(false),
-            Some(vec![encoded(1), encoded(2)])
-        );
+        let a = random_client_reference();
+        let b = random_client_reference();
+
+        let added = change(complete(&[&a]), complete(&[&a, &b]));
+        assert_eq!(references_to_sign(added, false), Some(set(&[&a, &b])));
+        let repaired = change(Incomplete, complete(&[&a, &b]));
+        assert_eq!(references_to_sign(repaired, false), Some(set(&[&a, &b])));
     }
 
     #[test]
     fn signs_unchanged_references_on_request() {
-        let unchanged = change(&[Some(1), Some(2)], &[Some(2), Some(1)]);
-        assert_eq!(unchanged.references_to_sign(false), None);
-        let unchanged = change(&[Some(1), Some(2)], &[Some(2), Some(1)]);
-        assert_eq!(
-            unchanged.references_to_sign(true),
-            Some(vec![encoded(1), encoded(2)])
-        );
+        let a = random_client_reference();
+        let unchanged = || change(complete(&[&a]), complete(&[&a]));
+
+        assert_eq!(references_to_sign(unchanged(), false), None);
+        assert_eq!(references_to_sign(unchanged(), true), Some(set(&[&a])));
     }
 
     #[test]
     fn signs_nothing_while_a_leaf_has_no_reference() {
-        let incomplete = change(&[None], &[None, Some(2)]);
-        assert_eq!(incomplete.references_to_sign(false), None);
-        let incomplete = change(&[None], &[None]);
-        assert_eq!(incomplete.references_to_sign(true), None);
+        let a = random_client_reference();
+        let dropped = change(complete(&[&a]), Incomplete);
+
+        assert_eq!(references_to_sign(dropped, false), None);
+        assert_eq!(
+            references_to_sign(change(Incomplete, Incomplete), true),
+            None
+        );
     }
 }
