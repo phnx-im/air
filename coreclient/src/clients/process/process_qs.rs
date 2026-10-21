@@ -324,9 +324,15 @@ impl CoreUser {
         } = commit_response;
 
         // Load the group by group_id
-        let mut group = Group::load_verified(&mut *txn, &group_id)
-            .await?
-            .context("Can't find group for commit response")?;
+        let Some(mut group) = Group::load_verified(&mut *txn, &group_id).await? else {
+            // A commit of ours that was still queued when we left
+            if let Some(chat) = Chat::load_by_group_id(&mut *txn, &group_id).await?
+                && let ChatStatus::Inactive(_) = chat.status()
+            {
+                return Ok(());
+            }
+            bail!("Can't find group for commit response");
+        };
 
         // Check how the message epoch compares to our group's local epoch.
         if group.mls_group().epoch() < epoch {
@@ -613,17 +619,23 @@ impl CoreUser {
     }
 
     /// Loads the chat and the verified group for the given group id.
+    /// Returns `None` for a chat we left: its group is deleted, but the queue
+    /// still delivers for it until another member commits our removal.
     async fn load_chat_and_group(
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
-    ) -> Result<(Chat, VerifiedGroup)> {
+    ) -> Result<Option<(Chat, VerifiedGroup)>> {
         let chat = Chat::load_by_group_id(&mut *txn, group_id)
             .await?
             .ok_or_else(|| anyhow!("No chat found for group ID {group_id:?}"))?;
-        let group = Group::load_verified(&mut *txn, group_id)
-            .await?
-            .ok_or_else(|| anyhow!("No group found for group ID {group_id:?}"))?;
-        Ok((chat, group))
+        let Some(group) = Group::load_verified(&mut *txn, group_id).await? else {
+            if let ChatStatus::Inactive(_) = chat.status() {
+                debug!(chat_id = %chat.id(), "Dropping message for a group we left");
+                return Ok(None);
+            }
+            bail!("No group found for group ID {group_id:?}");
+        };
+        Ok(Some((chat, group)))
     }
 
     /// Unwraps the result of processing an MLS message.
@@ -680,7 +692,9 @@ impl CoreUser {
 
         // MLSMessage Phase 1: Load the chat and the group.
         let group_id = protocol_message.group_id().clone();
-        let (chat, mut group) = Self::load_chat_and_group(txn, &group_id).await?;
+        let Some((chat, mut group)) = Self::load_chat_and_group(txn, &group_id).await? else {
+            return Ok(QsMessageOutcome::empty());
+        };
 
         // MLSMessage Phase 2: Process the message
         let result = group
@@ -762,7 +776,9 @@ impl CoreUser {
         // The group is loaded regardless of whether it has a pending commit or
         // not.
         let group_id = protocol_message.group_id().clone();
-        let (chat, mut group) = Self::load_chat_and_group(txn, &group_id).await?;
+        let Some((chat, mut group)) = Self::load_chat_and_group(txn, &group_id).await? else {
+            return Ok(QsMessageOutcome::empty());
+        };
 
         // MLSMessage Phase 2: Process the message
         let result = group
@@ -826,7 +842,9 @@ impl CoreUser {
         // The group is loaded regardless of whether it has a pending commit or
         // not.
         let group_id = protocol_message.group_id().t_group_id().clone();
-        let (chat, mut group) = Self::load_chat_and_group(txn, &group_id).await?;
+        let Some((chat, mut group)) = Self::load_chat_and_group(txn, &group_id).await? else {
+            return Ok(QsMessageOutcome::empty());
+        };
 
         // MLSMessage Phase 2: Process the message
         let result = group
@@ -876,12 +894,21 @@ impl CoreUser {
 
         let chat_id = chat.id();
 
+        // While a leave is still retried, the group is kept and the queue
+        // delivers its messages. Drop them, but keep the MLS state in sync.
+        let left_group =
+            chat.chat_type().is_group() && matches!(chat.status(), ChatStatus::Inactive(_));
+
         let HandledMessages {
             new_messages,
             updated_messages,
             reaction_notifications,
             mut changed_chats,
         } = match processed_message.into_content() {
+            ProcessedMessageContent::ApplicationMessage(_) if left_group => {
+                debug!("Dropping application message in a group we left");
+                HandledMessages::default()
+            }
             ProcessedMessageContent::ApplicationMessage(application_message) => {
                 // Drop messages in 1:1 blocked chats Note: In group chats, messages
                 // from blocked users are still received and processed.
@@ -907,7 +934,7 @@ impl CoreUser {
                     .store_update(&mut *txn, None, None)
                     .await?;
                 HandledMessages {
-                    new_messages,
+                    new_messages: if left_group { Vec::new() } else { new_messages },
                     ..Default::default()
                 }
             }
@@ -949,7 +976,7 @@ impl CoreUser {
                     return Ok(QsMessageOutcome::empty());
                 }
                 HandledMessages {
-                    new_messages,
+                    new_messages: if left_group { Vec::new() } else { new_messages },
                     ..Default::default()
                 }
             }
@@ -1644,9 +1671,14 @@ impl CoreUser {
         // Phase 1: Load the group and the sender. Self-group leaves carry a
         // self-group credential instead of a user credential, so the sender of
         // a self-group update is a sibling device of the own user.
-        let group = Group::load_verified(&mut *txn, &params.group_id)
-            .await?
-            .context("No group found")?;
+        let Some(group) = Group::load_verified(&mut *txn, &params.group_id).await? else {
+            if let Some(chat) = Chat::load_by_group_id(&mut *txn, &params.group_id).await?
+                && let ChatStatus::Inactive(_) = chat.status()
+            {
+                return Ok(());
+            }
+            bail!("No group found");
+        };
         let sender_credential = if group.is_self_group() {
             self.inner.key_store.signing_key.credential().clone()
         } else {

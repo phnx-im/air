@@ -172,14 +172,14 @@ impl StagedKeyPackages {
         let locked = query_scalar!(
             r#"SELECT 1 AS "locked!"
             FROM qs_user_record
-            WHERE user_id = $1
+            WHERE user_id = $1 AND deleted_at IS NULL
             FOR NO KEY UPDATE"#,
             user_id as _,
         )
         .fetch_optional(txn.as_mut())
         .await?;
         if locked.is_none() {
-            // User is gone => nothing to promote
+            // User is gone or deleted => nothing to promote
             return Ok(());
         }
 
