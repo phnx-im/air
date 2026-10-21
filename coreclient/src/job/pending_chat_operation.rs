@@ -455,6 +455,10 @@ impl PendingChatOperation {
         matches!(self.operation, OperationType::Leave(_))
     }
 
+    pub(crate) fn is_delete(&self) -> bool {
+        self.operation.is_delete()
+    }
+
     /// Completes the pending intent this operation asserted, now that its commit
     /// was accepted. No-op for operations that carry no self-group state.
     async fn complete_self_group_intent(

@@ -32,7 +32,7 @@ pub use crate::{
         reactions::LastReaction,
     },
     clients::{
-        MarkChatAsRead,
+        AccountDeletionStatus, MarkChatAsRead,
         add_contact::AddUsernameContactError,
         attachment::{
             AttachmentContent, AttachmentId, AttachmentInfo, AttachmentStatus, AttachmentThumbnail,

@@ -10,8 +10,8 @@ pub(crate) use aircommon::identifiers::UsernameHash;
 use aircommon::identifiers::{UserId, Username};
 use aircoreclient::clients::StorageObjectType;
 use aircoreclient::{
-    Asset, ChatId, ContactType, PartialContact, UnlinkReason, clients::CoreUser,
-    db::notification::DbEntityId,
+    AccountDeletionStatus, Asset, ChatId, ContactType, PartialContact, UnlinkReason,
+    clients::CoreUser, db::notification::DbEntityId,
 };
 use anyhow::ensure;
 use chrono::{DateTime, Utc};
@@ -93,7 +93,7 @@ pub enum VersionStatus {
 pub enum UiUnlinkReason {
     /// Another device of this user removed this one from the self group.
     Unlinked,
-    /// Another device of this user deleted the account.
+    /// The account is deleted, by this or another device of this user.
     AccountDeleted,
 }
 
@@ -102,6 +102,24 @@ impl From<UnlinkReason> for UiUnlinkReason {
         match reason {
             UnlinkReason::Unlinked => Self::Unlinked,
             UnlinkReason::AccountDeleted => Self::AccountDeleted,
+        }
+    }
+}
+
+/// Whether the account deletion finished.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UiAccountDeletionStatus {
+    /// The account is deleted.
+    Completed,
+    /// The deletion continues in the background, also after a restart.
+    Pending,
+}
+
+impl From<AccountDeletionStatus> for UiAccountDeletionStatus {
+    fn from(status: AccountDeletionStatus) -> Self {
+        match status {
+            AccountDeletionStatus::Completed => Self::Completed,
+            AccountDeletionStatus::Pending => Self::Pending,
         }
     }
 }
@@ -487,16 +505,18 @@ impl UserCubitBase {
         self.context.core_user.unblock_contact(user_id.into()).await
     }
 
+    /// Deletes the account. Once the deletion completes, the unlink reason is
+    /// `AccountDeleted`, also when it completes in the background.
     pub async fn delete_account(
         &self,
-        db_path: &str,
         confirmation_text: &str,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<UiAccountDeletionStatus> {
         ensure!(
             confirmation_text == DELETE_ACCOUNT_CONFIRMATION_TEXT,
             "unexpected confirmation text"
         );
-        self.context.core_user.delete_account(Some(db_path)).await
+        let status = self.context.core_user.delete_account().await?;
+        Ok(status.into())
     }
 
     pub async fn add_contact_from_group(

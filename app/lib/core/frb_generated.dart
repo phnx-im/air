@@ -621,9 +621,8 @@ abstract class RustLibApi extends BaseApi {
     required ChatId chatId,
   });
 
-  Future<void> crateApiUserCubitUserCubitBaseDeleteAccount({
+  Future<UiAccountDeletionStatus> crateApiUserCubitUserCubitBaseDeleteAccount({
     required UserCubitBase that,
-    required String dbPath,
     required String confirmationText,
   });
 
@@ -5267,9 +5266,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiUserCubitUserCubitBaseDeleteAccount({
+  Future<UiAccountDeletionStatus> crateApiUserCubitUserCubitBaseDeleteAccount({
     required UserCubitBase that,
-    required String dbPath,
     required String confirmationText,
   }) {
     return handler.executeNormal(
@@ -5280,7 +5278,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_String(dbPath, serializer);
           sse_encode_String(confirmationText, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
@@ -5290,11 +5287,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
+          decodeSuccessData: sse_decode_ui_account_deletion_status,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiUserCubitUserCubitBaseDeleteAccountConstMeta,
-        argValues: [that, dbPath, confirmationText],
+        argValues: [that, confirmationText],
         apiImpl: this,
       ),
     );
@@ -5303,7 +5300,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiUserCubitUserCubitBaseDeleteAccountConstMeta =>
       const TaskConstMeta(
         debugName: "UserCubitBase_delete_account",
-        argNames: ["that", "dbPath", "confirmationText"],
+        argNames: ["that", "confirmationText"],
       );
 
   @override
@@ -11478,6 +11475,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiAccountDeletionStatus dco_decode_ui_account_deletion_status(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return UiAccountDeletionStatus.values[raw as int];
+  }
+
+  @protected
   UiAttachment dco_decode_ui_attachment(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -15681,6 +15684,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       acceptedChatId: var_acceptedChatId,
       error: var_error,
     );
+  }
+
+  @protected
+  UiAccountDeletionStatus sse_decode_ui_account_deletion_status(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return UiAccountDeletionStatus.values[inner];
   }
 
   @protected
@@ -20114,6 +20126,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_ui_account_deletion_status(
+    UiAccountDeletionStatus self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
   void sse_encode_ui_attachment(UiAttachment self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_attachment_id(self.attachmentId, serializer);
@@ -21779,12 +21800,12 @@ class UserCubitBaseImpl extends RustOpaque implements UserCubitBase {
         chatId: chatId,
       );
 
-  Future<void> deleteAccount({
-    required String dbPath,
+  /// Deletes the account. Once the deletion completes, the unlink reason is
+  /// `AccountDeleted`, also when it completes in the background.
+  Future<UiAccountDeletionStatus> deleteAccount({
     required String confirmationText,
   }) => RustLib.instance.api.crateApiUserCubitUserCubitBaseDeleteAccount(
     that: this,
-    dbPath: dbPath,
     confirmationText: confirmationText,
   );
 

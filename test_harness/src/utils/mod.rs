@@ -187,6 +187,10 @@ pub(crate) async fn spawn_app(
                 interceptor_control_handle.set_normal();
                 return Err(Status::invalid_argument("rejected for interop test"));
             }
+            Mode::FailNextRequest if interceptor_control_handle.take_armed() => {
+                interceptor_control_handle.set_normal();
+                return Err(Status::internal("failed for interop test"));
+            }
             _ => {}
         }
         Ok(request)

@@ -4,7 +4,7 @@
 
 //! An account deletion reaching the sibling through the closed self group.
 
-use aircoreclient::{ReadReceiptsSetting, UnlinkReason, clients::CoreUser};
+use aircoreclient::{AccountDeletionStatus, ReadReceiptsSetting, UnlinkReason, clients::CoreUser};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 
 use super::{link_sibling, self_chat_id};
@@ -82,6 +82,35 @@ async fn account_deletion_found_by_self_group_operation() -> anyhow::Result<()> 
         .await
         .expect("the self chat is kept");
     assert!(self_chat.status().is_inactive());
+    assert_eq!(
+        alice2.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn account_deletion_retries_after_sibling_commit() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice2 = link_sibling(&alice).await;
+
+    alice2
+        .set_synced_user_setting(&ReadReceiptsSetting(true))
+        .await?;
+    alice2.outbound_service().run_once().await;
+    assert!(
+        alice2.self_group_epochs().await? > alice.self_group_epochs().await?,
+        "the sibling commit must be ahead of the deleting device"
+    );
+
+    assert_eq!(
+        alice.delete_account().await?,
+        AccountDeletionStatus::Completed
+    );
+
+    alice2.drain().await;
     assert_eq!(
         alice2.account_unlink_reason().await?,
         Some(UnlinkReason::AccountDeleted)

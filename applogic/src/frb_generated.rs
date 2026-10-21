@@ -5648,7 +5648,6 @@ fn wire__crate__api__user_cubit__UserCubitBase_delete_account_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>,
             >>::sse_decode(&mut deserializer);
-            let api_db_path = <String>::sse_decode(&mut deserializer);
             let api_confirmation_text = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
@@ -5673,7 +5672,6 @@ fn wire__crate__api__user_cubit__UserCubitBase_delete_account_impl(
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok = crate::api::user_cubit::UserCubitBase::delete_account(
                             &*api_that_guard,
-                            &api_db_path,
                             &api_confirmation_text,
                         )
                         .await?;
@@ -12893,6 +12891,18 @@ impl SseDecode for crate::api::chat_details_cubit::UiAcceptContactRequestResult 
     }
 }
 
+impl SseDecode for crate::api::user_cubit::UiAccountDeletionStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::user_cubit::UiAccountDeletionStatus::Completed,
+            1 => crate::api::user_cubit::UiAccountDeletionStatus::Pending,
+            _ => unreachable!("Invalid variant for UiAccountDeletionStatus: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for crate::api::message_content::UiAttachment {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -16114,6 +16124,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::chat_details_cubit::UiAcceptC
     for crate::api::chat_details_cubit::UiAcceptContactRequestResult
 {
     fn into_into_dart(self) -> crate::api::chat_details_cubit::UiAcceptContactRequestResult {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::user_cubit::UiAccountDeletionStatus {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Completed => 0.into_dart(),
+            Self::Pending => 1.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::user_cubit::UiAccountDeletionStatus
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::user_cubit::UiAccountDeletionStatus>
+    for crate::api::user_cubit::UiAccountDeletionStatus
+{
+    fn into_into_dart(self) -> crate::api::user_cubit::UiAccountDeletionStatus {
         self
     }
 }
@@ -19764,6 +19795,22 @@ impl SseEncode for crate::api::chat_details_cubit::UiAcceptContactRequestResult 
         <Option<crate::api::types::ChatId>>::sse_encode(self.accepted_chat_id, serializer);
         <Option<crate::api::chat_details_cubit::UiAcceptContactRequestError>>::sse_encode(
             self.error, serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::user_cubit::UiAccountDeletionStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::user_cubit::UiAccountDeletionStatus::Completed => 0,
+                crate::api::user_cubit::UiAccountDeletionStatus::Pending => 1,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
         );
     }
 }

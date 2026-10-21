@@ -49,7 +49,7 @@ use uuid::Uuid;
 
 /// Links a second device to `user`, so that key packages are uploaded via
 /// the self group, and brings both devices past the linking commit.
-async fn link_sibling(user: &CoreUser) -> CoreUser {
+pub(crate) async fn link_sibling(user: &CoreUser) -> CoreUser {
     let sibling = user.add_linked_device().await;
     user.drain().await;
     sibling.drain().await;

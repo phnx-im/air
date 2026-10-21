@@ -228,7 +228,7 @@ impl UsernameRecord {
         Ok(())
     }
 
-    pub(super) async fn delete(
+    pub(crate) async fn delete(
         mut connection: impl WriteConnection,
         username: &Username,
     ) -> sqlx::Result<()> {

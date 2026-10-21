@@ -1381,6 +1381,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UiAccountDeletionStatus dco_decode_ui_account_deletion_status(dynamic raw);
+
+  @protected
   UiAttachment dco_decode_ui_attachment(dynamic raw);
 
   @protected
@@ -2948,6 +2951,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiAcceptContactRequestResult sse_decode_ui_accept_contact_request_result(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiAccountDeletionStatus sse_decode_ui_account_deletion_status(
     SseDeserializer deserializer,
   );
 
@@ -4865,6 +4873,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ui_accept_contact_request_result(
     UiAcceptContactRequestResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ui_account_deletion_status(
+    UiAccountDeletionStatus self,
     SseSerializer serializer,
   );
 

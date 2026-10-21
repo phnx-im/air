@@ -87,6 +87,7 @@ use crate::{
 
 use self::{api_clients::ApiClients, create_user::InitialUserState, store::UserCreationState};
 
+pub use delete_account::AccountDeletionStatus;
 pub use message::MarkChatAsRead;
 pub use sibling_client_state::SiblingClientStates;
 

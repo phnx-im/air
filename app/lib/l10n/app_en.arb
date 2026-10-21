@@ -2211,11 +2211,11 @@
   },
   "deleteAccountScreen_deleteAccountError": "Wait a moment, then try again.",
   "@deleteAccountScreen_deleteAccountError": {
-    "description": "Body of the error dialog shown when deleting the account fails on the server. The dialog title already says something went wrong."
+    "description": "Body of the error dialog shown when deleting the account fails or cannot finish yet. The dialog title already says something went wrong."
   },
   "unlinkedDevice_accountDeleted": "Your Air account was deleted. This device has been reset.",
   "@unlinkedDevice_accountDeleted": {
-    "description": "Notice shown after this device reset itself because the account was deleted on another of the user's devices."
+    "description": "Notice shown after this device reset itself because the account was deleted on this or another of the user's devices."
   },
 
   "appOutdatedScreen_title": "Software update required",

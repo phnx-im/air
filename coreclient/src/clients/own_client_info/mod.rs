@@ -34,7 +34,7 @@ pub(crate) struct OwnClientInfo {
 pub enum UnlinkReason {
     /// A sibling device removed this device from the self group.
     Unlinked,
-    /// A sibling device deleted the account.
+    /// The account is deleted, by this or a sibling device.
     AccountDeleted,
 }
 

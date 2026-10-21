@@ -11,12 +11,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:provider/provider.dart';
 
 import '../../helpers.dart';
 import '../../mocks.dart';
-
-class MockCoreClient extends Mock implements CoreClient {}
 
 void main() {
   group('DeleteAccountDialogTest', () {
@@ -49,31 +46,54 @@ void main() {
       );
     });
 
-    testWidgets('a failed deletion is reported in a dialog', (tester) async {
-      final userCubit = MockUserCubit();
-      final coreClient = MockCoreClient();
-      when(
-        () => userCubit.deleteAccount(
-          confirmationText: any(named: 'confirmationText'),
-        ),
-      ).thenThrow(Exception('offline'));
-
+    Future<void> tapDelete(WidgetTester tester, MockUserCubit userCubit) async {
       await tester.pumpWidget(
-        MultiProvider(
-          providers: [
-            BlocProvider<UserCubit>.value(value: userCubit),
-            Provider<CoreClient>.value(value: coreClient),
-          ],
+        BlocProvider<UserCubit>.value(
+          value: userCubit,
           child: buildSubject(isConfirmed: true),
         ),
       );
-
       await tester.tap(find.byType(Button).last);
       await tester.pumpAndSettle();
+    }
+
+    When<Future<UiAccountDeletionStatus>> whenDeleteAccount(
+      MockUserCubit userCubit,
+    ) => when(
+      () => userCubit.deleteAccount(
+        confirmationText: any(named: 'confirmationText'),
+      ),
+    );
+
+    testWidgets('a failed deletion is reported in a dialog', (tester) async {
+      final userCubit = MockUserCubit();
+      whenDeleteAccount(userCubit).thenThrow(Exception('offline'));
+
+      await tapDelete(tester, userCubit);
 
       expect(find.text('Something went wrong'), findsOneWidget);
       expect(find.text('Wait a moment, then try again.'), findsOneWidget);
-      verifyNever(() => coreClient.logout());
+    });
+
+    testWidgets('a pending deletion is reported in a dialog', (tester) async {
+      final userCubit = MockUserCubit();
+      whenDeleteAccount(userCubit)
+          .thenAnswer((_) async => UiAccountDeletionStatus.pending);
+
+      await tapDelete(tester, userCubit);
+
+      expect(find.text('Something went wrong'), findsOneWidget);
+      expect(find.text('Wait a moment, then try again.'), findsOneWidget);
+    });
+
+    testWidgets('a completed deletion shows no dialog', (tester) async {
+      final userCubit = MockUserCubit();
+      whenDeleteAccount(userCubit)
+          .thenAnswer((_) async => UiAccountDeletionStatus.completed);
+
+      await tapDelete(tester, userCubit);
+
+      expect(find.text('Something went wrong'), findsNothing);
     });
   });
 }

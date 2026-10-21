@@ -2,162 +2,108 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airapiclient::ApiClient;
-use anyhow::Context;
-use mimi_room_policy::RoleIndex;
-use tracing::{error, info, warn};
+use anyhow::bail;
+use tracing::{info, warn};
 
 use crate::{
-    UsernameRecord,
-    clients::{CoreUser, own_client_info::OwnClientInfo},
-    delete_client_database,
-    groups::Group,
-    privacy_pass,
+    clients::{
+        CoreUser,
+        own_client_info::{OwnClientInfo, UnlinkReason},
+    },
+    outbound_service::account_deletion::{AccountDeletion, AccountDeletionProgress},
 };
 
+/// Whether the account deletion finished.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccountDeletionStatus {
+    /// The account is deleted.
+    Completed,
+    /// The deletion is started and continues in the background, also after a
+    /// restart.
+    Pending,
+}
+
 impl CoreUser {
-    /// Deletes the account on the server and locally.
+    /// Deletes the account on the server.
     ///
-    /// 1. Delete QS queue (mandatory for success)
-    /// 2. Delete usernames
-    /// 3. Batch self-remove from groups as a single transaction
-    /// 4. Delete AS identity
+    /// 1. Delete the self group, so that linked devices reset themselves
+    /// 2. Delete the QS client
+    /// 3. Delete usernames
+    /// 4. Self-remove from all groups except the self group
+    /// 5. Delete the QS user
+    /// 6. Delete the AS user
     ///
-    /// Finally, the client database is deleted if a `db_path` is provided.
-    pub async fn delete_account(&self, db_path: Option<&str>) -> anyhow::Result<()> {
-        let client = self.api_client()?;
+    /// The deletion is persisted before anything is sent and continues in the
+    /// outbound service until it completes. Once it completes, the unlink
+    /// reason is [`UnlinkReason::AccountDeleted`], and this device must reset
+    /// itself.
+    ///
+    /// [`AccountDeletionStatus::Completed`] also covers a deletion that is
+    /// given up after the self group or QS client deletion kept failing. This
+    /// device must reset itself then as well.
+    ///
+    /// Fails if the deletion can't be started, if this device was unlinked, or
+    /// if the self group deletion fails before anything reached the DS or the
+    /// DS refuses the first delete sent. The deletion is dropped then and
+    /// nothing changed.
+    pub async fn delete_account(&self) -> anyhow::Result<AccountDeletionStatus> {
+        const MAX_ATTEMPTS: usize = 3;
 
-        let client_id = self.inner.qs_client_id;
-        let qs_client_signing_key = &self.inner.key_store.qs_client_signing_key;
-
-        client
-            .qs_delete_client(client_id, qs_client_signing_key)
-            .await?;
-
-        // After the qs client is deleted, there is no way back and everything else after it is
-        // best effort.
-
-        self.delete_all_usernames(&client).await;
-        self.leave_all_chats(&client).await;
-
-        self.delete_qs_identity(&client).await;
-        self.delete_as_identity(&client).await;
-
-        if let Some(db_path) = db_path {
-            delete_client_database(db_path, self.client_record_id()).await?;
+        match OwnClientInfo::account_unlink_reason(self.db().read().await?).await? {
+            Some(UnlinkReason::AccountDeleted) => return Ok(AccountDeletionStatus::Completed),
+            Some(UnlinkReason::Unlinked) => bail!("this device was unlinked"),
+            None => {}
         }
+        AccountDeletion::start(self.db().write().await?).await?;
 
-        Ok(())
-    }
-
-    async fn delete_qs_identity(&self, client: &ApiClient) {
-        if let Err(error) = client
-            .qs_delete_user(
-                self.inner.qs_user_id,
-                &self.inner.key_store.qs_user_signing_key,
-            )
-            .await
-        {
-            error!(%error, "Error deleting QS user");
-        } else {
-            info!("Deleted QS user");
-        }
-    }
-
-    async fn leave_all_chats(&self, api_client: &ApiClient) {
-        if let Err(error) = self.try_leave_all_chats(api_client).await {
-            error!(%error, "Error leaving all chats");
-        }
-    }
-
-    async fn try_leave_all_chats(&self, api_client: &ApiClient) -> anyhow::Result<()> {
-        let chat_ids = self.ordered_chat_ids().await?;
-        info!(num_chats = chat_ids.len(), "Leaving all chats");
-
-        let removals = self
-            .db()
-            .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                let mut removals = Vec::with_capacity(chat_ids.len());
-                for chat_id in chat_ids {
-                    // A left chat has no group anymore
-                    let Some(mut group) =
-                        Group::load_with_chat_id_clean(&mut *txn, chat_id).await?
-                    else {
-                        continue;
-                    };
-                    let signer = OwnClientInfo::signer_for_group(
-                        &mut *txn,
-                        group.group_id(),
-                        self.signing_key(),
-                    )
-                    .await?;
-                    let identity = signer.room_policy_identity();
-                    group.room_state_change_role_identity(
-                        &identity,
-                        &identity,
-                        RoleIndex::Outsider,
-                    )?;
-                    let params = group.stage_leave_group(&mut *txn, &signer)?;
-                    let ear_key = group.group_state_ear_key().clone();
-                    removals.push((params, ear_key, signer));
+        let mut attempt = 1;
+        loop {
+            match self.outbound_service().run_account_deletion().await {
+                Ok(AccountDeletionProgress::Completed | AccountDeletionProgress::GaveUp) => {
+                    return Ok(AccountDeletionStatus::Completed);
                 }
-                Ok(removals)
-            })
-            .await?;
-
-        for (params, ear_key, signer) in removals {
-            match api_client.ds_self_remove(params, &signer, &ear_key).await {
-                Ok(_) => {}
-                Err(e) if e.is_not_found() => {
-                    warn!("Group already gone from server; skipping");
+                Ok(AccountDeletionProgress::Aborted(error)) => {
+                    return Err(error.context("failed to delete the account"));
                 }
-                Err(e) => return Err(e.into()),
+                // A sibling commit won the epoch. Catch up on it and try again.
+                Ok(AccountDeletionProgress::Blocked) if attempt < MAX_ATTEMPTS => {
+                    warn!(attempt, "Self group deletion lost the epoch, retrying");
+                    match self.drain_and_process_qs_queue().await {
+                        Ok(processed) => {
+                            if let Some(error) = processed.errors.first() {
+                                warn!(%error, "Failed to process queued messages before retrying");
+                            }
+                        }
+                        Err(error) => {
+                            warn!(%error, "Failed to fetch queued messages before retrying");
+                            break;
+                        }
+                    }
+                    attempt += 1;
+                }
+                // Another run of the deletion finished or dropped it first.
+                Ok(AccountDeletionProgress::Idle) => return self.account_deletion_outcome().await,
+                Ok(AccountDeletionProgress::Blocked) => break,
+                Err(error) => {
+                    warn!(%error, "Account deletion failed");
+                    break;
+                }
             }
         }
-
-        info!("Left all chats");
-        Ok(())
+        info!("Account deletion continues in the background");
+        self.outbound_service().notify_account_deletion();
+        Ok(AccountDeletionStatus::Pending)
     }
 
-    async fn delete_all_usernames(&self, api_client: &ApiClient) {
-        if let Err(error) = self.try_delete_all_usernames(api_client).await {
-            error!(%error, "Error deleting all usernames");
+    /// The outcome of a started deletion that this call didn't finish itself.
+    async fn account_deletion_outcome(&self) -> anyhow::Result<AccountDeletionStatus> {
+        match OwnClientInfo::account_unlink_reason(self.db().read().await?).await? {
+            Some(UnlinkReason::AccountDeleted) => Ok(AccountDeletionStatus::Completed),
+            Some(UnlinkReason::Unlinked) => bail!("this device was unlinked"),
+            None if AccountDeletion::is_pending(self.db().read().await?).await? => {
+                Ok(AccountDeletionStatus::Pending)
+            }
+            None => bail!("the account deletion was dropped"),
         }
-    }
-
-    async fn try_delete_all_usernames(&self, api_client: &ApiClient) -> anyhow::Result<()> {
-        let usernames = self.usernames().await?;
-        info!(num_usernames = usernames.len(), "Deleting all usernames");
-
-        let records = UsernameRecord::load_all(self.db().read().await?).await?;
-        let domain = self.user_id().domain();
-        for record in records {
-            let (token_request, _token_state) =
-                privacy_pass::prepare_delete_token_request(self.db().write().await?, domain)
-                    .await?
-                    .context("no VOPRF keys available for delete token request")?;
-            api_client
-                .as_delete_username(record.hash, &record.signing_key, token_request)
-                .await?;
-        }
-
-        info!("Deleted all usernames");
-        Ok(())
-    }
-
-    async fn delete_as_identity(&self, api_client: &ApiClient) {
-        if let Err(error) = self.try_delete_as_identity(api_client).await {
-            error!(%error, "Error deleting AS identity");
-        }
-    }
-
-    async fn try_delete_as_identity(&self, api_client: &ApiClient) -> anyhow::Result<()> {
-        let user_id = self.user_id();
-        let signing_key = self.signing_key();
-        api_client
-            .as_delete_user(user_id.clone(), signing_key)
-            .await?;
-        info!("Deleted AS user");
-        Ok(())
     }
 }
