@@ -168,7 +168,7 @@ async fn migrate_db_in_memory(
 ) -> sqlx::Result<std::sync::Arc<[u8]>> {
     let opts = SqliteConnectOptions::new().in_memory(true);
     let mut connection = sqlx::SqliteConnection::connect_with(&opts).await?;
-    migrator.run(&mut connection).await?;
+    migrator.run_direct(None, &mut connection, false).await?;
     let data = connection.serialize(None).await?;
     connection.close().await?;
     Ok(data[..].into())

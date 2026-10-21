@@ -5,41 +5,26 @@
 use std::time::Duration;
 
 use airapiclient::{ApiClient, as_api::AsRequestError};
-use aircommon::{
-    identifiers::{UserId, UsernameHash},
-    messages::client_as::SerializedToken,
-    time::TimeStamp,
-};
-use aircoreclient::{ChatId, ChatType, EventMessage, Message, SystemMessage};
+use aircommon::{identifiers::UsernameHash, messages::client_as::SerializedToken, time::TimeStamp};
+use aircoreclient::{ChatId, ChatType, EventMessage, Message, SystemMessage, clients::CoreUser};
 use airprotos::{
     auth_service::v1::OperationType,
     client::signed_connection_package::{AnyConnectionPackage, AnyConnectionPackageIn},
 };
-use airserver_test_harness::utils::setup::TestBackend;
+use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::{TimeZone, Utc};
 use tokio::task::spawn_blocking;
 use tokio_stream::StreamExt;
 
-use super::contact_requests::system_messages;
-
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Connect users test", skip_all)]
 async fn connect_users_via_user_handle() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let username = setup
-        .get_user(&bob)
-        .username_record
-        .clone()
-        .unwrap()
-        .username;
-    let alice_user = setup.get_user(&alice).user();
-    let bob_user = setup.get_user(&bob).user();
+    let username = setup.username_record(&bob).unwrap().username;
 
-    for (user, contact) in [(alice_user, &bob), (bob_user, &alice)] {
+    for (user, contact) in [(&alice, &bob), (&bob, &alice)] {
         let contacts: Vec<_> = user
             .contacts()
             .await
@@ -47,31 +32,34 @@ async fn connect_users_via_user_handle() {
             .into_iter()
             .map(|contact| contact.user_id)
             .collect();
-        assert_eq!(&contacts, std::slice::from_ref(contact));
-        let chat = user.chat(&chat_id).await.unwrap();
-        assert_eq!(chat.chat_type(), &ChatType::Connection(contact.clone()));
+        assert_eq!(&contacts, std::slice::from_ref(contact.user_id()));
+        let chat = user.expect_chat(chat_id).await;
+        assert_eq!(
+            chat.chat_type(),
+            &ChatType::Connection(contact.user_id().clone())
+        );
         assert_eq!(user.unread_messages_count(chat_id).await, 0);
     }
 
     assert_eq!(
-        system_messages(alice_user, chat_id).await,
+        alice.system_messages(chat_id).await,
         [
             SystemMessage::NewHandleConnectionChat(username.clone()),
             SystemMessage::ReceivedConnectionConfirmation {
-                sender: bob.clone(),
+                sender: bob.user_id().clone(),
                 user_handle: Some(username.clone()),
             },
         ]
     );
     assert_eq!(
-        system_messages(bob_user, chat_id).await,
+        bob.system_messages(chat_id).await,
         [
             SystemMessage::ReceivedHandleConnectionRequest {
-                sender: alice.clone(),
+                sender: alice.user_id().clone(),
                 user_handle: username.clone(),
             },
             SystemMessage::AcceptedConnectionRequest {
-                contact: alice.clone(),
+                contact: alice.user_id().clone(),
                 user_handle: Some(username),
             },
         ]
@@ -79,15 +67,12 @@ async fn connect_users_via_user_handle() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "A connection request spends a token", skip_all)]
 async fn connection_request_spends_a_token() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let record = setup.get_user_mut(&bob).add_username().await.unwrap();
+    let [alice, bob] = setup.add_users().await;
+    let record = setup.add_username(&bob).await;
 
-    let alice_user = setup.get_user(&alice).user().clone();
-    let before = alice_user
+    let before = alice
         .cached_privacy_pass_tokens(OperationType::ConnectUsername)
         .await
         .unwrap();
@@ -99,7 +84,7 @@ async fn connection_request_spends_a_token() {
 
     setup.connect_users(&alice, &bob).await;
 
-    let after = alice_user
+    let after = alice
         .cached_privacy_pass_tokens(OperationType::ConnectUsername)
         .await
         .unwrap();
@@ -111,10 +96,7 @@ async fn connection_request_spends_a_token() {
         .unwrap();
 
     // The redemption is recorded for the siblings.
-    let pending = alice_user
-        .pending_redeemed_token_broadcasts()
-        .await
-        .unwrap();
+    let pending = alice.pending_redeemed_token_broadcasts().await.unwrap();
     assert_eq!(pending.len(), 1, "one batch has a redemption to broadcast");
     assert_eq!(pending[0].operation_type, OperationType::ConnectUsername);
     assert_eq!(pending[0].token_indices.len(), 1);
@@ -131,13 +113,11 @@ async fn connection_request_spends_a_token() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Connect users via signed connection package", skip_all)]
 async fn connect_users_via_user_handle_uses_signed_package() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
-    let record = setup.get_user_mut(&bob).add_username().await.unwrap();
+    let record = setup.add_username(&bob).await;
 
     // A new client asks for a signed package and gets one, carrying the
     // owner's features.
@@ -177,12 +157,10 @@ async fn drain_connection_packages(client: &ApiClient, hash: UsernameHash) -> an
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Signed connection package upload task", skip_all)]
 async fn signed_connection_package_upload_task_replenishes_username() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let bob = setup.add_user().await;
-    let record = setup.get_user_mut(&bob).add_username().await?;
-    let user = setup.get_user(&bob).user();
+    let record = setup.add_username(&bob).await;
     let client = ApiClient::with_endpoint(&setup.server_url())?;
 
     // Use up the packages published on creation, so that new ones are observable.
@@ -194,12 +172,12 @@ async fn signed_connection_package_upload_task_replenishes_username() -> anyhow:
     );
 
     // Run the one-shot task as if the username predated signed connection packages.
-    user.outbound_service()
+    bob.outbound_service()
         .schedule_signed_connection_package_upload(vec![record.hash], Utc::now())
         .await?;
-    user.outbound_service().run_once().await;
+    bob.outbound_service().run_once().await;
 
-    let state = user
+    let state = bob
         .outbound_service()
         .signed_connection_package_upload_state()
         .await?
@@ -218,22 +196,20 @@ async fn signed_connection_package_upload_task_replenishes_username() -> anyhow:
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Signed connection package upload task retry", skip_all)]
 async fn signed_connection_package_upload_task_retries_pending_username() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let bob = setup.add_user().await;
-    let record = setup.get_user_mut(&bob).add_username().await?;
-    let user = setup.get_user(&bob).user();
+    let record = setup.add_username(&bob).await;
 
     // The upload fails with a network error.
     setup.listener_control_handle().set_drop_all();
-    user.outbound_service()
+    bob.outbound_service()
         .schedule_signed_connection_package_upload(vec![record.hash], Utc::now())
         .await?;
-    user.outbound_service().run_once().await;
+    bob.outbound_service().run_once().await;
     setup.listener_control_handle().set_normal();
 
-    let state = user
+    let state = bob
         .outbound_service()
         .signed_connection_package_upload_state()
         .await?
@@ -242,12 +218,12 @@ async fn signed_connection_package_upload_task_retries_pending_username() -> any
     assert_eq!(state.pending_usernames, vec![record.hash]);
 
     // The retry succeeds.
-    user.outbound_service()
+    bob.outbound_service()
         .schedule_signed_connection_package_upload(state.pending_usernames, Utc::now())
         .await?;
-    user.outbound_service().run_once().await;
+    bob.outbound_service().run_once().await;
 
-    let state = user
+    let state = bob
         .outbound_service()
         .signed_connection_package_upload_state()
         .await?
@@ -259,22 +235,17 @@ async fn signed_connection_package_upload_task_retries_pending_username() -> any
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(
-    name = "Signed connection package upload task unknown username",
-    skip_all
-)]
 async fn signed_connection_package_upload_task_drops_unknown_username() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let bob = setup.add_user().await;
-    let user = setup.get_user(&bob).user();
 
     // A username which does not exist locally is treated as done.
-    user.outbound_service()
+    bob.outbound_service()
         .schedule_signed_connection_package_upload(vec![UsernameHash::new([7; 32])], Utc::now())
         .await?;
-    user.outbound_service().run_once().await;
+    bob.outbound_service().run_once().await;
 
-    let state = user
+    let state = bob
         .outbound_service()
         .signed_connection_package_upload_state()
         .await?
@@ -286,12 +257,9 @@ async fn signed_connection_package_upload_task_drops_unknown_username() -> anyho
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Connect users via targeted message", skip_all)]
 async fn connect_users_via_targeted_message() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     // Alice is connected to Bob and Charlie, but Bob and Charlie are not connected.
     setup.connect_users(&alice, &bob).await;
@@ -300,24 +268,18 @@ async fn connect_users_via_targeted_message() {
     // Alice creates a group and invites Bob and Charlie
     let group_chat_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(group_chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(group_chat_id, &alice, &[&bob, &charlie])
         .await;
 
     // Bob now connects to Charlie via a targeted message sent through the
     // shared group.
-    let bob_user = &setup.get_user(&bob).user;
-    let bob_chat_id = bob_user
-        .add_contact_from_group(group_chat_id, charlie.clone(), setup.apq_groups)
+    let bob_chat_id = bob
+        .add_contact_from_group(group_chat_id, charlie.user_id().clone(), setup.apq_groups)
         .await
         .unwrap();
 
     // Bob should have the right system message in the chat
-    let chat_message = bob_user
-        .messages(bob_chat_id, 1)
-        .await
-        .unwrap()
-        .pop()
-        .unwrap();
+    let chat_message = bob.messages(bob_chat_id, 1).await.unwrap().pop().unwrap();
     let Message::Event(EventMessage::System(SystemMessage::SentGroupConnectionRequest {
         recipient,
         origin_chat_id,
@@ -326,22 +288,16 @@ async fn connect_users_via_targeted_message() {
         panic!("Expected SentGroupConnectionRequest system message");
     };
     assert!(
-        *recipient == charlie,
+        *recipient == *charlie.user_id(),
         "System message should indicate connection to Charlie"
     );
     assert_eq!(*origin_chat_id, group_chat_id);
 
     // Charlie picks up his messages
-    let charlie_user = &setup.get_user(&charlie).user;
-    let qs_messages = charlie_user.qs_fetch_messages().await.unwrap();
-    let mut result = charlie_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Charlie should process Bob's targeted message without errors"
-    );
+    let mut result = charlie.drain().await;
 
     // Charlie accepts the connection request
-    charlie_user
+    charlie
         .accept_contact_request(bob_chat_id)
         .await
         .unwrap()
@@ -349,7 +305,7 @@ async fn connect_users_via_targeted_message() {
 
     // Charlie should have two messages in the new chat
     let charlie_chat_id = result.new_connections.pop().unwrap();
-    let messages = charlie_user.messages(charlie_chat_id, 2).await.unwrap();
+    let messages = charlie.messages(charlie_chat_id, 2).await.unwrap();
     let Message::Event(EventMessage::System(SystemMessage::ReceivedGroupConnectionRequest {
         sender,
         origin_chat_id,
@@ -358,7 +314,8 @@ async fn connect_users_via_targeted_message() {
         panic!("Expected ReceivedGroupConnectionRequest system message");
     };
     assert_eq!(
-        *sender, bob,
+        *sender,
+        *bob.user_id(),
         "System message should indicate connection from Bob"
     );
     assert_eq!(
@@ -373,20 +330,15 @@ async fn connect_users_via_targeted_message() {
         panic!("Expected AcceptedConnectionRequest system message");
     };
     assert_eq!(
-        *contact, bob,
+        *contact,
+        *bob.user_id(),
         "System message should indicate acceptance of connection from Bob"
     );
 
     // Now Bob picks up his messages
-    let bob_user = &setup.get_user(&bob).user;
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Charlie's response without errors"
-    );
+    bob.drain().await;
     // Bob should have a system message indicating that Charlie accepted the connection
-    let messages = bob_user.messages(bob_chat_id, 1).await.unwrap();
+    let messages = bob.messages(bob_chat_id, 1).await.unwrap();
     let Message::Event(EventMessage::System(SystemMessage::ReceivedConnectionConfirmation {
         sender,
         user_handle: None,
@@ -395,30 +347,26 @@ async fn connect_users_via_targeted_message() {
         panic!("Expected ReceivedConnectionConfirmation system message");
     };
     assert!(
-        *sender == charlie,
+        *sender == *charlie.user_id(),
         "System message should indicate acceptance of connection from Charlie"
     );
 
     // Bob and Charlie should now be connected
-    let bob_contact = bob_user.contact(&charlie).await;
+    let bob_contact = bob.contact(charlie.user_id()).await;
     assert!(
         bob_contact.is_some(),
         "Bob should have Charlie as a contact"
     );
-    let charlie_user = &setup.get_user(&charlie).user;
-    let charlie_contact = charlie_user.contact(&bob).await;
+    let charlie_contact = charlie.contact(bob.user_id()).await;
     assert!(
         charlie_contact.is_some(),
         "Charlie should have Bob as a contact"
     );
 
     // The connection group is APQ iff requested, and both sides agree on it.
+    assert_eq!(bob.chat_is_apq(bob_chat_id).await, Some(setup.apq_groups));
     assert_eq!(
-        bob_user.chat_is_apq(bob_chat_id).await,
-        Some(setup.apq_groups)
-    );
-    assert_eq!(
-        charlie_user.chat_is_apq(charlie_chat_id).await,
+        charlie.chat_is_apq(charlie_chat_id).await,
         Some(setup.apq_groups)
     );
 }
@@ -426,152 +374,96 @@ async fn connect_users_via_targeted_message() {
 /// Connects `initiator` to `peer` through the shared group and returns the connection chat as
 /// seen by the initiator and by the peer.
 async fn connect_from_group(
-    setup: &TestBackend,
     group_chat_id: ChatId,
-    initiator: &UserId,
-    peer: &UserId,
+    initiator: &CoreUser,
+    peer: &CoreUser,
     prefer_apq: bool,
 ) -> (ChatId, ChatId) {
-    let initiator_user = &setup.get_user(initiator).user;
-    let initiator_chat_id = initiator_user
-        .add_contact_from_group(group_chat_id, peer.clone(), prefer_apq)
+    let initiator_chat_id = initiator
+        .add_contact_from_group(group_chat_id, peer.user_id().clone(), prefer_apq)
         .await
         .unwrap();
 
-    let peer_user = &setup.get_user(peer).user;
-    let qs_messages = peer_user.qs_fetch_messages().await.unwrap();
-    let mut result = peer_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "peer should process the connection request without errors: {:?}",
-        result.errors
-    );
+    let mut result = peer.drain().await;
     let peer_chat_id = result.new_connections.pop().unwrap();
-    peer_user
-        .accept_contact_request(peer_chat_id)
+    peer.accept_contact_request(peer_chat_id)
         .await
         .unwrap()
         .unwrap();
 
-    let qs_messages = initiator_user.qs_fetch_messages().await.unwrap();
-    let result = initiator_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "initiator should process the confirmation without errors: {:?}",
-        result.errors
-    );
+    initiator.drain().await;
 
-    assert!(initiator_user.contact(peer).await.is_some());
-    assert!(peer_user.contact(initiator).await.is_some());
+    assert!(initiator.contact(peer.user_id()).await.is_some());
+    assert!(peer.contact(initiator.user_id()).await.is_some());
     (initiator_chat_id, peer_chat_id)
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Connect users via user handle in APQ mode", skip_all)]
 async fn connect_users_via_user_handle_apq() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     // Asserts the APQ-ness on both sides and exchanges messages both ways.
     setup.connect_users_apq(&alice, &bob).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Connection group stays T when APQ is not requested", skip_all)]
 async fn connect_users_via_user_handle_not_requested_stays_t() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users_non_apq(&alice, &bob).await;
 }
 
 /// The connection request rides the APQ origin group as a T targeted message, and the connection
 /// group itself is APQ.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Connect users via targeted message in APQ mode", skip_all)]
 async fn connect_users_via_targeted_message_apq() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
-    setup.connect_users(&alice, &bob).await;
-    setup.connect_users(&alice, &charlie).await;
-
-    let group_chat_id = setup.create_apq_group(&alice).await;
-    setup
-        .invite_to_group(group_chat_id, &alice, vec![&bob, &charlie])
-        .await;
+    let group_chat_id = setup.connected_apq_group(&alice, &[&bob, &charlie]).await;
 
     let (bob_chat_id, charlie_chat_id) =
-        connect_from_group(&setup, group_chat_id, &bob, &charlie, true).await;
+        connect_from_group(group_chat_id, &bob, &charlie, true).await;
 
-    let bob_user = &setup.get_user(&bob).user;
-    let charlie_user = &setup.get_user(&charlie).user;
-    assert_eq!(bob_user.chat_is_apq(bob_chat_id).await, Some(true));
-    assert_eq!(charlie_user.chat_is_apq(charlie_chat_id).await, Some(true));
+    assert_eq!(bob.chat_is_apq(bob_chat_id).await, Some(true));
+    assert_eq!(charlie.chat_is_apq(charlie_chat_id).await, Some(true));
 
-    setup
-        .send_message(bob_chat_id, &bob, vec![&charlie], None)
-        .await;
-    setup
-        .send_message(bob_chat_id, &charlie, vec![&bob], None)
-        .await;
+    setup.send_message(bob_chat_id, &bob, &[&charlie]).await;
+    setup.send_message(bob_chat_id, &charlie, &[&bob]).await;
 }
 
 /// A connection group is resynced with the same machinery as any other group.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Resync connection group", skip_all)]
 async fn resync_connection_group() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let bob_user = &setup.get_user(&bob).user;
-    bob_user.enqueue_group_resync(chat_id).await.unwrap();
-    bob_user.outbound_service().run_once().await;
+    bob.enqueue_group_resync(chat_id).await.unwrap();
+    bob.outbound_service().run_once().await;
     assert!(
-        bob_user.resync_status(chat_id).await.unwrap().is_none(),
+        bob.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have completed"
     );
 
-    let alice_user = &setup.get_user(&alice).user;
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Alice should process Bob's rejoin without errors: {:?}",
-        result.errors
-    );
+    alice.drain().await;
 
-    setup.send_message(chat_id, &bob, vec![&alice], None).await;
-    setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    setup.send_message(chat_id, &bob, &[&alice]).await;
+    setup.send_message(chat_id, &alice, &[&bob]).await;
 
     // A commit touching both legs after the resync shows that they are at compatible epochs.
-    let alice_user = &setup.get_user(&alice).user;
     if setup.apq_groups {
-        alice_user.update_apq_key(chat_id).await.unwrap();
+        alice.update_apq_key(chat_id).await.unwrap();
     } else {
-        alice_user.update_key(chat_id).await.unwrap();
+        alice.update_key(chat_id).await.unwrap();
     }
-    let bob_user = &setup.get_user(&bob).user;
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Alice's follow-up commit without errors: {:?}",
-        result.errors
-    );
+    bob.drain().await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Sanity checks for targeted message connections", skip_all)]
 async fn sanity_checks_for_targeted_message_connections() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     // Alice is connected to Bob and Charlie, but Bob and Charlie are not connected.
     setup.connect_users(&alice, &bob).await;
@@ -580,14 +472,12 @@ async fn sanity_checks_for_targeted_message_connections() {
     // Alice creates a group and invites Bob and Charlie
     let group_chat_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(group_chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(group_chat_id, &alice, &[&bob, &charlie])
         .await;
 
     // Alice shouldn't be able to add Bob as a contact from the group, since they are already connected.
-    let alice = setup.get_user(&alice);
-    let alice_user = &alice.user;
-    let res = alice_user
-        .add_contact_from_group(group_chat_id, bob.clone(), setup.apq_groups)
+    let res = alice
+        .add_contact_from_group(group_chat_id, bob.user_id().clone(), setup.apq_groups)
         .await;
     assert!(
         res.is_err(),
@@ -596,16 +486,13 @@ async fn sanity_checks_for_targeted_message_connections() {
 
     // Bob now connects to Charlie via a targeted message sent through the
     // shared group.
-    let bob = setup.get_user(&bob);
-    let bob_user = &bob.user;
-    bob_user
-        .add_contact_from_group(group_chat_id, charlie.clone(), setup.apq_groups)
+    bob.add_contact_from_group(group_chat_id, charlie.user_id().clone(), setup.apq_groups)
         .await
         .unwrap();
 
     // Bob shouldn't be able to add Charlie again.
-    let res = bob_user
-        .add_contact_from_group(group_chat_id, charlie.clone(), setup.apq_groups)
+    let res = bob
+        .add_contact_from_group(group_chat_id, charlie.user_id().clone(), setup.apq_groups)
         .await;
     assert!(
         res.is_err(),
@@ -616,22 +503,17 @@ async fn sanity_checks_for_targeted_message_connections() {
 /// Test that the timestamp on a received connection request reflects when the
 /// request was sent (server's enqueue time), not when the recipient processed it.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Connection request timestamp test", skip_all)]
 async fn connection_request_has_server_timestamp() {
     let mut setup = TestBackend::single().await;
     let apq_groups = setup.apq_groups;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
 
     // Bob adds a username
-    let test_bob = setup.get_user_mut(&bob);
-    let bob_username_record = test_bob.add_username().await.unwrap();
+    let bob_username_record = setup.add_username(&bob).await;
     let bob_username = bob_username_record.username.clone();
 
     // Alice sends a connection request to Bob
-    let test_alice = setup.get_user_mut(&alice);
-    let alice_user = &mut test_alice.user;
     let username_hash = spawn_blocking({
         let username = bob_username.clone();
         move || username.calculate_hash().unwrap()
@@ -639,19 +521,14 @@ async fn connection_request_has_server_timestamp() {
     .await
     .unwrap();
 
-    alice_user
+    alice
         .add_contact(bob_username.clone(), username_hash, apq_groups)
         .await
         .expect("fatal error")
         .expect("non-fatal error");
 
     // Bob fetches and processes the connection request
-    let test_bob = setup.get_user_mut(&bob);
-    let bob_user = &mut test_bob.user;
-    let (mut stream, responder) = bob_user
-        .listen_username(&bob_username_record)
-        .await
-        .unwrap();
+    let (mut stream, responder) = bob.listen_username(&bob_username_record).await.unwrap();
 
     // Process handle queue messages, extracting the server timestamp before processing
     let mut bob_chat_id = None;
@@ -674,7 +551,7 @@ async fn connection_request_has_server_timestamp() {
                 .expect("Valid timestamp"),
         ));
 
-        let chat_id = bob_user
+        let chat_id = bob
             .process_username_queue_message(bob_username_record.username.clone(), message)
             .await
             .unwrap()
@@ -687,7 +564,7 @@ async fn connection_request_has_server_timestamp() {
     let server_timestamp = server_timestamp.expect("Should have captured server timestamp");
 
     // Get the system message and its timestamp
-    let messages = bob_user.messages(bob_chat_id, 1).await.unwrap();
+    let messages = bob.messages(bob_chat_id, 1).await.unwrap();
     let received_request_message = messages.first().expect("Should have at least one message");
 
     let Message::Event(EventMessage::System(SystemMessage::ReceivedHandleConnectionRequest {
@@ -699,7 +576,8 @@ async fn connection_request_has_server_timestamp() {
     };
 
     assert_eq!(
-        *sender, alice,
+        *sender,
+        *alice.user_id(),
         "System message should indicate connection from Alice"
     );
     assert_eq!(
@@ -718,23 +596,18 @@ async fn connection_request_has_server_timestamp() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "DS records the connection group joiner", skip_all)]
 async fn ds_room_state_contains_connection_group_joiner() {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let users = setup
-        .get_user(&bob)
-        .user
-        .ds_room_state_users(chat_id)
-        .await
-        .unwrap();
+    let users = bob.ds_room_state_users(chat_id).await.unwrap();
 
     assert_eq!(
         users,
-        [alice, bob].into_iter().collect(),
+        [alice.user_id().clone(), bob.user_id().clone()]
+            .into_iter()
+            .collect(),
         "the DS room state should list both users of the connection group"
     );
 }

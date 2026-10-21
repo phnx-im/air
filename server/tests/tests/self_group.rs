@@ -2,56 +2,27 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::UserId;
-use aircoreclient::clients::{CoreUser, process::process_qs::ProcessedQsMessages};
-use airserver_test_harness::utils::setup::TestBackend;
+use aircoreclient::clients::CoreUser;
+use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::Utc;
-use tempfile::TempDir;
 
-use super::multi_device::link_new_device;
-
-/// Links a second device to `user_id`, so that key packages are uploaded via
+/// Links a second device to `user`, so that key packages are uploaded via
 /// the self group, and brings both devices past the linking commit.
-///
-/// The [`TempDir`] holds the new device's database and must stay alive as
-/// long as it is used.
-async fn link_sibling(
-    setup: &TestBackend,
-    user_id: &UserId,
-) -> anyhow::Result<(CoreUser, TempDir)> {
-    let (device_b, tmp) = link_new_device(setup, user_id).await;
-    setup
-        .get_user(user_id)
-        .fetch_and_process_qs_messages()
-        .await;
-    drain_queue(&device_b).await?;
-    Ok((device_b, tmp))
-}
-
-/// Fetches and processes a device's queue, asserting that every message was
-/// processed without error.
-async fn drain_queue(device: &CoreUser) -> anyhow::Result<ProcessedQsMessages> {
-    let messages = device.qs_fetch_messages().await?;
-    let expected = messages.len();
-    let processed = device.fully_process_qs_messages(messages).await;
-    assert!(
-        processed.errors.is_empty(),
-        "queue processing failed: {:?}",
-        processed.errors
-    );
-    assert_eq!(processed.processed, expected, "not all messages processed");
-    Ok(processed)
+async fn link_sibling(user: &CoreUser) -> CoreUser {
+    let sibling = user.add_linked_device().await;
+    user.drain().await;
+    sibling.drain().await;
+    sibling
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn ensure_self_group_creates_apq_group() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let user_id = setup.add_user().await;
-    let user = &setup.get_user(&user_id).user;
+    let alice = setup.add_user().await;
 
-    user.ensure_self_group().await?;
+    alice.ensure_self_group().await?;
 
-    let is_apq = user
+    let is_apq = alice
         .self_group_is_apq()
         .await?
         .expect("self group should be persisted");
@@ -63,43 +34,42 @@ async fn ensure_self_group_creates_apq_group() -> anyhow::Result<()> {
 #[tokio::test(flavor = "multi_thread")]
 async fn self_group_resync_re_registers_the_derivation_epoch() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let user_id = setup.add_user().await;
+    let alice = setup.add_user().await;
     // The key package upload at the end only goes through the self group with
     // a sibling.
-    let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
-    let test_user = setup.get_user(&user_id);
-    let user = &test_user.user;
+    let _alice2 = link_sibling(&alice).await;
 
     assert!(
-        user.self_group_has_derivation_epoch().await?,
+        alice.self_group_has_derivation_epoch().await?,
         "creating the self-group registers its initial derivation epoch"
     );
-    let self_chat_id = user.self_chat_id().await?.expect("no self chat");
+    let self_chat_id = alice.self_chat_id().await?.expect("no self chat");
 
-    user.enqueue_group_resync(self_chat_id).await?;
-    user.outbound_service().run_once().await;
+    alice.enqueue_group_resync(self_chat_id).await?;
+    alice.outbound_service().run_once().await;
     assert!(
-        user.resync_status(self_chat_id).await?.is_none(),
+        alice.resync_status(self_chat_id).await?.is_none(),
         "resync should have completed"
     );
 
     assert!(
-        user.self_group_has_derivation_epoch().await?,
+        alice.self_group_has_derivation_epoch().await?,
         "the resync must re-register the self-group's derivation epoch"
     );
 
     // The self-group backs virtual-client operations again: a key package
     // upload stages against its derivation epoch and completes.
-    user.outbound_service()
+    alice
+        .outbound_service()
         .schedule_key_package_upload(Utc::now())
         .await?;
-    user.outbound_service().run_once().await;
-    test_user.fetch_and_process_qs_messages().await;
+    alice.outbound_service().run_once().await;
+    alice.drain().await;
     assert!(
-        user.self_group_pending_operation_info().await?.is_none(),
+        alice.self_group_pending_operation_info().await?.is_none(),
         "upload cycle should have completed"
     );
-    let (plain_refs, apq_refs) = user.live_key_package_refs().await?;
+    let (plain_refs, apq_refs) = alice.live_key_package_refs().await?;
     assert!(
         !plain_refs.is_empty() && !apq_refs.is_empty(),
         "the upload after the resync should have published a live batch"
@@ -113,14 +83,12 @@ async fn self_group_resync_re_registers_the_derivation_epoch() -> anyhow::Result
 #[tokio::test(flavor = "multi_thread")]
 async fn key_package_upload_via_self_group_waits_for_commit_response() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let user_id = setup.add_user().await;
-    let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
-    let test_user = setup.get_user(&user_id);
-    let user = &test_user.user;
+    let alice = setup.add_user().await;
+    let _alice2 = link_sibling(&alice).await;
 
     // Baseline: the initial publish-path upload from user creation
-    let live_before = user.live_key_package_refs().await?;
-    let (t_epoch, pq_epoch) = user
+    let live_before = alice.live_key_package_refs().await?;
+    let (t_epoch, pq_epoch) = alice
         .self_group_epochs()
         .await?
         .expect("self-group should be persisted");
@@ -128,42 +96,43 @@ async fn key_package_upload_via_self_group_waits_for_commit_response() -> anyhow
 
     // Trigger the key package upload: stages at QS, commits via the self-group, and leaves the job
     // waiting for the queue-delivered commit response.
-    user.outbound_service()
+    alice
+        .outbound_service()
         .schedule_key_package_upload(Utc::now())
         .await?;
-    user.outbound_service().run_once().await;
+    alice.outbound_service().run_once().await;
 
     // After the DS ack, the job must wait for the commit response: commit
     // unmerged, no refs flipped.
-    let info = user
+    let info = alice
         .self_group_pending_operation_info()
         .await?
         .expect("upload job should be pending");
     assert_eq!(info.operation_type, "self_group_kp_upload");
     assert_eq!(info.request_status, "waiting_for_queue_response");
     assert_eq!(
-        user.live_key_package_refs().await?,
+        alice.live_key_package_refs().await?,
         live_before,
         "refs must not go live before the commit response"
     );
     assert_eq!(
-        user.self_group_epochs().await?,
+        alice.self_group_epochs().await?,
         Some((t_epoch, Some(pq_epoch))),
         "commit must not be merged before the commit response"
     );
 
     // Process the DsCommitResponse
-    let processed = test_user.fetch_and_process_qs_messages().await;
+    let processed = alice.drain().await.processed;
     assert!(processed >= 1, "expected at least the commit response");
 
     // The response finalizes the upload: job gone, commit merged in both
     // groups, new batch live.
     assert!(
-        user.self_group_pending_operation_info().await?.is_none(),
+        alice.self_group_pending_operation_info().await?.is_none(),
         "job should be deleted after the echo"
     );
 
-    let (new_t_epoch, new_pq_epoch) = user.self_group_epochs().await?.unwrap();
+    let (new_t_epoch, new_pq_epoch) = alice.self_group_epochs().await?.unwrap();
     assert_eq!(
         new_t_epoch.as_u64(),
         t_epoch.as_u64() + 1,
@@ -176,7 +145,7 @@ async fn key_package_upload_via_self_group_waits_for_commit_response() -> anyhow
     );
 
     let (live_before_plain_refs, live_before_apq_refs) = live_before;
-    let (live_plain_refs, live_apq_refs) = user.live_key_package_refs().await?;
+    let (live_plain_refs, live_apq_refs) = alice.live_key_package_refs().await?;
     assert_ne!(
         live_plain_refs, live_before_plain_refs,
         "plain refs should be replaced"
@@ -192,23 +161,23 @@ async fn key_package_upload_via_self_group_waits_for_commit_response() -> anyhow
 #[tokio::test(flavor = "multi_thread")]
 async fn single_device_uploads_key_packages_via_publish() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let user_id = setup.add_user().await;
-    let user = &setup.get_user(&user_id).user;
+    let alice = setup.add_user().await;
 
-    user.ensure_self_group().await?;
-    let live_before = user.live_key_package_refs().await?;
-    let epochs_before = user.self_group_epochs().await?;
+    alice.ensure_self_group().await?;
+    let live_before = alice.live_key_package_refs().await?;
+    let epochs_before = alice.self_group_epochs().await?;
 
-    user.outbound_service()
+    alice
+        .outbound_service()
         .schedule_key_package_upload(Utc::now())
         .await?;
-    user.outbound_service().run_once().await;
+    alice.outbound_service().run_once().await;
 
     // Without siblings there is nobody to derive the batch from a commit, so
     // the self group is left alone and the batch goes live right away.
-    assert!(user.self_group_pending_operation_info().await?.is_none());
-    assert_eq!(user.self_group_epochs().await?, epochs_before);
-    let live_after = user.live_key_package_refs().await?;
+    assert!(alice.self_group_pending_operation_info().await?.is_none());
+    assert_eq!(alice.self_group_epochs().await?, epochs_before);
+    let live_after = alice.live_key_package_refs().await?;
     assert_ne!(live_after.0, live_before.0, "plain refs should be replaced");
     assert_ne!(live_after.1, live_before.1, "APQ refs should be replaced");
 
@@ -218,41 +187,35 @@ async fn single_device_uploads_key_packages_via_publish() -> anyhow::Result<()> 
 #[tokio::test(flavor = "multi_thread")]
 async fn key_packages_from_self_group_upload_are_served_and_usable() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
-    let (_device_b, _tmp) = link_sibling(&setup, &alice).await?;
+    let _alice2 = link_sibling(&alice).await;
 
     // Full upload cycle for alice
     {
-        let test_user = setup.get_user(&alice);
-        let user = &test_user.user;
-        user.outbound_service()
+        alice
+            .outbound_service()
             .schedule_key_package_upload(Utc::now())
             .await?;
-        user.outbound_service().run_once().await;
-        test_user.fetch_and_process_qs_messages().await;
+        alice.outbound_service().run_once().await;
+        alice.drain().await;
         assert!(
-            user.self_group_pending_operation_info().await?.is_none(),
+            alice.self_group_pending_operation_info().await?.is_none(),
             "upload cycle should have completed"
         );
     }
 
     // Plain group: the invite consumes one of alice's T key packages from the batch
     let chat_id = setup.create_group(&bob).await;
-    setup.invite_to_group(chat_id, &bob, vec![&alice]).await;
-    setup.send_message(chat_id, &bob, vec![&alice], None).await;
-    setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    setup.invite_to_group(chat_id, &bob, &[&alice]).await;
+    setup.send_message(chat_id, &bob, &[&alice]).await;
+    setup.send_message(chat_id, &alice, &[&bob]).await;
 
     // APQ group: the invite consumes one of alice's APQ key packages from the batch
     let apq_chat_id = setup.create_apq_group(&bob).await;
-    setup.invite_to_group(apq_chat_id, &bob, vec![&alice]).await;
-    setup
-        .send_message(apq_chat_id, &bob, vec![&alice], None)
-        .await;
-    setup
-        .send_message(apq_chat_id, &alice, vec![&bob], None)
-        .await;
+    setup.invite_to_group(apq_chat_id, &bob, &[&alice]).await;
+    setup.send_message(apq_chat_id, &bob, &[&alice]).await;
+    setup.send_message(apq_chat_id, &alice, &[&bob]).await;
 
     Ok(())
 }
@@ -262,48 +225,48 @@ async fn key_packages_from_self_group_upload_are_served_and_usable() -> anyhow::
 #[tokio::test(flavor = "multi_thread")]
 async fn key_package_upload_recovers_from_staging_failure() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let user_id = setup.add_user().await;
-    let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
-    let test_user = setup.get_user(&user_id);
-    let user = &test_user.user;
+    let alice = setup.add_user().await;
+    let _alice2 = link_sibling(&alice).await;
 
-    let live_before = user.live_key_package_refs().await?;
-    let epochs_before = user.self_group_epochs().await?;
+    let live_before = alice.live_key_package_refs().await?;
+    let epochs_before = alice.self_group_epochs().await?;
 
     // The staging request at the QS fails with a network error. Drop *all* requests: run_once
     // issues unrelated requests (token replenishment, receipts, queue fetch) before the staging
     // one, so a single-shot drop_next_request would hit the wrong request.
     setup.listener_control_handle().set_drop_all();
-    user.outbound_service()
+    alice
+        .outbound_service()
         .schedule_key_package_upload(Utc::now())
         .await?;
-    user.outbound_service().run_once().await;
+    alice.outbound_service().run_once().await;
     setup.listener_control_handle().set_normal();
 
     assert!(
-        user.self_group_pending_operation_info().await?.is_none(),
+        alice.self_group_pending_operation_info().await?.is_none(),
         "failed staging must not leave a job behind"
     );
     assert_eq!(
-        user.self_group_epochs().await?,
+        alice.self_group_epochs().await?,
         epochs_before,
         "no commit must be staged after a failed staging request"
     );
     assert_eq!(
-        user.live_key_package_refs().await?,
+        alice.live_key_package_refs().await?,
         live_before,
         "live refs must be unchanged after a failed staging request"
     );
 
     // A later run completes the full cycle
-    user.outbound_service()
+    alice
+        .outbound_service()
         .schedule_key_package_upload(Utc::now())
         .await?;
-    user.outbound_service().run_once().await;
-    test_user.fetch_and_process_qs_messages().await;
+    alice.outbound_service().run_once().await;
+    alice.drain().await;
 
-    assert!(user.self_group_pending_operation_info().await?.is_none());
-    let live_after = user.live_key_package_refs().await?;
+    assert!(alice.self_group_pending_operation_info().await?.is_none());
+    let live_after = alice.live_key_package_refs().await?;
     assert_ne!(live_after.0, live_before.0, "plain refs should be replaced");
     assert_ne!(live_after.1, live_before.1, "APQ refs should be replaced");
 
@@ -315,51 +278,52 @@ async fn key_package_upload_recovers_from_staging_failure() -> anyhow::Result<()
 #[tokio::test(flavor = "multi_thread")]
 async fn key_package_upload_backs_off_while_pending() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let user_id = setup.add_user().await;
-    let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
-    let test_user = setup.get_user(&user_id);
-    let user = &test_user.user;
+    let alice = setup.add_user().await;
+    let _alice2 = link_sibling(&alice).await;
 
     // First upload: job ends up waiting for the commit response
-    user.outbound_service()
+    alice
+        .outbound_service()
         .schedule_key_package_upload(Utc::now())
         .await?;
-    user.outbound_service().run_once().await;
+    alice.outbound_service().run_once().await;
 
-    let info = user
+    let info = alice
         .self_group_pending_operation_info()
         .await?
         .expect("upload job should be pending");
-    let epochs = user.self_group_epochs().await?;
+    let epochs = alice.self_group_epochs().await?;
 
     // A second run must back off: same job, no new commit staged
-    user.outbound_service()
+    alice
+        .outbound_service()
         .schedule_key_package_upload(Utc::now())
         .await?;
-    user.outbound_service().run_once().await;
+    alice.outbound_service().run_once().await;
 
-    let info_after = user
+    let info_after = alice
         .self_group_pending_operation_info()
         .await?
         .expect("upload job should still be pending");
     assert_eq!(info_after.request_status, info.request_status);
     assert_eq!(info_after.number_of_attempts, info.number_of_attempts);
-    assert_eq!(user.self_group_epochs().await?, epochs);
+    assert_eq!(alice.self_group_epochs().await?, epochs);
 
     // The commit response completes the first upload despite the interleaved run
-    test_user.fetch_and_process_qs_messages().await;
-    assert!(user.self_group_pending_operation_info().await?.is_none());
-    let live_first = user.live_key_package_refs().await?;
+    alice.drain().await;
+    assert!(alice.self_group_pending_operation_info().await?.is_none());
+    let live_first = alice.live_key_package_refs().await?;
 
     // A full second cycle replaces the batch again
-    user.outbound_service()
+    alice
+        .outbound_service()
         .schedule_key_package_upload(Utc::now())
         .await?;
-    user.outbound_service().run_once().await;
-    test_user.fetch_and_process_qs_messages().await;
+    alice.outbound_service().run_once().await;
+    alice.drain().await;
 
-    assert!(user.self_group_pending_operation_info().await?.is_none());
-    let live_second = user.live_key_package_refs().await?;
+    assert!(alice.self_group_pending_operation_info().await?.is_none());
+    let live_second = alice.live_key_package_refs().await?;
     assert_ne!(live_second.0, live_first.0);
     assert_ne!(live_second.1, live_first.1);
 
@@ -372,37 +336,36 @@ async fn key_package_upload_backs_off_while_pending() -> anyhow::Result<()> {
 #[tokio::test(flavor = "multi_thread")]
 async fn mismatched_upload_commit_abandons_job() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let user_id = setup.add_user().await;
-    let (_device_b, _tmp) = link_sibling(&setup, &user_id).await?;
-    let test_user = setup.get_user(&user_id);
-    let user = &test_user.user;
+    let alice = setup.add_user().await;
+    let _alice2 = link_sibling(&alice).await;
 
-    let live_before = user.live_key_package_refs().await?;
-    let (t_epoch, _) = user
+    let live_before = alice.live_key_package_refs().await?;
+    let (t_epoch, _) = alice
         .self_group_epochs()
         .await?
         .expect("self-group should be persisted");
 
-    user.outbound_service()
+    alice
+        .outbound_service()
         .schedule_key_package_upload(Utc::now())
         .await?;
-    user.outbound_service().run_once().await;
+    alice.outbound_service().run_once().await;
 
     // Fork the local job state from the commit the DS accepted, then let the
     // real `DsCommitResponse` arrive through the queue.
-    user.corrupt_self_group_upload_batch_id().await?;
-    test_user.fetch_and_process_qs_messages().await;
+    alice.corrupt_self_group_upload_batch_id().await?;
+    alice.drain().await;
 
     // The commit is merged (the group must not fall behind the DS), but the
     // job is abandoned without marking the batch live.
     assert!(
-        user.self_group_pending_operation_info().await?.is_none(),
+        alice.self_group_pending_operation_info().await?.is_none(),
         "the mismatched job should be abandoned"
     );
-    let (new_t_epoch, _) = user.self_group_epochs().await?.unwrap();
+    let (new_t_epoch, _) = alice.self_group_epochs().await?.unwrap();
     assert_eq!(new_t_epoch.as_u64(), t_epoch.as_u64() + 1);
     assert_eq!(
-        user.live_key_package_refs().await?,
+        alice.live_key_package_refs().await?,
         live_before,
         "an abandoned upload must not change the live set"
     );
@@ -414,13 +377,13 @@ async fn mismatched_upload_commit_abandons_job() -> anyhow::Result<()> {
 async fn multi_device_sibling_derives_key_packages_from_upload_commit() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let (device_b, _tmp) = link_new_device(&setup, &alice).await;
+    let alice2 = alice.add_linked_device().await;
 
     // Both devices start from the merged linking commit.
-    setup.get_user(&alice).fetch_and_process_qs_messages().await;
-    drain_queue(&device_b).await?;
+    alice.drain().await;
+    alice2.drain().await;
 
-    let live_before = device_b.live_key_package_refs().await?;
+    let live_before = alice2.live_key_package_refs().await?;
     assert_eq!(
         live_before,
         (vec![], vec![]),
@@ -429,28 +392,27 @@ async fn multi_device_sibling_derives_key_packages_from_upload_commit() -> anyho
 
     // Device A runs a full upload cycle, including the echo that marks the batch live.
     {
-        let test_user = setup.get_user(&alice);
-        let user = &test_user.user;
-        user.outbound_service()
+        alice
+            .outbound_service()
             .schedule_key_package_upload(Utc::now())
             .await?;
-        user.outbound_service().run_once().await;
-        test_user.fetch_and_process_qs_messages().await;
+        alice.outbound_service().run_once().await;
+        alice.drain().await;
         assert!(
-            user.self_group_pending_operation_info().await?.is_none(),
+            alice.self_group_pending_operation_info().await?.is_none(),
             "upload cycle should have completed"
         );
     }
-    let live_a = setup.get_user(&alice).user.live_key_package_refs().await?;
+    let live_a = alice.live_key_package_refs().await?;
     assert!(
         !live_a.0.is_empty() && !live_a.1.is_empty(),
         "the uploader should have live plain and APQ key packages"
     );
 
     // Processing A's self-group commit makes A's batch B's live set too.
-    drain_queue(&device_b).await?;
+    alice2.drain().await;
     assert_eq!(
-        device_b.live_key_package_refs().await?,
+        alice2.live_key_package_refs().await?,
         live_a,
         "the sibling must derive exactly the batch the uploader published"
     );
@@ -462,38 +424,36 @@ async fn multi_device_sibling_derives_key_packages_from_upload_commit() -> anyho
 async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling()
 -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
 
-    let (device_b, _tmp) = link_new_device(&setup, &alice).await;
-    setup.get_user(&alice).fetch_and_process_qs_messages().await;
-    drain_queue(&device_b).await?;
+    let alice2 = alice.add_linked_device().await;
+    alice.drain().await;
+    alice2.drain().await;
 
     // Device A publishes a fresh batch via the self-group.
     {
-        let test_user = setup.get_user(&alice);
-        let user = &test_user.user;
-        user.outbound_service()
+        alice
+            .outbound_service()
             .schedule_key_package_upload(Utc::now())
             .await?;
-        user.outbound_service().run_once().await;
-        test_user.fetch_and_process_qs_messages().await;
+        alice.outbound_service().run_once().await;
+        alice.drain().await;
         assert!(
-            user.self_group_pending_operation_info().await?.is_none(),
+            alice.self_group_pending_operation_info().await?.is_none(),
             "upload cycle should have completed"
         );
     }
 
     // Device B derives the batch from A's commit.
-    drain_queue(&device_b).await?;
+    alice2.drain().await;
 
     // Bob invites Alice, consuming a key package from the batch.
     let chat_id = setup.create_group(&bob).await;
-    setup.invite_to_group(chat_id, &bob, vec![&alice]).await;
+    setup.invite_to_group(chat_id, &bob, &[&alice]).await;
 
     // Device B joins from the same welcome, using key material it derived rather than generated.
-    let processed = drain_queue(&device_b).await?;
+    let processed = alice2.drain().await;
     assert!(
         processed
             .new_chats
@@ -503,8 +463,8 @@ async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling
     );
 
     // And it stays a working member of the group.
-    setup.send_message(chat_id, &bob, vec![&alice], None).await;
-    let processed = drain_queue(&device_b).await?;
+    setup.send_message(chat_id, &bob, &[&alice]).await;
+    let processed = alice2.drain().await;
     assert!(
         processed
             .new_messages
@@ -518,38 +478,33 @@ async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling
 
 #[tokio::test(flavor = "multi_thread")]
 async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> anyhow::Result<()> {
-    use aircoreclient::clients::MarkChatAsRead;
-    use mimi_content::MimiContent;
-
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
 
-    let (device_b, _tmp) = link_new_device(&setup, &alice).await;
-    setup.get_user(&alice).fetch_and_process_qs_messages().await;
-    drain_queue(&device_b).await?;
+    let alice2 = alice.add_linked_device().await;
+    alice.drain().await;
+    alice2.drain().await;
 
     // Device A publishes a fresh batch via the self-group.
     {
-        let test_user = setup.get_user(&alice);
-        let user = &test_user.user;
-        user.outbound_service()
+        alice
+            .outbound_service()
             .schedule_key_package_upload(Utc::now())
             .await?;
-        user.outbound_service().run_once().await;
-        test_user.fetch_and_process_qs_messages().await;
+        alice.outbound_service().run_once().await;
+        alice.drain().await;
         assert!(
-            user.self_group_pending_operation_info().await?.is_none(),
+            alice.self_group_pending_operation_info().await?.is_none(),
             "upload cycle should have completed"
         );
     }
-    drain_queue(&device_b).await?;
+    alice2.drain().await;
 
     // Bob invites Alice: device B joins from the same welcome.
     let chat_id = setup.create_group(&bob).await;
-    setup.invite_to_group(chat_id, &bob, vec![&alice]).await;
-    let processed = drain_queue(&device_b).await?;
+    setup.invite_to_group(chat_id, &bob, &[&alice]).await;
+    let processed = alice2.drain().await;
     assert!(
         processed
             .new_chats
@@ -559,8 +514,8 @@ async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> an
     );
 
     // Device A sends: device B must see the echo.
-    setup.send_message(chat_id, &alice, vec![&bob], None).await;
-    let processed = drain_queue(&device_b).await?;
+    setup.send_message(chat_id, &alice, &[&bob]).await;
+    let processed = alice2.drain().await;
     assert!(
         processed
             .new_messages
@@ -573,12 +528,8 @@ async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> an
     );
 
     // Device B sends: device A must see the echo.
-    let content = MimiContent::simple_markdown_message("from device b".to_owned(), [9u8; 16]);
-    device_b
-        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
-        .await?;
-    device_b.outbound_service().run_once().await;
-    let processed = drain_queue(setup.get_user(&alice).user()).await?;
+    alice2.send_text(chat_id, "from device b").await;
+    let processed = alice.drain().await;
     assert!(
         processed
             .new_messages
@@ -591,8 +542,8 @@ async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> an
     );
 
     // Bob sends: both devices see it.
-    setup.send_message(chat_id, &bob, vec![&alice], None).await;
-    let processed = drain_queue(&device_b).await?;
+    setup.send_message(chat_id, &bob, &[&alice]).await;
+    let processed = alice2.drain().await;
     assert!(
         processed
             .new_messages

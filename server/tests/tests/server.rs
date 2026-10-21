@@ -21,7 +21,7 @@ use aircommon::{
     registration::{AdmissionSession, ChallengeKind, RegistrationChallenge},
 };
 use aircoreclient::{
-    ChatId, DisplayName, EventMessage, Message, SystemMessage, UserProfile,
+    ChatId, DisplayName, SystemMessage, UserProfile,
     clients::{
         CoreUser, ListenResponse, MarkChatAsRead, listen_response,
         process::process_qs::ProcessedQsMessages, registration::RegistrationError,
@@ -35,7 +35,10 @@ use airprotos::{
     delivery_service::v1::delivery_service_server,
     queue_service::v1::{VersionStatus, queue_service_server},
 };
-use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams, TestUser};
+use airserver_test_harness::utils::{
+    core_user_ext::CoreUserExt,
+    setup::{TestBackend, TestBackendParams, TestUser},
+};
 use chrono::{DateTime, Utc};
 use mimi_content::{MessageStatus, MimiContent};
 use semver::Version;
@@ -49,7 +52,6 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Rate limit test", skip_all)]
 async fn rate_limit() {
     const PERIOD: Duration = Duration::from_millis(100);
     let mut setup = TestBackend::single_with_params(TestBackendParams {
@@ -66,11 +68,8 @@ async fn rate_limit() {
         return;
     }
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
-
-    let alice = &setup.get_user(&alice);
 
     let mut resource_exhausted = false;
     let mut held_id = None;
@@ -80,14 +79,13 @@ async fn rate_limit() {
         // All requests from this host share one bucket. Cheap fetches empty it
         // much faster than it refills, so the send right after is limited.
         for _ in 0..1000 {
-            if alice.user.qs_fetch_messages().await.is_err() {
+            if alice.qs_fetch_messages().await.is_err() {
                 break;
             }
         }
 
         info!(i, "sending message");
         alice
-            .user
             .send_message(
                 chat_id,
                 MimiContent::simple_markdown_message(format!("Hello bob {i}"), [0; 16]), // simple seed for testing
@@ -96,9 +94,9 @@ async fn rate_limit() {
             )
             .await
             .unwrap();
-        alice.user.outbound_service().run_once().await;
+        alice.outbound_service().run_once().await;
 
-        let message = alice.user.last_message(chat_id).await.unwrap().unwrap();
+        let message = alice.expect_last_message(chat_id).await;
 
         // Due to the indirection of the outbound service, we can't just check
         // for errors while sending. Instead, we just check whether the message
@@ -125,48 +123,25 @@ async fn rate_limit() {
 
     info!("sending message after rate limit tokens replenished");
     const FINAL_TEXT: &str = "after replenish";
-    alice
-        .user
-        .send_message(
-            chat_id,
-            MimiContent::simple_markdown_message(FINAL_TEXT.into(), [0; 16]), // simple seed for testing
-            None,
-            MarkChatAsRead::Yes,
-        )
-        .await
-        .unwrap();
-    alice.user.outbound_service().run_once().await;
-
-    let message = alice.user.last_message(chat_id).await.unwrap().unwrap();
+    let message = alice.send_text(chat_id, FINAL_TEXT).await;
     assert!(message.is_sent());
-    let held = alice.user.message(held_id).await.unwrap().unwrap();
+    let held = alice.expect_message(held_id).await;
     assert!(held.is_sent());
     assert_ne!(held.status(), MessageStatus::Error);
 
     // Bob receives the held message before the later one
-    let bob = setup.get_user(&bob);
-    bob.fetch_and_process_qs_messages().await;
-    let texts: Vec<String> = bob
-        .user
-        .messages(chat_id, 1000)
-        .await
-        .unwrap()
-        .iter()
-        .filter_map(|m| m.message().mimi_content()?.string_rendering().ok())
-        .collect();
+    bob.drain().await;
+    let texts = bob.text_messages(chat_id).await;
     let held_pos = texts.iter().position(|t| *t == held_text).unwrap();
     let final_pos = texts.iter().position(|t| t == FINAL_TEXT).unwrap();
     assert!(held_pos < final_pos);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "User deletion triggers", skip_all)]
 async fn user_deletion_triggers() {
     let mut setup = TestBackend::single().await;
     // Create alice and bob
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     // Connect alice and bob
     setup.connect_users(&alice, &bob).await;
@@ -178,24 +153,22 @@ async fn user_deletion_triggers() {
     // Alice creates a group and invites bob and charlie
     let chat_id = setup.create_group(&alice).await;
     setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
         .await;
 
     // Bob should have a user profile for charlie now, even though they
     // are not connected.
-    let bob_user = &setup.get_user(&bob).user;
-    let bob_user_profile_charlie = bob_user.user_profile(&charlie).await;
-    assert!(bob_user_profile_charlie.user_id == charlie);
+    let bob_user_profile_charlie = bob.user_profile(charlie.user_id()).await;
+    assert!(bob_user_profile_charlie.user_id == *charlie.user_id());
 
     // Now charlie leaves the group
     setup.leave_group(chat_id, &charlie).await.unwrap();
     // Bob should not have a user profile for charlie anymore.
 
-    let bob = setup.get_user(&bob);
-    let bob_user_profile_charlie = bob.user.user_profile(&charlie).await;
+    let bob_user_profile_charlie = bob.user_profile(charlie.user_id()).await;
     assert_eq!(
         bob_user_profile_charlie,
-        aircoreclient::UserProfile::from_user_id(&charlie)
+        aircoreclient::UserProfile::from_user_id(charlie.user_id())
     );
 }
 
@@ -259,7 +232,6 @@ async fn grpc_method_aliases() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Health check test", skip_all)]
 async fn health_check() {
     let setup = TestBackend::single().await;
     let channel = Channel::from_shared(setup.server_url().to_string())
@@ -293,12 +265,11 @@ async fn health_check() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Max past epochs", skip_all)]
 async fn max_past_epochs() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    setup.get_user_mut(&alice).add_username().await.unwrap();
+    setup.add_username(&alice).await;
 
     let bob = setup.add_user().await;
 
@@ -311,7 +282,7 @@ async fn max_past_epochs() {
     // Create MAX_PAST_EPOCHS updates and send a message from Bob to Alice after
     // each update.
     for _ in 0..MAX_PAST_EPOCHS {
-        let result = update_and_send_message(&mut setup, contact_chat_id, &alice, &bob).await;
+        let result = update_and_send_message(contact_chat_id, &alice, &bob).await;
         assert!(
             result.errors.is_empty(),
             "Alice should process Bob's message without errors"
@@ -319,7 +290,7 @@ async fn max_past_epochs() {
     }
 
     // Repeat one more time, this time we expect an error
-    let result = update_and_send_message(&mut setup, contact_chat_id, &alice, &bob).await;
+    let result = update_and_send_message(contact_chat_id, &alice, &bob).await;
     let error = &result.errors[0].to_string();
     assert_eq!(
         error.to_string(),
@@ -329,35 +300,25 @@ async fn max_past_epochs() {
 }
 
 async fn update_and_send_message(
-    setup: &mut TestBackend,
     contact_chat_id: ChatId,
-    alice: &UserId,
-    bob: &UserId,
+    alice: &CoreUser,
+    bob: &CoreUser,
 ) -> ProcessedQsMessages {
-    let alice_user = &setup.get_user(alice).user;
     // alice creates an update and sends it to the ds
-    alice_user.update_key(contact_chat_id).await.unwrap();
+    alice.update_key(contact_chat_id).await.unwrap();
     // bob creates a message based on his (old) epoch for alice
-    let bob_user = &setup.get_user(bob).user;
-    let msg = MimiContent::simple_markdown_message("message".to_owned(), [0; 16]);
-    bob_user
-        .send_message(contact_chat_id, msg, None, MarkChatAsRead::Yes)
-        .await
-        .unwrap();
-    bob_user.outbound_service().run_once().await;
+    bob.send_text(contact_chat_id, "message").await;
     // alice fetches and processes bob's message
-    let alice_user = &setup.get_user(alice).user;
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    alice_user.fully_process_qs_messages(qs_messages).await
+    let qs_messages = alice.qs_fetch_messages().await.unwrap();
+    alice.fully_process_qs_messages(qs_messages).await
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Ratchet tolerance", skip_all)]
 async fn ratchet_tolerance() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    setup.get_user_mut(&alice).add_username().await.unwrap();
+    setup.add_username(&alice).await;
 
     let bob = setup.add_user().await;
 
@@ -365,21 +326,19 @@ async fn ratchet_tolerance() {
 
     // To test the tolerance of the ratchet, we have Alice send a bunch of
     // messages and then give Bob only the last one to process.
-    let alice_user = &setup.get_user(&alice).user;
     for _ in 0..5 {
         let msg = MimiContent::simple_markdown_message("message".to_owned(), [0; 16]);
-        alice_user
+        alice
             .send_message(contact_chat_id, msg, None, MarkChatAsRead::Yes)
             .await
             .unwrap();
     }
-    alice_user.outbound_service().run_once().await;
+    alice.outbound_service().run_once().await;
 
-    let bob_user = &setup.get_user(&bob).user;
-    let mut qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let mut qs_messages = bob.qs_fetch_messages().await.unwrap();
     // Give Bob only the last message to process
     let last_message = qs_messages.pop().unwrap();
-    let result = bob_user.fully_process_qs_messages(vec![last_message]).await;
+    let result = bob.fully_process_qs_messages(vec![last_message]).await;
     assert!(
         result.errors.is_empty(),
         "Bob should process Alice's last message without errors"
@@ -394,7 +353,7 @@ async fn ratchet_tolerance() {
 //     let mut setup = TestBackend::single().await;
 
 //     let alice = setup.add_user().await;
-//     setup.get_user_mut(&alice).add_username().await.unwrap();
+//     setup.get_user_mut(&alice).add_username().await;
 
 //     let bob = setup.add_user().await;
 
@@ -427,7 +386,7 @@ async fn ratchet_tolerance() {
 //     const NUM_CLIENTS: usize = 2;
 //     let mut join_set = JoinSet::new();
 
-//     let bob_user = setup.get_user(&bob).user.clone();
+//     let bob_user = setup.user(&bob).clone();
 //     let (processed, processed_rx) = tokio::sync::watch::channel(0);
 
 //     for _ in 0..NUM_CLIENTS {
@@ -476,65 +435,54 @@ async fn ratchet_tolerance() {
 // }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Resync", skip_all)]
 async fn resync() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    setup.get_user_mut(&alice).add_username().await.unwrap();
+    setup.add_username(&alice).await;
 
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [bob, charlie] = setup.add_users().await;
 
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
 
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     // To trigger resync, we have Alice add Charlie to the group and Bob
     // fetching, but not processing the commit.
-    let alice_user = &setup.get_user(&alice).user;
 
     // Alice creates a invites charlie and sends the commit to the DS
-    alice_user
-        .invite_users(chat_id, slice::from_ref(&charlie))
+    alice
+        .invite_users(chat_id, slice::from_ref(charlie.user_id()))
         .await
         .unwrap();
 
     // Bob fetches the invite and acks it s.t. it's removed from the queue,
     // but does not process it. This is to simulate Bob missing the commit.
-    let bob_user = &setup.get_user(&bob).user;
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let qs_messages = bob.qs_fetch_messages().await.unwrap();
     let [message] = qs_messages.as_slice() else {
         panic!("Bob should have one message in the queue");
     };
-    let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
+    let (mut stream, responder) = bob.listen_queue().await.unwrap();
     responder.ack(message.sequence_number + 1).await;
     responder.close(&mut stream).await;
 
     // Alice performs an update, which bob fetches and processes, triggering a
     // resync.
-    let alice_user = &setup.get_user(&alice).user;
-    alice_user.update_key(chat_id).await.unwrap();
+    alice.update_key(chat_id).await.unwrap();
 
     // Bob fetches and processes the update
-    let bob_user = &setup.get_user(&bob).user;
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    bob.drain().await;
     // Run outbound service to complete the rejoin process
-    bob_user.outbound_service().run_once().await;
+    bob.outbound_service().run_once().await;
     // Instead of throwing an error, Bob should have re-synced as part of processing the update.
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Alice's update and message without errors"
-    );
 
     // The resync diff should surface Charlie's addition without an actor.
-    let messages = system_messages(bob_user, chat_id).await;
+    let messages = bob.system_messages(chat_id).await;
     let actorless_charlie_adds = messages
         .iter()
-        .filter(|message| matches!(message, SystemMessage::Add(None, added) if added == &charlie))
+        .filter(|message| matches!(message, SystemMessage::Add(None, added) if added == charlie.user_id()))
         .count();
     assert_eq!(
         actorless_charlie_adds, 1,
@@ -543,7 +491,7 @@ async fn resync() {
     let charlie_adds_with_actor = messages
         .iter()
         .filter(
-            |message| matches!(message, SystemMessage::Add(Some(_), added) if added == &charlie),
+            |message| matches!(message, SystemMessage::Add(Some(_), added) if added == charlie.user_id()),
         )
         .count();
     assert_eq!(
@@ -551,26 +499,14 @@ async fn resync() {
         "Bob never processed the invite commit, so no add with an actor"
     );
 
-    let alice_user = &setup.get_user(&alice).user;
-
     // Alice processes Bob's rejoin
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-
-    assert!(
-        result.errors.is_empty(),
-        "Alice should process Bob's rejoin without errors"
-    );
+    alice.drain().await;
 
     // Bob should have rejoined the group and should be able to send a message.
-    setup
-        .send_message(chat_id, &bob, vec![&alice, &charlie], None)
-        .await;
-
-    let alice_user = &setup.get_user(&alice).user;
+    setup.send_message(chat_id, &bob, &[&alice, &charlie]).await;
 
     // When Alice sends another message, Bob should be able to process it without errors.
-    alice_user
+    alice
         .send_message(
             chat_id,
             MimiContent::simple_markdown_message("message".to_owned(), [0; 16]),
@@ -580,64 +516,53 @@ async fn resync() {
         .await
         .unwrap();
 
-    let bob_user = &setup.get_user(&bob).user;
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Alice's message without errors"
-    );
+    bob.drain().await;
 
     // Now Alice leaves the group, which means that if Bob resyncs again, he
     // should commit the SelfRemove proposal in the process.
-    let alice_user = &setup.get_user(&alice).user;
 
     // Alice sends an update, which Bob misses again.
-    alice_user.update_key(chat_id).await.unwrap();
+    alice.update_key(chat_id).await.unwrap();
 
     // Bob fetches the update and acks it s.t. it's removed from the queue,
     // but does not process it. This is to simulate Bob missing the commit.
-    let bob_user = &setup.get_user(&bob).user;
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let qs_messages = bob.qs_fetch_messages().await.unwrap();
     let [message] = qs_messages.as_slice() else {
         panic!("Bob should have one message in the queue");
     };
-    let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
+    let (mut stream, responder) = bob.listen_queue().await.unwrap();
     responder.ack(message.sequence_number + 1).await;
     responder.close(&mut stream).await;
 
     // Now Alice leaves the group, which means that if Bob resyncs again, he
     // should commit the SelfRemove proposal in the process.
-    let alice_user = &setup.get_user(&alice).user;
-    alice_user.leave_chat(chat_id).await.unwrap();
+    alice.leave_chat(chat_id).await.unwrap();
 
     // Bob fetches and processes his messages, which should trigger a resync.
-    let bob_user = &setup.get_user(&bob).user;
 
     // Alice is still part of the group.
-    let participants = bob_user.group_members(chat_id).await.unwrap();
+    let participants = bob.group_members(chat_id).await.unwrap();
     assert_eq!(
         participants,
-        [alice.clone(), bob.clone(), charlie.clone()]
-            .into_iter()
-            .collect()
+        [
+            alice.user_id().clone(),
+            bob.user_id().clone(),
+            charlie.user_id().clone()
+        ]
+        .into_iter()
+        .collect()
     );
 
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    bob_user.outbound_service().run_once().await;
+    bob.drain().await;
+    bob.outbound_service().run_once().await;
     // Instead of throwing an error, Bob should have re-synced as part of processing the update.
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Alice's update without errors"
-    );
 
     // The resync committed Alice's SelfRemove, which Bob cannot attribute.
-    let messages = system_messages(bob_user, chat_id).await;
+    let messages = bob.system_messages(chat_id).await;
     let actorless_alice_removes = messages
         .iter()
         .filter(
-            |message| matches!(message, SystemMessage::Remove(None, removed) if removed == &alice),
+            |message| matches!(message, SystemMessage::Remove(None, removed) if removed == alice.user_id()),
         )
         .count();
     assert_eq!(
@@ -647,7 +572,7 @@ async fn resync() {
     let alice_removes_with_actor = messages
         .iter()
         .filter(|message| {
-            matches!(message, SystemMessage::Remove(Some(_), removed) if removed == &alice)
+            matches!(message, SystemMessage::Remove(Some(_), removed) if removed == alice.user_id())
         })
         .count();
     assert_eq!(
@@ -672,117 +597,97 @@ async fn resync() {
     );
 
     // Alice not in the group anymore.
-    let participants = bob_user.group_members(chat_id).await.unwrap();
+    let participants = bob.group_members(chat_id).await.unwrap();
     assert_eq!(
         participants,
-        [bob.clone(), charlie.clone()].into_iter().collect()
+        [bob.user_id().clone(), charlie.user_id().clone()]
+            .into_iter()
+            .collect()
     );
 
     // Messages should reach Charlie.
-    setup
-        .send_message(chat_id, &bob, vec![&charlie], None)
-        .await;
+    setup.send_message(chat_id, &bob, &[&charlie]).await;
 
     // Charlie should also only see Bob in the group.
-    let charlie_user = &setup.get_user(&charlie).user;
 
-    let participants = charlie_user.group_members(chat_id).await.unwrap();
+    let participants = charlie.group_members(chat_id).await.unwrap();
     assert_eq!(
         participants,
-        [bob.clone(), charlie.clone()].into_iter().collect()
+        [bob.user_id().clone(), charlie.user_id().clone()]
+            .into_iter()
+            .collect()
     );
 }
 
 /// A wrong-epoch answer to our own commit parks it and nothing more. Only a message from an epoch
 /// ahead of ours schedules the resync.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Wrong epoch on own commit", skip_all)]
 async fn wrong_epoch_on_own_commit_does_not_resync() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    setup.connect_users(&alice, &bob).await;
-
-    let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
     // Alice commits. Bob acks the commit without processing it, so he is one epoch behind.
-    let alice_user = &setup.get_user(&alice).user;
-    alice_user.update_key(chat_id).await.unwrap();
+    alice.update_key(chat_id).await.unwrap();
 
-    let bob_user = &setup.get_user(&bob).user;
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let qs_messages = bob.qs_fetch_messages().await.unwrap();
     let [message] = qs_messages.as_slice() else {
         panic!("Bob should have one message in the queue");
     };
-    let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
+    let (mut stream, responder) = bob.listen_queue().await.unwrap();
     responder.ack(message.sequence_number + 1).await;
     responder.close(&mut stream).await;
 
-    let group_id = bob_user.chat(&chat_id).await.unwrap().group_id;
+    let group_id = bob.expect_chat(chat_id).await.group_id;
 
     // Bob's own commit is rejected with a wrong epoch: parked, nothing else.
-    bob_user
-        .update_key(chat_id)
+    bob.update_key(chat_id)
         .await
         .expect_err("commit at a stale epoch must be rejected");
-    let pending = bob_user
+    let pending = bob
         .pending_chat_operation_info(chat_id)
         .await
         .unwrap()
         .expect("rejected commit should be parked");
     assert_eq!(pending.request_status, "waiting_for_queue_response");
-    assert!(bob_user.resync_status(chat_id).await.unwrap().is_none());
-    assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
+    assert!(bob.resync_status(chat_id).await.unwrap().is_none());
+    assert!(!bob.chat_is_pending(&group_id).await.unwrap());
 
     // An outbound run changes nothing either.
-    bob_user.outbound_service().run_once().await;
-    assert!(bob_user.resync_status(chat_id).await.unwrap().is_none());
-    assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
+    bob.outbound_service().run_once().await;
+    assert!(bob.resync_status(chat_id).await.unwrap().is_none());
+    assert!(!bob.chat_is_pending(&group_id).await.unwrap());
 
     // Alice sends a message from the epoch Bob missed. Processing it proves the desync and
     // schedules the resync.
-    alice_user
-        .send_message(
-            chat_id,
-            MimiContent::simple_markdown_message("message".to_owned(), [0; 16]),
-            None,
-            MarkChatAsRead::Yes,
-        )
-        .await
-        .unwrap();
-    // Sending only queues the message, the outbound service delivers it.
-    alice_user.outbound_service().run_once().await;
+    alice.send_text(chat_id, "message").await;
 
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let qs_messages = bob.qs_fetch_messages().await.unwrap();
     assert_eq!(qs_messages.len(), 1, "Bob should receive Alice's message");
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    let result = bob.fully_process_qs_messages(qs_messages).await;
     assert!(
         result.errors.is_empty(),
         "a message from a future epoch must schedule a resync, not fail"
     );
-    assert!(bob_user.resync_status(chat_id).await.unwrap().is_some());
-    assert!(bob_user.chat_is_pending(&group_id).await.unwrap());
+    assert!(bob.resync_status(chat_id).await.unwrap().is_some());
+    assert!(bob.chat_is_pending(&group_id).await.unwrap());
 
     // The resync replaces the group state, which also drops the parked commit.
-    bob_user.outbound_service().run_once().await;
-    assert!(bob_user.resync_status(chat_id).await.unwrap().is_none());
-    assert!(!bob_user.chat_is_pending(&group_id).await.unwrap());
+    bob.outbound_service().run_once().await;
+    assert!(bob.resync_status(chat_id).await.unwrap().is_none());
+    assert!(!bob.chat_is_pending(&group_id).await.unwrap());
     assert!(
-        bob_user
-            .pending_chat_operation_info(chat_id)
+        bob.pending_chat_operation_info(chat_id)
             .await
             .unwrap()
             .is_none()
     );
 
     // Alice processes Bob's rejoin and Bob can send again.
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(result.errors.is_empty());
+    alice.drain().await;
 
-    setup.send_message(chat_id, &bob, vec![&alice], None).await;
+    setup.send_message(chat_id, &bob, &[&alice]).await;
 }
 
 /// When the DS returns "group not found" for a resync, the client must stop
@@ -793,36 +698,29 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
 /// test uses a fabricated group_id that only exists in the resync queue, so only
 /// the resync removal can be verified here.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Resync deleted group", skip_all)]
 async fn resync_group_not_found_cleans_up_local_state() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    setup.connect_users(&alice, &bob).await;
-
-    let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
     // Enqueue a resync with a fabricated group_id that doesn't exist on the
     // server. This simulates a group that was deleted or garbage-collected
     // server-side while the client still had a stale resync entry.
-    let bob_user = &setup.get_user(&bob).user;
-    bob_user
-        .enqueue_resync_for_nonexistent_group(chat_id, "localhost")
+    bob.enqueue_resync_for_nonexistent_group(chat_id, "localhost")
         .await
         .unwrap();
     assert!(
-        bob_user.resync_status(chat_id).await.unwrap().is_some(),
+        bob.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
     // Bob runs the outbound service. The resync hits "group not found"
     // and must not loop forever.
-    bob_user.outbound_service().run_once().await;
+    bob.outbound_service().run_once().await;
 
     assert!(
-        bob_user.resync_status(chat_id).await.unwrap().is_none(),
+        bob.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have been removed after group not found"
     );
 }
@@ -830,62 +728,43 @@ async fn resync_group_not_found_cleans_up_local_state() {
 /// Baseline test: resync for an existing group succeeds and the user can
 /// continue communicating normally afterwards.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Resync valid group", skip_all)]
 async fn resync_valid_group_succeeds() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    setup.connect_users(&alice, &bob).await;
-
-    let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
 
     // Bob enqueues a resync for the group.
-    let bob_user = &setup.get_user(&bob).user;
-    bob_user.enqueue_group_resync(chat_id).await.unwrap();
+    bob.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
-        bob_user.resync_status(chat_id).await.unwrap().is_some(),
+        bob.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
     // Run outbound service — resync should succeed.
-    bob_user.outbound_service().run_once().await;
+    bob.outbound_service().run_once().await;
 
     assert!(
-        bob_user.resync_status(chat_id).await.unwrap().is_none(),
+        bob.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have completed"
     );
 
     // Alice processes Bob's rejoin commit.
-    let alice_user = &setup.get_user(&alice).user;
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Alice should process Bob's rejoin without errors"
-    );
+    alice.drain().await;
 
     // Bob should be able to send messages normally.
-    setup.send_message(chat_id, &bob, vec![&alice], None).await;
+    setup.send_message(chat_id, &bob, &[&alice]).await;
 
     // Alice performs a further commit-based operation (for APQ groups, one that touches both legs).
     // Bob must process it cleanly, which for APQ groups also verifies that the resync left the T
     // and PQ legs at compatible epochs (PSK continuity).
-    let alice_user = &setup.get_user(&alice).user;
     if setup.apq_groups {
-        alice_user.update_apq_key(chat_id).await.unwrap();
+        alice.update_apq_key(chat_id).await.unwrap();
     } else {
-        alice_user.update_key(chat_id).await.unwrap();
+        alice.update_key(chat_id).await.unwrap();
     }
 
-    let bob_user = &setup.get_user(&bob).user;
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Alice's follow-up commit without errors"
-    );
+    bob.drain().await;
 }
 
 /// Resync with holes in the leaf nodes: Alice creates a group with Bob,
@@ -895,210 +774,132 @@ async fn resync_valid_group_succeeds() {
 /// the chat, which puts a pending SelfRemove proposal (for leaf index 2) on
 /// the DS. Alice resyncs first, then Dave; both resyncs must succeed.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Resync with blank leaf", skip_all)]
 async fn resync_with_blank_leaf_succeeds() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
-    let dave = setup.add_user().await;
-    setup.connect_users(&alice, &bob).await;
-    setup.connect_users(&alice, &charlie).await;
-    setup.connect_users(&alice, &dave).await;
-
-    let chat_id = setup.create_group(&alice).await;
-    setup
-        .invite_to_group(chat_id, &alice, vec![&bob, &charlie, &dave])
+    let [alice, bob, charlie, dave] = setup.add_users().await;
+    let chat_id = setup
+        .connected_group(&alice, &[&bob, &charlie, &dave])
         .await;
 
     // Removing Bob blanks his leaf, creating a hole in the leaf nodes.
     setup
-        .remove_from_group(chat_id, &alice, vec![&bob])
+        .remove_from_group(chat_id, &alice, &[&bob])
         .await
         .unwrap();
 
     // Charlie leaves the chat. This puts a pending SelfRemove proposal for leaf index 2 on the DS,
     // which is committed by the next resync's external commit.
-    let charlie_user = &setup.get_user(&charlie).user;
-    charlie_user.leave_chat(chat_id).await.unwrap();
+    charlie.leave_chat(chat_id).await.unwrap();
 
     // Alice and Dave observe Charlie's proposal.
-    for user_id in [&alice, &dave] {
-        let user = &setup.get_user(user_id).user;
-        let qs_messages = user.qs_fetch_messages().await.unwrap();
-        let result = user.fully_process_qs_messages(qs_messages).await;
-        assert!(
-            result.errors.is_empty(),
-            "{user_id:?} should process Charlie's proposal without errors: {:?}",
-            result.errors
-        );
+    for user in [&alice, &dave] {
+        user.drain().await;
     }
 
     // Dave changes his profile. This rotates his user profile key, so Alice's post-resync profile
     // fetch must decrypt it with the key from the external commit info.
-    let dave_user = &setup.get_user(&dave).user;
     let dave_display_name: DisplayName = "D4v3".parse().unwrap();
-    dave_user
-        .set_own_user_profile(UserProfile {
-            user_id: dave.clone(),
-            display_name: dave_display_name.clone(),
-            profile_picture: None,
-        })
-        .await
-        .unwrap();
+    dave.set_own_user_profile(UserProfile {
+        user_id: dave.user_id().clone(),
+        display_name: dave_display_name.clone(),
+        profile_picture: None,
+    })
+    .await
+    .unwrap();
 
     // Alice resyncs first.
-    let alice_user = &setup.get_user(&alice).user;
-    alice_user.enqueue_group_resync(chat_id).await.unwrap();
+    alice.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
-        alice_user.resync_status(chat_id).await.unwrap().is_some(),
+        alice.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
     // Run outbound service — resync should succeed despite the blank leaves.
-    alice_user.outbound_service().run_once().await;
+    alice.outbound_service().run_once().await;
 
     assert!(
-        alice_user.resync_status(chat_id).await.unwrap().is_none(),
+        alice.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have completed"
     );
 
     // Run the outbound service again to process the user profile fetch operations enqueued by the
     // resync.
-    alice_user.outbound_service().run_once().await;
+    alice.outbound_service().run_once().await;
 
     // Alice should see Dave's updated profile after the resync.
-    let dave_profile = alice_user.user_profile(&dave).await;
+    let dave_profile = alice.user_profile(dave.user_id()).await;
     assert_eq!(dave_profile.display_name, dave_display_name);
 
     // Alice must not have received her own external commit from the DS.
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Alice should process her queue without errors: {:?}",
-        result.errors
-    );
+    alice.drain().await;
 
     // Dave processes Alice's rejoin commit.
-    let dave_user = &setup.get_user(&dave).user;
-    let qs_messages = dave_user.qs_fetch_messages().await.unwrap();
-    let result = dave_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Dave should process Alice's rejoin without errors: {:?}",
-        result.errors
-    );
+    dave.drain().await;
 
     // Now Dave resyncs as well.
-    dave_user.enqueue_group_resync(chat_id).await.unwrap();
+    dave.enqueue_group_resync(chat_id).await.unwrap();
     assert!(
-        dave_user.resync_status(chat_id).await.unwrap().is_some(),
+        dave.resync_status(chat_id).await.unwrap().is_some(),
         "resync should be queued"
     );
 
-    dave_user.outbound_service().run_once().await;
+    dave.outbound_service().run_once().await;
 
     assert!(
-        dave_user.resync_status(chat_id).await.unwrap().is_none(),
+        dave.resync_status(chat_id).await.unwrap().is_none(),
         "resync should have completed"
     );
 
     // Run the outbound service again to process the user profile fetch operations enqueued by the
     // resync.
-    dave_user.outbound_service().run_once().await;
+    dave.outbound_service().run_once().await;
 
     // Dave must not have received his own external commit from the DS.
-    let qs_messages = dave_user.qs_fetch_messages().await.unwrap();
-    let result = dave_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Dave should process his queue without errors: {:?}",
-        result.errors
-    );
+    dave.drain().await;
 
     // Alice processes Dave's rejoin commit.
-    let alice_user = &setup.get_user(&alice).user;
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Alice should process Dave's rejoin without errors"
-    );
+    alice.drain().await;
 
     // Both group members should agree on the group membership.
-    let expected_members: HashSet<_> = [alice.clone(), dave.clone()].into_iter().collect();
-    let participants = alice_user.group_members(chat_id).await.unwrap();
+    let expected_members: HashSet<_> = [alice.user_id().clone(), dave.user_id().clone()]
+        .into_iter()
+        .collect();
+    let participants = alice.group_members(chat_id).await.unwrap();
     assert_eq!(participants, expected_members);
-    let dave_user = &setup.get_user(&dave).user;
-    let participants = dave_user.group_members(chat_id).await.unwrap();
+    let participants = dave.group_members(chat_id).await.unwrap();
     assert_eq!(participants, expected_members);
 
     // Dave sends a message.
     //
     // Note: the external commit re-added Dave at the leftmost blank leaf (Bob's old position), i.e.
     // his leaf index changed.
-    dave_user
-        .send_message(
-            chat_id,
-            MimiContent::simple_markdown_message("message".to_owned(), [0; 16]),
-            None,
-            MarkChatAsRead::Yes,
-        )
-        .await
-        .unwrap();
-    // Actually send the queued message to the DS.
-    dave_user.outbound_service().run_once().await;
+    dave.send_text(chat_id, "message").await;
 
     // Alice receives the message.
-    let alice_user = &setup.get_user(&alice).user;
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Alice should process Dave's message without errors: {:?}",
-        result.errors
-    );
+    alice.drain().await;
 
     // The DS must not fan out Dave's own message back to him.
-    let dave_user = &setup.get_user(&dave).user;
-    let qs_messages = dave_user.qs_fetch_messages().await.unwrap();
-    let result = dave_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Dave should not receive his own message: {:?}",
-        result.errors
-    );
+    dave.drain().await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Key Package Upload", skip_all)]
 async fn key_package_upload() {
     let mut setup = TestBackend::single_with_params(TestBackendParams::no_rate_limits()).await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
     // Exhaust Bob's key packages
     // We collect Bob's encryption keys. They should be unique every time.
     let mut encryption_keys = HashSet::new();
 
-    let create_chat_and_invite_bob = async |setup: &mut TestBackend| {
+    let create_chat_and_invite_bob = async |setup: &TestBackend| {
         let chat_id = setup.create_group(&alice).await;
-        let alice_user = &setup.get_user(&alice).user;
-        alice_user
-            .invite_users(chat_id, slice::from_ref(&bob))
+        alice
+            .invite_users(chat_id, slice::from_ref(bob.user_id()))
             .await
             .unwrap();
-        let bob_user = &setup.get_user(&bob).user;
-        let messages = bob_user.qs_fetch_messages().await.unwrap();
-        let res = bob_user.fully_process_qs_messages(messages).await;
-        assert!(
-            res.errors.is_empty(),
-            "Bob should process Alice's invitation without errors"
-        );
-        bob_user
-            .mls_members(chat_id)
+        bob.drain().await;
+        bob.mls_members(chat_id)
             .await
             .unwrap()
             .unwrap()
@@ -1116,28 +917,26 @@ async fn key_package_upload() {
     } + 1;
 
     for _ in 0..n {
-        let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
+        let bob_encryption_key = create_chat_and_invite_bob(&setup).await;
         assert!(encryption_keys.insert(bob_encryption_key));
     }
 
-    let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
+    let bob_encryption_key = create_chat_and_invite_bob(&setup).await;
     assert!(
         !encryption_keys.insert(bob_encryption_key),
         "Alice should have reused Bob's last resort KeyPackage"
     );
 
     // Bob uploads new KeyPackages
-    let bob_user = &setup.get_user(&bob).user;
     let now = Utc::now();
-    bob_user
-        .outbound_service()
+    bob.outbound_service()
         .schedule_key_package_upload(now - chrono::Duration::minutes(5))
         .await
         .unwrap();
-    bob_user.outbound_service().run_once().await;
+    bob.outbound_service().run_once().await;
 
     // Invite Bob again, should get a new KeyPackage
-    let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
+    let bob_encryption_key = create_chat_and_invite_bob(&setup).await;
     assert!(
         n <= 1 || encryption_keys.insert(bob_encryption_key),
         "Bob should have a new KeyPackage after uploading new ones"
@@ -1145,7 +944,6 @@ async fn key_package_upload() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Invitation code", skip_all)]
 async fn invitation_code() {
     const UNREDEEMABLE_CODE: &str = "E111E000";
     let setup = TestBackend::single_with_params(TestBackendParams {
@@ -1214,7 +1012,6 @@ async fn invitation_code() {
 /// a challenge, and a challenge-verified registration that leaves the counters
 /// where they were.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Adaptive registration gate", skip_all)]
 async fn adaptive_registration_gate() {
     let setup = TestBackend::single_with_params(TestBackendParams {
         registration: adaptive_registration(2, 100),
@@ -1287,7 +1084,6 @@ async fn adaptive_registration_gate() {
 /// The total threshold closes the gate for an address that has registered
 /// nothing itself.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Adaptive registration total threshold", skip_all)]
 async fn adaptive_registration_total_threshold() {
     let setup = TestBackend::single_with_params(TestBackendParams {
         registration: adaptive_registration(100, 1),
@@ -1313,7 +1109,6 @@ async fn adaptive_registration_total_threshold() {
 /// An open gate leaves a code the request carried anyway unspent, so a gate
 /// that opens between discovery and registration does not burn it.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "An open gate ignores a code", skip_all)]
 async fn an_open_gate_ignores_a_code() {
     // Room to spare on both thresholds, so the gate is open while codes exist.
     let setup = TestBackend::single_with_params(TestBackendParams {
@@ -1336,7 +1131,6 @@ async fn an_open_gate_ignores_a_code() {
 /// The push-admission challenge end to end, from opening a session to finding
 /// the endpoint's quota spent.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Push admission registration", skip_all)]
 async fn push_admission_registration() {
     let setup = TestBackend::single_with_params(TestBackendParams {
         registration: RegistrationSettings {
@@ -1463,10 +1257,6 @@ fn adaptive_registration(per_ip: u64, total: u64) -> RegistrationSettings {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(
-    name = "Unsupported client version on listen username and queue",
-    skip_all
-)]
 async fn unsupported_client_version() {
     let setup = TestBackend::single_with_params(TestBackendParams {
         version_policy: VersionPolicy::new(vec![VersionExpiration {
@@ -1522,13 +1312,11 @@ async fn skip_version_status(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Version status on listen queue", skip_all)]
 async fn listen_queue_version_status() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
-    let alice_user = setup.get_user(&alice).user.clone();
 
-    let (mut stream, _responder) = alice_user.listen_queue().await.unwrap();
+    let (mut stream, _responder) = alice.listen_queue().await.unwrap();
 
     // The first event reports the version status, then the queue-empty sentinel follows.
     assert_matches!(
@@ -1549,7 +1337,6 @@ async fn listen_queue_version_status() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Expiring version status on listen queue", skip_all)]
 async fn listen_queue_version_status_expiring() {
     let expires_on = Utc::now() + chrono::Duration::days(10);
     let mut setup = TestBackend::single_with_params(TestBackendParams {
@@ -1562,9 +1349,8 @@ async fn listen_queue_version_status_expiring() {
     .await;
 
     let alice = setup.add_user().await;
-    let alice_user = setup.get_user(&alice).user.clone();
 
-    let (mut stream, _responder) = alice_user.listen_queue().await.unwrap();
+    let (mut stream, _responder) = alice.listen_queue().await.unwrap();
 
     // The first event reports the upcoming expiry, then the queue-empty sentinel follows.
     let response = stream.next().await.unwrap().unwrap();
@@ -1581,7 +1367,6 @@ async fn listen_queue_version_status_expiring() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Listen stream eviction", skip_all)]
 async fn listen_stream_eviction() {
     let mut setup = TestBackend::single_with_params(TestBackendParams {
         max_devices: Some(2),
@@ -1590,21 +1375,18 @@ async fn listen_stream_eviction() {
     .await;
     let alice = setup.add_user().await;
 
-    let alice_test_user = setup.get_user_mut(&alice);
-    let username_record = alice_test_user.add_username().await.unwrap();
-
-    let alice_user = alice_test_user.user.clone();
+    let username_record = setup.add_username(&alice).await;
 
     // Every device of the user listens to the same username, so username
     // message streams run side by side up to the device limit.
-    let (mut stream_a, _responder_a) = alice_user.listen_username(&username_record).await.unwrap();
+    let (mut stream_a, _responder_a) = alice.listen_username(&username_record).await.unwrap();
     assert_matches!(
         stream_a.next().await,
         Some(None),
         "should receive empty message"
     );
 
-    let (mut stream_b, _responder_b) = alice_user.listen_username(&username_record).await.unwrap();
+    let (mut stream_b, _responder_b) = alice.listen_username(&username_record).await.unwrap();
     assert_matches!(
         stream_b.next().await,
         Some(None),
@@ -1621,7 +1403,7 @@ async fn listen_stream_eviction() {
     }
 
     // Beyond the device limit, the oldest username stream is evicted.
-    let (mut stream_c, _responder_c) = alice_user.listen_username(&username_record).await.unwrap();
+    let (mut stream_c, _responder_c) = alice.listen_username(&username_record).await.unwrap();
     assert_matches!(
         stream_c.next().await,
         Some(None),
@@ -1645,7 +1427,7 @@ async fn listen_stream_eviction() {
     }
 
     // QS events stream is evicted when another stream is opened
-    let (mut stream_a, _responder_a) = alice_user.listen_queue().await.unwrap();
+    let (mut stream_a, _responder_a) = alice.listen_queue().await.unwrap();
     skip_version_status(&mut stream_a).await;
     assert_matches!(
         stream_a.next().await,
@@ -1654,7 +1436,7 @@ async fn listen_stream_eviction() {
         }))
     );
 
-    let (mut stream_b, _responder_b) = alice_user.listen_queue().await.unwrap();
+    let (mut stream_b, _responder_b) = alice.listen_queue().await.unwrap();
     skip_version_status(&mut stream_b).await;
     assert_matches!(
         stream_b.next().await,
@@ -1689,29 +1471,16 @@ async fn listen_stream_eviction() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Listen stream durable acks", skip_all)]
 async fn listen_stream_durable_acks() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    let alice_user = &setup.get_user(&alice).user;
-    alice_user
-        .send_message(
-            chat_id,
-            MimiContent::simple_markdown_message("hello bob".to_owned(), [0; 16]),
-            None,
-            MarkChatAsRead::Yes,
-        )
-        .await
-        .unwrap();
-    alice_user.outbound_service().run_once().await;
+    alice.send_text(chat_id, "hello bob").await;
 
     // Bob receives the message on the listen stream and acks it.
-    let bob_user = &setup.get_user(&bob).user;
-    let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
+    let (mut stream, responder) = bob.listen_queue().await.unwrap();
     skip_version_status(&mut stream).await;
     let sequence_number = match stream.next().await {
         Some(Ok(ListenResponse {
@@ -1739,7 +1508,7 @@ async fn listen_stream_durable_acks() {
     assert_matches!(terminal, None, "stream closes with OK");
 
     // On reconnect, the acked message is not redelivered.
-    let (mut stream, _responder) = bob_user.listen_queue().await.unwrap();
+    let (mut stream, _responder) = bob.listen_queue().await.unwrap();
     skip_version_status(&mut stream).await;
     assert_matches!(
         stream.next().await,
@@ -1748,17 +1517,4 @@ async fn listen_stream_durable_acks() {
         })),
         "acked message is not redelivered"
     );
-}
-
-/// All system messages the user stores for the chat.
-async fn system_messages(user: &CoreUser, chat_id: ChatId) -> Vec<SystemMessage> {
-    user.messages(chat_id, 100)
-        .await
-        .unwrap()
-        .iter()
-        .filter_map(|message| match message.message() {
-            Message::Event(EventMessage::System(system_message)) => Some(system_message.clone()),
-            _ => None,
-        })
-        .collect()
 }

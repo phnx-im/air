@@ -64,7 +64,7 @@ impl CoreUser {
         let temp_file = tempfile::NamedTempFile::new()?;
         let global_lock = GlobalLock::from_path(temp_file.path())?;
 
-        Self::new_with_connections(
+        Self::new_with_dbs(
             user_id,
             Uuid::new_v4(),
             Some(server_url),

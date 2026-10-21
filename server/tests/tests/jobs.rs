@@ -47,67 +47,62 @@
 
 use std::time::Duration;
 
-use aircommon::identifiers::UserId;
-use aircoreclient::{ChatId, ChatStatus};
-use airserver_test_harness::utils::setup::TestBackend;
+use aircoreclient::{ChatId, ChatStatus, clients::CoreUser};
+use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use tokio::time::sleep;
 
-async fn setup_group_with_contacts() -> (TestBackend, UserId, UserId, UserId, ChatId) {
+async fn setup_group_with_contacts() -> (TestBackend, CoreUser, CoreUser, CoreUser, ChatId) {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
 
     let chat_id = setup.create_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     (setup, alice, bob, charlie, chat_id)
 }
 
-async fn setup_group_with_charlie_member() -> (TestBackend, UserId, UserId, UserId, ChatId) {
-    let (mut setup, alice, bob, charlie, chat_id) = setup_group_with_contacts().await;
-    setup.invite_to_group(chat_id, &alice, vec![&charlie]).await;
+async fn setup_group_with_charlie_member() -> (TestBackend, CoreUser, CoreUser, CoreUser, ChatId) {
+    let (setup, alice, bob, charlie, chat_id) = setup_group_with_contacts().await;
+    setup.invite_to_group(chat_id, &alice, &[&charlie]).await;
     (setup, alice, bob, charlie, chat_id)
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn pending_chat_operation_is_executed_before_chat_operation() {
     let (setup, alice, bob, charlie, chat_id) = setup_group_with_charlie_member().await;
-    let alice_user = &setup.get_user(&alice).user;
 
     setup.listener_control_handle().set_drop_next_request();
-    let _ = alice_user
-        .remove_users(chat_id, vec![charlie.clone()])
+    let _ = alice
+        .remove_users(chat_id, vec![charlie.user_id().clone()])
         .await
         .expect_err("expected remove to fail due to network error");
 
     // Re-inviting Charlie should succeed only if the pending remove is executed first.
-    alice_user
-        .invite_users(chat_id, std::slice::from_ref(&charlie))
+    alice
+        .invite_users(chat_id, std::slice::from_ref(charlie.user_id()))
         .await
         .expect("invite should succeed after pending remove is executed");
 
-    let members = alice_user.chat_participants(chat_id).await.unwrap();
-    assert!(members.contains(&alice));
-    assert!(members.contains(&bob));
-    assert!(members.contains(&charlie));
+    let members = alice.chat_participants(chat_id).await.unwrap();
+    assert!(members.contains(alice.user_id()));
+    assert!(members.contains(bob.user_id()));
+    assert!(members.contains(charlie.user_id()));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn chat_operation_fails_if_pending_operation_fails() {
     let (setup, alice, _bob, charlie, chat_id) = setup_group_with_charlie_member().await;
-    let alice_user = &setup.get_user(&alice).user;
 
     setup.listener_control_handle().set_drop_next_response();
-    let _ = alice_user
-        .remove_users(chat_id, vec![charlie.clone()])
+    let _ = alice
+        .remove_users(chat_id, vec![charlie.user_id().clone()])
         .await
         .expect_err("expected remove to fail due to network error");
 
-    let pending = alice_user
+    let pending = alice
         .pending_chat_operation_info(chat_id)
         .await
         .unwrap()
@@ -116,12 +111,12 @@ async fn chat_operation_fails_if_pending_operation_fails() {
     assert_eq!(pending.request_status, "ready_to_retry");
 
     setup.listener_control_handle().set_drop_next_response();
-    let _ = alice_user
+    let _ = alice
         .update_key(chat_id)
         .await
         .expect_err("expected update to fail because pending operation failed");
 
-    let pending_after = alice_user
+    let pending_after = alice
         .pending_chat_operation_info(chat_id)
         .await
         .unwrap()
@@ -130,119 +125,94 @@ async fn chat_operation_fails_if_pending_operation_fails() {
     assert_eq!(pending_after.request_status, "ready_to_retry");
     assert!(pending_after.number_of_attempts >= pending.number_of_attempts);
 
-    let members = alice_user.chat_participants(chat_id).await.unwrap();
-    assert!(members.contains(&charlie));
+    let members = alice.chat_participants(chat_id).await.unwrap();
+    assert!(members.contains(charlie.user_id()));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn commit_response_merges_pending_commit() {
     let (setup, alice, _bob, charlie, chat_id) = setup_group_with_charlie_member().await;
-    let alice_user = &setup.get_user(&alice).user;
 
     setup.listener_control_handle().set_drop_next_response();
-    let _ = alice_user
-        .remove_users(chat_id, vec![charlie.clone()])
+    let _ = alice
+        .remove_users(chat_id, vec![charlie.user_id().clone()])
         .await
         .expect_err("expected remove to fail due to network error");
 
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "processing commit response should succeed"
-    );
+    alice.drain().await;
 
-    let members = alice_user.chat_participants(chat_id).await.unwrap();
-    assert!(!members.contains(&charlie));
+    let members = alice.chat_participants(chat_id).await.unwrap();
+    assert!(!members.contains(charlie.user_id()));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn wrong_epoch_marks_pending_waiting_and_commit_clears_it() {
     let (setup, alice, bob, charlie, chat_id) = setup_group_with_charlie_member().await;
-    let alice_user = &setup.get_user(&alice).user;
-    let bob_user = &setup.get_user(&bob).user;
 
     setup.listener_control_handle().set_drop_next_request();
-    let _ = alice_user
-        .remove_users(chat_id, vec![charlie.clone()])
+    let _ = alice
+        .remove_users(chat_id, vec![charlie.user_id().clone()])
         .await
         .expect_err("expected remove to fail due to network error");
 
     // Bob commits first so Alice's pending commit is out of date.
-    bob_user.update_key(chat_id).await.unwrap();
+    bob.update_key(chat_id).await.unwrap();
 
-    let _ = alice_user
+    let _ = alice
         .update_key(chat_id)
         .await
         .expect_err("expected wrong epoch when retrying pending commit");
 
-    let pending = alice_user
+    let pending = alice
         .pending_chat_operation_info(chat_id)
         .await
         .unwrap()
         .expect("pending operation should exist");
     assert_eq!(pending.request_status, "waiting_for_queue_response");
 
-    let _ = alice_user
+    let _ = alice
         .update_key(chat_id)
         .await
         .expect_err("pending operation waiting for queue response should fail immediately");
 
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "processing incoming commit should succeed"
-    );
+    alice.drain().await;
 
-    let members = alice_user.chat_participants(chat_id).await.unwrap();
-    assert!(members.contains(&charlie));
+    let members = alice.chat_participants(chat_id).await.unwrap();
+    assert!(members.contains(charlie.user_id()));
 
-    let pending_after = alice_user
-        .pending_chat_operation_info(chat_id)
-        .await
-        .unwrap();
+    let pending_after = alice.pending_chat_operation_info(chat_id).await.unwrap();
     assert!(
         pending_after.is_none(),
         "pending operation should be deleted"
     );
 
-    alice_user.update_key(chat_id).await.unwrap();
+    alice.update_key(chat_id).await.unwrap();
 }
 
-async fn setup_apq_group_with_charlie_member() -> (TestBackend, UserId, UserId, UserId, ChatId) {
+async fn setup_apq_group_with_charlie_member() -> (TestBackend, CoreUser, CoreUser, CoreUser, ChatId)
+{
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
-    let charlie = setup.add_user().await;
+    let [alice, bob, charlie] = setup.add_users().await;
 
     setup.connect_users(&alice, &bob).await;
     setup.connect_users(&alice, &charlie).await;
 
     let chat_id = setup.create_apq_group(&alice).await;
-    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
-    setup.invite_to_group(chat_id, &alice, vec![&charlie]).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+    setup.invite_to_group(chat_id, &alice, &[&charlie]).await;
 
     (setup, alice, bob, charlie, chat_id)
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn apq_self_remove_is_committed_on_both_legs() {
-    let (setup, alice, bob, charlie, chat_id) = setup_apq_group_with_charlie_member().await;
-    let bob_user = &setup.get_user(&bob).user;
+    let (_setup, alice, bob, charlie, chat_id) = setup_apq_group_with_charlie_member().await;
 
-    let charlie_user = &setup.get_user(&charlie).user;
-    charlie_user.leave_chat(chat_id).await.unwrap();
+    charlie.leave_chat(chat_id).await.unwrap();
 
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Charlie's self-remove proposal without errors: {:?}",
-        result.errors
-    );
+    bob.drain().await;
 
-    let before = bob_user.chat_debug_info(chat_id).await.unwrap();
+    let before = bob.chat_debug_info(chat_id).await.unwrap();
     let pq_before = before.pq.clone().expect("APQ group must have a PQ group");
     assert_eq!(
         before.pending_proposals, 1,
@@ -253,9 +223,9 @@ async fn apq_self_remove_is_committed_on_both_legs() {
         "PQ leg should hold Charlie's self-remove"
     );
 
-    bob_user.update_key(chat_id).await.unwrap();
+    bob.update_key(chat_id).await.unwrap();
 
-    let after = bob_user.chat_debug_info(chat_id).await.unwrap();
+    let after = bob.chat_debug_info(chat_id).await.unwrap();
     let pq_after = after.pq.clone().expect("APQ group must have a PQ group");
     assert_eq!(after.pending_proposals, 0, "T self-remove not committed");
     assert_eq!(
@@ -270,9 +240,9 @@ async fn apq_self_remove_is_committed_on_both_legs() {
         pq_after.epoch
     );
 
-    let participants = bob_user.chat_participants(chat_id).await.unwrap();
-    assert!(!participants.contains(&charlie));
-    assert!(participants.contains(&alice));
+    let participants = bob.chat_participants(chat_id).await.unwrap();
+    assert!(!participants.contains(charlie.user_id()));
+    assert!(participants.contains(alice.user_id()));
 }
 
 // Make sure that the rosters of T and PQ groups in an APQ group remain
@@ -280,24 +250,22 @@ async fn apq_self_remove_is_committed_on_both_legs() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn apq_wrong_epoch_recovery_keeps_t_and_pq_rosters_consistent() {
     let (setup, alice, bob, charlie, chat_id) = setup_apq_group_with_charlie_member().await;
-    let alice_user = &setup.get_user(&alice).user;
-    let bob_user = &setup.get_user(&bob).user;
 
     setup.listener_control_handle().set_drop_next_request();
-    let _ = alice_user
-        .remove_users(chat_id, vec![charlie.clone()])
+    let _ = alice
+        .remove_users(chat_id, vec![charlie.user_id().clone()])
         .await
         .expect_err("expected remove to fail due to network error");
 
     // Bob commits first so Alice's pending commit is out of date.
-    bob_user.update_key(chat_id).await.unwrap();
+    bob.update_key(chat_id).await.unwrap();
 
-    let _ = alice_user
+    let _ = alice
         .update_key(chat_id)
         .await
         .expect_err("expected wrong epoch when retrying pending commit");
 
-    let pending = alice_user
+    let pending = alice
         .pending_chat_operation_info(chat_id)
         .await
         .unwrap()
@@ -306,17 +274,9 @@ async fn apq_wrong_epoch_recovery_keeps_t_and_pq_rosters_consistent() {
 
     // Alice processes Bob's winning commit, which must discard her stale pending
     // commit on both the T and the PQ group.
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "processing incoming commit should succeed"
-    );
+    alice.drain().await;
 
-    let pending_after = alice_user
-        .pending_chat_operation_info(chat_id)
-        .await
-        .unwrap();
+    let pending_after = alice.pending_chat_operation_info(chat_id).await.unwrap();
     assert!(
         pending_after.is_none(),
         "pending operation should be deleted"
@@ -324,7 +284,7 @@ async fn apq_wrong_epoch_recovery_keeps_t_and_pq_rosters_consistent() {
 
     // The discard must clear the pending commit on both groups, including the
     // PQ group whose pending commit otherwise leaks.
-    let debug_info = alice_user.chat_debug_info(chat_id).await.unwrap();
+    let debug_info = alice.chat_debug_info(chat_id).await.unwrap();
     let pq = debug_info
         .pq
         .clone()
@@ -344,13 +304,13 @@ async fn apq_wrong_epoch_recovery_keeps_t_and_pq_rosters_consistent() {
     );
 
     // Charlie is still a member, so removing him must succeed.
-    let participants = alice_user.chat_participants(chat_id).await.unwrap();
+    let participants = alice.chat_participants(chat_id).await.unwrap();
     assert!(
-        participants.contains(&charlie),
+        participants.contains(charlie.user_id()),
         "Charlie should still be a member"
     );
-    alice_user
-        .remove_users(chat_id, vec![charlie.clone()])
+    alice
+        .remove_users(chat_id, vec![charlie.user_id().clone()])
         .await
         .expect("follow-up joint APQ remove should succeed");
 }
@@ -358,10 +318,9 @@ async fn apq_wrong_epoch_recovery_keeps_t_and_pq_rosters_consistent() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn network_errors_do_not_spend_attempts() {
     let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
-    let alice_user = &setup.get_user(&alice).user;
 
     setup.listener_control_handle().set_drop_next_response();
-    let _ = alice_user
+    let _ = alice
         .update_key(chat_id)
         .await
         .expect_err("expected update to fail due to network error");
@@ -369,13 +328,13 @@ async fn network_errors_do_not_spend_attempts() {
     // More retries than the budget of recoverable errors allows
     for _ in 0..6 {
         setup.listener_control_handle().set_drop_next_response();
-        let _ = alice_user
+        let _ = alice
             .update_key(chat_id)
             .await
             .expect_err("expected retry to fail due to network error");
     }
 
-    let pending = alice_user
+    let pending = alice
         .pending_chat_operation_info(chat_id)
         .await
         .unwrap()
@@ -385,39 +344,32 @@ async fn network_errors_do_not_spend_attempts() {
     assert_eq!(pending.number_of_attempts, 0);
 
     // The first commit reached the DS, its queue response resolves the op
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(result.errors.is_empty());
+    alice.drain().await;
 
-    let pending_after = alice_user
-        .pending_chat_operation_info(chat_id)
-        .await
-        .unwrap();
+    let pending_after = alice.pending_chat_operation_info(chat_id).await.unwrap();
     assert!(
         pending_after.is_none(),
         "pending operation should be deleted"
     );
 
-    let members = alice_user.chat_participants(chat_id).await.unwrap();
-    assert!(members.contains(&alice));
-    assert!(members.contains(&bob));
+    let members = alice.chat_participants(chat_id).await.unwrap();
+    assert!(members.contains(alice.user_id()));
+    assert!(members.contains(bob.user_id()));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn leave_with_wrong_epoch_applies_locally_and_keeps_pending() {
-    let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
-    let alice_user = &setup.get_user(&alice).user;
-    let bob_user = &setup.get_user(&bob).user;
+    let (_setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
 
     // Bob advances the epoch; Alice does not process the commit.
-    bob_user.update_key(chat_id).await.unwrap();
+    bob.update_key(chat_id).await.unwrap();
 
-    alice_user.leave_chat(chat_id).await.unwrap();
+    alice.leave_chat(chat_id).await.unwrap();
 
-    let chat = alice_user.chat(&chat_id).await.unwrap();
+    let chat = alice.expect_chat(chat_id).await;
     assert!(matches!(chat.status(), ChatStatus::Inactive(_)));
 
-    let pending = alice_user
+    let pending = alice
         .pending_chat_operation_info(chat_id)
         .await
         .unwrap()
@@ -429,37 +381,24 @@ async fn leave_with_wrong_epoch_applies_locally_and_keeps_pending() {
 
     // Running the outbound service after fetching and processing messages
     // should retry the leave and eventually delete the pending operation.
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "processing incoming commit should succeed"
-    );
-    alice_user.outbound_service().run_once().await;
+    alice.drain().await;
+    alice.outbound_service().run_once().await;
 
     // Have Bob fetch and process messages to make sure that if Alice's leave
     // was retried and succeeded.
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should be able to process messages after Alice's leave is retried and succeeds"
-    );
+    bob.drain().await;
 
-    let chat_participants = bob_user.chat_participants(chat_id).await.unwrap();
+    let chat_participants = bob.chat_participants(chat_id).await.unwrap();
     assert!(chat_participants.len() == 1);
-    assert!(!chat_participants.contains(&alice));
+    assert!(!chat_participants.contains(alice.user_id()));
 
-    let pending_after = alice_user
-        .pending_chat_operation_info(chat_id)
-        .await
-        .unwrap();
+    let pending_after = alice.pending_chat_operation_info(chat_id).await.unwrap();
     assert!(
         pending_after.is_none(),
         "pending operation should be deleted after successful retry"
     );
     assert!(
-        alice_user.mls_chat_participants(chat_id).await.is_none(),
+        alice.mls_chat_participants(chat_id).await.is_none(),
         "the group is deleted once the DS holds the leave"
     );
 }
@@ -467,39 +406,24 @@ async fn leave_with_wrong_epoch_applies_locally_and_keeps_pending() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn pending_leave_is_deleted_when_another_member_commits_self_remove() {
     let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
-    let alice_user = &setup.get_user(&alice).user;
-    let bob_user = &setup.get_user(&bob).user;
 
     setup.listener_control_handle().set_drop_next_response();
-    alice_user.leave_chat(chat_id).await.unwrap();
+    alice.leave_chat(chat_id).await.unwrap();
 
-    let pending = alice_user
+    let pending = alice
         .pending_chat_operation_info(chat_id)
         .await
         .unwrap()
         .expect("pending leave should remain after dropped response");
     assert_eq!(pending.operation_type, "leave");
 
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Alice's self-remove proposal without errors"
-    );
+    bob.drain().await;
 
-    bob_user.update_key(chat_id).await.unwrap();
+    bob.update_key(chat_id).await.unwrap();
 
-    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
-    let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Alice should process Bob's commit without errors"
-    );
+    alice.drain().await;
 
-    let pending_after = alice_user
-        .pending_chat_operation_info(chat_id)
-        .await
-        .unwrap();
+    let pending_after = alice.pending_chat_operation_info(chat_id).await.unwrap();
     assert!(
         pending_after.is_none(),
         "pending leave should be deleted once another member commits our self-remove"
@@ -508,68 +432,56 @@ async fn pending_leave_is_deleted_when_another_member_commits_self_remove() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn commit_that_ignores_a_pending_self_remove_is_rejected() {
-    let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
-    let alice_user = &setup.get_user(&alice).user;
-    let bob_user = &setup.get_user(&bob).user;
+    let (_setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
 
-    alice_user.leave_chat(chat_id).await.unwrap();
+    alice.leave_chat(chat_id).await.unwrap();
 
     // Bob leaves the proposal sitting in his queue, so his commit cannot carry
     // it.
-    bob_user
-        .update_key(chat_id)
+    bob.update_key(chat_id)
         .await
         .expect_err("DS should reject a commit that ignores the pending self-remove");
 
-    let pending_after = bob_user.pending_chat_operation_info(chat_id).await.unwrap();
+    let pending_after = bob.pending_chat_operation_info(chat_id).await.unwrap();
     assert!(
         pending_after.is_none(),
         "rejected operation should be cleaned up, not parked"
     );
 
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    let result = bob_user.fully_process_qs_messages(qs_messages).await;
-    assert!(
-        result.errors.is_empty(),
-        "Bob should process Alice's self-remove proposal without errors: {:?}",
-        result.errors
-    );
+    bob.drain().await;
 
-    bob_user
-        .update_key(chat_id)
+    bob.update_key(chat_id)
         .await
         .expect("commit carrying the self-remove should be accepted");
 
-    let chat_participants = bob_user.chat_participants(chat_id).await.unwrap();
+    let chat_participants = bob.chat_participants(chat_id).await.unwrap();
     assert_eq!(chat_participants.len(), 1);
-    assert!(!chat_participants.contains(&alice));
+    assert!(!chat_participants.contains(alice.user_id()));
 }
 
 /// Connects Alice and Bob and has Alice delete their chat while the DS loses
 /// either her request or its response. Returns what the retry needs.
 async fn delete_chat_with_a_network_error(
     lose_response: bool,
-) -> (TestBackend, UserId, UserId, ChatId) {
+) -> (TestBackend, CoreUser, CoreUser, ChatId) {
     let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let bob = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
-    let alice_user = setup.get_user(&alice).user.clone();
 
     if lose_response {
         setup.listener_control_handle().set_drop_next_response();
     } else {
         setup.listener_control_handle().set_drop_next_request();
     }
-    alice_user
+    alice
         .delete_and_erase_chat(chat_id)
         .await
         .expect_err("expected the delete to fail due to a network error");
 
     // The chat stays, and no delete is parked that erasing it would drop.
-    assert!(alice_user.chat(&chat_id).await.is_some());
+    assert!(alice.chat(&chat_id).await.is_some());
     assert!(
-        alice_user
+        alice
             .pending_chat_operation_info(chat_id)
             .await
             .unwrap()
@@ -580,31 +492,27 @@ async fn delete_chat_with_a_network_error(
 
 /// Retries the delete and checks that it reached Bob.
 async fn assert_retried_delete_reaches_the_contact(
-    setup: &TestBackend,
-    alice: &UserId,
-    bob: &UserId,
+    alice: &CoreUser,
+    bob: &CoreUser,
     chat_id: ChatId,
 ) {
-    let alice_user = &setup.get_user(alice).user;
-    alice_user.delete_and_erase_chat(chat_id).await.unwrap();
-    assert!(alice_user.chat(&chat_id).await.is_none());
+    alice.delete_and_erase_chat(chat_id).await.unwrap();
+    assert!(alice.chat(&chat_id).await.is_none());
 
-    let bob_user = &setup.get_user(bob).user;
-    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
-    bob_user.fully_process_qs_messages(qs_messages).await;
-    let chat = bob_user.chat(&chat_id).await.unwrap();
+    bob.drain().await;
+    let chat = bob.expect_chat(chat_id).await;
     assert!(matches!(chat.status(), ChatStatus::Inactive(_)));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn deleting_a_chat_offline_keeps_it() {
-    let (setup, alice, bob, chat_id) = delete_chat_with_a_network_error(false).await;
-    assert_retried_delete_reaches_the_contact(&setup, &alice, &bob, chat_id).await;
+    let (_setup, alice, bob, chat_id) = delete_chat_with_a_network_error(false).await;
+    assert_retried_delete_reaches_the_contact(&alice, &bob, chat_id).await;
 }
 
 /// The DS applied the first attempt, so the retry finds the group gone.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn deleting_a_chat_after_a_lost_response_finishes_on_retry() {
-    let (setup, alice, bob, chat_id) = delete_chat_with_a_network_error(true).await;
-    assert_retried_delete_reaches_the_contact(&setup, &alice, &bob, chat_id).await;
+    let (_setup, alice, bob, chat_id) = delete_chat_with_a_network_error(true).await;
+    assert_retried_delete_reaches_the_contact(&alice, &bob, chat_id).await;
 }
