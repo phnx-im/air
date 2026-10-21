@@ -35,19 +35,21 @@ impl From<ConnectionPackageMetadata> for ConnectionPackageRecord {
 }
 
 impl ConnectionPackageRecord {
-    /// Store the connection package in the database.
+    /// Store the connection package in the database, unless it is stored
+    /// already.
     ///
-    /// Returns an error if the storage fails.
+    /// Returns whether the package was new.
     pub(crate) async fn store_for_username(
         &self,
         mut connection: impl WriteConnection,
         username: &Username,
         decryption_key: &ConnectionDecryptionKey,
-    ) -> Result<()> {
-        query!(
+    ) -> Result<bool> {
+        let result = query!(
             "INSERT INTO connection_package
                  (connection_package_hash, handle, decryption_key, expires_at, is_last_resort)
-                 VALUES ($1, $2, $3, $4, $5)",
+                 VALUES ($1, $2, $3, $4, $5)
+                 ON CONFLICT (connection_package_hash) DO NOTHING",
             self.hash,
             username,
             decryption_key,
@@ -57,7 +59,39 @@ impl ConnectionPackageRecord {
         .execute(connection.as_mut())
         .await?;
 
-        Ok(())
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Loads every stored connection package of the username with its
+    /// decryption key, ordered by hash.
+    pub(crate) async fn load_keys_for_username(
+        mut connection: impl ReadConnection,
+        username: &Username,
+    ) -> Result<Vec<(Self, ConnectionDecryptionKey)>> {
+        let records = query!(
+            r#"SELECT
+                connection_package_hash AS "hash: ConnectionPackageHash",
+                decryption_key AS "decryption_key: ConnectionDecryptionKey",
+                expires_at AS "expires_at: TimeStamp",
+                is_last_resort AS "is_last_resort: bool"
+            FROM connection_package
+            WHERE handle = $1
+            ORDER BY connection_package_hash"#,
+            username
+        )
+        .fetch_all(connection.as_mut())
+        .await?;
+        Ok(records
+            .into_iter()
+            .map(|record| {
+                let package = Self {
+                    hash: record.hash,
+                    expires_at: record.expires_at,
+                    is_last_resort: record.is_last_resort.unwrap_or(false),
+                };
+                (package, record.decryption_key)
+            })
+            .collect())
     }
 
     pub(crate) async fn load_decryption_key(
@@ -101,24 +135,6 @@ impl ConnectionPackageRecord {
         .fetch_optional(connection.as_mut())
         .await
         .map(Option::flatten)
-    }
-
-    /// The hashes of the packages of `username` whose decryption keys are
-    /// stored, sorted.
-    #[cfg(any(test, feature = "test_utils"))]
-    pub(crate) async fn load_hashes_for_username(
-        mut connection: impl ReadConnection,
-        username: &Username,
-    ) -> Result<Vec<ConnectionPackageHash>> {
-        query_scalar!(
-            r#"SELECT connection_package_hash AS "connection_package_hash: _"
-            FROM connection_package
-            WHERE handle = $1
-            ORDER BY connection_package_hash"#,
-            username
-        )
-        .fetch_all(connection.as_mut())
-        .await
     }
 }
 

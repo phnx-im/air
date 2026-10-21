@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Connection requests across the devices of a user.
+//! Usernames and connection requests across the devices of a user.
 
+use aircommon::identifiers::USERNAME_REFRESH_THRESHOLD;
 use aircoreclient::{
     AcceptContactRequestError, ChatId, ChatStatus, ChatType, DeleteExpiredContactRequestsSetting,
     DisplayName, SystemMessage, UserProfile, UsernameRecord,
@@ -12,6 +13,7 @@ use aircoreclient::{
         process::qs_stream::{QsProcessEventResult, QsStreamProcessor},
     },
 };
+use airprotos::auth_service::v1::OperationType;
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::{DateTime, Duration, Utc};
 use tokio::time::timeout;
@@ -34,6 +36,220 @@ async fn has_system_message(
     system_messages(device, chat_id).await.iter().any(predicate)
 }
 
+/// Asserts that both devices hold the same username with the same keys.
+async fn assert_same_username(device_a: &CoreUser, device_b: &CoreUser, record: &UsernameRecord) {
+    let records_b = device_b.username_records().await.unwrap();
+    let [record_b] = records_b.as_slice() else {
+        panic!("the sibling should hold exactly one username, got {records_b:?}");
+    };
+    assert_eq!(record_b.username, record.username);
+    assert_eq!(record_b.hash, record.hash);
+    assert_eq!(
+        record_b.signing_key.verifying_key(),
+        record.signing_key.verifying_key(),
+        "the sibling needs the signing key to act on the username"
+    );
+    assert_eq!(
+        device_b
+            .connection_package_hashes(&record.username)
+            .await
+            .unwrap(),
+        device_a
+            .connection_package_hashes(&record.username)
+            .await
+            .unwrap(),
+        "the sibling needs the package keys to read offers"
+    );
+}
+
+/// Adds a username on `device_a` and hands it to `device_b`.
+async fn add_synced_username(
+    setup: &mut TestBackend,
+    device_a: &CoreUser,
+    device_b: &CoreUser,
+) -> UsernameRecord {
+    let owner = device_a.user_id().clone();
+    let record = add_username(setup, &owner).await;
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(device_b, "the sibling failed to take the username").await;
+    record
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Sibling gets a new username", skip_all)]
+async fn sibling_gets_a_new_username() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+
+    let record = add_synced_username(&mut setup, &device_a, &device_b).await;
+
+    assert_same_username(&device_a, &device_b, &record).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Username removed on a sibling", skip_all)]
+async fn removing_a_username_on_a_sibling_removes_it_everywhere() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let record = add_synced_username(&mut setup, &device_a, &device_b).await;
+
+    // Device b never registered the username. It deletes the username on the
+    // AS with the synced signing key.
+    device_b.remove_username(&record.username).await.unwrap();
+    device_b.outbound_service().run_once().await;
+    drain_expecting_success(&device_a, "the device failed to take the removal").await;
+
+    assert!(device_a.usernames().await.unwrap().is_empty());
+    assert!(
+        device_a
+            .connection_package_hashes(&record.username)
+            .await
+            .unwrap()
+            .is_empty(),
+        "the package keys go with the username"
+    );
+    let exists = device_a
+        .check_username_exists(record.username.clone())
+        .await
+        .unwrap();
+    assert!(exists.is_none(), "the username should be gone on the AS");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Offer the sibling cannot read", skip_all)]
+async fn an_offer_the_sibling_cannot_read_stays_in_the_queue() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let record = add_synced_username(&mut setup, &device_a, &device_b).await;
+    // This simulates a sibling still waiting for the commit with new package
+    // keys.
+    device_b
+        .forget_connection_package_keys(&record.username)
+        .await
+        .unwrap();
+
+    let bob_chat_id = setup
+        .get_user(&bob)
+        .user()
+        .add_contact(record.username.clone(), record.hash, setup.apq_groups)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let stored = device_b
+        .fetch_and_process_username_messages()
+        .await
+        .unwrap();
+    assert!(stored.is_empty());
+    let stored = device_a
+        .fetch_and_process_username_messages()
+        .await
+        .unwrap();
+    let [stored] = stored.as_slice() else {
+        panic!("the sibling should leave the offer in the queue, got {stored:?}");
+    };
+    assert_eq!(stored.chat_id, bob_chat_id);
+}
+
+async fn sorted_username_tokens(device: &CoreUser) -> Vec<Vec<u8>> {
+    let mut tokens = device
+        .cached_privacy_pass_tokens(OperationType::AddUsername)
+        .await
+        .unwrap();
+    tokens.sort();
+    tokens
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Refresh a sibling already did", skip_all)]
+async fn a_refresh_a_sibling_already_did_spends_no_token() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let record = add_synced_username(&mut setup, &device_a, &device_b).await;
+
+    // The AS has a fresh registration. Device b pretends to have missed the
+    // last refresh. It finds the username due.
+    device_b
+        .set_username_refreshed_at(&record.username, Utc::now() - Duration::days(100))
+        .await
+        .unwrap();
+    let tokens = sorted_username_tokens(&device_b).await;
+    assert!(!tokens.is_empty(), "the device needs a token to refresh");
+
+    device_b
+        .outbound_service()
+        .schedule_username_refresh(Utc::now())
+        .await
+        .unwrap();
+    device_b.outbound_service().run_once().await;
+
+    assert_eq!(
+        sorted_username_tokens(&device_b).await,
+        tokens,
+        "the AS redeemed nothing, so the token is back in the cache"
+    );
+    let refreshed_at = device_b
+        .username_refreshed_at(&record.username)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        refreshed_at > Utc::now() - USERNAME_REFRESH_THRESHOLD,
+        "the device learned from the AS that the username is not due"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Refresh of a username a sibling removed", skip_all)]
+async fn a_refresh_of_a_removed_username_spends_no_token() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+    let removed = add_synced_username(&mut setup, &device_a, &device_b).await;
+    let kept = add_second_username(&setup, &alice).await;
+    device_a.outbound_service().run_once().await;
+    drain_expecting_success(&device_b, "the sibling failed to take the second username").await;
+
+    // Device b has not seen the release yet. It loads the due usernames in
+    // insertion order. The removed one comes first.
+    device_a.remove_username(&removed.username).await.unwrap();
+    for record in [&removed, &kept] {
+        device_b
+            .set_username_refreshed_at(&record.username, Utc::now() - Duration::days(100))
+            .await
+            .unwrap();
+    }
+    let tokens = sorted_username_tokens(&device_b).await;
+    assert!(!tokens.is_empty(), "the device needs a token to refresh");
+
+    device_b
+        .outbound_service()
+        .schedule_username_refresh(Utc::now())
+        .await
+        .unwrap();
+    device_b.outbound_service().run_once().await;
+
+    assert_eq!(
+        sorted_username_tokens(&device_b).await,
+        tokens,
+        "the AS redeemed nothing, so the token is back in the cache"
+    );
+    let refreshed_at = device_b
+        .username_refreshed_at(&kept.username)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        refreshed_at > Utc::now() - USERNAME_REFRESH_THRESHOLD,
+        "the refresh moves on to the next username"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Request received by a sibling", skip_all)]
 async fn request_fetched_by_one_device_reaches_its_sibling() {
@@ -41,9 +257,7 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
-    let record = add_username(&mut setup, &alice).await;
-    device_a.outbound_service().run_once().await;
-    drain_expecting_success(&device_b, "the sibling failed to follow the username").await;
+    let record = add_synced_username(&mut setup, &device_a, &device_b).await;
 
     let bob_user = setup.get_user(&bob).user().clone();
     let bob_chat_id = bob_user
@@ -52,29 +266,29 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
         .unwrap()
         .unwrap();
 
-    // Only the device that holds the username fetches the offer.
-    let chat_id = receive_connection_offer(&device_a, &record).await;
+    // Only device b fetches the offer. It never registered the username.
+    let chat_id = receive_connection_offer(&device_b, &record).await;
     assert_eq!(chat_id, bob_chat_id);
     let package_hashes = device_a
         .connection_package_hashes(&record.username)
         .await
         .unwrap();
-    device_a.outbound_service().run_once().await;
+    device_b.outbound_service().run_once().await;
 
     let processed =
-        drain_expecting_success(&device_b, "the sibling failed to take the request").await;
+        drain_expecting_success(&device_a, "the device failed to take the request").await;
     assert_eq!(
         processed.new_connections,
         vec![chat_id],
         "the forwarded request should raise a notification"
     );
-    let chat_b = device_b.chat(&chat_id).await.unwrap();
+    let chat_a = device_a.chat(&chat_id).await.unwrap();
     assert_eq!(
-        chat_b.chat_type(),
+        chat_a.chat_type(),
         &ChatType::PendingConnection(bob.clone())
     );
     assert!(
-        has_system_message(&device_b, chat_id, |message| matches!(
+        has_system_message(&device_a, chat_id, |message| matches!(
             message,
             SystemMessage::ReceivedHandleConnectionRequest { sender, user_handle }
                 if sender == &bob && user_handle == &record.username
@@ -84,23 +298,31 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
     );
 
     // The device that never saw the offer accepts it.
-    device_b
+    device_a
         .accept_contact_request(chat_id)
         .await
         .unwrap()
         .unwrap();
 
-    drain_expecting_success(&device_a, "the device failed to follow the accept").await;
-    let chat_a = device_a.chat(&chat_id).await.unwrap();
-    assert_eq!(chat_a.chat_type(), &ChatType::Connection(bob.clone()));
-    let remaining_hashes = device_a
+    drain_expecting_success(&device_b, "the sibling failed to follow the accept").await;
+    let chat_b = device_b.chat(&chat_id).await.unwrap();
+    assert_eq!(chat_b.chat_type(), &ChatType::Connection(bob.clone()));
+    let remaining_hashes = device_b
         .connection_package_hashes(&record.username)
         .await
         .unwrap();
     assert_eq!(
         remaining_hashes.len() + 1,
         package_hashes.len(),
-        "the device drops the key of the package the offer consumed"
+        "the sibling drops the key of the package the offer consumed"
+    );
+    assert_eq!(
+        remaining_hashes,
+        device_a
+            .connection_package_hashes(&record.username)
+            .await
+            .unwrap(),
+        "both devices drop the same key"
     );
 
     drain_expecting_success(&bob_user, "bob failed to follow the accept").await;
@@ -343,8 +565,8 @@ async fn sibling_fetches_the_profile_the_sender_rotated() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Linked device gets open requests", skip_all)]
-async fn linked_device_gets_open_incoming_requests() {
+#[tracing::instrument(name = "Linked device gets usernames and open requests", skip_all)]
+async fn linked_device_gets_usernames_and_open_incoming_requests() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
@@ -384,6 +606,10 @@ async fn linked_device_gets_open_incoming_requests() {
     };
 
     let (device_a, device_b, _tmp) = link_sibling(&setup, &alice).await;
+
+    // The new device holds the keys of the packages published before the link.
+    // It publishes no packages of its own.
+    assert_same_username(&device_a, &device_b, &record).await;
 
     let username_chat = device_b.chat(&username_chat_id).await.unwrap();
     assert_eq!(

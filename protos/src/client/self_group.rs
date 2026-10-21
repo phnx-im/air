@@ -19,14 +19,16 @@
 //! them.
 
 use aircommon::{
+    credentials::keys::{UsernameSigningKey, UsernameVerifyingKey},
     crypto::{
+        ConnectionDecryptionKey,
         aead::{
             Ciphertext, PaddedAeadDecryptable, PaddedAeadEncryptable, keys::SelfGroupMessageKey,
         },
         errors::RandomnessError,
         secrets::Secret,
     },
-    identifiers::MimiId,
+    identifiers::{MimiId, UsernameHash},
     messages::{client_as::ConnectionOfferHash, connection_package::ConnectionPackageHash},
 };
 use airmacros::{
@@ -94,6 +96,7 @@ impl PaddedAeadDecryptable<SelfGroupMessageKey, SelfGroupMessagesCtype> for Self
 ///   2: TokenSeed
 ///   3: BlockedContactsUpdate
 ///   4: DeletedChat
+///   5: UsernamesUpdate
 ///   6: ConnectionRequestsUpdate
 /// }
 /// ```
@@ -107,6 +110,8 @@ pub enum SelfGroupMessage {
     BlockedContactsUpdate(BlockedContactsUpdate),
     #[tag(4)]
     DeletedChat(DeletedChat),
+    #[tag(5)]
+    UsernamesUpdate(UsernamesUpdate),
     #[tag(6)]
     ConnectionRequestsUpdate(ConnectionRequestsUpdate),
     /// A message kind this client does not understand; skipped on receive.
@@ -491,6 +496,157 @@ pub struct DeletedChat {
     pub group_id: Option<GroupId>,
 }
 
+/// The usernames the sender changed. This is a diff and not a snapshot.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// UsernamesUpdate = {
+///   usernames: [* UsernameEntry] .tag 1,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct UsernamesUpdate {
+    #[tag(1)]
+    pub usernames: Vec<UsernameEntry>,
+}
+
+/// The new state of one username.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// UsernameEntry = {
+///   1: UsernameClaimed //
+///   2: UsernameReleased
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedUnion, DeserializeTaggedUnion)]
+pub enum UsernameEntry {
+    #[tag(1)]
+    Claimed(UsernameClaimed),
+    #[tag(2)]
+    Released(UsernameReleased),
+    /// A state this client does not understand. The entry is ignored on
+    /// receive.
+    #[unknown]
+    Unknown,
+}
+
+impl UsernameEntry {
+    pub fn username(&self) -> Option<&str> {
+        match self {
+            UsernameEntry::Claimed(UsernameClaimed { username, .. })
+            | UsernameEntry::Released(UsernameReleased { username, .. }) => Some(username),
+            UsernameEntry::Unknown => None,
+        }
+    }
+}
+
+/// A username registered at the AS with everything a sibling needs to act on
+/// it.
+///
+/// The AS knows a username only by its hash and verifying key. Owning the
+/// username therefore means holding its signing key. `connection_packages`
+/// contains the decryption keys of the published packages the sender still
+/// holds. A receiver adds the missing keys and keeps its existing ones.
+///
+/// The hash and the key pairs keep the serde encoding of their types. Clients
+/// store them in this encoding too. They are options only because a tagged
+/// map needs a default for each field. A receiver skips a claim without them.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// UsernameClaimed = {
+///   username: tstr .tag 1,
+///   hash: UsernameHash .tag 2,
+///   signing_key: UsernameSigningKey .tag 3,
+///   created_at: uint .tag 4,           ; unix epoch milliseconds (UTC)
+///   refreshed_at: uint .tag 5,         ; unix epoch milliseconds (UTC)
+///   connection_packages: [* ConnectionPackageKey] .tag 6,
+/// }
+///
+/// UsernameHash = {
+///   "hash": bstr .size 32,
+/// }
+///
+/// UsernameSigningKey = {
+///   "signing_key": bstr,               ; private key
+///   "verifying_key": bstr,             ; public key
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct UsernameClaimed {
+    #[tag(1)]
+    pub username: String,
+    #[tag(2)]
+    pub hash: Option<UsernameHash>,
+    #[tag(3)]
+    pub signing_key: Option<UsernameSigningKey>,
+    #[tag(4, with = "chrono::serde::ts_milliseconds")]
+    pub created_at: DateTime<Utc>,
+    #[tag(5, with = "chrono::serde::ts_milliseconds")]
+    pub refreshed_at: DateTime<Utc>,
+    #[tag(6)]
+    pub connection_packages: Vec<ConnectionPackageKey>,
+}
+
+/// The decryption key of one published connection package.
+///
+/// A receiver skips a key without its hash or decryption key. See
+/// [`UsernameClaimed`] for why these are options.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ConnectionPackageKey = {
+///   hash: bstr .size 32 .tag 1,
+///   decryption_key: ConnectionDecryptionKey .tag 2,
+///   expires_at: uint .tag 3,           ; unix epoch milliseconds (UTC)
+///   is_last_resort: bool .tag 4,
+/// }
+///
+/// ConnectionDecryptionKey = {
+///   "decryption_key": bstr,            ; HPKE private key
+///   "encryption_key": bstr,            ; HPKE public key
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ConnectionPackageKey {
+    #[tag(1)]
+    pub hash: Option<ConnectionPackageHash>,
+    #[tag(2)]
+    pub decryption_key: Option<ConnectionDecryptionKey>,
+    #[tag(3, with = "chrono::serde::ts_milliseconds")]
+    pub expires_at: DateTime<Utc>,
+    #[tag(4)]
+    pub is_last_resort: bool,
+}
+
+/// The username is no longer registered.
+///
+/// `verifying_key` names the ended registration. A receiver keeps the username
+/// if it holds the username under another key. That key belongs to a newer
+/// registration of the same name. A receiver skips a release without its
+/// verifying key.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// UsernameReleased = {
+///   username: tstr .tag 1,
+///   verifying_key: bstr .tag 2,
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct UsernameReleased {
+    #[tag(1)]
+    pub username: String,
+    #[tag(2)]
+    pub verifying_key: Option<UsernameVerifyingKey>,
+}
+
 /// Update to a connection request. This is a diff and not a snapshot.
 ///
 /// A received request is only carried if it came via a username. A request
@@ -653,11 +809,13 @@ mod test {
     use aircommon::{
         codec::PersistenceCodec,
         crypto::{
+            ConnectionEncryptionKey,
             aead::{AeadCiphertext, keys::SelfGroupMessageKey},
             kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
         },
     };
     use mimi_content::{Disposition, cbor::Value};
+    use mls_assist::openmls_traits::types::HpkePrivateKey;
 
     use super::*;
 
@@ -1323,6 +1481,138 @@ mod test {
                 .unwrap();
         let decoded: ConnectionRequestSource = PersistenceCodec::from_slice(&bytes).unwrap();
         assert_eq!(decoded, ConnectionRequestSource::Unknown);
+    }
+
+    // 1f. `UsernamesUpdate` encode/decode and forward compatibility.
+
+    fn sample_usernames_update() -> UsernamesUpdate {
+        UsernamesUpdate {
+            usernames: vec![
+                UsernameEntry::Claimed(UsernameClaimed {
+                    username: "alice".to_owned(),
+                    hash: Some(UsernameHash::new([0x01; 32])),
+                    signing_key: Some(UsernameSigningKey::new_for_test(
+                        vec![0x02; 32],
+                        UsernameVerifyingKey::new_for_test(vec![0x03; 32]),
+                    )),
+                    created_at: DateTime::from_timestamp_millis(1_767_225_600_123).unwrap(),
+                    refreshed_at: DateTime::from_timestamp_millis(1_767_312_000_456).unwrap(),
+                    connection_packages: vec![ConnectionPackageKey {
+                        hash: Some(ConnectionPackageHash::from_bytes([0x04; 32])),
+                        decryption_key: Some(ConnectionDecryptionKey::new(
+                            HpkePrivateKey::from(vec![0x05; 32]),
+                            ConnectionEncryptionKey::new_for_test(vec![0x06; 32]),
+                        )),
+                        expires_at: DateTime::from_timestamp_millis(1_769_904_000_789).unwrap(),
+                        is_last_resort: true,
+                    }],
+                }),
+                UsernameEntry::Released(UsernameReleased {
+                    username: "bob".to_owned(),
+                    verifying_key: Some(UsernameVerifyingKey::new_for_test(vec![0x07; 32])),
+                }),
+            ],
+        }
+    }
+
+    #[test]
+    fn usernames_update_roundtrip() {
+        let update = sample_usernames_update();
+        let bytes = PersistenceCodec::to_vec(&update).unwrap();
+        let decoded: UsernamesUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(update, decoded);
+    }
+
+    #[test]
+    fn usernames_update_stability() {
+        let bytes = PersistenceCodec::to_vec(&sample_usernames_update()).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn usernames_update_travels_as_a_self_group_message() {
+        let messages = SelfGroupMessages(vec![SelfGroupMessage::UsernamesUpdate(
+            sample_usernames_update(),
+        )]);
+        let key = message_key_from([13u8; 32]);
+        let encrypted = messages.encrypt_padded(&key).unwrap();
+        let decrypted = SelfGroupMessages::decrypt_padded(&key, &encrypted).unwrap();
+        assert_eq!(messages, decrypted);
+    }
+
+    /// A client older than tag 5 skips the usernames. It still reads the
+    /// connection requests and the settings update next to them.
+    #[test]
+    fn usernames_are_skipped_by_an_older_client() {
+        #[derive(Debug, Clone, PartialEq, DeserializeTaggedUnion)]
+        enum SelfGroupMessageV4 {
+            #[tag(1)]
+            SettingsUpdate(SettingsUpdate),
+            #[tag(6)]
+            ConnectionRequestsUpdate(ConnectionRequestsUpdate),
+            #[unknown]
+            Unknown,
+        }
+
+        let update = SettingsUpdate {
+            send_read_receipts: Some(true),
+            ..Default::default()
+        };
+        let requests = sample_connection_requests_update();
+        let newer = vec![
+            SelfGroupMessage::UsernamesUpdate(sample_usernames_update()),
+            SelfGroupMessage::ConnectionRequestsUpdate(requests.clone()),
+            SelfGroupMessage::SettingsUpdate(update.clone()),
+        ];
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+
+        let decoded: Vec<SelfGroupMessageV4> = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            decoded,
+            vec![
+                SelfGroupMessageV4::Unknown,
+                SelfGroupMessageV4::ConnectionRequestsUpdate(requests),
+                SelfGroupMessageV4::SettingsUpdate(update),
+            ]
+        );
+    }
+
+    /// An entry state added after this client shipped decodes to `Unknown`.
+    /// The receiver drops this one entry and keeps the rest of the update.
+    #[test]
+    fn username_entry_with_unknown_state_decodes_to_unknown() {
+        #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion)]
+        enum UsernameEntryV2 {
+            #[tag(2)]
+            Released(UsernameReleased),
+            #[tag(99)]
+            Suspended(u64),
+        }
+
+        #[derive(Debug, Clone, SerializeTaggedMap)]
+        struct UsernamesUpdateV2 {
+            #[tag(1)]
+            usernames: Vec<UsernameEntryV2>,
+        }
+
+        let released = UsernameReleased {
+            username: "bob".to_owned(),
+            verifying_key: Some(UsernameVerifyingKey::new_for_test(vec![0x07; 32])),
+        };
+        let newer = UsernamesUpdateV2 {
+            usernames: vec![
+                UsernameEntryV2::Suspended(7),
+                UsernameEntryV2::Released(released.clone()),
+            ],
+        };
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+
+        let decoded: UsernamesUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            decoded.usernames,
+            vec![UsernameEntry::Unknown, UsernameEntry::Released(released)]
+        );
     }
 
     // 2a. `SelfGroupMessage` forward compatibility: an unknown tag decodes to

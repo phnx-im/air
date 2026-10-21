@@ -1192,6 +1192,11 @@ async fn multi_device_redeemed_token_is_removed_from_sibling() {
         "the sibling still holds the spent token"
     );
 
+    // Adding the username also parks it for the sibling. We send that commit
+    // first. The epochs below then only see the broadcast.
+    first_device.outbound_service().run_once().await;
+    drain_queue(first_device).await;
+
     // The broadcast is held back to keep it apart from the redemption. The
     // test skips that wait.
     first_device

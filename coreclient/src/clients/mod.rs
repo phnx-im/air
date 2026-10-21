@@ -29,6 +29,7 @@ use aircommon::{
     identifiers::{ClientConfig, QsClientId, QsReference, QsUserId, UserId},
     messages::{FriendshipToken, QueueMessage, push_token::PushToken},
     registration::RegistrationChallenge,
+    time::TimeStamp,
 };
 pub use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
 use airprotos::common::v1::Version;
@@ -53,7 +54,10 @@ use uuid::Uuid;
 
 use crate::{
     Asset, ChatMuted, PartialContact, StoredRequest, UsernameRecord,
-    clients::event_loop::{EventLoop, EventLoopSender},
+    clients::{
+        event_loop::{EventLoop, EventLoopSender},
+        process::process_as::keep_failed_username_message,
+    },
     contacts::{TargetedMessageContact, UsernameContact},
     db::access::{DbAccess, WriteDbTransaction},
     groups::{Group, self_group::SelfGroupNotJoinedYet},
@@ -524,6 +528,7 @@ impl CoreUser {
                 error!("no message id in username queue message");
                 return false;
             };
+            let created_at = message.created_at.map(TimeStamp::from);
             match self
                 .process_username_queue_message(record.username.clone(), message)
                 .await
@@ -533,9 +538,11 @@ impl CoreUser {
                 }
                 Err(error) => {
                     error!(%error, "failed to process username queue message");
+                    if keep_failed_username_message(&error, created_at) {
+                        return false;
+                    }
                 }
             }
-            // ack the message independently of the result of processing the message
             responder.ack(message_id.into()).await;
             true
         })

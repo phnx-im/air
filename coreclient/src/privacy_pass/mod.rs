@@ -819,6 +819,18 @@ pub(crate) async fn restore_token(
     Ok(())
 }
 
+/// Like [`restore_token`]. In case of failure, we only log the warning, as
+/// there is nothing else to do.
+pub(crate) async fn restore_unredeemed_token(
+    db: &DbAccess,
+    operation_type: OperationType,
+    consumed: ConsumedToken,
+) {
+    if let Err(error) = restore_token(db, operation_type, consumed).await {
+        warn!(%error, %operation_type, "failed to restore an unredeemed privacy pass token");
+    }
+}
+
 /// Deletes a token the AS has seen and records its redemption.
 pub(crate) async fn burn_token(
     txn: &mut WriteDbTransaction<'_>,

@@ -58,7 +58,7 @@ use crate::{
         key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
     },
     outbound_service::timed_tasks::{TimedTask, TimedTaskKind},
-    privacy_pass,
+    privacy_pass, usernames,
 };
 
 // Having separate retry intervals for test and non-test is a hack until we can
@@ -229,6 +229,9 @@ async fn complete_sent_messages(
             SelfGroupMessage::DeletedChat(chat) => {
                 chats::persistence::remove_staged_deletion(txn, std::slice::from_ref(chat)).await?
             }
+            SelfGroupMessage::UsernamesUpdate(update) => {
+                usernames::sync::complete_sent_entries(txn, &update.usernames).await?
+            }
             SelfGroupMessage::ConnectionRequestsUpdate(update) => {
                 chats::connection_requests::complete_sent_entries(txn, &update.requests).await?
             }
@@ -245,7 +248,7 @@ async fn complete_sent_messages(
 /// Settings return to the values stored before they were touched, because the
 /// local write was optimistic. A block stays applied and parked: it is not an
 /// optimistic edit to undo, and it reaches the siblings on a later commit. The
-/// same holds for a deleted chat and a connection request.
+/// same holds for a deleted chat, a username and a connection request.
 async fn roll_back_sent_messages(
     txn: &mut WriteDbTransaction<'_>,
     messages: &[SelfGroupMessage],

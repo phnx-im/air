@@ -118,8 +118,12 @@ impl CoreUser {
         {
             Ok(res) => res,
             Err(error) if error.is_not_found() => {
-                self.restore_unredeemed_token(OperationType::ConnectUsername, consumed)
-                    .await;
+                privacy_pass::restore_unredeemed_token(
+                    self.db(),
+                    OperationType::ConnectUsername,
+                    consumed,
+                )
+                .await;
                 return Ok(Err(AddUsernameContactError::UsernameNotFound));
             }
             Err(error) if error.is_unknown_token_key_id() => {

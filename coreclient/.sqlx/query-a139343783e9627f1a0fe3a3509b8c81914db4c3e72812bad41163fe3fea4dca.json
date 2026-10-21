@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                connection_package_hash AS \"hash: ConnectionPackageHash\",\n                decryption_key AS \"decryption_key: ConnectionDecryptionKey\",\n                expires_at AS \"expires_at: TimeStamp\",\n                is_last_resort AS \"is_last_resort: bool\"\n            FROM connection_package\n            WHERE handle = $1\n            ORDER BY connection_package_hash",
+  "describe": {
+    "columns": [
+      {
+        "name": "hash: ConnectionPackageHash",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "connection_package",
+            "name": "connection_package_hash"
+          }
+        }
+      },
+      {
+        "name": "decryption_key: ConnectionDecryptionKey",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "connection_package",
+            "name": "decryption_key"
+          }
+        }
+      },
+      {
+        "name": "expires_at: TimeStamp",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "connection_package",
+            "name": "expires_at"
+          }
+        }
+      },
+      {
+        "name": "is_last_resort: bool",
+        "ordinal": 3,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "connection_package",
+            "name": "is_last_resort"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "a139343783e9627f1a0fe3a3509b8c81914db4c3e72812bad41163fe3fea4dca"
+}
