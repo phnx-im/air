@@ -7,10 +7,11 @@ use std::{assert_matches, collections::HashSet};
 use aircommon::{
     credentials::LeafCredential,
     identifiers::{UserId, Username},
+    messages::QueueMessage,
 };
 use aircoreclient::{
     ChatId, ChatStatus, ChatType, EventMessage, Message, ReadReceiptsSetting, SystemMessage,
-    UserProfile,
+    UnlinkReason, UserProfile,
     clients::{
         CoreUser, ListenResponse, MarkChatAsRead, listen_response,
         multi_device::{
@@ -2256,18 +2257,168 @@ async fn multi_device_unlinked_device_flags_itself() -> anyhow::Result<()> {
     drain_queue(&new_device).await;
 
     let b_id = new_device.own_client_id().await?;
-    assert!(!new_device.is_account_unlinked().await?);
+    assert_eq!(new_device.account_unlink_reason().await?, None);
 
     old_device.unlink_device(b_id).await?;
     drain_queue(&new_device).await;
 
-    assert!(
-        new_device.is_account_unlinked().await?,
+    assert_eq!(
+        new_device.account_unlink_reason().await?,
+        Some(UnlinkReason::Unlinked),
         "the removed device must know it was unlinked"
     );
-    assert!(
-        !old_device.is_account_unlinked().await?,
+    assert_eq!(
+        old_device.account_unlink_reason().await?,
+        None,
         "the remover must not flag itself"
+    );
+
+    Ok(())
+}
+
+/// Reads the listen stream up to the next queue message.
+async fn next_queue_message(
+    stream: &mut (impl Stream<Item = Result<ListenResponse, tonic::Status>> + Unpin),
+) -> anyhow::Result<Option<QueueMessage>> {
+    while let Some(response) = stream.next().await {
+        match response?.event {
+            Some(listen_response::Event::Message(message)) => return Ok(Some(message.try_into()?)),
+            Some(listen_response::Event::Empty(_)) => return Ok(None),
+            Some(listen_response::Event::Payload(_))
+            | Some(listen_response::Event::VersionStatus(_))
+            | Some(listen_response::Event::SiblingClientState(_))
+            | None => {}
+        }
+    }
+    anyhow::bail!("listen stream ended")
+}
+
+/// Deletes the self group the way an account deletion does.
+async fn delete_self_group(device: &CoreUser) -> anyhow::Result<()> {
+    let self_chat_id = device
+        .self_chat_id()
+        .await?
+        .expect("the device has a self chat");
+    device.delete_chat(self_chat_id).await?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_account_deletion_tears_down_sibling() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let (mut stream, _responder) = new_device.listen_queue().await?;
+    while next_queue_message(&mut stream).await?.is_some() {}
+
+    delete_self_group(old_device).await?;
+
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while new_device.account_unlink_reason().await?.is_none() {
+            let Some(message) = next_queue_message(&mut stream).await? else {
+                continue;
+            };
+            new_device.fully_process_qs_messages(vec![message]).await;
+        }
+        anyhow::Ok(())
+    })
+    .await??;
+
+    assert_eq!(
+        new_device.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_account_deletion_reaches_offline_sibling() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    delete_self_group(old_device).await?;
+
+    drain_queue_ok(&new_device, "processing the self group deletion").await;
+    assert_eq!(
+        new_device.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_account_deletion_found_on_self_group_resync() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    delete_self_group(old_device).await?;
+
+    // The sibling resyncs without processing the announcement in its queue.
+    let self_chat_id = new_device
+        .self_chat_id()
+        .await?
+        .expect("the sibling has a self chat");
+    new_device.enqueue_group_resync(self_chat_id).await?;
+    new_device.outbound_service().run_once().await;
+
+    assert_eq!(
+        new_device.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_account_deletion_found_by_self_group_operation() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    delete_self_group(old_device).await?;
+
+    // Without processing the deletion, the sibling commits a setting change
+    // to the self group, which the DS rejects as closed.
+    new_device
+        .set_synced_user_setting(&ReadReceiptsSetting(true))
+        .await?;
+    new_device.outbound_service().run_once().await;
+    assert_eq!(
+        new_device.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
+    );
+
+    // The queued resync ends the self chat.
+    new_device.outbound_service().run_once().await;
+    let self_chat_id = new_device
+        .self_chat_id()
+        .await?
+        .expect("the sibling has a self chat");
+    let self_chat = new_device
+        .chat(&self_chat_id)
+        .await
+        .expect("the self chat is kept");
+    assert!(self_chat.status().is_inactive());
+    assert_eq!(
+        new_device.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
     );
 
     Ok(())
