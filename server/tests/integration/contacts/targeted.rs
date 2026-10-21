@@ -8,7 +8,7 @@ use aircoreclient::{ChatId, EventMessage, Message, SystemMessage, clients::CoreU
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn connect_users_via_targeted_message() {
+async fn connect_from_group_creates_contacts() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 
@@ -152,7 +152,7 @@ async fn connect_from_group(
 /// The connection request rides the APQ origin group as a T targeted message, and the connection
 /// group itself is APQ.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn connect_users_via_targeted_message_apq() {
+async fn connect_from_group_creates_contacts_apq() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 
@@ -169,7 +169,7 @@ async fn connect_users_via_targeted_message_apq() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn sanity_checks_for_targeted_message_connections() {
+async fn connect_from_group_to_contact_or_pending_is_rejected() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 

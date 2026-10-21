@@ -27,14 +27,14 @@ async fn invite_to_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn invite_to_apq_group() {
+async fn invite_to_group_apq() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
     setup.connected_apq_group(&alice, &[&bob, &charlie]).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn remove_from_group() {
+async fn removed_member_profile_resets_to_default() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob, charlie, dave] = setup.add_users().await;
@@ -62,7 +62,7 @@ async fn remove_from_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn re_add_client() {
+async fn member_can_be_readded_repeatedly() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob]).await;
@@ -86,7 +86,7 @@ async fn leave_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn no_messages_after_leaving_group() {
+async fn left_member_receives_no_messages() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob, &charlie]).await;
@@ -119,7 +119,7 @@ async fn no_messages_after_leaving_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn apq_leave_removes_member_from_both_t_and_pq() {
+async fn apq_leave_removes_member_on_both_legs() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob, charlie] = setup.add_users().await;
@@ -197,7 +197,7 @@ async fn apq_leave_removes_member_from_both_t_and_pq() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn update_user_profile_on_group_join() {
+async fn joining_member_publishes_updated_profile() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 
@@ -269,7 +269,7 @@ async fn update_user_profile_on_group_join() {
 /// up: later commits carry added members' profile keys in their AAD, which
 /// would re-deliver the keys and hide the problem.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn stale_welcome_epoch_preserves_profile_keys() {
+async fn stale_welcome_keeps_profile_keys() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await; // committer
@@ -369,7 +369,7 @@ async fn stale_welcome_epoch_preserves_profile_keys() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn key_package_upload() {
+async fn key_packages_fall_back_to_last_resort_then_refresh() {
     let mut setup = TestBackend::single_with_params(TestBackendParams::no_rate_limits()).await;
     let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;

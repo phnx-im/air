@@ -17,7 +17,7 @@ use mimi_content::MimiContent;
 use tokio_stream::StreamExt;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn delete_user() {
+async fn deleted_user_id_can_register_again() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
@@ -41,7 +41,7 @@ async fn delete_user() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn delete_qs_user_keeps_queue() {
+async fn deleted_qs_user_keeps_readable_queue() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob] = setup.add_users().await;
@@ -91,7 +91,7 @@ async fn delete_qs_user_keeps_queue() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn delete_account() {
+async fn deleted_account_leaves_chats_and_frees_username() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;

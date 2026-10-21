@@ -31,7 +31,7 @@ use super::{
 };
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_linking_session() {
+async fn linked_device_inherits_groups_and_stays_in_sync() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
@@ -264,7 +264,7 @@ async fn multi_device_linking_session() {
 
 // Linking with a session ID that was never registered returns an error.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_link_with_nonexistent_session_id() {
+async fn link_with_unknown_session_fails() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
@@ -287,7 +287,7 @@ async fn multi_device_link_with_nonexistent_session_id() {
 // A session can only be claimed once; a second link attempt on the same session ID
 // must fail even when called by the same user.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_second_link_attempt_returns_error() {
+async fn consumed_session_cannot_be_linked_again() {
     let mut setup = TestBackend::single().await;
     let domain = setup.domain().clone();
     let server_url = setup.server_url();
@@ -326,7 +326,7 @@ async fn multi_device_second_link_attempt_returns_error() {
 // Two concurrent linking sessions must not interfere with each other.
 // Each new device must be linked to the correct existing device.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_concurrent_linking_sessions_dont_interfere() {
+async fn concurrent_linking_sessions_stay_separate() {
     let mut setup = TestBackend::single().await;
     let domain = setup.domain().clone();
     let server_url = setup.server_url();
@@ -381,7 +381,7 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
 // The new device's metadata entry rides on the self-group add commit itself, so
 // linking costs exactly one commit.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_link_publishes_device_entry_without_extra_commit() {
+async fn link_publishes_device_entry_without_extra_commit() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
@@ -417,7 +417,7 @@ async fn multi_device_link_publishes_device_entry_without_extra_commit() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_linking_a_third_device() {
+async fn third_device_onboards_without_duplicate_fanout() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let connection_chat_id = setup.connect_users(&alice, &bob).await;
@@ -519,7 +519,7 @@ async fn multi_device_linking_a_third_device() {
 // Linking a third device fans the add commit out to the existing non-initiating
 // device, which must process the self-group add without desynchronizing.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_third_device_link() {
+async fn third_device_link_keeps_second_device_in_sync() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
@@ -555,7 +555,7 @@ async fn multi_device_third_device_link() {
 /// After linking, each device advertises itself and learns its sibling, so both
 /// see the same two-device list. This is the property the Devices screen shows.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_linked_devices_converge_on_both_devices() -> anyhow::Result<()> {
+async fn linked_device_lists_converge() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = alice.add_linked_device().await;
@@ -572,7 +572,7 @@ async fn multi_device_linked_devices_converge_on_both_devices() -> anyhow::Resul
     // along in the provisioning snapshot. The new device's entry travelled the
     // other way in the join request, and the old device folded it into the add
     // commit itself, which is why nothing is left enqueued on either side (see
-    // `multi_device_link_publishes_device_entry_without_extra_commit`).
+    // `link_publishes_device_entry_without_extra_commit`).
     for user in [&alice, &alice2] {
         let members = user.self_group_client_ids().await?;
         assert_eq!(members.len(), 2);
@@ -592,7 +592,7 @@ async fn multi_device_linked_devices_converge_on_both_devices() -> anyhow::Resul
 /// The name the confirming user typed overrides the name the new device chose
 /// for itself, and reaches both devices.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_link_uses_the_confirmed_device_name() -> anyhow::Result<()> {
+async fn link_uses_confirmed_device_name() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = alice
@@ -622,7 +622,7 @@ async fn multi_device_link_uses_the_confirmed_device_name() -> anyhow::Result<()
 
 /// A blank confirmation name leaves the platform default the new device picked.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_link_blank_name_keeps_the_device_default() -> anyhow::Result<()> {
+async fn link_blank_name_keeps_device_default() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = alice.link_ephemeral_device_named("   ").await.unwrap();
@@ -646,7 +646,7 @@ async fn multi_device_link_blank_name_keeps_the_device_default() -> anyhow::Resu
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_cancelled_provisioning_leaves_no_client() -> anyhow::Result<()> {
+async fn cancelled_provisioning_leaves_no_client() -> anyhow::Result<()> {
     let setup = TestBackend::single().await;
     let tmp = TempDir::new()?;
     let db_path = tmp.path().to_str().unwrap().to_owned();
@@ -679,7 +679,7 @@ async fn multi_device_cancelled_provisioning_leaves_no_client() -> anyhow::Resul
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_sibling_client_state() {
+async fn sibling_client_state_is_relayed() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = alice.add_linked_device().await;

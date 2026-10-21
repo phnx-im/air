@@ -13,7 +13,7 @@ use mimi_content::{MessageStatus, MimiContent};
 use rand::{RngExt, distr::Alphanumeric};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn mark_as_read() {
+async fn mark_as_read_updates_unread_counts() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 
@@ -113,7 +113,7 @@ async fn mark_as_read() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn read_receipts_setting() {
+async fn disabled_read_receipts_are_ignored() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 
@@ -183,7 +183,7 @@ async fn read_receipts_setting() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn peer_read_receipt_does_not_move_our_read_marker() {
+async fn peer_read_receipt_keeps_own_unread_count() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
     let group_chat_id = setup.connected_group(&alice, &[&bob, &charlie]).await;

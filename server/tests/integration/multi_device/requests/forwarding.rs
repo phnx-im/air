@@ -95,7 +95,7 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn a_streamed_forwarded_request_has_the_sender_profile() {
+async fn streamed_forwarded_request_has_sender_profile() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let alice2 = alice.add_synced_device().await;
@@ -146,7 +146,7 @@ async fn a_streamed_forwarded_request_has_the_sender_profile() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn sibling_holding_the_request_follows_the_accept() {
+async fn sibling_holding_request_follows_accept() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let alice2 = alice.add_synced_device().await;
@@ -205,7 +205,7 @@ async fn sibling_holding_the_request_follows_the_accept() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn sibling_moves_older_requests_into_the_accepted_chat() {
+async fn sibling_moves_older_requests_into_accepted_chat() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let alice2 = alice.add_synced_device().await;
@@ -267,7 +267,7 @@ async fn sibling_moves_older_requests_into_the_accepted_chat() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn sibling_fetches_the_profile_the_sender_rotated() {
+async fn sibling_fetches_rotated_sender_profile() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let alice2 = alice.add_synced_device().await;

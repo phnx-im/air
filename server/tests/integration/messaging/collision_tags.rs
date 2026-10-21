@@ -10,7 +10,7 @@ use airserver_test_harness::utils::setup::TestBackend;
 use mimi_content::MimiContent;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn send_message_collision_tags_no_collision() {
+async fn fresh_tags_are_accepted() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -28,7 +28,7 @@ async fn send_message_collision_tags_no_collision() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn send_message_collision_tags_first_collides() {
+async fn reused_generation_tag_collides() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -64,7 +64,7 @@ async fn send_message_collision_tags_first_collides() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn send_message_collision_tags_second_collides() {
+async fn reused_receipt_tag_collides() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -100,7 +100,7 @@ async fn send_message_collision_tags_second_collides() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn send_message_collision_tags_all_collide() {
+async fn identical_tags_all_collide() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -127,7 +127,7 @@ async fn send_message_collision_tags_all_collide() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn send_message_collision_tags_from_different_users_never_collide() {
+async fn tags_do_not_collide_across_senders() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;

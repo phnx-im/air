@@ -11,7 +11,7 @@ use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBacke
 use mimi_content::MimiContent;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn resync() {
+async fn missed_commit_triggers_resync_and_rejoin() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
@@ -274,7 +274,7 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
 /// test uses a fabricated group_id that only exists in the resync queue, so only
 /// the resync removal can be verified here.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn resync_group_not_found_cleans_up_local_state() {
+async fn group_not_found_removes_resync_entry() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob] = setup.add_users().await;
@@ -304,7 +304,7 @@ async fn resync_group_not_found_cleans_up_local_state() {
 /// Baseline test: resync for an existing group succeeds and the user can
 /// continue communicating normally afterwards.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn resync_valid_group_succeeds() {
+async fn resync_restores_messaging() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob] = setup.add_users().await;
@@ -350,7 +350,7 @@ async fn resync_valid_group_succeeds() {
 /// the chat, which puts a pending SelfRemove proposal (for leaf index 2) on
 /// the DS. Alice resyncs first, then Dave; both resyncs must succeed.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn resync_with_blank_leaf_succeeds() {
+async fn resync_with_blank_leaves_succeeds() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob, charlie, dave] = setup.add_users().await;
@@ -461,7 +461,7 @@ async fn resync_with_blank_leaf_succeeds() {
 
 /// A connection group is resynced with the same machinery as any other group.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn resync_connection_group() {
+async fn connection_group_resync_restores_messaging() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;

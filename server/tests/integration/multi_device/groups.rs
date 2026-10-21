@@ -11,7 +11,7 @@ use chrono::Utc;
 use mimi_content::MimiContent;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> anyhow::Result<()> {
+async fn invited_group_messages_reach_both_devices() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
@@ -90,7 +90,7 @@ async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> an
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_own_echo_confirms_unconfirmed_send() {
+async fn own_echo_confirms_unconfirmed_send() {
     const TEXT: &str = "the DS response to this one got lost";
 
     let mut setup = TestBackend::single().await;
@@ -193,7 +193,7 @@ async fn multi_device_own_echo_confirms_unconfirmed_send() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_own_echo_confirms_unconfirmed_edit() {
+async fn own_echo_confirms_unconfirmed_edit() {
     const TEXT: &str = "original text";
     const EDITED_TEXT: &str = "edited, the DS response to this one got lost";
     const FINAL_TEXT: &str = "edited a second time";
@@ -301,7 +301,7 @@ async fn multi_device_own_echo_confirms_unconfirmed_edit() {
 /// commit replaces the shared virtual-client leaf, so it has to be derived from
 /// the self group's emulation epoch.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_remove_member_from_linked_device() -> anyhow::Result<()> {
+async fn linked_device_removes_member_and_sibling_follows() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
@@ -340,7 +340,7 @@ async fn multi_device_remove_member_from_linked_device() -> anyhow::Result<()> {
 /// able to run a group operation: those encrypt the own user profile key for
 /// the commit, so the device has to keep knowing which key is its own.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_remove_member_after_sibling_rotated_the_profile() -> anyhow::Result<()> {
+async fn linked_device_removes_member_after_profile_rotation() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;

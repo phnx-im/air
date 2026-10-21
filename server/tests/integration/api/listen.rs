@@ -21,7 +21,7 @@ use tokio_stream::StreamExt;
 use super::skip_version_status;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn listen_queue_version_status() {
+async fn version_status_is_sent_first() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
@@ -46,7 +46,7 @@ async fn listen_queue_version_status() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn listen_queue_version_status_expiring() {
+async fn version_status_carries_expiry() {
     let expires_on = Utc::now() + chrono::Duration::days(10);
     let mut setup = TestBackend::single_with_params(TestBackendParams {
         version_policy: VersionPolicy::new(vec![VersionExpiration {
@@ -76,7 +76,7 @@ async fn listen_queue_version_status_expiring() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn listen_stream_eviction() {
+async fn streams_beyond_device_limit_evict_oldest() {
     let mut setup = TestBackend::single_with_params(TestBackendParams {
         max_devices: Some(2),
         ..Default::default()
@@ -180,7 +180,7 @@ async fn listen_stream_eviction() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn listen_stream_durable_acks() {
+async fn acked_message_is_not_redelivered() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob] = setup.add_users().await;

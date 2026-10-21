@@ -13,7 +13,7 @@ use super::{read_receipts, self_chat_id, send_and_receive};
 // self-group commit, in both directions. This is also the proof that the DS
 // passes commits carrying AppEphemeral proposals through.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_settings_sync() {
+async fn setting_change_syncs_both_directions() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = alice.add_linked_device().await;
@@ -102,7 +102,7 @@ async fn multi_device_settings_sync() {
 // loser gives the setting up when it processes the winner's commit, so both
 // devices converge on the DS-order winner.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_settings_race_converges() {
+async fn concurrent_setting_changes_converge() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = alice.add_linked_device().await;

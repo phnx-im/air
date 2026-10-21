@@ -13,7 +13,7 @@ use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBacke
 use crate::messaging::attachments::test_picture_bytes;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn exchange_user_profiles() {
+async fn profile_changes_reach_contact() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
@@ -86,7 +86,7 @@ async fn exchange_user_profiles() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn add_contact_and_change_profile() {
+async fn profile_change_before_accept_keeps_connection() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 
@@ -159,7 +159,7 @@ async fn add_contact_and_change_profile() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn user_deletion_triggers() {
+async fn leaving_member_profile_is_erased_for_non_contact() {
     let mut setup = TestBackend::single().await;
     // Create alice and bob
     let [alice, bob, charlie] = setup.add_users().await;

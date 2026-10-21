@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use airserver_test_harness::utils::setup::TestBackend;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn safety_codes() {
+async fn safety_codes_match_across_users() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 

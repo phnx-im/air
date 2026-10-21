@@ -17,7 +17,7 @@ use tokio::task::spawn_blocking;
 use tokio_stream::StreamExt;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn connect_users_via_user_handle() {
+async fn connect_creates_contacts_and_system_messages() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -67,7 +67,7 @@ async fn connect_users_via_user_handle() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn connection_request_spends_a_token() {
+async fn connection_request_spends_token() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let record = setup.add_username(&bob).await;
@@ -113,7 +113,7 @@ async fn connection_request_spends_a_token() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn connect_users_via_user_handle_apq() {
+async fn connect_creates_contacts_and_system_messages_apq() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     // Asserts the APQ-ness on both sides and exchanges messages both ways.
@@ -121,7 +121,7 @@ async fn connect_users_via_user_handle_apq() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn connect_users_via_user_handle_not_requested_stays_t() {
+async fn connect_without_apq_request_stays_t() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     setup.connect_users_non_apq(&alice, &bob).await;
@@ -130,7 +130,7 @@ async fn connect_users_via_user_handle_not_requested_stays_t() {
 /// Test that the timestamp on a received connection request reflects when the
 /// request was sent (server's enqueue time), not when the recipient processed it.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn connection_request_has_server_timestamp() {
+async fn request_message_uses_server_timestamp() {
     let mut setup = TestBackend::single().await;
     let apq_groups = setup.apq_groups;
 
@@ -223,7 +223,7 @@ async fn connection_request_has_server_timestamp() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn ds_room_state_contains_connection_group_joiner() {
+async fn ds_room_state_lists_both_connection_users() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -240,7 +240,7 @@ async fn ds_room_state_contains_connection_group_joiner() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn error_if_user_doesnt_exist() {
+async fn unknown_username_request_is_free() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;

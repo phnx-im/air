@@ -13,7 +13,7 @@ use super::{read_receipts, send_and_receive};
 // A setting stored before any linking travels to the new device in the
 // provisioning package and is applied during bootstrap.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_settings_in_linking_payload() {
+async fn linking_payload_carries_settings() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
@@ -32,7 +32,7 @@ async fn multi_device_settings_in_linking_payload() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_onboarding_after_self_group_advanced() {
+async fn onboarding_survives_self_group_advancing() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let group_chat_id = setup.connected_group(&alice, &[&bob]).await;
@@ -90,7 +90,7 @@ async fn multi_device_onboarding_after_self_group_advanced() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_inherits_connection_chats() {
+async fn linked_device_inherits_connection_chats() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let connection_chat_id = setup.connect_users(&alice, &bob).await;
@@ -187,7 +187,7 @@ async fn multi_device_inherits_connection_chats() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_skips_blocked_connection_chats() {
+async fn linked_device_skips_blocked_connection_chats() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let connection_chat_id = setup.connect_users(&alice, &bob).await;

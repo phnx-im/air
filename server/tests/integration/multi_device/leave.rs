@@ -14,7 +14,7 @@ use tokio::time::sleep;
 use super::{assert_inactive, setup_group_with_linked_device};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_leave_before_own_creation_echo() {
+async fn leave_before_creation_echo_keeps_chat_inactive() {
     let (setup, alice, bob, _charlie, _chat_id, alice2) = setup_group_with_linked_device().await;
 
     // The linked device has no profile of bob, so the old device creates.
@@ -47,14 +47,14 @@ async fn multi_device_leave_before_own_creation_echo() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_leave_from_linked_device_is_followed_by_the_sibling() {
+async fn leave_from_linked_device_is_followed_by_sibling() {
     let (_setup, alice, bob, charlie, chat_id, alice2) = setup_group_with_linked_device().await;
 
     leave_and_follow(&alice, &bob, &charlie, chat_id, &alice2, &alice).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_leave_from_old_device_is_followed_by_the_linked_device() {
+async fn leave_from_old_device_is_followed_by_linked_device() {
     let (_setup, alice, bob, charlie, chat_id, alice2) = setup_group_with_linked_device().await;
 
     leave_and_follow(&alice, &bob, &charlie, chat_id, &alice, &alice2).await;
@@ -64,7 +64,7 @@ async fn multi_device_leave_from_old_device_is_followed_by_the_linked_device() {
 /// DS fans the retry out to the shared leaf again, and the sibling must treat
 /// it as the duplicate it is.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_retried_leave_is_ignored_by_the_sibling() {
+async fn retried_leave_is_ignored_by_sibling() {
     let (setup, alice, bob, charlie, chat_id, alice2) = setup_group_with_linked_device().await;
     let all_members: HashSet<UserId> = [alice.user_id(), bob.user_id(), charlie.user_id()]
         .into_iter()
@@ -143,7 +143,7 @@ async fn multi_device_retried_leave_is_ignored_by_the_sibling() {
 /// with a duplicate record or a stuck pending operation, and the group must
 /// still converge on the commit.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_both_devices_leave_before_the_commit() {
+async fn both_devices_leaving_records_leave_once() {
     let (_setup, alice, bob, charlie, chat_id, alice2) = setup_group_with_linked_device().await;
     let all_members: HashSet<UserId> = [alice.user_id(), bob.user_id(), charlie.user_id()]
         .into_iter()

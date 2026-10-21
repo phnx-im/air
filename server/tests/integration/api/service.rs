@@ -30,7 +30,7 @@ use tonic_health::pb::{
 
 /// Old method paths must not return UNIMPLEMENTED: proves the alias layer is wired up.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn grpc_method_aliases() {
+async fn old_grpc_paths_are_routed() {
     use tower::ServiceExt as _;
 
     const OLD_PATHS: &[&str] = &[
@@ -88,7 +88,7 @@ async fn grpc_method_aliases() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn health_check() {
+async fn health_check_reports_services_serving() {
     let setup = TestBackend::single().await;
     let channel = Channel::from_shared(setup.server_url().to_string())
         .unwrap()
@@ -121,7 +121,7 @@ async fn health_check() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn unsupported_client_version() {
+async fn expired_client_version_is_rejected() {
     let setup = TestBackend::single_with_params(TestBackendParams {
         version_policy: VersionPolicy::new(vec![VersionExpiration {
             older_than: Version::new(999, 0, 0),

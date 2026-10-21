@@ -13,7 +13,7 @@ use tempfile::TempDir;
 use super::{link_sibling, self_chat_id, self_group_client_ids, send_and_receive};
 
 #[tokio::test(flavor = "multi_thread")]
-async fn ensure_self_group_creates_apq_group() -> anyhow::Result<()> {
+async fn self_group_is_apq() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
@@ -29,7 +29,7 @@ async fn ensure_self_group_creates_apq_group() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn self_group_resync_re_registers_the_derivation_epoch() -> anyhow::Result<()> {
+async fn resync_re_registers_derivation_epoch() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     // The key package upload at the end only goes through the self group with
@@ -76,7 +76,7 @@ async fn self_group_resync_re_registers_the_derivation_epoch() -> anyhow::Result
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_self_group_attachment() {
+async fn self_chat_attachment_reaches_sibling() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = alice.add_linked_device().await;
@@ -132,7 +132,7 @@ async fn multi_device_self_group_attachment() {
 /// key. A leaf built with the regular user credential defaults would be
 /// rejected by the DS and by the sibling (RFC 9420 valn0104).
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_self_update_in_self_group() {
+async fn self_update_is_followed_by_sibling() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = alice.add_linked_device().await;
@@ -204,7 +204,7 @@ async fn multi_device_self_update_in_self_group() {
 /// capabilities. Rejoining with the user credential would be rejected, since
 /// the self group accepts only self-group credentials.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_self_group_resync() {
+async fn resync_keeps_sibling_in_sync() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = alice.add_linked_device().await;

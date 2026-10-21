@@ -21,7 +21,7 @@ use tracing::info;
 /// The test spawns a processing task and aborts it at a random point in its execution,
 /// repeating until all messages are known to be accessible or a loss is detected.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn process_qs_messages_cancellation_safety() {
+async fn aborted_qs_processing_loses_no_messages() {
     let mut setup = TestBackend::single().await;
 
     // Note: It is important that the user is persisted, because we use *multiple* db connections
@@ -78,7 +78,7 @@ async fn process_qs_messages_cancellation_safety() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn qs_stream_processor_partially_processes_messages() {
+async fn failing_message_does_not_block_qs_batch() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 

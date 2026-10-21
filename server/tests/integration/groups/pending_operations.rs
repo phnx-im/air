@@ -72,7 +72,7 @@ async fn setup_group_with_charlie_member() -> (TestBackend, CoreUser, CoreUser, 
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn pending_chat_operation_is_executed_before_chat_operation() {
+async fn pending_operation_runs_before_new_one() {
     let (setup, alice, bob, charlie, chat_id) = setup_group_with_charlie_member().await;
 
     setup.listener_control_handle().set_drop_next_request();
@@ -94,7 +94,7 @@ async fn pending_chat_operation_is_executed_before_chat_operation() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn chat_operation_fails_if_pending_operation_fails() {
+async fn operation_fails_if_pending_one_fails() {
     let (setup, alice, _bob, charlie, chat_id) = setup_group_with_charlie_member().await;
 
     setup.listener_control_handle().set_drop_next_response();
@@ -249,7 +249,7 @@ async fn apq_self_remove_is_committed_on_both_legs() {
 // Make sure that the rosters of T and PQ groups in an APQ group remain
 // identical in the context of pending commits.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn apq_wrong_epoch_recovery_keeps_t_and_pq_rosters_consistent() {
+async fn apq_wrong_epoch_recovery_keeps_rosters_consistent() {
     let (setup, alice, bob, charlie, chat_id) = setup_apq_group_with_charlie_member().await;
 
     setup.listener_control_handle().set_drop_next_request();
@@ -405,7 +405,7 @@ async fn leave_with_wrong_epoch_applies_locally_and_keeps_pending() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn pending_leave_is_deleted_when_another_member_commits_self_remove() {
+async fn pending_leave_is_dropped_when_other_commits_it() {
     let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
 
     setup.listener_control_handle().set_drop_next_response();
@@ -432,7 +432,7 @@ async fn pending_leave_is_deleted_when_another_member_commits_self_remove() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn commit_that_ignores_a_pending_self_remove_is_rejected() {
+async fn commit_ignoring_pending_self_remove_is_rejected() {
     let (_setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
 
     alice.leave_chat(chat_id).await.unwrap();
@@ -506,14 +506,14 @@ async fn assert_retried_delete_reaches_the_contact(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn deleting_a_chat_offline_keeps_it() {
+async fn offline_delete_keeps_chat_until_retry() {
     let (_setup, alice, bob, chat_id) = delete_chat_with_a_network_error(false).await;
     assert_retried_delete_reaches_the_contact(&alice, &bob, chat_id).await;
 }
 
 /// The DS applied the first attempt, so the retry finds the group gone.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn deleting_a_chat_after_a_lost_response_finishes_on_retry() {
+async fn delete_after_lost_response_finishes_on_retry() {
     let (_setup, alice, bob, chat_id) = delete_chat_with_a_network_error(true).await;
     assert_retried_delete_reaches_the_contact(&alice, &bob, chat_id).await;
 }

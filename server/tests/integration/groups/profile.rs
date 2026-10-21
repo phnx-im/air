@@ -13,7 +13,7 @@ use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBacke
 use crate::messaging::attachments::test_picture_bytes;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn update_group_data() {
+async fn group_picture_and_title_updates_reach_members() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 
@@ -88,7 +88,7 @@ async fn update_group_data() {
 ///
 /// This is what would happen in the scenario of virtual-clients.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn own_pending_commit_merges_group_data_and_clears_pending_op() {
+async fn own_commit_echo_applies_group_data() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 
@@ -143,7 +143,7 @@ async fn own_pending_commit_merges_group_data_and_clears_pending_op() {
 /// object storage via the outbound service and sees the correct group attributes (title and
 /// picture).
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn fetch_group_profile_on_invite() {
+async fn invitee_fetches_group_profile() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
@@ -205,7 +205,7 @@ async fn fetch_group_profile_on_invite() {
 /// Tests that after a group title and picture update, other members fetch the new encrypted group
 /// profile via the outbound service and see the updated attributes.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn fetch_group_profile_on_update() {
+async fn member_fetches_updated_group_profile() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob]).await;
@@ -249,7 +249,7 @@ async fn fetch_group_profile_on_update() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn update_group_profile_in_group_with_profile_component() {
+async fn profile_component_group_syncs_title_and_picture() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;

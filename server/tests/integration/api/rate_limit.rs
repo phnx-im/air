@@ -16,7 +16,7 @@ use mimi_content::{MessageStatus, MimiContent};
 use tracing::{info, warn};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn rate_limit() {
+async fn rate_limited_message_is_held_and_sent_in_order() {
     const PERIOD: Duration = Duration::from_millis(100);
     let mut setup = TestBackend::single_with_params(TestBackendParams {
         rate_limits: Some(RateLimitsSettings {

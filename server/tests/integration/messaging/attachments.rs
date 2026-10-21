@@ -41,7 +41,7 @@ pub(crate) fn test_picture_bytes() -> Vec<u8> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn send_attachment() {
+async fn attachment_is_downloadable_by_recipient() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -109,7 +109,7 @@ async fn send_attachment() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn send_image_attachment() {
+async fn image_attachment_is_converted_to_webp() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -196,7 +196,7 @@ async fn send_image_attachment() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn attachment_too_large() {
+async fn oversized_attachment_is_rejected() {
     const MAX_ATTACHMENT_SIZE: u64 = 1023;
 
     let mut setup = TestBackend::single_with_params(TestBackendParams {

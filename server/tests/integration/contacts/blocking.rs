@@ -10,7 +10,7 @@ use mimi_content::MimiContent;
 use tracing::info;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn blocked_contact() {
+async fn blocked_contact_is_cut_off_until_unblocked() {
     info!("Setting up setup");
     let mut setup = TestBackend::single().await;
     info!("Creating users");
@@ -101,7 +101,7 @@ async fn blocked_contact() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn group_with_blocked_contact() {
+async fn blocked_contact_still_exchanges_group_messages() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;

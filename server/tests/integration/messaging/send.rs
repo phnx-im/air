@@ -13,7 +13,7 @@ use mimi_content::{MessageStatus, MimiContent};
 use rand::{RngExt, distr::Alphanumeric};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn retrieve_chat_messages() {
+async fn sent_messages_are_listed_in_order() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob] = setup.add_users().await;
@@ -44,7 +44,7 @@ async fn retrieve_chat_messages() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn message_sending_failures() {
+async fn dropped_sends_are_marked_failed() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 
@@ -77,7 +77,7 @@ async fn message_sending_failures() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn recoverable_send_failure_is_retried() {
+async fn transient_send_failure_is_retried() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -254,7 +254,7 @@ async fn fatal_send_failure_fails_only_that_message() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn sending_commits_pending_proposals() {
+async fn send_commits_pending_proposals() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 

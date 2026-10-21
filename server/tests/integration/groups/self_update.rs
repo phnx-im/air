@@ -9,7 +9,7 @@ use chrono::{DateTime, Duration, Utc};
 use tracing::info;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn update_group() {
+async fn member_self_update_is_processed() {
     let mut setup = TestBackend::single().await;
     info!("Adding users");
     let [alice, bob, charlie] = setup.add_users().await;
@@ -26,7 +26,7 @@ async fn update_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn self_update() {
+async fn self_update_runs_in_batches_of_five() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
@@ -102,7 +102,7 @@ async fn self_update() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn self_update_continues_after_a_broken_chat() {
+async fn self_update_continues_after_broken_chat() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
@@ -187,7 +187,7 @@ async fn self_update_skips_inactive_chats() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn apq_self_update_updates_both_timestamps() {
+async fn apq_self_update_advances_both_timestamps() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let chat_id = setup.create_apq_group(&alice).await;

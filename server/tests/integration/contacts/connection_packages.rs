@@ -11,7 +11,7 @@ use airserver_test_harness::utils::setup::TestBackend;
 use chrono::Utc;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn connect_users_via_user_handle_uses_signed_package() {
+async fn handle_connect_serves_signed_package() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 
@@ -55,7 +55,7 @@ async fn drain_connection_packages(client: &ApiClient, hash: UsernameHash) -> an
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn signed_connection_package_upload_task_replenishes_username() -> anyhow::Result<()> {
+async fn upload_task_replenishes_packages() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let bob = setup.add_user().await;
     let record = setup.add_username(&bob).await;
@@ -94,7 +94,7 @@ async fn signed_connection_package_upload_task_replenishes_username() -> anyhow:
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn signed_connection_package_upload_task_retries_pending_username() -> anyhow::Result<()> {
+async fn upload_task_retries_after_network_error() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let bob = setup.add_user().await;
     let record = setup.add_username(&bob).await;
@@ -133,7 +133,7 @@ async fn signed_connection_package_upload_task_retries_pending_username() -> any
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn signed_connection_package_upload_task_drops_unknown_username() -> anyhow::Result<()> {
+async fn upload_task_drops_unknown_username() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let bob = setup.add_user().await;
 

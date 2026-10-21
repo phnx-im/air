@@ -11,7 +11,7 @@ use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBacke
 use super::count;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn delete_non_apq_group() {
+async fn delete_group() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob, charlie] = setup.add_users().await;
@@ -25,7 +25,7 @@ async fn delete_non_apq_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn delete_apq_group() {
+async fn delete_group_apq() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob, charlie] = setup.add_users().await;
@@ -34,7 +34,7 @@ async fn delete_apq_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn delete_apq_group_by_invitee() {
+async fn invitee_deletes_group_apq() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob, charlie] = setup.add_users().await;
@@ -43,7 +43,7 @@ async fn delete_apq_group_by_invitee() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn delete_group_as_sole_member() {
+async fn sole_member_delete_removes_ds_group() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let chat_id = setup.create_group(&alice).await;
@@ -68,7 +68,7 @@ async fn delete_group_as_sole_member() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn delete_group_without_tombstone() {
+async fn delete_without_tombstone_shows_removal() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob]).await;
@@ -96,7 +96,7 @@ async fn delete_group_without_tombstone() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn store_draft_after_delete() {
+async fn draft_can_be_stored_after_delete() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
@@ -117,7 +117,7 @@ async fn store_draft_after_delete() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn apq_delete_removes_member_from_both_t_and_pq() {
+async fn apq_delete_removes_members_on_both_legs() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob, charlie] = setup.add_users().await;

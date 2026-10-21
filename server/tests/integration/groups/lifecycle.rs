@@ -18,7 +18,7 @@ async fn create_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn create_empty_group() {
+async fn inviting_nobody_is_noop() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let chat_id = setup.create_group(&alice).await;
@@ -37,7 +37,7 @@ async fn create_empty_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn create_apq_group() {
+async fn create_group_apq() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     setup.create_apq_group(&alice).await;
@@ -55,7 +55,7 @@ async fn send_message() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn send_message_in_apq_group() {
+async fn send_message_apq() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
     let chat_id = setup.connected_apq_group(&alice, &[&bob, &charlie]).await;
@@ -64,7 +64,7 @@ async fn send_message_in_apq_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn room_policy() {
+async fn members_can_invite_and_remove_each_other() {
     let mut setup = TestBackend::single().await;
 
     // Create alice and bob
@@ -101,7 +101,7 @@ async fn room_policy() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn confirmation_via_queue() {
+async fn dropped_commit_response_is_confirmed_via_queue() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob] = setup.add_users().await;

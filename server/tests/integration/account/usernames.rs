@@ -12,7 +12,7 @@ use airserver_test_harness::utils::setup::TestBackend;
 use rand::RngExt;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn username_sanity_checks() {
+async fn own_or_duplicate_username_request_is_rejected() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 
@@ -52,7 +52,7 @@ async fn username_sanity_checks() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn check_username_exists() {
+async fn username_existence_follows_add_and_remove() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 

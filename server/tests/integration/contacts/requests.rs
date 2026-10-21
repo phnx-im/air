@@ -37,7 +37,7 @@ pub(crate) async fn add_second_username(user: &CoreUser) -> UsernameRecord {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn requests_of_one_sender_fold_into_the_chat_of_the_newest() {
+async fn requests_of_one_sender_fold_into_newest_chat() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let first = setup.add_username(&bob).await;
@@ -91,7 +91,7 @@ async fn requests_of_one_sender_fold_into_the_chat_of_the_newest() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn an_offer_fetched_after_accepting_a_newer_one_is_dropped() {
+async fn stale_offer_after_accept_is_dropped() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let first = setup.add_username(&bob).await;
@@ -170,7 +170,7 @@ async fn crossed_requests_leave_one_connection() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn asking_back_from_a_group_opens_the_pending_request() {
+async fn asking_back_opens_pending_request() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
     // Alice and Bob share a group, through Charlie.

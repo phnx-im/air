@@ -15,7 +15,7 @@ use mimi_content::MimiContent;
 use super::self_chat_id;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_deleted_chat_is_erased_on_sibling() -> anyhow::Result<()> {
+async fn deleted_chat_is_erased_on_sibling() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob]).await;
@@ -58,7 +58,7 @@ async fn multi_device_deleted_chat_is_erased_on_sibling() -> anyhow::Result<()> 
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_sole_member_group_deletion_reaches_the_sibling() -> anyhow::Result<()> {
+async fn sole_member_group_deletion_reaches_sibling() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let chat_id = setup.create_group(&alice).await;
@@ -105,7 +105,7 @@ async fn multi_device_sole_member_group_deletion_reaches_the_sibling() -> anyhow
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_missed_group_deletion_is_found_by_resync() -> anyhow::Result<()> {
+async fn missed_group_deletion_is_found_by_resync() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob]).await;
@@ -160,7 +160,7 @@ async fn multi_device_missed_group_deletion_is_found_by_resync() -> anyhow::Resu
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_deleted_group_takes_no_further_operations() -> anyhow::Result<()> {
+async fn deleted_group_rejects_further_operations() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob]).await;
@@ -185,7 +185,7 @@ async fn multi_device_deleted_group_takes_no_further_operations() -> anyhow::Res
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_message_to_deleted_group_announces_the_deletion() -> anyhow::Result<()> {
+async fn message_to_deleted_group_announces_deletion() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob]).await;
@@ -208,7 +208,7 @@ async fn multi_device_message_to_deleted_group_announces_the_deletion() -> anyho
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_deleted_message_is_removed_from_sibling() -> anyhow::Result<()> {
+async fn deleted_message_is_removed_from_sibling() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob]).await;

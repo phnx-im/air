@@ -16,7 +16,7 @@ use crate::{
 };
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn deleting_a_request_chat_before_forwarding_clears_the_sibling() {
+async fn deleting_request_chat_before_forwarding_clears_sibling() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let alice2 = alice.add_synced_device().await;
@@ -60,7 +60,7 @@ async fn assert_erased(device: &CoreUser, chat_id: ChatId, label: &str) {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn retracting_a_request_makes_it_unavailable_to_the_recipient() {
+async fn retracting_request_makes_it_unavailable_to_recipient() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let alice2 = alice.add_synced_device().await;
@@ -119,7 +119,7 @@ async fn retracting_a_request_makes_it_unavailable_to_the_recipient() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn deleting_an_outgoing_request_retracts_it() {
+async fn deleting_outgoing_request_retracts_it() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let bob_record = setup.add_username(&bob).await;
@@ -146,7 +146,7 @@ async fn deleting_an_outgoing_request_retracts_it() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn retracting_offline_keeps_the_request() {
+async fn retracting_offline_keeps_request() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let bob_record = setup.add_username(&bob).await;
@@ -190,7 +190,7 @@ async fn retracting_offline_keeps_the_request() {
 /// Both devices retract the request before either learns about the other's
 /// retraction. The second one finds the group gone.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn retracting_on_both_devices_erases_the_chat() {
+async fn retracting_on_both_devices_erases_chat() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let alice2 = alice.add_synced_device().await;
@@ -236,7 +236,7 @@ async fn retracting_on_both_devices_erases_the_chat() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn accepting_falls_back_to_the_older_request() {
+async fn accepting_falls_back_to_older_request() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let alice2 = alice.add_synced_device().await;
@@ -296,7 +296,7 @@ async fn accepting_falls_back_to_the_older_request() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn declining_a_request_removes_it_on_the_sibling() {
+async fn declining_request_removes_it_on_sibling() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let alice2 = alice.add_synced_device().await;
@@ -340,7 +340,7 @@ async fn declining_a_request_removes_it_on_the_sibling() {
 /// The blocking device knows only the first request. The second one is still
 /// waiting to be forwarded when the block arrives.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn blocking_a_request_sender_declines_on_the_sibling() {
+async fn blocking_request_sender_declines_on_sibling() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let alice2 = alice.add_synced_device().await;
@@ -381,7 +381,7 @@ async fn blocking_a_request_sender_declines_on_the_sibling() {
 
 /// The sibling declines before it learns that the device accepted.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn a_decline_racing_an_accept_keeps_the_connection() {
+async fn decline_racing_accept_keeps_connection() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let alice2 = alice.add_synced_device().await;

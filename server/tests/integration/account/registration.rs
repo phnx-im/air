@@ -27,7 +27,7 @@ async fn create_user() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn client_persistence() {
+async fn client_db_persists_until_user_deleted() {
     // Create and persist the user.
     let mut setup = TestBackend::single().await;
     let alice = setup.add_persisted_user().await;
@@ -73,7 +73,7 @@ async fn client_persistence() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn invitation_code() {
+async fn invitation_code_is_single_use_unless_unredeemable() {
     const UNREDEEMABLE_CODE: &str = "E111E000";
     let setup = TestBackend::single_with_params(TestBackendParams {
         registration: RegistrationSettings {
@@ -141,7 +141,7 @@ async fn invitation_code() {
 /// a challenge, and a challenge-verified registration that leaves the counters
 /// where they were.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn adaptive_registration_gate() {
+async fn adaptive_gate_closes_at_ip_limit() {
     let setup = TestBackend::single_with_params(TestBackendParams {
         registration: adaptive_registration(2, 100),
         ..Default::default()
@@ -213,7 +213,7 @@ async fn adaptive_registration_gate() {
 /// The total threshold closes the gate for an address that has registered
 /// nothing itself.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn adaptive_registration_total_threshold() {
+async fn adaptive_gate_closes_at_total_limit() {
     let setup = TestBackend::single_with_params(TestBackendParams {
         registration: adaptive_registration(100, 1),
         ..Default::default()
@@ -238,7 +238,7 @@ async fn adaptive_registration_total_threshold() {
 /// An open gate leaves a code the request carried anyway unspent, so a gate
 /// that opens between discovery and registration does not burn it.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn an_open_gate_ignores_a_code() {
+async fn open_gate_does_not_spend_code() {
     // Room to spare on both thresholds, so the gate is open while codes exist.
     let setup = TestBackend::single_with_params(TestBackendParams {
         registration: adaptive_registration(100, 100),
@@ -260,7 +260,7 @@ async fn an_open_gate_ignores_a_code() {
 /// The push-admission challenge end to end, from opening a session to finding
 /// the endpoint's quota spent.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn push_admission_registration() {
+async fn push_admission_requires_session_and_challenge() {
     let setup = TestBackend::single_with_params(TestBackendParams {
         registration: RegistrationSettings {
             policy: RegistrationPolicy::Required,

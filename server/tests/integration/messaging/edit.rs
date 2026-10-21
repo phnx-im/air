@@ -87,7 +87,7 @@ async fn stale_read_receipt_does_not_apply_to_edited_message() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn edit_replay_is_ignored() {
+async fn replayed_edit_is_ignored() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob] = setup.add_users().await;

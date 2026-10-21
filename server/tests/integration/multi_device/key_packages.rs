@@ -13,7 +13,7 @@ use super::link_sibling;
 /// Key packages uploaded via the self-group only go live after the `DsCommitResponse` carrying
 /// the batch id arrives through the queue.
 #[tokio::test(flavor = "multi_thread")]
-async fn key_package_upload_via_self_group_waits_for_commit_response() -> anyhow::Result<()> {
+async fn upload_via_self_group_waits_for_commit_response() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let _alice2 = link_sibling(&alice).await;
@@ -91,7 +91,7 @@ async fn key_package_upload_via_self_group_waits_for_commit_response() -> anyhow
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn single_device_uploads_key_packages_via_publish() -> anyhow::Result<()> {
+async fn single_device_uploads_via_publish() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
@@ -117,7 +117,7 @@ async fn single_device_uploads_key_packages_via_publish() -> anyhow::Result<()> 
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn key_packages_from_self_group_upload_are_served_and_usable() -> anyhow::Result<()> {
+async fn self_group_upload_is_served_and_usable() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
@@ -155,7 +155,7 @@ async fn key_packages_from_self_group_upload_are_served_and_usable() -> anyhow::
 /// A failed staging request (network error) leaves no job and no state changes behind; a later
 /// run completes a full cycle.
 #[tokio::test(flavor = "multi_thread")]
-async fn key_package_upload_recovers_from_staging_failure() -> anyhow::Result<()> {
+async fn upload_recovers_from_staging_failure() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let _alice2 = link_sibling(&alice).await;
@@ -208,7 +208,7 @@ async fn key_package_upload_recovers_from_staging_failure() -> anyhow::Result<()
 /// While an upload is in flight, another upload run backs off without disturbing it; after
 /// completion, a full second cycle works.
 #[tokio::test(flavor = "multi_thread")]
-async fn key_package_upload_backs_off_while_pending() -> anyhow::Result<()> {
+async fn upload_backs_off_while_pending() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let _alice2 = link_sibling(&alice).await;
@@ -306,7 +306,7 @@ async fn mismatched_upload_commit_abandons_job() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn multi_device_sibling_derives_key_packages_from_upload_commit() -> anyhow::Result<()> {
+async fn sibling_derives_key_packages_from_upload_commit() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = alice.add_linked_device().await;
@@ -353,8 +353,7 @@ async fn multi_device_sibling_derives_key_packages_from_upload_commit() -> anyho
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling()
--> anyhow::Result<()> {
+async fn sibling_joins_welcome_with_derived_key_packages() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;

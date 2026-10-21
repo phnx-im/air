@@ -109,17 +109,17 @@ async fn sibling_follows_a_created_group_chat(apq: bool) {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn sibling_follows_a_created_t_group_chat() {
+async fn sibling_follows_created_group_chat() {
     sibling_follows_a_created_group_chat(false).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn sibling_follows_a_created_apq_group_chat() {
+async fn sibling_follows_created_group_chat_apq() {
     sibling_follows_a_created_group_chat(true).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn the_acting_devices_own_echo_is_ignored() {
+async fn own_creation_echo_is_ignored() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
@@ -179,7 +179,7 @@ async fn the_acting_devices_own_echo_is_ignored() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn sibling_follows_an_accepted_connection() {
+async fn sibling_follows_accepted_connection() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 
@@ -267,7 +267,7 @@ async fn sibling_follows_an_accepted_connection() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn sibling_mirrors_a_handle_initiated_connection() {
+async fn sibling_mirrors_handle_connection() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 
@@ -345,7 +345,7 @@ async fn sibling_mirrors_a_handle_initiated_connection() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn sibling_mirrors_a_targeted_message_connection() {
+async fn sibling_mirrors_targeted_message_connection() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 
@@ -436,7 +436,7 @@ async fn sibling_mirrors_a_targeted_message_connection() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn offline_sibling_catches_up_on_a_created_group() {
+async fn offline_sibling_catches_up_on_created_group() {
     const TEXT: &str = "sent while the sibling was away";
 
     let mut setup = TestBackend::single().await;
@@ -487,7 +487,7 @@ async fn offline_sibling_catches_up_on_a_created_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn offline_sibling_catches_up_on_an_accepted_connection() {
+async fn offline_sibling_catches_up_on_accepted_connection() {
     const TEXT: &str = "sent while the sibling was away";
 
     let mut setup = TestBackend::single().await;
@@ -547,7 +547,7 @@ async fn offline_sibling_catches_up_on_an_accepted_connection() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn a_rejected_group_chat_produces_no_echo() {
+async fn rejected_group_creation_has_no_echo() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
@@ -597,7 +597,7 @@ async fn a_rejected_group_chat_produces_no_echo() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn a_rejected_creation_produces_no_echo() {
+async fn rejected_connection_creation_has_no_echo() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 
@@ -666,7 +666,7 @@ async fn a_rejected_creation_produces_no_echo() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn a_rejected_join_produces_no_echo() {
+async fn rejected_connection_join_has_no_echo() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 
@@ -720,7 +720,7 @@ async fn a_rejected_join_produces_no_echo() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn a_failed_offer_send_keeps_the_created_group() {
+async fn failed_offer_send_keeps_created_group() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 

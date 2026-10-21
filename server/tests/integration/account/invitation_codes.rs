@@ -7,7 +7,7 @@
 use airserver_test_harness::utils::setup::TestBackend;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn request_invitation_code() {
+async fn requested_code_is_stored_and_consumes_token() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
@@ -52,7 +52,7 @@ async fn request_invitation_code() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn mark_invitation_code_as_copied() {
+async fn marked_code_is_stored_as_copied() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 

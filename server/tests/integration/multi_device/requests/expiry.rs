@@ -79,7 +79,7 @@ async fn assert_sent_request_expired(device: &CoreUser, chat_id: ChatId, label: 
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn an_expired_request_closes_on_the_sibling_and_is_unavailable() {
+async fn expired_request_closes_on_sibling_and_is_unavailable() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let alice2 = alice.add_synced_device().await;
@@ -124,7 +124,7 @@ async fn an_expired_request_closes_on_the_sibling_and_is_unavailable() {
 /// The DS echoes the delete of the expired request's group before its response
 /// arrives.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn an_echoed_expiry_delete_keeps_the_record() {
+async fn echoed_expiry_delete_keeps_record() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let bob_record = setup.add_username(&bob).await;
@@ -157,7 +157,7 @@ async fn an_echoed_expiry_delete_keeps_the_record() {
 /// The device holding the username comes online after the deadline of a
 /// request sent to it.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn a_request_fetched_past_its_deadline_is_dropped() {
+async fn request_fetched_past_deadline_is_dropped() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let alice2 = alice.add_synced_device().await;
@@ -199,7 +199,7 @@ async fn a_request_fetched_past_its_deadline_is_dropped() {
 
 /// Both devices are online when the request expires.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn a_request_expiring_on_both_devices_keeps_one_record() {
+async fn request_expiring_on_both_devices_keeps_one_record() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let alice2 = alice.add_synced_device().await;
@@ -227,7 +227,7 @@ async fn a_request_expiring_on_both_devices_keeps_one_record() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn expired_requests_go_when_the_user_chose_so() {
+async fn expired_request_is_deleted_when_setting_on() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let alice2 = alice.add_synced_device().await;

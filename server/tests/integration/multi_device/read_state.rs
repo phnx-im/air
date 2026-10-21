@@ -11,7 +11,7 @@ use mimi_content::MessageStatus;
 use super::{one_unread_message_on_both_devices, self_chat_id};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_read_markers_follow_a_sibling() {
+async fn read_marker_is_followed_by_sibling() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -72,7 +72,7 @@ async fn multi_device_read_markers_follow_a_sibling() {
 
 /// With read receipts disabled, the read receipts travel through the self group.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_read_markers_via_the_self_group() {
+async fn read_marker_uses_self_group_when_receipts_off() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;

@@ -15,7 +15,7 @@ use super::{count, removals};
 /// This test checks that bob can leave a group where he missed a commit. He leaves the group only
 /// locally. Other user can remove the bob correctly (commit is merged), and add him again.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn missed_commit() {
+async fn missed_invite_commit_heals_after_remove_and_readd() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 
@@ -88,7 +88,7 @@ async fn missed_commit() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn missed_delete_commit_then_resync() {
+async fn missed_delete_resync_marks_inactive() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob]).await;
@@ -141,7 +141,7 @@ async fn missed_delete_commit_then_resync() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn missed_removal_then_resync() {
+async fn missed_removal_resync_marks_inactive() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob]).await;
@@ -178,7 +178,7 @@ async fn missed_removal_then_resync() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn missed_deletion_without_tombstone_then_resync() {
+async fn missed_tombstoneless_delete_resync_marks_inactive() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob, &charlie]).await;

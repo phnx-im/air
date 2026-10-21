@@ -18,7 +18,7 @@ use uuid::Uuid;
 // own and losing the race for an allowance epoch the first device has already
 // locked.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_token_issuance_is_idempotent() {
+async fn token_issuance_is_idempotent() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
@@ -82,7 +82,7 @@ async fn multi_device_token_issuance_is_idempotent() {
 // provisioning snapshot cannot help, so the test puts both devices into exactly
 // the state a rotation leaves behind.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_token_seed_agreement() {
+async fn devices_agree_on_token_seed_after_rotation() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = alice.add_linked_device().await;
@@ -135,7 +135,7 @@ async fn multi_device_token_seed_agreement() {
 // requests to it. The spending device therefore publishes the position it
 // spent, which names the same token on every device.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_redeemed_token_is_removed_from_sibling() {
+async fn redeemed_token_is_removed_from_sibling() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
@@ -208,7 +208,7 @@ async fn multi_device_redeemed_token_is_removed_from_sibling() {
 // sibling registered. The provisioning package therefore carries the redeemed
 // positions, pending or not.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_new_device_skips_redeemed_tokens() {
+async fn new_device_skips_redeemed_tokens() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 

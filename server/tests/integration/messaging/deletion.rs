@@ -10,7 +10,7 @@ use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBacke
 use mimi_content::{MessageStatus, MimiContent};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn delete_message() {
+async fn deleted_message_is_erased_from_databases() {
     let mut setup = TestBackend::single().await;
 
     // Create alice and bob
@@ -58,7 +58,7 @@ async fn delete_message() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn no_receipts_for_deleted_message() {
+async fn deleted_message_gets_no_read_receipt() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob] = setup.add_users().await;
@@ -90,7 +90,7 @@ async fn no_receipts_for_deleted_message() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn delete_messages_and_check_replies() -> anyhow::Result<()> {
+async fn deleted_message_empties_reply_quotes() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
 
     // Create Alice and Bob and connect them
@@ -210,7 +210,7 @@ async fn delete_messages_and_check_replies() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn delete_message_in_group() {
+async fn deleted_message_is_erased_in_group() {
     let mut setup = TestBackend::single().await;
 
     // Create alice, bob, and charlie
@@ -282,7 +282,7 @@ async fn delete_message_in_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn delete_message_preserves_other_messages() {
+async fn deletion_keeps_other_messages() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob] = setup.add_users().await;
@@ -383,7 +383,7 @@ async fn delete_message_preserves_other_messages() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn delete_edited_message() {
+async fn deleting_edited_message_erases_edit() {
     let mut setup = TestBackend::single().await;
 
     let [alice, bob] = setup.add_users().await;
@@ -456,7 +456,7 @@ async fn delete_edited_message() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn delete_message_with_attachment() {
+async fn deleted_message_drops_attachment_records() {
     let mut setup = TestBackend::single().await;
 
     // Create alice and bob

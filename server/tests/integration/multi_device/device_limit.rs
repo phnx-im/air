@@ -16,7 +16,7 @@ use chrono::{DateTime, Utc};
 use super::{assert_link_rejected_at_limit, read_receipts, self_chat_id, send_and_receive};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_link_rejected_at_device_limit() -> anyhow::Result<()> {
+async fn link_is_rejected_at_device_limit() -> anyhow::Result<()> {
     let mut setup = TestBackend::single_with_params(TestBackendParams {
         max_devices: Some(2),
         ..Default::default()
@@ -48,7 +48,7 @@ async fn multi_device_link_rejected_at_device_limit() -> anyhow::Result<()> {
 /// A self group above the device limit (e.g. after the limit was lowered)
 /// still accepts commits that don't grow it, so the user can sync and unlink.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_self_group_above_limit_can_shrink() -> anyhow::Result<()> {
+async fn self_group_above_limit_can_shrink() -> anyhow::Result<()> {
     let mut setup = TestBackend::single_with_params(TestBackendParams {
         max_devices: Some(3),
         ..Default::default()

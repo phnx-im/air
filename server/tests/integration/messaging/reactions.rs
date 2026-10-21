@@ -8,7 +8,7 @@ use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBacke
 use indexmap::indexmap;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn react_to_message() {
+async fn reaction_reaches_message_author() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -42,7 +42,7 @@ async fn react_to_message() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn delete_reaction() {
+async fn retracted_reaction_is_removed_on_peer() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -95,7 +95,7 @@ async fn delete_reaction() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn queued_reaction_survives_network_error() {
+async fn reaction_survives_network_error() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -127,7 +127,7 @@ async fn queued_reaction_survives_network_error() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn reaction_add_and_retract_stay_in_order() {
+async fn queued_reaction_and_retract_apply_in_order() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -161,7 +161,7 @@ async fn reaction_add_and_retract_stay_in_order() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multiple_reactions_per_user() {
+async fn user_can_add_multiple_emojis() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -190,7 +190,7 @@ async fn multiple_reactions_per_user() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn reactions_in_group() {
+async fn group_reactions_list_each_reactor() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 
@@ -229,7 +229,7 @@ async fn reactions_in_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn react_notifies_message_author() {
+async fn reaction_notifies_message_author() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -268,7 +268,7 @@ async fn react_notifies_message_author() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn no_notification_for_reaction_on_others_message() {
+async fn reaction_does_not_notify_bystander() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
 

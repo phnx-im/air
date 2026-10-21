@@ -13,7 +13,7 @@ use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBacke
 use mimi_content::MimiContent;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn max_past_epochs() {
+async fn message_beyond_max_past_epochs_fails() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
@@ -62,7 +62,7 @@ async fn update_and_send_message(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn ratchet_tolerance() {
+async fn message_after_skipped_ones_decrypts() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;

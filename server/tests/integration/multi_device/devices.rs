@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 /// Unlinking drops exactly the target's leaf and leaves the remover in place.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_unlink_removes_only_the_target_leaf() -> anyhow::Result<()> {
+async fn unlink_removes_only_target_leaf() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = alice.add_linked_device().await;
@@ -35,7 +35,7 @@ async fn multi_device_unlink_removes_only_the_target_leaf() -> anyhow::Result<()
 /// flag is what the app watches to delete its local data and return to the
 /// welcome screen.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_unlinked_device_flags_itself() -> anyhow::Result<()> {
+async fn unlinked_device_flags_itself() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = alice.add_linked_device().await;
@@ -61,7 +61,7 @@ async fn multi_device_unlinked_device_flags_itself() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_unlink_unknown_client_id_is_an_error() -> anyhow::Result<()> {
+async fn unlink_unknown_client_id_fails() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = alice.add_linked_device().await;
@@ -81,7 +81,7 @@ async fn multi_device_unlink_unknown_client_id_is_an_error() -> anyhow::Result<(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_unlink_self_is_an_error() -> anyhow::Result<()> {
+async fn unlink_self_fails() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = alice.add_linked_device().await;
@@ -103,7 +103,7 @@ async fn multi_device_unlink_self_is_an_error() -> anyhow::Result<()> {
 
 /// A rename on one device reaches the other through the self group.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn multi_device_rename_propagates_to_the_sibling() -> anyhow::Result<()> {
+async fn rename_propagates_to_sibling() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = alice.add_linked_device().await;
