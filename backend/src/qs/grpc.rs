@@ -501,7 +501,7 @@ impl QueueService for GrpcQs {
             },
             user_id,
         ) = self
-            .verify_client_auth_with_user_id(SignedRequest::<_, 1>::new(
+            .verify_queue_client_auth_with_user_id(SignedRequest::<_, 1>::new(
                 init_request,
                 payload_bytes.into(),
             ))
