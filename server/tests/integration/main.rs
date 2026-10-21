@@ -1,20 +1,16 @@
-// SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+// SPDX-FileCopyrightText: 2023 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-mod attachment;
-mod connection;
-mod contact_requests;
-mod group;
-mod group_bootstrap;
-mod jobs;
-mod message;
+//! Integration tests of clients against a test backend, grouped by feature
+//! area.
+
+mod account;
+mod api;
+mod contacts;
+mod groups;
+mod messaging;
 mod multi_device;
-mod multi_device_requests;
-mod process;
-mod self_group;
-mod server;
-mod user;
 
 #[cfg(test)]
 #[allow(dead_code)]

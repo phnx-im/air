@@ -10,7 +10,7 @@ use aircoreclient::{
 };
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 
-use super::multi_device::send_and_receive;
+use super::send_and_receive;
 
 /// Asserts that both devices sit on the same epoch and share the virtual
 /// client's leaf in `chat_id`.

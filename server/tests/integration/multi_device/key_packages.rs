@@ -2,81 +2,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircoreclient::clients::CoreUser;
+//! Key package upload via the self group, and siblings deriving and using the
+//! uploaded key packages.
+
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::Utc;
 
-/// Links a second device to `user`, so that key packages are uploaded via
-/// the self group, and brings both devices past the linking commit.
-async fn link_sibling(user: &CoreUser) -> CoreUser {
-    let sibling = user.add_linked_device().await;
-    user.drain().await;
-    sibling.drain().await;
-    sibling
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn ensure_self_group_creates_apq_group() -> anyhow::Result<()> {
-    let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-
-    alice.ensure_self_group().await?;
-
-    let is_apq = alice
-        .self_group_is_apq()
-        .await?
-        .expect("self group should be persisted");
-    assert!(is_apq, "self-group must be an APQ (T+PQ) group");
-
-    Ok(())
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn self_group_resync_re_registers_the_derivation_epoch() -> anyhow::Result<()> {
-    let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    // The key package upload at the end only goes through the self group with
-    // a sibling.
-    let _alice2 = link_sibling(&alice).await;
-
-    assert!(
-        alice.self_group_has_derivation_epoch().await?,
-        "creating the self-group registers its initial derivation epoch"
-    );
-    let self_chat_id = alice.self_chat_id().await?.expect("no self chat");
-
-    alice.enqueue_group_resync(self_chat_id).await?;
-    alice.outbound_service().run_once().await;
-    assert!(
-        alice.resync_status(self_chat_id).await?.is_none(),
-        "resync should have completed"
-    );
-
-    assert!(
-        alice.self_group_has_derivation_epoch().await?,
-        "the resync must re-register the self-group's derivation epoch"
-    );
-
-    // The self-group backs virtual-client operations again: a key package
-    // upload stages against its derivation epoch and completes.
-    alice
-        .outbound_service()
-        .schedule_key_package_upload(Utc::now())
-        .await?;
-    alice.outbound_service().run_once().await;
-    alice.drain().await;
-    assert!(
-        alice.self_group_pending_operation_info().await?.is_none(),
-        "upload cycle should have completed"
-    );
-    let (plain_refs, apq_refs) = alice.live_key_package_refs().await?;
-    assert!(
-        !plain_refs.is_empty() && !apq_refs.is_empty(),
-        "the upload after the resync should have published a live batch"
-    );
-
-    Ok(())
-}
+use super::link_sibling;
 
 /// Key packages uploaded via the self-group only go live after the `DsCommitResponse` carrying
 /// the batch id arrives through the queue.
@@ -471,85 +403,6 @@ async fn multi_device_key_packages_from_sibling_upload_are_usable_by_the_sibling
             .iter()
             .any(|message| message.chat_id() == chat_id),
         "the sibling should receive messages sent into the group"
-    );
-
-    Ok(())
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn multi_device_invited_after_linking_sees_own_messages_on_sibling() -> anyhow::Result<()> {
-    let mut setup = TestBackend::single().await;
-    let [alice, bob] = setup.add_users().await;
-    setup.connect_users(&alice, &bob).await;
-
-    let alice2 = alice.add_linked_device().await;
-    alice.drain().await;
-    alice2.drain().await;
-
-    // Device A publishes a fresh batch via the self-group.
-    {
-        alice
-            .outbound_service()
-            .schedule_key_package_upload(Utc::now())
-            .await?;
-        alice.outbound_service().run_once().await;
-        alice.drain().await;
-        assert!(
-            alice.self_group_pending_operation_info().await?.is_none(),
-            "upload cycle should have completed"
-        );
-    }
-    alice2.drain().await;
-
-    // Bob invites Alice: device B joins from the same welcome.
-    let chat_id = setup.create_group(&bob).await;
-    setup.invite_to_group(chat_id, &bob, &[&alice]).await;
-    let processed = alice2.drain().await;
-    assert!(
-        processed
-            .new_chats
-            .iter()
-            .any(|new_chat| new_chat.chat_id == chat_id),
-        "the sibling should have joined the group from the welcome"
-    );
-
-    // Device A sends: device B must see the echo.
-    setup.send_message(chat_id, &alice, &[&bob]).await;
-    let processed = alice2.drain().await;
-    assert!(
-        processed
-            .new_messages
-            .iter()
-            .any(|message| message.chat_id() == chat_id),
-        "device B should receive the message device A sent: processed={} new_messages={} errors={:?}",
-        processed.processed,
-        processed.new_messages.len(),
-        processed.errors,
-    );
-
-    // Device B sends: device A must see the echo.
-    alice2.send_text(chat_id, "from device b").await;
-    let processed = alice.drain().await;
-    assert!(
-        processed
-            .new_messages
-            .iter()
-            .any(|message| message.chat_id() == chat_id),
-        "device A should receive the message device B sent: processed={} new_messages={} errors={:?}",
-        processed.processed,
-        processed.new_messages.len(),
-        processed.errors,
-    );
-
-    // Bob sends: both devices see it.
-    setup.send_message(chat_id, &bob, &[&alice]).await;
-    let processed = alice2.drain().await;
-    assert!(
-        processed
-            .new_messages
-            .iter()
-            .any(|message| message.chat_id() == chat_id),
-        "device B should receive Bob's message"
     );
 
     Ok(())

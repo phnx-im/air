@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+//! Sending attachments and the attachment size limit.
+
 use std::{assert_matches, io::Cursor};
 
 use aircoreclient::{AttachmentProgressEvent, ProvisionAttachmentError};

@@ -2,6 +2,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+//! Pending chat operations: ordering, wrong-epoch recovery, retries and lost
+//! responses.
+
+use std::time::Duration;
+
+use aircoreclient::{ChatId, ChatStatus, clients::CoreUser};
+use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
+use tokio::time::sleep;
+
 // A PCO is created when executing a CO. The PCO remains after the CO execution
 // only if the CO could not be completed successfully due to a network error or
 // a wrong epoch error. Wrong epoch errors occur if another participant has also
@@ -13,7 +22,6 @@
 // messages. See the other tests for examples. A client will retry PCOs when
 // running the outbound service, via `run_once`. Again, see the other tests for
 // examples.
-
 // Things to test
 // - When executing a ChatOperation (CO) and there is a PendingChatOperation
 //   (PCO) for the same chat, the PCO is executed first and then the CO.
@@ -44,13 +52,6 @@
 //     regardless of any "wrong epoch" or network errors. If there was such an
 //     error, it should be retried, though.
 //   - If the PCO was successfully executed, it should be deleted.
-
-use std::time::Duration;
-
-use aircoreclient::{ChatId, ChatStatus, clients::CoreUser};
-use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
-use tokio::time::sleep;
-
 async fn setup_group_with_contacts() -> (TestBackend, CoreUser, CoreUser, CoreUser, ChatId) {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
