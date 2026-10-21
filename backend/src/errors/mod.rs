@@ -279,12 +279,10 @@ impl From<GroupDeletionError> for Status {
         match e {
             GroupDeletionError::InvalidMessage => Status::invalid_argument(msg),
             GroupDeletionError::ProcessingError(error) => {
-                error!(%error, "Failed to process assisted message");
-                Status::internal("Error processing message")
+                ProcessErrorKind::from(&error).into_status(&error, Status::invalid_argument)
             }
             GroupDeletionError::ApqProcessingError(error) => {
-                error!(%error, "Failed to process APQ assisted message");
-                Status::internal("Error processing message")
+                ProcessErrorKind::from(&error).into_status(&error, Status::invalid_argument)
             }
             GroupDeletionError::MergeCommitError(error) => {
                 error!(%error, "Failed merging commit");

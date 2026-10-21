@@ -1,3 +1,3 @@
 CFBundleDisplayName = "Air";
-NSCameraUsageDescription = "L'accès à la caméra est nécessaire pour prendre une photo de profil";
-NSPhotoLibraryUsageDescription = "L'accès à la photothèque est nécessaire pour définir une photo de profil";
+NSCameraUsageDescription = "Air utilise l'appareil photo pour prendre des photos à envoyer dans vos discussions et pour scanner le code QR lorsque vous associez un appareil.";
+NSPhotoLibraryUsageDescription = "Air utilise votre photothèque pour envoyer des photos dans les discussions et pour définir des photos de profil et des images de groupe.";
