@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT u.user_id AS \"user_id: QsUserId\"\n                FROM qs_user_record u\n                WHERE u.user_id = (\n                        SELECT c.user_id FROM qs_client_record c\n                        WHERE c.client_id = $1 AND c.deleted_at IS NULL\n                    )\n                    AND u.deleted_at IS NULL\n                FOR SHARE OF u",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id: QsUserId",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "qs_user_record",
+            "name": "user_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8e164c70e0463e6db974179ee098b20af3e42e56c2b5dfa33b4c89fa8148f724"
+}

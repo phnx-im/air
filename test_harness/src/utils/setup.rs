@@ -17,7 +17,7 @@ use airbackend::{
 };
 use aircommon::{
     DEFAULT_MAX_ATTACHMENT_SIZE, OpenMlsRand, RustCrypto,
-    identifiers::{Fqdn, MimiId, UserId, Username},
+    identifiers::{Fqdn, MimiId, QsUserId, UserId, Username},
     registration::RegistrationChallenge,
 };
 use aircoreclient::{ChatId, ChatStatus, clients::CoreUser, *};
@@ -29,6 +29,7 @@ use mimi_content::{
 };
 use parking_lot::Mutex;
 use rand::{RngExt, distr::Alphanumeric};
+use sqlx::{Connection, PgConnection};
 use tempfile::TempDir;
 use tokio::task::spawn_blocking;
 use tracing::info;
@@ -193,6 +194,8 @@ pub struct TestBackend {
     listener_control_handle: Option<ControlHandle>,
     /// Present only if we spawned a local server.
     max_devices: Option<[MaxDevices; 3]>,
+    /// Present only if we spawned a local server.
+    qs_database_url: Option<String>,
     /// Whether to create APQ groups by default
     ///
     /// Read from the `TEST_WITH_APQ_GROUPS` environment variable.
@@ -277,6 +280,7 @@ impl TestBackend {
             invitation_codes,
             sent_challenges,
             max_devices,
+            qs_database_url,
             _cleanup,
         ) = if let Ok(value) = std::env::var("TEST_SERVER_URL") {
             let url: Url = value.parse().unwrap();
@@ -290,6 +294,7 @@ impl TestBackend {
                 SentChallenges::default(),
                 None,
                 None,
+                None,
             )
         } else {
             let network_provider = MockNetworkProvider::new();
@@ -300,6 +305,7 @@ impl TestBackend {
             let codes = app.codes.clone();
             let sent_challenges = app.sent_challenges.clone();
             let max_devices = app.max_devices.clone();
+            let qs_database_url = app.qs_database_url();
             info!(%listen_addr, "using spawned test server");
             let cleanup: Box<dyn Any> = Box::new(app);
             (
@@ -309,6 +315,7 @@ impl TestBackend {
                 codes,
                 sent_challenges,
                 Some(max_devices),
+                Some(qs_database_url),
                 Some(cleanup),
             )
         };
@@ -330,6 +337,7 @@ impl TestBackend {
             temp_dir: tempfile::tempdir().unwrap(),
             listener_control_handle,
             max_devices,
+            qs_database_url,
             invitation_codes,
             sent_challenges,
             apq_groups,
@@ -346,6 +354,23 @@ impl TestBackend {
         for handle in handles {
             handle.set(max_devices);
         }
+    }
+
+    /// Returns whether the QS stores a user record for `user_id`, deleted or
+    /// not.
+    ///
+    /// Returns `None` if the server was not spawned by the test, because its
+    /// database is not reachable then.
+    pub async fn qs_user_record_exists(&self, user_id: QsUserId) -> Option<bool> {
+        let url = self.qs_database_url.as_ref()?;
+        let mut connection = PgConnection::connect(url).await.unwrap();
+        let exists =
+            sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM qs_user_record WHERE user_id = $1)")
+                .bind(user_id.as_uuid())
+                .fetch_one(&mut connection)
+                .await
+                .unwrap();
+        Some(exists)
     }
 
     pub fn listener_control_handle(&self) -> &ControlHandle {
@@ -1536,17 +1561,28 @@ impl TestBackend {
         // we probably want a way to track the randomness s.t. we can reproduce
         // tests.
 
-        // Now commit to the pending proposal. This also makes everyone else
-        // pick up and process their messages. This also tests that group
-        // members were removed correctly from the local group and that the
-        // leaver has turned its chat inactive.
-        self.commit_to_proposals(chat_id, random_member_id).await;
-
+        // The leaver dropped its group with the leave, so it takes no part in
+        // the commit below.
         self.groups
             .lock()
             .get_mut(&chat_id)
             .unwrap()
             .remove(leaver_id);
+
+        // Now commit to the pending proposal. This also makes everyone else
+        // pick up and process their messages. This also tests that group
+        // members were removed correctly from the local group.
+        self.commit_to_proposals(chat_id, random_member_id).await;
+
+        // The leaver drops whatever the queue still delivers for the group.
+        let result = leaver.drain_unchecked().await;
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        assert!(result.new_messages.is_empty(), "{:?}", result.new_messages);
+        assert!(leaver.mls_chat_participants(chat_id).await.is_none());
+        assert!(matches!(
+            leaver.chat(&chat_id).await.unwrap().status(),
+            ChatStatus::Inactive(_)
+        ));
 
         Ok(())
     }

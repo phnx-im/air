@@ -397,6 +397,10 @@ async fn leave_with_wrong_epoch_applies_locally_and_keeps_pending() {
         pending_after.is_none(),
         "pending operation should be deleted after successful retry"
     );
+    assert!(
+        alice.mls_chat_participants(chat_id).await.is_none(),
+        "the group is deleted once the DS holds the leave"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

@@ -44,9 +44,15 @@ impl CoreUser {
         carrier: GroupBootstrapCarrier,
         ds_timestamp: TimeStamp,
     ) -> Result<QsMessageOutcome> {
-        // A duplicate echo must not reinstall the group.
+        // A duplicate echo must not reinstall the group, nor revive one we left.
         if Group::load(&mut *txn, &echo.group_id).await?.is_some() {
             debug!(group_id = ?echo.group_id, "Group bootstrap for a group we already have");
+            return Ok(QsMessageOutcome::empty());
+        }
+        if let Some(chat) = Chat::load_by_group_id(&mut *txn, &echo.group_id).await?
+            && let ChatStatus::Inactive(_) = chat.status()
+        {
+            debug!(chat_id = %chat.id(), "Group bootstrap for a group we left");
             return Ok(QsMessageOutcome::empty());
         }
 

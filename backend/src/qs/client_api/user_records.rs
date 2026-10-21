@@ -70,37 +70,22 @@ impl Qs {
             friendship_token,
         } = params;
 
-        let mut transaction = self.db_pool.begin().await.map_err(|error| {
-            tracing::error!(%error, "Error starting transaction");
+        let user_record = UserRecord {
+            user_id: sender,
+            verifying_key: user_record_auth_key,
+            friendship_token,
+        };
+        let is_updated = user_record.update(&self.db_pool).await.map_err(|error| {
+            tracing::error!(%error, "Error updating user record");
             QsUpdateUserError::StorageError
         })?;
-        let mut user_record = UserRecord::load(&mut *transaction, &sender)
-            .await
-            .map_err(|error| {
-                tracing::error!(%error, "Error loading user record");
-                QsUpdateUserError::StorageError
-            })?
-            .ok_or(QsUpdateUserError::UnknownUser)?;
-
-        user_record.friendship_token = friendship_token;
-        user_record.verifying_key = user_record_auth_key;
-
-        user_record
-            .update(&mut *transaction)
-            .await
-            .map_err(|error| {
-                tracing::error!(%error, "Error updating user record");
-                QsUpdateUserError::StorageError
-            })?;
-
-        transaction.commit().await.map_err(|error| {
-            tracing::error!(%error, "Error committing transaction");
-            QsUpdateUserError::StorageError
-        })?;
+        if !is_updated {
+            return Err(QsUpdateUserError::UnknownUser);
+        }
         Ok(())
     }
 
-    /// Delete a user record.
+    /// Marks a user record as deleted.
     #[tracing::instrument(skip_all, err)]
     pub(crate) async fn qs_delete_user_record(
         &self,
@@ -108,7 +93,7 @@ impl Qs {
     ) -> Result<(), QsDeleteUserError> {
         let DeleteUserRecordParams { sender } = params;
 
-        UserRecord::delete(&self.db_pool, sender)
+        UserRecord::soft_delete(&self.db_pool, sender)
             .await
             .map_err(|error| {
                 tracing::error!(%error, "Error deleting user record");

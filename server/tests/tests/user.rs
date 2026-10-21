@@ -8,20 +8,21 @@ use std::{
     fs,
 };
 
-use airapiclient::as_api::AsRequestError;
+use airapiclient::{as_api::AsRequestError, qs_api::QsRequestError};
 use aircommon::identifiers::Username;
 use aircoreclient::{
     AddUsernameContactError, Asset, BlockedContactError, DisplayName, EventMessage, Message,
     SystemMessage, UserProfile,
     clients::{CoreUser, MarkChatAsRead, store::ClientRecord},
 };
-use airprotos::auth_service::v1::OperationType;
+use airprotos::{auth_service::v1::OperationType, queue_service::v1::listen_response};
 use airserver_test_harness::utils::{
     core_user_ext::CoreUserExt,
     setup::{TestBackend, TestUser},
 };
 use mimi_content::MimiContent;
 use rand::RngExt;
+use tokio_stream::StreamExt;
 use tracing::info;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -210,6 +211,56 @@ async fn delete_user() {
     TestUser::try_new(alice.user_id(), setup.server_url(), Some("DUMMY007"))
         .await
         .unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn delete_qs_user_keeps_queue() {
+    let mut setup = TestBackend::single().await;
+
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    // Leave a message in Alice's queue.
+    let content = MimiContent::simple_markdown_message("hello".to_owned(), [0; 16]);
+    bob.send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+    bob.outbound_service().run_once().await;
+
+    alice.qs_delete_user().await.unwrap();
+
+    // Everything but the queue is refused.
+    let error = alice.qs_publish_empty_key_packages().await.unwrap_err();
+    assert_matches!(error, QsRequestError::Tonic(status) if status.code() == tonic::Code::NotFound);
+    let error = alice.qs_create_client().await.unwrap_err();
+    assert_matches!(error, QsRequestError::Tonic(status) if status.code() == tonic::Code::NotFound);
+    if let Some(exists) = setup.qs_user_record_exists(alice.qs_user_id()).await {
+        assert!(exists);
+    }
+
+    // The queue can still be read and acked.
+    let (mut stream, responder) = alice.listen_queue().await.unwrap();
+    let mut max_sequence_number = None;
+    while let Some(response) = stream.next().await {
+        match response.unwrap().event {
+            Some(listen_response::Event::Message(message)) => {
+                max_sequence_number = Some(message.sequence_number);
+            }
+            Some(listen_response::Event::Empty(_)) => break,
+            Some(listen_response::Event::Payload(_))
+            | Some(listen_response::Event::VersionStatus(_))
+            | Some(listen_response::Event::SiblingClientState(_))
+            | None => {}
+        }
+    }
+    let max_sequence_number = max_sequence_number.expect("no message in the queue");
+    responder.ack(max_sequence_number + 1).await;
+    responder.close(&mut stream).await;
+
+    // Acking does not remove the deleted user.
+    if let Some(exists) = setup.qs_user_record_exists(alice.qs_user_id()).await {
+        assert!(exists);
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

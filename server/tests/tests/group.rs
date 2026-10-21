@@ -125,6 +125,39 @@ async fn leave_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn no_messages_after_leaving_group() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob, &charlie]).await;
+
+    // Bob leaves and drops the group, but the DS fans out group messages to
+    // him until somebody commits his removal.
+    bob.leave_chat(chat_id).await.unwrap();
+    assert!(bob.mls_chat_participants(chat_id).await.is_none());
+    let bob_messages_before = bob.messages(chat_id, 1024).await.unwrap();
+
+    let content = MimiContent::simple_markdown_message("Hello".to_owned(), [0; 16]);
+    alice
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+
+    charlie.leave_chat(chat_id).await.unwrap();
+
+    let result = bob.drain_unchecked().await;
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert!(
+        result.new_messages.is_empty(),
+        "Bob should not get messages after leaving: {:?}",
+        result.new_messages
+    );
+    assert_eq!(
+        bob.messages(chat_id, 1024).await.unwrap(),
+        bob_messages_before
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn delete_non_apq_group() {
     let mut setup = TestBackend::single().await;
 
@@ -958,12 +991,18 @@ async fn self_update_continues_after_a_broken_chat() {
 async fn self_update_skips_inactive_chats() {
     let mut setup = TestBackend::single().await;
 
-    let alice = setup.add_user().await;
+    let [alice, bob] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
     let active_chat = setup.create_group(&alice).await;
-    let inactive_chat = setup.create_group(&alice).await;
 
-    // Leave one chat to make it inactive
-    alice.leave_chat(inactive_chat).await.unwrap();
+    // Bob removes Alice from his group, which turns her chat inactive but
+    // keeps the group. A left chat has no group left to self-update.
+    let inactive_chat = setup.create_group(&bob).await;
+    setup.invite_to_group(inactive_chat, &bob, &[&alice]).await;
+    setup
+        .remove_from_group(inactive_chat, &bob, &[&alice])
+        .await
+        .unwrap();
 
     // Set self_updated_at to the past for both chats
     alice

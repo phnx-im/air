@@ -27,7 +27,7 @@ use crate::{
     errors::StorageError,
     messages::intra_backend::DsFanOutPayload,
     pseudonym::Pseudonymizer,
-    qs::{PushNotificationError, queue::Queues},
+    qs::{PushNotificationError, queue::Queues, user_record::UserRecord},
 };
 
 use super::{PushNotificationProvider, errors::EnqueueError};
@@ -54,6 +54,31 @@ pub(super) struct QsClientRecord<const UPDATABLE: bool = true> {
     pub(super) auth_key: QsClientVerifyingKey,
     pub(super) ratchet_key: QsQueueRatchet,
     pub(super) activity_time: TimeStamp,
+}
+
+/// The state of the user owning a client record.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum OwnerState {
+    Active,
+    Deleted,
+}
+
+impl OwnerState {
+    pub(super) fn from_is_deleted(is_deleted: bool) -> Self {
+        if is_deleted {
+            Self::Deleted
+        } else {
+            Self::Active
+        }
+    }
+}
+
+/// What authenticates a request of an active client.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct ClientAuthRecord {
+    pub(super) verifying_key: QsClientVerifyingKey,
+    pub(super) user_id: QsUserId,
+    pub(super) owner_state: OwnerState,
 }
 
 impl QsClientRecord {
@@ -153,6 +178,10 @@ pub(crate) mod persistence {
             }))
         }
 
+        /// Loads and locks an active client record of an active user. Locks
+        /// only the client record, so a deletion of the user that commits
+        /// while the lock is awaited is not seen.
+        ///
         /// Note: This function must lock the row exclusively with `FOR UPDATE`.
         pub(in crate::qs) async fn load_for_update(
             connection: impl PgExecutor<'_>,
@@ -161,17 +190,20 @@ pub(crate) mod persistence {
             let client_id = client_id.as_uuid();
             let record = sqlx::query!(
                 r#"SELECT
-                    user_id as "user_id: QsUserId",
-                    encrypted_push_token as "encrypted_push_token: EncryptedPushToken",
-                    owner_public_key AS "owner_public_key: BlobDecoded<RatchetEncryptionKey>",
-                    owner_signature_key AS "owner_signature_key: BlobDecoded<QsClientVerifyingKey>",
-                    ratchet AS "ratchet: BlobDecoded<QsQueueRatchet>",
-                    activity_time AS "activity_time: TimeStamp"
+                    c.user_id as "user_id: QsUserId",
+                    c.encrypted_push_token as "encrypted_push_token: EncryptedPushToken",
+                    c.owner_public_key AS "owner_public_key: BlobDecoded<RatchetEncryptionKey>",
+                    c.owner_signature_key AS "owner_signature_key: BlobDecoded<QsClientVerifyingKey>",
+                    c.ratchet AS "ratchet: BlobDecoded<QsQueueRatchet>",
+                    c.activity_time AS "activity_time: TimeStamp"
                 FROM
-                    qs_client_record
+                    qs_client_record c
+                JOIN qs_user_record u ON u.user_id = c.user_id
                 WHERE
-                    client_id = $1 AND deleted_at IS NULL
-                FOR UPDATE"#,
+                    c.client_id = $1
+                    AND c.deleted_at IS NULL
+                    AND u.deleted_at IS NULL
+                FOR UPDATE OF c"#,
                 client_id,
             )
             .fetch_optional(connection)
@@ -187,6 +219,7 @@ pub(crate) mod persistence {
             }))
         }
 
+        /// Returns the user id of an active client of an active user.
         pub(in crate::qs) async fn load_user_id(
             connection: impl PgExecutor<'_>,
             client_id: &QsClientId,
@@ -194,38 +227,46 @@ pub(crate) mod persistence {
             let client_id = client_id.as_uuid();
             sqlx::query_scalar!(
                 r#"SELECT
-                    user_id as "user_id: QsUserId"
+                    c.user_id as "user_id: QsUserId"
                 FROM
-                    qs_client_record
+                    qs_client_record c
+                JOIN qs_user_record u ON u.user_id = c.user_id
                 WHERE
-                    client_id = $1
-                    AND deleted_at IS NULL"#,
+                    c.client_id = $1
+                    AND c.deleted_at IS NULL
+                    AND u.deleted_at IS NULL"#,
                 client_id,
             )
             .fetch_optional(connection)
             .await
         }
 
-        pub(in crate::qs) async fn load_verifying_key_and_user_id(
+        /// Returns what authenticates the requests of an active client. The
+        /// client's user may be deleted.
+        pub(in crate::qs) async fn load_auth_record(
             connection: impl PgExecutor<'_>,
             client_id: &QsClientId,
-        ) -> Result<Option<(QsClientVerifyingKey, QsUserId)>, StorageError> {
-            let client_id = client_id.as_uuid();
-            sqlx::query!(
+        ) -> Result<Option<ClientAuthRecord>, StorageError> {
+            let record = sqlx::query!(
                 r#"SELECT
-                    owner_signature_key as "verifying_key: BlobDecoded<QsClientVerifyingKey>",
-                    user_id as "user_id: QsUserId"
+                    c.owner_signature_key as "verifying_key: BlobDecoded<QsClientVerifyingKey>",
+                    c.user_id as "user_id: QsUserId",
+                    u.deleted_at IS NOT NULL AS "is_deleted!"
                 FROM
-                    qs_client_record
+                    qs_client_record c
+                JOIN qs_user_record u ON u.user_id = c.user_id
                 WHERE
-                    client_id = $1
-                    AND deleted_at IS NULL"#,
-                client_id,
+                    c.client_id = $1
+                    AND c.deleted_at IS NULL"#,
+                client_id.as_uuid(),
             )
             .fetch_optional(connection)
-            .await
-            .map(|record| record.map(|record| (record.verifying_key.into_inner(), record.user_id)))
-            .map_err(From::from)
+            .await?;
+            Ok(record.map(|record| ClientAuthRecord {
+                verifying_key: record.verifying_key.into_inner(),
+                user_id: record.user_id,
+                owner_state: OwnerState::from_is_deleted(record.is_deleted),
+            }))
         }
 
         pub(in crate::qs) async fn update_activity_time(
@@ -244,10 +285,19 @@ pub(crate) mod persistence {
             Ok(())
         }
 
+        /// Replaces an active client record of an active user with a
+        /// tombstone. Returns `false` if there is no such record.
         pub(in crate::qs) async fn soft_delete(
-            connection: impl PgExecutor<'_>,
+            pool: &PgPool,
             client_id: &QsClientId,
-        ) -> Result<(), StorageError> {
+        ) -> Result<bool, StorageError> {
+            let mut txn = pool.begin().await?;
+            if UserRecord::lock_active_owner(txn.as_mut(), client_id)
+                .await?
+                .is_none()
+            {
+                return Ok(false);
+            }
             // Delete the client record to trigger cascading deletes, and reinsert a tombstone.
             query!(
                 r#"WITH deleted_client_record AS (
@@ -278,16 +328,17 @@ pub(crate) mod persistence {
                 "#,
                 client_id as &QsClientId
             )
-            .execute(connection)
+            .execute(&mut *txn)
             .await?;
-            Ok(())
+            txn.commit().await?;
+            Ok(true)
         }
 
         /// Returns the active client ids for the user owning the given client id.
         ///
         /// - `Ok(None)` if no row with `client_id` exists.
         /// - `Ok(Some(vec![]))` if the row exists but no active client ids (e.g. tombstoned
-        ///   representative with no remaining devices).
+        ///   representative with no remaining devices, or a deleted user).
         /// - `Ok(Some(vec![...]))` otherwise. The given client id is included if it is itself
         ///   active.
         ///
@@ -300,8 +351,11 @@ pub(crate) mod persistence {
             let rows: Vec<Option<QsClientId>> = sqlx::query_scalar!(
                 r#"SELECT other.client_id AS "client_id?: QsClientId"
                 FROM qs_client_record c
+                LEFT JOIN qs_user_record u ON
+                    u.user_id = c.user_id
+                    AND u.deleted_at IS NULL
                 LEFT JOIN qs_client_record AS other ON
-                    other.user_id = c.user_id
+                    other.user_id = u.user_id
                     AND other.deleted_at IS NULL
                 WHERE c.client_id = $1
                 ORDER BY other.client_id"#,
@@ -397,7 +451,7 @@ pub(crate) mod persistence {
         use aircommon::crypto::ratchet::QueueRatchet;
         use sqlx::PgPool;
 
-        use crate::qs::user_record::persistence::tests::store_random_user_record;
+        use crate::qs::user_record::{UserRecord, persistence::tests::store_random_user_record};
 
         use super::*;
 
@@ -434,12 +488,14 @@ pub(crate) mod persistence {
                 .expect("missing client record");
             assert_eq!(loaded, client_record);
 
-            let (verifying_key, user_id) =
-                QsClientRecord::load_verifying_key_and_user_id(&pool, &client_record.client_id)
-                    .await?
-                    .expect("missing client verifying key");
-            assert_eq!(verifying_key, client_record.auth_key);
-            assert_eq!(user_id, client_record.user_id);
+            assert_eq!(
+                QsClientRecord::load_auth_record(&pool, &client_record.client_id).await?,
+                Some(ClientAuthRecord {
+                    verifying_key: client_record.auth_key.clone(),
+                    user_id: client_record.user_id,
+                    owner_state: OwnerState::Active,
+                })
+            );
 
             Ok(())
         }
@@ -479,7 +535,7 @@ pub(crate) mod persistence {
                 .expect("missing client record");
             assert_eq!(loaded, client_record);
 
-            QsClientRecord::soft_delete(&pool, &client_record.client_id).await?;
+            assert!(QsClientRecord::soft_delete(&pool, &client_record.client_id).await?);
 
             let loaded = QsClientRecord::load(&pool, &client_record.client_id).await?;
             assert_eq!(loaded, None);
@@ -487,9 +543,7 @@ pub(crate) mod persistence {
             let loaded = QsClientRecord::load_for_update(&pool, &client_record.client_id).await?;
             assert_eq!(loaded, None);
 
-            let loaded =
-                QsClientRecord::load_verifying_key_and_user_id(&pool, &client_record.client_id)
-                    .await?;
+            let loaded = QsClientRecord::load_auth_record(&pool, &client_record.client_id).await?;
             assert!(loaded.is_none());
 
             let loaded =
@@ -504,6 +558,44 @@ pub(crate) mod persistence {
             .fetch_one(&pool)
             .await?;
             assert_eq!(tombstone_user_id, user_record.user_id);
+
+            Ok(())
+        }
+
+        #[sqlx::test]
+        async fn deleted_user(pool: PgPool) -> anyhow::Result<()> {
+            let user_record = store_random_user_record(&pool).await?;
+            let client_a = store_random_client_record(&pool, user_record.user_id).await?;
+            let client_b = store_random_client_record(&pool, user_record.user_id).await?;
+            UserRecord::soft_delete(&pool, user_record.user_id).await?;
+
+            for client in [&client_a, &client_b] {
+                assert_eq!(
+                    QsClientRecord::load_auth_record(&pool, &client.client_id).await?,
+                    Some(ClientAuthRecord {
+                        verifying_key: client.auth_key.clone(),
+                        user_id: user_record.user_id,
+                        owner_state: OwnerState::Deleted,
+                    })
+                );
+                assert_eq!(
+                    QsClientRecord::load_user_id(&pool, &client.client_id).await?,
+                    None
+                );
+                assert_eq!(
+                    UserRecord::lock_active_owner(&pool, &client.client_id).await?,
+                    None
+                );
+                assert_eq!(
+                    QsClientRecord::load_for_update(&pool, &client.client_id).await?,
+                    None
+                );
+                assert!(!QsClientRecord::soft_delete(&pool, &client.client_id).await?);
+                assert_eq!(
+                    QsClientRecord::load_user_client_ids(&pool, &client.client_id).await?,
+                    Some(vec![])
+                );
+            }
 
             Ok(())
         }
