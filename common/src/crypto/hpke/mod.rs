@@ -91,16 +91,12 @@ pub struct DecryptionKey<KT> {
     encryption_key: EncryptionKey<KT>,
 }
 
-#[cfg(any(test, feature = "test_utils"))]
 impl<KT> PartialEq for DecryptionKey<KT> {
     fn eq(&self, other: &Self) -> bool {
-        let decryption_key: &[u8] = self.decryption_key.as_ref();
-        let other_decryption_key: &[u8] = other.decryption_key.as_ref();
-        decryption_key == other_decryption_key && self.encryption_key == other.encryption_key
+        self.decryption_key == other.decryption_key && self.encryption_key == other.encryption_key
     }
 }
 
-#[cfg(any(test, feature = "test_utils"))]
 impl<KT> Eq for DecryptionKey<KT> {}
 
 impl<KT> DecryptionKey<KT> {
