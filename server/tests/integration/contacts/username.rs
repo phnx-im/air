@@ -2,8 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Connecting users via a username handle (T and APQ), and handle lookup
-//! errors.
+//! Connecting users via username (T and APQ), and username lookup errors.
 
 use std::{assert_matches, collections::BTreeSet, time::Duration};
 
@@ -157,7 +156,7 @@ async fn request_message_uses_server_timestamp() {
     // Bob fetches and processes the connection request
     let (mut stream, responder) = bob.listen_username(&bob_username_record).await.unwrap();
 
-    // Process handle queue messages, extracting the server timestamp before processing
+    // Process username queue messages, extracting the server timestamp before processing
     let mut bob_chat_id = None;
     let mut server_timestamp = None;
     while let Some(Some(message)) = tokio::time::timeout(Duration::from_millis(500), stream.next())

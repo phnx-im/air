@@ -185,8 +185,8 @@ async fn sibling_follows_accepted_connection() {
 
     let alice2 = alice.add_synced_device().await;
 
-    // Bob asks for a connection to alice's handle, and the device that
-    // listens on the handle queue accepts it.
+    // Bob asks for a connection to alice's username, and the device that
+    // listens on the username queue accepts it.
     let record = setup.add_username(&alice).await;
     let hash = record.username.calculate_hash().unwrap();
     setup
@@ -232,7 +232,7 @@ async fn sibling_follows_accepted_connection() {
     assert_eq!(contact_b.user_id, contact_a.user_id);
     assert_eq!(contact_b.chat_id, contact_a.chat_id);
 
-    // The accept context carries no handle, and this device never saw the
+    // The accept context carries no username, and this device never saw the
     // pending chat that would have one.
     let messages = alice2.messages(chat_id, 100).await.unwrap();
     assert!(
@@ -267,7 +267,7 @@ async fn sibling_follows_accepted_connection() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn sibling_mirrors_handle_connection() {
+async fn sibling_mirrors_username_connection() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 

@@ -11,7 +11,7 @@ use airserver_test_harness::utils::setup::TestBackend;
 use chrono::Utc;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn handle_connect_serves_signed_package() {
+async fn username_connect_serves_signed_package() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
 

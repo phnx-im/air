@@ -16,7 +16,7 @@ use tokio::time::sleep;
 // a wrong epoch error. Wrong epoch errors occur if another participant has also
 // created a commit and the server has processed their commit first. Network
 // errors can be simulated in a test by calling `set_drop_next_response` on the
-// test setup's listener control handle (see groups.rs for an example of this).
+// test setup's listener control handle (see send.rs for an example of this).
 // A client can be made to fetch and process messages from the queue by calling
 // `qs_fetch_messages` followed by `fully_process_qs_messages` on the resulting
 // messages. See the other tests for examples. A client will retry PCOs when
