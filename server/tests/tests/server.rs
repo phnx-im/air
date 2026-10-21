@@ -39,7 +39,7 @@ use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams, TestU
 use chrono::{DateTime, Utc};
 use mimi_content::{MessageStatus, MimiContent};
 use semver::Version;
-use tokio::time::{sleep, timeout};
+use tokio::time::timeout;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Code, codegen::http, transport::Channel};
 use tonic_health::pb::{
@@ -51,9 +51,10 @@ use uuid::Uuid;
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Rate limit test", skip_all)]
 async fn rate_limit() {
+    const PERIOD: Duration = Duration::from_millis(100);
     let mut setup = TestBackend::single_with_params(TestBackendParams {
         rate_limits: Some(RateLimitsSettings {
-            period: Duration::from_secs(1),
+            period: PERIOD,
             burst: 100, // must be large enough to survive setup calls
         }),
         ..Default::default()
@@ -75,7 +76,15 @@ async fn rate_limit() {
     let mut held_id = None;
 
     // should stop with `resource_exhausted = true` at some point
-    for i in 0..100 {
+    for i in 0..10 {
+        // All requests from this host share one bucket. Cheap fetches empty it
+        // much faster than it refills, so the send right after is limited.
+        for _ in 0..1000 {
+            if alice.user.qs_fetch_messages().await.is_err() {
+                break;
+            }
+        }
+
         info!(i, "sending message");
         alice
             .user
@@ -109,9 +118,10 @@ async fn rate_limit() {
     let (held_id, held_text) = held_id.unwrap();
 
     info!("waiting for rate limit tokens to replenish");
-    // One token per second, the held and the final message and Bob's fetch
-    // need several
-    tokio::time::sleep(Duration::from_secs(5)).await;
+    // The outbound service backs off for a second after being rate limited.
+    // One token per period, the held and the final message and Bob's fetch
+    // need several.
+    tokio::time::sleep(Duration::from_secs(1) + 5 * PERIOD).await;
 
     info!("sending message after rate limit tokens replenished");
     const FINAL_TEXT: &str = "after replenish";
@@ -499,10 +509,9 @@ async fn resync() {
     let [message] = qs_messages.as_slice() else {
         panic!("Bob should have one message in the queue");
     };
-    let (stream, responder) = bob_user.listen_queue().await.unwrap();
+    let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
     responder.ack(message.sequence_number + 1).await;
-    sleep(Duration::from_secs(1)).await;
-    drop(stream);
+    responder.close(&mut stream).await;
 
     // Alice performs an update, which bob fetches and processes, triggering a
     // resync.
@@ -593,10 +602,9 @@ async fn resync() {
     let [message] = qs_messages.as_slice() else {
         panic!("Bob should have one message in the queue");
     };
-    let (stream, responder) = bob_user.listen_queue().await.unwrap();
+    let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
     responder.ack(message.sequence_number + 1).await;
-    sleep(Duration::from_secs(1)).await;
-    drop(stream);
+    responder.close(&mut stream).await;
 
     // Now Alice leaves the group, which means that if Bob resyncs again, he
     // should commit the SelfRemove proposal in the process.
@@ -708,10 +716,9 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
     let [message] = qs_messages.as_slice() else {
         panic!("Bob should have one message in the queue");
     };
-    let (stream, responder) = bob_user.listen_queue().await.unwrap();
+    let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
     responder.ack(message.sequence_number + 1).await;
-    sleep(Duration::from_secs(1)).await;
-    drop(stream);
+    responder.close(&mut stream).await;
 
     let group_id = bob_user.chat(&chat_id).await.unwrap().group_id;
 

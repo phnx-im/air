@@ -20,20 +20,17 @@ use aircommon::{
     identifiers::{Fqdn, MimiId, QsUserId, UserId, Username},
     registration::RegistrationChallenge,
 };
-use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, *};
+use aircoreclient::{ChatId, ChatStatus, clients::CoreUser, *};
 use airserver::network_provider::MockNetworkProvider;
 use anyhow::Context;
 use mimi_content::{
     MessageStatus, MimiContent, NestedPart,
     content_container::{EncryptionAlgorithm, HashAlgorithm},
 };
-use rand::{Rng, RngExt, distr::Alphanumeric, seq::IteratorRandom};
+use rand::{RngExt, distr::Alphanumeric};
 use sqlx::{Connection, PgConnection};
 use tempfile::TempDir;
-use tokio::{
-    task::{LocalEnterGuard, LocalSet, spawn_blocking},
-    time::timeout,
-};
+use tokio::{task::spawn_blocking, time::timeout};
 use tokio_stream::StreamExt;
 use tracing::info;
 use url::Url;
@@ -157,19 +154,6 @@ impl TestUser {
     }
 }
 
-fn parse_apq_groups_env_var() -> anyhow::Result<bool> {
-    let apq_group_by_default = std::env::var("TEST_WITH_APQ_GROUPS")
-        .context("failed to read TEST_WITH_APQ_GROUPS env var")?;
-    let apq_groups: bool = apq_group_by_default.parse().context(
-        "failed to parse TEST_WITH_APQ_GROUPS env var as bool: expected 'true' or 'false'",
-    )?;
-    Ok(apq_groups)
-}
-
-enum TestKind {
-    SingleBackend(String), // url of the single backend
-}
-
 enum GroupKind {
     /// Plain or APQ group with the profile in the group data extension.
     Apq(bool),
@@ -196,7 +180,6 @@ pub struct TestBackend {
     ///
     /// Read from the `TEST_WITH_APQ_GROUPS` environment variable.
     pub apq_groups: bool,
-    _guard: Option<LocalEnterGuard>,
     _cleanup: Option<Box<dyn Any>>,
 }
 
@@ -270,9 +253,6 @@ impl TestBackend {
     }
 
     pub async fn single_with_params(params: TestBackendParams) -> Self {
-        let local = LocalSet::new();
-        let _guard = local.enter();
-
         let (
             server_url,
             domain,
@@ -299,7 +279,7 @@ impl TestBackend {
         } else {
             let network_provider = MockNetworkProvider::new();
             let domain: Fqdn = "localhost".parse().unwrap();
-            let app = spawn_app(domain.clone(), network_provider, params).await;
+            let app = Box::pin(spawn_app(domain.clone(), network_provider, params)).await;
             let listen_addr = app.address;
             let control_handle = app.control_handle.clone();
             let codes = app.codes.clone();
@@ -341,7 +321,6 @@ impl TestBackend {
             invitation_codes,
             sent_challenges,
             apq_groups,
-            _guard: Some(_guard),
             _cleanup,
         }
     }
@@ -577,69 +556,22 @@ impl TestBackend {
 
         let test_user2 = self.users.get_mut(user2_id).unwrap();
         let user2_username_record = test_user2.add_username().await.unwrap();
-        let user2_username = &user2_username_record.username;
+        let username = user2_username_record.username.clone();
 
-        let test_user1 = self.users.get_mut(user1_id).unwrap();
-        let user1 = &mut test_user1.user;
-        let user1_username_contacts_before = user1.username_contacts().await.unwrap();
-        let user1_chats_before = user1.chats().await;
+        let user1 = &self.users[user1_id].user;
         let username_hash = spawn_blocking({
-            let username = user2_username.clone();
+            let username = username.clone();
             move || username.calculate_hash().unwrap()
         })
         .await
         .unwrap();
         let chat_id = user1
-            .add_contact(user2_username.clone(), username_hash, prefer_apq)
+            .add_contact(username.clone(), username_hash, prefer_apq)
             .await
             .expect("fatal error")
             .expect("non-fatal error");
-        let mut user1_username_contacts_after = user1.username_contacts().await.unwrap();
-        let error_msg = format!(
-            "User 2 should be in the username contacts list of user 1. List: {user1_username_contacts_after:?}",
-        );
-        let new_user_position = user1_username_contacts_after
-            .iter()
-            .position(|c| &c.username == user2_username)
-            .expect(&error_msg);
-        // If we remove the new user, the username contact lists should be the same.
-        user1_username_contacts_after.remove(new_user_position);
-        user1_username_contacts_before
-            .into_iter()
-            .zip(user1_username_contacts_after)
-            .for_each(|(before, after)| {
-                assert_eq!(before.username, after.username);
-            });
-        let mut user1_chats_after = user1.chats().await;
-        let new_chat_position = user1_chats_after
-            .iter()
-            .position(|c| c.id() == chat_id)
-            .expect("User 1 should have created a new chat");
-        let chat = user1_chats_after.remove(new_chat_position);
-        assert!(chat.status() == &ChatStatus::Active);
-        assert!(chat.chat_type() == &ChatType::HandleConnection(user2_username.clone()));
-        user1_chats_before
-            .into_iter()
-            .zip(user1_chats_after)
-            .for_each(|(before, after)| {
-                assert_eq!(before.id(), after.id());
-            });
-        let user1_chat_id = chat.id();
-        let chat_message = user1.messages(chat.id(), 1).await.unwrap().pop().unwrap();
-        let Message::Event(EventMessage::System(system_message)) = chat_message.message() else {
-            panic!("Last message should be an event message of type system");
-        };
-        assert!(matches!(
-            system_message,
-            SystemMessage::NewHandleConnectionChat(username)
-            if username == user2_username
-        ));
 
-        let test_user2 = self.users.get_mut(user2_id).unwrap();
-        let user2 = &mut test_user2.user;
-        let user2_contacts_before = user2.contacts().await.unwrap();
-        let user2_chats_before = user2.chats().await;
-        info!("{user2_id:?} fetches and process AS username messages");
+        let user2 = &self.users[user2_id].user;
         let (mut stream, responder) = user2.listen_username(&user2_username_record).await.unwrap();
         while let Some(Some(message)) = timeout(Duration::from_millis(500), stream.next())
             .await
@@ -647,213 +579,38 @@ impl TestBackend {
         {
             let message_id = message.message_id.unwrap();
             user2
-                .process_username_queue_message(user2_username_record.username.clone(), message)
+                .process_username_queue_message(username.clone(), message)
                 .await
                 .unwrap();
             responder.ack(message_id.into()).await;
         }
-
-        // Users accepts the connection request
         user2
-            .accept_contact_request(chat.id())
+            .accept_contact_request(chat_id)
             .await
             .unwrap()
             .unwrap();
-        let mut user2_contacts_after = user2.contacts().await.unwrap();
-        info!("User 2 contacts after: {:?}", user2_contacts_after);
-        let user2_username_contacts_before = user2.username_contacts().await.unwrap();
-        info!(
-            "User 2 username contacts after: {:?}",
-            user2_username_contacts_before
-        );
-        let new_contact_position = user2_contacts_after
-            .iter()
-            .position(|c| &c.user_id == user1_id)
-            .expect("User 1 should be in the handle contacts list of user 2");
-        // If we remove the new user, the handle contact lists should be the same.
-        user2_contacts_after.remove(new_contact_position);
-        user2_contacts_before
-            .into_iter()
-            .zip(user2_contacts_after)
-            .for_each(|(before, after)| {
-                assert_eq!(before.user_id, after.user_id);
-            });
-        // User 2 should have created a connection group.
-        let mut user2_chats_after = user2.chats().await;
-        info!("User 2 chats after: {:?}", user2_chats_after);
-        let new_chat_position = user2_chats_after
-            .iter()
-            .position(|c| c.id() == chat.id())
-            .expect("User 2 should have created a new chat");
-        let chat = user2_chats_after.remove(new_chat_position);
-        assert!(chat.status() == &ChatStatus::Active);
-        assert!(chat.chat_type() == &ChatType::Connection(user1_id.clone()));
-        user2_chats_before
-            .into_iter()
-            .zip(user2_chats_after)
-            .for_each(|(before, after)| {
-                assert_eq!(before.id(), after.id());
-            });
-        let user2_chat_id = chat.id();
-        // User 2 should see two system messages
-        let mut chat_messages = user2.messages(chat.id(), 2).await.unwrap();
-        let accepted_request_message = chat_messages.pop().unwrap();
-        let received_request_message = chat_messages.pop().unwrap();
-        let Message::Event(EventMessage::System(system_message)) =
-            accepted_request_message.message()
-        else {
-            panic!("Last message should be an event message of type system");
-        };
-        assert!(matches!(
-            system_message,
-            SystemMessage::AcceptedConnectionRequest { contact, user_handle: Some(username) }
-            if contact == user1_id && username == user2_username
-        ));
-        let Message::Event(EventMessage::System(system_message)) =
-            received_request_message.message()
-        else {
-            panic!("Last message should be an event message of type system");
-        };
-        assert!(matches!(
-            system_message,
-            SystemMessage::ReceivedHandleConnectionRequest { sender, user_handle }
-            if sender == user1_id && user_handle == user2_username
-        ));
 
-        let user2_id = user2.user_id().clone();
-        let test_user1 = self.users.get_mut(user1_id).unwrap();
-        let user1 = &mut test_user1.user;
-        let user1_contacts_before: HashSet<_> = user1
-            .contacts()
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|contact| contact.user_id.clone())
-            .collect();
-        let user1_chats_before = user1.chats().await;
-        info!("{user1_id:?} fetches QS messages");
-        let qs_messages = user1.qs_fetch_messages().await.unwrap();
-        info!("{user1_id:?} processes QS messages");
-        user1.fully_process_qs_messages(qs_messages).await;
+        self.users[user1_id].fetch_and_process_qs_messages().await;
+        self.users[user2_id].fetch_and_process_qs_messages().await;
+        // Fetches the profile of the new contact
+        for user_id in [user1_id, user2_id] {
+            self.users[user_id].user.outbound_service().run_once().await;
+        }
 
-        // User 1 should have added user 2 to its contacts now and a connection
-        // group should have been created.
-        let user1_contacts_after: HashSet<_> = user1
-            .contacts()
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|contact| contact.user_id.clone())
-            .collect();
-        let new_user_vec: Vec<_> = user1_contacts_after
-            .difference(&user1_contacts_before)
-            .collect();
-        assert_eq!(new_user_vec, vec![&user2_id]);
-        // User 2 should have created a connection group.
-        let mut user1_chats_after = user1.chats().await;
-        let new_chat_position = user1_chats_after
-            .iter()
-            .position(|c| c.id() == chat_id)
-            .expect("User 1 should have created a new chat");
-        let chat = user1_chats_after.remove(new_chat_position);
-        assert!(chat.status() == &ChatStatus::Active);
-        assert!(chat.chat_type() == &ChatType::Connection(user2_id.clone()));
-        let ids_before: HashSet<_> = user1_chats_before.iter().map(|c| c.id()).collect();
-        let ids_after: HashSet<_> = user1_chats_after.iter().map(|c| c.id()).collect();
-        assert!(ids_before.is_superset(&ids_after));
-        debug_assert_eq!(user1_chat_id, user2_chat_id);
-        let chat_message = user1.messages(chat.id(), 1).await.unwrap().pop().unwrap();
-        let Message::Event(EventMessage::System(system_message)) = chat_message.message() else {
-            panic!("Last message should be an event message of type system");
-        };
-        assert!(matches!(
-            system_message,
-            SystemMessage::ReceivedConnectionConfirmation { sender, user_handle: Some(username) }
-            if sender == &user2_id && username == user2_username
-        ));
-
-        let user1_unread_messages = self
-            .users
-            .get_mut(user1_id)
-            .unwrap()
-            .user
-            .unread_messages_count(user1_chat_id)
-            .await;
-        assert_eq!(user1_unread_messages, 0);
-
-        // Both users run the current client, so the connection group is APQ iff requested, and
-        // both sides agree on it.
-        for user_id in [user1_id, &user2_id] {
-            let is_apq = self.users[user_id].user.chat_is_apq(user1_chat_id).await;
+        for user_id in [user1_id, user2_id] {
+            let user = &self.users[user_id].user;
+            let chat = user.chat(&chat_id).await.unwrap();
+            assert_eq!(chat.status(), &ChatStatus::Active, "{user_id:?}");
             assert_eq!(
-                is_apq,
+                user.chat_is_apq(chat_id).await,
                 Some(prefer_apq),
                 "unexpected connection group kind for {user_id:?}"
             );
         }
 
-        // Send messages both ways to ensure it works.
-        self.send_message(user1_chat_id, user1_id, vec![&user2_id], None)
-            .await;
-
-        let user1_unread_messages = self
-            .users
-            .get_mut(user1_id)
-            .unwrap()
-            .user
-            .unread_messages_count(user1_chat_id)
-            .await;
-        assert_eq!(user1_unread_messages, 0);
-
-        self.send_message(user1_chat_id, &user2_id, vec![user1_id], None)
-            .await;
-
-        let user1_unread_messages = self
-            .users
-            .get_mut(user1_id)
-            .unwrap()
-            .user
-            .unread_messages_count(user1_chat_id)
-            .await;
-        assert_eq!(user1_unread_messages, 1);
-
-        // Fetch the last message and mark it as read.
-        let test_user1 = self.users.get_mut(user1_id).unwrap();
-        let user1 = &mut test_user1.user;
-        let user1_messages = user1.messages(user1_chat_id, 1).await.unwrap();
-
-        assert_eq!(user1_messages.len(), 1);
-        let user1_unread_messages = user1.unread_messages_count(user1_chat_id).await;
-        assert_eq!(user1_unread_messages, 1);
-
-        let last_message = user1_messages.last().unwrap();
-
-        user1
-            .mark_as_read([(user1_chat_id, last_message.timestamp())])
-            .await
-            .unwrap();
-
-        let user1_unread_messages = user1.unread_messages_count(user1_chat_id).await;
-        assert_eq!(user1_unread_messages, 0);
-
-        let test_user2 = self.users.get_mut(&user2_id).unwrap();
-        let user2 = &mut test_user2.user;
-        let user2_messages = user2.messages(user2_chat_id, 1).await.unwrap();
-
-        assert_eq!(user2_messages.len(), 1);
-        let last_message = user2_messages.last().unwrap();
-        user2
-            .mark_as_read([(user2_chat_id, last_message.timestamp())])
-            .await
-            .unwrap();
-
-        let user2_unread_messages = user2.unread_messages_count(user2_chat_id).await;
-        assert_eq!(user2_unread_messages, 0);
-
         let member_set: HashSet<UserId> = [user1_id.clone(), user2_id.clone()].into();
-        assert_eq!(member_set.len(), 2);
-        self.groups.insert(user1_chat_id, member_set);
-        user1_chat_id
+        self.groups.insert(chat_id, member_set);
+        chat_id
     }
 
     /// Sends a message from the given sender to the given recipients. Before
@@ -1437,15 +1194,11 @@ impl TestBackend {
         );
         let invite_messages = invite_result.messages;
 
-        let mut expected_messages = HashSet::new();
-        for invitee_id in &invitees {
-            let expected_message = format!("{inviter_id:?} added {invitee_id:?} to the chat");
-            expected_messages.insert(expected_message);
-        }
-
-        let invite_messages = display_messages_to_string_map(invite_messages);
-
-        assert_eq!(invite_messages, expected_messages);
+        let expected_messages: Vec<_> = invitees
+            .iter()
+            .map(|&invitee_id| SystemMessage::Add(Some(inviter_id.clone()), invitee_id.clone()))
+            .collect();
+        assert_system_messages(&invite_messages, &expected_messages);
 
         let inviter_group_members_after = inviter
             .chat_participants(chat_id)
@@ -1528,9 +1281,7 @@ impl TestBackend {
                 invite_messages.errors
             );
 
-            let invite_messages = display_messages_to_string_map(invite_messages.new_messages);
-
-            assert_eq!(invite_messages, expected_messages);
+            assert_system_messages(&invite_messages.new_messages, &expected_messages);
 
             let group_members_after = group_member.chat_participants(chat_id).await.unwrap();
             let new_members = group_members_after
@@ -1603,15 +1354,11 @@ impl TestBackend {
             )
             .await?;
 
-        let mut expected_messages = HashSet::new();
-
-        for removed_id in &removed_ids {
-            let expected_message = format!("{remover_id:?} removed {removed_id:?} from the chat");
-            expected_messages.insert(expected_message);
-        }
-
-        let remove_messages = display_messages_to_string_map(remove_messages);
-        assert_eq!(remove_messages, expected_messages);
+        let expected_messages: Vec<_> = removed_ids
+            .iter()
+            .map(|&removed_id| SystemMessage::Remove(Some(remover_id.clone()), removed_id.clone()))
+            .collect();
+        assert_system_messages(&remove_messages, &expected_messages);
 
         let remover_group_members_after = remover
             .chat_participants(chat_id)
@@ -1675,8 +1422,7 @@ impl TestBackend {
 
             let remove_messages = group_member.fully_process_qs_messages(qs_messages).await;
 
-            let remove_messages = display_messages_to_string_map(remove_messages.new_messages);
-            assert_eq!(remove_messages, expected_messages);
+            assert_system_messages(&remove_messages.new_messages, &expected_messages);
 
             let group_members_after = group_member.chat_participants(chat_id).await.unwrap();
             let removed_members: HashSet<_> = group_members_before
@@ -1840,177 +1586,6 @@ impl TestBackend {
         }
         self.groups.remove(&chat_id);
     }
-
-    pub fn random_user(&self, rng: &mut impl Rng) -> UserId {
-        self.users
-            .keys()
-            .choose(rng)
-            .expect("There should be at least one user")
-            .clone()
-    }
-
-    pub async fn perform_random_operation(&mut self, rng: &mut impl Rng) {
-        // Get a user to perform the operation
-        let random_user = self.random_user(rng);
-        // Possible actions:
-        // 0: Establish a connection
-        // 1: Create a group and invite one or more users
-        // 2: Invite up to 5 users to a group
-        // 3: Remove up to 5 users from a group
-        // 4: Leave a group
-        // Message sending is covered, as it's done as part of all of those
-        // actions. If one of the actions is not possible, it is skipped.
-        // TODO: Breaking up of connections
-        let action = rng.random_range(0..=3);
-        match action {
-            // Establish a connection
-            0 => {
-                let mut other_users = Vec::new();
-                for user in self.users.keys() {
-                    let is_contact = self
-                        .users
-                        .get(user)
-                        .unwrap()
-                        .user()
-                        .contacts()
-                        .await
-                        .unwrap()
-                        .into_iter()
-                        .any(|contact| contact.user_id == random_user);
-                    if user != &random_user && !is_contact {
-                        other_users.push(user.clone());
-                    }
-                }
-                if let Some(other_user) = other_users.into_iter().choose(rng) {
-                    info!(
-                        random_operation = true,
-                        "Random operation: Connecting {random_user:?} and {other_user:?}"
-                    );
-                    self.connect_users(&random_user, &other_user).await;
-                }
-            }
-            1 => {
-                let chat_id = self.create_group(&random_user).await;
-                info!(
-                    random_operation = true,
-                    "Random operation: Created group {}",
-                    chat_id.uuid()
-                );
-                // TODO: Invite user(s)
-            }
-            2 => {
-                // Pick a group
-                let user = self.users.get(&random_user).unwrap();
-                // Let's exclude connection groups for now.
-                if let Some(chat) = user
-                    .user()
-                    .chats()
-                    .await
-                    .into_iter()
-                    .filter(|chat| {
-                        chat.chat_type().is_group() && chat.status() == &ChatStatus::Active
-                    })
-                    .choose(rng)
-                {
-                    let number_of_invitees = rng.random_range(1..=5);
-                    let mut invitees = Vec::new();
-                    for invitee in self.users.keys() {
-                        let is_group_member =
-                            self.groups.get(&chat.id()).unwrap().contains(invitee);
-                        let is_connected = user
-                            .user()
-                            .contacts()
-                            .await
-                            .unwrap()
-                            .into_iter()
-                            .any(|contact| &contact.user_id == invitee);
-                        if !is_group_member && is_connected && invitee != &random_user {
-                            invitees.push(invitee);
-                        }
-                    }
-                    let invitees = invitees
-                        .into_iter()
-                        .cloned()
-                        .sample(rng, number_of_invitees);
-                    // It can happen that there are no suitable users to invite
-                    if !invitees.is_empty() {
-                        let invitee_strings = invitees
-                            .iter()
-                            .map(|invitee| format!("{invitee:?}"))
-                            .collect::<Vec<_>>();
-                        info!(
-                            random_operation = true,
-                            "Random operation: {random_user:?} invites {} to group {}",
-                            invitee_strings.join(", "),
-                            chat.id().uuid()
-                        );
-                        self.invite_to_group(chat.id(), &random_user, invitees.iter().collect())
-                            .await;
-                    }
-                }
-            }
-            3 => {
-                let user = self.users.get(&random_user).unwrap();
-                if let Some(chat) = user
-                    .user()
-                    .chats()
-                    .await
-                    .into_iter()
-                    .filter(|chat| {
-                        chat.chat_type().is_group() && chat.status() == &ChatStatus::Active
-                    })
-                    .choose(rng)
-                {
-                    let number_of_removals = rng.random_range(1..=5);
-                    let members_to_remove = self
-                        .groups
-                        .get(&chat.id())
-                        .unwrap()
-                        .iter()
-                        .filter(|&member| member != &random_user)
-                        .cloned()
-                        .sample(rng, number_of_removals);
-                    if !members_to_remove.is_empty() {
-                        let removed_strings = members_to_remove
-                            .iter()
-                            .map(|removed| format!("{removed:?}"))
-                            .collect::<Vec<_>>();
-                        info!(
-                            random_operation = true,
-                            "Random operation: {random_user:?} removes {} from group {}",
-                            removed_strings.join(", "),
-                            chat.id().uuid()
-                        );
-                        let members_to_remove = members_to_remove.iter().collect();
-                        self.remove_from_group(chat.id(), &random_user, members_to_remove)
-                            .await
-                            .unwrap();
-                    }
-                }
-            }
-            4 => {
-                let user = self.users.get(&random_user).unwrap();
-                if let Some(chat) = user
-                    .user()
-                    .chats()
-                    .await
-                    .into_iter()
-                    .filter(|chat| {
-                        chat.chat_type().is_group() && chat.status() == &ChatStatus::Active
-                    })
-                    .choose(rng)
-                {
-                    info!(
-                        random_operation = true,
-                        "Random operation: {random_user:?} leaves group {}",
-                        chat.id().uuid()
-                    );
-                    self.leave_group(chat.id(), &random_user).await.unwrap();
-                }
-            }
-            _ => panic!("Invalid action"),
-        }
-    }
 }
 
 trait CoreUSerExt {
@@ -2056,160 +1631,22 @@ fn assert_deletion_messages(messages: &[ChatMessage], deleter: &UserId) {
     );
 }
 
-fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet<String> {
-    display_messages
-        .into_iter()
-        .filter_map(|m| {
-            if let Message::Event(EventMessage::System(system_message)) = m.message() {
-                match system_message {
-                    SystemMessage::Add(Some(adder), added) => {
-                        Some(format!("{adder:?} added {added:?} to the chat"))
-                    }
-                    SystemMessage::Add(None, added) => {
-                        Some(format!("{added:?} was added to the chat"))
-                    }
-                    SystemMessage::Remove(Some(remover), removed) => {
-                        Some(format!("{remover:?} removed {removed:?} from the chat"))
-                    }
-                    SystemMessage::Remove(None, removed) => {
-                        Some(format!("{removed:?} was removed from the chat"))
-                    }
-                    SystemMessage::ChangeTitle {
-                        user_id,
-                        old_title,
-                        new_title,
-                    } => Some(format!(
-                        "{user_id:?} changed the group name from {old_title} to {new_title}"
-                    )),
-                    SystemMessage::ChangePicture(user_id) => {
-                        Some(format!("{user_id:?} changed the group picture"))
-                    }
-                    SystemMessage::CreateGroup(user_id) => {
-                        Some(format!("{user_id:?} created the group"))
-                    }
-                    SystemMessage::DeleteGroup(deleter) => {
-                        Some(format!("{deleter:?} deleted the chat"))
-                    }
-                    SystemMessage::NewHandleConnectionChat(user_handle) => {
-                        let user_handle_str = user_handle.plaintext();
-                        Some(format!("You requested a connection with {user_handle_str}"))
-                    }
-                    SystemMessage::AcceptedConnectionRequest {
-                        contact,
-                        user_handle,
-                    } => {
-                        let base_str =
-                            format!("You accepted a connection request from {contact:?}");
-                        if let Some(user_handle) = user_handle {
-                            let user_handle_str = user_handle.plaintext();
-                            Some(format!("{base_str} through the handle {user_handle_str}"))
-                        } else {
-                            Some(base_str)
-                        }
-                    }
-                    SystemMessage::ReceivedConnectionConfirmation {
-                        sender,
-                        user_handle,
-                    } => {
-                        let base_str = format!("User {sender:?} confirmed your connection request");
-                        if let Some(user_handle) = user_handle {
-                            let user_handle_str = user_handle.plaintext();
-                            Some(format!("{base_str} to handle {user_handle_str}"))
-                        } else {
-                            Some(base_str)
-                        }
-                    }
-                    SystemMessage::ReceivedHandleConnectionRequest {
-                        sender,
-                        user_handle,
-                    } => {
-                        let user_handle_str = user_handle.plaintext();
-                        Some(format!(
-                            "User {sender:?} requested a connection to your \
-                            handle {user_handle_str}"
-                        ))
-                    }
-                    SystemMessage::ReceivedDirectConnectionRequest { sender, chat_name } => {
-                        format!(
-                            "User {sender:?} requested a direct connection to your \
-                            contact through the chat {chat_name}"
-                        )
-                        .into()
-                    }
-                    SystemMessage::NewDirectConnectionChat(user_id) => {
-                        format!("You requested a connection with {user_id:?}").into()
-                    }
-                    SystemMessage::Onboarded => Some(
-                        "This client has been onboarded into the group after linking".to_owned(),
-                    ),
-                    SystemMessage::DeviceLinked(uuid) => {
-                        Some(format!("You linked a new device with UUID {uuid}"))
-                    }
-                    SystemMessage::DeviceUnlinked(uuid) => {
-                        Some(format!("You unlinked a device with UUID {uuid}"))
-                    }
-                    SystemMessage::ReceivedAdditionalUsernameConnectionRequest {
-                        sender,
-                        username,
-                    } => Some(format!(
-                        "User {sender:?} requested another connection to your username {}",
-                        username.plaintext()
-                    )),
-                    SystemMessage::ReceivedAdditionalDirectConnectionRequest {
-                        sender,
-                        chat_name,
-                    } => Some(format!(
-                        "User {sender:?} requested another connection through the chat \
-                            {chat_name}"
-                    )),
-                    SystemMessage::SelfChatCreated => Some("The self-chat was created".to_owned()),
-                    SystemMessage::ReceivedGroupConnectionRequest {
-                        sender,
-                        origin_chat_id,
-                    } => Some(format!(
-                        "User {sender:?} requested a direct connection to your contact \
-                            through the chat {origin_chat_id}"
-                    )),
-                    SystemMessage::ReceivedAdditionalGroupConnectionRequest {
-                        sender,
-                        origin_chat_id,
-                    } => Some(format!(
-                        "User {sender:?} requested another connection through the chat \
-                            {origin_chat_id}"
-                    )),
-                    SystemMessage::SentGroupConnectionRequest {
-                        recipient,
-                        origin_chat_id,
-                    } => Some(format!(
-                        "You requested a connection with {recipient:?} through the chat \
-                            {origin_chat_id}"
-                    )),
-                    SystemMessage::ConnectionRequestUnavailable => {
-                        Some("The connection request is no longer available".to_owned())
-                    }
-                    SystemMessage::ConnectionRequestExpired => {
-                        Some("The connection request expired".to_owned())
-                    }
-                    SystemMessage::SentConnectionRequestExpired => {
-                        Some("The sent connection request expired".to_owned())
-                    }
-                }
-            } else {
-                None
-            }
+/// Asserts that the system messages among `messages` are exactly `expected`,
+/// in any order.
+fn assert_system_messages(messages: &[ChatMessage], expected: &[SystemMessage]) {
+    let mut actual: Vec<_> = messages
+        .iter()
+        .filter_map(|message| match message.message() {
+            Message::Event(EventMessage::System(system_message)) => Some(system_message),
+            Message::Event(EventMessage::Error(_)) | Message::Content(_) => None,
         })
-        .collect()
-}
-
-fn test_picture_bytes() -> Vec<u8> {
-    // Generate a tiny valid PNG (1x1 RGBA) to satisfy image decoding in create_chat.
-    let mut buf = Vec::new();
-    {
-        let mut encoder = png::Encoder::new(&mut buf, 1, 1);
-        encoder.set_color(png::ColorType::Rgba);
-        encoder.set_depth(png::BitDepth::Eight);
-        let mut writer = encoder.write_header().unwrap();
-        writer.write_image_data(&[0xff, 0x00, 0x00, 0xff]).unwrap();
+        .collect();
+    for expected_message in expected {
+        let position = actual
+            .iter()
+            .position(|message| *message == expected_message)
+            .unwrap_or_else(|| panic!("missing {expected_message:?} in {actual:?}"));
+        actual.swap_remove(position);
     }
-    buf
+    assert!(actual.is_empty(), "unexpected system messages: {actual:?}");
 }

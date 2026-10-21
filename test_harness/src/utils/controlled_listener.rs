@@ -150,7 +150,6 @@ pub struct ControlledStream {
     inner: Option<TcpStream>,
     connect_info: TcpConnectInfo,
     mode: Arc<AtomicU8>,
-    drop_buf: Box<[u8; 8192]>,
 }
 
 impl ControlledStream {
@@ -159,7 +158,6 @@ impl ControlledStream {
         Self {
             inner: Some(inner),
             mode,
-            drop_buf: Box::new([0u8; 8192]),
             connect_info,
         }
     }
@@ -295,26 +293,28 @@ impl Stream for ControlledIncoming {
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let me = self.get_mut();
 
-        match me.listener.poll_accept(cx) {
-            // New connection.
-            Poll::Ready(Ok((stream, _addr))) => {
-                let mode = Mode::from_u8(me.mode.load(Ordering::Relaxed));
-                if mode == Mode::DropAll {
-                    // Drop the connection and pretend nothing happened.
-                    drop(stream);
-                    Poll::Pending
-                } else {
+        loop {
+            match me.listener.poll_accept(cx) {
+                // New connection
+                Poll::Ready(Ok((stream, _addr))) => {
+                    let mode = Mode::from_u8(me.mode.load(Ordering::Relaxed));
+                    if mode == Mode::DropAll {
+                        // Close the connection and accept the next one, so the waker stays
+                        // registered.
+                        drop(stream);
+                        continue;
+                    }
                     if let Err(error) = stream.set_nodelay(true) {
                         return Poll::Ready(Some(Err(error)));
                     }
                     let wrapped = ControlledStream::new(stream, me.mode.clone());
-                    Poll::Ready(Some(Ok(wrapped)))
+                    return Poll::Ready(Some(Ok(wrapped)));
                 }
+                // Error on accept => surface it
+                Poll::Ready(Err(e)) => return Poll::Ready(Some(Err(e))),
+                // No connection yet
+                Poll::Pending => return Poll::Pending,
             }
-            // Error on accept – surface it.
-            Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
-            // No connection yet.
-            Poll::Pending => Poll::Pending,
         }
     }
 }

@@ -414,7 +414,6 @@ dependencies = [
  "async-trait",
  "chrono",
  "mimi_content",
- "png",
  "rand 0.10.2",
  "sqlx",
  "tempfile",

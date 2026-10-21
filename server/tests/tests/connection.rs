@@ -10,7 +10,7 @@ use aircommon::{
     messages::client_as::SerializedToken,
     time::TimeStamp,
 };
-use aircoreclient::{ChatId, EventMessage, Message, SystemMessage};
+use aircoreclient::{ChatId, ChatType, EventMessage, Message, SystemMessage};
 use airprotos::{
     auth_service::v1::OperationType,
     client::signed_connection_package::{AnyConnectionPackage, AnyConnectionPackageIn},
@@ -20,13 +20,62 @@ use chrono::{TimeZone, Utc};
 use tokio::task::spawn_blocking;
 use tokio_stream::StreamExt;
 
+use super::contact_requests::system_messages;
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Connect users test", skip_all)]
 async fn connect_users_via_user_handle() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
-    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let username = setup
+        .get_user(&bob)
+        .username_record
+        .clone()
+        .unwrap()
+        .username;
+    let alice_user = setup.get_user(&alice).user();
+    let bob_user = setup.get_user(&bob).user();
+
+    for (user, contact) in [(alice_user, &bob), (bob_user, &alice)] {
+        let contacts: Vec<_> = user
+            .contacts()
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|contact| contact.user_id)
+            .collect();
+        assert_eq!(&contacts, std::slice::from_ref(contact));
+        let chat = user.chat(&chat_id).await.unwrap();
+        assert_eq!(chat.chat_type(), &ChatType::Connection(contact.clone()));
+        assert_eq!(user.unread_messages_count(chat_id).await, 0);
+    }
+
+    assert_eq!(
+        system_messages(alice_user, chat_id).await,
+        [
+            SystemMessage::NewHandleConnectionChat(username.clone()),
+            SystemMessage::ReceivedConnectionConfirmation {
+                sender: bob.clone(),
+                user_handle: Some(username.clone()),
+            },
+        ]
+    );
+    assert_eq!(
+        system_messages(bob_user, chat_id).await,
+        [
+            SystemMessage::ReceivedHandleConnectionRequest {
+                sender: alice.clone(),
+                user_handle: username.clone(),
+            },
+            SystemMessage::AcceptedConnectionRequest {
+                contact: alice.clone(),
+                user_handle: Some(username),
+            },
+        ]
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

@@ -18,7 +18,6 @@ anyhow.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
 mimi_content.workspace = true
-png.workspace = true
 rand.workspace = true
 sqlx.workspace = true
 tempfile.workspace = true
