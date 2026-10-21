@@ -12,6 +12,7 @@ use rand::TryRng;
 use secrecy::{CloneableSecret, SerializableSecret};
 use serde::{Deserialize, Serialize};
 use sqlx::{Database, Decode, Encode, Type, encode::IsNull, error::BoxDynError};
+use subtle::ConstantTimeEq;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
@@ -24,8 +25,6 @@ use super::RandomnessError;
     TlsDeserializeBytes,
     TlsSize,
     Clone,
-    PartialEq,
-    Eq,
     Serialize,
     Deserialize,
     Zeroize,
@@ -59,6 +58,14 @@ impl<const LENGTH: usize> Secret<LENGTH> {
         Ok(Self { secret })
     }
 }
+
+impl<const LENGTH: usize> PartialEq for Secret<LENGTH> {
+    fn eq(&self, other: &Self) -> bool {
+        self.secret.as_slice().ct_eq(other.secret.as_slice()).into()
+    }
+}
+
+impl<const LENGTH: usize> Eq for Secret<LENGTH> {}
 
 // Ensures that secrets are not printed in debug outputs.
 impl<const LENGTH: usize> std::fmt::Debug for Secret<LENGTH> {
@@ -140,5 +147,36 @@ impl Display for SecretBytes {
     }
 }
 
+impl PartialEq for SecretBytes {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.as_slice().ct_eq(other.0.as_slice()).into()
+    }
+}
+
+impl Eq for SecretBytes {}
+
 impl SerializableSecret for SecretBytes {}
 impl CloneableSecret for SecretBytes {}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn secret_eq() {
+        let secret = Secret::from([1, 2, 3]);
+        assert_eq!(secret, Secret::from([1, 2, 3]));
+        assert_ne!(secret, Secret::from([1, 2, 4]));
+        assert_ne!(secret, Secret::from([0, 2, 3]));
+    }
+
+    #[test]
+    fn secret_bytes_eq() {
+        let secret = SecretBytes::from(vec![1, 2, 3]);
+        assert_eq!(secret, SecretBytes::from(vec![1, 2, 3]));
+        assert_ne!(secret, SecretBytes::from(vec![1, 2, 4]));
+        assert_ne!(secret, SecretBytes::from(vec![1, 2]));
+        assert_ne!(secret, SecretBytes::from(vec![1, 2, 3, 0]));
+        assert_eq!(SecretBytes::from(vec![]), SecretBytes::from(vec![]));
+    }
+}

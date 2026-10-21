@@ -1,0 +1,3 @@
+CFBundleDisplayName = "Air";
+NSCameraUsageDescription = "Air 使用相機拍攝要在聊天中傳送的照片，並在連結裝置時掃描 QR Code。";
+NSPhotoLibraryUsageDescription = "Air 使用你的照片圖庫在聊天中傳送照片，以及設定個人資料照片和群組圖片。";

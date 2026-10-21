@@ -508,9 +508,6 @@ impl QueueService for GrpcQs {
             .await?;
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
-        let Some(user_id) = user_id else {
-            return Err(Status::unauthenticated("missing client authentication"));
-        };
         let (session, queue_messages) = self
             .qs
             .queues
