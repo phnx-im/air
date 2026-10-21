@@ -76,7 +76,15 @@ async fn rate_limit() {
     let mut held_id = None;
 
     // should stop with `resource_exhausted = true` at some point
-    for i in 0..100 {
+    for i in 0..10 {
+        // All requests from this host share one bucket. Cheap fetches empty it
+        // much faster than it refills, so the send right after is limited.
+        for _ in 0..1000 {
+            if alice.user.qs_fetch_messages().await.is_err() {
+                break;
+            }
+        }
+
         info!(i, "sending message");
         alice
             .user
