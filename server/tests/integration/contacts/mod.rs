@@ -7,7 +7,7 @@
 
 mod blocking;
 mod connection_packages;
-mod username;
 pub(crate) mod requests;
 mod safety_codes;
 mod targeted;
+mod username;
