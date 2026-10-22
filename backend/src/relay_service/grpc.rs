@@ -129,9 +129,9 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             error!(%error, "failed to encode the session assignment");
             Status::internal("encoding failure")
         })?;
-        if outbound_tx.send(Ok(assigned)).await.is_err() {
-            return Err(Status::aborted("provisioner disconnected"));
-        }
+        outbound_tx
+            .try_send(Ok(assigned))
+            .expect("a fresh channel whose receiver is held here has room");
 
         // The guard's drop ends the session, so hitting the deadline tears
         // down both peers' forwarding tasks.
