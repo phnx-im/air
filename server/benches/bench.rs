@@ -25,8 +25,7 @@ fn benchmarks(c: &mut Criterion) {
 
     let (alice, bob, chat_alice_bob) = runtime.block_on(async {
         let mut setup = setup.lock().await;
-        let alice = setup.add_user().await;
-        let bob = setup.add_user().await;
+        let [alice, bob] = setup.add_users().await;
         let chat_id = setup.connect_users(&alice, &bob).await;
         (alice, bob, chat_id)
     });
@@ -61,8 +60,7 @@ fn benchmarks(c: &mut Criterion) {
             async move {
                 let mut setup = setup.lock().await;
                 for _ in 0..iter {
-                    let initiator = setup.add_user().await;
-                    let responder = setup.add_user().await;
+                    let [initiator, responder] = setup.add_users().await;
                     let time = Instant::now();
                     setup.connect_users(&initiator, &responder).await;
                     elapsed += time.elapsed();
@@ -80,12 +78,10 @@ fn benchmarks(c: &mut Criterion) {
             let mut elapsed = Duration::default();
 
             async move {
-                let mut setup = setup.lock().await;
+                let setup = setup.lock().await;
                 for _ in 0..iter {
                     let time = Instant::now();
-                    setup
-                        .send_message(chat_alice_bob, &alice, vec![&bob], None)
-                        .await;
+                    setup.send_message(chat_alice_bob, &alice, &[&bob]).await;
                     elapsed += time.elapsed()
                 }
                 elapsed
@@ -111,13 +107,13 @@ fn benchmarks(c: &mut Criterion) {
             let bobs = bobs.clone();
             let mut elapsed = Duration::default();
             async move {
-                let mut setup = setup.lock().await;
+                let setup = setup.lock().await;
                 for _ in 0..iter {
                     // Create an independent group for Alice
                     let chat_id = setup.create_group(&alice).await;
-                    let bobs = bobs.iter().collect();
+                    let bobs: Vec<_> = bobs.iter().collect();
                     let time = Instant::now();
-                    setup.invite_to_group(chat_id, &alice, bobs).await;
+                    setup.invite_to_group(chat_id, &alice, &bobs).await;
                     elapsed += time.elapsed();
                 }
                 elapsed
@@ -126,10 +122,10 @@ fn benchmarks(c: &mut Criterion) {
     });
 
     let chat_id = runtime.block_on(async {
-        let mut setup = setup.lock().await;
+        let setup = setup.lock().await;
         let chat_id = setup.create_group(&alice).await;
         setup
-            .invite_to_group(chat_id, &alice, bobs.iter().collect())
+            .invite_to_group(chat_id, &alice, &bobs.iter().collect::<Vec<_>>())
             .await;
         chat_id
     });
@@ -141,11 +137,11 @@ fn benchmarks(c: &mut Criterion) {
             let bobs = bobs.clone();
             let mut elapsed = Duration::default();
             async move {
-                let mut setup = setup.lock().await;
+                let setup = setup.lock().await;
                 for _ in 0..iter {
-                    let bobs = bobs.iter().collect();
+                    let bobs: Vec<_> = bobs.iter().collect();
                     let time = Instant::now();
-                    setup.send_message(chat_id, &alice, bobs, None).await;
+                    setup.send_message(chat_id, &alice, &bobs).await;
                     elapsed += time.elapsed();
                 }
                 elapsed

@@ -133,8 +133,7 @@ impl UsernameQueues {
     fn track_listener(&self, hash: UsernameHash) -> CancellationToken {
         // Note: Locks the entry in the map until the end of the function.
         let mut tokens = self.listeners.entry(hash).or_default();
-        let max = usize::try_from(self.max_devices.get()).unwrap_or(usize::MAX);
-        if max > 0 {
+        if let Some(max) = self.max_devices.limit() {
             let excess = (tokens.len() + 1).saturating_sub(max);
             for evicted in tokens.drain(..excess) {
                 evicted.cancel();

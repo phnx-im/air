@@ -46,7 +46,8 @@ impl CoreUser {
         challenge: Option<RegistrationChallenge>,
     ) -> Result<Self> {
         use crate::{
-            db::notification::DbNotificationsSender, utils::persistence::open_db_in_memory,
+            db::notification::DbNotificationsSender,
+            utils::persistence::{open_air_db_in_memory, open_db_in_memory},
         };
 
         info!(?user_id, "creating new ephemeral user");
@@ -54,7 +55,8 @@ impl CoreUser {
         let notifier_tx = DbNotificationsSender::new();
 
         // Open the air db to store the client record
-        let air_db = DbAccess::with_single_pool(open_db_in_memory().await?, notifier_tx.clone());
+        let air_db =
+            DbAccess::with_single_pool(open_air_db_in_memory().await?, notifier_tx.clone());
 
         // Open client specific db
         let client_db = DbAccess::with_single_pool(open_db_in_memory().await?, notifier_tx);
@@ -62,7 +64,7 @@ impl CoreUser {
         let temp_file = tempfile::NamedTempFile::new()?;
         let global_lock = GlobalLock::from_path(temp_file.path())?;
 
-        Self::new_with_connections(
+        Self::new_with_dbs(
             user_id,
             Uuid::new_v4(),
             Some(server_url),
@@ -87,6 +89,30 @@ impl CoreUser {
 
     pub fn qs_client_id(&self) -> aircommon::identifiers::QsClientId {
         self.inner.qs_client_id
+    }
+
+    /// Creates a QS client record of this user that belongs to no device. An
+    /// unlinked device leaves such a record behind.
+    pub async fn create_detached_qs_client(
+        &self,
+        push_token: PushToken,
+    ) -> anyhow::Result<QsClientId> {
+        use aircommon::crypto::aead::AeadEncryptable;
+
+        let key_store = &self.inner.key_store;
+        let encrypted_push_token = push_token.encrypt(&key_store.push_token_ear_key)?;
+        let response = self
+            .api_client()?
+            .qs_create_client(
+                self.inner.qs_user_id,
+                QsClientSigningKey::generate()?.verifying_key().clone(),
+                RatchetDecryptionKey::generate()?.encryption_key().clone(),
+                Some(encrypted_push_token),
+                RatchetSecret::random()?,
+                &key_store.qs_user_signing_key,
+            )
+            .await?;
+        Ok(response.qs_client_id)
     }
 
     /// Deletes the QS user record without touching anything else.

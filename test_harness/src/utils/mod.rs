@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 // SPDX-FileCopyrightText: 2023 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
@@ -11,6 +9,7 @@ use std::{
 };
 
 pub mod controlled_listener;
+pub mod core_user_ext;
 pub mod setup;
 
 use airbackend::{
@@ -36,7 +35,7 @@ use airserver::{
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
+use sqlx::{AssertSqlSafe, Connection, PgConnection};
 use tokio::{
     runtime::Handle,
     task::{JoinHandle, block_in_place},
@@ -99,60 +98,33 @@ pub struct SpawnedApp {
     pub sent_challenges: SentChallenges,
     pub max_devices: [MaxDevices; 3],
     db_settings: DatabaseSettings,
-    db_names: DbNames,
+    db_name: Uuid,
     stop: CancellationToken,
     server_handle: Option<JoinHandle<()>>,
-}
-
-struct DbNames {
-    ds: Uuid,
-    as_: Uuid,
-    qs: Uuid,
-}
-
-impl DbNames {
-    pub fn random() -> Self {
-        Self {
-            ds: Uuid::new_v4(),
-            as_: Uuid::new_v4(),
-            qs: Uuid::new_v4(),
-        }
-    }
 }
 
 impl SpawnedApp {
     pub(crate) fn qs_database_url(&self) -> String {
         let mut db_settings = self.db_settings.clone();
-        db_settings.name = self.db_names.qs.to_string();
+        db_settings.name = self.db_name.to_string();
         db_settings.connection_string()
     }
 
     async fn cleanup(&mut self) {
-        // Drop test databases
-        for db_name in [self.db_names.as_, self.db_names.ds, self.db_names.qs] {
-            let mut db_settings = self.db_settings.clone();
-            db_settings.name = db_name.to_string();
-            let mut connection =
-                PgConnection::connect(&db_settings.connection_string_without_database())
-                    .await
-                    .unwrap();
-
-            let db_size: String = sqlx::query(AssertSqlSafe(format!(
-                r#"SELECT pg_size_pretty( pg_database_size('{db_name}'))"#
-            )))
-            .fetch_one(&mut connection)
-            .await
-            .unwrap()
-            .try_get(0)
-            .unwrap();
-
-            sqlx::query(AssertSqlSafe(format!(r#"DROP DATABASE "{db_name}""#)))
-                .execute(&mut connection)
-                .await
-                .unwrap();
-            info!(%db_name, db_size, "Dropped test database");
-        }
+        let db_name = self.db_name;
+        execute_without_database(&self.db_settings, format!(r#"DROP DATABASE "{db_name}""#)).await;
+        info!(%db_name, "Dropped test database");
     }
+}
+
+async fn execute_without_database(db_settings: &DatabaseSettings, statement: String) {
+    let mut connection = PgConnection::connect(&db_settings.connection_string_without_database())
+        .await
+        .unwrap();
+    sqlx::query(AssertSqlSafe(statement))
+        .execute(&mut connection)
+        .await
+        .unwrap();
 }
 
 impl Drop for SpawnedApp {
@@ -187,7 +159,7 @@ pub(crate) async fn spawn_app(
     } = params;
 
     // Load configuration
-    let mut configuration = get_configuration_from_str(BASE_CONFIG, LOCAL_CONFIG)
+    let configuration = get_configuration_from_str(BASE_CONFIG, LOCAL_CONFIG)
         .expect("Could not load configuration.");
 
     // Port binding
@@ -221,21 +193,49 @@ pub(crate) async fn spawn_app(
 
     let address = listener.local_addr().unwrap();
 
-    let db_names = DbNames::random();
+    let db_name = Uuid::new_v4();
 
     let stop = CancellationToken::new();
 
-    // DS storage provider
-    configuration.database.name = db_names.ds.to_string();
-    let mut ds = Ds::new(
+    let max_devices = max_devices.unwrap_or(configuration.application.max_devices);
+
+    // The services share a single schema and use disjoint tables, so they also
+    // share a single database. It is created upfront, because concurrent
+    // services would all try to create it.
+    execute_without_database(
         &configuration.database,
-        domain.clone(),
-        version_policy.clone(),
-        max_devices.unwrap_or(configuration.application.max_devices),
-        stop.clone(),
+        format!(r#"CREATE DATABASE "{db_name}""#),
     )
-    .await
+    .await;
+    let db_settings = DatabaseSettings {
+        name: db_name.to_string(),
+        ..configuration.database.clone()
+    };
+    let (mut ds, mut auth_service, qs) = tokio::try_join!(
+        Ds::new(
+            &db_settings,
+            domain.clone(),
+            version_policy.clone(),
+            max_devices,
+            stop.clone(),
+        ),
+        AuthService::new(
+            &db_settings,
+            domain.clone(),
+            version_policy.clone(),
+            max_devices,
+            stop.clone(),
+        ),
+        Qs::new(
+            &db_settings,
+            domain.clone(),
+            version_policy.clone(),
+            max_devices,
+            stop.clone(),
+        ),
+    )
     .expect("Failed to connect to database.");
+
     let mut storage_config = configuration
         .storage
         .clone()
@@ -243,19 +243,6 @@ pub(crate) async fn spawn_app(
     storage_config.max_attachment_size = max_attachment_size;
     storage_config.require_content_length = true;
     ds.set_storage(Storage::new(storage_config));
-
-    // New database name for the AS provider
-    configuration.database.name = db_names.as_.to_string();
-
-    let mut auth_service = AuthService::new(
-        &configuration.database,
-        domain.clone(),
-        version_policy.clone(),
-        max_devices.unwrap_or(configuration.application.max_devices),
-        stop.clone(),
-    )
-    .await
-    .expect("Failed to connect to database.");
 
     let as_connector = SimpleAsConnector::new(&auth_service);
 
@@ -281,19 +268,6 @@ pub(crate) async fn spawn_app(
     if let Some(code) = unredeemable_code {
         auth_service.set_unredeemable_code(code);
     }
-
-    // New database name for the QS provider
-    configuration.database.name = db_names.qs.to_string();
-
-    let qs = Qs::new(
-        &configuration.database,
-        domain.clone(),
-        version_policy.clone(),
-        max_devices.unwrap_or(configuration.application.max_devices),
-        stop.clone(),
-    )
-    .await
-    .expect("Failed to connect to database.");
 
     let max_devices = [
         ds.max_devices_handle(),
@@ -342,7 +316,7 @@ pub(crate) async fn spawn_app(
         sent_challenges,
         max_devices,
         db_settings: configuration.database,
-        db_names,
+        db_name,
         stop,
         server_handle: Some(server_handle),
     }

@@ -206,7 +206,7 @@ impl CoreUser {
 
         let global_lock = open_lock_file(db_path)?;
 
-        Self::new_with_connections(
+        Self::new_with_dbs(
             user_id,
             client_record_id,
             server_url,
@@ -220,7 +220,7 @@ impl CoreUser {
     }
 
     #[expect(clippy::too_many_arguments)]
-    async fn new_with_connections(
+    async fn new_with_dbs(
         user_id: UserId,
         client_record_id: Uuid,
         server_url: Option<Url>,
