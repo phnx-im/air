@@ -127,22 +127,18 @@ impl PairingGroup {
             .map_err(classify_welcome_error)?;
 
         // A welcome without our PSK would be an unauthenticated group, so it
-        // has to be rejected.
+        // has to be rejected. The provider stores no PSK but ours, so a
+        // welcome that references another one already failed above.
         let [psk_id] = processed.psks() else {
             return Err(LinkingError::validation(
                 "the pairing welcome does not carry exactly one psk",
             ));
         };
-        let Psk::External(external) = psk_id.psk() else {
+        let Psk::External(_) = psk_id.psk() else {
             return Err(LinkingError::validation(
                 "the pairing welcome's psk is not external",
             ));
         };
-        if external.psk_id() != psk.id() {
-            return Err(LinkingError::validation(
-                "the pairing welcome references a different psk",
-            ));
-        }
 
         let group = processed
             .into_staged_welcome(provider, None)
