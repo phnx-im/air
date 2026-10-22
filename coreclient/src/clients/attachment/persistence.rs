@@ -278,6 +278,27 @@ impl AttachmentRecord {
         .await
     }
 
+    /// Moves every attachment in `Downloading` back to `Pending` and returns
+    /// their ids.
+    pub(crate) async fn reset_downloading(
+        mut connection: impl WriteConnection,
+    ) -> sqlx::Result<Vec<AttachmentId>> {
+        let attachment_ids = query_scalar!(
+            r#"UPDATE attachment
+            SET status = ?
+            WHERE status = ?
+            RETURNING attachment_id AS "attachment_id: AttachmentId""#,
+            AttachmentStatus::Pending,
+            AttachmentStatus::Downloading,
+        )
+        .fetch_all(connection.as_mut())
+        .await?;
+        for &attachment_id in &attachment_ids {
+            connection.notifier().update(attachment_id);
+        }
+        Ok(attachment_ids)
+    }
+
     pub(crate) async fn load(
         mut connection: impl ReadConnection,
         attachment_id: AttachmentId,
@@ -1164,6 +1185,56 @@ pub(crate) mod test {
                 pending_record_2.attachment_id
             ]
         );
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn reset_downloading_attachments(pool: Pool<Sqlite>) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let message = test_chat_message(chat.id());
+        message.store(pool.write().await?).await?;
+
+        let statuses = [
+            AttachmentStatus::Pending,
+            AttachmentStatus::Downloading,
+            AttachmentStatus::Downloading,
+            AttachmentStatus::DownloadFailed,
+            AttachmentStatus::Uploading,
+            AttachmentStatus::Ready,
+        ];
+        let mut records = Vec::new();
+        for status in statuses {
+            let record = test_attachment_record_with(chat.id(), message.id(), status, Utc::now());
+            record.store(pool.write().await?, None).await?;
+            records.push(record);
+        }
+
+        let mut reset_ids = AttachmentRecord::reset_downloading(pool.write().await?).await?;
+        reset_ids.sort();
+        let mut expected_ids = vec![records[1].attachment_id, records[2].attachment_id];
+        expected_ids.sort();
+        assert_eq!(reset_ids, expected_ids);
+
+        let expected_statuses = [
+            AttachmentStatus::Pending,
+            AttachmentStatus::Pending,
+            AttachmentStatus::Pending,
+            AttachmentStatus::DownloadFailed,
+            AttachmentStatus::Uploading,
+            AttachmentStatus::Ready,
+        ];
+        for (record, expected) in records.iter().zip(expected_statuses) {
+            let status = AttachmentRecord::status(pool.read().await?, record.attachment_id).await?;
+            assert_eq!(status, Some(expected));
+        }
+
+        // Nothing is left to reset
+        let reset_ids = AttachmentRecord::reset_downloading(pool.write().await?).await?;
+        assert!(reset_ids.is_empty());
 
         Ok(())
     }

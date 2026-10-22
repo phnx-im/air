@@ -68,6 +68,7 @@ impl AttachmentsRepository {
         attachment_id: AttachmentId,
         sink: StreamSink<UiAttachmentStatus>,
     ) {
+        let status = self.core_user.attachment_status(attachment_id).await;
         let handle = self
             .in_progress
             .get(&attachment_id)
@@ -111,15 +112,16 @@ impl AttachmentsRepository {
             }
         } else {
             // No task in progress, so report the persisted status directly.
-            let ui_status = match self.core_user.attachment_status(attachment_id).await {
+            let ui_status = match status {
                 Ok(Some(AttachmentStatus::Ready)) => UiAttachmentStatus::Completed,
                 Ok(Some(AttachmentStatus::NotFound)) => UiAttachmentStatus::NotFound,
                 Ok(Some(AttachmentStatus::Pending)) => UiAttachmentStatus::Pending,
-                // Still in flight, a task will pick it up. No failure is
-                // reported while it is uploading or downloading.
-                Ok(Some(AttachmentStatus::Uploading | AttachmentStatus::Downloading)) => {
-                    UiAttachmentStatus::Progress(0)
-                }
+                // The upload may run in the share extension, which has no task
+                // here.
+                Ok(Some(AttachmentStatus::Uploading)) => UiAttachmentStatus::Progress(0),
+                // If the status is still 'Downloading' at this stage, it means
+                // the download failed.
+                Ok(Some(AttachmentStatus::Downloading)) => UiAttachmentStatus::Failed,
                 // UploadFailed / DownloadFailed / Unknown / missing row.
                 _ => UiAttachmentStatus::Failed,
             };
@@ -222,6 +224,38 @@ impl AttachmentsRepository {
             return Ok(None);
         }
         self.load_attachment(attachment_id).await
+    }
+
+    /// Starts downloading the attachment unless it is on the device or already
+    /// downloading. Retries failed or interrupted downloads. Returns once the
+    /// download is registered, without waiting for it to finish. A status
+    /// stream subscribed after that follows the download.
+    #[instrument(level = "debug", skip(self))]
+    pub async fn download_attachment(&self, attachment_id: AttachmentId) -> anyhow::Result<()> {
+        match self.core_user.attachment_status(attachment_id).await? {
+            Some(
+                AttachmentStatus::Pending
+                | AttachmentStatus::Downloading
+                | AttachmentStatus::DownloadFailed,
+            ) => {
+                spawn_download_task(
+                    &self.core_user,
+                    &self.cancel,
+                    None,
+                    &self.in_progress,
+                    attachment_id,
+                );
+                Ok(())
+            }
+            Some(
+                AttachmentStatus::Ready
+                | AttachmentStatus::Uploading
+                | AttachmentStatus::UploadFailed
+                | AttachmentStatus::NotFound,
+            )
+            | None => Ok(()),
+            Some(AttachmentStatus::Unknown) => bail!("Attachment status is unknown"),
+        }
     }
 
     pub fn cancel(&self, attachment_id: AttachmentId) {
@@ -383,6 +417,10 @@ async fn attachment_downloads_loop(
                 });
         futures_util::stream::iter(attachment_ids)
     });
+
+    if let Err(error) = store.reset_interrupted_attachment_downloads().await {
+        error!(%error, "failed to reset interrupted attachment downloads");
+    }
 
     // download pending attachments once
     let pending_attachment_ids = store

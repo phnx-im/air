@@ -24,6 +24,12 @@ part 'attachments_repository.freezed.dart';
 abstract class AttachmentsRepository implements RustOpaqueInterface {
   Future<void> cancel({required AttachmentId attachmentId});
 
+  /// Starts downloading the attachment unless it is on the device or already
+  /// downloading. Retries failed or interrupted downloads. Returns once the
+  /// download is registered, without waiting for it to finish. A status
+  /// stream subscribed after that follows the download.
+  Future<void> downloadAttachment({required AttachmentId attachmentId});
+
   /// Returns whether the attachment is animated.
   ///
   /// The data is loaded from the attachment metadata. If attachment is not yet available, it is
