@@ -450,3 +450,31 @@ async fn key_packages_fall_back_to_last_resort_then_refresh() {
         "Bob should have a new KeyPackage after uploading new ones"
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "a network error while joining loses the Welcome"]
+async fn welcome_survives_network_error() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    alice.drain().await;
+    alice
+        .invite_users(chat_id, slice::from_ref(bob.user_id()))
+        .await
+        .unwrap();
+
+    // Fetching the welcome info fails like a network error, once.
+    setup
+        .listener_control_handle()
+        .set_drop_next_request_to("WelcomeInfo");
+    bob.drain_unchecked().await;
+    bob.drain().await;
+
+    assert!(
+        bob.chat(&chat_id)
+            .await
+            .is_some_and(|chat| chat.status() == &ChatStatus::Active),
+        "bob never joined the group"
+    );
+}

@@ -179,11 +179,11 @@ pub(crate) async fn spawn_app(
                 interceptor_control_handle.set_drop_connection_on_write()
             }
             Mode::DropNextRequest if interceptor_control_handle.take_armed(path) => {
-                interceptor_control_handle.set_normal();
+                interceptor_control_handle.fired();
                 return Err(Status::unavailable("cancelled for interop test"));
             }
             Mode::RejectNextRequest if interceptor_control_handle.take_armed(path) => {
-                interceptor_control_handle.set_normal();
+                interceptor_control_handle.fired();
                 return Err(Status::invalid_argument("rejected for interop test"));
             }
             _ => {}

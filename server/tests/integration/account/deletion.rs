@@ -16,6 +16,8 @@ use airserver_test_harness::utils::{
 use mimi_content::MimiContent;
 use tokio_stream::StreamExt;
 
+use crate::contacts::requests::add_second_username;
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn deleted_user_id_can_register_again() {
     let mut setup = TestBackend::single().await;
@@ -158,4 +160,32 @@ async fn deleted_account_leaves_chats_besides_one_with_pending_commit() {
         participants,
         [charlie.user_id().clone()].into_iter().collect()
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "one failed username deletion keeps the remaining usernames registered"]
+async fn deleted_account_frees_usernames_after_one_fails() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let first = setup.add_username(&alice).await;
+    let second = add_second_username(&alice).await;
+
+    setup
+        .listener_control_handle()
+        .set_reject_next_request_to("DeleteUsername");
+    alice.delete_account(None).await.unwrap();
+
+    // Only the username whose deletion failed may remain.
+    let mut remaining = 0;
+    for record in [first, second] {
+        if bob
+            .check_username_exists(record.username)
+            .await
+            .unwrap()
+            .is_some()
+        {
+            remaining += 1;
+        }
+    }
+    assert!(remaining <= 1, "{remaining} usernames remain registered");
 }

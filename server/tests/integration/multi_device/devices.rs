@@ -125,3 +125,32 @@ async fn rename_propagates_to_sibling() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "an unlinked device keeps receiving and decrypting new messages"]
+async fn unlinked_device_cannot_read_new_messages() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+    let alice2 = alice.add_synced_device().await;
+
+    let b_id = alice2.own_client_id().await?;
+    alice.unlink_device(b_id).await?;
+    alice2.drain_unchecked().await;
+    bob.drain().await;
+
+    // The unlinked device ignores its flag and keeps fetching.
+    bob.send_text(chat_id, "after unlink").await;
+    alice2.drain_unchecked().await;
+
+    assert!(
+        !alice2
+            .text_messages(chat_id)
+            .await
+            .iter()
+            .any(|text| text.contains("after unlink")),
+        "the unlinked device read a message sent after the unlink"
+    );
+
+    Ok(())
+}
