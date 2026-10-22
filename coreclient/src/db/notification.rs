@@ -4,7 +4,7 @@
 
 use std::{collections::BTreeMap, mem, sync::Arc};
 
-use aircommon::identifiers::UserId;
+use aircommon::identifiers::{UserId, Username};
 use enumset::{EnumSet, EnumSetType};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
@@ -214,6 +214,8 @@ pub enum DbEntityId {
     Attachment(AttachmentId),
     /// A synchronized user setting, identified by its setting key.
     UserSetting(String),
+    /// One of the user's own usernames.
+    Username(Username),
 }
 
 impl DbEntityId {
@@ -224,6 +226,7 @@ impl DbEntityId {
             DbEntityId::Message(_) => DbEntityKind::Message,
             DbEntityId::Attachment(_) => DbEntityKind::Attachment,
             DbEntityId::UserSetting(_) => DbEntityKind::UserSetting,
+            DbEntityId::Username(_) => DbEntityKind::Username,
         }
     }
 }
@@ -235,6 +238,7 @@ pub(crate) enum DbEntityKind {
     Message = 2,
     Attachment = 3,
     UserSetting = 4,
+    Username = 5,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -251,6 +255,7 @@ impl TryFrom<i64> for DbEntityKind {
             2 => Ok(DbEntityKind::Message),
             3 => Ok(DbEntityKind::Attachment),
             4 => Ok(DbEntityKind::UserSetting),
+            5 => Ok(DbEntityKind::Username),
             _ => Err(InvalidDbEntityKind(value)),
         }
     }

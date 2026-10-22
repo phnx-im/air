@@ -642,10 +642,12 @@ mod tests {
         messages::FriendshipToken,
     };
     use chrono::{DateTime, Utc};
-    use sqlx::{SqlitePool, migrate::Migrator, sqlite::SqlitePoolOptions};
     use uuid::Uuid;
 
-    use crate::{ChatAttributes, ChatMessage, contacts::UsernameContact, db::access::DbAccess};
+    use crate::{
+        ChatAttributes, ChatMessage, contacts::UsernameContact, db::access::DbAccess,
+        utils::persistence::open_db_in_memory_before,
+    };
 
     use super::*;
 
@@ -678,19 +680,6 @@ mod tests {
         })
     }
 
-    async fn migrate_until(pool: &SqlitePool, version: i64) -> anyhow::Result<()> {
-        let mut migrator: Migrator = sqlx::migrate!();
-        migrator.migrations = migrator
-            .migrations
-            .iter()
-            .filter(|migration| migration.version < version)
-            .cloned()
-            .collect::<Vec<_>>()
-            .into();
-        migrator.run(pool).await?;
-        Ok(())
-    }
-
     /// Stores a pending incoming request the way clients did before the
     /// migration.
     async fn store_legacy_request(
@@ -720,11 +709,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn the_migration_keeps_pending_requests_and_drops_their_partial_contacts()
     -> anyhow::Result<()> {
-        let pool = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect("sqlite::memory:")
-            .await?;
-        migrate_until(&pool, PENDING_CONNECTION_REQUEST_MIGRATION).await?;
+        let pool = open_db_in_memory_before(PENDING_CONNECTION_REQUEST_MIGRATION).await?;
         let db = DbAccess::for_tests(pool.clone());
 
         let username = Username::new("ellie-03".to_owned())?;
@@ -842,11 +827,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn the_migration_takes_the_group_id_from_the_origin_chat() -> anyhow::Result<()> {
-        let pool = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect("sqlite::memory:")
-            .await?;
-        migrate_until(&pool, ORIGIN_GROUP_MIGRATION).await?;
+        let pool = open_db_in_memory_before(ORIGIN_GROUP_MIGRATION).await?;
         let db = DbAccess::for_tests(pool.clone());
 
         let (group, via_group, without_origin) = db

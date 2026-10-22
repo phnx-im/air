@@ -21641,6 +21641,10 @@ class UserCubitBaseImpl extends RustOpaque implements UserCubitBase {
     preferApq: preferApq,
   );
 
+  /// Registers a new username.
+  ///
+  /// Returns `false` if the username is taken.
+  /// [`UsernameContext::spawn_sync`] updates the UI state and the listener.
   Future<bool> addUsername({required UiUsername username}) =>
       RustLib.instance.api.crateApiUserCubitUserCubitBaseAddUsername(
         that: this,

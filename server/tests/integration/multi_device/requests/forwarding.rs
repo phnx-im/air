@@ -15,7 +15,7 @@ use tokio_stream::StreamExt;
 use super::has_system_message;
 use crate::{
     contacts::requests::{add_second_username, pending_chats_from},
-    multi_device::send_and_receive,
+    multi_device::{send_and_receive, usernames::add_synced_username},
 };
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -23,9 +23,7 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let alice2 = alice.add_synced_device().await;
-    let record = setup.add_username(&alice).await;
-    alice.outbound_service().run_once().await;
-    alice2.drain().await;
+    let record = add_synced_username(&setup, &alice, &alice2).await;
 
     let bob_chat_id = bob
         .add_contact(record.username.clone(), record.hash, setup.apq_groups)
@@ -33,28 +31,28 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
         .unwrap()
         .unwrap();
 
-    // Only the device that holds the username fetches the offer.
-    let chat_id = alice.receive_connection_offer(&record).await;
+    // Only alice2 fetches the offer. It never registered the username.
+    let chat_id = alice2.receive_connection_offer(&record).await;
     assert_eq!(chat_id, bob_chat_id);
     let package_hashes = alice
         .connection_package_hashes(&record.username)
         .await
         .unwrap();
-    alice.outbound_service().run_once().await;
+    alice2.outbound_service().run_once().await;
 
-    let processed = alice2.drain().await;
+    let processed = alice.drain().await;
     assert_eq!(
         processed.new_connections,
         vec![chat_id],
         "the forwarded request should raise a notification"
     );
-    let chat_b = alice2.expect_chat(chat_id).await;
+    let chat_a = alice.expect_chat(chat_id).await;
     assert_eq!(
-        chat_b.chat_type(),
+        chat_a.chat_type(),
         &ChatType::PendingConnection(bob.user_id().clone())
     );
     assert!(
-        has_system_message(&alice2, chat_id, |message| matches!(
+        has_system_message(&alice, chat_id, |message| matches!(
             message,
             SystemMessage::ReceivedHandleConnectionRequest { sender, user_handle }
                 if sender == bob.user_id() && user_handle == &record.username
@@ -64,26 +62,34 @@ async fn request_fetched_by_one_device_reaches_its_sibling() {
     );
 
     // The device that never saw the offer accepts it.
-    alice2
+    alice
         .accept_contact_request(chat_id)
         .await
         .unwrap()
         .unwrap();
 
-    alice.drain().await;
-    let chat_a = alice.expect_chat(chat_id).await;
+    alice2.drain().await;
+    let chat_b = alice2.expect_chat(chat_id).await;
     assert_eq!(
-        chat_a.chat_type(),
+        chat_b.chat_type(),
         &ChatType::Connection(bob.user_id().clone())
     );
-    let remaining_hashes = alice
+    let remaining_hashes = alice2
         .connection_package_hashes(&record.username)
         .await
         .unwrap();
     assert_eq!(
         remaining_hashes.len() + 1,
         package_hashes.len(),
-        "the device drops the key of the package the offer consumed"
+        "the sibling drops the key of the package the offer consumed"
+    );
+    assert_eq!(
+        remaining_hashes,
+        alice
+            .connection_package_hashes(&record.username)
+            .await
+            .unwrap(),
+        "both devices drop the same key"
     );
 
     bob.drain().await;
