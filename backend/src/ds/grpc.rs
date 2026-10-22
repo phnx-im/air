@@ -2217,7 +2217,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .client_references_signature
                     .map(TryInto::try_into)
                     .transpose()?;
-                let client_references_before = ClientReferencesSnapshot::take(group_state);
+                let client_references_before = ClientReferencesSnapshot::of(group_state);
 
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
@@ -2346,7 +2346,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         .client_references_signature
                         .map(TryInto::try_into)
                         .transpose()?;
-                    let client_references_before = ClientReferencesSnapshot::take(t_group_state);
+                    let client_references_before = ClientReferencesSnapshot::of(t_group_state);
                     let (t_add_users_info, pq_add_users_info) =
                         add_users_info.map(|info| info.split()).unzip();
 

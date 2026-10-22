@@ -107,6 +107,8 @@ impl QsClientRecord {
 }
 
 pub(crate) mod persistence {
+    use std::collections::HashSet;
+
     use aircommon::codec::{BlobDecoded, BlobEncoded};
     use sqlx::{PgExecutor, query};
     use uuid::Uuid;
@@ -398,7 +400,7 @@ pub(crate) mod persistence {
         /// deleted clients. It leaves out unknown client ids.
         pub(in crate::qs) async fn count_by_owner(
             executor: impl PgExecutor<'_>,
-            client_ids: &[QsClientId],
+            client_ids: &HashSet<QsClientId>,
         ) -> sqlx::Result<Vec<(QsUserId, i64)>> {
             let client_ids: Vec<Uuid> = client_ids.iter().map(|id| *id.as_uuid()).collect();
             let rows = sqlx::query!(
@@ -428,7 +430,7 @@ pub(crate) mod persistence {
         pub(in crate::qs) async fn clear_push_tokens_except(
             executor: impl PgExecutor<'_>,
             user_id: &QsUserId,
-            keep: &[QsClientId],
+            keep: &HashSet<QsClientId>,
         ) -> sqlx::Result<u64> {
             let keep: Vec<Uuid> = keep.iter().map(|id| *id.as_uuid()).collect();
             let result = sqlx::query!(

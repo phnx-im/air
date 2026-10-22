@@ -49,7 +49,7 @@ pub(super) enum ClientReferencesSnapshot {
 }
 
 impl ClientReferencesSnapshot {
-    pub(super) fn take(group_state: &DsGroupState) -> Self {
+    pub(super) fn of(group_state: &DsGroupState) -> Self {
         if group_state.is_self_group() {
             Self::SelfGroup(self_group_references(group_state.group()))
         } else {

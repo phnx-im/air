@@ -68,8 +68,6 @@ impl Qs {
         if !client_ids.contains(sender) {
             return Ok(Rejected(SenderNotIncluded));
         }
-        let client_ids: Vec<QsClientId> = client_ids.into_iter().collect();
-
         let owners = QsClientRecord::count_by_owner(txn.as_mut(), &client_ids).await?;
         let owner = match owners.as_slice() {
             [(owner, count)] if usize::try_from(*count) == Ok(client_ids.len()) => *owner,

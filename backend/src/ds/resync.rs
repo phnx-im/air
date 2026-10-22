@@ -210,7 +210,7 @@ impl DsGroupState {
         pq_message: AssistedMessageIn,
         t_sender_index: LeafNodeIndex,
     ) -> Result<ResyncOutcome, ResyncClientError> {
-        let client_references_before = ClientReferencesSnapshot::take(t_group_state);
+        let client_references_before = ClientReferencesSnapshot::of(t_group_state);
         let processed_assisted_message_plus =
             ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
                 .process_apq_assisted_message(
