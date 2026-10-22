@@ -57,6 +57,7 @@ impl Qs {
         use ReconcileRejection::*;
 
         let ClientReferencesReconciliation {
+            confirmed_transcript_hash,
             client_references,
             signature,
         } = reconciliation;
@@ -80,7 +81,12 @@ impl Qs {
         else {
             return Ok(Rejected(UnknownUser));
         };
-        if let Err(error) = signature.verify(client_references, decryption_key, &verifying_key) {
+        if let Err(error) = signature.verify(
+            confirmed_transcript_hash,
+            client_references,
+            decryption_key,
+            &verifying_key,
+        ) {
             warn!(%error, "Invalid client references signature");
             return Ok(Rejected(InvalidSignature));
         }
@@ -129,7 +135,7 @@ pub(super) mod tests {
     use aircommon::{
         crypto::signatures::keys::QsUserSigningKey,
         identifiers::{Fqdn, QsUserId},
-        messages::client_references::SealedClientReferencesSignature,
+        messages::client_references::{ConfirmedTranscriptHash, SealedClientReferencesSignature},
     };
     use sqlx::PgPool;
     use tokio_util::sync::CancellationToken;
@@ -193,12 +199,15 @@ pub(super) mod tests {
         client_references: Vec<QsReference>,
         signing_key: &QsUserSigningKey,
     ) -> anyhow::Result<ClientReferencesReconciliation> {
+        let confirmed_transcript_hash = ConfirmedTranscriptHash::new_for_test(vec![0x0c; 32]);
         let signature = SealedClientReferencesSignature::seal(
+            confirmed_transcript_hash.clone(),
             client_references.clone(),
             signing_key,
             decryption_key(&qs.db_pool).await?.encryption_key(),
         )?;
         Ok(ClientReferencesReconciliation {
+            confirmed_transcript_hash,
             client_references,
             signature,
         })
@@ -285,6 +294,27 @@ pub(super) mod tests {
 
         assert_eq!(outcome, ReconcileOutcome::Rejected(InvalidSignature));
         assert!(Qs::client_has_push_token(&pool, &victim_sibling.client_id).await?);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn rejects_signature_of_another_commit(pool: PgPool) -> anyhow::Result<()> {
+        let qs = init_qs(&pool).await?;
+        let (user_id, signing_key) = store_user(&pool).await?;
+        let first = store_random_client_record(&pool, user_id).await?;
+        let linked_later = store_random_client_record(&pool, user_id).await?;
+
+        // The signature is from before the second device joined. A replay with
+        // a later commit would clear the push token of the second device.
+        let client_references = vec![reference(&qs, first.client_id).await?];
+        let mut reconciliation =
+            signed_reconciliation(&qs, client_references, &signing_key).await?;
+        reconciliation.confirmed_transcript_hash =
+            ConfirmedTranscriptHash::new_for_test(vec![0x0d; 32]);
+        let outcome = reconcile(&qs, &first.client_id, reconciliation).await?;
+
+        assert_eq!(outcome, ReconcileOutcome::Rejected(InvalidSignature));
+        assert!(Qs::client_has_push_token(&pool, &linked_later.client_id).await?);
         Ok(())
     }
 

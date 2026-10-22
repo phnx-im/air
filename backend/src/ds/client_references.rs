@@ -7,12 +7,15 @@
 //! The leaves of a user's self group contain QS client references. The QS
 //! uses them to learn which client records of the user belong to a device.
 //! [`ClientReferencesChange`] decides when a commit needs a signature by the
-//! user. We forward the signature to the QS.
+//! user. We forward the signature to the QS. We also forward the
+//! [`ConfirmedTranscriptHash`] of our group state after the commit. The QS
+//! verifies the signature over both.
 
 use aircommon::{
     identifiers::Fqdn,
     messages::client_references::{
-        ClientReferencesChange, SealedClientReferencesSignature, SelfGroupReferences,
+        ClientReferencesChange, ConfirmedTranscriptHash, SealedClientReferencesSignature,
+        SelfGroupReferences,
     },
 };
 use mls_assist::group::Group;
@@ -58,8 +61,13 @@ impl ClientReferencesSnapshot {
         match self {
             Self::OtherGroup => GroupReferencesChange::OtherGroup,
             Self::SelfGroup(before) => {
-                let after = self_group_references(after.group());
-                GroupReferencesChange::SelfGroup(ClientReferencesChange::between(before, after))
+                let group = after.group();
+                GroupReferencesChange::SelfGroup {
+                    change: ClientReferencesChange::between(before, self_group_references(group)),
+                    confirmed_transcript_hash: ConfirmedTranscriptHash::of(
+                        group.group_info().group_context(),
+                    ),
+                }
             }
         }
     }
@@ -76,7 +84,11 @@ fn self_group_references(group: &Group) -> SelfGroupReferences {
 /// What a commit or resync did to the client references of a group.
 pub(super) enum GroupReferencesChange {
     OtherGroup,
-    SelfGroup(ClientReferencesChange),
+    SelfGroup {
+        change: ClientReferencesChange,
+        /// The hash of the group state that `change` ends in.
+        confirmed_transcript_hash: ConfirmedTranscriptHash,
+    },
 }
 
 impl GroupReferencesChange {
@@ -109,14 +121,26 @@ impl GroupReferencesChange {
         match (self, signature) {
             (Self::OtherGroup, None) => Ok(None),
             (Self::OtherGroup, Some(_)) => Err(ClientReferencesError::UnexpectedSignature),
-            (Self::SelfGroup(change), None) => {
+            (
+                Self::SelfGroup {
+                    change,
+                    confirmed_transcript_hash: _,
+                },
+                None,
+            ) => {
                 if change.requires_signature() {
                     Err(ClientReferencesError::MissingSignature)
                 } else {
                     Ok(None)
                 }
             }
-            (Self::SelfGroup(change), Some(signature)) => {
+            (
+                Self::SelfGroup {
+                    change,
+                    confirmed_transcript_hash,
+                },
+                Some(signature),
+            ) => {
                 let client_references = change
                     .into_signed_references()
                     .ok_or(ClientReferencesError::IncompleteReferences)?;
@@ -126,6 +150,7 @@ impl GroupReferencesChange {
                     }
                 }
                 Ok(Some(ClientReferencesReconciliation {
+                    confirmed_transcript_hash,
                     client_references: client_references.into_iter().collect(),
                     signature,
                 }))
@@ -137,11 +162,19 @@ impl GroupReferencesChange {
     /// they are.
     pub(super) fn check_resync(&self) -> Result<(), ClientReferencesError> {
         match self {
-            Self::OtherGroup | Self::SelfGroup(ClientReferencesChange::Unchanged(_)) => Ok(()),
-            Self::SelfGroup(ClientReferencesChange::Changed {
-                before: _,
-                after: _,
-            }) => Err(ClientReferencesError::ResyncChangesReferences),
+            Self::OtherGroup
+            | Self::SelfGroup {
+                change: ClientReferencesChange::Unchanged(_),
+                confirmed_transcript_hash: _,
+            } => Ok(()),
+            Self::SelfGroup {
+                change:
+                    ClientReferencesChange::Changed {
+                        before: _,
+                        after: _,
+                    },
+                confirmed_transcript_hash: _,
+            } => Err(ClientReferencesError::ResyncChangesReferences),
         }
     }
 }
@@ -189,8 +222,15 @@ mod tests {
         SelfGroupReferences::Complete(set)
     }
 
+    fn confirmed_transcript_hash() -> ConfirmedTranscriptHash {
+        ConfirmedTranscriptHash::new_for_test(vec![0x0c; 32])
+    }
+
     fn change(before: SelfGroupReferences, after: SelfGroupReferences) -> GroupReferencesChange {
-        GroupReferencesChange::SelfGroup(ClientReferencesChange::between(before, after))
+        GroupReferencesChange::SelfGroup {
+            change: ClientReferencesChange::between(before, after),
+            confirmed_transcript_hash: confirmed_transcript_hash(),
+        }
     }
 
     fn key_package_hint() -> Option<QsVirtualClientHint> {
@@ -226,6 +266,21 @@ mod tests {
 
         assert_eq!(reconcile(added(), None), Err(MissingSignature));
         assert_eq!(reconcile(added(), signature()), Ok(Some(2)));
+    }
+
+    #[test]
+    fn forwards_the_confirmed_transcript_hash() {
+        let a = client_reference(own_domain());
+        let added = change(Incomplete, complete(&[&a]));
+
+        let reconciliation = added
+            .reconciliation(signature(), &own_domain())
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            reconciliation.confirmed_transcript_hash,
+            confirmed_transcript_hash()
+        );
     }
 
     #[test]

@@ -5,7 +5,8 @@
 //! The QS client references in the leaves of the self group.
 //!
 //! A commit to the self group that changes them contains our signature over
-//! the references after the commit. The DS forwards the signature to the QS.
+//! the references after the commit. The signature also covers the confirmed
+//! transcript hash of the commit. The DS forwards the signature to the QS.
 //! The QS then clears the push tokens of our client records that no leaf
 //! names.
 
@@ -14,7 +15,8 @@ use std::collections::HashSet;
 use aircommon::{
     identifiers::QsReference,
     messages::client_references::{
-        ClientReferencesChange, SealedClientReferencesSignature, SelfGroupReferences,
+        ClientReferencesChange, ConfirmedTranscriptHash, SealedClientReferencesSignature,
+        SelfGroupReferences,
     },
 };
 use anyhow::Context;
@@ -47,7 +49,8 @@ fn references_to_sign(
 }
 
 impl Group {
-    /// The client references to sign for the pending commit of the self group.
+    /// Signs the client references of the pending commit of the self group for
+    /// the DS to forward to the QS.
     ///
     /// These are the references of all leaves after the commit. Returns `None`
     /// in these cases:
@@ -55,10 +58,38 @@ impl Group {
     /// - A leaf will have no reference.
     /// - The commit leaves the references unchanged and `sign_unchanged` is
     ///   false.
+    pub(crate) fn client_references_signature(
+        &self,
+        key_store: &MemoryUserKeyStore,
+        sign_unchanged: bool,
+    ) -> anyhow::Result<Option<SealedClientReferencesSignature>> {
+        let Some((staged_commit, client_references)) =
+            self.pending_references_to_sign(sign_unchanged)?
+        else {
+            return Ok(None);
+        };
+        let confirmed_transcript_hash = ConfirmedTranscriptHash::of(staged_commit.group_context());
+        Ok(Some(key_store.seal_client_references_signature(
+            confirmed_transcript_hash,
+            client_references,
+        )?))
+    }
+
+    #[cfg(test)]
     pub(crate) fn client_references_to_sign(
         &self,
         sign_unchanged: bool,
     ) -> anyhow::Result<Option<HashSet<QsReference>>> {
+        let to_sign = self.pending_references_to_sign(sign_unchanged)?;
+        Ok(to_sign.map(|(_, client_references)| client_references))
+    }
+
+    /// The pending commit and the references that
+    /// [`Self::client_references_signature`] signs for it.
+    fn pending_references_to_sign(
+        &self,
+        sign_unchanged: bool,
+    ) -> anyhow::Result<Option<(&StagedCommit, HashSet<QsReference>)>> {
         if !self.is_self_group() {
             return Ok(None);
         }
@@ -67,22 +98,8 @@ impl Group {
             .pending_commit()
             .context("self-group operation without a pending commit")?;
         let change = pending_change(mls_group, staged_commit)?;
-        Ok(references_to_sign(change, sign_unchanged))
-    }
-
-    /// Signs the references of [`Self::client_references_to_sign`] for the DS
-    /// to forward to the QS.
-    pub(crate) fn client_references_signature(
-        &self,
-        key_store: &MemoryUserKeyStore,
-        sign_unchanged: bool,
-    ) -> anyhow::Result<Option<SealedClientReferencesSignature>> {
-        let Some(client_references) = self.client_references_to_sign(sign_unchanged)? else {
-            return Ok(None);
-        };
-        Ok(Some(
-            key_store.seal_client_references_signature(client_references)?,
-        ))
+        let client_references = references_to_sign(change, sign_unchanged);
+        Ok(client_references.map(|client_references| (staged_commit, client_references)))
     }
 }
 

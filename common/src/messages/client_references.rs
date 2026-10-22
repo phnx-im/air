@@ -10,14 +10,20 @@
 //! together with the signature. The QS then knows which client records of the
 //! user belong to a device in the self group.
 //!
+//! The signature also covers the [`ConfirmedTranscriptHash`] of the commit. A
+//! signature then cannot be replayed with another commit.
+//!
 //! The client and the DS share the rule that decides when a commit needs a
 //! signature. See [`ClientReferencesChange`].
 
 use std::collections::HashSet;
 
-use mls_assist::{openmls::prelude::LeafNode, openmls_traits::types::HpkeCiphertext};
+use mls_assist::{
+    openmls::prelude::{GroupContext, LeafNode},
+    openmls_traits::types::HpkeCiphertext,
+};
 use thiserror::Error;
-use tls_codec::{Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize};
+use tls_codec::{Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
 
 use crate::{
     LibraryError,
@@ -115,6 +121,25 @@ impl ClientReferencesChange {
     }
 }
 
+/// The confirmed transcript hash of the epoch that a commit creates.
+#[derive(Debug, Clone, PartialEq, Eq, TlsSerialize, TlsDeserializeBytes, TlsSize)]
+pub struct ConfirmedTranscriptHash {
+    hash: VLBytes,
+}
+
+impl ConfirmedTranscriptHash {
+    pub fn of(group_context: &GroupContext) -> Self {
+        Self {
+            hash: group_context.confirmed_transcript_hash().into(),
+        }
+    }
+
+    #[cfg(any(test, feature = "test_utils"))]
+    pub fn new_for_test(hash: Vec<u8>) -> Self {
+        Self { hash: hash.into() }
+    }
+}
+
 /// [`ClientReferencesSignature`] sealed to the QS. Opaque to the DS.
 #[derive(Debug, Clone, PartialEq, Eq, TlsSerialize, TlsDeserializeBytes, TlsSize)]
 pub struct SealedClientReferencesSignature {
@@ -122,30 +147,33 @@ pub struct SealedClientReferencesSignature {
 }
 
 impl SealedClientReferencesSignature {
-    /// Signs `client_references` with the QS user key and seals the signature
-    /// to the QS.
+    /// Signs `confirmed_transcript_hash` and `client_references` with the QS
+    /// user key. Seals the signature to the QS.
     pub fn seal(
+        confirmed_transcript_hash: ConfirmedTranscriptHash,
         client_references: impl IntoIterator<Item = QsReference>,
         signing_key: &QsUserSigningKey,
         encryption_key: &ClientIdEncryptionKey,
     ) -> Result<Self, LibraryError> {
-        let tbs = ClientReferencesTbs::new(client_references)
+        let tbs = ClientReferencesTbs::new(confirmed_transcript_hash, client_references)
             .map_err(LibraryError::missing_bound_check)?;
         Ok(tbs
             .sign(signing_key)?
             .encrypt(encryption_key, SEALED_SIGNATURE_INFO, &[]))
     }
 
-    /// Opens the signature and verifies it over `client_references`.
+    /// Opens the signature and verifies it over `confirmed_transcript_hash` and
+    /// `client_references`.
     pub fn verify(
         self,
+        confirmed_transcript_hash: ConfirmedTranscriptHash,
         client_references: impl IntoIterator<Item = QsReference>,
         decryption_key: &ClientIdDecryptionKey,
         verifying_key: &QsUserVerifyingKey,
     ) -> Result<(), ClientReferencesSignatureError> {
         let ClientReferencesSignature { signature } =
             ClientReferencesSignature::decrypt(self, decryption_key, SEALED_SIGNATURE_INFO, &[])?;
-        let tbs = ClientReferencesTbs::new(client_references)?;
+        let tbs = ClientReferencesTbs::new(confirmed_transcript_hash, client_references)?;
         let VerifiedClientReferences =
             VerifiableClientReferences { tbs, signature }.verify(verifying_key)?;
         Ok(())
@@ -202,11 +230,13 @@ impl HpkeDecryptable<ClientIdKeyType, SealedClientReferencesSignature>
 /// then does not depend on the order of the leaves.
 #[derive(Debug, TlsSerialize, TlsSize)]
 struct ClientReferencesTbs {
+    confirmed_transcript_hash: ConfirmedTranscriptHash,
     client_references: Vec<QsReference>,
 }
 
 impl ClientReferencesTbs {
     fn new(
+        confirmed_transcript_hash: ConfirmedTranscriptHash,
         client_references: impl IntoIterator<Item = QsReference>,
     ) -> Result<Self, tls_codec::Error> {
         let mut encoded = Vec::new();
@@ -218,7 +248,10 @@ impl ClientReferencesTbs {
             .into_iter()
             .map(|(_, client_reference)| client_reference)
             .collect();
-        Ok(Self { client_references })
+        Ok(Self {
+            confirmed_transcript_hash,
+            client_references,
+        })
     }
 }
 
@@ -313,8 +346,13 @@ mod tests {
         }
     }
 
+    fn confirmed_transcript_hash() -> ConfirmedTranscriptHash {
+        ConfirmedTranscriptHash::new_for_test(vec![0x0c; 32])
+    }
+
     fn seal(setup: &Setup) -> SealedClientReferencesSignature {
         SealedClientReferencesSignature::seal(
+            confirmed_transcript_hash(),
             setup.client_references.clone(),
             &setup.signing_key,
             setup.decryption_key.encryption_key(),
@@ -424,7 +462,7 @@ mod tests {
     }
 
     fn signed_content(client_references: Vec<QsReference>) -> Vec<u8> {
-        let tbs = ClientReferencesTbs::new(client_references).unwrap();
+        let tbs = ClientReferencesTbs::new(confirmed_transcript_hash(), client_references).unwrap();
         let payload = tbs.unsigned_payload().unwrap();
         SignContent::from((tbs.label(), payload.as_slice()))
             .tls_serialize_detached()
@@ -448,6 +486,7 @@ mod tests {
         client_references.reverse();
         sealed
             .verify(
+                confirmed_transcript_hash(),
                 client_references,
                 &setup.decryption_key,
                 setup.signing_key.verifying_key(),
@@ -463,7 +502,26 @@ mod tests {
         client_references.pop();
         let error = sealed
             .verify(
+                confirmed_transcript_hash(),
                 client_references,
+                &setup.decryption_key,
+                setup.signing_key.verifying_key(),
+            )
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            ClientReferencesSignatureError::Verification(_)
+        ));
+    }
+
+    #[test]
+    fn rejects_other_confirmed_transcript_hash() {
+        let setup = setup();
+        let sealed = seal(&setup);
+        let error = sealed
+            .verify(
+                ConfirmedTranscriptHash::new_for_test(vec![0x0d; 32]),
+                setup.client_references.clone(),
                 &setup.decryption_key,
                 setup.signing_key.verifying_key(),
             )
@@ -481,6 +539,7 @@ mod tests {
         let other_signing_key = QsUserSigningKey::generate().unwrap();
         let error = sealed
             .verify(
+                confirmed_transcript_hash(),
                 setup.client_references.clone(),
                 &setup.decryption_key,
                 other_signing_key.verifying_key(),
@@ -499,6 +558,7 @@ mod tests {
         let sealed = SealedClientReferencesSignature::from(sealed_reference.into_ciphertext());
         let error = sealed
             .verify(
+                confirmed_transcript_hash(),
                 setup.client_references.clone(),
                 &setup.decryption_key,
                 setup.signing_key.verifying_key(),

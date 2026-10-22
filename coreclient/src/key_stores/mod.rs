@@ -8,7 +8,7 @@ use aircommon::{
     LibraryError,
     crypto::hpke::{ClientIdEncryptionKey, HpkeEncryptable},
     identifiers::{ClientConfig, QsClientId, QsReference},
-    messages::client_references::SealedClientReferencesSignature,
+    messages::client_references::{ConfirmedTranscriptHash, SealedClientReferencesSignature},
     mls_group_config::{APQ_CIPHERSUITE, default_leaf_node_capabilities},
 };
 use airprotos::client::app_data::ClientAppData;
@@ -87,13 +87,15 @@ impl MemoryUserKeyStore {
         }
     }
 
-    /// Signs the client references of the self group with the QS user key and
-    /// seals the signature to the QS.
+    /// Signs the client references of a self-group commit with the QS user key
+    /// and seals the signature to the QS.
     pub(crate) fn seal_client_references_signature(
         &self,
+        confirmed_transcript_hash: ConfirmedTranscriptHash,
         client_references: impl IntoIterator<Item = QsReference>,
     ) -> Result<SealedClientReferencesSignature, LibraryError> {
         SealedClientReferencesSignature::seal(
+            confirmed_transcript_hash,
             client_references,
             &self.qs_user_signing_key,
             &self.qs_client_id_encryption_key,

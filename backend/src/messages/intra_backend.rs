@@ -9,7 +9,7 @@ use aircommon::{
     identifiers::QsReference,
     messages::{
         client_ds::{DsEventMessage, QsQueueMessagePayload},
-        client_references::SealedClientReferencesSignature,
+        client_references::{ConfirmedTranscriptHash, SealedClientReferencesSignature},
     },
     time::TimeStamp,
     virtual_client::KeyPackageBatchId,
@@ -88,6 +88,8 @@ pub enum QsVirtualClientHint {
 
 #[derive(Clone, TlsSerialize, TlsDeserializeBytes, TlsSize)]
 pub struct ClientReferencesReconciliation {
+    /// The DS computes the hash from its own group state after the commit.
+    pub confirmed_transcript_hash: ConfirmedTranscriptHash,
     /// The client references in the leaves of the self group after the commit.
     pub client_references: Vec<QsReference>,
     pub signature: SealedClientReferencesSignature,
