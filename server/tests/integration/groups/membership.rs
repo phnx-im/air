@@ -34,6 +34,29 @@ async fn invite_to_group_apq() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "a duplicate invitee is not deduplicated"]
+async fn duplicate_invitee_is_added_once() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    alice.drain().await;
+
+    let bob_id = bob.user_id().clone();
+    let result = alice
+        .invite_users(chat_id, &[bob_id.clone(), bob_id])
+        .await
+        .unwrap();
+    assert!(result.users_not_added.is_empty());
+    bob.drain().await;
+
+    for user in [&alice, &bob] {
+        let members = user.mls_members(chat_id).await.unwrap().unwrap();
+        assert_eq!(members.len(), 2);
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn removed_member_profile_resets_to_default() {
     let mut setup = TestBackend::single().await;
 

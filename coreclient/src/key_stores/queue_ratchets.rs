@@ -278,3 +278,35 @@ where
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use sqlx::SqlitePool;
+    use tls_codec::Serialize as _;
+
+    use crate::db::access::DbAccess;
+
+    use super::*;
+
+    /// A registration interrupted after the ratchet was stored repeats the
+    /// step with a fresh secret, which is the one sent to the QS.
+    #[sqlx::test]
+    #[ignore = "a resumed registration fails to store the QS queue ratchet again"]
+    async fn initialize_replaces_previous_ratchet(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        StorableQsQueueRatchet::initialize(pool.write().await?, RatchetSecret::random()?).await?;
+        let secret = RatchetSecret::random()?;
+        StorableQsQueueRatchet::initialize(pool.write().await?, secret.clone()).await?;
+
+        let expected: QueueRatchet<EncryptedQsQueueMessageCtype, QsQueueMessagePayload> =
+            secret.try_into()?;
+        let loaded = StorableQsQueueRatchet::load(pool.read().await?).await?;
+        assert_eq!(
+            loaded.tls_serialize_detached()?,
+            expected.tls_serialize_detached()?
+        );
+
+        Ok(())
+    }
+}

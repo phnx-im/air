@@ -5,9 +5,12 @@
 //! Editing messages, incl. edits racing receipts and replayed edits.
 
 use aircommon::identifiers::MimiId;
-use aircoreclient::{ChatId, MessageId, clients::CoreUser};
+use aircoreclient::{
+    ChatId, MessageId,
+    clients::{CoreUser, MarkChatAsRead},
+};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
-use mimi_content::MessageStatus;
+use mimi_content::{MessageStatus, MimiContent};
 
 use super::stored_content;
 
@@ -48,6 +51,29 @@ async fn edit_is_delivered_when_original_receipt_is_still_queued() {
     alice.drain().await;
     let status = alice.expect_message(original.id()).await.status();
     assert_eq!(status, MessageStatus::Delivered);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "edit of an unsent message is lost"]
+async fn edit_of_unsent_message_is_delivered() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    alice.drain().await;
+    bob.drain().await;
+
+    // Alice edits before the outbound service sent the original.
+    let content = MimiContent::simple_markdown_message("hello".to_owned(), rand::random());
+    let original = alice
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+    assert!(!original.is_sent());
+    alice.send_edit(&original, "edited").await;
+
+    bob.drain().await;
+    assert_eq!(bob.text_messages(chat_id).await, ["edited"]);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

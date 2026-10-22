@@ -6,7 +6,9 @@
 //! one connection.
 
 use aircommon::identifiers::{UserId, Username};
-use aircoreclient::{ChatId, ChatType, SystemMessage, UsernameRecord, clients::CoreUser};
+use aircoreclient::{
+    ChatId, ChatStatus, ChatType, SystemMessage, UsernameRecord, clients::CoreUser,
+};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 
 /// The chats of pending contact requests from `sender`.
@@ -201,4 +203,46 @@ async fn asking_back_opens_pending_request() {
         &ChatType::Connection(bob.user_id().clone())
     );
     assert_eq!(alice.contacts().await.unwrap().len(), 2);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "retracting an already accepted request leaves the peers disagreeing"]
+async fn retracting_accepted_request_keeps_peers_consistent() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let bob_record = setup.add_username(&bob).await;
+    let chat_id = alice
+        .add_contact(
+            bob_record.username.clone(),
+            bob_record.hash,
+            setup.apq_groups,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    let bob_chat_id = bob.receive_connection_offer(&bob_record).await;
+
+    // Bob accepts before alice learns about it, so her delete commit is stale.
+    let bob_chat_id = bob
+        .accept_contact_request(bob_chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+    let _ = alice.retract_contact_request(chat_id).await;
+    alice.outbound_service().run_once().await;
+    alice.drain_unchecked().await;
+    bob.drain_unchecked().await;
+
+    let alice_connected = alice.chat(&chat_id).await.is_some_and(|chat| {
+        chat.status() == &ChatStatus::Active
+            && chat.chat_type() == &ChatType::Connection(bob.user_id().clone())
+    });
+    let bob_connected = bob.chat(&bob_chat_id).await.is_some_and(|chat| {
+        chat.status() == &ChatStatus::Active
+            && chat.chat_type() == &ChatType::Connection(alice.user_id().clone())
+    });
+    assert_eq!(
+        alice_connected, bob_connected,
+        "alice connected: {alice_connected}, bob connected: {bob_connected}"
+    );
 }

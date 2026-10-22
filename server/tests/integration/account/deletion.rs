@@ -131,3 +131,31 @@ async fn deleted_account_leaves_chats_and_frees_username() {
     // deleted.
     new_alice.add_username().await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "a chat with a pending commit keeps the deleted account in all chats"]
+async fn deleted_account_leaves_chats_besides_one_with_pending_commit() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let pending_chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(pending_chat_id, &alice, &[&bob])
+        .await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, &[&charlie]).await;
+
+    // The lost response leaves the commit pending.
+    setup.listener_control_handle().set_drop_next_response();
+    alice.update_key(pending_chat_id).await.unwrap_err();
+
+    alice.delete_account(None).await.unwrap();
+
+    charlie.drain().await;
+    let participants = charlie.chat_participants(chat_id).await.unwrap();
+    assert_eq!(
+        participants,
+        [charlie.user_id().clone()].into_iter().collect()
+    );
+}
