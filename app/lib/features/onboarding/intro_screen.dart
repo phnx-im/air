@@ -19,7 +19,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/platform/account_marker.dart';
 import 'package:air/platform/notification_permissions.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -49,10 +48,6 @@ class IntroScreen extends HookWidget {
 
     final serverFieldVisible = useState(false);
     final openingSignUp = useState(false);
-
-    final bool experimentalFeatures = context.select(
-      (UserSettingsCubit cubit) => cubit.state.experimentalFeaturesActive,
-    );
 
     final onLogoTap = useDeveloperUnlock();
 
@@ -156,15 +151,13 @@ class IntroScreen extends HookWidget {
                   _ServerTextField(onFieldSubmitted: openLinking),
                   const SizedBox(height: S.s16),
                 ],
-                if (experimentalFeatures) ...[
-                  Button(
-                    type: .secondary,
-                    label: loc.introScreen_linkExisting,
-                    onPressed: openLinking,
-                    onLongPress: () => serverFieldVisible.value = true,
-                  ),
-                  const SizedBox(height: S.s8),
-                ],
+                Button(
+                  type: .secondary,
+                  label: loc.introScreen_linkExisting,
+                  onPressed: openLinking,
+                  onLongPress: () => serverFieldVisible.value = true,
+                ),
+                const SizedBox(height: S.s8),
                 Button(
                   type: .primary,
                   label: loc.introScreen_signUp,
