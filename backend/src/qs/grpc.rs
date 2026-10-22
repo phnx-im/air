@@ -30,7 +30,6 @@ use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::{error, info_span, warn};
 
 use crate::{
-    errors::QueueError,
     listen_session::{ListenRequestHandler, spawn_listen_session},
     qs::{
         client_record::QsClientRecord,
@@ -502,21 +501,13 @@ impl QueueService for GrpcQs {
             },
             user_id,
         ) = self
-            .verify_client_auth_with_user_id(SignedRequest::<_, 1>::new(
+            .verify_queue_client_auth_with_user_id(SignedRequest::<_, 1>::new(
                 init_request,
                 payload_bytes.into(),
             ))
             .await?;
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
-        let user_id = match user_id {
-            Some(user_id) => user_id,
-            // Legacy clients are not authenticated
-            None => QsClientRecord::load_user_id(&self.qs.db_pool, &client_id)
-                .await
-                .map_err(QueueError::from)?
-                .ok_or(QueueError::ClientNotFound)?,
-        };
         let (session, queue_messages) = self
             .qs
             .queues

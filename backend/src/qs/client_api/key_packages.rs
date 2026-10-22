@@ -28,8 +28,9 @@ use crate::{
         QsEncryptionKeyError, QsKeyPackageError, QsPublishKeyPackagesError, QsStageKeyPackagesError,
     },
     qs::{
-        Qs, client_id_decryption_key::StorableClientIdDecryptionKey, client_record::QsClientRecord,
+        Qs, client_id_decryption_key::StorableClientIdDecryptionKey,
         key_package::StorableKeyPackage, staged_key_package::StagedKeyPackages,
+        user_record::UserRecord,
     },
 };
 
@@ -65,7 +66,7 @@ impl Qs {
         }
 
         let mut txn = self.db_pool.begin().await?;
-        let user_id = QsClientRecord::load_user_id(&mut *txn, &sender)
+        let user_id = UserRecord::lock_active_owner(&mut *txn, &sender)
             .await?
             .ok_or(QsPublishKeyPackagesError::UnknownUser)?;
         if let Some(last_resort_key_package) = last_resort_key_package {
@@ -105,7 +106,7 @@ impl Qs {
 
         let mut txn = self.db_pool.begin().await?;
 
-        let user_id = QsClientRecord::load_user_id(&mut *txn, &sender)
+        let user_id = UserRecord::lock_active_owner(&mut *txn, &sender)
             .await?
             .ok_or(QsPublishKeyPackagesError::UnknownUser)?;
         if let Some(last_resort_key_package) = last_resort_key_package {
@@ -171,7 +172,8 @@ impl Qs {
             return Err(QsStageKeyPackagesError::EmptyBatch);
         }
 
-        let user_id = QsClientRecord::load_user_id(&self.db_pool, &client_id)
+        let mut txn = self.db_pool.begin().await?;
+        let user_id = UserRecord::lock_active_owner(txn.as_mut(), &client_id)
             .await?
             .ok_or(QsStageKeyPackagesError::UnknownClient)?;
 
@@ -182,7 +184,6 @@ impl Qs {
             apq_key_packages,
         };
 
-        let mut txn = self.db_pool.begin().await?;
         batch.stage(&mut txn).await?;
         txn.commit().await?;
 
@@ -248,5 +249,42 @@ impl Qs {
                 EncryptionKeyResponse { encryption_key }
             })
             .ok_or(QsEncryptionKeyError::LibraryError)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sqlx::PgPool;
+
+    use crate::qs::{
+        client_api::tests::qs,
+        client_record::persistence::tests::store_random_client_record,
+        user_record::persistence::tests::{run_during_soft_delete, store_random_user_record},
+    };
+
+    use super::*;
+
+    #[sqlx::test]
+    async fn publish_waits_for_soft_delete(pool: PgPool) -> anyhow::Result<()> {
+        let qs = qs(&pool).await?;
+        let user = store_random_user_record(&pool).await?;
+        let client = store_random_client_record(&pool, user.user_id).await?;
+
+        let sender = client.client_id;
+        let published = run_during_soft_delete(&pool, user.user_id, async move {
+            qs.qs_publish_key_packages(PublishKeyPackagesParams {
+                sender,
+                key_packages: Vec::new(),
+            })
+            .await
+        })
+        .await?;
+
+        assert!(matches!(
+            published,
+            Err(QsPublishKeyPackagesError::UnknownUser)
+        ));
+
+        Ok(())
     }
 }

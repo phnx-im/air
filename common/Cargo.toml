@@ -36,6 +36,7 @@ serde.workspace = true
 serde_bytes.workspace = true
 sha2 = { workspace = true, features = ["zeroize"] }
 sqlx = { workspace = true, features = ["sqlite", "postgres"] }
+subtle.workspace = true
 thiserror.workspace = true
 tls_codec.workspace = true
 tokio = { workspace = true, features = ["time"] }

@@ -12,12 +12,13 @@ use mls_assist::openmls::{
         MlsGroupJoinConfig, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, VcDerivationEpochRetentionPolicy,
     },
     prelude::{
-        Capabilities, Ciphersuite, CredentialType, ExtensionType, ProposalType, ProtocolVersion,
-        RequiredCapabilitiesExtension, SenderRatchetConfiguration,
+        Capabilities, Ciphersuite, CredentialType, ExtensionType, LeafNode, ProposalType,
+        ProtocolVersion, RequiredCapabilitiesExtension, SenderRatchetConfiguration,
     },
 };
+use tls_codec::DeserializeBytes as _;
 
-use crate::credentials::SELF_GROUP_CREDENTIAL_TYPE;
+use crate::{credentials::SELF_GROUP_CREDENTIAL_TYPE, identifiers::QsReference};
 
 /// Dictates for how many past epochs we want to keep around message secrets.
 pub const MAX_PAST_EPOCHS: usize = 5;
@@ -58,6 +59,30 @@ pub fn default_mls_group_join_config() -> MlsGroupJoinConfig {
 pub const FRIENDSHIP_PACKAGE_PROPOSAL_TYPE: u16 = 0xff00;
 pub const GROUP_DATA_EXTENSION_TYPE: u16 = 0xff01;
 pub const QS_CLIENT_REFERENCE_EXTENSION_TYPE: u16 = 0xff00;
+
+/// The QS client reference of a leaf as encoded in its extension.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct EncodedClientReference(Vec<u8>);
+
+impl EncodedClientReference {
+    pub fn decode(&self) -> Result<QsReference, tls_codec::Error> {
+        QsReference::tls_deserialize_exact_bytes(&self.0)
+    }
+}
+
+#[cfg(test)]
+impl From<Vec<u8>> for EncodedClientReference {
+    fn from(encoded: Vec<u8>) -> Self {
+        Self(encoded)
+    }
+}
+
+/// The QS client reference of `leaf`, if it contains one.
+pub fn leaf_client_reference(leaf: &LeafNode) -> Option<EncodedClientReference> {
+    leaf.extensions()
+        .unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE)
+        .map(|extension| EncodedClientReference(extension.0.clone()))
+}
 
 const DEFAULT_MLS_VERSION: ProtocolVersion = ProtocolVersion::Mls10;
 const DEFAULT_CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;

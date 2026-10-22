@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n                    verifying_key as \"verifying_key: QsUserVerifyingKey\"\n                FROM\n                    qs_user_record\n                WHERE\n                    user_id = $1\n                    AND deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "verifying_key: QsUserVerifyingKey",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "qs_user_record",
+            "name": "verifying_key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "abc3d3102472c5b1fe483f00facbe9e406989730324f481d184dec81f1e08667"
+}

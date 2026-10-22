@@ -46,9 +46,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Access to the camera is required to take a picture that can be used as a profile picture</string>
+	<string>Air uses the camera to take photos for your chats and to scan the QR code when you link a device.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Access to the photo library is required to set a profile picture</string>
+	<string>Air uses your photo library to send photos in chats and to set profile and group pictures.</string>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>INSendMessageIntent</string>

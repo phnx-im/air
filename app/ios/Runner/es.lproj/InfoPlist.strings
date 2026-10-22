@@ -1,0 +1,3 @@
+CFBundleDisplayName = "Air";
+NSCameraUsageDescription = "Air usa la cámara para tomar fotos y enviarlas en tus chats, y para escanear el código QR al vincular un dispositivo.";
+NSPhotoLibraryUsageDescription = "Air usa tu fototeca para enviar fotos en los chats y para elegir fotos de perfil y de grupo.";

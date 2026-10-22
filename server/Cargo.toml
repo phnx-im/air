@@ -49,7 +49,6 @@ serde_json.workspace = true
 thiserror.workspace = true
 tls_codec.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
-tokio-stream.workspace = true
 tokio-util.workspace = true
 tonic.workspace = true
 tonic-health.workspace = true
@@ -82,4 +81,5 @@ png.workspace = true
 semver.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
+tokio-stream.workspace = true
 uuid.workspace = true

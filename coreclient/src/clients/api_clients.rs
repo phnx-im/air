@@ -28,6 +28,11 @@ impl ApiClients {
         }
     }
 
+    #[cfg(any(test, feature = "test_utils"))]
+    pub(crate) fn own_endpoint(&self) -> Option<&Url> {
+        self.own_endpoint.as_ref()
+    }
+
     pub(crate) fn get(&self, domain: &Fqdn) -> Result<ApiClient, ApiClientInitError> {
         let mut clients = self.clients.lock().unwrap();
         match clients.entry(domain.clone()) {

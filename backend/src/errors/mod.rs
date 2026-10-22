@@ -25,7 +25,7 @@ use tracing::{error, warn};
 
 use aircommon::codec::PersistenceCodec;
 
-use crate::ds::group_state::SelfRemoveCheckError;
+use crate::ds::{client_references::ClientReferencesError, group_state::SelfRemoveCheckError};
 
 pub(crate) mod auth_service;
 pub(crate) mod qs;
@@ -76,8 +76,6 @@ pub(super) enum QueueError {
     Storage(#[from] StorageError),
     /// Payload receiver closed
     PayloadReceiverClosed,
-    /// Client not found
-    ClientNotFound,
 }
 
 impl From<sqlx::Error> for QueueError {
@@ -107,7 +105,6 @@ impl From<QueueError> for Status {
                 Self::internal("Database error")
             }
             QueueError::PayloadReceiverClosed => Self::internal(msg),
-            QueueError::ClientNotFound => Self::not_found(msg),
         }
     }
 }
@@ -139,6 +136,8 @@ pub(crate) enum GroupOperationError {
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
     #[error("Max devices exceeded")]
     MaxDevicesExceeded { max_devices: u32 },
+    #[error(transparent)]
+    ClientReferences(#[from] ClientReferencesError),
 }
 
 /// The DS's classification of an error from processing an assisted message.
@@ -236,9 +235,9 @@ impl From<GroupOperationError> for Status {
             GroupOperationError::ApqProcessingError(error) => {
                 ProcessErrorKind::from(&error).into_status(&error, Status::internal)
             }
-            GroupOperationError::MissingQueueConfig | GroupOperationError::IncompleteWelcome => {
-                Status::invalid_argument(msg)
-            }
+            GroupOperationError::MissingQueueConfig
+            | GroupOperationError::IncompleteWelcome
+            | GroupOperationError::ClientReferences(_) => Status::invalid_argument(msg),
             GroupOperationError::ApqMembershipChange => Status::failed_precondition(msg),
             GroupOperationError::SelfRemoveCheck(error) => error.into(),
             GroupOperationError::MergeCommitError(error) => {
@@ -282,12 +281,10 @@ impl From<GroupDeletionError> for Status {
         match e {
             GroupDeletionError::InvalidMessage => Status::invalid_argument(msg),
             GroupDeletionError::ProcessingError(error) => {
-                error!(%error, "Failed to process assisted message");
-                Status::internal("Error processing message")
+                ProcessErrorKind::from(&error).into_status(&error, Status::invalid_argument)
             }
             GroupDeletionError::ApqProcessingError(error) => {
-                error!(%error, "Failed to process APQ assisted message");
-                Status::internal("Error processing message")
+                ProcessErrorKind::from(&error).into_status(&error, Status::invalid_argument)
             }
             GroupDeletionError::MergeCommitError(error) => {
                 error!(%error, "Failed merging commit");
@@ -363,13 +360,17 @@ pub(crate) enum ResyncClientError {
     SelfRemoveCheck(#[from] SelfRemoveCheckError),
     #[error("Error merging commit: {0}")]
     MergeCommitError(#[from] MergeCommitError<group::errors::StorageError<CborMlsAssistStorage>>),
+    #[error(transparent)]
+    ClientReferences(#[from] ClientReferencesError),
 }
 
 impl From<ResyncClientError> for Status {
     fn from(e: ResyncClientError) -> Self {
         let msg = e.to_string();
         match e {
-            ResyncClientError::InvalidMessage => Status::invalid_argument(msg),
+            ResyncClientError::InvalidMessage | ResyncClientError::ClientReferences(_) => {
+                Status::invalid_argument(msg)
+            }
             ResyncClientError::ProcessingError(error) => {
                 error!(%error, "Failed to process assisted message");
                 Status::internal("Error processing message")
