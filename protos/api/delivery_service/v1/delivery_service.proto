@@ -168,6 +168,10 @@ message SealedClientReference {
   common.v1.HpkeCiphertext ciphertext = 1;
 }
 
+message SealedClientReferencesSignature {
+  common.v1.HpkeCiphertext ciphertext = 1;
+}
+
 // create apq group
 
 message CreateApqGroupRequest {
@@ -501,6 +505,7 @@ message GroupOperationPayload {
   optional AddUsersInfo add_users_info = 3;
   optional QsReference qs_client_reference = 5;
   optional EncryptedUserProfileKey encrypted_user_profile_key = 6;
+  optional SealedClientReferencesSignature client_references_signature = 7;
 }
 
 message AddUsersInfo {
@@ -530,6 +535,7 @@ message ApqGroupOperationPayload {
   optional ApqAddUsersInfo add_users_info = 4;
   optional QsReference qs_client_reference = 5;
   optional EncryptedUserProfileKey encrypted_user_profile_key = 6;
+  optional SealedClientReferencesSignature client_references_signature = 7;
 }
 
 message ApqGroupOperationResponse {

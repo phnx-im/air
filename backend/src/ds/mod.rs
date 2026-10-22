@@ -30,6 +30,7 @@ pub use grpc::GrpcDs;
 
 mod apq;
 mod attachments;
+pub(crate) mod client_references;
 mod collision_tags;
 mod create_group;
 mod delete_group;
