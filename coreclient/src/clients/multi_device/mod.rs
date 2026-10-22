@@ -918,17 +918,6 @@ impl CoreUser {
         let psk = response.isk.derive_psk(&kdf_ctx);
 
         let key_package = pairing::validate_key_package(&response.key_package)?;
-        let _ = connected_tx.send(());
-
-        let device_name = tokio::select! {
-            confirmation = confirmation_rx => {
-                confirmation.map_err(|_| LinkingError::UserRejected)?
-            }
-            message = next_message(rx) => {
-                return Err(relay_interrupted(message));
-            }
-        };
-
         let (mut pairing, welcome) = PairingGroup::create(&psk, key_package)?;
         drop(psk);
 
@@ -945,6 +934,18 @@ impl CoreUser {
         // this is where the new device is authenticated to this side.
         receive_payload(&mut pairing, rx, LinkingPayloadType::PairingConfirmed).await?;
         info!("the new device confirmed the pairing");
+
+        // Asking the user only now spares them the dialog for a mistyped
+        // code. The account material still waits for their confirmation.
+        let _ = connected_tx.send(());
+        let device_name = tokio::select! {
+            confirmation = confirmation_rx => {
+                confirmation.map_err(|_| LinkingError::UserRejected)?
+            }
+            message = next_message(rx) => {
+                return Err(relay_interrupted(message));
+            }
+        };
 
         // Build the provisioning package (this creates a fresh queue for the
         // new device). From here on the device link undoes everything if the
