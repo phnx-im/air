@@ -49,4 +49,29 @@ void main() {
       'Lingitud on 5 seadet 5-st.',
     );
   });
+
+  test('Greek uses the singular only for exactly one', () {
+    final loc = lookupAppLocalizations(const Locale('el'));
+    expect(
+      loc.linkedDevicesScreen_deviceCount(0),
+      'Καμία συνδεδεμένη συσκευή.',
+    );
+    expect(loc.linkedDevicesScreen_deviceCount(1), '1 συνδεδεμένη συσκευή.');
+    expect(
+      loc.linkedDevicesScreen_deviceCount(21),
+      '21 συνδεδεμένες συσκευές.',
+    );
+  });
+
+  test('Greek counts that need no plural form render through other', () {
+    final loc = lookupAppLocalizations(const Locale('el'));
+    expect(
+      loc.linkedDevicesScreen_deviceCountWithLimit(1, 5),
+      'Συνδεδεμένες συσκευές: 1 από 5.',
+    );
+    expect(
+      loc.groupCreationDetails_membersNotAddedOthers('Άννα, Νίκος', 1),
+      'Άννα, Νίκος και 1 ακόμη',
+    );
+  });
 }
