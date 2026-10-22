@@ -19,6 +19,7 @@
 pub mod attachments_repository;
 pub mod chat_details_cubit;
 pub mod chats_data_source;
+pub mod executor;
 pub mod invitation_code;
 pub mod invitation_codes_cubit;
 pub mod linked_devices_cubit;

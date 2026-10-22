@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE qs_user_record SET deleted_at = NOW() WHERE user_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f96d97ebfc0a2f56e28c8ad2dff8f72ef62a53da0769e8a67dd76c9e4ddbd63a"
+}

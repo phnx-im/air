@@ -3,14 +3,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::hpke::HpkeDecryptable,
+    crypto::hpke::{ClientIdDecryptionKey, HpkeDecryptable},
     identifiers::{ClientConfig, QsClientId},
     messages::AirProtocolVersion,
     virtual_client::KeyPackageBatchId,
 };
 use sqlx::PgTransaction;
 use tls_codec::Serialize;
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 use crate::{
     messages::{
@@ -22,8 +22,8 @@ use crate::{
 
 use super::{
     PushNotificationProvider, Qs, client_id_decryption_key::StorableClientIdDecryptionKey,
-    client_record::QsClientRecord, errors::QsEnqueueError, network_provider::NetworkProvider,
-    qs_api::FederatedProcessingResult,
+    client_reconciliation::ReconcileOutcome, client_record::QsClientRecord, errors::QsEnqueueError,
+    network_provider::NetworkProvider, qs_api::FederatedProcessingResult,
 };
 
 impl Qs {
@@ -100,47 +100,17 @@ impl Qs {
             // Clients that should be notified with a push notification.
             let mut clients_to_notify = Vec::new();
 
-            match &message.virtual_client_hint {
-                // Promote staged key packages: a special case of a fan-out which must be atomic.
-                // That's why we bundle the promotion and fan-out in the same transaction.
-                //
-                // Note: Self-group commits are never broadcast, so in practice this transaction
-                // covers only a single enqueue.
-                Some(QsVirtualClientHint::PromoteStagedKeyPackages(batch_id)) => {
-                    let mut txn = self.db_pool.begin().await?;
-
-                    // Promote before the fan-out: the user record lock taken by the promote is the
-                    // root of this transaction's lock order.
-                    Self::promote_staged_key_packages(&mut txn, &client_config.client_id, batch_id)
-                        .await?;
-
-                    for qs_client_id in client_ids {
-                        match QsClientRecord::enqueue(
-                            &mut txn,
-                            qs_client_id,
-                            self.queues(),
-                            &self.pseudonymizer,
+            match message.virtual_client_hint {
+                Some(hint) => {
+                    clients_to_notify = self
+                        .enqueue_with_hint(
+                            hint,
+                            &client_config.client_id,
+                            client_ids,
                             &message.payload,
+                            &decryption_key,
                         )
-                        .await
-                        {
-                            Ok(client_record) => clients_to_notify.extend(client_record),
-                            Err(EnqueueError::ClientNotFound) => {
-                                // Sibling was soft-deleted mid fan-out => drop silently
-                            }
-                            // Anything else aborted the transaction, so the promote is rolled back
-                            // with it. The acting emulator gets no echo and retries.
-                            Err(error) => {
-                                error!(
-                                    %error, %qs_client_id,
-                                    "Failed to enqueue message; aborting promote and fan-out"
-                                );
-                                return Err(error.into());
-                            }
-                        }
-                    }
-
-                    txn.commit().await?;
+                        .await?;
                 }
                 // The usual fan-out: enqueue message for each client in its own transaction.
                 None => {
@@ -177,6 +147,72 @@ impl Qs {
             }
         }
         Ok(())
+    }
+
+    /// Applies `hint` and enqueues the message in one transaction. The hint
+    /// takes effect only together with the enqueue.
+    async fn enqueue_with_hint(
+        &self,
+        hint: QsVirtualClientHint,
+        sender: &QsClientId,
+        client_ids: Vec<QsClientId>,
+        payload: &DsFanOutPayload,
+        decryption_key: &ClientIdDecryptionKey,
+    ) -> Result<Vec<QsClientRecord>, EnqueueError> {
+        let mut txn = self.db_pool.begin().await?;
+
+        // We apply the hint before the fan-out. The hint takes the user record lock. This lock
+        // comes first in the lock order of the transaction.
+        match hint {
+            QsVirtualClientHint::PromoteStagedKeyPackages(batch_id) => {
+                Self::promote_staged_key_packages(&mut txn, sender, &batch_id).await?;
+            }
+            QsVirtualClientHint::ReconcileClients(reconciliation) => {
+                // We still deliver the echo of a rejected reconciliation. The DS has already
+                // accepted the commit. A client that waits for the echo would be stuck without it.
+                match self
+                    .reconcile_clients(&mut txn, decryption_key, sender, reconciliation)
+                    .await?
+                {
+                    ReconcileOutcome::Reconciled { cleared } => {
+                        info!(cleared, "Reconciled client records");
+                    }
+                    ReconcileOutcome::Rejected(reason) => {
+                        warn!(%reason, "Rejected client reconciliation");
+                    }
+                }
+            }
+        }
+
+        let mut clients_to_notify = Vec::new();
+        for qs_client_id in client_ids {
+            match QsClientRecord::enqueue(
+                &mut txn,
+                qs_client_id,
+                self.queues(),
+                &self.pseudonymizer,
+                payload,
+            )
+            .await
+            {
+                Ok(client_record) => clients_to_notify.extend(client_record),
+                Err(EnqueueError::ClientNotFound) => {
+                    // The sibling was soft-deleted during the fan-out.
+                    warn!(%qs_client_id, "Cannot enqueue message: client not found");
+                }
+                // Any other error aborted the transaction. The hint rolls back with it.
+                Err(error) => {
+                    error!(
+                        %error, %qs_client_id,
+                        "Failed to enqueue message; aborting hint and fan-out"
+                    );
+                    return Err(error);
+                }
+            }
+        }
+
+        txn.commit().await?;
+        Ok(clients_to_notify)
     }
 
     /// Enqueues a message for a single client in its own transaction.
@@ -234,8 +270,11 @@ mod tests {
         air_service::BackendService,
         messages::intra_backend::DsFanOutPayload,
         qs::{
-            PushNotificationError, client_record::persistence::tests::store_random_client_record,
-            queue::Queue, user_record::persistence::tests::store_random_user_record,
+            PushNotificationError,
+            client_reconciliation::tests::{init_qs, reference, signed_reconciliation, store_user},
+            client_record::persistence::tests::store_random_client_record,
+            queue::{Queue, tests::queue_len},
+            user_record::{UserRecord, persistence::tests::store_random_user_record},
         },
     };
 
@@ -265,6 +304,43 @@ mod tests {
         }
     }
 
+    fn queue_message_payload(payload: &[u8]) -> DsFanOutPayload {
+        DsFanOutPayload::QueueMessage(QsQueueMessagePayload {
+            timestamp: TimeStamp::now(),
+            message_type: QsQueueMessageType::WelcomeBundle,
+            payload: payload.to_vec(),
+        })
+    }
+
+    async fn fan_out_message(
+        pool: &PgPool,
+        domain: Fqdn,
+        client_id: QsClientId,
+        payload: DsFanOutPayload,
+        broadcast_to_all_client_queues: bool,
+    ) -> anyhow::Result<DsFanOutMessage> {
+        let decryption_key = StorableClientIdDecryptionKey::load(pool)
+            .await?
+            .expect("missing QS decryption key");
+        let sealed_reference =
+            decryption_key
+                .encryption_key()
+                .seal_client_config(ClientConfig {
+                    client_id,
+                    push_token_ear_key: None,
+                })?;
+        Ok(DsFanOutMessage {
+            payload,
+            client_reference: QsReference {
+                client_homeserver_domain: domain,
+                sealed_reference,
+            },
+            suppress_notifications: false.into(),
+            broadcast_to_all_client_queues: broadcast_to_all_client_queues.into(),
+            virtual_client_hint: None,
+        })
+    }
+
     #[sqlx::test]
     async fn enqueue_message_fans_out_to_all_active_clients(pool: PgPool) -> anyhow::Result<()> {
         let domain: Fqdn = "example.com".parse()?;
@@ -282,32 +358,15 @@ mod tests {
         let client_a = store_random_client_record(&pool, user.user_id).await?;
         let client_b = store_random_client_record(&pool, user.user_id).await?;
 
-        let decryption_key = StorableClientIdDecryptionKey::load(&pool)
-            .await?
-            .expect("missing QS decryption key");
-        let sealed_reference =
-            decryption_key
-                .encryption_key()
-                .seal_client_config(ClientConfig {
-                    client_id: client_a.client_id,
-                    push_token_ear_key: None,
-                })?;
-
         let expected_payload = b"fan-out test";
-        let message = DsFanOutMessage {
-            payload: DsFanOutPayload::QueueMessage(QsQueueMessagePayload {
-                timestamp: TimeStamp::now(),
-                message_type: QsQueueMessageType::WelcomeBundle,
-                payload: expected_payload.to_vec(),
-            }),
-            client_reference: QsReference {
-                client_homeserver_domain: domain.clone(),
-                sealed_reference,
-            },
-            suppress_notifications: false.into(),
-            broadcast_to_all_client_queues: true.into(),
-            virtual_client_hint: None,
-        };
+        let message = fan_out_message(
+            &pool,
+            domain,
+            client_a.client_id,
+            queue_message_payload(expected_payload),
+            true,
+        )
+        .await?;
 
         qs.enqueue_message(
             &NoopPushNotificationProvider,
@@ -327,6 +386,114 @@ mod tests {
             assert_eq!(payload.payload, expected_payload);
             assert_eq!(payload.message_type, QsQueueMessageType::WelcomeBundle);
         }
+
+        Ok(())
+    }
+
+    fn commit_response_to(
+        client_reference: QsReference,
+        hint: QsVirtualClientHint,
+    ) -> DsFanOutMessage {
+        DsFanOutMessage {
+            payload: DsFanOutPayload::QueueMessage(QsQueueMessagePayload {
+                timestamp: TimeStamp::now(),
+                message_type: QsQueueMessageType::WelcomeBundle,
+                payload: b"echo".to_vec(),
+            }),
+            client_reference,
+            suppress_notifications: true.into(),
+            broadcast_to_all_client_queues: false.into(),
+            virtual_client_hint: Some(hint),
+        }
+    }
+
+    #[sqlx::test]
+    async fn enqueue_message_reconciles_clients_with_the_echo(pool: PgPool) -> anyhow::Result<()> {
+        let qs = init_qs(&pool).await?;
+        let (user_id, signing_key) = store_user(&pool).await?;
+        let sender = store_random_client_record(&pool, user_id).await?;
+        let ghost = store_random_client_record(&pool, user_id).await?;
+
+        let client_references = vec![reference(&qs, sender.client_id).await?];
+        let reconciliation = signed_reconciliation(&qs, client_references, &signing_key).await?;
+        let message = commit_response_to(
+            reference(&qs, sender.client_id).await?,
+            QsVirtualClientHint::ReconcileClients(reconciliation),
+        );
+        qs.enqueue_message(
+            &NoopPushNotificationProvider,
+            &UnreachableNetworkProvider,
+            message,
+        )
+        .await?;
+
+        assert_eq!(queue_len(&pool, sender.client_id).await?, 1);
+        assert!(Qs::client_has_push_token(&pool, &sender.client_id).await?);
+        assert!(!Qs::client_has_push_token(&pool, &ghost.client_id).await?);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn enqueue_message_delivers_echo_of_rejected_reconciliation(
+        pool: PgPool,
+    ) -> anyhow::Result<()> {
+        let qs = init_qs(&pool).await?;
+        let (user_id, _) = store_user(&pool).await?;
+        let sender = store_random_client_record(&pool, user_id).await?;
+        let ghost = store_random_client_record(&pool, user_id).await?;
+        let (_, other_signing_key) = store_user(&pool).await?;
+
+        let client_references = vec![reference(&qs, sender.client_id).await?];
+        let reconciliation =
+            signed_reconciliation(&qs, client_references, &other_signing_key).await?;
+        let message = commit_response_to(
+            reference(&qs, sender.client_id).await?,
+            QsVirtualClientHint::ReconcileClients(reconciliation),
+        );
+        qs.enqueue_message(
+            &NoopPushNotificationProvider,
+            &UnreachableNetworkProvider,
+            message,
+        )
+        .await?;
+
+        assert_eq!(queue_len(&pool, sender.client_id).await?, 1);
+        assert!(Qs::client_has_push_token(&pool, &ghost.client_id).await?);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn enqueue_message_skips_deleted_user(pool: PgPool) -> anyhow::Result<()> {
+        let domain: Fqdn = "example.com".parse()?;
+        let qs = Qs::initialize(
+            pool.clone(),
+            domain.clone(),
+            Default::default(),
+            0,
+            CancellationToken::new(),
+        )
+        .await?;
+
+        let user = store_random_user_record(&pool).await?;
+        let client = store_random_client_record(&pool, user.user_id).await?;
+        UserRecord::soft_delete(&pool, user.user_id).await?;
+
+        let payload = queue_message_payload(b"direct fan-out test");
+        let message =
+            fan_out_message(&pool, domain, client.client_id, payload.clone(), false).await?;
+
+        let result = qs
+            .enqueue_in_own_transaction(client.client_id, &payload)
+            .await;
+        assert!(matches!(result, Err(EnqueueError::ClientNotFound)));
+        qs.enqueue_message(
+            &NoopPushNotificationProvider,
+            &UnreachableNetworkProvider,
+            message,
+        )
+        .await?;
+
+        assert_eq!(queue_len(&pool, client.client_id).await?, 0);
 
         Ok(())
     }

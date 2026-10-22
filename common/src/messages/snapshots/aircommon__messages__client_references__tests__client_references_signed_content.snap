@@ -1,0 +1,6 @@
+---
+source: common/src/messages/client_references.rs
+expression: bytes
+extension: tls
+snapshot_kind: binary
+---

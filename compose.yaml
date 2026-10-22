@@ -13,6 +13,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: air_db
+      # Speed up connections to the database
+      POSTGRES_HOST_AUTH_METHOD: trust
     userns_mode: "keep-id:uid=999,gid=999"
     command: >
       postgres

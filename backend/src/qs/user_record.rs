@@ -61,8 +61,8 @@ impl UserMetrics {
 }
 
 pub(crate) mod persistence {
-    use aircommon::identifiers::QsUserId;
-    use sqlx::{PgExecutor, query_as};
+    use aircommon::identifiers::{QsClientId, QsUserId};
+    use sqlx::{PgConnection, PgExecutor, PgPool, PgTransaction, query, query_as, query_scalar};
 
     use crate::errors::StorageError;
 
@@ -88,6 +88,7 @@ pub(crate) mod persistence {
             Ok(())
         }
 
+        #[cfg(test)]
         pub(in crate::qs) async fn load(
             connection: impl PgExecutor<'_>,
             user_id: &QsUserId,
@@ -99,7 +100,8 @@ pub(crate) mod persistence {
                 FROM
                     qs_user_record
                 WHERE
-                    user_id = $1"#,
+                    user_id = $1
+                    AND deleted_at IS NULL"#,
                 user_id.as_uuid(),
             )
             .fetch_optional(connection)
@@ -114,6 +116,27 @@ pub(crate) mod persistence {
             .transpose()
         }
 
+        /// Loads the verifying key of an active user and locks the user record
+        /// until the end of the transaction.
+        pub(in crate::qs) async fn load_verifying_key_for_update(
+            txn: &mut PgTransaction<'_>,
+            user_id: &QsUserId,
+        ) -> sqlx::Result<Option<QsUserVerifyingKey>> {
+            sqlx::query_scalar!(
+                r#"SELECT
+                    verifying_key AS "verifying_key: QsUserVerifyingKey"
+                FROM
+                    qs_user_record
+                WHERE
+                    user_id = $1
+                    AND deleted_at IS NULL
+                FOR NO KEY UPDATE"#,
+                user_id.as_uuid(),
+            )
+            .fetch_optional(txn.as_mut())
+            .await
+        }
+
         pub(in crate::qs) async fn load_verifying_key(
             connection: impl PgExecutor<'_>,
             user_id: &QsUserId,
@@ -124,7 +147,8 @@ pub(crate) mod persistence {
                 FROM
                     qs_user_record
                 WHERE
-                    user_id = $1"#,
+                    user_id = $1
+                    AND deleted_at IS NULL"#,
                 user_id.as_uuid(),
             )
             .fetch_optional(connection)
@@ -132,37 +156,130 @@ pub(crate) mod persistence {
             .map_err(From::from)
         }
 
-        pub(in crate::qs) async fn delete(
+        /// Locks the record of an active user with `FOR SHARE`. Returns `false`
+        /// if there is no such record.
+        ///
+        /// Writers of the user's data take this lock before locking any other
+        /// row of the user, so that they don't interleave with
+        /// [`Self::soft_delete`].
+        pub(in crate::qs) async fn lock_active(
             connection: impl PgExecutor<'_>,
             user_id: QsUserId,
-        ) -> Result<(), StorageError> {
-            sqlx::query!(
-                "DELETE FROM qs_user_record WHERE user_id = $1",
-                &user_id as &QsUserId
+        ) -> sqlx::Result<bool> {
+            let row = query_scalar!(
+                r#"SELECT 1 AS "locked!" FROM qs_user_record
+                WHERE user_id = $1 AND deleted_at IS NULL
+                FOR SHARE"#,
+                &user_id as &QsUserId,
             )
-            .execute(connection)
+            .fetch_optional(connection)
+            .await?;
+            Ok(row.is_some())
+        }
+
+        /// Like [`Self::lock_active`], but for the user owning an active client
+        /// record. Returns the user's id.
+        pub(in crate::qs) async fn lock_active_owner(
+            connection: impl PgExecutor<'_>,
+            client_id: &QsClientId,
+        ) -> sqlx::Result<Option<QsUserId>> {
+            query_scalar!(
+                r#"SELECT u.user_id AS "user_id: QsUserId"
+                FROM qs_user_record u
+                WHERE u.user_id = (
+                        SELECT c.user_id FROM qs_client_record c
+                        WHERE c.client_id = $1 AND c.deleted_at IS NULL
+                    )
+                    AND u.deleted_at IS NULL
+                FOR SHARE OF u"#,
+                client_id.as_uuid(),
+            )
+            .fetch_optional(connection)
+            .await
+        }
+
+        /// Marks the user as deleted and removes KeyPackages and push tokens.  Does nothing if the
+        /// user is already deleted or does not exist.
+        pub(in crate::qs) async fn soft_delete(
+            pool: &PgPool,
+            user_id: QsUserId,
+        ) -> Result<(), StorageError> {
+            let mut txn = pool.begin().await?;
+            Self::soft_delete_in(&mut txn, user_id).await?;
+            txn.commit().await?;
+            Ok(())
+        }
+
+        /// [`Self::soft_delete`] inside the given transaction.
+        pub(in crate::qs) async fn soft_delete_in(
+            connection: &mut PgConnection,
+            user_id: QsUserId,
+        ) -> Result<(), StorageError> {
+            let is_locked = query_scalar!(
+                r#"SELECT 1 AS "locked!" FROM qs_user_record
+                WHERE user_id = $1 AND deleted_at IS NULL
+                FOR UPDATE"#,
+                &user_id as &QsUserId,
+            )
+            .fetch_optional(&mut *connection)
+            .await?;
+            if is_locked.is_none() {
+                return Ok(());
+            }
+            query!(
+                "UPDATE qs_user_record SET deleted_at = NOW() WHERE user_id = $1",
+                &user_id as &QsUserId,
+            )
+            .execute(&mut *connection)
+            .await?;
+            query!(
+                "DELETE FROM key_package WHERE user_id = $1",
+                &user_id as &QsUserId,
+            )
+            .execute(&mut *connection)
+            .await?;
+            query!(
+                "DELETE FROM apq_key_package WHERE user_id = $1",
+                &user_id as &QsUserId,
+            )
+            .execute(&mut *connection)
+            .await?;
+            query!(
+                "DELETE FROM qs_staged_key_package_batch WHERE user_id = $1",
+                &user_id as &QsUserId,
+            )
+            .execute(&mut *connection)
+            .await?;
+            query!(
+                "UPDATE qs_client_record SET encrypted_push_token = NULL WHERE user_id = $1",
+                &user_id as &QsUserId,
+            )
+            .execute(&mut *connection)
             .await?;
             Ok(())
         }
 
+        /// Updates the record of an active user. Returns `false` if there is no
+        /// such record.
         pub(in crate::qs) async fn update(
             &self,
             connection: impl PgExecutor<'_>,
-        ) -> Result<(), StorageError> {
-            sqlx::query!(
+        ) -> Result<bool, StorageError> {
+            let result = sqlx::query!(
                 "UPDATE
                     qs_user_record
                 SET
                     verifying_key = $2, friendship_token = $3
                 WHERE
-                    user_id = $1",
+                    user_id = $1
+                    AND deleted_at IS NULL",
                 &self.user_id as &QsUserId,
                 &self.verifying_key as &QsUserVerifyingKey,
                 self.friendship_token.token(),
             )
             .execute(connection)
             .await?;
-            Ok(())
+            Ok(result.rows_affected() > 0)
         }
 
         pub(in crate::qs) async fn metrics(
@@ -171,12 +288,17 @@ pub(crate) mod persistence {
             query_as!(
                 UserMetrics,
                 "WITH last_activity_time AS (
-                    SELECT MAX(activity_time) AS last_activity_time
-                    FROM qs_client_record
-                    GROUP BY user_id
+                    SELECT MAX(c.activity_time) AS last_activity_time
+                    FROM qs_client_record c
+                    JOIN qs_user_record u ON u.user_id = c.user_id
+                    WHERE u.deleted_at IS NULL
+                    GROUP BY c.user_id
                 )
                 SELECT
-                    (SELECT COUNT(user_id) FROM qs_user_record) AS total_users,
+                    (
+                        SELECT COUNT(user_id) FROM qs_user_record
+                        WHERE deleted_at IS NULL
+                    ) AS total_users,
                     COUNT(last_activity_time) FILTER (
                         WHERE last_activity_time >= (NOW() - INTERVAL '1 month')
                     ) AS active_last_month_users,
@@ -196,18 +318,26 @@ pub(crate) mod persistence {
     #[cfg(test)]
     pub(crate) mod tests {
         use chrono::{Duration, Utc};
-        use sqlx::PgPool;
+        use sqlx::{AssertSqlSafe, PgPool};
 
-        use crate::qs::client_record::{
-            QsClientRecord, persistence::tests::store_random_client_record,
+        use crate::qs::{
+            client_record::{QsClientRecord, persistence::tests::store_random_client_record},
+            queue::tests::{enqueue_test_messages, queue_len},
         };
 
         use super::*;
 
         pub(crate) async fn store_random_user_record(pool: &PgPool) -> anyhow::Result<UserRecord> {
+            store_user_record(pool, QsUserVerifyingKey::new_for_test(b"some_key".to_vec())).await
+        }
+
+        pub(crate) async fn store_user_record(
+            pool: &PgPool,
+            verifying_key: QsUserVerifyingKey,
+        ) -> anyhow::Result<UserRecord> {
             let record = UserRecord {
                 user_id: QsUserId::random(),
-                verifying_key: QsUserVerifyingKey::new_for_test(b"some_key".to_vec()),
+                verifying_key,
                 friendship_token: FriendshipToken::random().unwrap(),
             };
             record.store(pool).await?;
@@ -246,7 +376,7 @@ pub(crate) mod persistence {
                 friendship_token: FriendshipToken::random().unwrap(),
             };
 
-            user_record.update(&pool).await?;
+            assert!(user_record.update(&pool).await?);
             let loaded = UserRecord::load(&pool, &user_record.user_id)
                 .await?
                 .expect("missing user record");
@@ -255,18 +385,192 @@ pub(crate) mod persistence {
             Ok(())
         }
 
+        /// Waits until a statement on the test database waits for a lock.
+        async fn wait_for_lock_waiter(pool: &PgPool) -> anyhow::Result<()> {
+            tokio::time::timeout(std::time::Duration::from_secs(10), async {
+                loop {
+                    let is_waiting: bool = sqlx::query_scalar(
+                        "SELECT EXISTS (
+                            SELECT 1 FROM pg_stat_activity
+                            WHERE datname = current_database() AND wait_event_type = 'Lock'
+                        )",
+                    )
+                    .fetch_one(pool)
+                    .await?;
+                    if is_waiting {
+                        return Ok(());
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                }
+            })
+            .await?
+        }
+
+        /// Runs `operation` while the soft delete of the user is uncommitted,
+        /// and commits the soft delete once `operation` waits for a lock.
+        pub(crate) async fn run_during_soft_delete<T: Send + 'static>(
+            pool: &PgPool,
+            user_id: QsUserId,
+            operation: impl Future<Output = T> + Send + 'static,
+        ) -> anyhow::Result<T> {
+            let mut txn = pool.begin().await?;
+            UserRecord::soft_delete_in(&mut txn, user_id).await?;
+            let operation = tokio::spawn(operation);
+            wait_for_lock_waiter(pool).await?;
+            txn.commit().await?;
+            Ok(operation.await?)
+        }
+
+        pub(crate) async fn count_rows(
+            pool: &PgPool,
+            table: &str,
+            user_id: QsUserId,
+        ) -> sqlx::Result<i64> {
+            sqlx::query_scalar(AssertSqlSafe(format!(
+                "SELECT COUNT(*) FROM {table} WHERE user_id = $1"
+            )))
+            .bind(user_id)
+            .fetch_one(pool)
+            .await
+        }
+
         #[sqlx::test]
-        async fn delete(pool: PgPool) -> anyhow::Result<()> {
+        async fn soft_delete(pool: PgPool) -> anyhow::Result<()> {
             let user_record = store_random_user_record(&pool).await?;
+            let client_a = store_random_client_record(&pool, user_record.user_id).await?;
+            let client_b = store_random_client_record(&pool, user_record.user_id).await?;
+            let other_user = store_random_user_record(&pool).await?;
+            let other_client = store_random_client_record(&pool, other_user.user_id).await?;
 
-            let loaded = UserRecord::load(&pool, &user_record.user_id)
-                .await?
-                .expect("missing user record");
-            assert_eq!(loaded, user_record);
+            for user_id in [user_record.user_id, other_user.user_id] {
+                for table in ["key_package", "apq_key_package"] {
+                    sqlx::query(AssertSqlSafe(format!(
+                        "INSERT INTO {table} (user_id, key_package, is_last_resort)
+                        VALUES ($1, '\\x00', FALSE), ($1, '\\x01', TRUE)"
+                    )))
+                    .bind(user_id)
+                    .execute(&pool)
+                    .await?;
+                }
+                sqlx::query(
+                    "INSERT INTO qs_staged_key_package_batch
+                        (user_id, epoch_id, leaf_index, generation)
+                    VALUES ($1, '\\x00', 0, 0)",
+                )
+                .bind(user_id)
+                .execute(&pool)
+                .await?;
+            }
 
-            UserRecord::delete(&pool, user_record.user_id).await?;
-            let loaded = UserRecord::load(&pool, &user_record.user_id).await?;
-            assert_eq!(loaded, None);
+            UserRecord::soft_delete(&pool, user_record.user_id).await?;
+
+            assert_eq!(UserRecord::load(&pool, &user_record.user_id).await?, None);
+            assert_eq!(
+                UserRecord::load_verifying_key(&pool, &user_record.user_id).await?,
+                None
+            );
+
+            // The client records keep their keys and lose their push tokens.
+            for client in [client_a, client_b] {
+                let loaded = QsClientRecord::load(&pool, &client.client_id)
+                    .await?
+                    .expect("missing client record");
+                assert_eq!(
+                    loaded,
+                    QsClientRecord {
+                        encrypted_push_token: None,
+                        ..client
+                    }
+                );
+            }
+
+            for table in [
+                "key_package",
+                "apq_key_package",
+                "qs_staged_key_package_batch",
+            ] {
+                assert_eq!(count_rows(&pool, table, user_record.user_id).await?, 0);
+            }
+
+            // Other users are not affected.
+            let other_user_id = other_user.user_id;
+            assert_eq!(
+                UserRecord::load(&pool, &other_user_id).await?,
+                Some(other_user)
+            );
+            assert_eq!(
+                QsClientRecord::load(&pool, &other_client.client_id).await?,
+                Some(other_client)
+            );
+            assert_eq!(count_rows(&pool, "key_package", other_user_id).await?, 2);
+            assert_eq!(
+                count_rows(&pool, "apq_key_package", other_user_id).await?,
+                2
+            );
+            assert_eq!(
+                count_rows(&pool, "qs_staged_key_package_batch", other_user_id).await?,
+                1
+            );
+
+            Ok(())
+        }
+
+        #[sqlx::test]
+        async fn update_waits_for_soft_delete(pool: PgPool) -> anyhow::Result<()> {
+            let user = store_random_user_record(&pool).await?;
+            let user_id = user.user_id;
+            let updated = UserRecord {
+                user_id,
+                verifying_key: QsUserVerifyingKey::new_for_test(b"some_other_key".to_vec()),
+                friendship_token: FriendshipToken::random().unwrap(),
+            };
+
+            let update_pool = pool.clone();
+            let is_updated = run_during_soft_delete(&pool, user_id, async move {
+                updated.update(&update_pool).await
+            })
+            .await??;
+
+            assert!(!is_updated);
+            let verifying_key: QsUserVerifyingKey =
+                sqlx::query_scalar("SELECT verifying_key FROM qs_user_record WHERE user_id = $1")
+                    .bind(user_id)
+                    .fetch_one(&pool)
+                    .await?;
+            assert_eq!(verifying_key, user.verifying_key);
+
+            Ok(())
+        }
+
+        #[sqlx::test]
+        async fn revert_migration_removes_deleted_users(pool: PgPool) -> anyhow::Result<()> {
+            let deleted_user = store_random_user_record(&pool).await?;
+            let pending_client = store_random_client_record(&pool, deleted_user.user_id).await?;
+            enqueue_test_messages(&pool, pending_client.client_id, 1).await?;
+            UserRecord::soft_delete(&pool, deleted_user.user_id).await?;
+            let user = store_random_user_record(&pool).await?;
+            let client = store_random_client_record(&pool, user.user_id).await?;
+            enqueue_test_messages(&pool, client.client_id, 1).await?;
+
+            sqlx::migrate!("./migrations")
+                .undo(&pool, 20260929120000 - 1)
+                .await?;
+
+            assert_eq!(
+                count_rows(&pool, "qs_user_record", deleted_user.user_id).await?,
+                0
+            );
+            assert_eq!(
+                count_rows(&pool, "qs_client_record", deleted_user.user_id).await?,
+                0
+            );
+            assert_eq!(queue_len(&pool, pending_client.client_id).await?, 0);
+            assert_eq!(count_rows(&pool, "qs_user_record", user.user_id).await?, 1);
+            assert_eq!(
+                count_rows(&pool, "qs_client_record", user.user_id).await?,
+                1
+            );
+            assert_eq!(queue_len(&pool, client.client_id).await?, 1);
 
             Ok(())
         }
@@ -296,6 +600,11 @@ pub(crate) mod persistence {
                 (Utc::now() - Duration::days(31)).into(),
             )
             .await?;
+
+            // deleted user active right now
+            let user_record_4 = store_random_user_record(&pool).await?;
+            let _client_record_4 = store_random_client_record(&pool, user_record_4.user_id).await?;
+            UserRecord::soft_delete(&pool, user_record_4.user_id).await?;
 
             let metrics = UserRecord::metrics(&pool).await?;
             assert_eq!(metrics.total_users, Some(3));
