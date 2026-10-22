@@ -173,22 +173,22 @@ pub(crate) async fn spawn_app(
 
     let interceptor_control_handle = control_handle.clone();
 
-    let interceptor = move |request| {
+    let fault_hook = move |path: &str| {
         match interceptor_control_handle.mode() {
-            Mode::DropNextResponse if interceptor_control_handle.take_armed() => {
+            Mode::DropNextResponse if interceptor_control_handle.take_armed(path) => {
                 interceptor_control_handle.set_drop_connection_on_write()
             }
-            Mode::DropNextRequest if interceptor_control_handle.take_armed() => {
+            Mode::DropNextRequest if interceptor_control_handle.take_armed(path) => {
                 interceptor_control_handle.set_normal();
                 return Err(Status::unavailable("cancelled for interop test"));
             }
-            Mode::RejectNextRequest if interceptor_control_handle.take_armed() => {
+            Mode::RejectNextRequest if interceptor_control_handle.take_armed(path) => {
                 interceptor_control_handle.set_normal();
                 return Err(Status::invalid_argument("rejected for interop test"));
             }
             _ => {}
         }
-        Ok(request)
+        Ok(())
     };
 
     let address = listener.local_addr().unwrap();
@@ -299,7 +299,7 @@ pub(crate) async fn spawn_app(
             rate_limits: rate_limits.unwrap_or(TEST_RATE_LIMITS),
             shutdown: stop.clone(),
         },
-        interceptor,
+        fault_hook,
     )
     .await;
 

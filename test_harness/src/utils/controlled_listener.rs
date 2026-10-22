@@ -7,7 +7,7 @@ use std::{
     net::SocketAddr,
     pin::Pin,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicU8, AtomicUsize, Ordering},
     },
     task::{Context, Poll},
@@ -50,6 +50,9 @@ pub struct ControlHandle {
     /// How many requests the armed one-shot mode lets through before it
     /// applies. See [`ControlHandle::take_armed`].
     skip: Arc<AtomicUsize>,
+    /// The gRPC method the armed one-shot mode is limited to. `None` arms it
+    /// for any request.
+    target: Arc<Mutex<Option<String>>>,
 }
 
 impl Default for ControlHandle {
@@ -63,11 +66,13 @@ impl ControlHandle {
         Self {
             mode: Arc::new(AtomicU8::new(Mode::Normal as u8)),
             skip: Arc::new(AtomicUsize::new(0)),
+            target: Arc::new(Mutex::new(None)),
         }
     }
 
     pub fn set_normal(&self) {
         self.skip.store(0, Ordering::Relaxed);
+        *self.target.lock().unwrap() = None;
         self.mode.store(Mode::Normal as u8, Ordering::Relaxed);
     }
 
@@ -108,14 +113,49 @@ impl ControlHandle {
         self.arm(Mode::RejectNextRequest, skip);
     }
 
+    /// Like [`Self::set_drop_next_response`], but only for the next call of
+    /// `method`.
+    ///
+    /// `method` is the gRPC method name, e.g. `"DeleteUsername"`, or the full
+    /// path, e.g. `"/auth_service.v1.AuthService/DeleteUsername"`, where the
+    /// name alone is ambiguous. Calls of other methods pass.
+    pub fn set_drop_next_response_to(&self, method: &str) {
+        self.arm_for(Mode::DropNextResponse, method);
+    }
+
+    /// Like [`Self::set_drop_next_request`], but only for the next call of
+    /// `method`. See [`Self::set_drop_next_response_to`].
+    pub fn set_drop_next_request_to(&self, method: &str) {
+        self.arm_for(Mode::DropNextRequest, method);
+    }
+
+    /// Like [`Self::set_reject_next_request`], but only for the next call of
+    /// `method`. See [`Self::set_drop_next_response_to`].
+    pub fn set_reject_next_request_to(&self, method: &str) {
+        self.arm_for(Mode::RejectNextRequest, method);
+    }
+
     fn arm(&self, mode: Mode, skip: usize) {
+        *self.target.lock().unwrap() = None;
         self.skip.store(skip, Ordering::Relaxed);
         self.mode.store(mode as u8, Ordering::Relaxed);
     }
 
-    /// Whether the armed one-shot mode applies to the request being
+    fn arm_for(&self, mode: Mode, method: &str) {
+        *self.target.lock().unwrap() = Some(method.to_owned());
+        self.skip.store(0, Ordering::Relaxed);
+        self.mode.store(mode as u8, Ordering::Relaxed);
+    }
+
+    /// Whether the armed one-shot mode applies to the request for `path` being
     /// intercepted, consuming one of the requests to let through if not.
-    pub(super) fn take_armed(&self) -> bool {
+    pub(super) fn take_armed(&self, path: &str) -> bool {
+        if let Some(target) = &*self.target.lock().unwrap()
+            && path != target
+            && path.rsplit('/').next() != Some(target.as_str())
+        {
+            return false;
+        }
         if self.skip.load(Ordering::Relaxed) > 0 {
             self.skip.fetch_sub(1, Ordering::Relaxed);
             false
