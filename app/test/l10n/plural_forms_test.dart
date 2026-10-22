@@ -29,4 +29,15 @@ void main() {
     expect(loc.linkedDevicesScreen_deviceCount(21), 'Привязано 21 устройство.');
     expect(loc.linkedDevicesScreen_deviceCount(22), 'Привязано 22 устройства.');
   });
+
+  test('Turkish keeps the noun singular after every number', () {
+    final loc = lookupAppLocalizations(const Locale('tr'));
+    expect(loc.linkedDevicesScreen_deviceCount(0), 'Bağlı cihaz yok.');
+    expect(loc.linkedDevicesScreen_deviceCount(1), '1 cihaz bağlı.');
+    expect(loc.linkedDevicesScreen_deviceCount(5), '5 cihaz bağlı.');
+    expect(
+      loc.groupCreationDetails_membersNotAddedOthers('Ayşe, Mehmet', 1),
+      'Ayşe, Mehmet ve 1 kişi daha',
+    );
+  });
 }
