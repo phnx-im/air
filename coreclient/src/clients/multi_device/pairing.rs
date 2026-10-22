@@ -231,20 +231,15 @@ pub(super) fn validate_key_package(bytes: &[u8]) -> Result<KeyPackage, LinkingEr
         )));
     };
     // Verifies the MLS signature, the protocol version and the lifetime.
-    let key_package = key_package
+    // OpenMLS checks the ciphersuite when the key package is added.
+    key_package
         .validate(
             &openmls_rust_crypto::RustCrypto::default(),
             ProtocolVersion::Mls10,
         )
         .map_err(|error| {
             LinkingError::validation(format!("the pairing key package is invalid: {error}"))
-        })?;
-    if key_package.ciphersuite() != PAIRING_CIPHERSUITE {
-        return Err(LinkingError::validation(
-            "the pairing key package uses an unexpected ciphersuite",
-        ));
-    }
-    Ok(key_package)
+        })
 }
 
 /// Tells apart the ways a pairing Welcome can fail.
