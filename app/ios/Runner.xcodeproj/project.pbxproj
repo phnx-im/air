@@ -134,6 +134,7 @@
 		AE123456000000000000000B /* uk */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = uk; path = uk.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		AE123456000000000000000C /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		AE123456000000000000000D /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		AE123456000000000000000E /* et */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = et; path = et.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		AE123456000000000000000F /* el */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = el; path = el.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		AE975A052C472F0B00007EF7 /* NotificationService.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AE975A072C472F0B00007EF7 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
@@ -426,6 +427,7 @@
 				de,
 				el,
 				es,
+				et,
 				fr,
 				pt,
 				"pt-PT",
@@ -644,6 +646,7 @@
 				AE123456000000000000000B /* uk */,
 				AE123456000000000000000C /* zh-Hans */,
 				AE123456000000000000000D /* zh-Hant */,
+				AE123456000000000000000E /* et */,
 				AE123456000000000000000F /* el */,
 			);
 			name = InfoPlist.strings;

@@ -264,7 +264,7 @@
   "systemMessage_userChangedPicture": "Το μέλος {user} άλλαξε την εικόνα της ομάδας",
   "systemMessage_userCreatedGroup": "Το μέλος {user} δημιούργησε την ομάδα",
   "systemMessage_userDeletedChat": "Το μέλος {user} διέγραψε τη συνομιλία",
-  "systemMessage_onboarded": "Αυτή η συσκευή προστέθηκε στη συνομιλία μετά τη σύνδεσή της.",
+  "systemMessage_onboarded": "Αυτή η συσκευή συνδέθηκε στον λογαριασμό σας.",
   "systemMessage_deviceLinked": "Συνδέσατε στον λογαριασμό σας μια νέα συσκευή με το όνομα {device}. {viewDevicesAction}",
   "systemMessage_deviceLinkedUnknown": "Συνδέσατε μια νέα συσκευή στον λογαριασμό σας. {viewDevicesAction}",
   "systemMessage_deviceUnlinked": "Αποσυνδέσατε τη συσκευή {device} από τον λογαριασμό σας. {viewDevicesAction}",

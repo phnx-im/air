@@ -8,10 +8,10 @@ use aircoreclient::{ChatType, SystemMessage};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 
 use super::{has_system_message, request_expires_at};
-use crate::multi_device::send_and_receive;
+use crate::multi_device::{send_and_receive, usernames::assert_same_username};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn linked_device_gets_open_incoming_requests() {
+async fn linked_device_gets_usernames_and_open_incoming_requests() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie, dave] = setup.add_users().await;
 
@@ -39,6 +39,10 @@ async fn linked_device_gets_open_incoming_requests() {
     };
 
     let alice2 = alice.add_synced_device().await;
+
+    // The new device holds the keys of the packages published before the link.
+    // It publishes no packages of its own.
+    assert_same_username(&alice, &alice2, &record).await;
 
     let username_chat = alice2.expect_chat(username_chat_id).await;
     assert_eq!(

@@ -4,7 +4,7 @@
 
 use std::assert_matches;
 
-use aircommon::credentials::keys::UserSigningKey;
+use aircommon::credentials::keys::{UserSigningKey, UsernameSigningKey};
 use aircommon::credentials::test_utils::create_test_credentials;
 use aircommon::crypto::aead::keys::{
     FriendshipPackageEarKey, GroupStateEarKey, IdentityLinkWrapperKey, PushTokenEarKey,
@@ -12,7 +12,9 @@ use aircommon::crypto::aead::keys::{
 };
 use aircommon::crypto::hpke::{ClientIdDecryptionKey, ClientIdEncryptionKey};
 use aircommon::crypto::signatures::keys::QsUserSigningKey;
-use aircommon::identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId, Username};
+use aircommon::identifiers::{
+    QsClientId, QsUserId, QualifiedGroupId, UserId, Username, UsernameHash,
+};
 use aircommon::messages::FriendshipToken;
 use aircommon::messages::client_as::ConnectionOfferHash;
 use aircommon::time::TimeStamp;
@@ -20,6 +22,7 @@ use airprotos::auth_service::v1::OperationType;
 use airprotos::client::self_group::{
     BlockedContactEntry, ConnectionRequestDeclined, ConnectionRequestEntry, ConnectionRequestGroup,
     ConnectionRequestReceived, ConnectionRequestSource, ContactBlocked, RedeemedTokens, TokenSeed,
+    UsernameClaimed, UsernameEntry,
 };
 use chrono::DateTime;
 use openmls::group::GroupId;
@@ -60,6 +63,7 @@ fn sample_package(
         token_seeds,
         blocked_contacts,
         redeemed_tokens,
+        usernames: Vec::new(),
         connection_requests: Vec::new(),
         device_name: "Work laptop".to_owned(),
         groups: Vec::new(),
@@ -125,6 +129,15 @@ fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
         }),
     ];
     package.connection_requests = connection_requests.clone();
+    let usernames = vec![UsernameEntry::Claimed(UsernameClaimed {
+        username: "alice".to_owned(),
+        hash: Some(UsernameHash::new([0x33; 32])),
+        signing_key: Some(UsernameSigningKey::generate()?),
+        created_at: DateTime::from_timestamp_millis(1_767_225_600_123).unwrap(),
+        refreshed_at: DateTime::from_timestamp_millis(1_767_225_600_123).unwrap(),
+        connection_packages: Vec::new(),
+    })];
+    package.usernames = usernames.clone();
     let outgoing_request = OutgoingRequest::Username {
         username: Username::new("joel-03".to_owned())?,
         friendship_package_ear_key: FriendshipPackageEarKey::random()?,
@@ -156,6 +169,7 @@ fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
     assert_eq!(decoded.token_seeds, sample_seeds());
     assert_eq!(decoded.blocked_contacts, blocked_contacts);
     assert_eq!(decoded.redeemed_tokens, sample_redeemed());
+    assert_eq!(decoded.usernames, usernames);
     assert_eq!(decoded.connection_requests, connection_requests);
     assert_eq!(
         decoded.groups[0].outgoing_request,
@@ -169,9 +183,9 @@ fn synced_state_roundtrips_through_linking_channel() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// A provisioner from before redeemed-token and connection-request sync
-/// sends no `redeemed_tokens` or `connection_requests` key. Linking to it
-/// has to work, with both empty.
+/// A provisioner from before redeemed-token, username and connection-request
+/// sync sends no `redeemed_tokens`, `usernames` or `connection_requests` key.
+/// Linking to it has to work, with all three empty.
 #[test]
 fn a_package_without_redeemed_tokens_decodes_as_empty() -> anyhow::Result<()> {
     /// The package as an older provisioner serializes it.
@@ -217,6 +231,7 @@ fn a_package_without_redeemed_tokens_decodes_as_empty() -> anyhow::Result<()> {
         token_seeds,
         blocked_contacts,
         redeemed_tokens: _,
+        usernames: _,
         connection_requests: _,
         device_name,
         groups,
@@ -255,6 +270,7 @@ fn a_package_without_redeemed_tokens_decodes_as_empty() -> anyhow::Result<()> {
 
     assert_eq!(decoded.token_seeds, sample_seeds());
     assert!(decoded.redeemed_tokens.is_empty());
+    assert!(decoded.usernames.is_empty());
     assert!(decoded.connection_requests.is_empty());
 
     Ok(())

@@ -30,6 +30,26 @@ void main() {
     expect(loc.linkedDevicesScreen_deviceCount(22), 'Привязано 22 устройства.');
   });
 
+  test('Estonian uses the singular only for exactly one', () {
+    final loc = lookupAppLocalizations(const Locale('et'));
+    expect(loc.linkedDevicesScreen_deviceCount(0), 'Lingitud seadmeid ei ole.');
+    expect(loc.linkedDevicesScreen_deviceCount(1), 'Lingitud on 1 seade.');
+    expect(loc.linkedDevicesScreen_deviceCount(5), 'Lingitud on 5 seadet.');
+    expect(loc.linkedDevicesScreen_deviceCount(21), 'Lingitud on 21 seadet.');
+  });
+
+  test('Estonian agrees the device limit count with the linked count', () {
+    final loc = lookupAppLocalizations(const Locale('et'));
+    expect(
+      loc.linkedDevicesScreen_deviceCountWithLimit(1, 5),
+      'Lingitud on 1 seade 5-st.',
+    );
+    expect(
+      loc.linkedDevicesScreen_deviceCountWithLimit(5, 5),
+      'Lingitud on 5 seadet 5-st.',
+    );
+  });
+
   test('Greek uses the singular only for exactly one', () {
     final loc = lookupAppLocalizations(const Locale('el'));
     expect(

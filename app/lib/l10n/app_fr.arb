@@ -275,7 +275,7 @@
   "systemMessage_userChangedPicture": "{user} a modifié l'image du groupe",
   "systemMessage_userCreatedGroup": "{user} a créé le groupe",
   "systemMessage_userDeletedChat": "{user} a supprimé la discussion",
-  "systemMessage_onboarded": "Ce client a été ajouté à la discussion après l'association.",
+  "systemMessage_onboarded": "Cet appareil a été associé à votre compte.",
   "systemMessage_deviceLinked": "Vous avez associé un nouvel appareil nommé {device} à votre compte. {viewDevicesAction}",
   "systemMessage_deviceLinkedUnknown": "Vous avez associé un nouvel appareil à votre compte. {viewDevicesAction}",
   "systemMessage_deviceUnlinked": "Vous avez dissocié l'appareil {device} de votre compte. {viewDevicesAction}",
