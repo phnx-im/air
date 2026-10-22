@@ -1401,7 +1401,7 @@
     }
   },
 
-  "systemMessage_onboarded": "This client has been onboarded into the chat after linking.",
+  "systemMessage_onboarded": "This device was linked to your account.",
   "@systemMessage_onboarded": {
     "description": "System message marking where a newly linked device joined the chat."
   },
