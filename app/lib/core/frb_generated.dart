@@ -932,7 +932,7 @@ abstract class RustLibApi extends BaseApi {
 
   Stream<MultiDeviceLinkEvent> crateApiMultiDeviceMultiDeviceLinkClient({
     required UserCubitBase userCubit,
-    required String sessionId,
+    required String code,
     required MultiDeviceLinkConfirmation confirmation,
   });
 
@@ -8028,7 +8028,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @override
   Stream<MultiDeviceLinkEvent> crateApiMultiDeviceMultiDeviceLinkClient({
     required UserCubitBase userCubit,
-    required String sessionId,
+    required String code,
     required MultiDeviceLinkConfirmation confirmation,
   }) {
     final sink = RustStreamSink<MultiDeviceLinkEvent>();
@@ -8041,7 +8041,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
               userCubit,
               serializer,
             );
-            sse_encode_String(sessionId, serializer);
+            sse_encode_String(code, serializer);
             sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMultiDeviceLinkConfirmation(
               confirmation,
               serializer,
@@ -8059,7 +8059,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             decodeErrorData: sse_decode_AnyhowException,
           ),
           constMeta: kCrateApiMultiDeviceMultiDeviceLinkClientConstMeta,
-          argValues: [userCubit, sessionId, confirmation, sink],
+          argValues: [userCubit, code, confirmation, sink],
           apiImpl: this,
         ),
       ),
@@ -8070,7 +8070,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiMultiDeviceMultiDeviceLinkClientConstMeta =>
       const TaskConstMeta(
         debugName: "multi_device_link_client",
-        argNames: ["userCubit", "sessionId", "confirmation", "sink"],
+        argNames: ["userCubit", "code", "confirmation", "sink"],
       );
 
   @override

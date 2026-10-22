@@ -28,12 +28,12 @@ use crate::{
 
 const LINKING_URL_SCHEME: &str = "air";
 const LINKING_URL_PATH: &str = "multiDeviceLinkingCode";
-const LINKING_URL_SESSION_ID: &str = "sessionId";
+const LINKING_URL_CODE: &str = "code";
 
 /// Builds the QR-code URL that a fresh device displays for an existing device
 /// to scan.
 fn multi_device_linking_url(domain: &Fqdn, code: &str) -> String {
-    format!("{LINKING_URL_SCHEME}://{domain}/{LINKING_URL_PATH}?{LINKING_URL_SESSION_ID}={code}")
+    format!("{LINKING_URL_SCHEME}://{domain}/{LINKING_URL_PATH}?{LINKING_URL_CODE}={code}")
 }
 
 /// Extracts the linking code from a QR payload produced by [`multi_device_linking_url`].
@@ -54,14 +54,14 @@ pub(crate) fn linking_code_from_url(fqdn: &Fqdn, url: &str) -> Option<String> {
         return None;
     }
 
-    let session_id = url
+    let code = url
         .query_pairs()
-        .find_map(|(key, value)| (key == LINKING_URL_SESSION_ID).then(|| value.into_owned()))?;
-    if session_id.is_empty() {
-        debug!(%url, "empty session ID, skipping URL");
+        .find_map(|(key, value)| (key == LINKING_URL_CODE).then(|| value.into_owned()))?;
+    if code.is_empty() {
+        debug!(%url, "empty linking code, skipping URL");
         None
     } else {
-        Some(session_id)
+        Some(code)
     }
 }
 
@@ -243,7 +243,7 @@ pub enum MultiDeviceLinkEvent {
 /// Drives the acceptor (existing-device) side of multi-device linking.
 pub async fn multi_device_link_client(
     user_cubit: &UserCubitBase,
-    session_id: String,
+    code: String,
     confirmation: &MultiDeviceLinkConfirmation,
     sink: StreamSink<MultiDeviceLinkEvent>,
 ) -> Result<()> {
@@ -262,7 +262,7 @@ pub async fn multi_device_link_client(
 
     let linking = async {
         let event = match Box::pin(user_cubit.core_user().multi_device_link_client(
-            session_id,
+            code,
             connected_tx,
             confirmation_rx,
         ))
