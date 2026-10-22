@@ -69,7 +69,7 @@ tempfile.workspace = true
 tracing-subscriber.workspace = true
 
 [features]
-test_utils = ["tempfile"]
+test_utils = ["tempfile", "sqlx/sqlite-deserialize"]
 
 [package.metadata.cargo-machete]
 ignored = [

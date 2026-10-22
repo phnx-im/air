@@ -159,6 +159,14 @@ impl<KT> Clone for SigningKey<KT> {
     }
 }
 
+impl<KT> PartialEq for SigningKey<KT> {
+    fn eq(&self, other: &Self) -> bool {
+        self.signing_key == other.signing_key && self.verifying_key == other.verifying_key
+    }
+}
+
+impl<KT> Eq for SigningKey<KT> {}
+
 impl<KT> SigningKey<KT> {
     /// Generate a new signing key.
     pub fn generate() -> Result<SigningKey<KT>, KeyGenerationError> {

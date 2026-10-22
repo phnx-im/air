@@ -2262,7 +2262,7 @@
       "used_by": [
         {
           "name": "webpki-roots",
-          "version": "1.0.9",
+          "version": "1.0.10",
           "repository": "https://github.com/rustls/webpki-roots"
         }
       ]
@@ -2478,7 +2478,7 @@
       "used_by": [
         {
           "name": "rustls-webpki",
-          "version": "0.103.15",
+          "version": "0.103.16",
           "repository": "https://github.com/rustls/webpki"
         }
       ]

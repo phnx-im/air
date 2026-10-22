@@ -108,12 +108,40 @@ async fn rename_legacy_client_dbs(db_path: &str, air_db: &DbAccess) -> sqlx::Res
 
 #[cfg(feature = "test_utils")]
 pub(crate) async fn open_db_in_memory() -> sqlx::Result<SqlitePool> {
+    static MIGRATED_DB: tokio::sync::OnceCell<std::sync::Arc<[u8]>> =
+        tokio::sync::OnceCell::const_new();
+    open_migrated_db_in_memory(&MIGRATED_DB, sqlx::migrate!()).await
+}
+
+#[cfg(feature = "test_utils")]
+pub(crate) async fn open_air_db_in_memory() -> sqlx::Result<SqlitePool> {
+    static MIGRATED_DB: tokio::sync::OnceCell<std::sync::Arc<[u8]>> =
+        tokio::sync::OnceCell::const_new();
+    open_migrated_db_in_memory(&MIGRATED_DB, sqlx::migrate!("migrations/air")).await
+}
+
+/// Opens an in-memory database with the migrations of `migrator` applied.
+///
+/// Copying a migrated database is much faster than migrating each one, so the
+/// first call migrates a database into `migrated_db` and later calls copy it.
+#[cfg(feature = "test_utils")]
+async fn open_migrated_db_in_memory(
+    migrated_db: &tokio::sync::OnceCell<std::sync::Arc<[u8]>>,
+    migrator: sqlx::migrate::Migrator,
+) -> sqlx::Result<SqlitePool> {
     use std::time::Duration;
+
+    use sqlx::sqlite::SqliteOwnedBuf;
+
+    let migrated_db = migrated_db
+        .get_or_try_init(|| Box::pin(migrate_db_in_memory(migrator)))
+        .await?
+        .clone();
 
     let opts = SqliteConnectOptions::new()
         .journal_mode(SqliteJournalMode::Wal)
         .in_memory(true);
-    let pool = SqlitePoolOptions::new()
+    SqlitePoolOptions::new()
         // More than one connection in memory is not supported.
         .max_connections(1)
         .idle_timeout(None)
@@ -121,10 +149,29 @@ pub(crate) async fn open_db_in_memory() -> sqlx::Result<SqlitePool> {
         // We have only a single connection, so fail fast when there is a deadlock when acquiring a
         // connection.
         .acquire_timeout(Duration::from_secs(3))
+        .after_connect(move |connection, _meta| {
+            let migrated_db = migrated_db.clone();
+            Box::pin(async move {
+                let data = SqliteOwnedBuf::try_from(&migrated_db[..])?;
+                connection.deserialize(None, data, false).await
+            })
+        })
         .connect_with(opts)
-        .await?;
-    sqlx::migrate!().run(&pool).await?;
-    Ok(pool)
+        .await
+}
+
+/// Returns an in-memory database with the migrations of `migrator` applied,
+/// serialized.
+#[cfg(feature = "test_utils")]
+async fn migrate_db_in_memory(
+    migrator: sqlx::migrate::Migrator,
+) -> sqlx::Result<std::sync::Arc<[u8]>> {
+    let opts = SqliteConnectOptions::new().in_memory(true);
+    let mut connection = sqlx::SqliteConnection::connect_with(&opts).await?;
+    migrator.run_direct(None, &mut connection, false).await?;
+    let data = connection.serialize(None).await?;
+    connection.close().await?;
+    Ok(data[..].into())
 }
 
 async fn write_pool(opts: SqliteConnectOptions) -> sqlx::Result<SqlitePool> {
