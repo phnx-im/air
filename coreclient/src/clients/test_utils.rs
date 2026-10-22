@@ -46,7 +46,8 @@ impl CoreUser {
         challenge: Option<RegistrationChallenge>,
     ) -> Result<Self> {
         use crate::{
-            db::notification::DbNotificationsSender, utils::persistence::open_db_in_memory,
+            db::notification::DbNotificationsSender,
+            utils::persistence::{open_air_db_in_memory, open_db_in_memory},
         };
 
         info!(?user_id, "creating new ephemeral user");
@@ -54,7 +55,8 @@ impl CoreUser {
         let notifier_tx = DbNotificationsSender::new();
 
         // Open the air db to store the client record
-        let air_db = DbAccess::with_single_pool(open_db_in_memory().await?, notifier_tx.clone());
+        let air_db =
+            DbAccess::with_single_pool(open_air_db_in_memory().await?, notifier_tx.clone());
 
         // Open client specific db
         let client_db = DbAccess::with_single_pool(open_db_in_memory().await?, notifier_tx);
@@ -62,7 +64,7 @@ impl CoreUser {
         let temp_file = tempfile::NamedTempFile::new()?;
         let global_lock = GlobalLock::from_path(temp_file.path())?;
 
-        Self::new_with_connections(
+        Self::new_with_dbs(
             user_id,
             Uuid::new_v4(),
             Some(server_url),
