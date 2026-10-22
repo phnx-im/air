@@ -79,8 +79,21 @@ async fn relay_provisioner(
         None => return,
     };
 
-    let Ok(responder) = responder_ready_rx.await else {
-        return;
+    // The provisioner sends nothing more until a responder attaches, so the
+    // stream ending or carrying another frame means the session is over. A
+    // closed stream must end the session right away, or its code stays
+    // claimable after the new device moved on.
+    let responder = tokio::select! {
+        responder = responder_ready_rx => match responder {
+            Ok(responder) => responder,
+            Err(_) => return,
+        },
+        frame = inbound.next() => {
+            if let Some(Ok(_)) = frame {
+                warn!(rendezvous_id = %id, "provisioner sent a frame before the responder attached");
+            }
+            return;
+        }
     };
 
     if responder.send(Ok(buffered)).await.is_ok() {
