@@ -15,6 +15,7 @@ mod key_packages;
 mod leave;
 mod linking;
 mod onboarding;
+mod push_tokens;
 mod read_state;
 mod requests;
 mod self_group;

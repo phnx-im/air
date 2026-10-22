@@ -91,6 +91,30 @@ impl CoreUser {
         self.inner.qs_client_id
     }
 
+    /// Creates a QS client record of this user that belongs to no device. An
+    /// unlinked device leaves such a record behind.
+    pub async fn create_detached_qs_client(
+        &self,
+        push_token: PushToken,
+    ) -> anyhow::Result<QsClientId> {
+        use aircommon::crypto::aead::AeadEncryptable;
+
+        let key_store = &self.inner.key_store;
+        let encrypted_push_token = push_token.encrypt(&key_store.push_token_ear_key)?;
+        let response = self
+            .api_client()?
+            .qs_create_client(
+                self.inner.qs_user_id,
+                QsClientSigningKey::generate()?.verifying_key().clone(),
+                RatchetDecryptionKey::generate()?.encryption_key().clone(),
+                Some(encrypted_push_token),
+                RatchetSecret::random()?,
+                &key_store.qs_user_signing_key,
+            )
+            .await?;
+        Ok(response.qs_client_id)
+    }
+
     /// Deletes the QS user record without touching anything else.
     pub async fn qs_delete_user(&self) -> Result<(), QsRequestError> {
         self.inner

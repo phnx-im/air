@@ -12,12 +12,13 @@ use std::{
 
 use airbackend::{
     air_service::MaxDevices,
+    qs::Qs,
     settings::{RateLimitsSettings, RegistrationPolicy, RegistrationSettings},
     version::VersionPolicy,
 };
 use aircommon::{
     DEFAULT_MAX_ATTACHMENT_SIZE, OpenMlsRand, RustCrypto,
-    identifiers::{Fqdn, MimiId, QsUserId, UserId, Username},
+    identifiers::{Fqdn, MimiId, QsClientId, QsUserId, UserId, Username},
     registration::RegistrationChallenge,
 };
 use aircoreclient::{ChatId, ChatStatus, clients::CoreUser, *};
@@ -354,6 +355,22 @@ impl TestBackend {
         for handle in handles {
             handle.set(max_devices);
         }
+    }
+
+    /// Whether the QS client record has a push token. Only works on a spawned
+    /// server.
+    pub async fn qs_client_has_push_token(&self, client_id: &QsClientId) -> bool {
+        let url = self
+            .qs_database_url
+            .as_ref()
+            .expect("the QS can only be inspected on a spawned server");
+        // We use a short-lived connection. Cleanup can then drop the test databases.
+        let mut connection = PgConnection::connect(url).await.unwrap();
+        let has_push_token = Qs::client_has_push_token(&mut connection, client_id)
+            .await
+            .unwrap();
+        connection.close().await.unwrap();
+        has_push_token
     }
 
     /// Returns whether the QS stores a user record for `user_id`, deleted or

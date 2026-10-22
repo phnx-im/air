@@ -582,6 +582,10 @@ impl PendingChatOperation {
                 let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
                 let own_encrypted_user_profile_key =
                     encrypt_user_profile_key(db.read().await?).await?;
+                // In the self group, this is the daily self-update of the T leg only. See
+                // `ApqOther`.
+                let client_references_signature =
+                    self.group.client_references_signature(key_store, true)?;
 
                 api_client
                     .ds_group_operation(
@@ -590,6 +594,7 @@ impl PendingChatOperation {
                         self.group.group_state_ear_key(),
                         own_qs_client_reference,
                         own_encrypted_user_profile_key,
+                        client_references_signature,
                     )
                     .await
             }
@@ -601,6 +606,11 @@ impl PendingChatOperation {
                 let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
                 let own_encrypted_user_profile_key =
                     encrypt_user_profile_key(db.read().await?).await?;
+                // In the self group, this is the daily self-update when the PQ leg is due as well.
+                // We sign the references even if they are unchanged. The QS can then catch up with
+                // a reconciliation it missed.
+                let client_references_signature =
+                    self.group.client_references_signature(key_store, true)?;
 
                 api_client
                     .ds_apq_group_operation(
@@ -609,6 +619,7 @@ impl PendingChatOperation {
                         self.group.group_state_ear_key(),
                         own_qs_client_reference,
                         own_encrypted_user_profile_key,
+                        client_references_signature,
                     )
                     .await
             }
@@ -620,6 +631,8 @@ impl PendingChatOperation {
                 let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
                 let own_encrypted_user_profile_key =
                     encrypt_user_profile_key(db.read().await?).await?;
+                let client_references_signature =
+                    self.group.client_references_signature(key_store, false)?;
 
                 api_client
                     .ds_apq_group_operation(
@@ -628,6 +641,7 @@ impl PendingChatOperation {
                         self.group.group_state_ear_key(),
                         own_qs_client_reference,
                         own_encrypted_user_profile_key,
+                        client_references_signature,
                     )
                     .await
             }
@@ -1871,6 +1885,8 @@ pub mod test_utils {
 #[cfg(test)]
 pub(crate) mod tests {
 
+    use std::collections::HashSet;
+
     use aircommon::{
         credentials::{
             keys::{LeafSigningKey, SelfGroupSigningKey, UserSigningKey},
@@ -2148,13 +2164,9 @@ pub(crate) mod tests {
     }
 
     fn leaf_client_reference(leaf: &openmls::prelude::LeafNode) -> Option<QsReference> {
-        use aircommon::mls_group_config::QS_CLIENT_REFERENCE_EXTENSION_TYPE;
-        use tls_codec::DeserializeBytes as _;
-
-        let extension = leaf
-            .extensions()
-            .unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE)?;
-        QsReference::tls_deserialize_exact_bytes(&extension.0).ok()
+        aircommon::mls_group_config::leaf_client_reference(leaf)?
+            .decode()
+            .ok()
     }
 
     /// A self-update staged in the self group keeps the self-group credential
@@ -2198,7 +2210,12 @@ pub(crate) mod tests {
 
         assert_eq!(
             leaf_client_reference(&update_path_leaf(&group)?),
-            Some(own_client_reference)
+            Some(own_client_reference.clone())
+        );
+        // The repair changes the references. The commit therefore signs them.
+        assert_eq!(
+            group.client_references_to_sign(false)?,
+            Some(HashSet::from([own_client_reference]))
         );
         Ok(())
     }
@@ -2216,7 +2233,12 @@ pub(crate) mod tests {
 
         assert_eq!(
             leaf_client_reference(&update_path_leaf(&group)?),
-            Some(creator_client_reference)
+            Some(creator_client_reference.clone())
+        );
+        assert_eq!(group.client_references_to_sign(false)?, None);
+        assert_eq!(
+            group.client_references_to_sign(true)?,
+            Some(HashSet::from([creator_client_reference]))
         );
         Ok(())
     }

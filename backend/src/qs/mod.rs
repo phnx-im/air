@@ -85,6 +85,7 @@ use crate::{
 mod auth;
 pub mod client_api;
 mod client_id_decryption_key;
+mod client_reconciliation;
 mod client_record;
 pub mod ds_api;
 pub mod errors;
@@ -170,6 +171,16 @@ impl Qs {
     #[cfg(feature = "test_utils")]
     pub fn max_devices_handle(&self) -> MaxDevices {
         self.max_devices.clone()
+    }
+
+    /// Whether the client record has a push token.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub async fn client_has_push_token(
+        executor: impl sqlx::PgExecutor<'_>,
+        client_id: &QsClientId,
+    ) -> Result<bool, StorageError> {
+        let record = client_record::QsClientRecord::load(executor, client_id).await?;
+        Ok(record.is_some_and(|record| record.encrypted_push_token.is_some()))
     }
 
     pub(crate) fn queues(&self) -> &Queues {

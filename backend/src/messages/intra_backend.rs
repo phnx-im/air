@@ -7,7 +7,10 @@
 
 use aircommon::{
     identifiers::QsReference,
-    messages::client_ds::{DsEventMessage, QsQueueMessagePayload},
+    messages::{
+        client_ds::{DsEventMessage, QsQueueMessagePayload},
+        client_references::{ConfirmedTranscriptHash, SealedClientReferencesSignature},
+    },
     time::TimeStamp,
     virtual_client::KeyPackageBatchId,
 };
@@ -77,6 +80,19 @@ pub enum QsVirtualClientHint {
     /// `VirtualClientAction` SafeAAD struct.
     #[tls_codec(discriminant = 1)]
     PromoteStagedKeyPackages(KeyPackageBatchId),
+    /// DS -> QS hint to clear the push tokens of the user's client records that
+    /// are not in the self group after the commit.
+    #[tls_codec(discriminant = 2)]
+    ReconcileClients(ClientReferencesReconciliation),
+}
+
+#[derive(Clone, TlsSerialize, TlsDeserializeBytes, TlsSize)]
+pub struct ClientReferencesReconciliation {
+    /// The DS computes the hash from its own group state after the commit.
+    pub confirmed_transcript_hash: ConfirmedTranscriptHash,
+    /// The client references in the leaves of the self group after the commit.
+    pub client_references: Vec<QsReference>,
+    pub signature: SealedClientReferencesSignature,
 }
 
 impl From<&KeyPackageUpload> for QsVirtualClientHint {
