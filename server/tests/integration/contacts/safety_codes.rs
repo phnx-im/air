@@ -6,7 +6,10 @@
 
 use std::collections::HashMap;
 
-use airserver_test_harness::utils::setup::TestBackend;
+use airserver_test_harness::utils::{
+    core_user_ext::CoreUserExt,
+    setup::{TestBackend, TestUser},
+};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn safety_codes_match_across_users() {
@@ -53,4 +56,39 @@ async fn safety_codes_match_across_users() {
             );
         }
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "the safety code uses a stale credential of a re-registered user"]
+async fn safety_code_follows_reregistered_user() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    let alice_id = alice.user_id().clone();
+    let old_code = bob.safety_code(&alice_id).await.unwrap();
+
+    alice.delete_account(None).await.unwrap();
+    bob.drain_unchecked().await;
+
+    // The user id registers again with a new credential and connects to bob.
+    let new_alice = TestUser::try_new(&alice_id, setup.server_url(), Some("DUMMY007"))
+        .await
+        .unwrap();
+    let record = new_alice.add_username().await;
+    let new_alice = new_alice.user();
+    bob.add_contact(record.username.clone(), record.hash, setup.apq_groups)
+        .await
+        .unwrap()
+        .unwrap();
+    let chat_id = new_alice.receive_connection_offer(&record).await;
+    new_alice
+        .accept_contact_request(chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+    bob.drain().await;
+
+    let own_code = new_alice.safety_code(&alice_id).await.unwrap();
+    assert_ne!(own_code, old_code);
+    assert_eq!(bob.safety_code(&alice_id).await.unwrap(), own_code);
 }

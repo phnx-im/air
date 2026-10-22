@@ -478,3 +478,35 @@ async fn welcome_survives_network_error() {
         "bob never joined the group"
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "a network error while verifying a commit loses the commit"]
+async fn commit_survives_network_error_during_verification() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+    alice
+        .invite_users(chat_id, slice::from_ref(charlie.user_id()))
+        .await
+        .unwrap();
+
+    // Verifying charlie's credential needs the AS credentials, whose fetch
+    // fails like a network error, once.
+    bob.forget_as_credentials().await.unwrap();
+    setup
+        .listener_control_handle()
+        .set_drop_next_request_to("AsCredentials");
+    bob.drain_unchecked().await;
+    bob.drain_unchecked().await;
+
+    assert!(
+        bob.chat_participants(chat_id)
+            .await
+            .unwrap()
+            .contains(charlie.user_id()),
+        "bob lost the commit adding charlie"
+    );
+}

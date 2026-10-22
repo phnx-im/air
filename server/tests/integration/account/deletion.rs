@@ -189,3 +189,43 @@ async fn deleted_account_frees_usernames_after_one_fails() {
     }
     assert!(remaining <= 1, "{remaining} usernames remain registered");
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "one failed leave stops the deleted account from leaving the other chats"]
+async fn deleted_account_leaves_chats_after_one_leave_fails() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let bob_chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(bob_chat_id, &alice, &[&bob]).await;
+    let charlie_chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(charlie_chat_id, &alice, &[&charlie])
+        .await;
+
+    let self_remove = if setup.apq_groups {
+        "ApqSelfRemove"
+    } else {
+        "SelfRemove"
+    };
+    setup
+        .listener_control_handle()
+        .set_reject_next_request_to(self_remove);
+    alice.delete_account(None).await.unwrap();
+
+    // Only the chat whose leave failed may keep alice.
+    let mut remaining = 0;
+    for (member, chat_id) in [(&bob, bob_chat_id), (&charlie, charlie_chat_id)] {
+        member.drain_unchecked().await;
+        if member
+            .chat_participants(chat_id)
+            .await
+            .unwrap()
+            .contains(alice.user_id())
+        {
+            remaining += 1;
+        }
+    }
+    assert!(remaining <= 1, "alice remains in {remaining} chats");
+}

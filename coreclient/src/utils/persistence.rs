@@ -787,6 +787,23 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore = "concurrent opens of a fresh client DB race on the migrations"]
+    async fn concurrent_opens_of_fresh_client_db_succeed() -> anyhow::Result<()> {
+        for _ in 0..10 {
+            let dir = tempdir()?;
+            let db_path = dir.path().to_str().unwrap();
+            let client_record_id = Uuid::new_v4();
+            let (first, second) = tokio::join!(
+                open_client_db(db_path, client_record_id),
+                open_client_db(db_path, client_record_id),
+            );
+            first?;
+            second?;
+        }
+        Ok(())
+    }
+
     #[tokio::test]
     #[ignore = "migrating to local attachment ids drops pending attachments"]
     async fn local_attachment_id_migration_keeps_pending_attachments() -> anyhow::Result<()> {
