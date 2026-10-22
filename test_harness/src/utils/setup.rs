@@ -41,6 +41,8 @@ use crate::utils::{
     SentChallenges, controlled_listener::ControlHandle, core_user_ext::CoreUserExt, spawn_app,
 };
 
+pub use airbackend::settings::RelaySettings;
+
 #[derive(Debug)]
 pub struct TestUser {
     pub user: CoreUser,
@@ -208,8 +210,6 @@ enum ServerUrl {
     External(Url),
     Local(SocketAddr),
 }
-
-pub use airbackend::settings::RelaySettings;
 
 #[derive(Debug)]
 pub struct TestBackendParams {
