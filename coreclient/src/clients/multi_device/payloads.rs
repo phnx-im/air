@@ -81,6 +81,12 @@ pub(crate) struct ProvisioningPackage {
 }
 
 /// What the new device sends back inside the pairing group.
+///
+/// The metadata entry travels with the key package so the old device can publish
+/// it on the very same self-group commit that adds the new leaf. Sending it as a
+/// settings commit of its own would advance the self-group epoch behind the back
+/// of the device performing the add, breaking the next link with a wrong-epoch
+/// rejection.
 #[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct SelfGroupJoinRequest {
     pub(crate) key_package: ApqKeyPackage,

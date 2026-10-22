@@ -1334,6 +1334,10 @@ impl CoreUser {
 
     /// Bootstrap a [`CoreUser`] on a freshly linked device from the
     /// provisioning package received over the secure linking channel.
+    ///
+    /// Onboarding into the virtual client's higher-level groups is queued here,
+    /// but only performed once we joined the emulation group: the outbound
+    /// service defers a queued onboarding until the self group is there.
     async fn link_new_device(
         api_clients: ApiClients,
         client_db: DbAccess,
