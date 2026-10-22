@@ -152,7 +152,7 @@ pub enum MultiDeviceProvisionStep {
 pub enum MultiDeviceLinkClientError {
     #[error("session ID not found")]
     SessionNotFound,
-    /// The code was too short.
+    /// The code is too short, or its rendezvous id is malformed.
     #[error("the linking code is malformed")]
     InvalidCode,
     #[error("device limit reached: max = {max_devices}")]
