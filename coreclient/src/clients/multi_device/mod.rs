@@ -98,6 +98,14 @@ use payloads::{ProvisioningPackage, SelfGroupJoinRequest};
 
 const EXPORTER_LABEL: &str = "multi-device-linking";
 
+/// How long a linking code stays valid. When no existing device has answered
+/// it by then, the new device ends the session and asks for a new code.
+#[cfg(not(feature = "test_utils"))]
+const CODE_LIFETIME: Duration = Duration::from_secs(60);
+
+#[cfg(feature = "test_utils")]
+const CODE_LIFETIME: Duration = Duration::from_secs(15); // to go faster
+
 /// How long to wait for the new device to disconnect after sending it an
 /// abort.
 const LINKING_ABORT_GRACE: Duration = Duration::from_secs(5);
@@ -257,44 +265,54 @@ impl CoreUser {
         server_url: Option<Url>,
         session_tx: mpsc::Sender<MultiDeviceProvisionStep>,
     ) -> anyhow::Result<Result<CoreUser, MultiDeviceProvisionClientError>> {
-        let (provider, credential_with_key, signature_keys) =
-            make_provider_and_credential(b"initiator")?;
-
-        let key_package_bundle = KeyPackage::builder()
-            .build(CIPHERSUITE, &provider, &signature_keys, credential_with_key)
-            .context("build key package")?;
-        let key_package_bytes = MlsMessageOut::from(key_package_bundle)
-            .to_bytes()
-            .context("serialize key package")?;
-
         let api_clients = ApiClients::new(domain, server_url);
 
-        let (tx, mut rx) = api_clients
-            .default_client()?
-            .rs_multi_device_provision_client()
-            .await?;
+        // Each code gets its own session. Dropping an unanswered session's
+        // streams closes it at the relay.
+        let (tx, mut rx, provider, welcome_bytes) = loop {
+            let (provider, credential_with_key, signature_keys) =
+                make_provider_and_credential(b"initiator")?;
 
-        // The relay answers the provisioning request with the session's
-        // rendezvous ID, which is the code the user types on the existing
-        // device.
-        let frame = rx.next().await.context("relay connection closed")??;
-        let MdlMessage::SessionAssigned(SessionAssigned { rendezvous_id }) =
-            MdlMessage::from_frame(&frame).context("malformed linking message")?
-        else {
-            bail!("expected a session assignment from the relay");
+            let key_package_bundle = KeyPackage::builder()
+                .build(CIPHERSUITE, &provider, &signature_keys, credential_with_key)
+                .context("build key package")?;
+            let key_package_bytes = MlsMessageOut::from(key_package_bundle)
+                .to_bytes()
+                .context("serialize key package")?;
+
+            let (tx, mut rx) = api_clients
+                .default_client()?
+                .rs_multi_device_provision_client()
+                .await?;
+
+            // The relay answers the provisioning request with the session's
+            // rendezvous ID, which is the code the user types on the existing
+            // device.
+            let frame = rx.next().await.context("relay connection closed")??;
+            let MdlMessage::SessionAssigned(SessionAssigned { rendezvous_id }) =
+                MdlMessage::from_frame(&frame).context("malformed linking message")?
+            else {
+                bail!("expected a session assignment from the relay");
+            };
+
+            // The relay holds the key package back until the existing device
+            // answers the code.
+            tx.send(key_package_bytes.into()).await?;
+
+            session_tx
+                .send(MultiDeviceProvisionStep::Code(rendezvous_id))
+                .await
+                .map_err(|_| anyhow!("reporting stream dropped"))?;
+
+            // wait for the existing (old) client to send us the welcome
+            match timeout(CODE_LIFETIME, rx.next()).await {
+                Ok(welcome) => {
+                    let welcome_bytes = welcome.context("relay connection closed")??;
+                    break (tx, rx, provider, welcome_bytes);
+                }
+                Err(_) => info!("the linking code expired unanswered, requesting a new one"),
+            }
         };
-
-        // The relay holds the key package back until the existing device
-        // answers the code.
-        tx.send(key_package_bytes.into()).await?;
-
-        session_tx
-            .send(MultiDeviceProvisionStep::Code(rendezvous_id))
-            .await
-            .map_err(|_| anyhow!("reporting stream dropped"))?;
-
-        // wait for the existing (old) client to send us the welcome
-        let welcome_bytes = rx.next().await.context("relay connection closed")??;
 
         session_tx
             .send(MultiDeviceProvisionStep::Linking)

@@ -803,3 +803,28 @@ async fn rendezvous_id_is_not_reused() {
     );
     second_task.abort();
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn unanswered_code_is_replaced() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    let (expired_code, new_device_task, mut session_rx) = provision_device(&setup).await;
+    let code = recv_linking_code(&mut session_rx).await;
+    assert_ne!(code, expired_code);
+
+    let stale = alice
+        .multi_device_link_client(expired_code, ignore_connected(), auto_confirm())
+        .await;
+    assert!(matches!(
+        stale,
+        Ok(Err(MultiDeviceLinkClientError::SessionNotFound))
+    ));
+
+    alice
+        .multi_device_link_client(code, ignore_connected(), auto_confirm())
+        .await
+        .unwrap()
+        .unwrap();
+    let _new_device = new_device_task.await.unwrap().unwrap();
+}

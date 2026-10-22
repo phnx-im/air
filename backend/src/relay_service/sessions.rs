@@ -15,7 +15,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
-use tracing::{info, warn};
+use tracing::info;
 
 use aircommon::crypto::mdl::code::MIN_RENDEZVOUS_DIGITS;
 
@@ -55,8 +55,8 @@ struct Session {
 
 struct Table {
     live: HashMap<RendezVousId, Session>,
-    /// Ended IDs and the instant they may be assigned again. A user typing a
-    /// stale code must not consume an unrelated fresh session.
+    /// Ended IDs and the instant they may be assigned again. A code typed just
+    /// after it expired must not consume an unrelated fresh session.
     quarantine: HashMap<RendezVousId, Instant>,
     /// Digits of the IDs currently being drawn. It only ever grows, and
     /// clients never parse structure out of an ID.
@@ -151,16 +151,7 @@ pub struct Rs {
 
 impl Rs {
     /// Creates the relay.
-    pub fn new(stop: CancellationToken, mut settings: RelaySettings) -> Self {
-        if settings.idquarantine < settings.sessionttl {
-            warn!(
-                configured = ?settings.idquarantine,
-                raised_to = ?settings.sessionttl,
-                "the rendezvous id quarantine was shorter than the session lifetime"
-            );
-            settings.idquarantine = settings.sessionttl;
-        }
-
+    pub fn new(stop: CancellationToken, settings: RelaySettings) -> Self {
         Self {
             table: Arc::default(),
             settings,
@@ -430,31 +421,6 @@ mod tests {
         assert!(rs.claim(&session.id, responder).is_none());
         assert!(!rs.is_live(&session.id));
         assert!(rs.is_quarantined(&session.id));
-    }
-
-    #[tokio::test]
-    async fn the_quarantine_is_raised_to_the_session_lifetime() {
-        let rs = Rs::new(
-            CancellationToken::new(),
-            RelaySettings {
-                sessionttl: Duration::from_secs(600),
-                idquarantine: Duration::from_secs(1),
-            },
-        );
-        assert_eq!(rs.settings.idquarantine, Duration::from_secs(600));
-
-        let rs = Rs::new(
-            CancellationToken::new(),
-            RelaySettings {
-                sessionttl: Duration::from_secs(600),
-                idquarantine: Duration::from_secs(3600),
-            },
-        );
-        assert_eq!(
-            rs.settings.idquarantine,
-            Duration::from_secs(3600),
-            "a longer quarantine must be left alone"
-        );
     }
 
     #[tokio::test]

@@ -259,9 +259,9 @@ pub struct RelaySettings {
     /// How long a session lives after its rendezvous ID is assigned.
     #[serde(with = "duration_millis", default = "default_session_ttl")]
     pub sessionttl: std::time::Duration,
-    /// How long an ended session's rendezvous ID is held back from reuse. A
-    /// user typing a stale code must not consume an unrelated fresh session,
-    /// so this is never shorter than the session lifetime in practice.
+    /// How long an ended session's rendezvous ID is held back from reuse, so
+    /// that a code typed just after it expired does not reach an unrelated
+    /// fresh session.
     #[serde(with = "duration_millis", default = "default_id_quarantine")]
     pub idquarantine: std::time::Duration,
 }
@@ -280,7 +280,7 @@ fn default_session_ttl() -> std::time::Duration {
 }
 
 fn default_id_quarantine() -> std::time::Duration {
-    std::time::Duration::from_secs(10 * 60)
+    std::time::Duration::from_secs(60)
 }
 
 /// How registration is gated.
