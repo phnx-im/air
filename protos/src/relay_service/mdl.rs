@@ -22,8 +22,8 @@ pub const MDL_PROTOCOL_VERSION: u16 = 1;
 pub const MDL_PAKE_CIPHER_SUITE: u16 = 1;
 
 /// MLS ciphersuite of the pairing group bound into [`MdlContext`]:
-/// `MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519`.
-pub const MDL_MLS_CIPHER_SUITE: u16 = 0x0001;
+/// `MLS_128_MLKEM768X25519_AES256GCM_SHA384_Ed25519`.
+pub const MDL_MLS_CIPHER_SUITE: u16 = 0x004E;
 
 /// Domain separator of the protocol, bound into [`MdlContext`].
 pub const MDL_PROTOCOL_LABEL: &str = "air multi-device linking";

@@ -23,7 +23,7 @@ use airprotos::client::self_group::{
     ConnectionRequestReceived, ConnectionRequestSource, ContactBlocked, RedeemedTokens, TokenSeed,
     UsernameClaimed, UsernameEntry,
 };
-use airprotos::relay_service::mdl::MDL_INITIATOR_LABEL;
+use airprotos::relay_service::mdl::{MDL_INITIATOR_LABEL, MDL_MLS_CIPHER_SUITE};
 use chrono::DateTime;
 use openmls::group::GroupId;
 use uuid::Uuid;
@@ -478,4 +478,12 @@ fn garbage_in_place_of_a_key_package_is_rejected() -> anyhow::Result<()> {
         pairing::validate_key_package(b"not a key package").expect_err("garbage must not validate");
     assert!(matches!(error, LinkingError::Protocol(_)));
     Ok(())
+}
+
+#[test]
+fn the_cpace_context_binds_the_pairing_ciphersuite() {
+    assert_eq!(
+        u16::from(pairing::PAIRING_CIPHERSUITE),
+        MDL_MLS_CIPHER_SUITE
+    );
 }

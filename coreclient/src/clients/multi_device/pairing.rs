@@ -20,9 +20,9 @@ use openmls::{
     group::{MlsGroup, MlsGroupCreateConfig, MlsGroupJoinConfig, ProcessedWelcome, WelcomeError},
     messages::group_info::GroupInfoError,
     prelude::{
-        BasicCredential, CredentialWithKey, GroupSecretsError, KeyPackage, MlsMessageBodyIn,
-        MlsMessageIn, MlsMessageOut, PreSharedKeyProposal, ProcessedMessageContent, Proposal,
-        ProtocolVersion,
+        BasicCredential, Ciphersuite, CredentialWithKey, GroupSecretsError, KeyPackage,
+        MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, PreSharedKeyProposal,
+        ProcessedMessageContent, Proposal, ProtocolVersion,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk, errors::PskError},
 };
@@ -32,9 +32,13 @@ use openmls_traits::OpenMlsProvider;
 use tls_codec::{Deserialize as _, DeserializeBytes as _, Serialize as _};
 use tracing::warn;
 
-use crate::clients::CIPHERSUITE;
-
 use super::LinkingError;
+
+/// The pairing group's ciphersuite. Its X-Wing KEM keeps a recorded session
+/// confidential even if X25519 falls later. It must match the suite bound into
+/// the CPace context, `MDL_MLS_CIPHER_SUITE`.
+pub(super) const PAIRING_CIPHERSUITE: Ciphersuite =
+    Ciphersuite::MLS_128_MLKEM768X25519_AES256GCM_SHA384_Ed25519;
 
 /// Members the pairing group must have once it is up.
 const PAIRING_GROUP_SIZE: usize = 2;
@@ -50,7 +54,7 @@ pub(super) struct PairingIdentity {
 impl PairingIdentity {
     pub(super) fn new(identity: &str) -> anyhow::Result<Self> {
         let provider = OpenMlsRustCrypto::default();
-        let signature_keys = SignatureKeyPair::new(CIPHERSUITE.signature_algorithm())
+        let signature_keys = SignatureKeyPair::new(PAIRING_CIPHERSUITE.signature_algorithm())
             .context("generate the pairing signature key")?;
         signature_keys
             .store(provider.storage())
@@ -70,7 +74,7 @@ impl PairingIdentity {
     pub(super) fn key_package(&self) -> anyhow::Result<Vec<u8>> {
         let bundle = KeyPackage::builder()
             .build(
-                CIPHERSUITE,
+                PAIRING_CIPHERSUITE,
                 &self.provider,
                 &self.signature_keys,
                 self.credential_with_key.clone(),
@@ -151,7 +155,7 @@ impl PairingGroup {
                 "the pairing group does not have exactly two members",
             ));
         }
-        if group.ciphersuite() != CIPHERSUITE {
+        if group.ciphersuite() != PAIRING_CIPHERSUITE {
             return Err(LinkingError::validation(
                 "the pairing group uses an unexpected ciphersuite",
             ));
@@ -235,7 +239,7 @@ pub(super) fn validate_key_package(bytes: &[u8]) -> Result<KeyPackage, LinkingEr
         .map_err(|error| {
             LinkingError::validation(format!("the pairing key package is invalid: {error}"))
         })?;
-    if key_package.ciphersuite() != CIPHERSUITE {
+    if key_package.ciphersuite() != PAIRING_CIPHERSUITE {
         return Err(LinkingError::validation(
             "the pairing key package uses an unexpected ciphersuite",
         ));
@@ -301,7 +305,7 @@ fn create_with_add(
     let provider = &identity.provider;
     let group_config = MlsGroupCreateConfig::builder()
         .use_ratchet_tree_extension(true)
-        .ciphersuite(CIPHERSUITE)
+        .ciphersuite(PAIRING_CIPHERSUITE)
         .build();
     let mut group = MlsGroup::new(
         provider,
@@ -314,7 +318,7 @@ fn create_with_add(
     let mut builder = group.commit_builder().propose_adds([key_package]);
     if let Some((psk_id, psk_secret)) = psk {
         let psk_id = PreSharedKeyId::new(
-            CIPHERSUITE,
+            PAIRING_CIPHERSUITE,
             provider.rand(),
             Psk::External(ExternalPsk::new(psk_id.to_vec())),
         )
