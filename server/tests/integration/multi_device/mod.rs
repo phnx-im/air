@@ -198,7 +198,7 @@ async fn assert_link_rejected_at_limit(
     let session_id = recv_linking_code(&mut session_rx).await;
 
     let linked = in_foreground(
-        &user,
+        user,
         user.multi_device_link_client(session_id, ignore_connected(), auto_confirm()),
     )
     .await?;
