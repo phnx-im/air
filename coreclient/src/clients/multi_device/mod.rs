@@ -982,7 +982,7 @@ impl CoreUser {
         ))
     }
 
-    /// Why this device must reset itself, or `None` if it must not.
+    /// Returns why this device can no longer use the account, or `None` while it can.
     pub async fn account_unlink_reason(&self) -> anyhow::Result<Option<UnlinkReason>> {
         OwnClientInfo::account_unlink_reason(self.db().read().await?).await
     }

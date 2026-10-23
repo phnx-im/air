@@ -29,7 +29,7 @@ pub(crate) struct OwnClientInfo {
     pub(crate) self_group_signing_key: Option<SelfGroupSigningKey>,
 }
 
-/// Why this device must reset itself.
+/// The reason a device has lost access to the account and must reset itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnlinkReason {
     /// A sibling device removed this device from the self group.
