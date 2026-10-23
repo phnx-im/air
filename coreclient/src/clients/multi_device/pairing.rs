@@ -170,12 +170,9 @@ impl PairingGroup {
         payload_type: LinkingPayloadType,
         payload: Vec<u8>,
     ) -> anyhow::Result<RelayFrame> {
-        let plaintext = LinkingPayload {
-            payload_type,
-            payload,
-        }
-        .tls_serialize_detached()
-        .context("serialize the linking payload")?;
+        let plaintext = LinkingPayload::new(payload_type, payload)
+            .tls_serialize_detached()
+            .context("serialize the linking payload")?;
 
         let provider = &self.identity.provider;
         let unconfirmed = self
