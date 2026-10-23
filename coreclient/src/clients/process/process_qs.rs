@@ -22,8 +22,8 @@ use aircommon::{
     virtual_client::KeyPackageBatchId,
 };
 use airprotos::client::{
-    group::GroupData, group_bootstrap::GroupBootstrapCarrier, self_group::SelfGroupAppMessage,
-    virtual_client::extract_virtual_client_commit_data,
+    app_data::GroupAppData, group::GroupData, group_bootstrap::GroupBootstrapCarrier,
+    self_group::SelfGroupAppMessage, virtual_client::extract_virtual_client_commit_data,
 };
 use anyhow::{Context, Result, bail, ensure};
 use apqmls::messages::ApqMlsMessageIn;
@@ -55,7 +55,7 @@ use crate::{
     clients::{
         attachment::MimiContentExt,
         block_contact::{BlockedContact, BlockedContactError},
-        own_client_info::OwnClientInfo,
+        own_client_info::{OwnClientInfo, UnlinkReason},
         process::process_as::{ConnectionInfoSource, TargetedMessageSource},
         targeted_message::TargetedMessageContent,
         update_key::update_chat_title,
@@ -1519,11 +1519,16 @@ impl CoreUser {
             chat.set_status(&mut *txn, ChatStatus::inactive(past_members))
                 .await?;
 
-            // Removal from the self group means a sibling device unlinked us.
+            // Removal from the self group means a sibling device unlinked us,
+            // or deleted the account if the commit also closes the self group.
             // Record it so the app can act on it, this launch or a later one.
             if group.group().is_self_group() {
-                error!("this device was unlinked by another device of this user");
-                OwnClientInfo::mark_account_unlinked(&mut *txn).await?;
+                if GroupAppData::has_tombstone(staged_commit.group_context().extensions()) {
+                    OwnClientInfo::self_group_closed(&mut *txn).await?;
+                } else {
+                    error!("this device was unlinked by another device of this user");
+                    OwnClientInfo::mark_account_unlinked(&mut *txn, UnlinkReason::Unlinked).await?;
+                }
             }
         }
         let (messages_from_commit, group_data) = group

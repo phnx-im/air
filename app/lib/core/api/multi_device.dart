@@ -33,11 +33,11 @@ Stream<MultiDeviceProvisionEvent> multiDeviceProvisionClient({
 /// Drives the acceptor (existing-device) side of multi-device linking.
 Stream<MultiDeviceLinkEvent> multiDeviceLinkClient({
   required UserCubitBase userCubit,
-  required String sessionId,
+  required String code,
   required MultiDeviceLinkConfirmation confirmation,
 }) => RustLib.instance.api.crateApiMultiDeviceMultiDeviceLinkClient(
   userCubit: userCubit,
-  sessionId: sessionId,
+  code: code,
   confirmation: confirmation,
 );
 

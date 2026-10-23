@@ -185,6 +185,9 @@ async fn acked_message_is_not_redelivered() {
 
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
+    // The username for the connection parks in bob's self group. We drain the
+    // echo of that commit. The queue then holds only the message below.
+    bob.drain().await;
 
     alice.send_text(chat_id, "hello bob").await;
 

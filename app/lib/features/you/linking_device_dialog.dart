@@ -35,15 +35,15 @@ typedef LinkSession = ({
   ValueChanged<String> confirm,
 });
 
-/// Starts a linking session for [sessionId]. Injectable for tests.
+/// Starts a linking session for [code]. Injectable for tests.
 typedef LinkSessionStarter = LinkSession Function(
   BuildContext context,
-  String sessionId,
+  String code,
 );
 
-LinkSession _startLinkSession(BuildContext context, String sessionId) {
+LinkSession _startLinkSession(BuildContext context, String code) {
   final confirmation = MultiDeviceLinkConfirmation();
-  final events = context.read<UserCubit>().linkDevice(sessionId, confirmation);
+  final events = context.read<UserCubit>().linkDevice(code, confirmation);
   return (
     events: events,
     confirm: (deviceName) => confirmation.confirm(deviceName: deviceName),
@@ -62,7 +62,7 @@ class LinkDeviceModal extends HookWidget {
     final palette = SemanticPalette.of(context);
     final page = useState(_LinkPage.chooser);
     // The linking code being driven on the [_LinkPage.linking] page.
-    final sessionId = useState<String?>(null);
+    final linkingCode = useState<String?>(null);
 
     void backToChooser() => page.value = _LinkPage.chooser;
 
@@ -78,19 +78,19 @@ class LinkDeviceModal extends HookWidget {
         _LinkPage.scanQrCode => _ScanQrCodePage(
           onBack: backToChooser,
           onCodeScanned: (code) {
-            sessionId.value = code;
+            linkingCode.value = code;
             page.value = _LinkPage.linking;
           },
         ),
         _LinkPage.numericCode => _NumericCodePage(
           onBack: backToChooser,
           onSubmit: (code) {
-            sessionId.value = code;
+            linkingCode.value = code;
             page.value = _LinkPage.linking;
           },
         ),
         _LinkPage.linking => _LinkingPage(
-          sessionId: sessionId.value!,
+          code: linkingCode.value!,
           onBack: backToChooser,
           startLinkSession: startLinkSession,
         ),
@@ -216,10 +216,10 @@ class _ScanQrCodePageState extends State<_ScanQrCodePage> {
     final userCubit = context.read<UserCubit>();
     for (final raw in capture.barcodes.map((barcode) => barcode.rawValue)) {
       if (raw == null) continue;
-      final sessionId = userCubit.parseLinkingUrl(raw);
-      if (sessionId != null) {
+      final code = userCubit.parseLinkingUrl(raw);
+      if (code != null) {
         _handled = true;
-        widget.onCodeScanned(sessionId);
+        widget.onCodeScanned(code);
         return;
       }
     }
@@ -475,12 +475,12 @@ enum _LinkPhase {
 /// Fourth page: drives the linking process once it has started.
 class _LinkingPage extends HookWidget {
   const _LinkingPage({
-    required this.sessionId,
+    required this.code,
     required this.onBack,
     required this.startLinkSession,
   });
 
-  final String sessionId;
+  final String code;
   final VoidCallback onBack;
   final LinkSessionStarter startLinkSession;
 
@@ -490,7 +490,7 @@ class _LinkingPage extends HookWidget {
 
     // Starts linking once; the same session (event stream + confirm callback) is
     // reused across rebuilds.
-    final session = useMemoized(() => startLinkSession(context, sessionId));
+    final session = useMemoized(() => startLinkSession(context, code));
 
     final phase = useState(_LinkPhase.connecting);
     final maxDevices = useState(0);

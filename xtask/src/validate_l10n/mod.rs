@@ -33,12 +33,25 @@ const DEFAULT_TEMPLATE: &str = "app_en.arb";
 /// Product names that carry identity and must survive translation.
 const PROTECTED_TERMS: &[&str] = &["Air"];
 
+/// Estonian inflects product names like any other noun, as in "Airi konto"
+/// or "Liitu Airiga". A protected term may end in one of these endings there.
+const ESTONIAN_FILE: &str = "app_et.arb";
+const ESTONIAN_CASE_ENDINGS: &[&str] = &[
+    // spellchecker:ignore-next-line
+    "i", "is", "ist", "isse", "ile", "il", "ilt", "iks", "ini", "ina", "ita", "iga",
+];
+
 /// A description like "Label" costs a translator more than it gives.
 const MIN_DESCRIPTION_LENGTH: usize = 10;
 
 /// Sentence-final marks, each with the fullwidth form Chinese writes it as,
 /// so a translation ending in 。 counts as ending in '.'.
 const TERMINAL_MARKS: &[(char, char)] = &[('.', '。'), ('?', '？'), ('!', '！'), (':', '：')];
+
+/// Greek writes the question mark as ';', which is a plain semicolon in every
+/// other locale. A Latin '?' in Greek text is a mistake.
+const GREEK_FILE: &str = "app_el.arb";
+const GREEK_QUESTION_MARK: char = ';';
 
 /// Turkish case endings follow how a word is read, which the app cannot know
 /// for a name, a number or an emoji. A noun after the placeholder takes the
@@ -384,6 +397,7 @@ fn check_locale(locale: &ArbFile, template: &ArbFile, report: &mut Report) {
         check_protected_terms(&context, report);
         check_line_breaks(&context, report);
         check_terminal_punctuation(&context, report);
+        check_greek_question_marks(&context, report);
         check_turkish_suffixes(&context, &parsed.placeholders, report);
     }
 }
@@ -464,8 +478,15 @@ fn check_choices(file: &str, key: &str, parsed: &icu::ParsedMessage, report: &mu
 }
 
 fn check_protected_terms(context: &KeyContext<'_>, report: &mut Report) {
+    let endings = if context.file == ESTONIAN_FILE {
+        ESTONIAN_CASE_ENDINGS
+    } else {
+        &[]
+    };
     for term in PROTECTED_TERMS {
-        if contains_word(context.source, term) && !contains_word(context.translation, term) {
+        if contains_word(context.source, term, &[])
+            && !contains_word(context.translation, term, endings)
+        {
             report.push(
                 context.file,
                 context.key,
@@ -477,19 +498,25 @@ fn check_protected_terms(context: &KeyContext<'_>, report: &mut Report) {
 
 /// Match a term only as a whole word so "Air" does not hit inside "Airport",
 /// while still matching the compounds translations build, such as "Air-Konto".
-fn contains_word(haystack: &str, term: &str) -> bool {
+/// The word may end in one of `endings`, for languages that inflect names.
+fn contains_word(haystack: &str, term: &str, endings: &[&str]) -> bool {
     let mut rest = haystack;
     while let Some(offset) = rest.find(term) {
         let before = rest[..offset].chars().next_back();
-        let after = rest[offset + term.len()..].chars().next();
         let boundary_before = before.is_none_or(|ch| !ch.is_alphanumeric());
-        let boundary_after = after.is_none_or(|ch| !ch.is_alphanumeric());
-        if boundary_before && boundary_after {
+        rest = &rest[offset + term.len()..];
+        let inflected = endings
+            .iter()
+            .any(|ending| rest.strip_prefix(ending).is_some_and(starts_at_boundary));
+        if boundary_before && (starts_at_boundary(rest) || inflected) {
             return true;
         }
-        rest = &rest[offset + term.len()..];
     }
     false
+}
+
+fn starts_at_boundary(text: &str) -> bool {
+    text.chars().next().is_none_or(|ch| !ch.is_alphanumeric())
 }
 
 /// Paragraph breaks are layout, not prose, so they have to survive intact.
@@ -515,7 +542,12 @@ fn check_terminal_punctuation(context: &KeyContext<'_>, report: &mut Report) {
         return;
     }
     let source_mark = terminal_mark(source);
-    let translation_mark = terminal_mark(translation);
+    let translation_mark =
+        if context.file == GREEK_FILE && translation.ends_with(GREEK_QUESTION_MARK) {
+            Some(GREEK_QUESTION_MARK)
+        } else {
+            terminal_mark(translation)
+        };
     if source_mark.map(ascii_mark) == translation_mark.map(ascii_mark) {
         return;
     }
@@ -542,12 +574,26 @@ fn terminal_mark(text: &str) -> Option<char> {
     })
 }
 
-/// The ASCII form of a terminal mark, so its fullwidth twin compares equal.
+/// The ASCII form of a terminal mark, so its fullwidth twin and the Greek
+/// question mark compare equal.
 fn ascii_mark(mark: char) -> char {
+    if mark == GREEK_QUESTION_MARK {
+        return '?';
+    }
     TERMINAL_MARKS
         .iter()
         .find(|(_, wide)| *wide == mark)
         .map_or(mark, |(ascii, _)| *ascii)
+}
+
+fn check_greek_question_marks(context: &KeyContext<'_>, report: &mut Report) {
+    if context.file == GREEK_FILE && context.translation.contains('?') {
+        report.push(
+            context.file,
+            context.key,
+            "contains '?' but Greek writes the question mark as ';'",
+        );
+    }
 }
 
 fn check_turkish_suffixes(
@@ -587,6 +633,19 @@ fn placeholder_takes_suffix(text: &str, name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn findings_for(file: &str, source: &str, translation: &str) -> usize {
+        let context = KeyContext {
+            file,
+            key: "key",
+            source,
+            translation,
+        };
+        let mut report = Report::default();
+        check_terminal_punctuation(&context, &mut report);
+        check_greek_question_marks(&context, &mut report);
+        report.findings.len()
+    }
 
     fn suffix_findings(file: &str, translation: &str) -> usize {
         let context = KeyContext {
@@ -629,16 +688,25 @@ mod tests {
 
     #[test]
     fn word_matching_respects_boundaries() {
-        assert!(contains_word("New Air contact", "Air"));
-        assert!(contains_word("Neuer Air-Kontakt", "Air"));
-        assert!(contains_word("Air", "Air"));
-        assert!(!contains_word("Airport shuttle", "Air"));
-        assert!(!contains_word("Nouveau contact", "Air"));
+        assert!(contains_word("New Air contact", "Air", &[]));
+        assert!(contains_word("Neuer Air-Kontakt", "Air", &[]));
+        assert!(contains_word("Air", "Air", &[]));
+        assert!(!contains_word("Airport shuttle", "Air", &[]));
+        assert!(!contains_word("Nouveau contact", "Air", &[]));
     }
 
     #[test]
     fn word_matching_finds_later_occurrences() {
-        assert!(contains_word("Airport near Air HQ", "Air"));
+        assert!(contains_word("Airport near Air HQ", "Air", &[]));
+    }
+
+    #[test]
+    fn word_matching_accepts_listed_endings_only() {
+        assert!(contains_word("Liitu Airiga", "Air", ESTONIAN_CASE_ENDINGS));
+        assert!(contains_word("Airile", "Air", ESTONIAN_CASE_ENDINGS));
+        assert!(contains_word("Airi konto", "Air", ESTONIAN_CASE_ENDINGS));
+        assert!(!contains_word("Airport", "Air", ESTONIAN_CASE_ENDINGS));
+        assert!(!contains_word("Liitu Airiga", "Air", &[]));
     }
 
     #[test]
@@ -648,6 +716,38 @@ mod tests {
         assert_eq!(terminal_mark("请检查该网址：").map(ascii_mark), Some(':'));
         assert_eq!(terminal_mark("Copied to clipboard."), Some('.'));
         assert_eq!(terminal_mark("已复制到剪贴板"), None);
+    }
+
+    #[test]
+    fn greek_questions_end_with_a_semicolon() {
+        assert_eq!(
+            findings_for(GREEK_FILE, "Delete chat?", "Διαγραφή συνομιλίας;"),
+            0
+        );
+        assert_eq!(
+            findings_for(GREEK_FILE, "Delete chat?", "Διαγραφή συνομιλίας?"),
+            1
+        );
+        assert_eq!(
+            findings_for(GREEK_FILE, "Delete chat.", "Διαγραφή συνομιλίας;"),
+            1
+        );
+        assert_eq!(
+            findings_for(GREEK_FILE, "Delete chat", "Διαγραφή συνομιλίας;"),
+            1
+        );
+    }
+
+    #[test]
+    fn semicolons_end_no_question_outside_greek() {
+        assert_eq!(
+            findings_for("app_fr.arb", "Delete chat?", "Supprimer la discussion ;"),
+            1
+        );
+        assert_eq!(
+            findings_for("app_fr.arb", "Delete chat?", "Supprimer la discussion ?"),
+            0
+        );
     }
 
     #[test]

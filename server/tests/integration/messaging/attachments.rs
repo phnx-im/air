@@ -6,7 +6,7 @@
 
 use std::{assert_matches, io::Cursor};
 
-use aircoreclient::{AttachmentProgressEvent, ProvisionAttachmentError};
+use aircoreclient::{AttachmentProgressEvent, AttachmentStatus, ProvisionAttachmentError};
 use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams};
 use base64::{Engine, prelude::BASE64_STANDARD};
 use image::{ImageBuffer, Rgba};
@@ -106,6 +106,42 @@ async fn attachment_is_downloadable_by_recipient() {
         }
         _ => panic!("unexpected attachment type"),
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn interrupted_attachment_download_is_resumed() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let attachment = vec![0x00, 0x01, 0x02, 0x03];
+    setup
+        .send_attachment(chat_id, &alice, &[&bob], &attachment, "test.bin")
+        .await
+        .unwrap();
+
+    let [attachment_id] = bob.pending_attachments().await.unwrap()[..] else {
+        panic!("expected exactly one pending attachment");
+    };
+
+    // A process killed during the download leaves the attachment like this
+    bob.set_attachment_status(attachment_id, AttachmentStatus::Downloading)
+        .await
+        .unwrap();
+    assert!(bob.pending_attachments().await.unwrap().is_empty());
+
+    bob.reset_interrupted_attachment_downloads().await.unwrap();
+    assert_eq!(bob.pending_attachments().await.unwrap(), [attachment_id]);
+
+    let (_progress, download_task) = bob.download_attachment(attachment_id);
+    download_task.await.unwrap();
+
+    let content = bob
+        .load_attachment(attachment_id)
+        .await
+        .unwrap()
+        .into_bytes();
+    assert_eq!(content, Some(attachment));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

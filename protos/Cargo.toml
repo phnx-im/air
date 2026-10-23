@@ -40,6 +40,7 @@ protoc-bin-vendored.workspace = true
 tonic-prost-build.workspace = true
 
 [dev-dependencies]
+aircommon = { workspace = true, features = ["test_utils"] }
 cbor-diag = "0.1.12"
 insta.workspace = true
 

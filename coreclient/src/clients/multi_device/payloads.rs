@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! What the two devices hand each other over the linking channel.
+//! What the two devices hand each other inside the pairing group.
+//!
+//! These travel as CBOR blobs inside a `LinkingPayload`, whose type
+//! registry lives with the wire types in `airprotos`.
 
 use aircommon::credentials::keys::UserSigningKey;
 use aircommon::crypto::RatchetDecryptionKey;
@@ -17,20 +20,18 @@ use aircommon::identifiers::{QsClientId, QsUserId, UserId};
 use aircommon::messages::FriendshipToken;
 use airprotos::client::self_group::{
     BlockedContactEntry, ConnectionRequestEntry, LinkedDevice, RedeemedTokens, SettingsUpdate,
-    TokenSeed,
+    TokenSeed, UsernameEntry,
 };
 use apqmls::messages::ApqKeyPackage;
 use openmls::group::GroupId;
-use serde::{Deserialize, Serialize};
 
 use crate::chats::outgoing_requests::OutgoingRequest;
 
-/// Everything the old (existing) device hands to the new device over the
-/// secure linking channel so the new device can bootstrap a working
-/// [`CoreUser`] and join the user's self group.
+/// Everything the existing device hands to the new device so the new device
+/// can bootstrap a working [`CoreUser`] and join the user's self group.
 ///
 /// [`CoreUser`]: crate::clients::CoreUser
-#[derive(Serialize, Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct ProvisioningPackage {
     /// Identity + AS user credential (shared across devices for the MVP).
     ///
@@ -73,22 +74,26 @@ pub(crate) struct ProvisioningPackage {
     /// The higher-level groups the virtual client is already a member of, which
     /// the new emulator client onboards itself into.
     pub(crate) groups: Vec<HigherLevelGroup>,
+    /// The usernames with their signing keys and connection package keys. The
+    /// new device needs these keys to listen to the usernames and act on them.
+    #[serde(default)]
+    pub(crate) usernames: Vec<UsernameEntry>,
 }
 
-/// What the new device sends back over the secure linking channel.
+/// What the new device sends back inside the pairing group.
 ///
 /// The metadata entry travels with the key package so the old device can publish
 /// it on the very same self-group commit that adds the new leaf. Sending it as a
 /// settings commit of its own would advance the self-group epoch behind the back
 /// of the device performing the add, breaking the next link with a wrong-epoch
 /// rejection.
-#[derive(Serialize, Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct SelfGroupJoinRequest {
     pub(crate) key_package: ApqKeyPackage,
     pub(crate) device: LinkedDevice,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct HigherLevelGroup {
     pub(crate) group_id: GroupId,
     pub(crate) pq_group_id: Option<GroupId>,
@@ -102,7 +107,7 @@ pub(crate) struct HigherLevelGroup {
     pub(crate) outgoing_request: Option<OutgoingRequest>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct ConnectionContact {
     pub(crate) user_id: UserId,
     pub(crate) wai_ear_key: WelcomeAttributionInfoEarKey,

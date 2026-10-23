@@ -50,11 +50,17 @@ use crate::{
 /// Tears down a group whose group context carries a tombstone as if the DS
 /// returns "group not found". Also announces the deletion in the chat,
 /// whatever the tombstone's context.
+///
+/// A closed self group means that the account is deleted, see
+/// [`OwnClientInfo::self_group_closed`].
 async fn handle_group_closed(
     txn: &mut WriteDbTransaction<'_>,
     group_id: &GroupId,
     closed: &GroupClosed,
 ) -> Result<()> {
+    if OwnClientInfo::is_own_self_group(&mut *txn, group_id).await? {
+        OwnClientInfo::self_group_closed(&mut *txn).await?;
+    }
     if let Some(chat) = Chat::load_by_group_id(&mut *txn, group_id).await?
         && !chat.status().is_inactive()
     {

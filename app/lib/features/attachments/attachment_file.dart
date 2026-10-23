@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import 'dart:async';
+
 import 'package:air/features/attachments/attachment_file_view.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
@@ -10,7 +12,10 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
+
+final _log = Logger('AttachmentFile');
 
 class AttachmentFile extends StatelessWidget {
   const AttachmentFile({
@@ -108,12 +113,7 @@ class _AttachmentFileStatus extends HookWidget {
           iconSize: S.s32,
           iconColor: palette.text.secondary,
           fill: palette.backgroundBase.tertiary,
-          onPressed: () {
-            retries.value++;
-            context.read<AttachmentsRepository>().loadAttachment(
-              attachmentId: attachmentId,
-            );
-          },
+          onPressed: () => unawaited(_download(context, retries)),
         ),
         UiAttachmentStatus_Progress(field0: final loaded) => Stack(
           alignment: Alignment.center,
@@ -142,5 +142,20 @@ class _AttachmentFileStatus extends HookWidget {
         ),
       },
     );
+  }
+
+  Future<void> _download(
+    BuildContext context,
+    ValueNotifier<int> retries,
+  ) async {
+    final repository = context.read<AttachmentsRepository>();
+    try {
+      await repository.downloadAttachment(attachmentId: attachmentId);
+    } catch (e, st) {
+      _log.severe('Failed to download attachment', e, st);
+    }
+    if (context.mounted) {
+      retries.value++;
+    }
   }
 }
