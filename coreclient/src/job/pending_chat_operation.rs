@@ -455,6 +455,17 @@ impl PendingChatOperation {
         matches!(self.operation, OperationType::Leave(_))
     }
 
+    pub(crate) fn is_delete(&self) -> bool {
+        self.operation.is_delete()
+    }
+
+    pub(crate) fn is_waiting_for_queue_response(&self) -> bool {
+        matches!(
+            self.status,
+            PendingChatOperationStatus::WaitingForQueueResponse
+        )
+    }
+
     /// Completes the pending intent this operation asserted, now that its commit
     /// was accepted. No-op for operations that carry no self-group state.
     async fn complete_self_group_intent(
@@ -2595,6 +2606,20 @@ pub(crate) mod tests {
             .store(pool.write().await?)
             .await?;
         Ok((pool, chat_id))
+    }
+
+    /// A group and its chat with a pending delete operation.
+    pub(crate) async fn setup_group_with_pending_delete() -> anyhow::Result<(DbAccess, GroupId)> {
+        let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
+        let group_id = group.group_id().clone();
+        let params = group
+            .group_mut()
+            .stage_delete(pool.write().await?, &signing_key, Some(TimeStamp::now()))
+            .await?;
+        PendingChatOperation::new(group, OperationType::Delete(Box::new(params)))
+            .store(pool.write().await?)
+            .await?;
+        Ok((pool, group_id))
     }
 
     #[tokio::test(flavor = "multi_thread")]

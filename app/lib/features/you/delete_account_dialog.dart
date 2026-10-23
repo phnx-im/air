@@ -123,10 +123,30 @@ class DeleteAccountDialog extends HookWidget {
     AppHaptics.destructive();
     setDeleting(true);
     final userCubit = context.read<UserCubit>();
-    final coreClient = context.read<CoreClient>();
     try {
-      await userCubit.deleteAccount(confirmationText: confirmationText);
-      coreClient.logout();
+      final status = await userCubit.deleteAccount(
+        confirmationText: confirmationText,
+      );
+      switch (status) {
+        // The unlinked device handler resets this device.
+        case UiAccountDeletionStatus.completed:
+          break;
+        // The deletion goes on in the background and resets this device once
+        // it completes. Trying again runs it right away.
+        case UiAccountDeletionStatus.pending:
+          if (!context.mounted) return;
+          showDialog(
+            context: context,
+            builder: (context) {
+              final loc = AppLocalizations.of(context);
+              return ConfirmDialog(
+                title: loc.deleteAccountScreen_pendingDialog_title,
+                message: loc.deleteAccountScreen_pendingDialog_message,
+                confirm: loc.deleteAccountScreen_pendingDialog_confirm,
+              );
+            },
+          );
+      }
     } catch (e) {
       _log.severe("Failed to delete account: $e", e);
       if (!context.mounted) return;

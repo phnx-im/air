@@ -87,6 +87,7 @@ use crate::{
 
 use self::{api_clients::ApiClients, create_user::InitialUserState, store::UserCreationState};
 
+pub use delete_account::AccountDeletionStatus;
 pub use message::MarkChatAsRead;
 pub use sibling_client_state::SiblingClientStates;
 
@@ -317,6 +318,11 @@ impl CoreUser {
             final_state.into_self_user(client_db, client_record_id, api_clients, global_lock);
         self_user.publish_own_device_entry(client_created_at).await;
         self_user.spawn_ensure_self_group();
+        match self_user.continue_account_deletion().await {
+            // Dropped, so the start doesn't wait for the deletion to finish.
+            Ok(_deletion_done) => {}
+            Err(error) => error!(%error, "failed to continue the account deletion"),
+        }
 
         Ok(self_user)
     }

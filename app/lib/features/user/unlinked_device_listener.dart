@@ -13,8 +13,8 @@ import 'package:logging/logging.dart';
 
 final _log = Logger('UnlinkedDeviceListener');
 
-/// Tears this device down once another device of the user unlinks it or
-/// deletes the account.
+/// Tears this device down once another device of the user unlinks it, or once
+/// the account is deleted, from this device or another one.
 ///
 /// Deletes the local client database and drops the loaded user, which lands the
 /// app back on the welcome screen. Nothing is registered or re-created. After

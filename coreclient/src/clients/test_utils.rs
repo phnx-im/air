@@ -28,6 +28,7 @@ use crate::{
         pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     },
     outbound_service::{
+        account_deletion::AccountDeletion,
         error::is_ds_not_found_error,
         resync::{Resync, ResyncReason, ResyncStatus},
     },
@@ -235,6 +236,34 @@ impl CoreUser {
                 anyhow::Ok(epoch_id.is_some())
             })
             .await
+    }
+
+    /// Whether the account deletion this device started was aborted.
+    pub async fn account_deletion_is_aborted(&self) -> anyhow::Result<bool> {
+        Ok(matches!(
+            AccountDeletion::load(self.db().read().await?).await?,
+            Some(AccountDeletion::Aborted { .. })
+        ))
+    }
+
+    /// Deletes the username on the server but keeps its local record, as if
+    /// the device stopped before it deleted the record.
+    pub async fn delete_username_on_server_only(&self, username: &Username) -> anyhow::Result<()> {
+        let record = UsernameRecord::load_all(self.db().read().await?)
+            .await?
+            .into_iter()
+            .find(|record| &record.username == username)
+            .context("no username found")?;
+        let (token_request, _token_state) = crate::privacy_pass::prepare_delete_token_request(
+            self.db().read().await?,
+            self.user_id().domain(),
+        )
+        .await?
+        .context("no VOPRF keys available for delete token request")?;
+        self.api_client()?
+            .as_delete_username(record.hash, &record.signing_key, token_request)
+            .await?;
+        Ok(())
     }
 
     /// Returns the pending chat operation info for the self-group, if any.

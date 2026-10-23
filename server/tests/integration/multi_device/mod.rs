@@ -49,7 +49,7 @@ use uuid::Uuid;
 
 /// Links a second device to `user`, so that key packages are uploaded via
 /// the self group, and brings both devices past the linking commit.
-async fn link_sibling(user: &CoreUser) -> CoreUser {
+pub(crate) async fn link_sibling(user: &CoreUser) -> CoreUser {
     let sibling = user.add_linked_device().await;
     user.drain().await;
     sibling.drain().await;
@@ -141,7 +141,7 @@ async fn in_foreground<T>(existing: &CoreUser, task: impl Future<Output = T>) ->
 }
 
 /// The device's locally stored read-receipts setting. `None` means unset.
-async fn read_receipts(user: &CoreUser) -> Option<bool> {
+pub(crate) async fn read_receipts(user: &CoreUser) -> Option<bool> {
     user.user_setting::<ReadReceiptsSetting>()
         .await
         .map(|ReadReceiptsSetting(value)| value)
