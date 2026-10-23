@@ -20923,6 +20923,7 @@ class AttachmentsRepositoryImpl extends RustOpaque
         path: path,
       );
 
+  /// Reports the attachment's status and follows its upload or download.
   Stream<UiAttachmentStatus> statusStream({
     required AttachmentId attachmentId,
   }) => RustLib.instance.api

@@ -16,9 +16,9 @@ import 'package:uuid/uuid.dart';
 import 'user_cubit.dart';
 part 'attachments_repository.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `attachment_bytes`, `attachment_downloads_loop`, `cancellation_token`, `ensure_attachment_content`, `in_progress`, `is_cancelled`, `is_failed`, `loaded`, `new`, `spawn_attachment_downloads`, `spawn_download_task`, `track_attachment_download`, `with_cancellation`
+// These functions are ignored because they are not marked as `pub`: `attachment_bytes`, `attachment_changed`, `attachment_downloads_loop`, `cancellation_token`, `ensure_attachment_content`, `follow_progress`, `follow_status`, `in_progress`, `is_cancelled`, `is_failed`, `loaded`, `new`, `spawn_attachment_downloads`, `spawn_download_task`, `track_attachment_download`, `with_cancellation`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AttachmentTaskHandle`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `eq`, `fmt`, `fmt`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentsRepository>>
 abstract class AttachmentsRepository implements RustOpaqueInterface {
@@ -67,6 +67,7 @@ abstract class AttachmentsRepository implements RustOpaqueInterface {
     required String path,
   });
 
+  /// Reports the attachment's status and follows its upload or download.
   Stream<UiAttachmentStatus> statusStream({required AttachmentId attachmentId});
 }
 

@@ -105,6 +105,7 @@ dependencies = [
  "aircommon",
  "aircoreclient",
  "airprotos",
+ "airserver_test_harness",
  "anyhow",
  "arboard",
  "base64",
