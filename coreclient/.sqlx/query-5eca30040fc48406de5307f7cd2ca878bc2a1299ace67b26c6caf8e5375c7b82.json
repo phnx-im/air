@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE attachment\n            SET status = ?\n            WHERE status = ?\n            RETURNING attachment_id AS \"attachment_id: AttachmentId\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "attachment_id: AttachmentId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "attachment_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5eca30040fc48406de5307f7cd2ca878bc2a1299ace67b26c6caf8e5375c7b82"
+}
