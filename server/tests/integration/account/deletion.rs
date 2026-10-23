@@ -406,30 +406,43 @@ async fn account_deletion_gives_up_after_repeated_self_group_delete_failures() -
     Ok(())
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn account_deletion_sends_the_delete_in_place_of_a_parked_self_group_commit()
--> anyhow::Result<()> {
-    let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    let alice2 = link_sibling(&alice).await;
-    // The initial key package uploads, so that they don't take the self group.
-    for (device, sibling) in [(&alice2, &alice), (&alice, &alice2)] {
+/// Runs the initial key package uploads of both devices, so that they don't
+/// take the self group later.
+async fn upload_initial_key_packages(alice: &CoreUser, alice2: &CoreUser) {
+    for (device, sibling) in [(alice2, alice), (alice, alice2)] {
         device.outbound_service().run_once().await;
         device.drain().await;
         sibling.drain().await;
     }
+}
+
+async fn assert_parked_settings_commit(
+    user: &CoreUser,
+    request_status: &str,
+) -> anyhow::Result<()> {
+    let parked = user
+        .self_group_pending_operation_info()
+        .await?
+        .expect("the settings commit is parked");
+    assert_eq!(parked.operation_type, "self_group_messages");
+    assert_eq!(parked.request_status, request_status);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn account_deletion_sends_a_parked_self_group_commit_before_the_delete() -> anyhow::Result<()>
+{
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice2 = link_sibling(&alice).await;
+    upload_initial_key_packages(&alice, &alice2).await;
 
     alice
         .set_synced_user_setting(&ReadReceiptsSetting(true))
         .await?;
     setup.listener_control_handle().set_fail_next_request();
     alice.outbound_service().run_once().await;
-    let parked = alice
-        .self_group_pending_operation_info()
-        .await?
-        .expect("the settings commit is parked");
-    assert_eq!(parked.operation_type, "self_group_messages");
-    assert_eq!(parked.request_status, "ready_to_retry");
+    assert_parked_settings_commit(&alice, "ready_to_retry").await?;
 
     assert_eq!(
         alice.delete_account().await?,
@@ -443,15 +456,138 @@ async fn account_deletion_sends_the_delete_in_place_of_a_parked_self_group_commi
     );
     alice2.drain().await;
     assert_eq!(
+        read_receipts(&alice2).await,
+        Some(true),
+        "the parked commit goes out first"
+    );
+    assert_eq!(
         alice2.account_unlink_reason().await?,
         Some(UnlinkReason::AccountDeleted)
     );
+    assert_account_deleted(&setup, alice.user_id(), &alice2, false).await;
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn account_deletion_waits_for_the_queue_to_confirm_a_parked_self_group_commit()
+-> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice2 = link_sibling(&alice).await;
+    upload_initial_key_packages(&alice, &alice2).await;
+
+    // The DS accepts the settings commit, but the response is lost.
+    alice
+        .set_synced_user_setting(&ReadReceiptsSetting(true))
+        .await?;
+    setup.listener_control_handle().set_drop_next_response();
+    alice.outbound_service().run_once().await;
+    assert_parked_settings_commit(&alice, "ready_to_retry").await?;
+
+    // The resent commit finds its epoch taken and waits for the queue. More
+    // runs than the deletion has attempts neither give up nor send the delete.
+    for _ in 0..12 {
+        assert_eq!(
+            alice.delete_account().await?,
+            AccountDeletionStatus::Pending
+        );
+        alice.outbound_service().run_once().await;
+    }
+    assert_eq!(alice.account_unlink_reason().await?, None);
+    assert_parked_settings_commit(&alice, "waiting_for_queue_response").await?;
+
+    // The queue confirms the parked commit, and the delete follows it.
+    alice.drain().await;
+    assert!(alice.self_group_pending_operation_info().await?.is_none());
     assert_eq!(
-        read_receipts(&alice2).await,
-        None,
-        "the parked commit is not sent"
+        alice.delete_account().await?,
+        AccountDeletionStatus::Pending
+    );
+    alice.outbound_service().run_once().await;
+
+    assert_eq!(
+        alice.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
+    );
+    alice2.drain().await;
+    assert_eq!(read_receipts(&alice2).await, Some(true));
+    assert_eq!(
+        alice2.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
     );
     assert_account_deleted(&setup, alice.user_id(), &alice2, false).await;
+
+    Ok(())
+}
+
+/// Runs the account deletion past the QS client and stops it with a lost
+/// response while it leaves the chats. The QS stream can't start the outbound
+/// service from then on.
+async fn delete_account_past_the_qs_client(
+    setup: &TestBackend,
+    alice: &CoreUser,
+    alice2: &CoreUser,
+) -> anyhow::Result<()> {
+    assert_eq!(
+        alice.delete_account().await?,
+        AccountDeletionStatus::Pending
+    );
+    // The self group delete goes through, and the self-remove from the
+    // contact chat is accepted without a response.
+    setup.listener_control_handle().set_drop_response_after(1);
+    alice.outbound_service().run_once().await;
+    assert_eq!(alice.account_unlink_reason().await?, None);
+    alice2.drain().await;
+    assert_eq!(
+        alice2.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
+    );
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn account_deletion_resumes_on_start_once_the_qs_client_is_deleted() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_persisted_user().await;
+    let bob = setup.add_user().await;
+    setup.add_username(&alice).await;
+    setup.connect_users(&alice, &bob).await;
+    let alice2 = link_sibling(&alice).await;
+    delete_account_past_the_qs_client(&setup, &alice, &alice2).await?;
+
+    let restarted = CoreUser::load_with_server_url(
+        setup.temp_dir().to_str().expect("utf-8 path"),
+        alice.client_record_id(),
+        Some(setup.server_url()),
+    )
+    .await?;
+    restarted.outbound_service().wake_and_wait().await;
+
+    assert_eq!(
+        restarted.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
+    );
+    assert_account_deleted(&setup, alice.user_id(), &alice2, true).await;
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn deleting_again_starts_the_outbound_service_once_the_qs_client_is_deleted()
+-> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    setup.add_username(&alice).await;
+    setup.connect_users(&alice, &bob).await;
+    let alice2 = link_sibling(&alice).await;
+    delete_account_past_the_qs_client(&setup, &alice, &alice2).await?;
+
+    assert_eq!(
+        alice.delete_account().await?,
+        AccountDeletionStatus::Completed
+    );
+    assert_account_deleted(&setup, alice.user_id(), &alice2, true).await;
 
     Ok(())
 }

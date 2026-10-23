@@ -153,6 +153,12 @@ impl OutboundService<OutboundServiceContext> {
     pub async fn start_and_wait(&self) {
         self.start().await;
     }
+
+    /// Wakes the background task, if it is started, and waits until its run is
+    /// done. Returns right away if it is stopped.
+    pub async fn wake_and_wait(&self) {
+        self.notify_work().await;
+    }
 }
 
 impl<C: OutboundServiceWork> OutboundService<C> {

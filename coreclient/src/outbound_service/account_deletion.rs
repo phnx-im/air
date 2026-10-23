@@ -4,7 +4,7 @@
 
 use airapiclient::{ApiClient, ClassifyRequestError, RequestErrorKind, ds_api::DsRequestError};
 use aircommon::time::TimeStamp;
-use chrono::Utc;
+use chrono::{TimeDelta, Utc};
 use mimi_room_policy::RoleIndex;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info, warn};
@@ -30,6 +30,10 @@ use super::{
 };
 
 const OPERATION_ID: &[u8] = b"account_deletion";
+
+/// How long the account deletion waits before it tries again to send a parked
+/// self-group commit, which goes out before the self group delete.
+const PARKED_COMMIT_RETRY: TimeDelta = TimeDelta::seconds(5);
 
 /// The persisted deletion of the account, started on this device.
 ///
@@ -61,6 +65,18 @@ pub(crate) enum AccountDeletionStep {
 }
 
 impl AccountDeletionStep {
+    /// Whether the self group is done. The QS client may be gone from then on.
+    pub(crate) fn is_past_self_group(self) -> bool {
+        match self {
+            Self::DeleteSelfGroup { .. } => false,
+            Self::DeleteQsClient
+            | Self::DeleteUsernames
+            | Self::LeaveChats
+            | Self::DeleteQsUser
+            | Self::DeleteAsUser => true,
+        }
+    }
+
     fn next(self) -> Option<Self> {
         match self {
             Self::DeleteSelfGroup { .. } => Some(Self::DeleteQsClient),
@@ -86,16 +102,26 @@ impl OperationData for AccountDeletion {
 /// What is left of the self group deletion before its commit is sent.
 enum SelfGroupDelete {
     Done,
-    /// Another self-group commit waits for the queue.
-    Blocked,
+    /// Another self-group commit is parked and could not be sent yet.
+    Parked(anyhow::Error),
     Send(Box<PendingChatOperation>),
+}
+
+/// The pending operation of the self group.
+enum Staged {
+    Delete(Box<PendingChatOperation>),
+    /// Another self-group commit is parked.
+    Other(Box<PendingChatOperation>),
 }
 
 /// What a step achieved.
 enum StepOutcome {
     Done,
-    /// A self-group commit waits for the queue to settle the epoch.
+    /// The self group delete waits for the queue to settle the epoch.
     Blocked,
+    /// A parked self-group commit, which goes out before the self group
+    /// delete, could not be sent yet.
+    Parked(anyhow::Error),
     /// The self group deletion failed before anything reached the DS, or the
     /// DS refused the first delete sent.
     Abort(anyhow::Error),
@@ -205,7 +231,8 @@ impl OutboundServiceContext {
     /// account and once it must reset itself.
     ///
     /// Network errors and rate limiting stop the run without counting as a
-    /// failed attempt.
+    /// failed attempt. So does a parked self-group commit that could not be
+    /// sent yet. The deletion is retried after [`PARKED_COMMIT_RETRY`] then.
     ///
     /// If the self group deletion fails before anything reached the DS, or the
     /// DS refuses the first delete sent, the deletion is aborted. Any other
@@ -267,9 +294,22 @@ impl OutboundServiceContext {
                     AccountDeletion::abort(self.db.write().await?, &error).await?;
                     return Ok(false);
                 }
+                Ok(StepOutcome::Parked(error)) => {
+                    warn!(
+                        %error,
+                        retry_in = ?PARKED_COMMIT_RETRY,
+                        "Parked self group commit not sent yet, postponing the account deletion"
+                    );
+                    operation
+                        .postpone(self.db.write().await?, Utc::now() + PARKED_COMMIT_RETRY)
+                        .await?;
+                    return Ok(true);
+                }
                 Ok(StepOutcome::Blocked) => Some((
                     RecoverableCause::WrongEpoch,
-                    anyhow::anyhow!("a self group commit waits for the queue to settle the epoch"),
+                    anyhow::anyhow!(
+                        "the self group delete waits for the queue to settle the epoch"
+                    ),
                 )),
                 Err(
                     error @ (OutboundServiceError::NetworkError
@@ -353,7 +393,7 @@ impl OutboundServiceContext {
     ) -> Result<StepOutcome, OutboundServiceError> {
         let operation = match Box::pin(self.prepare_self_group_delete(sent_before)).await {
             Ok(SelfGroupDelete::Done) => return Ok(StepOutcome::Done),
-            Ok(SelfGroupDelete::Blocked) => return Ok(StepOutcome::Blocked),
+            Ok(SelfGroupDelete::Parked(error)) => return Ok(StepOutcome::Parked(error)),
             Ok(SelfGroupDelete::Send(operation)) => *operation,
             // Nothing reached the DS yet, so nothing changed.
             Err(OutboundServiceError::Fatal(error)) if !sent_before => {
@@ -378,9 +418,9 @@ impl OutboundServiceContext {
     /// Returns the self group delete to send: the one of an earlier attempt or
     /// a newly staged one. Records that it is sent.
     ///
-    /// Another parked self-group commit is dropped, it isn't worth sending for
-    /// an account that is being deleted. One that waits for the queue blocks
-    /// the delete, since the DS may have accepted it.
+    /// Another parked self-group commit is sent first, since the DS may have
+    /// accepted it already, and its response would merge a delete staged in
+    /// its place. It is never dropped here.
     async fn prepare_self_group_delete(
         &self,
         sent_before: bool,
@@ -396,19 +436,13 @@ impl OutboundServiceContext {
             return Ok(SelfGroupDelete::Done);
         }
 
-        Box::pin(
-            self.db
-                .with_write_transaction(async |txn| -> anyhow::Result<_> {
+        loop {
+            let staged = Box::pin(self.db.with_write_transaction(
+                async |txn| -> anyhow::Result<_> {
                     let operation = match PendingChatOperation::load(&mut *txn, &chat.id()).await? {
                         Some(operation) if operation.is_delete() => operation,
-                        // Its response would merge a delete staged in its place.
-                        Some(operation) if operation.is_waiting_for_queue_response() => {
-                            return Ok(SelfGroupDelete::Blocked);
-                        }
-                        parked => {
-                            if let Some(parked) = parked {
-                                parked.withdraw(txn).await?;
-                            }
+                        Some(operation) => return Ok(Staged::Other(Box::new(operation))),
+                        None => {
                             PendingChatOperation::create_delete(
                                 txn,
                                 self.signing_key(),
@@ -423,11 +457,32 @@ impl OutboundServiceContext {
                     if !sent_before {
                         AccountDeletion::mark_self_group_delete_sent(&mut *txn).await?;
                     }
-                    Ok(SelfGroupDelete::Send(Box::new(operation)))
-                }),
-        )
-        .await
-        .map_err(OutboundServiceError::fatal)
+                    Ok(Staged::Delete(Box::new(operation)))
+                },
+            ))
+            .await
+            .map_err(OutboundServiceError::fatal)?;
+            match staged {
+                Staged::Delete(operation) => return Ok(SelfGroupDelete::Send(operation)),
+                Staged::Other(operation) => match self.execute_job(*operation).await {
+                    Ok(_) => {}
+                    Err(JobError::GroupClosed | JobError::NotFound) => {
+                        return Ok(SelfGroupDelete::Done);
+                    }
+                    Err(error @ (JobError::NetworkError | JobError::RateLimited { .. })) => {
+                        return Err(error.into());
+                    }
+                    // Not a failure of the deletion, so it neither aborts nor
+                    // spends an attempt.
+                    Err(
+                        error @ (JobError::Blocked
+                        | JobError::Recoverable(_)
+                        | JobError::Fatal(_)
+                        | JobError::Domain(_)),
+                    ) => return Ok(SelfGroupDelete::Parked(error.into())),
+                },
+            }
+        }
     }
 
     async fn self_chat(&self) -> Result<Option<Chat>, OutboundServiceError> {

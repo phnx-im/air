@@ -13,7 +13,7 @@ use crate::{
         CoreUser,
         own_client_info::{OwnClientInfo, UnlinkReason},
     },
-    outbound_service::account_deletion::AccountDeletion,
+    outbound_service::{WaitForDoneFuture, account_deletion::AccountDeletion},
 };
 
 /// How long [`CoreUser::delete_account`] waits for the outbound service before
@@ -43,9 +43,9 @@ impl CoreUser {
     /// The deletion is persisted before anything is sent and runs in the
     /// outbound service until it completes. This waits a bounded time for the
     /// outbound service, and returns [`AccountDeletionStatus::Pending`] if the
-    /// deletion did not complete by then, or if the outbound service is
-    /// stopped or backs off. Calling this again runs a pending deletion right
-    /// away.
+    /// deletion did not complete by then, or if the outbound service backs off
+    /// or is stopped while the self group is not done. Calling this again runs
+    /// a pending deletion right away.
     ///
     /// Once the deletion completes, the unlink reason is
     /// [`UnlinkReason::AccountDeleted`], and this device must reset itself.
@@ -69,11 +69,11 @@ impl CoreUser {
         }
 
         let wait = async {
-            self.outbound_service().notify_account_deletion().await;
+            self.continue_account_deletion().await?.await;
             // A run that was going on when notified may have missed the
             // deletion, the run after it doesn't.
             if self.account_deletion_status().await? == AccountDeletionStatus::Pending {
-                self.outbound_service().notify_account_deletion().await;
+                self.continue_account_deletion().await?.await;
             }
             self.account_deletion_status().await
         };
@@ -84,6 +84,23 @@ impl CoreUser {
                 self.account_deletion_status().await
             }
         }
+    }
+
+    /// Wakes the outbound service to continue a started account deletion.
+    ///
+    /// Once the self group is done, this also starts a stopped outbound
+    /// service. The QS client may be gone then, so processing the QS stream,
+    /// which starts it otherwise, fails.
+    pub(crate) async fn continue_account_deletion(&self) -> anyhow::Result<WaitForDoneFuture> {
+        let past_self_group = match AccountDeletion::load(self.db().read().await?).await? {
+            Some(AccountDeletion::Running(step)) => step.is_past_self_group(),
+            Some(AccountDeletion::Aborted { .. }) | None => false,
+        };
+        Ok(if past_self_group {
+            self.outbound_service().start()
+        } else {
+            self.outbound_service().notify_account_deletion()
+        })
     }
 
     async fn account_deletion_status(&self) -> anyhow::Result<AccountDeletionStatus> {
