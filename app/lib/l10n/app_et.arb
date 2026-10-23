@@ -422,6 +422,7 @@
   "deleteAccountScreen_confirmationInputLabel": "Kinnitamiseks sisesta 'delete'.",
   "deleteAccountScreen_confirmButtonText": "Kustuta",
   "deleteAccountScreen_deleteAccountError": "Oota hetk ja proovi uuesti.",
+  "unlinkedDevice_accountDeleted": "Su Airi konto kustutati. See seade lähtestati.",
   "appOutdatedScreen_title": "Tarkvarauuendus on vajalik",
   "appOutdatedScreen_message": "Airi kasutamise jätkamiseks uuenda rakendust",
   "appOutdatedScreen_descriptionAppStore": "Ava App Store ja uuenda Airi.",

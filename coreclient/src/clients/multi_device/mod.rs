@@ -65,7 +65,7 @@ use crate::{
         block_contact::persistence::{apply_blocked_contacts_update, blocked_contacts_snapshot},
         create_user::QsRegisteredUserState,
         listen_response,
-        own_client_info::OwnClientInfo,
+        own_client_info::{OwnClientInfo, UnlinkReason},
         process::process_qs::ProcessedQsMessages,
         store::{ClientRecord, UserCreationState},
         user_settings::{SettingsUpdateExt, apply_settings_update},
@@ -989,8 +989,8 @@ impl CoreUser {
         ))
     }
 
-    /// Whether a sibling device removed this device from the self group.
-    pub async fn is_account_unlinked(&self) -> anyhow::Result<bool> {
-        OwnClientInfo::is_account_unlinked(self.db().read().await?).await
+    /// Returns why this device can no longer use the account, or `None` while it can.
+    pub async fn account_unlink_reason(&self) -> anyhow::Result<Option<UnlinkReason>> {
+        OwnClientInfo::account_unlink_reason(self.db().read().await?).await
     }
 }

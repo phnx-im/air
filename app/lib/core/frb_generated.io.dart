@@ -864,6 +864,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiSystemMessage dco_decode_box_autoadd_ui_system_message(dynamic raw);
 
   @protected
+  UiUnlinkReason dco_decode_box_autoadd_ui_unlink_reason(dynamic raw);
+
+  @protected
   UiUserId dco_decode_box_autoadd_ui_user_id(dynamic raw);
 
   @protected
@@ -1273,6 +1276,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiMessageDraft? dco_decode_opt_box_autoadd_ui_message_draft(dynamic raw);
 
   @protected
+  UiUnlinkReason? dco_decode_opt_box_autoadd_ui_unlink_reason(dynamic raw);
+
+  @protected
   UiUserId? dco_decode_opt_box_autoadd_ui_user_id(dynamic raw);
 
   @protected
@@ -1466,6 +1472,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiSystemMessage dco_decode_ui_system_message(dynamic raw);
+
+  @protected
+  UiUnlinkReason dco_decode_ui_unlink_reason(dynamic raw);
 
   @protected
   UiUserId dco_decode_ui_user_id(dynamic raw);
@@ -2292,6 +2301,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UiUnlinkReason sse_decode_box_autoadd_ui_unlink_reason(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiUserId sse_decode_box_autoadd_ui_user_id(SseDeserializer deserializer);
 
   @protected
@@ -2815,6 +2829,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UiUnlinkReason? sse_decode_opt_box_autoadd_ui_unlink_reason(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiUserId? sse_decode_opt_box_autoadd_ui_user_id(SseDeserializer deserializer);
 
   @protected
@@ -3034,6 +3053,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiSystemMessage sse_decode_ui_system_message(SseDeserializer deserializer);
+
+  @protected
+  UiUnlinkReason sse_decode_ui_unlink_reason(SseDeserializer deserializer);
 
   @protected
   UiUserId sse_decode_ui_user_id(SseDeserializer deserializer);
@@ -4031,6 +4053,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_ui_unlink_reason(
+    UiUnlinkReason self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_ui_user_id(
     UiUserId self,
     SseSerializer serializer,
@@ -4682,6 +4710,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_ui_unlink_reason(
+    UiUnlinkReason? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_ui_user_id(
     UiUserId? self,
     SseSerializer serializer,
@@ -4984,6 +5018,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ui_system_message(
     UiSystemMessage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ui_unlink_reason(
+    UiUnlinkReason self,
     SseSerializer serializer,
   );
 

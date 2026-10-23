@@ -422,6 +422,7 @@
   "deleteAccountScreen_confirmationInputLabel": "Πληκτρολογήστε «delete» για επιβεβαίωση.",
   "deleteAccountScreen_confirmButtonText": "Διαγραφή",
   "deleteAccountScreen_deleteAccountError": "Περιμένετε λίγο και δοκιμάστε ξανά.",
+  "unlinkedDevice_accountDeleted": "Ο λογαριασμός Air σας διαγράφηκε. Έγινε επαναφορά αυτής της συσκευής.",
   "appOutdatedScreen_title": "Απαιτείται ενημέρωση λογισμικού",
   "appOutdatedScreen_message": "Ενημερώστε το Air για να συνεχίσετε να το χρησιμοποιείτε",
   "appOutdatedScreen_descriptionAppStore": "Ανοίξτε το App Store και ενημερώστε το Air.",

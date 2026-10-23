@@ -1180,11 +1180,12 @@ impl PendingChatOperation {
         let mut group = Group::load_clean_verified(&mut *txn, group_id)
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+        let signer = OwnClientInfo::signer_for_group(&mut *txn, group_id, signer).await?;
 
         let operation_type = if group.is_apq() {
             let bundle = group
                 .group_mut()
-                .stage_apq_delete(&mut *txn, signer, deleted)
+                .stage_apq_delete(&mut *txn, &signer, deleted)
                 .await?;
             OperationType::ApqDelete {
                 commit: Box::new(bundle),
@@ -1192,7 +1193,7 @@ impl PendingChatOperation {
         } else {
             let message = group
                 .group_mut()
-                .stage_delete(&mut *txn, signer, deleted)
+                .stage_delete(&mut *txn, &signer, deleted)
                 .await?;
             OperationType::Delete(Box::new(message))
         };
