@@ -164,7 +164,7 @@ class IntroScreen extends HookWidget {
                   type: .secondary,
                   label: loc.introScreen_linkExisting,
                   onPressed: openLinking,
-                  // Behing the experimental features switch
+                  // Behind the experimental features switch
                   onLongPress: revealServerField,
                 ),
                 const SizedBox(height: S.s8),
