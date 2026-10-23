@@ -150,10 +150,7 @@ impl UiUser {
 
     /// Re-reads the unlink reason and emits it if it changed.
     #[frb(ignore)]
-    pub(crate) async fn reload_unlink_reason(
-        state_tx: &watch::Sender<UiUser>,
-        core_user: &CoreUser,
-    ) {
+    async fn reload_unlink_reason(state_tx: &watch::Sender<UiUser>, core_user: &CoreUser) {
         match core_user.account_unlink_reason().await {
             Ok(reason) => {
                 let reason = reason.map(UiUnlinkReason::from);
