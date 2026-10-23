@@ -28,10 +28,7 @@ use crate::{
     db::access::DbAccess,
     job::{Job, JobContext, JobContextDb, JobError},
     key_stores::MemoryUserKeyStore,
-    outbound_service::{
-        account_deletion::{AccountDeletion, AccountDeletionProgress},
-        error::{OutboundServiceError, RunResultExt},
-    },
+    outbound_service::error::RunResultExt,
     utils::global_lock::GlobalLock,
 };
 
@@ -133,14 +130,6 @@ impl OutboundService<OutboundServiceContext> {
         };
         Self::with_context(context, global_lock)
     }
-
-    /// Runs the remaining steps of a started account deletion right away, next
-    /// to the background task.
-    pub(crate) async fn run_account_deletion(
-        &self,
-    ) -> Result<AccountDeletionProgress, OutboundServiceError> {
-        Box::pin(self.context.run_account_deletion()).await
-    }
 }
 
 #[cfg(feature = "test_utils")]
@@ -157,6 +146,12 @@ impl OutboundService<OutboundServiceContext> {
             )
             .await?;
         Ok(())
+    }
+
+    /// Starts the background task, as processing the QS stream does once the
+    /// queue is empty, and waits until its first run is done.
+    pub async fn start_and_wait(&self) {
+        self.start().await;
     }
 }
 
@@ -422,17 +417,10 @@ impl OutboundServiceContext {
             .or_abort("queued resyncs")?;
 
         // Nothing else is worth sending for an account that is being deleted.
-        let deleting_account = async {
-            let pending = AccountDeletion::is_pending(self.db.read().await?).await?;
-            Ok::<_, OutboundServiceError>(pending)
-        }
-        .await
-        .or_abort("account deletion")?;
-        if deleting_account {
-            Box::pin(self.run_account_deletion())
-                .await
-                .map(|_| ())
-                .or_abort("account deletion")?;
+        if Box::pin(self.run_account_deletion())
+            .await
+            .or_abort("account deletion")?
+        {
             return Ok(());
         }
 

@@ -42,6 +42,14 @@ async fn assert_account_deleted(
     }
 }
 
+/// Starts the outbound service once the queue is processed, as the app does.
+/// The queue first gets the responses to the self group commits of a run.
+async fn start_outbound_service(user: &CoreUser) {
+    user.outbound_service().run_once().await;
+    user.drain().await;
+    user.outbound_service().start_and_wait().await;
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn deleted_user_id_can_register_again() {
     let mut setup = TestBackend::single().await;
@@ -132,6 +140,7 @@ async fn deleted_account_leaves_chats_and_frees_username() {
     setup.invite_to_group(chat_id, &alice, &[&bob]).await;
 
     // Delete the account
+    start_outbound_service(&alice).await;
     assert_eq!(
         alice.delete_account().await.unwrap(),
         AccountDeletionStatus::Completed
@@ -171,12 +180,15 @@ async fn account_deletion_resumes_after_lost_self_group_delete_response() -> any
     setup.add_username(&alice).await;
     let alice2 = link_sibling(&alice).await;
 
-    // The DS accepts the self group deletion, but the response is lost.
-    setup.listener_control_handle().set_drop_next_response();
+    // The outbound service is stopped, so the deletion only starts.
     assert_eq!(
         alice.delete_account().await?,
         AccountDeletionStatus::Pending
     );
+
+    // The DS accepts the self group deletion, but the response is lost.
+    setup.listener_control_handle().set_drop_next_response();
+    alice.outbound_service().run_once().await;
     assert_eq!(alice.account_unlink_reason().await?, None);
     alice2.drain().await;
     assert_eq!(
@@ -203,11 +215,13 @@ async fn account_deletion_resumes_after_dropped_self_group_delete() -> anyhow::R
     setup.add_username(&alice).await;
     let alice2 = link_sibling(&alice).await;
 
-    setup.listener_control_handle().set_drop_next_request();
     assert_eq!(
         alice.delete_account().await?,
         AccountDeletionStatus::Pending
     );
+    setup.listener_control_handle().set_drop_next_request();
+    alice.outbound_service().run_once().await;
+    assert_eq!(alice.account_unlink_reason().await?, None);
     alice2.drain().await;
     assert_eq!(alice2.account_unlink_reason().await?, None);
 
@@ -235,11 +249,12 @@ async fn account_deletion_resumes_after_restart() -> anyhow::Result<()> {
 
     // The self group deletion goes through, but the device stops before it
     // learns about it.
-    setup.listener_control_handle().set_drop_next_response();
     assert_eq!(
         alice.delete_account().await?,
         AccountDeletionStatus::Pending
     );
+    setup.listener_control_handle().set_drop_next_response();
+    alice.outbound_service().run_once().await;
     alice2.drain().await;
     assert_eq!(
         alice2.account_unlink_reason().await?,
@@ -274,6 +289,7 @@ async fn linked_account_deletion_leaves_contacts_and_groups() -> anyhow::Result<
     setup.invite_to_group(group_chat_id, &alice, &[&bob]).await;
     let alice2 = link_sibling(&alice).await;
 
+    start_outbound_service(&alice).await;
     assert_eq!(
         alice.delete_account().await?,
         AccountDeletionStatus::Completed
@@ -313,6 +329,7 @@ async fn account_deletion_is_dropped_when_the_self_group_delete_cannot_be_built(
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = link_sibling(&alice).await;
+    start_outbound_service(&alice).await;
 
     let self_chat_id = alice
         .self_chat_id()
@@ -339,6 +356,7 @@ async fn account_deletion_is_dropped_when_the_ds_refuses_the_self_group_delete()
     let alice = setup.add_user().await;
     let alice2 = link_sibling(&alice).await;
 
+    start_outbound_service(&alice).await;
     setup.listener_control_handle().set_reject_next_request();
     assert!(alice.delete_account().await.is_err());
 
@@ -358,13 +376,9 @@ async fn account_deletion_gives_up_after_repeated_self_group_delete_failures() -
     let alice = setup.add_user().await;
     let alice2 = link_sibling(&alice).await;
 
-    setup.listener_control_handle().set_fail_next_request();
-    assert_eq!(
-        alice.delete_account().await?,
-        AccountDeletionStatus::Pending
-    );
-    let mut attempts = 1;
-    while alice.account_unlink_reason().await?.is_none() {
+    // Starting the deletion again makes a failed attempt due right away.
+    let mut attempts = 0;
+    while alice.delete_account().await? == AccountDeletionStatus::Pending {
         assert!(attempts < 20, "the deletion must be given up");
         setup.listener_control_handle().set_fail_next_request();
         alice.outbound_service().run_once().await;
@@ -384,12 +398,13 @@ async fn account_deletion_gives_up_after_repeated_self_group_delete_failures() -
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn concurrent_account_deletions_share_the_job() -> anyhow::Result<()> {
+async fn concurrent_account_deletions_both_complete() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     setup.add_username(&alice).await;
     let alice2 = link_sibling(&alice).await;
 
+    start_outbound_service(&alice).await;
     let (first, second) = tokio::join!(alice.delete_account(), alice.delete_account());
     assert_eq!(first?, AccountDeletionStatus::Completed);
     assert_eq!(second?, AccountDeletionStatus::Completed);
@@ -415,12 +430,14 @@ async fn refused_retry_keeps_an_account_deletion_whose_delete_was_accepted() -> 
     setup.add_username(&alice).await;
     let alice2 = link_sibling(&alice).await;
 
-    // The DS accepts the self group deletion, but the response is lost.
-    setup.listener_control_handle().set_drop_next_response();
     assert_eq!(
         alice.delete_account().await?,
         AccountDeletionStatus::Pending
     );
+
+    // The DS accepts the self group deletion, but the response is lost.
+    setup.listener_control_handle().set_drop_next_response();
+    alice.outbound_service().run_once().await;
 
     // The retry is refused before the DS looks at the group, as it would be
     // for an expired client version.
@@ -428,6 +445,11 @@ async fn refused_retry_keeps_an_account_deletion_whose_delete_was_accepted() -> 
     alice.outbound_service().run_once().await;
     assert_eq!(alice.account_unlink_reason().await?, None);
 
+    // Starting the deletion again makes the deferred retry due.
+    assert_eq!(
+        alice.delete_account().await?,
+        AccountDeletionStatus::Pending
+    );
     alice.outbound_service().run_once().await;
 
     assert_eq!(

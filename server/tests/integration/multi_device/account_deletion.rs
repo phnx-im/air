@@ -105,6 +105,16 @@ async fn account_deletion_retries_after_sibling_commit() -> anyhow::Result<()> {
         "the sibling commit must be ahead of the deleting device"
     );
 
+    alice.outbound_service().start_and_wait().await;
+    assert_eq!(
+        alice.delete_account().await?,
+        AccountDeletionStatus::Pending
+    );
+
+    // Catching up on the sibling commit unblocks the deletion.
+    alice.stop_outbound_service().await;
+    alice.drain().await;
+    alice.outbound_service().start_and_wait().await;
     assert_eq!(
         alice.delete_account().await?,
         AccountDeletionStatus::Completed

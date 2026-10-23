@@ -4,6 +4,7 @@
 
 use airapiclient::{ApiClient, ClassifyRequestError, RequestErrorKind, ds_api::DsRequestError};
 use aircommon::time::TimeStamp;
+use chrono::Utc;
 use mimi_room_policy::RoleIndex;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info, warn};
@@ -17,37 +18,41 @@ use crate::{
         JobError,
         operation::{Operation, OperationData, OperationId, OperationKind},
         pending_chat_operation::PendingChatOperation,
+        recoverable::RecoverableCause,
     },
     privacy_pass,
 };
 
-use super::{OutboundServiceContext, error::OutboundServiceError};
+use super::{
+    OutboundServiceContext,
+    error::OutboundServiceError,
+    retry::{RetryDecision, RetryPolicy},
+};
 
 const OPERATION_ID: &[u8] = b"account_deletion";
 
-/// Failed attempts of the self group or QS client deletion before this device
-/// gives up on the deletion and resets itself. Network errors and rate limiting
-/// don't count.
-const MAX_FAILED_ATTEMPTS: u32 = 10;
-
 /// The persisted deletion of the account, started on this device.
 ///
-/// It stores the next step to run, so that a run picks up where the last one
-/// stopped, also after a restart.
+/// While it runs, it stores the next step, so that a run picks up where the
+/// last one stopped, also after a restart.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct AccountDeletion {
-    next_step: AccountDeletionStep,
-    /// Failed attempts of the next step.
-    failed_attempts: u32,
-    /// Whether a self group delete was sent. The DS may have accepted it
-    /// without a response arriving.
-    self_group_delete_sent: bool,
+pub(crate) enum AccountDeletion {
+    Running(AccountDeletionStep),
+    /// The self group deletion failed before anything reached the DS, or the
+    /// DS refused the first delete sent. Nothing changed.
+    Aborted {
+        error: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-enum AccountDeletionStep {
+pub(crate) enum AccountDeletionStep {
     /// Deletes the self group, which resets the linked devices.
-    DeleteSelfGroup,
+    DeleteSelfGroup {
+        /// Whether a self group delete was sent. The DS may have accepted it
+        /// without a response arriving.
+        delete_sent: bool,
+    },
     DeleteQsClient,
     DeleteUsernames,
     LeaveChats,
@@ -58,7 +63,7 @@ enum AccountDeletionStep {
 impl AccountDeletionStep {
     fn next(self) -> Option<Self> {
         match self {
-            Self::DeleteSelfGroup => Some(Self::DeleteQsClient),
+            Self::DeleteSelfGroup { .. } => Some(Self::DeleteQsClient),
             Self::DeleteQsClient => Some(Self::DeleteUsernames),
             Self::DeleteUsernames => Some(Self::LeaveChats),
             Self::LeaveChats => Some(Self::DeleteQsUser),
@@ -78,55 +83,18 @@ impl OperationData for AccountDeletion {
     }
 }
 
-/// How far a run of the account deletion got.
-#[derive(Debug)]
-pub(crate) enum AccountDeletionProgress {
-    /// The account is deleted and this device must reset itself.
-    Completed,
-    /// The self group or QS client deletion kept failing. The deletion is
-    /// given up and this device must reset itself.
-    GaveUp,
-    /// The self group deletion failed before anything reached the DS, or the
-    /// DS refused the first delete sent. The deletion is dropped and nothing
-    /// changed.
-    Aborted(anyhow::Error),
-    /// A sibling's self-group commit took the epoch. Processing the queue
-    /// unblocks the deletion.
-    Blocked,
-    /// There is no deletion to run.
-    Idle,
-}
-
 /// What is left of the self group deletion before its commit is sent.
 enum SelfGroupDelete {
     Done,
     Blocked,
-    /// `sent_before` tells whether an earlier attempt may have reached the
-    /// DS.
-    Send {
-        operation: Box<PendingChatOperation>,
-        sent_before: bool,
-    },
+    Send(Box<PendingChatOperation>),
 }
 
-/// The self group delete found by [`OutboundServiceContext::prepare_self_group_delete`].
+/// The pending operation of the self group.
 enum Staged {
-    Delete {
-        operation: Box<PendingChatOperation>,
-        sent_before: bool,
-    },
+    Delete(Box<PendingChatOperation>),
     /// Another self-group commit is pending.
     Other(Box<PendingChatOperation>),
-    /// Another run moved the deletion past the self group, or dropped it.
-    Moved,
-}
-
-/// Where a run goes after a step.
-enum Advance {
-    Next(AccountDeletionStep),
-    Completed,
-    /// Another run dropped the deletion.
-    Gone,
 }
 
 /// What a step achieved.
@@ -139,55 +107,59 @@ enum StepOutcome {
 }
 
 impl AccountDeletion {
-    /// Records that this device deletes the account, unless it already does.
-    pub(crate) async fn start(connection: impl WriteConnection) -> sqlx::Result<()> {
-        Self::at(AccountDeletionStep::DeleteSelfGroup)
-            .into_operation()
-            .enqueue_if_not_exists(connection)
-            .await
-    }
+    const FIRST_STEP: AccountDeletionStep =
+        AccountDeletionStep::DeleteSelfGroup { delete_sent: false };
 
-    fn at(next_step: AccountDeletionStep) -> Self {
-        Self {
-            next_step,
-            failed_attempts: 0,
-            self_group_delete_sent: false,
+    /// Records that this device deletes the account.
+    ///
+    /// A running deletion keeps its progress and is due right away. An aborted
+    /// one starts over.
+    pub(crate) async fn start(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<()> {
+        let Some(mut operation) = Self::load_operation(&mut *txn).await? else {
+            Self::Running(Self::FIRST_STEP).store(&mut *txn).await?;
+            return Ok(());
+        };
+        match operation.data {
+            Self::Running(_) => operation.postpone(&mut *txn, Utc::now()).await?,
+            Self::Aborted { .. } => {
+                Self::Running(Self::FIRST_STEP).store(&mut *txn).await?;
+            }
         }
+        Ok(())
     }
 
-    pub(crate) async fn is_pending(connection: impl ReadConnection) -> sqlx::Result<bool> {
-        Operation::<Self>::exists(connection, &OperationId(OPERATION_ID.to_vec())).await
-    }
-
-    async fn load(connection: impl ReadConnection) -> anyhow::Result<Option<Self>> {
-        let operation =
-            Operation::<Self>::load(connection, &OperationId(OPERATION_ID.to_vec())).await?;
+    pub(crate) async fn load(connection: impl ReadConnection) -> anyhow::Result<Option<Self>> {
+        let operation = Self::load_operation(connection).await?;
         Ok(operation.map(|operation| operation.data))
     }
 
-    async fn store(&self, connection: impl WriteConnection) -> sqlx::Result<()> {
-        self.clone().into_operation().enqueue(connection).await
+    async fn load_operation(
+        connection: impl ReadConnection,
+    ) -> anyhow::Result<Option<Operation<Self>>> {
+        Operation::load(connection, &OperationId(OPERATION_ID.to_vec())).await
     }
 
-    /// Records that a self group delete is sent. Returns whether one was sent
-    /// before.
-    async fn mark_self_group_delete_sent(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<bool> {
-        let Some(mut deletion) = Self::load(&mut *txn).await? else {
-            return Ok(false);
-        };
-        if deletion.self_group_delete_sent {
-            return Ok(true);
-        }
-        deletion.self_group_delete_sent = true;
-        deletion.store(&mut *txn).await?;
-        Ok(false)
+    /// Stores the deletion as due right away, without failed attempts.
+    async fn store(self, connection: impl WriteConnection) -> sqlx::Result<Operation<Self>> {
+        let operation = self.into_operation();
+        operation.enqueue(connection).await?;
+        Ok(operation)
     }
 
-    async fn remove(connection: impl WriteConnection) -> sqlx::Result<()> {
-        Self::at(AccountDeletionStep::DeleteSelfGroup)
+    async fn mark_self_group_delete_sent(connection: impl WriteConnection) -> sqlx::Result<()> {
+        Self::Running(AccountDeletionStep::DeleteSelfGroup { delete_sent: true })
             .into_operation()
-            .delete(connection)
+            .update_data(connection)
             .await
+    }
+
+    async fn abort(connection: impl WriteConnection, error: &anyhow::Error) -> sqlx::Result<()> {
+        Self::Aborted {
+            error: format!("{error:#}"),
+        }
+        .into_operation()
+        .update_data(connection)
+        .await
     }
 
     /// Records that the own self group is closed, which only happens when the
@@ -198,24 +170,24 @@ impl AccountDeletion {
     /// account, see [`OwnClientInfo::self_group_closed`].
     pub(crate) async fn self_group_closed(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<()> {
         match Self::load(&mut *txn).await? {
-            Some(Self {
-                next_step: AccountDeletionStep::DeleteSelfGroup,
-                ..
-            }) => {
+            Some(Self::Running(AccountDeletionStep::DeleteSelfGroup { .. })) => {
                 info!("the self group is closed, continuing the account deletion");
-                Self::at(AccountDeletionStep::DeleteQsClient)
+                Self::Running(AccountDeletionStep::DeleteQsClient)
                     .store(&mut *txn)
                     .await?;
             }
-            Some(_) => {}
-            None => OwnClientInfo::self_group_closed(txn).await?,
+            Some(Self::Running(_)) => {}
+            Some(Self::Aborted { .. }) | None => OwnClientInfo::self_group_closed(txn).await?,
         }
         Ok(())
     }
 
     /// Removes the deletion and records that this device must reset itself.
     async fn complete(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<()> {
-        Self::remove(&mut *txn).await?;
+        Self::Running(Self::FIRST_STEP)
+            .into_operation()
+            .delete(&mut *txn)
+            .await?;
         OwnClientInfo::mark_account_unlinked(&mut *txn, UnlinkReason::AccountDeleted).await?;
         Ok(())
     }
@@ -223,45 +195,45 @@ impl AccountDeletion {
 
 impl OutboundServiceContext {
     /// Runs the remaining steps of the account deletion, if this device
-    /// deletes the account.
+    /// deletes the account and the deletion is due. Returns whether this
+    /// device deletes the account, which holds back all other work.
     ///
     /// Network errors and rate limiting stop the run without counting as a
     /// failed attempt.
     ///
     /// If the self group deletion fails before anything reached the DS, or the
-    /// DS refuses the first delete sent, the deletion is dropped. Any other
-    /// failure of the self group or QS client deletion keeps that step for the
-    /// next run, and after [`MAX_FAILED_ATTEMPTS`] the deletion is given up and
-    /// this device resets itself. The later steps are best effort, a failure
-    /// is logged and skipped.
-    pub(crate) async fn run_account_deletion(
-        &self,
-    ) -> Result<AccountDeletionProgress, OutboundServiceError> {
-        // A sibling that unlinked this device first won, and this device resets
-        // itself anyway.
-        if OwnClientInfo::account_unlink_reason(self.db.read().await?)
-            .await
-            .map_err(OutboundServiceError::fatal)?
-            .is_some()
-        {
-            return Ok(AccountDeletionProgress::Idle);
-        }
-        let Some(deletion) = AccountDeletion::load(self.db.read().await?)
+    /// DS refuses the first delete sent, the deletion is aborted. Any other
+    /// failure of the self group or QS client deletion keeps that step for a
+    /// later run, with backoff. Once [`RetryPolicy::ACCOUNT_DELETION`] is used
+    /// up, the deletion is given up and this device resets itself. The later
+    /// steps are best effort, a failure is logged and skipped.
+    pub(super) async fn run_account_deletion(&self) -> Result<bool, OutboundServiceError> {
+        let Some(mut operation) = AccountDeletion::load_operation(self.db.read().await?)
             .await
             .map_err(OutboundServiceError::fatal)?
         else {
-            return Ok(AccountDeletionProgress::Idle);
+            return Ok(false);
         };
+        let AccountDeletion::Running(mut step) = operation.data else {
+            return Ok(false);
+        };
+        // A sibling that unlinked this device first won, and this device resets
+        // itself anyway.
+        let unlinked = OwnClientInfo::account_unlink_reason(self.db.read().await?)
+            .await
+            .map_err(OutboundServiceError::fatal)?
+            .is_some();
+        if unlinked || operation.scheduled_at > Utc::now() {
+            return Ok(true);
+        }
 
-        // Another run of the deletion, in the foreground or in another process,
-        // can go on at the same time. The persisted state is therefore only
-        // read and changed in transactions, never written back from a copy.
         let api_client = self.api_clients.default_client()?;
-        let mut step = deletion.next_step;
         loop {
             info!(?step, "Account deletion step");
             let result = match step {
-                AccountDeletionStep::DeleteSelfGroup => Box::pin(self.delete_self_group()).await,
+                AccountDeletionStep::DeleteSelfGroup { delete_sent } => {
+                    Box::pin(self.delete_self_group(delete_sent)).await
+                }
                 AccountDeletionStep::DeleteQsClient => self.delete_qs_client(&api_client).await,
                 AccountDeletionStep::DeleteUsernames => {
                     best_effort(step, self.delete_usernames(&api_client).await)
@@ -276,132 +248,107 @@ impl OutboundServiceContext {
                     best_effort(step, self.delete_as_user(&api_client).await)
                 }
             };
-            match result {
-                Ok(StepOutcome::Done) => {}
+            let failure = match result {
+                Ok(StepOutcome::Done) => None,
                 Ok(StepOutcome::Abort(error)) => {
                     error!(
                         %error,
-                        "Self group deletion failed without a tombstone, dropping the account deletion"
+                        "Self group deletion failed without a tombstone, aborting the account deletion"
                     );
-                    AccountDeletion::remove(self.db.write().await?).await?;
-                    return Ok(AccountDeletionProgress::Aborted(error));
+                    AccountDeletion::abort(self.db.write().await?, &error).await?;
+                    return Ok(false);
                 }
-                Ok(StepOutcome::Blocked) => {
-                    if self.record_failed_attempt(step).await? {
-                        return Ok(AccountDeletionProgress::GaveUp);
-                    }
-                    return Ok(AccountDeletionProgress::Blocked);
-                }
+                Ok(StepOutcome::Blocked) => Some((
+                    RecoverableCause::WrongEpoch,
+                    anyhow::anyhow!("a sibling's self group commit took the epoch"),
+                )),
                 Err(
                     error @ (OutboundServiceError::NetworkError
                     | OutboundServiceError::RateLimited { .. }),
                 ) => return Err(error),
-                Err(
-                    error @ (OutboundServiceError::Recoverable(_) | OutboundServiceError::Fatal(_)),
-                ) => {
-                    if self.record_failed_attempt(step).await? {
-                        return Ok(AccountDeletionProgress::GaveUp);
-                    }
-                    return Err(error);
-                }
+                Err(OutboundServiceError::Recoverable(error)) => Some((error.cause, error.into())),
+                // The account is not deleted without this step, so it is
+                // retried like after a server error.
+                Err(OutboundServiceError::Fatal(error)) => Some((RecoverableCause::Server, error)),
+            };
+            if let Some((cause, error)) = failure {
+                self.record_failed_attempt(&mut operation, step, cause, &error)
+                    .await?;
+                return Ok(true);
             }
 
-            step = match self.advance_account_deletion(step).await? {
-                Advance::Next(next_step) => next_step,
-                Advance::Completed => {
-                    info!("Deleted the account");
-                    return Ok(AccountDeletionProgress::Completed);
-                }
-                Advance::Gone => return Ok(AccountDeletionProgress::Idle),
+            let Some(next_step) = step.next() else {
+                self.db
+                    .with_write_transaction(async |txn| AccountDeletion::complete(txn).await)
+                    .await
+                    .map_err(OutboundServiceError::fatal)?;
+                info!("Deleted the account");
+                return Ok(true);
             };
+            operation = AccountDeletion::Running(next_step)
+                .store(self.db.write().await?)
+                .await?;
+            step = next_step;
         }
     }
 
-    /// Moves the deletion past `step`, unless another run already moved it.
-    /// Completes the deletion after the last step.
-    async fn advance_account_deletion(
-        &self,
-        step: AccountDeletionStep,
-    ) -> Result<Advance, OutboundServiceError> {
-        self.db
-            .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                let Some(deletion) = AccountDeletion::load(&mut *txn).await? else {
-                    let reason = OwnClientInfo::account_unlink_reason(&mut *txn).await?;
-                    return Ok(match reason {
-                        Some(UnlinkReason::AccountDeleted) => Advance::Completed,
-                        Some(UnlinkReason::Unlinked) | None => Advance::Gone,
-                    });
-                };
-                if deletion.next_step != step {
-                    return Ok(Advance::Next(deletion.next_step));
-                }
-                match step.next() {
-                    Some(next_step) => {
-                        AccountDeletion::at(next_step).store(&mut *txn).await?;
-                        Ok(Advance::Next(next_step))
-                    }
-                    None => {
-                        AccountDeletion::complete(txn).await?;
-                        Ok(Advance::Completed)
-                    }
-                }
-            })
-            .await
-            .map_err(OutboundServiceError::fatal)
-    }
-
-    /// Counts a failed attempt of `step`, unless another run already moved the
-    /// deletion past it. After [`MAX_FAILED_ATTEMPTS`], gives up on the
-    /// deletion, resets this device and returns `true`.
+    /// Counts a failed attempt of `step` and defers the next one. Once
+    /// [`RetryPolicy::ACCOUNT_DELETION`] is used up, gives up on the deletion
+    /// and resets this device.
     async fn record_failed_attempt(
         &self,
+        operation: &mut Operation<AccountDeletion>,
         step: AccountDeletionStep,
-    ) -> Result<bool, OutboundServiceError> {
-        self.db
-            .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                let Some(mut deletion) = AccountDeletion::load(&mut *txn).await? else {
-                    return Ok(false);
-                };
-                if deletion.next_step != step {
-                    return Ok(false);
-                }
-                deletion.failed_attempts += 1;
-                if deletion.failed_attempts < MAX_FAILED_ATTEMPTS {
-                    deletion.store(&mut *txn).await?;
-                    return Ok(false);
-                }
+        cause: RecoverableCause,
+        error: &anyhow::Error,
+    ) -> Result<(), OutboundServiceError> {
+        let attempts = u32::try_from(operation.retries).unwrap_or(u32::MAX);
+        match RetryPolicy::ACCOUNT_DELETION.decide(cause, attempts) {
+            RetryDecision::Retry => {
+                warn!(?step, %error, "Account deletion step failed, retrying in the next run");
+            }
+            RetryDecision::Backoff { attempts, retry_in } => {
+                warn!(
+                    ?step,
+                    attempts,
+                    %error,
+                    ?retry_in,
+                    "Account deletion step failed, retrying later"
+                );
+                operation
+                    .reschedule(self.db.write().await?, Utc::now() + retry_in)
+                    .await?;
+            }
+            RetryDecision::GiveUp => {
                 error!(
                     ?step,
-                    failed_attempts = deletion.failed_attempts,
+                    %error,
                     "Account deletion keeps failing, giving up and resetting this device"
                 );
-                AccountDeletion::complete(txn).await?;
-                Ok(true)
-            })
-            .await
-            .map_err(OutboundServiceError::fatal)
+                self.db
+                    .with_write_transaction(async |txn| AccountDeletion::complete(txn).await)
+                    .await
+                    .map_err(OutboundServiceError::fatal)?;
+            }
+        }
+        Ok(())
     }
 
     /// Deletes the self group if there are linked devices. The delete commit
     /// sets a tombstone, which tells them that the account is deleted.
-    async fn delete_self_group(&self) -> Result<StepOutcome, OutboundServiceError> {
-        let (operation, sent_before) = match self.prepare_self_group_delete().await {
+    ///
+    /// `sent_before` tells whether an earlier attempt sent a delete.
+    async fn delete_self_group(
+        &self,
+        sent_before: bool,
+    ) -> Result<StepOutcome, OutboundServiceError> {
+        let operation = match self.prepare_self_group_delete(sent_before).await {
             Ok(SelfGroupDelete::Done) => return Ok(StepOutcome::Done),
             Ok(SelfGroupDelete::Blocked) => return Ok(StepOutcome::Blocked),
-            Ok(SelfGroupDelete::Send {
-                operation,
-                sent_before,
-            }) => (*operation, sent_before),
-            Err(OutboundServiceError::Fatal(error)) => {
-                let sent = AccountDeletion::load(self.db.read().await?)
-                    .await
-                    .map_err(OutboundServiceError::fatal)?
-                    .is_some_and(|deletion| deletion.self_group_delete_sent);
-                // Nothing reached the DS yet, so nothing changed.
-                if !sent {
-                    return Ok(StepOutcome::Abort(error));
-                }
-                return Err(OutboundServiceError::Fatal(error));
+            Ok(SelfGroupDelete::Send(operation)) => *operation,
+            // Nothing reached the DS yet, so nothing changed.
+            Err(OutboundServiceError::Fatal(error)) if !sent_before => {
+                return Ok(StepOutcome::Abort(error));
             }
             Err(error) => return Err(error),
         };
@@ -420,9 +367,11 @@ impl OutboundServiceContext {
     }
 
     /// Returns the self group delete to send: the one of an earlier attempt or
-    /// of another run of the deletion, or a newly staged one. Records that it
-    /// is sent.
-    async fn prepare_self_group_delete(&self) -> Result<SelfGroupDelete, OutboundServiceError> {
+    /// a newly staged one. Records that it is sent.
+    async fn prepare_self_group_delete(
+        &self,
+        sent_before: bool,
+    ) -> Result<SelfGroupDelete, OutboundServiceError> {
         let Some(chat) = self.self_chat().await? else {
             return Ok(SelfGroupDelete::Done);
         };
@@ -435,19 +384,9 @@ impl OutboundServiceContext {
         }
 
         loop {
-            // Looking up, staging and marking the delete as sent in one
-            // transaction makes concurrent runs share a single delete.
             let staged = self
                 .db
                 .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                    if !AccountDeletion::load(&mut *txn)
-                        .await?
-                        .is_some_and(|deletion| {
-                            deletion.next_step == AccountDeletionStep::DeleteSelfGroup
-                        })
-                    {
-                        return Ok(Staged::Moved);
-                    }
                     let operation = match PendingChatOperation::load(&mut *txn, &chat.id()).await? {
                         Some(operation) if operation.is_delete() => operation,
                         Some(operation) => return Ok(Staged::Other(Box::new(operation))),
@@ -461,25 +400,17 @@ impl OutboundServiceContext {
                             .await?
                         }
                     };
-                    let sent_before = AccountDeletion::mark_self_group_delete_sent(txn).await?;
-                    Ok(Staged::Delete {
-                        operation: Box::new(operation),
-                        sent_before,
-                    })
+                    // Recorded before the delete is sent, since the DS may
+                    // accept it without a response arriving.
+                    if !sent_before {
+                        AccountDeletion::mark_self_group_delete_sent(&mut *txn).await?;
+                    }
+                    Ok(Staged::Delete(Box::new(operation)))
                 })
                 .await
                 .map_err(OutboundServiceError::fatal)?;
             match staged {
-                Staged::Moved => return Ok(SelfGroupDelete::Done),
-                Staged::Delete {
-                    operation,
-                    sent_before,
-                } => {
-                    return Ok(SelfGroupDelete::Send {
-                        operation,
-                        sent_before,
-                    });
-                }
+                Staged::Delete(operation) => return Ok(SelfGroupDelete::Send(operation)),
                 // Another self-group commit goes first, the delete needs a
                 // group without a pending commit.
                 Staged::Other(operation) => match self.execute_job(*operation).await {
@@ -683,6 +614,8 @@ fn best_effort(
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches;
+
     use aircommon::identifiers::{QsClientId, QsUserId, UserId};
     use sqlx::SqlitePool;
     use uuid::Uuid;
@@ -706,9 +639,17 @@ mod tests {
         Ok(db)
     }
 
+    async fn start(db: &DbAccess) -> anyhow::Result<()> {
+        db.with_write_transaction(async |txn| AccountDeletion::start(txn).await)
+            .await
+    }
+
     async fn next_step(db: &DbAccess) -> anyhow::Result<Option<AccountDeletionStep>> {
-        let deletion = AccountDeletion::load(db.read().await?).await?;
-        Ok(deletion.map(|deletion| deletion.next_step))
+        match AccountDeletion::load(db.read().await?).await? {
+            Some(AccountDeletion::Running(step)) => Ok(Some(step)),
+            Some(AccountDeletion::Aborted { error }) => anyhow::bail!("aborted: {error}"),
+            None => Ok(None),
+        }
     }
 
     async fn close_self_group(db: &DbAccess) -> anyhow::Result<()> {
@@ -719,7 +660,7 @@ mod tests {
     #[sqlx::test]
     async fn closed_self_group_continues_the_own_deletion(pool: SqlitePool) -> anyhow::Result<()> {
         let db = setup(pool).await?;
-        AccountDeletion::start(db.write().await?).await?;
+        start(&db).await?;
 
         close_self_group(&db).await?;
 
@@ -733,7 +674,7 @@ mod tests {
         );
 
         // A later step is not set back.
-        AccountDeletion::at(AccountDeletionStep::LeaveChats)
+        AccountDeletion::Running(AccountDeletionStep::LeaveChats)
             .store(db.write().await?)
             .await?;
         close_self_group(&db).await?;
@@ -742,31 +683,69 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn starting_twice_keeps_the_progress(pool: SqlitePool) -> anyhow::Result<()> {
+    async fn closed_self_group_after_an_aborted_deletion_is_a_sibling_deletion(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
         let db = setup(pool).await?;
-        AccountDeletion::start(db.write().await?).await?;
-        AccountDeletion::at(AccountDeletionStep::DeleteQsUser)
-            .store(db.write().await?)
-            .await?;
+        start(&db).await?;
+        AccountDeletion::abort(db.write().await?, &anyhow::anyhow!("refused")).await?;
 
-        AccountDeletion::start(db.write().await?).await?;
+        close_self_group(&db).await?;
 
         assert_eq!(
-            next_step(&db).await?,
-            Some(AccountDeletionStep::DeleteQsUser)
+            OwnClientInfo::account_unlink_reason(db.read().await?).await?,
+            Some(UnlinkReason::AccountDeleted)
         );
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn starting_again_keeps_the_progress_and_makes_it_due(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let db = setup(pool).await?;
+        let mut operation = AccountDeletion::Running(AccountDeletionStep::DeleteQsClient)
+            .store(db.write().await?)
+            .await?;
+        let later = Utc::now() + chrono::TimeDelta::minutes(10);
+        operation.reschedule(db.write().await?, later).await?;
+
+        start(&db).await?;
+
+        let operation = AccountDeletion::load_operation(db.read().await?)
+            .await?
+            .expect("the deletion is running");
+        assert_matches!(
+            operation.data,
+            AccountDeletion::Running(AccountDeletionStep::DeleteQsClient)
+        );
+        assert_eq!(operation.retries, 1);
+        assert!(operation.scheduled_at <= Utc::now());
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn starting_again_restarts_an_aborted_deletion(pool: SqlitePool) -> anyhow::Result<()> {
+        let db = setup(pool).await?;
+        start(&db).await?;
+        AccountDeletion::mark_self_group_delete_sent(db.write().await?).await?;
+        AccountDeletion::abort(db.write().await?, &anyhow::anyhow!("refused")).await?;
+
+        start(&db).await?;
+
+        assert_eq!(next_step(&db).await?, Some(AccountDeletion::FIRST_STEP));
         Ok(())
     }
 
     #[sqlx::test]
     async fn completing_resets_this_device(pool: SqlitePool) -> anyhow::Result<()> {
         let db = setup(pool).await?;
-        AccountDeletion::start(db.write().await?).await?;
+        start(&db).await?;
 
         db.with_write_transaction(async |txn| AccountDeletion::complete(txn).await)
             .await?;
 
-        assert!(!AccountDeletion::is_pending(db.read().await?).await?);
+        assert!(AccountDeletion::load(db.read().await?).await?.is_none());
         assert_eq!(
             OwnClientInfo::account_unlink_reason(db.read().await?).await?,
             Some(UnlinkReason::AccountDeleted)
