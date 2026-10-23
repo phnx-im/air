@@ -98,3 +98,62 @@ impl VerifiableUserCredentialExt for VerifiableUserCredential {
         Ok(StorableUserCredential::from(user_credential))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use aircommon::{
+        credentials::{
+            AsCredential, AsIntermediateCredentialCsr, UserCredentialCsr, UserCredentialPayload,
+            keys::AsIntermediateSigningKey,
+        },
+        crypto::signatures::signable::Signable,
+        identifiers::UserId,
+        time::{ExpirationData, TimeStamp},
+    };
+    use chrono::{Duration, Utc};
+    use openmls::prelude::SignatureScheme;
+
+    use super::*;
+
+    #[test]
+    #[ignore = "an expired user credential is accepted"]
+    fn verify_and_validate_rejects_expired_credential() -> Result<()> {
+        let user_id = UserId::random("localhost".parse()?);
+        let domain = user_id.domain().clone();
+        let (_, as_signing_key) =
+            AsCredential::new(SignatureScheme::ED25519, domain.clone(), None)?;
+        let (csr, prelim_key) = AsIntermediateCredentialCsr::new(SignatureScheme::ED25519, domain)?;
+        let as_intermediate_credential = csr.sign(&as_signing_key, None)?;
+        let as_intermediate_signing_key =
+            AsIntermediateSigningKey::from_prelim_key(prelim_key, as_intermediate_credential)?;
+
+        let expired = ExpirationData::from_parts(
+            TimeStamp::from(Utc::now() - Duration::days(2)),
+            TimeStamp::from(Utc::now() - Duration::days(1)),
+        );
+        let (user_csr, _) = UserCredentialCsr::new(user_id, SignatureScheme::ED25519)?;
+        let user_credential = UserCredentialPayload::new(
+            user_csr,
+            Some(expired),
+            *as_intermediate_signing_key.credential().fingerprint(),
+        )
+        .sign(&as_intermediate_signing_key)?;
+        let leaf_signature_key =
+            SignaturePublicKey::from(user_credential.verifying_key().as_slice().to_vec());
+        let (payload, signature) = user_credential.into_parts();
+
+        let as_intermediate_credential = as_intermediate_signing_key.credential().clone();
+        let as_credentials = HashMap::from([(
+            *as_intermediate_credential.fingerprint(),
+            as_intermediate_credential,
+        )]);
+        let result = VerifiableUserCredential::new(payload, signature).verify_and_validate(
+            &leaf_signature_key,
+            None,
+            &as_credentials,
+        );
+        assert!(result.is_err());
+
+        Ok(())
+    }
+}

@@ -280,6 +280,15 @@ impl CoreUser {
         Ok((plain, apq))
     }
 
+    /// Forgets the cached AS credentials, as after the AS rotated its
+    /// intermediate credential.
+    pub async fn forget_as_credentials(&self) -> Result<()> {
+        sqlx::query("DELETE FROM as_credential")
+            .execute(self.db().write().await?.as_mut())
+            .await?;
+        Ok(())
+    }
+
     pub async fn mls_members(&self, chat_id: ChatId) -> Result<Option<Vec<Member>>> {
         Ok(self
             .db()

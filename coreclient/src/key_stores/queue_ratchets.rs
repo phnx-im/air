@@ -278,3 +278,80 @@ where
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{sync::mpsc, thread, time::Duration};
+
+    use aircommon::crypto::aead::{AEAD_NONCE_SIZE, AeadCiphertext};
+    use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
+    use tls_codec::Serialize as _;
+
+    use crate::db::access::DbAccess;
+
+    use super::*;
+
+    #[test]
+    #[ignore = "a huge QS sequence number makes the client ratchet forward forever"]
+    fn decrypt_rejects_huge_sequence_number_gap() {
+        // The catch-up loop never yields, so it runs on its own thread.
+        let (sender, receiver) = mpsc::channel();
+        thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let is_err = runtime.block_on(async {
+                let pool = SqlitePoolOptions::new()
+                    .max_connections(1)
+                    .connect("sqlite::memory:")
+                    .await
+                    .unwrap();
+                sqlx::migrate!().run(&pool).await.unwrap();
+                let db = DbAccess::for_tests(pool);
+                StorableQsQueueRatchet::initialize(
+                    db.write().await.unwrap(),
+                    RatchetSecret::random().unwrap(),
+                )
+                .await
+                .unwrap();
+
+                let mut connection = db.write().await.unwrap();
+                let mut txn = connection.begin().await.unwrap();
+                let message = QueueMessage {
+                    sequence_number: u64::MAX,
+                    ciphertext: AeadCiphertext::new(vec![0; 32], [0; AEAD_NONCE_SIZE]),
+                };
+                StorableQsQueueRatchet::decrypt_qs_queue_message(&mut txn, message)
+                    .await
+                    .is_err()
+            });
+            let _ = sender.send(is_err);
+        });
+
+        let is_err = receiver
+            .recv_timeout(Duration::from_secs(5))
+            .expect("still ratcheting forward after 5s");
+        assert!(is_err);
+    }
+
+    #[sqlx::test]
+    #[ignore = "a resumed registration fails to store the QS queue ratchet again"]
+    async fn initialize_replaces_previous_ratchet(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        StorableQsQueueRatchet::initialize(pool.write().await?, RatchetSecret::random()?).await?;
+        let secret = RatchetSecret::random()?;
+        StorableQsQueueRatchet::initialize(pool.write().await?, secret.clone()).await?;
+
+        let expected: QueueRatchet<EncryptedQsQueueMessageCtype, QsQueueMessagePayload> =
+            secret.try_into()?;
+        let loaded = StorableQsQueueRatchet::load(pool.read().await?).await?;
+        assert_eq!(
+            loaded.tls_serialize_detached()?,
+            expected.tls_serialize_detached()?
+        );
+
+        Ok(())
+    }
+}

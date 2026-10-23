@@ -16,6 +16,8 @@ use airserver_test_harness::utils::{
 use mimi_content::MimiContent;
 use tokio_stream::StreamExt;
 
+use crate::contacts::requests::add_second_username;
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn deleted_user_id_can_register_again() {
     let mut setup = TestBackend::single().await;
@@ -130,4 +132,100 @@ async fn deleted_account_leaves_chats_and_frees_username() {
     // Adding a username to the new user should work, because the previous username was
     // deleted.
     new_alice.add_username().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "a chat with a pending commit keeps the deleted account in all chats"]
+async fn deleted_account_leaves_chats_besides_one_with_pending_commit() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let pending_chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(pending_chat_id, &alice, &[&bob])
+        .await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, &[&charlie]).await;
+
+    // The lost response leaves the commit pending.
+    setup.listener_control_handle().set_drop_next_response();
+    alice.update_key(pending_chat_id).await.unwrap_err();
+
+    alice.delete_account(None).await.unwrap();
+
+    charlie.drain().await;
+    let participants = charlie.chat_participants(chat_id).await.unwrap();
+    assert_eq!(
+        participants,
+        [charlie.user_id().clone()].into_iter().collect()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "one failed username deletion keeps the remaining usernames registered"]
+async fn deleted_account_frees_usernames_after_one_fails() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let first = setup.add_username(&alice).await;
+    let second = add_second_username(&alice).await;
+
+    setup
+        .listener_control_handle()
+        .set_reject_next_request_to("DeleteUsername");
+    alice.delete_account(None).await.unwrap();
+
+    // Only the username whose deletion failed may remain.
+    let mut remaining = 0;
+    for record in [first, second] {
+        if bob
+            .check_username_exists(record.username)
+            .await
+            .unwrap()
+            .is_some()
+        {
+            remaining += 1;
+        }
+    }
+    assert!(remaining <= 1, "{remaining} usernames remain registered");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "one failed leave stops the deleted account from leaving the other chats"]
+async fn deleted_account_leaves_chats_after_one_leave_fails() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let bob_chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(bob_chat_id, &alice, &[&bob]).await;
+    let charlie_chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(charlie_chat_id, &alice, &[&charlie])
+        .await;
+
+    let self_remove = if setup.apq_groups {
+        "ApqSelfRemove"
+    } else {
+        "SelfRemove"
+    };
+    setup
+        .listener_control_handle()
+        .set_reject_next_request_to(self_remove);
+    alice.delete_account(None).await.unwrap();
+
+    // Only the chat whose leave failed may keep alice.
+    let mut remaining = 0;
+    for (member, chat_id) in [(&bob, bob_chat_id), (&charlie, charlie_chat_id)] {
+        member.drain_unchecked().await;
+        if member
+            .chat_participants(chat_id)
+            .await
+            .unwrap()
+            .contains(alice.user_id())
+        {
+            remaining += 1;
+        }
+    }
+    assert!(remaining <= 1, "alice remains in {remaining} chats");
 }

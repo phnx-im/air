@@ -34,6 +34,29 @@ async fn invite_to_group_apq() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "a duplicate invitee is not deduplicated"]
+async fn duplicate_invitee_is_added_once() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    alice.drain().await;
+
+    let bob_id = bob.user_id().clone();
+    let result = alice
+        .invite_users(chat_id, &[bob_id.clone(), bob_id])
+        .await
+        .unwrap();
+    assert!(result.users_not_added.is_empty());
+    bob.drain().await;
+
+    for user in [&alice, &bob] {
+        let members = user.mls_members(chat_id).await.unwrap().unwrap();
+        assert_eq!(members.len(), 2);
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn removed_member_profile_resets_to_default() {
     let mut setup = TestBackend::single().await;
 
@@ -425,5 +448,65 @@ async fn key_packages_fall_back_to_last_resort_then_refresh() {
     assert!(
         n <= 1 || encryption_keys.insert(bob_encryption_key),
         "Bob should have a new KeyPackage after uploading new ones"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "a network error while joining loses the Welcome"]
+async fn welcome_survives_network_error() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    alice.drain().await;
+    alice
+        .invite_users(chat_id, slice::from_ref(bob.user_id()))
+        .await
+        .unwrap();
+
+    // Fetching the welcome info fails like a network error, once.
+    setup
+        .listener_control_handle()
+        .set_drop_next_request_to("WelcomeInfo");
+    bob.drain_unchecked().await;
+    bob.drain().await;
+
+    assert!(
+        bob.chat(&chat_id)
+            .await
+            .is_some_and(|chat| chat.status() == &ChatStatus::Active),
+        "bob never joined the group"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "a network error while verifying a commit loses the commit"]
+async fn commit_survives_network_error_during_verification() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+    alice
+        .invite_users(chat_id, slice::from_ref(charlie.user_id()))
+        .await
+        .unwrap();
+
+    // Verifying charlie's credential needs the AS credentials, whose fetch
+    // fails like a network error, once.
+    bob.forget_as_credentials().await.unwrap();
+    setup
+        .listener_control_handle()
+        .set_drop_next_request_to("AsCredentials");
+    bob.drain_unchecked().await;
+    bob.drain_unchecked().await;
+
+    assert!(
+        bob.chat_participants(chat_id)
+            .await
+            .unwrap()
+            .contains(charlie.user_id()),
+        "bob lost the commit adding charlie"
     );
 }
