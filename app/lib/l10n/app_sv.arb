@@ -441,6 +441,7 @@
   "deleteAccountScreen_pendingDialog_message": "Ditt Air-konto håller fortfarande på att raderas. Den här enheten återställs när raderingen är klar.",
   "deleteAccountScreen_pendingDialog_confirm": "Okay",
   "unlinkedDevice_accountDeleted": "Ditt Air-konto har raderats. Den här enheten har återställts.",
+  "accountDeletionAbortHandler_notice": "Ditt Air-konto kunde inte raderas. Du kan försöka igen.",
   "appOutdatedScreen_title": "Programuppdatering krävs",
   "appOutdatedScreen_message": "Uppdatera för att fortsätta använda Air",
   "appOutdatedScreen_descriptionAppStore": "Öppna App Store och uppdatera Air.",

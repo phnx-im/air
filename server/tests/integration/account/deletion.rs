@@ -359,6 +359,10 @@ async fn account_deletion_is_dropped_when_the_ds_refuses_the_self_group_delete()
     start_outbound_service(&alice).await;
     setup.listener_control_handle().set_reject_next_request();
     assert!(alice.delete_account().await.is_err());
+    assert!(
+        !alice.has_unreported_account_deletion_abort().await?,
+        "the caller reports the error"
+    );
 
     alice.outbound_service().run_once().await;
     assert_eq!(alice.account_unlink_reason().await?, None);
@@ -391,6 +395,10 @@ async fn account_deletion_is_aborted_after_repeated_self_group_delete_failures()
 
     assert!(attempts > 1, "a failure is retried");
     assert_eq!(alice.account_unlink_reason().await?, None);
+    assert!(
+        alice.has_unreported_account_deletion_abort().await?,
+        "the abort happened in the background"
+    );
 
     // The DS never accepted a delete. Both devices keep the account, and the
     // self group works again.
@@ -402,6 +410,58 @@ async fn account_deletion_is_aborted_after_repeated_self_group_delete_failures()
     alice2.drain().await;
     assert_eq!(alice2.account_unlink_reason().await?, None);
     assert_eq!(read_receipts(&alice2).await, Some(true));
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn aborted_account_deletion_resumes_once_its_accepted_delete_shows() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice2 = link_sibling(&alice).await;
+    upload_initial_key_packages(&alice, &alice2).await;
+
+    // The DS accepts the self group delete, but the response is lost, and
+    // every resend fails until the deletion is aborted.
+    assert_eq!(
+        alice.delete_account().await?,
+        AccountDeletionStatus::Pending
+    );
+    setup.listener_control_handle().set_drop_next_response();
+    alice.outbound_service().run_once().await;
+    let mut attempts = 0;
+    while !alice.account_deletion_is_aborted().await? {
+        assert!(attempts < 20, "the deletion must be aborted");
+        assert_eq!(
+            alice.delete_account().await?,
+            AccountDeletionStatus::Pending
+        );
+        setup.listener_control_handle().set_fail_next_request();
+        alice.outbound_service().run_once().await;
+        attempts += 1;
+    }
+    assert_eq!(alice.account_unlink_reason().await?, None);
+    alice2.drain().await;
+    assert_eq!(
+        alice2.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
+    );
+
+    // The next self group commit finds the self group closed, and the
+    // deletion goes on instead of resetting this device without cleanup.
+    alice.drain_unchecked().await;
+    alice
+        .set_synced_user_setting(&ReadReceiptsSetting(true))
+        .await?;
+    alice.outbound_service().run_once().await;
+    assert!(!alice.account_deletion_is_aborted().await?);
+    alice.outbound_service().run_once().await;
+
+    assert_eq!(
+        alice.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
+    );
+    assert_account_deleted(&setup, alice.user_id(), &alice2, false).await;
 
     Ok(())
 }

@@ -426,6 +426,7 @@
   "deleteAccountScreen_pendingDialog_message": "Ваш аккаунт Air ещё удаляется. Это устройство будет сброшено, когда удаление завершится.",
   "deleteAccountScreen_pendingDialog_confirm": "ОК",
   "unlinkedDevice_accountDeleted": "Ваш аккаунт Air удалён. Это устройство сброшено.",
+  "accountDeletionAbortHandler_notice": "Не удалось удалить ваш аккаунт Air. Вы можете попробовать ещё раз.",
   "appOutdatedScreen_title": "Требуется обновление приложения",
   "appOutdatedScreen_message": "Обновите Air, чтобы продолжить им пользоваться",
   "appOutdatedScreen_descriptionAppStore": "Откройте App Store и обновите Air.",

@@ -123,6 +123,9 @@ class UserCubit implements StateStreamableSource<UiUser> {
     required String confirmationText,
   }) => _impl.deleteAccount(confirmationText: confirmationText);
 
+  Future<void> accountDeletionAbortReported() =>
+      _impl.accountDeletionAbortReported();
+
   Future<UiContact?> contact({required UiUserId userId}) =>
       _impl.contact(userId: userId);
 

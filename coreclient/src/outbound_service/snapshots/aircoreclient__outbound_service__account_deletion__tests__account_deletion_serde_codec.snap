@@ -54,11 +54,17 @@ a1                             # map(1)
    6c                          #   text(12)
       44656c657465417355736572 #     "DeleteAsUser"
 
-a1                      # map(1)
-   67                   #   text(7)
-      41626f72746564    #     "Aborted"
-   a1                   #   map(1)
-      65                #     text(5)
-         6572726f72     #       "error"
-      67                #     text(7)
-         72656675736564 #       "refused"
+a1                              # map(1)
+   67                           #   text(7)
+      41626f72746564            #     "Aborted"
+   a3                           #   map(3)
+      65                        #     text(5)
+         6572726f72             #       "error"
+      67                        #     text(7)
+         72656675736564         #       "refused"
+      6b                        #     text(11)
+         64656c6574655f73656e74 #       "delete_sent"
+      f5                        #     true, simple(21)
+      68                        #     text(8)
+         7265706f72746564       #       "reported"
+      f4                        #     false, simple(20)

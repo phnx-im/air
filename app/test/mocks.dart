@@ -38,6 +38,7 @@ class MockUiUser implements UiUser {
   MockUiUser({
     required int id,
     this.unlinkReason,
+    this.accountDeletionAborted = false,
     this.usernames = const [],
     this.versionStatus = const VersionStatus.supported(),
     this.maxDevices = 0,
@@ -62,6 +63,9 @@ class MockUiUser implements UiUser {
 
   @override
   final UiUnlinkReason? unlinkReason;
+
+  @override
+  final bool accountDeletionAborted;
 
   @override
   final int maxDevices;

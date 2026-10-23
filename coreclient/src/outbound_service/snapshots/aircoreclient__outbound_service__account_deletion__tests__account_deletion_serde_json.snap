@@ -34,7 +34,9 @@ expression: all_variants()
   },
   {
     "Aborted": {
-      "error": "refused"
+      "error": "refused",
+      "delete_sent": true,
+      "reported": false
     }
   }
 ]

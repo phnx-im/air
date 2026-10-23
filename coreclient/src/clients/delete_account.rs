@@ -74,13 +74,31 @@ impl CoreUser {
             }
             self.account_deletion_status().await
         };
-        match timeout(ACCOUNT_DELETION_WAIT, wait).await {
+        let status = match timeout(ACCOUNT_DELETION_WAIT, wait).await {
             Ok(status) => status,
             Err(_elapsed) => {
                 info!("Account deletion continues in the background");
                 self.account_deletion_status().await
             }
+        };
+        // The caller reports the error.
+        if status.is_err() {
+            self.mark_account_deletion_abort_reported().await?;
         }
+        status
+    }
+
+    /// Whether the account deletion was aborted without the user being told,
+    /// for example because it aborted in the background.
+    pub async fn has_unreported_account_deletion_abort(&self) -> anyhow::Result<bool> {
+        AccountDeletion::is_aborted_unreported(self.db().read().await?).await
+    }
+
+    /// Records that the user was told that the account deletion was aborted.
+    pub async fn mark_account_deletion_abort_reported(&self) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| AccountDeletion::mark_abort_reported(txn).await)
+            .await
     }
 
     /// Wakes the outbound service to continue a started account deletion.
@@ -127,7 +145,7 @@ impl CoreUser {
                 }
                 match AccountDeletion::load(&mut *txn).await? {
                     Some(AccountDeletion::Running(_)) => Ok(AccountDeletionStatus::Pending),
-                    Some(AccountDeletion::Aborted { error }) => {
+                    Some(AccountDeletion::Aborted { error, .. }) => {
                         Err(anyhow!(error).context("failed to delete the account"))
                     }
                     None => bail!("the account deletion was dropped"),

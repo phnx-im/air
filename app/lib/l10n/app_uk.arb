@@ -426,6 +426,7 @@
   "deleteAccountScreen_pendingDialog_message": "Ваш обліковий запис Air ще видаляється. Цей пристрій буде скинуто, коли видалення завершиться.",
   "deleteAccountScreen_pendingDialog_confirm": "OK",
   "unlinkedDevice_accountDeleted": "Ваш обліковий запис Air видалено. Цей пристрій скинуто.",
+  "accountDeletionAbortHandler_notice": "Не вдалося видалити ваш обліковий запис Air. Ви можете спробувати ще раз.",
   "appOutdatedScreen_title": "Потрібне оновлення застосунку",
   "appOutdatedScreen_message": "Оновіть Air, щоб і далі ним користуватися",
   "appOutdatedScreen_descriptionAppStore": "Відкрийте App Store і оновіть Air.",

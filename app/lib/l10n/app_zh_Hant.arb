@@ -426,6 +426,7 @@
   "deleteAccountScreen_pendingDialog_message": "你的 Air 帳號仍在刪除中。刪除完成後，這部裝置將重設。",
   "deleteAccountScreen_pendingDialog_confirm": "好",
   "unlinkedDevice_accountDeleted": "你的 Air 帳號已被刪除。這部裝置已重設。",
+  "accountDeletionAbortHandler_notice": "無法刪除你的 Air 帳號。你可以再試一次。",
   "appOutdatedScreen_title": "需要更新軟體",
   "appOutdatedScreen_message": "請更新以繼續使用 Air",
   "appOutdatedScreen_descriptionAppStore": "開啟 App Store，然後更新 Air。",

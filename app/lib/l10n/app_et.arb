@@ -426,6 +426,7 @@
   "deleteAccountScreen_pendingDialog_message": "Su Airi kontot alles kustutatakse. See seade lähtestatakse, kui kustutamine on lõppenud.",
   "deleteAccountScreen_pendingDialog_confirm": "OK",
   "unlinkedDevice_accountDeleted": "Su Airi konto kustutati. See seade lähtestati.",
+  "accountDeletionAbortHandler_notice": "Su Airi kontot ei õnnestunud kustutada. Võid uuesti proovida.",
   "appOutdatedScreen_title": "Tarkvarauuendus on vajalik",
   "appOutdatedScreen_message": "Airi kasutamise jätkamiseks uuenda rakendust",
   "appOutdatedScreen_descriptionAppStore": "Ava App Store ja uuenda Airi.",

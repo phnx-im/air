@@ -441,6 +441,7 @@
   "deleteAccountScreen_pendingDialog_message": "Sua conta do Air ainda está sendo excluída. Este dispositivo vai ser redefinido quando a exclusão terminar.",
   "deleteAccountScreen_pendingDialog_confirm": "Entendi",
   "unlinkedDevice_accountDeleted": "Sua conta do Air foi excluída. Este dispositivo foi redefinido.",
+  "accountDeletionAbortHandler_notice": "Não foi possível excluir sua conta do Air. Você pode tentar de novo.",
   "appOutdatedScreen_title": "Atualização necessária",
   "appOutdatedScreen_message": "Atualize para continuar usando o Air",
   "appOutdatedScreen_descriptionAppStore": "Abra a App Store e atualize o Air.",

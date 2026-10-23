@@ -47,6 +47,11 @@ pub(crate) enum AccountDeletion {
     /// devices reset themselves.
     Aborted {
         error: String,
+        /// Whether the DS may have accepted a self group delete. If the self
+        /// group turns out closed, the deletion resumes.
+        delete_sent: bool,
+        /// Whether the user was told about the abort.
+        reported: bool,
     },
 }
 
@@ -70,6 +75,19 @@ impl AccountDeletionStep {
     pub(crate) fn is_past_self_group(self) -> bool {
         match self {
             Self::DeleteSelfGroup { .. } => false,
+            Self::DeleteQsClient
+            | Self::DeleteUsernames
+            | Self::LeaveChats
+            | Self::DeleteQsUser
+            | Self::DeleteAsUser => true,
+        }
+    }
+
+    /// Whether the DS may have accepted a self group delete. It did for sure
+    /// once the self group is done.
+    fn delete_sent(self) -> bool {
+        match self {
+            Self::DeleteSelfGroup { delete_sent } => delete_sent,
             Self::DeleteQsClient
             | Self::DeleteUsernames
             | Self::LeaveChats
@@ -153,6 +171,7 @@ impl AccountDeletion {
             Self::Running(_) => operation.postpone(&mut *txn, Utc::now()).await?,
             Self::Aborted { .. } => {
                 Self::Running(Self::FIRST_STEP).store(&mut *txn).await?;
+                notify_own_user(txn).await?;
             }
         }
         Ok(None)
@@ -183,11 +202,18 @@ impl AccountDeletion {
             .await
     }
 
-    /// Records that the deletion is aborted. Also drops a parked self group
-    /// delete, so that the outbound service does not send it later.
-    async fn abort(txn: &mut WriteDbTransaction<'_>, error: &anyhow::Error) -> anyhow::Result<()> {
+    /// Records that the deletion is aborted, see [`Self::Aborted`]. Also drops
+    /// a parked self group delete, so that the outbound service does not send
+    /// it later.
+    async fn abort(
+        txn: &mut WriteDbTransaction<'_>,
+        error: &anyhow::Error,
+        delete_sent: bool,
+    ) -> anyhow::Result<()> {
         Self::Aborted {
             error: format!("{error:#}"),
+            delete_sent,
+            reported: false,
         }
         .into_operation()
         .update_data(&mut *txn)
@@ -195,15 +221,52 @@ impl AccountDeletion {
         if let Some(self_group_id) = OwnClientInfo::load_self_group_id(&mut *txn).await? {
             PendingChatOperation::abandon_delete(txn, &self_group_id).await?;
         }
-        Ok(())
+        notify_own_user(txn).await
+    }
+
+    /// Whether the deletion was aborted and the user wasn't told yet.
+    pub(crate) async fn is_aborted_unreported(
+        connection: impl ReadConnection,
+    ) -> anyhow::Result<bool> {
+        Ok(matches!(
+            Self::load(connection).await?,
+            Some(Self::Aborted {
+                reported: false,
+                ..
+            })
+        ))
+    }
+
+    /// Records that the user was told about an aborted deletion.
+    pub(crate) async fn mark_abort_reported(
+        txn: &mut WriteDbTransaction<'_>,
+    ) -> anyhow::Result<()> {
+        let Some(Self::Aborted {
+            error,
+            delete_sent,
+            reported: false,
+        }) = Self::load(&mut *txn).await?
+        else {
+            return Ok(());
+        };
+        Self::Aborted {
+            error,
+            delete_sent,
+            reported: true,
+        }
+        .into_operation()
+        .update_data(&mut *txn)
+        .await?;
+        notify_own_user(txn).await
     }
 
     /// Records that the own self group is closed, which only happens when the
     /// account is deleted.
     ///
     /// If this device deletes the account, the self group is done and the
-    /// deletion goes on with the next step. Otherwise a sibling deleted the
-    /// account, see [`OwnClientInfo::self_group_closed`].
+    /// deletion goes on with the next step. That includes an aborted deletion
+    /// whose self group delete the DS may have accepted. Otherwise a sibling
+    /// deleted the account, see [`OwnClientInfo::self_group_closed`].
     pub(crate) async fn self_group_closed(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<()> {
         match Self::load(&mut *txn).await? {
             Some(Self::Running(AccountDeletionStep::DeleteSelfGroup { .. })) => {
@@ -213,7 +276,19 @@ impl AccountDeletion {
                     .await?;
             }
             Some(Self::Running(_)) => {}
-            Some(Self::Aborted { .. }) | None => OwnClientInfo::self_group_closed(txn).await?,
+            Some(Self::Aborted {
+                delete_sent: true, ..
+            }) => {
+                info!("the self group is closed after an aborted deletion, resuming the deletion");
+                Self::Running(AccountDeletionStep::DeleteQsClient)
+                    .store(&mut *txn)
+                    .await?;
+                notify_own_user(txn).await?;
+            }
+            Some(Self::Aborted {
+                delete_sent: false, ..
+            })
+            | None => OwnClientInfo::self_group_closed(txn).await?,
         }
         Ok(())
     }
@@ -301,7 +376,7 @@ impl OutboundServiceContext {
                         %error,
                         "Self group deletion failed without a tombstone, aborting the account deletion"
                     );
-                    self.abort_account_deletion(&error).await?;
+                    self.abort_account_deletion(&error, false).await?;
                     return Ok(false);
                 }
                 Ok(StepOutcome::Postponed(error)) => {
@@ -386,7 +461,8 @@ impl OutboundServiceContext {
                     %error,
                     "Account deletion step keeps failing, aborting the account deletion"
                 );
-                self.abort_account_deletion(error).await?;
+                self.abort_account_deletion(error, step.delete_sent())
+                    .await?;
                 return Ok(false);
             }
         }
@@ -396,9 +472,12 @@ impl OutboundServiceContext {
     async fn abort_account_deletion(
         &self,
         error: &anyhow::Error,
+        delete_sent: bool,
     ) -> Result<(), OutboundServiceError> {
         self.db
-            .with_write_transaction(async |txn| AccountDeletion::abort(txn, error).await)
+            .with_write_transaction(async |txn| {
+                AccountDeletion::abort(txn, error, delete_sent).await
+            })
             .await
             .map_err(OutboundServiceError::fatal)
     }
@@ -667,6 +746,13 @@ impl OutboundServiceContext {
     }
 }
 
+/// Tells the app that the state of the own account changed.
+async fn notify_own_user(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<()> {
+    let user_id = OwnClientInfo::load(&mut *txn).await?.user_id;
+    txn.notifier().update(user_id);
+    Ok(())
+}
+
 /// Whether the DS refused a request for good, so it didn't apply it.
 fn is_ds_refusal(error: &anyhow::Error) -> bool {
     error.chain().any(|error| {
@@ -740,14 +826,14 @@ mod tests {
     async fn next_step(db: &DbAccess) -> anyhow::Result<Option<AccountDeletionStep>> {
         match AccountDeletion::load(db.read().await?).await? {
             Some(AccountDeletion::Running(step)) => Ok(Some(step)),
-            Some(AccountDeletion::Aborted { error }) => anyhow::bail!("aborted: {error}"),
+            Some(AccountDeletion::Aborted { error, .. }) => anyhow::bail!("aborted: {error}"),
             None => Ok(None),
         }
     }
 
-    async fn abort(db: &DbAccess) -> anyhow::Result<()> {
+    async fn abort(db: &DbAccess, delete_sent: bool) -> anyhow::Result<()> {
         db.with_write_transaction(async |txn| {
-            AccountDeletion::abort(txn, &anyhow::anyhow!("refused")).await
+            AccountDeletion::abort(txn, &anyhow::anyhow!("refused"), delete_sent).await
         })
         .await
     }
@@ -788,7 +874,7 @@ mod tests {
     ) -> anyhow::Result<()> {
         let db = setup(pool).await?;
         start(&db).await?;
-        abort(&db).await?;
+        abort(&db, false).await?;
 
         close_self_group(&db).await?;
 
@@ -796,6 +882,42 @@ mod tests {
             OwnClientInfo::account_unlink_reason(db.read().await?).await?,
             Some(UnlinkReason::AccountDeleted)
         );
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn closed_self_group_after_an_aborted_sent_delete_resumes_the_deletion(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let db = setup(pool).await?;
+        start(&db).await?;
+        abort(&db, true).await?;
+
+        close_self_group(&db).await?;
+
+        assert_eq!(
+            OwnClientInfo::account_unlink_reason(db.read().await?).await?,
+            None
+        );
+        assert_eq!(
+            next_step(&db).await?,
+            Some(AccountDeletionStep::DeleteQsClient)
+        );
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn an_abort_is_unreported_until_marked(pool: SqlitePool) -> anyhow::Result<()> {
+        let db = setup(pool).await?;
+        start(&db).await?;
+        assert!(!AccountDeletion::is_aborted_unreported(db.read().await?).await?);
+
+        abort(&db, false).await?;
+        assert!(AccountDeletion::is_aborted_unreported(db.read().await?).await?);
+
+        db.with_write_transaction(async |txn| AccountDeletion::mark_abort_reported(txn).await)
+            .await?;
+        assert!(!AccountDeletion::is_aborted_unreported(db.read().await?).await?);
         Ok(())
     }
 
@@ -829,7 +951,7 @@ mod tests {
         let db = setup(pool).await?;
         start(&db).await?;
         AccountDeletion::mark_self_group_delete_sent(db.write().await?).await?;
-        abort(&db).await?;
+        abort(&db, false).await?;
 
         start(&db).await?;
 
@@ -890,7 +1012,7 @@ mod tests {
         .await?;
         start(&db).await?;
 
-        abort(&db).await?;
+        abort(&db, false).await?;
 
         assert!(
             PendingChatOperation::load_by_group_id(db.read().await?, &group_id)
@@ -916,6 +1038,8 @@ mod tests {
             AccountDeletion::Running(AccountDeletionStep::DeleteAsUser),
             AccountDeletion::Aborted {
                 error: "refused".to_owned(),
+                delete_sent: true,
+                reported: false,
             },
         ]
     }

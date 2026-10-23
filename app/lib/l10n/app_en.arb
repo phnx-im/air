@@ -2229,6 +2229,10 @@
   "@unlinkedDevice_accountDeleted": {
     "description": "Notice shown after this device reset itself because the account was deleted on this or another of the user's devices."
   },
+  "accountDeletionAbortHandler_notice": "Your Air account couldn't be deleted. You can try again.",
+  "@accountDeletionAbortHandler_notice": {
+    "description": "Notice shown when the account deletion, which went on in the background, was aborted. The account still exists and this device keeps working. The user can start the deletion again from the settings."
+  },
 
   "appOutdatedScreen_title": "Software update required",
   "@appOutdatedScreen_title": {

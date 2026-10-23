@@ -71,6 +71,8 @@ struct UiUserInner {
     version_status: VersionStatus,
     /// Why this device must reset itself, if it must.
     unlink_reason: Option<UiUnlinkReason>,
+    /// Whether the account deletion was aborted and the user wasn't told yet.
+    account_deletion_aborted: bool,
     /// The maximum number of devices that can be linked.
     ///
     /// Communicated by the server at connection establishment. 0 means unlimited.
@@ -132,9 +134,10 @@ impl UiUser {
     /// Loads state in the background
     fn spawn_load(state_tx: watch::Sender<UiUser>, core_user: CoreUser) {
         spawn_from_sync(async move {
-            // The reason is durable, so a device that was unlinked while it was
-            // not running still reports it on the next launch.
-            Self::reload_unlink_reason(&state_tx, &core_user).await;
+            // The state is durable, so a device that was unlinked, or whose
+            // account deletion was aborted, while it was not running still
+            // reports it on the next launch.
+            Self::reload_account_state(&state_tx, &core_user).await;
 
             // Load the max_devices from local storage.
             match core_user.max_devices().await {
@@ -154,9 +157,22 @@ impl UiUser {
         });
     }
 
-    /// Re-reads the unlink reason and emits it if it changed.
+    /// Re-reads the unlink reason and whether an account deletion was
+    /// aborted, and emits them if they changed.
     #[frb(ignore)]
-    async fn reload_unlink_reason(state_tx: &watch::Sender<UiUser>, core_user: &CoreUser) {
+    async fn reload_account_state(state_tx: &watch::Sender<UiUser>, core_user: &CoreUser) {
+        match core_user.has_unreported_account_deletion_abort().await {
+            Ok(aborted) => {
+                state_tx.send_if_modified(|state| {
+                    if state.inner.account_deletion_aborted == aborted {
+                        return false;
+                    }
+                    Arc::make_mut(&mut state.inner).account_deletion_aborted = aborted;
+                    true
+                });
+            }
+            Err(error) => error!(%error, "failed to read whether the account deletion was aborted"),
+        }
         match core_user.account_unlink_reason().await {
             Ok(reason) => {
                 let reason = reason.map(UiUnlinkReason::from);
@@ -198,6 +214,14 @@ impl UiUser {
     #[frb(getter, sync)]
     pub fn unlink_reason(&self) -> Option<UiUnlinkReason> {
         self.inner.unlink_reason
+    }
+
+    /// Whether the account deletion was aborted and the user wasn't told yet,
+    /// for example because it aborted in the background. See
+    /// [`UserCubitBase::account_deletion_abort_reported`].
+    #[frb(getter, sync)]
+    pub fn account_deletion_aborted(&self) -> bool {
+        self.inner.account_deletion_aborted
     }
 
     #[frb(getter, sync)]
@@ -243,6 +267,7 @@ impl UserCubitBase {
             usernames: Vec::new(),
             version_status: VersionStatus::Supported,
             unlink_reason: None,
+            account_deletion_aborted: false,
             max_devices: 0,
         })));
 
@@ -266,8 +291,9 @@ impl UserCubitBase {
         // emit persisted store notifications
         context.spawn_emit_stored_notifications(cancel.clone());
 
-        // react to an unlink reason recorded in the background
-        context.spawn_reload_unlink_reason(cancel.clone());
+        // react to an unlink reason or an aborted account deletion recorded in
+        // the background
+        context.spawn_reload_account_state(cancel.clone());
 
         // start background task listening for incoming messages
         QueueContext::new(context.clone())
@@ -505,8 +531,17 @@ impl UserCubitBase {
         self.context.core_user.unblock_contact(user_id.into()).await
     }
 
+    /// Records that the user was told that the account deletion was aborted.
+    pub async fn account_deletion_abort_reported(&self) -> anyhow::Result<()> {
+        self.context
+            .core_user
+            .mark_account_deletion_abort_reported()
+            .await
+    }
+
     /// Deletes the account. Once the deletion completes, the unlink reason is
-    /// `AccountDeleted`, also when it completes in the background.
+    /// `AccountDeleted`, also when it completes in the background. A failure
+    /// counts as reported to the user.
     pub async fn delete_account(
         &self,
         confirmation_text: &str,
@@ -608,8 +643,8 @@ struct CubitContext {
 }
 
 impl CubitContext {
-    /// Re-reads the unlink reason whenever the own user is updated.
-    fn spawn_reload_unlink_reason(&self, cancel: CancellationToken) {
+    /// Re-reads the account state whenever the own user is updated.
+    fn spawn_reload_account_state(&self, cancel: CancellationToken) {
         let core_user = self.core_user.clone();
         let state_tx = self.state_tx.clone();
         let mut notifications = core_user.db_notifications();
@@ -624,7 +659,7 @@ impl CubitContext {
                     return;
                 };
                 if notification.ops.contains_key(&own_user) {
-                    UiUser::reload_unlink_reason(&state_tx, &core_user).await;
+                    UiUser::reload_account_state(&state_tx, &core_user).await;
                 }
             }
         });

@@ -10,6 +10,7 @@ import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/features/chat/share_target_publisher.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/onboarding/update_required_view.dart';
+import 'package:air/features/user/account_deletion_abort_handler.dart';
 import 'package:air/features/user/unlinked_device_listener.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_session_cubit.dart';
@@ -95,12 +96,16 @@ class UserSessionScope extends StatelessWidget {
                     ),
                   ],
                   child: UnlinkedDeviceHandler(
-                    child: BlocSelector<UserCubit, UiUser, bool>(
-                      selector: (user) =>
-                          user.versionStatus is VersionStatus_Unsupported,
-                      builder: (context, unsupported) => unsupported
-                          ? UpdateRequiredView(platform: defaultTargetPlatform)
-                          : child,
+                    child: AccountDeletionAbortHandler(
+                      child: BlocSelector<UserCubit, UiUser, bool>(
+                        selector: (user) =>
+                            user.versionStatus is VersionStatus_Unsupported,
+                        builder: (context, unsupported) => unsupported
+                            ? UpdateRequiredView(
+                                platform: defaultTargetPlatform,
+                              )
+                            : child,
+                      ),
                     ),
                   ),
                 ),
