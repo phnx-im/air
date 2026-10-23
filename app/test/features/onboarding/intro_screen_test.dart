@@ -4,6 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/features/onboarding/intro_screen.dart';
+import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
@@ -19,19 +20,23 @@ void main() {
   group('IntroScreen', () {
     late MockUserSessionCubit userSessionCubit;
     late MockUserSettingsCubit userSettingsCubit;
+    late MockRegistrationCubit registrationCubit;
 
     setUp(() {
       userSessionCubit = MockUserSessionCubit();
       userSettingsCubit = MockUserSettingsCubit();
+      registrationCubit = MockRegistrationCubit();
       when(() => userSessionCubit.state)
           .thenReturn(const UserSessionState(loggedOut: true));
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
+      when(() => registrationCubit.state).thenReturn(const RegistrationState());
     });
 
     Widget buildSubject({bool accountMarker = false}) => MultiBlocProvider(
       providers: [
         BlocProvider<UserSessionCubit>.value(value: userSessionCubit),
         BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+        BlocProvider<RegistrationCubit>.value(value: registrationCubit),
         BlocProvider<AppLocaleCubit>(create: (_) => AppLocaleCubit()),
       ],
       child: Builder(
@@ -72,6 +77,40 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Create account'), findsNothing);
+    });
+
+    testWidgets('a long press on linking keeps the server field hidden', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.text('Link to an existing account'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Choose a server to connect to for linking.'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('experimental features let a long press reveal the server', (
+      tester,
+    ) async {
+      when(() => userSettingsCubit.state).thenReturn(
+        const UserSettings(developerMode: true, experimentalFeatures: true),
+      );
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.text('Link to an existing account'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Choose a server to connect to for linking.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('renders correctly on phone', (tester) async {

@@ -19,6 +19,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/platform/account_marker.dart';
 import 'package:air/platform/notification_permissions.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -58,6 +59,14 @@ class IntroScreen extends HookWidget {
       await requestNotificationPermission();
       if (!context.mounted) return;
       context.read<NavigationCubit>().openLinking();
+    }
+
+    revealServerField() {
+      final settings = context.read<UserSettingsCubit>().state;
+      if (!settings.experimentalFeaturesActive) {
+        return;
+      }
+      serverFieldVisible.value = true;
     }
 
     openSignUp() async {
@@ -155,7 +164,8 @@ class IntroScreen extends HookWidget {
                   type: .secondary,
                   label: loc.introScreen_linkExisting,
                   onPressed: openLinking,
-                  onLongPress: () => serverFieldVisible.value = true,
+                  // Behing the experimental features switch
+                  onLongPress: revealServerField,
                 ),
                 const SizedBox(height: S.s8),
                 Button(
