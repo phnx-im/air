@@ -1,0 +1,40 @@
+---
+source: coreclient/src/outbound_service/account_deletion.rs
+expression: all_variants()
+---
+[
+  {
+    "Running": {
+      "DeleteSelfGroup": {
+        "delete_sent": false
+      }
+    }
+  },
+  {
+    "Running": {
+      "DeleteSelfGroup": {
+        "delete_sent": true
+      }
+    }
+  },
+  {
+    "Running": "DeleteQsClient"
+  },
+  {
+    "Running": "DeleteUsernames"
+  },
+  {
+    "Running": "LeaveChats"
+  },
+  {
+    "Running": "DeleteQsUser"
+  },
+  {
+    "Running": "DeleteAsUser"
+  },
+  {
+    "Aborted": {
+      "error": "refused"
+    }
+  }
+]

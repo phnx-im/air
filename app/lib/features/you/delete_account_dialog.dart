@@ -135,9 +135,16 @@ class DeleteAccountDialog extends HookWidget {
         // it completes. Trying again runs it right away.
         case UiAccountDeletionStatus.pending:
           if (!context.mounted) return;
-          showErrorDialog(
-            context,
-            message: (loc) => loc.deleteAccountScreen_deleteAccountError,
+          showDialog(
+            context: context,
+            builder: (context) {
+              final loc = AppLocalizations.of(context);
+              return ConfirmDialog(
+                title: loc.deleteAccountScreen_pendingDialog_title,
+                message: loc.deleteAccountScreen_pendingDialog_message,
+                confirm: loc.deleteAccountScreen_pendingDialog_confirm,
+              );
+            },
           );
       }
     } catch (e) {

@@ -7,7 +7,7 @@
 use std::assert_matches;
 
 use airapiclient::{as_api::AsRequestError, qs_api::QsRequestError};
-use aircommon::identifiers::UserId;
+use aircommon::identifiers::{UserId, Username};
 use aircoreclient::{
     AccountDeletionStatus, ReadReceiptsSetting, SystemMessage, UnlinkReason,
     clients::{CoreUser, MarkChatAsRead},
@@ -370,38 +370,38 @@ async fn account_deletion_is_dropped_when_the_ds_refuses_the_self_group_delete()
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn account_deletion_gives_up_after_repeated_self_group_delete_failures() -> anyhow::Result<()>
-{
+async fn account_deletion_is_aborted_after_repeated_self_group_delete_failures()
+-> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = link_sibling(&alice).await;
 
     // Starting the deletion again makes a failed attempt due right away.
     let mut attempts = 0;
-    while alice.delete_account().await? == AccountDeletionStatus::Pending {
-        assert!(attempts < 20, "the deletion must be given up");
+    while !alice.account_deletion_is_aborted().await? {
+        assert!(attempts < 20, "the deletion must be aborted");
+        assert_eq!(
+            alice.delete_account().await?,
+            AccountDeletionStatus::Pending
+        );
         setup.listener_control_handle().set_fail_next_request();
         alice.outbound_service().run_once().await;
         attempts += 1;
     }
 
     assert!(attempts > 1, "a failure is retried");
-    assert_eq!(
-        alice.account_unlink_reason().await?,
-        Some(UnlinkReason::AccountDeleted)
-    );
+    assert_eq!(alice.account_unlink_reason().await?, None);
 
-    // Nothing is sent once this device resets itself.
+    // The DS never accepted a delete. Both devices keep the account, and the
+    // self group works again.
     assert!(alice.self_group_pending_operation_info().await?.is_none());
     alice
         .set_synced_user_setting(&ReadReceiptsSetting(true))
         .await?;
     alice.outbound_service().run_once().await;
-
-    // The DS never accepted a delete, so the sibling keeps the account.
     alice2.drain().await;
     assert_eq!(alice2.account_unlink_reason().await?, None);
-    assert_eq!(read_receipts(&alice2).await, None);
+    assert_eq!(read_receipts(&alice2).await, Some(true));
 
     Ok(())
 }
@@ -486,7 +486,7 @@ async fn account_deletion_waits_for_the_queue_to_confirm_a_parked_self_group_com
     assert_parked_settings_commit(&alice, "ready_to_retry").await?;
 
     // The resent commit finds its epoch taken and waits for the queue. More
-    // runs than the deletion has attempts neither give up nor send the delete.
+    // runs than the deletion has attempts neither abort nor send the delete.
     for _ in 0..12 {
         assert_eq!(
             alice.delete_account().await?,
@@ -517,6 +517,80 @@ async fn account_deletion_waits_for_the_queue_to_confirm_a_parked_self_group_com
         Some(UnlinkReason::AccountDeleted)
     );
     assert_account_deleted(&setup, alice.user_id(), &alice2, false).await;
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn account_deletion_is_aborted_after_three_lost_epochs() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice2 = link_sibling(&alice).await;
+    upload_initial_key_packages(&alice, &alice2).await;
+
+    for round in 1..=3 {
+        // The sibling's commit takes the epoch of the self group delete.
+        alice2
+            .set_synced_user_setting(&ReadReceiptsSetting(round % 2 == 1))
+            .await?;
+        alice2.outbound_service().run_once().await;
+        assert_eq!(
+            alice.delete_account().await?,
+            AccountDeletionStatus::Pending
+        );
+        alice.outbound_service().run_once().await;
+        if round == 3 {
+            break;
+        }
+
+        // Waiting for the queue spends no attempt.
+        assert_eq!(
+            alice.delete_account().await?,
+            AccountDeletionStatus::Pending
+        );
+        alice.outbound_service().run_once().await;
+        assert!(!alice.account_deletion_is_aborted().await?);
+        // The queue brings the sibling's commit, and the delete is staged anew.
+        alice.drain().await;
+    }
+
+    assert!(alice.account_deletion_is_aborted().await?);
+    assert_eq!(alice.account_unlink_reason().await?, None);
+    alice2.drain().await;
+    assert_eq!(alice2.account_unlink_reason().await?, None);
+    alice2.qs_publish_empty_key_packages().await?;
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn account_deletion_continues_past_a_username_that_is_gone_already() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    alice.outbound_service().run_once().await;
+
+    let gone = Username::new("gone-username".to_owned())?;
+    let kept = Username::new("kept-username".to_owned())?;
+    for username in [&gone, &kept] {
+        alice
+            .add_username(username.clone())
+            .await?
+            .expect("the username is free");
+    }
+    alice.delete_username_on_server_only(&gone).await?;
+
+    start_outbound_service(&alice).await;
+    assert_eq!(
+        alice.delete_account().await?,
+        AccountDeletionStatus::Completed
+    );
+
+    let bob = setup.add_user().await;
+    bob.outbound_service().run_once().await;
+    assert!(
+        bob.add_username(kept).await?.is_some(),
+        "the remaining username is deleted"
+    );
 
     Ok(())
 }

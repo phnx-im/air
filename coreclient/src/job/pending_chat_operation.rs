@@ -459,6 +459,13 @@ impl PendingChatOperation {
         self.operation.is_delete()
     }
 
+    pub(crate) fn is_waiting_for_queue_response(&self) -> bool {
+        matches!(
+            self.status,
+            PendingChatOperationStatus::WaitingForQueueResponse
+        )
+    }
+
     /// Completes the pending intent this operation asserted, now that its commit
     /// was accepted. No-op for operations that carry no self-group state.
     async fn complete_self_group_intent(

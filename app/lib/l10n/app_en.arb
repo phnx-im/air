@@ -2211,7 +2211,19 @@
   },
   "deleteAccountScreen_deleteAccountError": "Wait a moment, then try again.",
   "@deleteAccountScreen_deleteAccountError": {
-    "description": "Body of the error dialog shown when deleting the account fails or cannot finish yet. The dialog title already says something went wrong."
+    "description": "Body of the error dialog shown when deleting the account fails. The dialog title already says something went wrong."
+  },
+  "deleteAccountScreen_pendingDialog_title": "Deleting your account",
+  "@deleteAccountScreen_pendingDialog_title": {
+    "description": "Title of the dialog shown when the account deletion takes longer and goes on in the background. Not an error."
+  },
+  "deleteAccountScreen_pendingDialog_message": "Your Air account is still being deleted. This device resets once the deletion is done.",
+  "@deleteAccountScreen_pendingDialog_message": {
+    "description": "Body of the dialog shown when the account deletion goes on in the background. The app resets this device by itself once the deletion completes, the user doesn't need to do anything."
+  },
+  "deleteAccountScreen_pendingDialog_confirm": "Okay",
+  "@deleteAccountScreen_pendingDialog_confirm": {
+    "description": "Button that closes the dialog shown when the account deletion goes on in the background."
   },
   "unlinkedDevice_accountDeleted": "Your Air account was deleted. This device has been reset.",
   "@unlinkedDevice_accountDeleted": {

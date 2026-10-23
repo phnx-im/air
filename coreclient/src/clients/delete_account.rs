@@ -49,14 +49,11 @@ impl CoreUser {
     ///
     /// Once the deletion completes, the unlink reason is
     /// [`UnlinkReason::AccountDeleted`], and this device must reset itself.
-    /// [`AccountDeletionStatus::Completed`] also covers a deletion that is
-    /// given up after the self group or QS client deletion kept failing. This
-    /// device must reset itself then as well.
     ///
     /// Fails if the deletion can't be started, if this device was unlinked, or
-    /// if the self group deletion failed before anything reached the DS or the
-    /// DS refused the first delete sent. The deletion is aborted then and
-    /// nothing changed.
+    /// if the deletion was aborted. It is aborted if the self group or QS
+    /// client deletion fails for good or keeps failing, and the account
+    /// survives then.
     pub async fn delete_account(&self) -> anyhow::Result<AccountDeletionStatus> {
         let unlink_reason = self
             .db()
@@ -92,15 +89,30 @@ impl CoreUser {
     /// service. The QS client may be gone then, so processing the QS stream,
     /// which starts it otherwise, fails.
     pub(crate) async fn continue_account_deletion(&self) -> anyhow::Result<WaitForDoneFuture> {
-        let past_self_group = match AccountDeletion::load(self.db().read().await?).await? {
-            Some(AccountDeletion::Running(step)) => step.is_past_self_group(),
-            Some(AccountDeletion::Aborted { .. }) | None => false,
-        };
-        Ok(if past_self_group {
+        Ok(if self.account_deletion_is_past_self_group().await? {
             self.outbound_service().start()
         } else {
             self.outbound_service().notify_account_deletion()
         })
+    }
+
+    /// Starts the outbound service, without waiting for it, if a started
+    /// account deletion is past the self group. Call this when listening to
+    /// the queue fails, since the QS client may be gone then.
+    pub async fn resume_account_deletion(&self) -> anyhow::Result<()> {
+        if self.account_deletion_is_past_self_group().await? {
+            drop(self.outbound_service().start());
+        }
+        Ok(())
+    }
+
+    async fn account_deletion_is_past_self_group(&self) -> anyhow::Result<bool> {
+        Ok(
+            match AccountDeletion::load(self.db().read().await?).await? {
+                Some(AccountDeletion::Running(step)) => step.is_past_self_group(),
+                Some(AccountDeletion::Aborted { .. }) | None => false,
+            },
+        )
     }
 
     async fn account_deletion_status(&self) -> anyhow::Result<AccountDeletionStatus> {

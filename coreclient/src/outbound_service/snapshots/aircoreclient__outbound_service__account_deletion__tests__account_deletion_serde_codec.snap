@@ -1,0 +1,64 @@
+---
+source: coreclient/src/outbound_service/account_deletion.rs
+expression: "diags.join(\"\\n\")"
+---
+a1                                      # map(1)
+   67                                   #   text(7)
+      52756e6e696e67                    #     "Running"
+   a1                                   #   map(1)
+      6f                                #     text(15)
+         44656c65746553656c6647726f7570 #       "DeleteSelfGroup"
+      a1                                #     map(1)
+         6b                             #       text(11)
+            64656c6574655f73656e74      #         "delete_sent"
+         f4                             #       false, simple(20)
+
+a1                                      # map(1)
+   67                                   #   text(7)
+      52756e6e696e67                    #     "Running"
+   a1                                   #   map(1)
+      6f                                #     text(15)
+         44656c65746553656c6647726f7570 #       "DeleteSelfGroup"
+      a1                                #     map(1)
+         6b                             #       text(11)
+            64656c6574655f73656e74      #         "delete_sent"
+         f5                             #       true, simple(21)
+
+a1                                 # map(1)
+   67                              #   text(7)
+      52756e6e696e67               #     "Running"
+   6e                              #   text(14)
+      44656c6574655173436c69656e74 #     "DeleteQsClient"
+
+a1                                   # map(1)
+   67                                #   text(7)
+      52756e6e696e67                 #     "Running"
+   6f                                #   text(15)
+      44656c657465557365726e616d6573 #     "DeleteUsernames"
+
+a1                         # map(1)
+   67                      #   text(7)
+      52756e6e696e67       #     "Running"
+   6a                      #   text(10)
+      4c656176654368617473 #     "LeaveChats"
+
+a1                             # map(1)
+   67                          #   text(7)
+      52756e6e696e67           #     "Running"
+   6c                          #   text(12)
+      44656c657465517355736572 #     "DeleteQsUser"
+
+a1                             # map(1)
+   67                          #   text(7)
+      52756e6e696e67           #     "Running"
+   6c                          #   text(12)
+      44656c657465417355736572 #     "DeleteAsUser"
+
+a1                      # map(1)
+   67                   #   text(7)
+      41626f72746564    #     "Aborted"
+   a1                   #   map(1)
+      65                #     text(5)
+         6572726f72     #       "error"
+      67                #     text(7)
+         72656675736564 #       "refused"

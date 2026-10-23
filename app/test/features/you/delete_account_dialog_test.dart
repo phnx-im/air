@@ -75,15 +75,24 @@ void main() {
       expect(find.text('Wait a moment, then try again.'), findsOneWidget);
     });
 
-    testWidgets('a pending deletion is reported in a dialog', (tester) async {
+    testWidgets('a pending deletion is reported, not as a failure', (
+      tester,
+    ) async {
       final userCubit = MockUserCubit();
       whenDeleteAccount(userCubit)
           .thenAnswer((_) async => UiAccountDeletionStatus.pending);
 
       await tapDelete(tester, userCubit);
 
-      expect(find.text('Something went wrong'), findsOneWidget);
-      expect(find.text('Wait a moment, then try again.'), findsOneWidget);
+      expect(find.text('Deleting your account'), findsOneWidget);
+      expect(
+        find.text(
+          'Your Air account is still being deleted. '
+          'This device resets once the deletion is done.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Something went wrong'), findsNothing);
     });
 
     testWidgets('a completed deletion shows no dialog', (tester) async {

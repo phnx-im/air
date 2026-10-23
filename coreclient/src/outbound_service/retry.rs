@@ -63,11 +63,18 @@ impl RetryPolicy {
     };
 
     /// The self group and QS client deletion of an account deletion. Once it
-    /// is used up, this device gives up on the deletion and resets itself.
+    /// is used up, the deletion is aborted.
     pub(crate) const ACCOUNT_DELETION: Self = Self {
         max_attempts: 10,
         base: TimeDelta::seconds(5),
         max: TimeDelta::minutes(10),
+    };
+
+    /// A self group delete whose epoch a sibling's commit took. Attempts spent
+    /// on other failures of the deletion count as well.
+    pub(crate) const ACCOUNT_DELETION_LOST_EPOCH: Self = Self {
+        max_attempts: 3,
+        ..Self::ACCOUNT_DELETION
     };
 
     /// A busy database is contention on this device, not a problem of the
