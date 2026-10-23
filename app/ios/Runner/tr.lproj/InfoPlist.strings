@@ -1,0 +1,3 @@
+CFBundleDisplayName = "Air";
+NSCameraUsageDescription = "Air, kamerayı sohbetleriniz için fotoğraf çekmek ve bir cihaz bağlarken QR kodunu taramak için kullanır.";
+NSPhotoLibraryUsageDescription = "Air, fotoğraf arşivinizi sohbetlerde fotoğraf göndermek ve profil ile grup resimlerini ayarlamak için kullanır.";

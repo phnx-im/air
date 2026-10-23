@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/features/chat/chat_screen.dart';
@@ -145,8 +148,10 @@ class _Panels extends StatelessWidget {
   /// Inset between the window edge and the panel group.
   static const _windowInset = S.s8;
 
-  /// Corner radius of the panel group holding the rail and the list.
-  static const _groupRadius = CornerRadius.px20;
+  /// Corner radius of the panel group holding the rail and the list. It follows
+  /// the window's corners, which macOS 26 rounds more than any other system.
+  static double get _groupRadius =>
+      _isMacOS26 ? CornerRadius.px20 : CornerRadius.px8;
 
   /// Width the content pane keeps when the window narrows. The list panel
   /// gives way first, down to its own minimum.
@@ -203,4 +208,13 @@ class _Panels extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Returns true if the current platform is macOS 26.
+bool get _isMacOS26 {
+  if (defaultTargetPlatform != TargetPlatform.macOS || !Platform.isMacOS) {
+    return false;
+  }
+  final major = RegExp(r'\d+').firstMatch(Platform.operatingSystemVersion);
+  return major?.group(0) == '26';
 }

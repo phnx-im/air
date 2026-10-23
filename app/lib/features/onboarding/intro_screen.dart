@@ -50,10 +50,6 @@ class IntroScreen extends HookWidget {
     final serverFieldVisible = useState(false);
     final openingSignUp = useState(false);
 
-    final bool experimentalFeatures = context.select(
-      (UserSettingsCubit cubit) => cubit.state.experimentalFeaturesActive,
-    );
-
     final onLogoTap = useDeveloperUnlock();
 
     final dataLeftBehind =
@@ -63,6 +59,14 @@ class IntroScreen extends HookWidget {
       await requestNotificationPermission();
       if (!context.mounted) return;
       context.read<NavigationCubit>().openLinking();
+    }
+
+    revealServerField() {
+      final settings = context.read<UserSettingsCubit>().state;
+      if (!settings.experimentalFeaturesActive) {
+        return;
+      }
+      serverFieldVisible.value = true;
     }
 
     openSignUp() async {
@@ -156,15 +160,14 @@ class IntroScreen extends HookWidget {
                   _ServerTextField(onFieldSubmitted: openLinking),
                   const SizedBox(height: S.s16),
                 ],
-                if (experimentalFeatures) ...[
-                  Button(
-                    type: .secondary,
-                    label: loc.introScreen_linkExisting,
-                    onPressed: openLinking,
-                    onLongPress: () => serverFieldVisible.value = true,
-                  ),
-                  const SizedBox(height: S.s8),
-                ],
+                Button(
+                  type: .secondary,
+                  label: loc.introScreen_linkExisting,
+                  onPressed: openLinking,
+                  // Behind the experimental features switch
+                  onLongPress: revealServerField,
+                ),
+                const SizedBox(height: S.s8),
                 Button(
                   type: .primary,
                   label: loc.introScreen_signUp,
