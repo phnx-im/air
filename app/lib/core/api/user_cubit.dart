@@ -19,9 +19,9 @@ import 'types.dart';
 import 'user.dart';
 part 'user_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `core_user`, `emit_stored_notifications`, `new`, `notification_service`, `reload_unlink_reason`, `show_notifications`, `spawn_emit_stored_notifications`, `spawn_load`, `spawn_reload_unlink_reason`
+// These functions are ignored because they are not marked as `pub`: `core_user`, `emit_stored_notifications`, `new`, `notification_service`, `reload_account_state`, `show_notifications`, `spawn_emit_stored_notifications`, `spawn_load`, `spawn_reload_account_state`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CubitContext`, `UiUserInner`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `drop`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `drop`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`
 
 class intArray12 extends NonGrowableListView<int> {
   static const arraySize = 12;
@@ -37,6 +37,11 @@ class intArray12 extends NonGrowableListView<int> {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UiUser>>
 abstract class UiUser implements RustOpaqueInterface {
+  /// Whether the account deletion was aborted and the user wasn't told yet,
+  /// for example because it aborted in the background. See
+  /// [`UserCubitBase::account_deletion_abort_reported`].
+  bool get accountDeletionAborted;
+
   int get maxDevices;
 
   /// Why this device must reset itself, if it must.
@@ -52,6 +57,9 @@ abstract class UiUser implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>>
 abstract class UserCubitBase implements RustOpaqueInterface {
+  /// Records that the user was told that the account deletion was aborted.
+  Future<void> accountDeletionAbortReported();
+
   Future<ChatId> addContactFromGroup({
     required ChatId chatId,
     required UiUserId userId,
@@ -90,8 +98,10 @@ abstract class UserCubitBase implements RustOpaqueInterface {
   /// Their sender is not told.
   Future<void> declineContactRequest(ChatId chatId);
 
-  Future<void> deleteAccount({
-    required String dbPath,
+  /// Deletes the account. Once the deletion completes, the unlink reason is
+  /// `AccountDeleted`, also when it completes in the background. A failure
+  /// counts as reported to the user.
+  Future<UiAccountDeletionStatus> deleteAccount({
     required String confirmationText,
   });
 
@@ -151,12 +161,21 @@ abstract class UserCubitBase implements RustOpaqueInterface {
 
 enum AppState { mobileBackground, desktopBackground, foreground }
 
+/// Whether the account deletion finished.
+enum UiAccountDeletionStatus {
+  /// The account is deleted.
+  completed,
+
+  /// The deletion continues in the background, also after a restart.
+  pending,
+}
+
 /// Why this device must reset itself.
 enum UiUnlinkReason {
   /// Another device of this user removed this one from the self group.
   unlinked,
 
-  /// Another device of this user deleted the account.
+  /// The account is deleted, by this or another device of this user.
   accountDeleted,
 }
 

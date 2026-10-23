@@ -29,6 +29,7 @@ pub enum Mode {
     DropNextRequest = 3,
     DropConnectionOnWrite = 4,
     RejectNextRequest = 5,
+    FailNextRequest = 6,
 }
 
 impl Mode {
@@ -39,6 +40,7 @@ impl Mode {
             3 => Mode::DropNextRequest,
             4 => Mode::DropConnectionOnWrite,
             5 => Mode::RejectNextRequest,
+            6 => Mode::FailNextRequest,
             _ => Mode::Normal,
         }
     }
@@ -106,6 +108,13 @@ impl ControlHandle {
     /// hits the first.
     pub fn set_reject_request_after(&self, skip: usize) {
         self.arm(Mode::RejectNextRequest, skip);
+    }
+
+    /// Fails the next request with an internal server error.
+    ///
+    /// Unlike [`Self::set_reject_next_request`], the client may retry it.
+    pub fn set_fail_next_request(&self) {
+        self.arm(Mode::FailNextRequest, 0);
     }
 
     fn arm(&self, mode: Mode, skip: usize) {

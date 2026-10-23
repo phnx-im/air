@@ -70,6 +70,7 @@ use crate::{
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::{
+        account_deletion::AccountDeletion,
         chat_message_queue::ChatMessageQueue,
         resync::{Resync, ResyncStatus},
     },
@@ -1524,7 +1525,7 @@ impl CoreUser {
             // Record it so the app can act on it, this launch or a later one.
             if group.group().is_self_group() {
                 if GroupAppData::has_tombstone(staged_commit.group_context().extensions()) {
-                    OwnClientInfo::self_group_closed(&mut *txn).await?;
+                    AccountDeletion::self_group_closed(&mut *txn).await?;
                 } else {
                     error!("this device was unlinked by another device of this user");
                     OwnClientInfo::mark_account_unlinked(&mut *txn, UnlinkReason::Unlinked).await?;

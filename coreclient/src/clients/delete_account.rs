@@ -2,162 +2,155 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airapiclient::ApiClient;
-use anyhow::Context;
-use mimi_room_policy::RoleIndex;
-use tracing::{error, info, warn};
+use std::time::Duration;
+
+use anyhow::{anyhow, bail};
+use tokio::time::timeout;
+use tracing::info;
 
 use crate::{
-    UsernameRecord,
-    clients::{CoreUser, own_client_info::OwnClientInfo},
-    delete_client_database,
-    groups::Group,
-    privacy_pass,
+    clients::{
+        CoreUser,
+        own_client_info::{OwnClientInfo, UnlinkReason},
+    },
+    outbound_service::{WaitForDoneFuture, account_deletion::AccountDeletion},
 };
 
+/// How long [`CoreUser::delete_account`] waits for the outbound service before
+/// it reports the deletion as pending.
+const ACCOUNT_DELETION_WAIT: Duration = Duration::from_secs(30);
+
+/// Whether the account deletion finished.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccountDeletionStatus {
+    /// The account is deleted.
+    Completed,
+    /// The deletion is started and continues in the background, also after a
+    /// restart.
+    Pending,
+}
+
 impl CoreUser {
-    /// Deletes the account on the server and locally.
+    /// Deletes the account on the server.
     ///
-    /// 1. Delete QS queue (mandatory for success)
-    /// 2. Delete usernames
-    /// 3. Batch self-remove from groups as a single transaction
-    /// 4. Delete AS identity
+    /// 1. Delete the self group, so that linked devices reset themselves
+    /// 2. Delete the QS client
+    /// 3. Delete usernames
+    /// 4. Self-remove from all groups except the self group
+    /// 5. Delete the QS user
+    /// 6. Delete the AS user
     ///
-    /// Finally, the client database is deleted if a `db_path` is provided.
-    pub async fn delete_account(&self, db_path: Option<&str>) -> anyhow::Result<()> {
-        let client = self.api_client()?;
-
-        let client_id = self.inner.qs_client_id;
-        let qs_client_signing_key = &self.inner.key_store.qs_client_signing_key;
-
-        client
-            .qs_delete_client(client_id, qs_client_signing_key)
-            .await?;
-
-        // After the qs client is deleted, there is no way back and everything else after it is
-        // best effort.
-
-        self.delete_all_usernames(&client).await;
-        self.leave_all_chats(&client).await;
-
-        self.delete_qs_identity(&client).await;
-        self.delete_as_identity(&client).await;
-
-        if let Some(db_path) = db_path {
-            delete_client_database(db_path, self.client_record_id()).await?;
-        }
-
-        Ok(())
-    }
-
-    async fn delete_qs_identity(&self, client: &ApiClient) {
-        if let Err(error) = client
-            .qs_delete_user(
-                self.inner.qs_user_id,
-                &self.inner.key_store.qs_user_signing_key,
-            )
-            .await
-        {
-            error!(%error, "Error deleting QS user");
-        } else {
-            info!("Deleted QS user");
-        }
-    }
-
-    async fn leave_all_chats(&self, api_client: &ApiClient) {
-        if let Err(error) = self.try_leave_all_chats(api_client).await {
-            error!(%error, "Error leaving all chats");
-        }
-    }
-
-    async fn try_leave_all_chats(&self, api_client: &ApiClient) -> anyhow::Result<()> {
-        let chat_ids = self.ordered_chat_ids().await?;
-        info!(num_chats = chat_ids.len(), "Leaving all chats");
-
-        let removals = self
+    /// The deletion is persisted before anything is sent and runs in the
+    /// outbound service until it completes. This waits a bounded time for the
+    /// outbound service, and returns [`AccountDeletionStatus::Pending`] if the
+    /// deletion did not complete by then, or if the outbound service backs off
+    /// or is stopped while the self group is not done. Calling this again runs
+    /// a pending deletion right away.
+    ///
+    /// Once the deletion completes, the unlink reason is
+    /// [`UnlinkReason::AccountDeleted`], and this device must reset itself.
+    ///
+    /// Fails if the deletion can't be started, if this device was unlinked, or
+    /// if the deletion was aborted. It is aborted if the self group or QS
+    /// client deletion fails for good or keeps failing, and the account
+    /// survives then.
+    pub async fn delete_account(&self) -> anyhow::Result<AccountDeletionStatus> {
+        let unlink_reason = self
             .db()
-            .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                let mut removals = Vec::with_capacity(chat_ids.len());
-                for chat_id in chat_ids {
-                    // A left chat has no group anymore
-                    let Some(mut group) =
-                        Group::load_with_chat_id_clean(&mut *txn, chat_id).await?
-                    else {
-                        continue;
-                    };
-                    let signer = OwnClientInfo::signer_for_group(
-                        &mut *txn,
-                        group.group_id(),
-                        self.signing_key(),
-                    )
-                    .await?;
-                    let identity = signer.room_policy_identity();
-                    group.room_state_change_role_identity(
-                        &identity,
-                        &identity,
-                        RoleIndex::Outsider,
-                    )?;
-                    let params = group.stage_leave_group(&mut *txn, &signer)?;
-                    let ear_key = group.group_state_ear_key().clone();
-                    removals.push((params, ear_key, signer));
-                }
-                Ok(removals)
-            })
+            .with_write_transaction(async |txn| AccountDeletion::start(txn).await)
             .await?;
+        match unlink_reason {
+            Some(UnlinkReason::AccountDeleted) => return Ok(AccountDeletionStatus::Completed),
+            Some(UnlinkReason::Unlinked) => bail!("this device was unlinked"),
+            None => {}
+        }
 
-        for (params, ear_key, signer) in removals {
-            match api_client.ds_self_remove(params, &signer, &ear_key).await {
-                Ok(_) => {}
-                Err(e) if e.is_not_found() => {
-                    warn!("Group already gone from server; skipping");
-                }
-                Err(e) => return Err(e.into()),
+        let wait = async {
+            self.continue_account_deletion().await?.await;
+            // A run that was going on when notified may have missed the
+            // deletion, the run after it doesn't.
+            if self.account_deletion_status().await? == AccountDeletionStatus::Pending {
+                self.continue_account_deletion().await?.await;
             }
+            self.account_deletion_status().await
+        };
+        let status = match timeout(ACCOUNT_DELETION_WAIT, wait).await {
+            Ok(status) => status,
+            Err(_elapsed) => {
+                info!("Account deletion continues in the background");
+                self.account_deletion_status().await
+            }
+        };
+        // The caller reports the error.
+        if status.is_err() {
+            self.mark_account_deletion_abort_reported().await?;
         }
+        status
+    }
 
-        info!("Left all chats");
+    /// Whether the account deletion was aborted without the user being told,
+    /// for example because it aborted in the background.
+    pub async fn has_unreported_account_deletion_abort(&self) -> anyhow::Result<bool> {
+        AccountDeletion::is_aborted_unreported(self.db().read().await?).await
+    }
+
+    /// Records that the user was told that the account deletion was aborted.
+    pub async fn mark_account_deletion_abort_reported(&self) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| AccountDeletion::mark_abort_reported(txn).await)
+            .await
+    }
+
+    /// Wakes the outbound service to continue a started account deletion.
+    ///
+    /// Once the self group is done, this also starts a stopped outbound
+    /// service. The QS client may be gone then, so processing the QS stream,
+    /// which starts it otherwise, fails.
+    pub(crate) async fn continue_account_deletion(&self) -> anyhow::Result<WaitForDoneFuture> {
+        Ok(if self.account_deletion_is_past_self_group().await? {
+            self.outbound_service().start()
+        } else {
+            self.outbound_service().notify_account_deletion()
+        })
+    }
+
+    /// Starts the outbound service, without waiting for it, if a started
+    /// account deletion is past the self group. Call this when listening to
+    /// the queue fails, since the QS client may be gone then.
+    pub async fn resume_account_deletion(&self) -> anyhow::Result<()> {
+        if self.account_deletion_is_past_self_group().await? {
+            drop(self.outbound_service().start());
+        }
         Ok(())
     }
 
-    async fn delete_all_usernames(&self, api_client: &ApiClient) {
-        if let Err(error) = self.try_delete_all_usernames(api_client).await {
-            error!(%error, "Error deleting all usernames");
-        }
+    async fn account_deletion_is_past_self_group(&self) -> anyhow::Result<bool> {
+        Ok(
+            match AccountDeletion::load(self.db().read().await?).await? {
+                Some(AccountDeletion::Running(step)) => step.is_past_self_group(),
+                Some(AccountDeletion::Aborted { .. }) | None => false,
+            },
+        )
     }
 
-    async fn try_delete_all_usernames(&self, api_client: &ApiClient) -> anyhow::Result<()> {
-        let usernames = self.usernames().await?;
-        info!(num_usernames = usernames.len(), "Deleting all usernames");
-
-        let records = UsernameRecord::load_all(self.db().read().await?).await?;
-        let domain = self.user_id().domain();
-        for record in records {
-            let (token_request, _token_state) =
-                privacy_pass::prepare_delete_token_request(self.db().write().await?, domain)
-                    .await?
-                    .context("no VOPRF keys available for delete token request")?;
-            api_client
-                .as_delete_username(record.hash, &record.signing_key, token_request)
-                .await?;
-        }
-
-        info!("Deleted all usernames");
-        Ok(())
-    }
-
-    async fn delete_as_identity(&self, api_client: &ApiClient) {
-        if let Err(error) = self.try_delete_as_identity(api_client).await {
-            error!(%error, "Error deleting AS identity");
-        }
-    }
-
-    async fn try_delete_as_identity(&self, api_client: &ApiClient) -> anyhow::Result<()> {
-        let user_id = self.user_id();
-        let signing_key = self.signing_key();
-        api_client
-            .as_delete_user(user_id.clone(), signing_key)
-            .await?;
-        info!("Deleted AS user");
-        Ok(())
+    async fn account_deletion_status(&self) -> anyhow::Result<AccountDeletionStatus> {
+        self.db()
+            .with_read_transaction(async |txn| {
+                match OwnClientInfo::account_unlink_reason(&mut *txn).await? {
+                    Some(UnlinkReason::AccountDeleted) => {
+                        return Ok(AccountDeletionStatus::Completed);
+                    }
+                    Some(UnlinkReason::Unlinked) => bail!("this device was unlinked"),
+                    None => {}
+                }
+                match AccountDeletion::load(&mut *txn).await? {
+                    Some(AccountDeletion::Running(_)) => Ok(AccountDeletionStatus::Pending),
+                    Some(AccountDeletion::Aborted { error, .. }) => {
+                        Err(anyhow!(error).context("failed to delete the account"))
+                    }
+                    None => bail!("the account deletion was dropped"),
+                }
+            })
+            .await
     }
 }

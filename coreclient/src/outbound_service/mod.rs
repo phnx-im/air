@@ -34,6 +34,7 @@ use crate::{
 
 pub use timed_tasks::{APQ_KEY_PACKAGES, KEY_PACKAGES};
 
+pub(crate) mod account_deletion;
 mod attachment_recovery;
 pub(crate) mod chat_message_queue;
 mod chat_messages;
@@ -146,6 +147,18 @@ impl OutboundService<OutboundServiceContext> {
             .await?;
         Ok(())
     }
+
+    /// Starts the background task, as processing the QS stream does once the
+    /// queue is empty, and waits until its first run is done.
+    pub async fn start_and_wait(&self) {
+        self.start().await;
+    }
+
+    /// Wakes the background task, if it is started, and waits until its run is
+    /// done. Returns right away if it is stopped.
+    pub async fn wake_and_wait(&self) {
+        self.notify_work().await;
+    }
 }
 
 impl<C: OutboundServiceWork> OutboundService<C> {
@@ -235,6 +248,11 @@ impl<C: OutboundServiceWork> OutboundService<C> {
 
     /// Wakes the outbound service to run a key package upload that was made due.
     pub(crate) fn notify_key_package_upload(&self) -> WaitForDoneFuture {
+        self.notify_work()
+    }
+
+    /// Wakes the outbound service to continue a started account deletion.
+    pub(crate) fn notify_account_deletion(&self) -> WaitForDoneFuture {
         self.notify_work()
     }
 
@@ -403,6 +421,15 @@ impl OutboundServiceContext {
         self.perform_queued_resyncs(run_token)
             .await
             .or_abort("queued resyncs")?;
+
+        // Nothing else is worth sending for an account that is being deleted,
+        // or from a device that must reset itself.
+        if Box::pin(self.run_account_deletion())
+            .await
+            .or_abort("account deletion")?
+        {
+            return Ok(());
+        }
 
         Box::pin(self.advance_device_links(run_token))
             .await

@@ -63,6 +63,7 @@ pub(crate) enum OperationKind {
     TimedTask,
     FetchGroupProfile,
     FetchRequestSenderProfile,
+    AccountDeletion,
 }
 
 impl<T: OperationData> Operation<T> {
@@ -102,6 +103,7 @@ impl OperationKind {
             Self::FetchGroupProfile => "fetch_group_profile",
             Self::FetchRequestSenderProfile => "fetch_request_sender_profile",
             Self::TimedTask => "timed_task",
+            Self::AccountDeletion => "account_deletion",
         }
     }
 }
@@ -115,6 +117,7 @@ impl FromStr for OperationKind {
             "fetch_group_profile" => Self::FetchGroupProfile,
             "fetch_request_sender_profile" => Self::FetchRequestSenderProfile,
             "timed_task" => Self::TimedTask,
+            "account_deletion" => Self::AccountDeletion,
             _ => bail!("Invalid operation type: {s}"),
         })
     }
@@ -222,6 +225,52 @@ mod persistence {
             .fetch_one(connection.as_mut())
             .await?;
             Ok(exists)
+        }
+
+        /// Loads the operation with the given id
+        pub(crate) async fn load(
+            mut connection: impl ReadConnection,
+            operation_id: &OperationId,
+        ) -> anyhow::Result<Option<Self>>
+        where
+            T: DeserializeOwned,
+        {
+            struct SqlOperation {
+                data: Vec<u8>,
+                created_at: DateTime<Utc>,
+                scheduled_at: DateTime<Utc>,
+                retries: u16,
+            }
+
+            let operation = query_as!(
+                SqlOperation,
+                r#"SELECT
+                    data AS "data: _",
+                    created_at AS "created_at: _",
+                    scheduled_at AS "scheduled_at: _",
+                    retries AS "retries: _"
+                FROM operation
+                WHERE operation_id = ?"#,
+                operation_id.0,
+            )
+            .fetch_optional(connection.as_mut())
+            .await?;
+            let Some(SqlOperation {
+                data,
+                created_at,
+                scheduled_at,
+                retries,
+            }) = operation
+            else {
+                return Ok(None);
+            };
+            Ok(Some(Operation {
+                operation_id: OperationId(operation_id.0.clone()),
+                data: PersistenceCodec::from_slice(&data)?,
+                created_at,
+                scheduled_at,
+                retries: retries.into(),
+            }))
         }
 
         /// Dequeue an operation for retry
