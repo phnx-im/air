@@ -2,12 +2,20 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::HashMap, convert::identity, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    convert::identity,
+    sync::Arc,
+};
 
-use aircommon::identifiers::Username;
+use aircommon::{identifiers::Username, time::TimeStamp};
 use aircoreclient::{
     UsernameRecord,
-    clients::{AsListenUsernameResponder, UsernameQueueMessage},
+    clients::{
+        AsListenUsernameResponder, UsernameQueueMessage,
+        process::process_as::keep_failed_username_message,
+    },
+    db::notification::DbEntityId,
 };
 use anyhow::{Context, bail};
 use flutter_rust_bridge::frb;
@@ -42,29 +50,78 @@ impl UsernameContext {
         }
     }
 
-    /// Spawns a task that loads all username records in the background and spawns a new listen
-    /// username background task for each record.
-    pub(super) fn spawn_loading(
+    /// Spawns a task to keep the username listeners and the UI state in line
+    /// with the stored username records. When changes are made to usernames,
+    /// the listeners are restarted and the UI state is updated.
+    pub(super) fn spawn_sync(
         cubit_context: CubitContext,
         parent_cancel: CancellationToken,
     ) -> UsernameBackgroundTasks {
         let username_background_tasks = UsernameBackgroundTasks::default();
-        let tasks_inner = username_background_tasks.clone();
+        let tasks = username_background_tasks.clone();
         spawn_from_sync(async move {
-            let records = match cubit_context.core_user.username_records().await {
-                Ok(records) => records,
-                Err(error) => {
-                    error!(%error, "failed to load username records; won't listen to usernames");
-                    return;
+            let mut notifications = cubit_context.core_user.db_notifications();
+            Self::reconcile(&cubit_context, &tasks, &parent_cancel, &HashSet::new()).await;
+            loop {
+                let notification = tokio::select! {
+                    _ = parent_cancel.cancelled() => return,
+                    notification = notifications.next() => match notification {
+                        Some(notification) => notification,
+                        None => return,
+                    },
+                };
+                let changed: HashSet<&Username> = notification
+                    .ops
+                    .keys()
+                    .filter_map(|entity_id| match entity_id {
+                        DbEntityId::Username(username) => Some(username),
+                        _ => None,
+                    })
+                    .collect();
+                if !changed.is_empty() {
+                    Self::reconcile(&cubit_context, &tasks, &parent_cancel, &changed).await;
                 }
-            };
-            for record in records {
-                Self::new(cubit_context.clone(), record)
-                    .into_task(parent_cancel.child_token(), &tasks_inner)
-                    .spawn();
             }
         });
         username_background_tasks
+    }
+
+    async fn reconcile(
+        cubit_context: &CubitContext,
+        tasks: &UsernameBackgroundTasks,
+        parent_cancel: &CancellationToken,
+        changed: &HashSet<&Username>,
+    ) {
+        let records = match cubit_context.core_user.username_records().await {
+            Ok(records) => records,
+            Err(error) => {
+                error!(%error, "failed to load username records; won't listen to usernames");
+                return;
+            }
+        };
+
+        let usernames: Vec<Username> = records
+            .iter()
+            .map(|record| record.username.clone())
+            .collect();
+        cubit_context.state_tx.send_if_modified(|state| {
+            if state.inner.usernames == usernames {
+                return false;
+            }
+            let inner = Arc::make_mut(&mut state.inner);
+            inner.usernames = usernames.clone();
+            true
+        });
+
+        tasks.retain(|username| usernames.contains(username));
+        for record in records {
+            let restart = changed.contains(&record.username);
+            if restart || !tasks.contains(&record.username) {
+                Self::new(cubit_context.clone(), record)
+                    .into_task(parent_cancel.child_token(), tasks)
+                    .spawn();
+            }
+        }
     }
 
     pub(super) fn into_task(
@@ -159,6 +216,7 @@ impl BackgroundStreamContext<UsernameQueueMessage> for UsernameContext {
 
     async fn handle_event(&mut self, message: UsernameQueueMessage) -> bool {
         let message_id = message.message_id.map(From::from);
+        let created_at = message.created_at.map(TimeStamp::from);
         match self
             .cubit_context
             .core_user
@@ -181,9 +239,11 @@ impl BackgroundStreamContext<UsernameQueueMessage> for UsernameContext {
             Ok(None) => {}
             Err(error) => {
                 error!(?error, "failed to process username queue message");
+                if keep_failed_username_message(&error, created_at) {
+                    return true; // keep the message in the queue
+                }
             }
         }
-        // ack the message independently of the result of processing the message
         self.ack(message_id).await;
         true // continue
     }
@@ -209,9 +269,13 @@ impl UsernameBackgroundTasks {
         });
     }
 
-    pub(super) fn remove(&self, username: Username) {
+    fn contains(&self, username: &Username) -> bool {
+        self.tx.borrow().contains_key(username)
+    }
+
+    fn retain(&self, mut keep: impl FnMut(&Username) -> bool) {
         self.tx.send_modify(|usernames| {
-            usernames.remove(&username);
+            usernames.retain(|username, _| keep(username));
         });
     }
 }

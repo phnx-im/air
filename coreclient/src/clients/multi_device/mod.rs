@@ -65,7 +65,7 @@ use crate::{
         block_contact::persistence::{apply_blocked_contacts_update, blocked_contacts_snapshot},
         create_user::QsRegisteredUserState,
         listen_response,
-        own_client_info::OwnClientInfo,
+        own_client_info::{OwnClientInfo, UnlinkReason},
         process::process_qs::ProcessedQsMessages,
         store::{ClientRecord, UserCreationState},
         user_settings::{SettingsUpdateExt, apply_settings_update},
@@ -84,7 +84,9 @@ use crate::{
         MemoryUserKeyStore, indexed_keys::StorableIndexedKey,
         queue_ratchets::StorableQsQueueRatchet,
     },
+    outbound_service::timed_tasks::skip_signed_connection_package_upload,
     privacy_pass,
+    usernames::sync::{apply_usernames_update, usernames_snapshot},
     utils::{
         global_lock::GlobalLock,
         persistence::{open_air_db, open_client_db, open_lock_file},
@@ -587,6 +589,7 @@ impl CoreUser {
         let blocked_contacts = blocked_contacts_snapshot(self.db().read().await?).await?;
         let redeemed_tokens =
             privacy_pass::redeemed_tokens_snapshot(self.db().read().await?).await?;
+        let usernames = usernames_snapshot(self.db().read().await?).await?;
         let connection_requests = self
             .db()
             .with_read_transaction(async |txn| requests_snapshot(txn).await)
@@ -610,6 +613,7 @@ impl CoreUser {
             token_seeds,
             blocked_contacts,
             redeemed_tokens,
+            usernames,
             connection_requests,
             device_name,
             groups,
@@ -898,6 +902,7 @@ impl CoreUser {
             token_seeds,
             blocked_contacts,
             redeemed_tokens,
+            usernames,
             connection_requests,
             device_name: _,
             groups,
@@ -955,7 +960,9 @@ impl CoreUser {
                 privacy_pass::store_provisioned_seeds(txn, &token_seeds).await?;
                 apply_blocked_contacts_update(txn, &blocked_contacts).await?;
                 privacy_pass::apply_redeemed_tokens(txn, &redeemed_tokens).await?;
+                apply_usernames_update(txn, &usernames).await?;
                 store_provisioned_requests(txn, &connection_requests, Utc::now()).await?;
+                skip_signed_connection_package_upload(&mut *txn).await?;
 
                 // Queue the onboarding into the groups the virtual client is
                 // already a member of.
@@ -982,8 +989,8 @@ impl CoreUser {
         ))
     }
 
-    /// Whether a sibling device removed this device from the self group.
-    pub async fn is_account_unlinked(&self) -> anyhow::Result<bool> {
-        OwnClientInfo::is_account_unlinked(self.db().read().await?).await
+    /// Returns why this device can no longer use the account, or `None` while it can.
+    pub async fn account_unlink_reason(&self) -> anyhow::Result<Option<UnlinkReason>> {
+        OwnClientInfo::account_unlink_reason(self.db().read().await?).await
     }
 }

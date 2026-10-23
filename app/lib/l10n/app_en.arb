@@ -1401,7 +1401,7 @@
     }
   },
 
-  "systemMessage_onboarded": "This client has been onboarded into the chat after linking.",
+  "systemMessage_onboarded": "This device was linked to your account.",
   "@systemMessage_onboarded": {
     "description": "System message marking where a newly linked device joined the chat."
   },
@@ -2212,6 +2212,10 @@
   "deleteAccountScreen_deleteAccountError": "Wait a moment, then try again.",
   "@deleteAccountScreen_deleteAccountError": {
     "description": "Body of the error dialog shown when deleting the account fails on the server. The dialog title already says something went wrong."
+  },
+  "unlinkedDevice_accountDeleted": "Your Air account was deleted. This device has been reset.",
+  "@unlinkedDevice_accountDeleted": {
+    "description": "Notice shown after this device reset itself because the account was deleted on another of the user's devices."
   },
 
   "appOutdatedScreen_title": "Software update required",

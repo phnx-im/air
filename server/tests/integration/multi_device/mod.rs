@@ -5,6 +5,7 @@
 //! Multi-device: linking, sibling sync via the self group, and devices
 //! following each other in groups.
 
+mod account_deletion;
 mod bootstrap;
 mod deletion;
 mod device_limit;
@@ -20,6 +21,7 @@ mod requests;
 mod self_group;
 mod settings;
 mod tokens;
+mod usernames;
 
 use std::{assert_matches, collections::HashSet, time::Duration};
 

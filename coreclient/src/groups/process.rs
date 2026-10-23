@@ -54,7 +54,7 @@ use crate::{
     job::pending_chat_operation::PendingChatOperation,
     key_stores::as_credentials::AsCredentials,
     outbound_service::resync::{Resync, ResyncReason},
-    privacy_pass,
+    privacy_pass, usernames,
 };
 
 use super::{Group, openmls_provider::AirOpenMlsProvider};
@@ -95,6 +95,14 @@ async fn apply_self_group_payload(
         for seed in &payload.token_seeds {
             privacy_pass::apply_incoming_seed(txn, seed).await?;
         }
+    }
+
+    // We apply usernames before requests. A forwarded request can target a
+    // username from the same commit.
+    if own_echo {
+        usernames::sync::complete_sent_entries(txn, &payload.usernames).await?;
+    } else {
+        usernames::sync::apply_usernames_update(txn, &payload.usernames).await?;
     }
 
     let effects = if own_echo {

@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airapiclient::{ClassifyRequestError, RequestErrorKind};
+use airapiclient::{ClassifyRequestError, RequestErrorKind, as_api::UsernameRefresh};
 use aircommon::{
-    identifiers::{USERNAME_REFRESH_THRESHOLD, UsernameHash},
+    identifiers::{USERNAME_REFRESH_THRESHOLD, USERNAME_VALIDITY_PERIOD, UsernameHash},
     messages::connection_package::ConnectionPackageHash,
     mls_group_config::VC_DERIVATION_EPOCH_RETENTION_WINDOW,
 };
@@ -28,9 +28,10 @@ use crate::{
         pending_chat_operation::PendingChatOperation,
         recoverable::Recoverable,
     },
+    privacy_pass::{self, ConsumedToken},
     usernames::{
-        SignedConnectionPackages, UsernameRecord, connection_packages::ConnectionPackageRecord,
-        generate_signed_connection_packages,
+        self, SignedConnectionPackages, UsernameRecord,
+        connection_packages::ConnectionPackageRecord, generate_signed_connection_packages,
     },
 };
 
@@ -201,6 +202,14 @@ mod test_utils {
                 .await
         }
 
+        pub async fn schedule_username_refresh(&self, due_at: DateTime<Utc>) -> sqlx::Result<()> {
+            TimedTask::new(TimedTaskKind::UsernameRefresh)
+                .into_operation()
+                .schedule_at(due_at)
+                .enqueue(self.context.db.write().await?)
+                .await
+        }
+
         pub async fn schedule_self_update(&self, due_at: DateTime<Utc>) -> sqlx::Result<()> {
             TimedTask::new(TimedTaskKind::SelfUpdate)
                 .into_operation()
@@ -256,6 +265,19 @@ mod test_utils {
         pub parked: bool,
         pub pending_usernames: Vec<UsernameHash>,
     }
+}
+
+/// Marks the one-time signed connection package upload as done without
+/// uploading anything.
+pub(crate) async fn skip_signed_connection_package_upload(
+    connection: impl WriteConnection,
+) -> sqlx::Result<()> {
+    TimedTask::new(TimedTaskKind::SignedConnectionPackageUpload {
+        pending_usernames: Vec::new(),
+    })
+    .into_operation()
+    .enqueue(connection)
+    .await
 }
 
 /// Context for timed tasks
@@ -436,8 +458,6 @@ impl OutboundServiceContext {
     /// This ensures usernames are refreshed on the server well before they expire (server sets
     /// a `USERNAME_VALIDITY_PERIOD` window from creation/refresh time).
     async fn refresh_usernames(&self) -> anyhow::Result<Duration> {
-        use crate::privacy_pass;
-
         let now = Utc::now();
         let threshold = now - USERNAME_REFRESH_THRESHOLD;
         let usernames =
@@ -467,12 +487,13 @@ impl OutboundServiceContext {
                     .as_refresh_username(
                         username_record.hash,
                         &username_record.signing_key,
-                        consumed.token,
+                        consumed.token.clone(),
                     )
                     .await;
 
-                if let Err(e) = &result {
-                    if e.is_unknown_token_key_id() {
+                let refresh = match result {
+                    Ok(refresh) => refresh,
+                    Err(error) if error.is_unknown_token_key_id() => {
                         warn!("unknown token key ID, purging stale tokens");
                         privacy_pass::purge_and_replenish(
                             &self.db,
@@ -482,16 +503,47 @@ impl OutboundServiceContext {
                             self.signing_key(),
                         )
                         .await?;
-                        // Don't consume and retry immediately — that would
+                        // Don't consume and retry immediately. That would
                         // let the server correlate issuance with redemption
                         // by timing. Break and let the next task iteration
                         // retry with decorrelated tokens.
                         break;
                     }
-                    result?;
-                }
+                    Err(error) if error.is_not_found() => {
+                        // When a username is not found on the server we should
+                        // keep the token.
+                        warn!(%error, "username not found on the server, skipping its refresh");
+                        privacy_pass::restore_unredeemed_token(
+                            &self.db,
+                            OperationType::AddUsername,
+                            consumed,
+                        )
+                        .await;
+                        continue;
+                    }
+                    Err(error) => return Err(error.into()),
+                };
 
-                // The redemption and the refresh should be atomic
+                self.store_username_refresh(&username_record, consumed, refresh, now)
+                    .await?;
+            }
+        }
+
+        Ok(Duration::days(1))
+    }
+
+    async fn store_username_refresh(
+        &self,
+        username_record: &UsernameRecord,
+        consumed: ConsumedToken,
+        refresh: UsernameRefresh,
+        now: DateTime<Utc>,
+    ) -> anyhow::Result<()> {
+        match refresh {
+            UsernameRefresh::Refreshed => {
+                // The redemption and the refresh should be atomic. We tell the
+                // siblings about the refresh. Otherwise each sibling tries to
+                // also refresh that username.
                 self.db
                     .with_write_transaction(async |txn| -> anyhow::Result<()> {
                         if let Some(position) = &consumed.position {
@@ -499,13 +551,34 @@ impl OutboundServiceContext {
                         }
                         UsernameRecord::update_refreshed_at(&mut *txn, &username_record.hash, now)
                             .await?;
+                        usernames::sync::park_claimed(txn, &username_record.username).await?;
                         Ok(())
                     })
                     .await?;
             }
+            UsernameRefresh::Skipped { expires_at } => {
+                // The commit of a sibling's refresh has not reached us yet.
+                info!("username refresh skipped, a sibling refreshed it");
+                privacy_pass::restore_unredeemed_token(
+                    &self.db,
+                    OperationType::AddUsername,
+                    consumed,
+                )
+                .await;
+                let refreshed_at = *expires_at - USERNAME_VALIDITY_PERIOD;
+                self.db
+                    .with_write_transaction(async |txn| {
+                        UsernameRecord::advance_refreshed_at(
+                            txn,
+                            &username_record.username,
+                            refreshed_at,
+                        )
+                        .await
+                    })
+                    .await?;
+            }
         }
-
-        Ok(Duration::days(1))
+        Ok(())
     }
 
     /// Ensures the client has Privacy Pass tokens available for all
@@ -518,7 +591,7 @@ impl OutboundServiceContext {
         operation_type: OperationType,
         loaded_credentials: &mut bool,
     ) -> anyhow::Result<Duration> {
-        use crate::privacy_pass::{self, ReplenishOutcome};
+        use crate::privacy_pass::ReplenishOutcome;
 
         let api_client = self.api_clients.default_client()?;
 
@@ -793,7 +866,13 @@ impl OutboundServiceContext {
                 )
                 .await
             {
-                Ok(()) => {}
+                Ok(()) => {
+                    self.db
+                        .with_write_transaction(async |txn| {
+                            usernames::sync::park_claimed(txn, &record.username).await
+                        })
+                        .await?;
+                }
                 Err(error) => {
                     // The packages were never published, so their decryption keys are useless.
                     self.db

@@ -96,7 +96,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 1325989049;
+  int get rustContentHash => -44435414;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -562,9 +562,9 @@ abstract class RustLibApi extends BaseApi {
     required UiUserId target,
   });
 
-  bool crateApiUserCubitUiUserAccountUnlinked({required UiUser that});
-
   int crateApiUserCubitUiUserMaxDevices({required UiUser that});
+
+  UiUnlinkReason? crateApiUserCubitUiUserUnlinkReason({required UiUser that});
 
   UiUserId crateApiUserCubitUiUserUserId({required UiUser that});
 
@@ -4753,35 +4753,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  bool crateApiUserCubitUiUserAccountUnlinked({required UiUser that}) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
-            that,
-            serializer,
-          );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 95)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_bool,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiUserCubitUiUserAccountUnlinkedConstMeta,
-        argValues: [that],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiUserCubitUiUserAccountUnlinkedConstMeta =>
-      const TaskConstMeta(
-        debugName: "UiUser_account_unlinked",
-        argNames: ["that"],
-      );
-
-  @override
   int crateApiUserCubitUiUserMaxDevices({required UiUser that}) {
     return handler.executeSync(
       SyncTask(
@@ -4791,7 +4762,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 96)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 95)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_u_32,
@@ -4806,6 +4777,35 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiUserCubitUiUserMaxDevicesConstMeta =>
       const TaskConstMeta(debugName: "UiUser_max_devices", argNames: ["that"]);
+
+  @override
+  UiUnlinkReason? crateApiUserCubitUiUserUnlinkReason({required UiUser that}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 96)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_ui_unlink_reason,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiUserCubitUiUserUnlinkReasonConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiUserCubitUiUserUnlinkReasonConstMeta =>
+      const TaskConstMeta(
+        debugName: "UiUser_unlink_reason",
+        argNames: ["that"],
+      );
 
   @override
   UiUserId crateApiUserCubitUiUserUserId({required UiUser that}) {
@@ -10072,6 +10072,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiUnlinkReason dco_decode_box_autoadd_ui_unlink_reason(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_ui_unlink_reason(raw);
+  }
+
+  @protected
   UiUserId dco_decode_box_autoadd_ui_user_id(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_ui_user_id(raw);
@@ -11203,6 +11209,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiUnlinkReason? dco_decode_opt_box_autoadd_ui_unlink_reason(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_ui_unlink_reason(raw);
+  }
+
+  @protected
   UiUserId? dco_decode_opt_box_autoadd_ui_user_id(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_ui_user_id(raw);
@@ -12064,6 +12076,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw Exception("unreachable");
     }
+  }
+
+  @protected
+  UiUnlinkReason dco_decode_ui_unlink_reason(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return UiUnlinkReason.values[raw as int];
   }
 
   @protected
@@ -13727,6 +13745,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiUnlinkReason sse_decode_box_autoadd_ui_unlink_reason(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_ui_unlink_reason(deserializer));
+  }
+
+  @protected
   UiUserId sse_decode_box_autoadd_ui_user_id(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_ui_user_id(deserializer));
@@ -15337,6 +15363,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiUnlinkReason? sse_decode_opt_box_autoadd_ui_unlink_reason(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_ui_unlink_reason(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   UiUserId? sse_decode_opt_box_autoadd_ui_user_id(
     SseDeserializer deserializer,
   ) {
@@ -16318,6 +16357,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw UnimplementedError('');
     }
+  }
+
+  @protected
+  UiUnlinkReason sse_decode_ui_unlink_reason(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return UiUnlinkReason.values[inner];
   }
 
   @protected
@@ -18316,6 +18362,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_ui_unlink_reason(
+    UiUnlinkReason self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_ui_unlink_reason(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_ui_user_id(
     UiUserId self,
     SseSerializer serializer,
@@ -19776,6 +19831,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_ui_unlink_reason(
+    UiUnlinkReason? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_ui_unlink_reason(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_ui_user_id(
     UiUserId? self,
     SseSerializer serializer,
@@ -20632,6 +20700,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case UiSystemMessage_SentConnectionRequestExpired():
         sse_encode_i_32(21, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_ui_unlink_reason(
+    UiUnlinkReason self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 
   @protected
@@ -21652,11 +21729,12 @@ class UiUserImpl extends RustOpaque implements UiUser {
         RustLib.instance.api.rust_arc_decrement_strong_count_UiUserPtr,
   );
 
-  bool get accountUnlinked =>
-      RustLib.instance.api.crateApiUserCubitUiUserAccountUnlinked(that: this);
-
   int get maxDevices =>
       RustLib.instance.api.crateApiUserCubitUiUserMaxDevices(that: this);
+
+  /// Why this device must reset itself, if it must.
+  UiUnlinkReason? get unlinkReason =>
+      RustLib.instance.api.crateApiUserCubitUiUserUnlinkReason(that: this);
 
   UiUserId get userId =>
       RustLib.instance.api.crateApiUserCubitUiUserUserId(that: this);
@@ -21699,6 +21777,10 @@ class UserCubitBaseImpl extends RustOpaque implements UserCubitBase {
     preferApq: preferApq,
   );
 
+  /// Registers a new username.
+  ///
+  /// Returns `false` if the username is taken.
+  /// [`UsernameContext::spawn_sync`] updates the UI state and the listener.
   Future<bool> addUsername({required UiUsername username}) =>
       RustLib.instance.api.crateApiUserCubitUserCubitBaseAddUsername(
         that: this,

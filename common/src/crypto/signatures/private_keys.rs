@@ -184,6 +184,14 @@ impl<KT> SigningKey<KT> {
         &self.verifying_key
     }
 
+    #[cfg(any(test, feature = "test_utils"))]
+    pub fn new_for_test(signing_key: Vec<u8>, verifying_key: VerifyingKey<KT>) -> Self {
+        Self {
+            signing_key: SecretBytes::from(signing_key),
+            verifying_key,
+        }
+    }
+
     /// Sign the given payload with this signing key.
     pub(crate) fn sign(&self, payload: &[u8]) -> Result<Signature<KT>, LibraryError> {
         let rust_crypto = OpenMlsRustCrypto::default();
