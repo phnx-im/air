@@ -2,13 +2,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::{
+    sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
+};
+
 use aircommon::identifiers::Fqdn;
 use anyhow::{Context, bail};
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
 use uuid::Uuid;
 
-use super::{MultiDeviceProvisionClientError, MultiDeviceProvisionStep};
+use super::MultiDeviceProvisionStep;
 use crate::{
     clients::CoreUser,
     db::{access::DbAccess, notification::DbNotificationsSender},
@@ -25,7 +30,7 @@ impl CoreUser {
         domain: Fqdn,
         server_url: Url,
         session_tx: mpsc::Sender<MultiDeviceProvisionStep>,
-    ) -> anyhow::Result<Result<CoreUser, MultiDeviceProvisionClientError>> {
+    ) -> anyhow::Result<CoreUser> {
         let notifier_tx = DbNotificationsSender::new();
         let air_db =
             DbAccess::with_single_pool(open_air_db_in_memory().await?, notifier_tx.clone());
@@ -67,9 +72,7 @@ impl CoreUser {
             .clone();
 
         let (session_tx, mut session_rx) = mpsc::channel(1);
-        let new_device = async {
-            anyhow::Ok(Self::new_linked_ephemeral(domain, server_url, session_tx).await??)
-        };
+        let new_device = async { Self::new_linked_ephemeral(domain, server_url, session_tx).await };
         let link = async {
             let code = match session_rx
                 .recv()
@@ -85,8 +88,9 @@ impl CoreUser {
                 .expect("the receiver is alive");
             // The sender ignores a dropped receiver.
             let (connected_tx, _) = oneshot::channel();
-            self.multi_device_link_client(code, connected_tx, confirmation_rx)
-                .await??;
+            // The outbound service adds the new device to the self group.
+            let link = self.multi_device_link_client(code, connected_tx, confirmation_rx);
+            self.in_foreground(link).await??;
             // The new device still reports a `Linking` step, which fails if the
             // receiver is dropped before it is done.
             anyhow::Ok(session_rx)
@@ -94,5 +98,28 @@ impl CoreUser {
 
         let (new_device, _session_rx) = tokio::try_join!(new_device, link)?;
         Ok(new_device)
+    }
+
+    /// Drives this device until `task` finishes, the way the app does while it
+    /// is in the foreground: it processes its queue and runs its outbound
+    /// service.
+    async fn in_foreground<T>(&self, task: impl Future<Output = T>) -> T {
+        let done = AtomicBool::new(false);
+        let task = async {
+            let output = task.await;
+            done.store(true, Ordering::SeqCst);
+            output
+        };
+        let foreground = async {
+            while !done.load(Ordering::SeqCst) {
+                if let Ok(messages) = self.qs_fetch_messages().await {
+                    self.fully_process_qs_messages(messages).await;
+                }
+                self.outbound_service().run_once().await;
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        };
+        let (output, ()) = tokio::join!(task, foreground);
+        output
     }
 }

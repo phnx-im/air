@@ -26,7 +26,7 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::{
-    auto_confirm, client_db_files, device_linked_client_ids, ignore_connected,
+    auto_confirm, client_db_files, device_linked_client_ids, ignore_connected, in_foreground,
     next_sibling_client_state, recv_linking_code, self_chat_id, self_group_client_ids,
     send_and_receive,
 };
@@ -270,9 +270,11 @@ async fn link_with_unknown_session_fails() {
     let alice = setup.add_user().await;
 
     // A well-formed code for a session that was never opened.
-    let result = alice
-        .multi_device_link_client("999".to_owned(), ignore_connected(), auto_confirm())
-        .await;
+    let result = in_foreground(
+        &alice,
+        alice.multi_device_link_client("999".to_owned(), ignore_connected(), auto_confirm()),
+    )
+    .await;
 
     assert!(matches!(
         result,
@@ -295,23 +297,26 @@ async fn consumed_session_cannot_be_linked_again() {
         CoreUser::new_linked_ephemeral(domain, server_url, session_tx)
             .await
             .unwrap()
-            .unwrap()
     });
 
     let session_id = recv_linking_code(&mut session_rx).await;
 
-    alice
-        .multi_device_link_client(session_id.clone(), ignore_connected(), auto_confirm())
-        .await
-        .unwrap()
-        .unwrap();
+    in_foreground(
+        &alice,
+        alice.multi_device_link_client(session_id.clone(), ignore_connected(), auto_confirm()),
+    )
+    .await
+    .unwrap()
+    .unwrap();
 
     new_device_task.await.unwrap();
 
     // Session was already consumed — a second attempt must fail.
-    let second_result = alice
-        .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
-        .await;
+    let second_result = in_foreground(
+        &alice,
+        alice.multi_device_link_client(session_id, ignore_connected(), auto_confirm()),
+    )
+    .await;
 
     assert!(matches!(
         second_result,
@@ -337,7 +342,6 @@ async fn concurrent_linking_sessions_stay_separate() {
         CoreUser::new_linked_ephemeral(alice_domain, alice_server_url, alice_session_tx)
             .await
             .unwrap()
-            .unwrap()
     });
 
     let bob_domain = domain.clone();
@@ -345,7 +349,6 @@ async fn concurrent_linking_sessions_stay_separate() {
     let bob2_task = tokio::spawn(async move {
         CoreUser::new_linked_ephemeral(bob_domain, bob_server_url, bob_session_tx)
             .await
-            .unwrap()
             .unwrap()
     });
 
@@ -356,16 +359,21 @@ async fn concurrent_linking_sessions_stay_separate() {
     // distinct codes.
     assert_ne!(alice_session_id, bob_session_id);
 
-    alice
-        .multi_device_link_client(alice_session_id, ignore_connected(), auto_confirm())
-        .await
-        .unwrap()
-        .unwrap();
+    in_foreground(
+        &alice,
+        alice.multi_device_link_client(alice_session_id, ignore_connected(), auto_confirm()),
+    )
+    .await
+    .unwrap()
+    .unwrap();
 
-    bob.multi_device_link_client(bob_session_id, ignore_connected(), auto_confirm())
-        .await
-        .unwrap()
-        .unwrap();
+    in_foreground(
+        &bob,
+        bob.multi_device_link_client(bob_session_id, ignore_connected(), auto_confirm()),
+    )
+    .await
+    .unwrap()
+    .unwrap();
 
     // Each new device must be linked to the correct existing virtual client.
     let alice2 = alice2_task.await.unwrap();
@@ -748,7 +756,7 @@ async fn provision_device(
     let (session_tx, mut session_rx) = tokio::sync::mpsc::channel(1);
 
     let task = tokio::spawn(async move {
-        anyhow::Ok(CoreUser::new_linked_ephemeral(domain, server_url, session_tx).await??)
+        CoreUser::new_linked_ephemeral(domain, server_url, session_tx).await
     });
 
     let code = recv_linking_code(&mut session_rx).await;
@@ -774,9 +782,11 @@ async fn linking_session_expires() {
         "the new device's session must end when the relay reaps it"
     );
 
-    let result = alice
-        .multi_device_link_client(code, ignore_connected(), auto_confirm())
-        .await;
+    let result = in_foreground(
+        &alice,
+        alice.multi_device_link_client(code, ignore_connected(), auto_confirm()),
+    )
+    .await;
     assert!(matches!(
         result,
         Ok(Err(MultiDeviceLinkClientError::SessionNotFound))
@@ -789,11 +799,13 @@ async fn rendezvous_id_is_not_reused() {
     let alice = setup.add_user().await;
 
     let (first_code, first_task, _first_rx) = provision_device(&setup).await;
-    alice
-        .multi_device_link_client(first_code.clone(), ignore_connected(), auto_confirm())
-        .await
-        .unwrap()
-        .unwrap();
+    in_foreground(
+        &alice,
+        alice.multi_device_link_client(first_code.clone(), ignore_connected(), auto_confirm()),
+    )
+    .await
+    .unwrap()
+    .unwrap();
     let _first_device = first_task.await.unwrap().unwrap();
 
     let (second_code, second_task, _second_rx) = provision_device(&setup).await;
@@ -813,18 +825,22 @@ async fn unanswered_code_is_replaced() {
     let code = recv_linking_code(&mut session_rx).await;
     assert_ne!(code, expired_code);
 
-    let stale = alice
-        .multi_device_link_client(expired_code, ignore_connected(), auto_confirm())
-        .await;
+    let stale = in_foreground(
+        &alice,
+        alice.multi_device_link_client(expired_code, ignore_connected(), auto_confirm()),
+    )
+    .await;
     assert!(matches!(
         stale,
         Ok(Err(MultiDeviceLinkClientError::SessionNotFound))
     ));
 
-    alice
-        .multi_device_link_client(code, ignore_connected(), auto_confirm())
-        .await
-        .unwrap()
-        .unwrap();
+    in_foreground(
+        &alice,
+        alice.multi_device_link_client(code, ignore_connected(), auto_confirm()),
+    )
+    .await
+    .unwrap()
+    .unwrap();
     let _new_device = new_device_task.await.unwrap().unwrap();
 }

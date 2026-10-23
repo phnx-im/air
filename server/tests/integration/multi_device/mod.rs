@@ -23,16 +23,19 @@ mod settings;
 mod tokens;
 mod usernames;
 
-use std::{assert_matches, collections::HashSet, time::Duration};
+use std::{
+    assert_matches,
+    collections::HashSet,
+    sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
+};
 
 use aircommon::{credentials::LeafCredential, identifiers::UserId};
 use aircoreclient::{
     ChatId, ChatStatus, EventMessage, Message, ReadReceiptsSetting, SystemMessage,
     clients::{
         CoreUser, ListenResponse, MarkChatAsRead, listen_response,
-        multi_device::{
-            MultiDeviceLinkClientError, MultiDeviceProvisionClientError, MultiDeviceProvisionStep,
-        },
+        multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
         store::ClientRecord,
     },
 };
@@ -117,6 +120,26 @@ async fn recv_linking_code(
     }
 }
 
+/// Drives `existing` until `task` finishes, the way the app does while it is
+/// in the foreground: it processes its queue and runs its outbound service.
+async fn in_foreground<T>(existing: &CoreUser, task: impl Future<Output = T>) -> T {
+    let done = AtomicBool::new(false);
+    let task = async {
+        let output = task.await;
+        done.store(true, Ordering::SeqCst);
+        output
+    };
+    let outbound = async {
+        while !done.load(Ordering::SeqCst) {
+            existing.drain_unchecked().await;
+            existing.outbound_service().run_once().await;
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    };
+    let (output, ()) = tokio::join!(task, outbound);
+    output
+}
+
 /// The device's locally stored read-receipts setting. `None` means unset.
 async fn read_receipts(user: &CoreUser) -> Option<bool> {
     user.user_setting::<ReadReceiptsSetting>()
@@ -142,8 +165,13 @@ fn client_db_files(db_path: &std::path::Path) -> Vec<String> {
         .collect()
 }
 
-/// Links a fresh device to `user_id` and asserts that both sides fail with the
-/// device limit error and that the rejected device removed its local client.
+/// Links a fresh device to `user_id` and asserts that the existing device
+/// fails with the device limit error and that the rejected device removed its
+/// local client.
+///
+/// Tests don't learn the limit from the QS listen stream, so the existing
+/// device does not refuse early: the DS rejects the add, and the existing
+/// device takes the new device's queue back.
 async fn assert_link_rejected_at_limit(
     setup: &TestBackend,
     user: &CoreUser,
@@ -169,20 +197,23 @@ async fn assert_link_rejected_at_limit(
     });
     let session_id = recv_linking_code(&mut session_rx).await;
 
-    let linked = user
-        .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
-        .await?;
+    let linked = in_foreground(
+        user,
+        user.multi_device_link_client(session_id, ignore_connected(), auto_confirm()),
+    )
+    .await?;
     assert_matches!(
         linked,
         Err(MultiDeviceLinkClientError::DeviceLimitReached { max_devices: max })
             if max == max_devices
     );
 
-    let provisioned = new_device_task.await??;
-    assert_matches!(
-        provisioned,
-        Err(MultiDeviceProvisionClientError::DeviceLimitReached { max_devices: max })
-            if max == max_devices
+    // The existing device gives up on the link and takes the new device's
+    // queue back, which ends the new device's wait for the self group.
+    let provisioned = in_foreground(user, new_device_task).await?;
+    assert!(
+        provisioned.is_err(),
+        "the rejected device must not finish linking"
     );
 
     assert!(

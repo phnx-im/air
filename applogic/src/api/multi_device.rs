@@ -9,9 +9,7 @@ use std::sync::Mutex;
 use aircommon::identifiers::Fqdn;
 use aircoreclient::clients::{
     CoreUser,
-    multi_device::{
-        MultiDeviceLinkClientError, MultiDeviceProvisionClientError, MultiDeviceProvisionStep,
-    },
+    multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
 };
 use anyhow::{Context, Result};
 use flutter_rust_bridge::frb;
@@ -167,12 +165,9 @@ pub async fn multi_device_provision_client(
         )
         .await
         {
-            Ok(Ok(core_user)) => {
+            Ok(core_user) => {
                 *provisioned_user.user.lock().unwrap() = Some(User::from_core_user(core_user));
                 MultiDeviceProvisionEvent::Linked
-            }
-            Ok(Err(MultiDeviceProvisionClientError::DeviceLimitReached { max_devices })) => {
-                MultiDeviceProvisionEvent::DeviceLimitReached { max_devices }
             }
             Err(error) => {
                 error!(%error, "multi-device provisioning failed");
