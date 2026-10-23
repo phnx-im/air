@@ -264,7 +264,7 @@
   "systemMessage_userChangedPicture": "{user} muutis grupi pilti",
   "systemMessage_userCreatedGroup": "{user} lõi grupi",
   "systemMessage_userDeletedChat": "{user} kustutas vestluse",
-  "systemMessage_onboarded": "See seade liitus vestlusega pärast linkimist.",
+  "systemMessage_onboarded": "See seade lingiti su kontoga.",
   "systemMessage_deviceLinked": "Sa linkisid oma kontoga uue seadme nimega {device}. {viewDevicesAction}",
   "systemMessage_deviceLinkedUnknown": "Sa linkisid oma kontoga uue seadme. {viewDevicesAction}",
   "systemMessage_deviceUnlinked": "Sa tühistasid seadme {device} linkimise oma kontoga. {viewDevicesAction}",
