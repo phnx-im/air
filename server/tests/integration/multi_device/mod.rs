@@ -5,6 +5,7 @@
 //! Multi-device: linking, sibling sync via the self group, and devices
 //! following each other in groups.
 
+mod account_deletion;
 mod bootstrap;
 mod deletion;
 mod device_limit;

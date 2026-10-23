@@ -16,7 +16,7 @@
 # (universal: Apple Silicon + Intel), iOS (arm64 device + simulator), Android
 # arm64-v8a. Both macOS arches are required because release builds are universal.
 [toolchain]
-channel = "1.96.0"
+channel = "1.97.1"
 components = ["rustfmt", "clippy"]
 targets = [
     "aarch64-apple-darwin",

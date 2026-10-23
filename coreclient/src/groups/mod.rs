@@ -1798,7 +1798,7 @@ impl Group {
     pub(super) async fn stage_delete(
         &mut self,
         mut connection: impl WriteConnection,
-        signer: &UserSigningKey,
+        signer: &impl Signer,
         deleted: Option<TimeStamp>,
     ) -> anyhow::Result<DeleteGroupParamsOut> {
         let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
@@ -1857,7 +1857,7 @@ impl Group {
     pub(super) async fn stage_apq_delete(
         &mut self,
         mut connection: impl WriteConnection,
-        signer: &UserSigningKey,
+        signer: &impl ApqSigner,
         deleted: Option<TimeStamp>,
     ) -> anyhow::Result<ApqCommitMessageBundle> {
         let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
@@ -3193,10 +3193,16 @@ pub(crate) async fn handle_group_not_found_on_ds(
 /// with a message naming who closed the group. Without an active chat there is
 /// nothing to announce, and the group is cleaned up like one the DS doesn't
 /// know.
+///
+/// A closed own self group means that the account is deleted, see
+/// [`OwnClientInfo::self_group_closed`].
 pub(crate) async fn handle_group_closed_on_ds(
     txn: &mut WriteDbTransaction<'_>,
     group_id: &GroupId,
 ) -> anyhow::Result<()> {
+    if OwnClientInfo::is_own_self_group(&mut *txn, group_id).await? {
+        OwnClientInfo::self_group_closed(&mut *txn).await?;
+    }
     let Some(group) = Group::load(&mut *txn, group_id).await? else {
         return handle_group_not_found_on_ds(txn, group_id).await;
     };

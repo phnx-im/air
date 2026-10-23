@@ -183,9 +183,9 @@ skip_docker := env("SKIP_DOCKER_COMPOSE", "false")
 start-docker-compose:
     if [ "{{skip_docker}}" = "true" ]; then
         echo "SKIP_DOCKER_COMPOSE is set, skipping docker compose"
-    else
-        docker compose up --quiet-pull --remove-orphans --detach --wait --wait-timeout=60
+        exit
     fi
+    docker compose up --quiet-pull --remove-orphans --detach --wait --wait-timeout=60
 
 # Use the current test results as new reference images.
 [working-directory: 'app']

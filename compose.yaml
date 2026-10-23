@@ -5,10 +5,6 @@
 services:
   postgres:
     image: postgres:18.3
-    # without any dependent on minio-setup, compose up fails with --wait
-    depends_on:
-      minio-setup:
-        condition: service_completed_successfully
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
@@ -44,28 +40,29 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
-    command: server /data --console-address ":9001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      start_period: 10s
-      interval: 2s
-      timeout: 5s
-      retries: 10
-
-  minio-setup:
-    image: docker.io/pgsty/mc:RELEASE.2026-09-03T07-13-05Z
-    depends_on:
-      minio:
-        condition: service_healthy
-    restart: "no"
     entrypoint: ["/bin/sh", "-ec"]
+    # Starts the server and creates the user and the buckets once it is live.
     command:
       - |
-        mc alias set local http://minio:9000 minioadmin minioadmin
+        rm -f /tmp/ready
+        /usr/bin/docker-entrypoint.sh server /data --console-address ":9001" &
+        server=$$!
+        trap 'kill $$server; wait $$server; exit 0' TERM INT
+        until curl -sf http://localhost:9000/minio/health/live; do sleep 0.2; done
+        mc alias set local http://localhost:9000 minioadmin minioadmin
         mc admin user add local minioaccesskey miniosecretkey
         mc admin policy attach local readwrite --user=minioaccesskey
         mc mb --ignore-existing local/data
         mc mb --ignore-existing local/debug-logs
+        touch /tmp/ready
+        wait $$server
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/ready && curl -sf http://localhost:9000/minio/health/live"]
+      start_period: 30s
+      start_interval: 1s
+      interval: 2s
+      timeout: 5s
+      retries: 10
 
 volumes:
   postgres_data:

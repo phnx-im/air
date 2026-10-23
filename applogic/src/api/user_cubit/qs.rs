@@ -23,7 +23,7 @@ use crate::{
     util::{BackgroundStreamContext, BackgroundStreamTask, spawn_from_sync},
 };
 
-use super::{AppState, CubitContext, UiUser};
+use super::{AppState, CubitContext};
 
 #[derive(Debug)]
 #[frb(ignore)]
@@ -237,13 +237,6 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
                         self.sibling_client_states.as_ref(),
                     )
                     .await;
-                // A commit in this batch may have removed this device from the
-                // self group, which the app has to act on.
-                UiUser::reload_account_unlinked(
-                    &self.cubit_context.state_tx,
-                    &self.cubit_context.core_user,
-                )
-                .await;
             }
             QsProcessEventResult::Accumulated | QsProcessEventResult::Ignored => (),
         };

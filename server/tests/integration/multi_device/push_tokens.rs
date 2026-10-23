@@ -5,7 +5,7 @@
 //! Push tokens of QS clients that no longer belong to a device of the user.
 
 use aircommon::messages::push_token::{PushToken, PushTokenOperator};
-use aircoreclient::clients::CoreUser;
+use aircoreclient::{UnlinkReason, clients::CoreUser};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::DateTime;
 
@@ -40,7 +40,10 @@ async fn unlinking_a_device_clears_its_push_token() -> anyhow::Result<()> {
 
     // The unlinked device keeps its queue. It still learns of its removal.
     alice2.drain().await;
-    assert!(alice2.is_account_unlinked().await?);
+    assert_eq!(
+        alice2.account_unlink_reason().await?,
+        Some(UnlinkReason::Unlinked)
+    );
     Ok(())
 }
 
