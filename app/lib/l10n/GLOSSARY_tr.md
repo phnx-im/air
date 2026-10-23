@@ -16,7 +16,7 @@ Air, kullanıcıya bütün metinlerde “siz” diye hitap eder. Android, Apple,
 
 Açıklamalarda ve hata mesajlarında emir kipi “-in” ekiyle yazılır: “Tekrar deneyin.”, “Kodu girin.”, “Kopyalamak için dokunun”. “-iniz” biçimi (“deneyiniz”, “giriniz”) kullanılmaz, çünkü resmî ve mesafeli okunur.
 
-Düğmeler, menü öğeleri ve eylem başlıkları fiil köküyle yazılır: “Gönder”, “Sil”, “Kaydet”, “Engelle”, “Tekrar dene”. Türkçe arayüzlerde bu kalıp yerleşiktir ve siz hitabıyla çelişmez. Ayar satırları ve bölüm başlıkları isimdir: “Okundu bilgisi”, “Hesap”.
+Butonlar, menü öğeleri ve eylem başlıkları fiil köküyle yazılır: “Gönder”, “Sil”, “Kaydet”, “Engelle”, “Tekrar dene”. Türkçe arayüzlerde bu kalıp yerleşiktir ve siz hitabıyla çelişmez. Ayar satırları ve bölüm başlıkları isimdir: “Okundu bilgisi”, “Hesap”.
 
 Soru biçimindeki onay başlıkları edilgen soru olarak yazılır: “Sohbet silinsin mi?”, “Mesaj silinsin mi?”, “{displayName} engellensin mi?”. Onay penceresinin metni “…istediğinizden emin misiniz?” kalıbını kullanır.
 
@@ -26,7 +26,7 @@ Olay bildirimleri ve sistem mesajları görülen geçmiş zamanla yazılır: “
 
 ## Büyük harf
 
-İngilizce değil, Türkçe yazım kuralları geçerlidir. Başlıklarda ve düğmelerde yalnızca ilk kelime ve özel adlar büyük harfle başlar, İngilizce şablon her kelimeyi büyük yazsa bile: “Davet kodları”, “Güvenlik kodu”. Air, Enter gibi tuş adları ve Kullanım Koşulları gibi belge adları büyük harfle kalır.
+İngilizce değil, Türkçe yazım kuralları geçerlidir. Başlıklarda ve butonlarda yalnızca ilk kelime ve özel adlar büyük harfle başlar, İngilizce şablon her kelimeyi büyük yazsa bile: “Davet kodları”, “Güvenlik kodu”. Air, Enter gibi tuş adları ve Kullanım Koşulları gibi belge adları büyük harfle kalır.
 
 Ay ve gün adları belirli bir tarih bildirmiyorsa küçük harfle yazılır: “gelecek pazartesiye kadar”. Belirli bir tarih bildiren ay ve gün adları büyük harfle başlar: “22 Ekim 2026 Perşembe”. Tarihleri uygulama biçimlendirir.
 
@@ -44,7 +44,17 @@ Soru eki “mı, mi, mu, mü” ayrı yazılır: “Sohbet silinsin mi?”
 
 Menü yolu ayracı kaynaktakiyle aynı kalır, örneğin “>” ya da “→”.
 
-Bir cümlede düğme adı geçiyorsa ad tırnak içinde yazılır. Eki, ardından gelen “düğmesi” ismi alır: “Cihaz bağla” düğmesine dokunun. Menü yolundan sonra “bölümü” gelir: Siz > Cihazlar bölümüne gidin.
+Bir cümlede buton adı geçiyorsa ad tırnak içinde yazılır. Eki, ardından gelen “butonu” ismi alır: “Cihaz bağla” butonuna dokunun. Menü yolundan sonra “bölümü” gelir: Siz > Cihazlar bölümüne gidin.
+
+## Cümle yapısı
+
+İngilizce cümle kelime kelime çevrilmez. Cümle, Türkçenin özne–nesne–yüklem sırasına göre yeniden kurulur.
+
+- Uzun İngilizce cümleler kısa Türkçe cümlelere bölünür.
+- Mümkünse her cümlede tek yüklem olur. Eylemler “ve” yerine zarf-fiille bağlanır: “Bir cihazın bağlantısını kesip tekrar deneyin.”
+- Virgül yalnızca anlam gerektiriyorsa kullanılır. Nesneden sonra virgül konmaz: “Gördüğünüz güvenlik kodunu {displayName} kullanıcısının gördüğü kodla karşılaştırın.” Özneden sonra virgül yalnızca iki ad yan yana gelip karışacaksa konur: “{user1}, {user2} kullanıcısını ekledi.”
+- Sırayla yapılan adımları ayıran virgül kalır: “Air'i açın, ardından …”
+- “ve” ile bağlanan yan cümleler aynı zamanda olur.
 
 ## Sayılar ve birimler
 
@@ -84,10 +94,10 @@ Türkçede durum ekleri bir adın nasıl okunduğuna göre değişir: Ali'yi, Me
 | **Air** | Uygulamanın adı | Çevrilmez. Ekler kesme işaretiyle ayrılır: “Air'de” |
 | **Hesap** | Kullanıcının Air hesabı | “Air hesabı” |
 | **Kullanıcı adı** | Başkalarının sizinle iletişime geçmek için kullandığı benzersiz ad | Yalnızca kişi bulmak için. Çoğulu “kullanıcı adları” |
-| **Görünen ad** | Sohbetlerde başkalarının gördüğü ad | Kullanıcı adından farklıdır |
+| **Profil adı** | Sohbetlerde başkalarının gördüğü ad | İngilizce “display name”. Kullanıcı adından farklıdır. Cümle içinde küçük harfle: “profil adınız”. “Görünen ad”, “takma ad” veya “rumuz” değil |
 | **Sohbet** | İki ya da daha fazla kişi arasındaki yazışma | İngilizce “chat”. “Konuşma” değil |
 | **Kişi** | Mesaj gönderebileceğiniz başka bir kullanıcı | İngilizce “contact”. “Air kişisi”. “Rehber” değil |
-| **Kişi, kişiler** | İngilizce “person, people” | Sayılarda ve “Kişi ekle” düğmesinde: “5 kişi” |
+| **Kişi, kişiler** | İngilizce “person, people” | Sayılarda ve “Kişi ekle” butonunda: “5 kişi” |
 | **Üye** | Grup sohbetindeki katılımcı | Gruplarda |
 | **Kullanıcı** | Air'i kullanan herhangi biri | Yer tutucudan sonraki genel isim |
 | **Uygulama** | İngilizce “app” | |
@@ -111,26 +121,28 @@ Türkçede durum ekleri bir adın nasıl okunduğuna göre değişir: Ali'yi, Me
 
 | Terim | Anlam | Bağlam |
 |-------|-------|--------|
-| **Kişi ekleme isteği** | Kullanıcı adı veya ortak bir grup üzerinden gönderilen istek | İngilizce “contact request”. Bağlam açıksa kısaca “istek”: “İsteği geri çek” |
+| **Kişi ekleme isteği** | Kullanıcı adı veya ortak bir grup üzerinden gönderilen istek | İngilizce “contact request”. Bağlam açıksa kısaca “istek”: “İsteği geri al” |
 | **İletişime geçmek** | İngilizce “connect”, kişiler için | Kişiler için asla “bağlanmak” veya “bağlantı kurmak” değil |
 | **Ekle** | Bir kişiyi gruba veya kişilerinize eklemek | |
 | **Çıkar** | Bir kişiyi gruptan çıkarmak | İngilizce “remove”, yalnızca kişiler için |
-| **Kaldır** | Kullanıcı adı, tepki veya kullanılmış kodlar için “remove” | Kişiler için “çıkar” |
-| **Sil** | İngilizce “delete” | İçeriği kalıcı olarak silmek: mesaj, sohbet, kişi, hesap. “remove” karşılığı değildir |
+| **Kaldır** | Tepki için “remove” | Kişiler için “çıkar”, kullanıcı adları için “sil”, kullanılmış kodlar için “temizle” |
+| **Sil** | İngilizce “delete” | İçeriği kalıcı olarak silmek: mesaj, sohbet, kişi, hesap. Bilinçli bir istisna olarak kullanıcı adları için “remove” da “sil” olur: “Kullanıcı adı silinsin mi?” |
+| **Temizle** | Kullanılmış kodları listeden kaldırmak | “Kullanılmış kodları temizle” |
 | **Ayrıl** | Kendi isteğinizle gruptan çıkmak | Başka birini çıkarmaktan farklıdır |
 | **Engelle** | Birinden mesaj almayı durdurmak | |
-| **Engeli kaldır** | Engellemeyi geri almak | Düğmede ve metinde aynı ifade |
+| **Engeli kaldır** | Engellemeyi geri almak | Butonda ve metinde aynı ifade |
 | **Sessize al** | Bir sohbetin bildirimlerini durdurmak | |
 | **Sesi aç** | Sessize almayı geri almak | |
 | **Bağla** | Başka bir cihaza hesaba erişim vermek | Yalnızca cihazlar için. “Bağlı cihazlar”. Ağ ve sunucu bağlantısı da “bağlantı”dır |
-| **Bağlantıyı kaldır** | Bağlı bir cihazın erişimini geri almak | Yalnızca cihazlar için |
+| **Bağlantıyı kes** | Bağlı bir cihazın erişimini geri almak | Yalnızca cihazlar için. “Bağlantısını kaldır” değil. Hata başlıkları cihazı adlandırır: “Cihazın bağlantısı kesilemedi.” |
 | **Bağlantı** | Bir web adresine giden İngilizce “link” | “Bağlantı açılsın mı?”. Cihaz bağlamayla karışmaz, çünkü fiil olarak kullanılmaz |
 | **Kabul et** | Kişi ekleme isteğini kabul etmek | |
 | **Reddet** | Kişi ekleme isteğini reddetmek | Gönderen bilgilendirilmez |
-| **Geri çek** | Gönderdiğiniz kişi ekleme isteğini geri almak | |
+| **Geri al** | Gönderdiğiniz kişi ekleme isteğini geri almak | “İsteği geri al”. “Geri çek” değil |
 | **Spam bildir** | Birini istenmeyen mesaj gönderen biri olarak işaretlemek | Moderasyon |
 | **Dokunun** | İngilizce “tap” | Telefon ve tabletler. Başka bir cihazı anlatan metinde de “dokunun” kalır |
 | **Tıklayın** | İngilizce “click” | Masaüstü, `_desktop` anahtarlarında |
+| **Buton** | İngilizce “button” | “Gönder” butonuna dokunun. “Düğme” değil |
 
 ## Dosyalar ve veriler
 
@@ -177,13 +189,14 @@ Türkçede durum ekleri bir adın nasıl okunduğuna göre değişir: Ali'yi, Me
 | **Air ile iletişim** | Destek ekibiyle iletişim | |
 | **Lisanslar** | Açık kaynak bileşenlerinin yasal bilgileri | |
 | **Sürüm bilgisi** | Uygulama sürümünün teknik ayrıntıları | |
-| **Tamam** | İngilizce “Okay” düğmesi | |
+| **Tamam** | İngilizce “Okay” butonu | |
 
 ## Çevirmen için
 
 - **Air** çevrilmez. Ekler kesme işaretiyle ayrılır: “Air'i”, “Air'de”
-- **Kullanıcı adı** kişileri bulmaya, **görünen ad** onları sohbetlerde tanımaya yarar
-- **Çıkar**, **kaldır** ve **sil** İngilizce fiili izler. “remove” kişiler için “çıkar”, diğer her şey için “kaldır” olur. “delete” her zaman “sil” olur
+- **Kullanıcı adı** kişileri bulmaya, **profil adı** onları sohbetlerde tanımaya yarar
+- **Çıkar**, **kaldır** ve **sil** İngilizce fiili izler. “remove” kişiler için “çıkar”, kullanıcı adları için “sil”, kullanılmış kodlar için “temizle”, diğer her şey için “kaldır” olur. “delete” her zaman “sil” olur
+- Uzun cümleleri bölün, gereksiz virgül kullanmayın. Ayrıntılar “Cümle yapısı” bölümündedir
 - **İletişime geçmek** ve **kişi ekleme isteği** kişiler içindir, **bağlamak** cihazlar içindir. Kavramlar karıştırılmaz
 - **Engelle** ve **engeli kaldır** her metinde aynıdır, pencere metinlerinde de
 - Yer tutucuya ek gelmez. Eki bir genel isim alır: “{displayName} kullanıcısını”
