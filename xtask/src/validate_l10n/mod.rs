@@ -53,6 +53,11 @@ const TERMINAL_MARKS: &[(char, char)] = &[('.', '。'), ('?', '？'), ('!', '！
 const GREEK_FILE: &str = "app_el.arb";
 const GREEK_QUESTION_MARK: char = ';';
 
+/// Turkish case endings follow how a word is read, which the app cannot know
+/// for a name, a number or an emoji. A noun after the placeholder takes the
+/// ending instead, as in "{name} kullanıcısını".
+const TURKISH_FILE: &str = "app_tr.arb";
+
 #[derive(Args, Debug)]
 pub(crate) struct ValidateArgs {
     /// Resolve relative paths against this directory.
@@ -393,6 +398,7 @@ fn check_locale(locale: &ArbFile, template: &ArbFile, report: &mut Report) {
         check_line_breaks(&context, report);
         check_terminal_punctuation(&context, report);
         check_greek_question_marks(&context, report);
+        check_turkish_suffixes(&context, &parsed.placeholders, report);
     }
 }
 
@@ -590,6 +596,40 @@ fn check_greek_question_marks(context: &KeyContext<'_>, report: &mut Report) {
     }
 }
 
+fn check_turkish_suffixes(
+    context: &KeyContext<'_>,
+    placeholders: &BTreeSet<String>,
+    report: &mut Report,
+) {
+    if context.file != TURKISH_FILE {
+        return;
+    }
+    for name in placeholders {
+        if placeholder_takes_suffix(context.translation, name) {
+            report.push(
+                context.file,
+                context.key,
+                format!(
+                    "attaches a suffix to placeholder '{name}'. Put a noun after the \
+                     placeholder and attach the suffix to the noun"
+                ),
+            );
+        }
+    }
+}
+
+/// Whether `{name}` is directly followed by a letter or an apostrophe, the two
+/// shapes a Turkish suffix takes, as in "{name}'i" and "{name}i".
+fn placeholder_takes_suffix(text: &str, name: &str) -> bool {
+    let reference = format!("{{{name}}}");
+    text.match_indices(&reference).any(|(offset, _)| {
+        text[offset + reference.len()..]
+            .chars()
+            .next()
+            .is_some_and(|ch| ch.is_alphabetic() || ch == '\'' || ch == '’')
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -605,6 +645,45 @@ mod tests {
         check_terminal_punctuation(&context, &mut report);
         check_greek_question_marks(&context, &mut report);
         report.findings.len()
+    }
+
+    fn suffix_findings(file: &str, translation: &str) -> usize {
+        let context = KeyContext {
+            file,
+            key: "key",
+            source: "",
+            translation,
+        };
+        let placeholders = BTreeSet::from(["name".to_owned()]);
+        let mut report = Report::default();
+        check_turkish_suffixes(&context, &placeholders, &mut report);
+        report.findings.len()
+    }
+
+    #[test]
+    fn turkish_suffixes_go_on_a_noun() {
+        assert_eq!(
+            suffix_findings(TURKISH_FILE, "{name} kullanıcısını engelle"),
+            0
+        );
+        assert_eq!(
+            suffix_findings(TURKISH_FILE, "{name}, {name} kullanıcısını ekledi"),
+            0
+        );
+        assert_eq!(suffix_findings(TURKISH_FILE, "“{name}” mesajına"), 0);
+        assert_eq!(
+            suffix_findings(TURKISH_FILE, "{name, plural, other {{name} kişi}}"),
+            0
+        );
+        assert_eq!(suffix_findings(TURKISH_FILE, "{name}'i engelle"), 1);
+        assert_eq!(suffix_findings(TURKISH_FILE, "{name}’i engelle"), 1);
+        assert_eq!(suffix_findings(TURKISH_FILE, "{name}i engelle"), 1);
+        assert_eq!(suffix_findings(TURKISH_FILE, "{name} ve {name}'den"), 1);
+    }
+
+    #[test]
+    fn suffixes_on_placeholders_pass_outside_turkish() {
+        assert_eq!(suffix_findings("app_de.arb", "{name}s Kontakt"), 0);
     }
 
     #[test]
