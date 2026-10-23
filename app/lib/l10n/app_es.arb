@@ -275,7 +275,7 @@
   "systemMessage_userChangedPicture": "{user} cambió la foto del grupo",
   "systemMessage_userCreatedGroup": "{user} creó el grupo",
   "systemMessage_userDeletedChat": "{user} eliminó el chat",
-  "systemMessage_onboarded": "Este cliente se ha incorporado al chat después de la vinculación.",
+  "systemMessage_onboarded": "Este dispositivo se vinculó a tu cuenta.",
   "systemMessage_deviceLinked": "Has vinculado un nuevo dispositivo llamado {device} a tu cuenta. {viewDevicesAction}",
   "systemMessage_deviceLinkedUnknown": "Has vinculado un nuevo dispositivo a tu cuenta. {viewDevicesAction}",
   "systemMessage_deviceUnlinked": "Has desvinculado el dispositivo {device} de tu cuenta. {viewDevicesAction}",

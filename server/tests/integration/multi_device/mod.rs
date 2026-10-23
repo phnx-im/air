@@ -21,6 +21,7 @@ mod requests;
 mod self_group;
 mod settings;
 mod tokens;
+mod usernames;
 
 use std::{assert_matches, collections::HashSet, time::Duration};
 

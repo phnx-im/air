@@ -17,7 +17,7 @@ use aircommon::identifiers::{QsClientId, QsUserId, UserId};
 use aircommon::messages::FriendshipToken;
 use airprotos::client::self_group::{
     BlockedContactEntry, ConnectionRequestEntry, LinkedDevice, RedeemedTokens, SettingsUpdate,
-    TokenSeed,
+    TokenSeed, UsernameEntry,
 };
 use apqmls::messages::ApqKeyPackage;
 use openmls::group::GroupId;
@@ -73,6 +73,10 @@ pub(crate) struct ProvisioningPackage {
     /// The higher-level groups the virtual client is already a member of, which
     /// the new emulator client onboards itself into.
     pub(crate) groups: Vec<HigherLevelGroup>,
+    /// The usernames with their signing keys and connection package keys. The
+    /// new device needs these keys to listen to the usernames and act on them.
+    #[serde(default)]
+    pub(crate) usernames: Vec<UsernameEntry>,
 }
 
 /// What the new device sends back over the secure linking channel.

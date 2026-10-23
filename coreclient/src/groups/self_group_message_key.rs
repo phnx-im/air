@@ -5,10 +5,11 @@
 //! Derivation and persistence of the per-epoch self-group message key.
 //!
 //! Self-group commits carry encrypted `SelfGroupMessages` payloads (settings
-//! updates, Privacy Pass token seeds, blocked contacts, deleted chats and
-//! connection requests) under a symmetric key that is scoped to a single
-//! self-group epoch. The key is derived from the MLS safe exporter of the T
-//! group for [`AIR_COMPONENT_ID`] and then run through one further KDF step.
+//! updates, Privacy Pass token seeds, blocked contacts, deleted chats,
+//! usernames and connection requests) under a symmetric key that is scoped to
+//! a single self-group epoch. The key is derived from the MLS safe exporter of
+//! the T group for [`AIR_COMPONENT_ID`] and then run through one further KDF
+//! step.
 //!
 //! The MLS application export tree is a puncturable PRF: exporting the same
 //! component ID twice within one epoch fails, because the first export
@@ -40,7 +41,7 @@ use airprotos::client::{
     component::AIR_COMPONENT_ID,
     self_group::{
         AppEphemeralPayload, BlockedContactEntry, ConnectionRequestEntry, DeletedChat,
-        SelfGroupMessage, SelfGroupMessages, SettingsUpdate, TokenSeed,
+        SelfGroupMessage, SelfGroupMessages, SettingsUpdate, TokenSeed, UsernameEntry,
     },
 };
 use anyhow::{Result, anyhow, ensure};
@@ -330,6 +331,9 @@ impl Group {
                         extracted.blocked_contacts.extend(update.contacts);
                     }
                     SelfGroupMessage::DeletedChat(deleted) => extracted.deleted_chats.push(deleted),
+                    SelfGroupMessage::UsernamesUpdate(update) => {
+                        extracted.usernames.extend(update.usernames);
+                    }
                     SelfGroupMessage::ConnectionRequestsUpdate(update) => {
                         extracted.connection_requests.extend(update.requests);
                     }
@@ -354,6 +358,8 @@ pub(crate) struct SelfGroupPayload {
     pub(crate) blocked_contacts: Vec<BlockedContactEntry>,
     /// Chats the sender deleted.
     pub(crate) deleted_chats: Vec<DeletedChat>,
+    /// Username changes.
+    pub(crate) usernames: Vec<UsernameEntry>,
     /// Connection-request changes.
     pub(crate) connection_requests: Vec<ConnectionRequestEntry>,
 }
@@ -364,6 +370,7 @@ impl SelfGroupPayload {
             && self.token_seeds.is_empty()
             && self.blocked_contacts.is_empty()
             && self.deleted_chats.is_empty()
+            && self.usernames.is_empty()
             && self.connection_requests.is_empty()
     }
 }

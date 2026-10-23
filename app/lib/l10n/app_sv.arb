@@ -275,7 +275,7 @@
   "systemMessage_userChangedPicture": "{user} ändrade gruppbilden",
   "systemMessage_userCreatedGroup": "{user} skapade gruppen",
   "systemMessage_userDeletedChat": "{user} raderade chatten",
-  "systemMessage_onboarded": "Den här klienten lades till i chatten efter länkningen.",
+  "systemMessage_onboarded": "Den här enheten länkades till ditt konto.",
   "systemMessage_deviceLinked": "Du länkade en ny enhet med namnet {device} till ditt konto. {viewDevicesAction}",
   "systemMessage_deviceLinkedUnknown": "Du länkade en ny enhet till ditt konto. {viewDevicesAction}",
   "systemMessage_deviceUnlinked": "Du avlänkade enheten {device} från ditt konto. {viewDevicesAction}",

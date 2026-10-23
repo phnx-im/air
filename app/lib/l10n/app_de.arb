@@ -275,7 +275,7 @@
   "systemMessage_userChangedPicture": "{user} hat das Gruppenbild geändert",
   "systemMessage_userCreatedGroup": "{user} hat die Gruppe erstellt",
   "systemMessage_userDeletedChat": "{user} hat den Chat gelöscht",
-  "systemMessage_onboarded": "Dieser Client wurde nach dem Verknüpfen in den Chat aufgenommen.",
+  "systemMessage_onboarded": "Dieses Gerät wurde mit deinem Konto verknüpft.",
   "systemMessage_deviceLinked": "Du hast ein neues Gerät namens {device} mit deinem Konto verknüpft. {viewDevicesAction}",
   "systemMessage_deviceLinkedUnknown": "Du hast ein neues Gerät mit deinem Konto verknüpft. {viewDevicesAction}",
   "systemMessage_deviceUnlinked": "Du hast das Gerät {device} von deinem Konto getrennt. {viewDevicesAction}",

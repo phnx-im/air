@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use aircommon::credentials::keys::SelfGroupSigningKey;
 use airprotos::client::self_group::{
     BlockedContactsUpdate, ConnectionRequestsUpdate, SelfGroupMessage, SettingsUpdate,
+    UsernamesUpdate,
 };
 use anyhow::Context as _;
 use openmls::group::GroupId;
@@ -29,7 +30,7 @@ use crate::{
         recoverable::{Recoverable, RecoverableCause},
     },
     outbound_service::{OutboundServiceContext, error::OutboundServiceError},
-    privacy_pass,
+    privacy_pass, usernames,
 };
 
 impl OutboundServiceContext {
@@ -206,6 +207,13 @@ async fn drain_outbox(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<Vec<Se
         messages.push(SelfGroupMessage::BlockedContactsUpdate(
             BlockedContactsUpdate { contacts },
         ));
+    }
+
+    let usernames = usernames::sync::entries_to_broadcast(&mut *txn).await?;
+    if !usernames.is_empty() {
+        messages.push(SelfGroupMessage::UsernamesUpdate(UsernamesUpdate {
+            usernames,
+        }));
     }
 
     let requests = connection_requests::staged_entries(&mut *txn).await?;

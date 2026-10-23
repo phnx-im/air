@@ -114,18 +114,6 @@ impl UiUser {
     /// Loads state in the background
     fn spawn_load(state_tx: watch::Sender<UiUser>, core_user: CoreUser) {
         spawn_from_sync(async move {
-            match core_user.usernames().await {
-                Ok(usernames) => {
-                    state_tx.send_modify(|state| {
-                        let inner = Arc::make_mut(&mut state.inner);
-                        inner.usernames = usernames;
-                    });
-                }
-                Err(error) => {
-                    error!(%error, "failed to load usernames");
-                }
-            }
-
             // The reason is durable, so a device that was unlinked while it was
             // not running still reports it on the next launch.
             Self::reload_unlink_reason(&state_tx, &core_user).await;
@@ -222,7 +210,8 @@ pub struct UserCubitBase {
     core: CubitCore<UiUser>,
     context: CubitContext,
     app_state_tx: watch::Sender<AppState>,
-    background_listen_username_tasks: UsernameBackgroundTasks,
+    /// Held for its drop guards. They stop the listeners with the cubit.
+    _background_listen_username_tasks: UsernameBackgroundTasks,
     cancel: CancellationToken,
 }
 
@@ -269,13 +258,13 @@ impl UserCubitBase {
 
         // start background tasks listening for incoming username messages
         let background_listen_username_tasks =
-            UsernameContext::spawn_loading(context.clone(), cancel.clone());
+            UsernameContext::spawn_sync(context.clone(), cancel.clone());
 
         Self {
             core,
             context,
             app_state_tx,
-            background_listen_username_tasks,
+            _background_listen_username_tasks: background_listen_username_tasks,
             cancel: cancel.clone(),
         }
     }
@@ -470,52 +459,19 @@ impl UserCubitBase {
         let _no_receivers = self.app_state_tx.send(app_state);
     }
 
+    /// Registers a new username.
+    ///
+    /// Returns `false` if the username is taken.
+    /// [`UsernameContext::spawn_sync`] updates the UI state and the listener.
     pub async fn add_username(&self, username: UiUsername) -> anyhow::Result<bool> {
         let username = Username::new(username.plaintext)?;
-        let Some(record) = self
-            .context
-            .core_user
-            .add_username(username.clone())
-            .await?
-        else {
-            return Ok(false);
-        };
-
-        // add username to UI state
-        self.core.state_tx().send_modify(|state| {
-            let inner = Arc::make_mut(&mut state.inner);
-            inner.usernames.push(username);
-        });
-
-        // start background listen stream for the username
-        UsernameContext::new(self.context.clone(), record)
-            .into_task(
-                self.cancel.child_token(),
-                &self.background_listen_username_tasks,
-            )
-            .spawn();
-
-        Ok(true)
+        let added = self.context.core_user.add_username(username).await?;
+        Ok(added.is_some())
     }
 
     pub async fn remove_username(&self, username: UiUsername) -> anyhow::Result<()> {
         let username = Username::new(username.plaintext)?;
         self.context.core_user.remove_username(&username).await?;
-
-        // remove username from UI state
-        self.core.state_tx().send_if_modified(|state| {
-            let inner = Arc::make_mut(&mut state.inner);
-            let Some(idx) = inner.usernames.iter().position(|u| u == &username) else {
-                error!("username is not found");
-                return false;
-            };
-            inner.usernames.remove(idx);
-            true
-        });
-
-        // stop background listen stream for the username
-        self.background_listen_username_tasks.remove(username);
-
         Ok(())
     }
 

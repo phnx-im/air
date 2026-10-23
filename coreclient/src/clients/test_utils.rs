@@ -31,7 +31,7 @@ use crate::{
         error::is_ds_not_found_error,
         resync::{Resync, ResyncReason, ResyncStatus},
     },
-    usernames::connection_packages::ConnectionPackageRecord,
+    usernames::{UsernameRecord, connection_packages::ConnectionPackageRecord},
 };
 
 use super::*;
@@ -624,15 +624,54 @@ impl CoreUser {
         Ok(())
     }
 
+    /// Deletes the connection package keys of `username` to simulate a device
+    /// still waiting for them.
+    pub async fn forget_connection_package_keys(&self, username: &Username) -> anyhow::Result<()> {
+        let keys =
+            ConnectionPackageRecord::load_keys_for_username(self.db().read().await?, username)
+                .await?;
+        let mut connection = self.db().write().await?;
+        for (record, _) in keys {
+            ConnectionPackageRecord::delete(&mut connection, &record.hash).await?;
+        }
+        Ok(())
+    }
+
+    /// When `username` was last refreshed, as far as this device knows.
+    pub async fn username_refreshed_at(
+        &self,
+        username: &Username,
+    ) -> anyhow::Result<Option<DateTime<Utc>>> {
+        let record =
+            UsernameRecord::load_with_timestamps(self.db().read().await?, username).await?;
+        Ok(record.map(|(_, _, refreshed_at)| refreshed_at))
+    }
+
+    /// Sets the last refresh time of `username` to simulate a missed refresh by
+    /// a sibling.
+    pub async fn set_username_refreshed_at(
+        &self,
+        username: &Username,
+        refreshed_at: DateTime<Utc>,
+    ) -> anyhow::Result<()> {
+        let (record, _, _) =
+            UsernameRecord::load_with_timestamps(self.db().read().await?, username)
+                .await?
+                .context("no such username")?;
+        UsernameRecord::update_refreshed_at(self.db().write().await?, &record.hash, refreshed_at)
+            .await?;
+        Ok(())
+    }
+
     /// The hashes of the connection packages of `username` whose decryption
     /// keys this device holds.
     pub async fn connection_package_hashes(
         &self,
         username: &Username,
     ) -> anyhow::Result<Vec<ConnectionPackageHash>> {
-        Ok(
-            ConnectionPackageRecord::load_hashes_for_username(self.db().read().await?, username)
-                .await?,
-        )
+        let keys =
+            ConnectionPackageRecord::load_keys_for_username(self.db().read().await?, username)
+                .await?;
+        Ok(keys.into_iter().map(|(record, _)| record.hash).collect())
     }
 }

@@ -17,6 +17,7 @@ pub(crate) enum OutboxKind {
     DeletedChat,
     DeletedMessage,
     ConnectionRequest,
+    Username,
 }
 
 impl OutboxKind {
@@ -27,6 +28,7 @@ impl OutboxKind {
             OutboxKind::DeletedChat => "deleted_chat",
             OutboxKind::DeletedMessage => "deleted_message",
             OutboxKind::ConnectionRequest => "connection_request",
+            OutboxKind::Username => "username",
         }
     }
 }

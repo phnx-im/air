@@ -143,7 +143,10 @@ async fn next_relevant_change(
 fn affects_count(id: &DbEntityId) -> bool {
     match id {
         DbEntityId::Chat(_) | DbEntityId::Message(_) => true,
-        DbEntityId::User(_) | DbEntityId::Attachment(_) | DbEntityId::UserSetting(_) => false,
+        DbEntityId::User(_)
+        | DbEntityId::Attachment(_)
+        | DbEntityId::UserSetting(_)
+        | DbEntityId::Username(_) => false,
     }
 }
 

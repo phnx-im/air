@@ -264,7 +264,7 @@
   "systemMessage_userChangedPicture": "{user} змінив(-ла) фото групи",
   "systemMessage_userCreatedGroup": "{user} створив(-ла) групу",
   "systemMessage_userDeletedChat": "{user} видалив(-ла) чат",
-  "systemMessage_onboarded": "Цей клієнт приєднався до чату після прив’язки.",
+  "systemMessage_onboarded": "Цей пристрій було прив’язано до вашого облікового запису.",
   "systemMessage_deviceLinked": "Ви прив’язали до свого облікового запису новий пристрій {device}. {viewDevicesAction}",
   "systemMessage_deviceLinkedUnknown": "Ви прив’язали до свого облікового запису новий пристрій. {viewDevicesAction}",
   "systemMessage_deviceUnlinked": "Ви відв’язали від свого облікового запису пристрій {device}. {viewDevicesAction}",
