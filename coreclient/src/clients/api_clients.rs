@@ -53,4 +53,8 @@ impl ApiClients {
     pub(crate) fn default_client(&self) -> Result<ApiClient, ApiClientInitError> {
         self.get(&self.own_domain)
     }
+
+    pub(crate) fn own_domain(&self) -> &Fqdn {
+        &self.own_domain
+    }
 }

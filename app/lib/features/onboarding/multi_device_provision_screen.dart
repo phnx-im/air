@@ -336,6 +336,7 @@ class _ConnectingView extends StatelessWidget {
 /// a CircularProgressIndicator
 class _CountdownRing extends HookWidget {
   const _CountdownRing({
+    super.key,
     required this.duration,
     required this.warnThreshold,
     required this.size,
@@ -500,9 +501,11 @@ class _AwaitingLinkView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: S.s24),
-        const _CountdownRing(
-          duration: Duration(seconds: 59),
-          warnThreshold: Duration(seconds: 10),
+        // A new code restarts the countdown.
+        _CountdownRing(
+          key: ValueKey(code),
+          duration: const Duration(seconds: 59),
+          warnThreshold: const Duration(seconds: 10),
           size: 48,
         ),
         const SizedBox(height: S.s32),

@@ -153,11 +153,11 @@ class UserCubit implements StateStreamableSource<UiUser> {
   /// [MultiDeviceLinkEvent_AwaitingConfirmation] once connected, then completes
   /// the handshake after the user approves via [confirmation].
   Stream<MultiDeviceLinkEvent> linkDevice(
-    String sessionId,
+    String code,
     MultiDeviceLinkConfirmation confirmation,
   ) => multiDeviceLinkClient(
     userCubit: _impl,
-    sessionId: sessionId,
+    code: code,
     confirmation: confirmation,
   );
 

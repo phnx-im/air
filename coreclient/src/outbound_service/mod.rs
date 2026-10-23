@@ -38,6 +38,7 @@ mod attachment_recovery;
 pub(crate) mod chat_message_queue;
 mod chat_messages;
 mod deleted_messages;
+mod device_links;
 pub(crate) mod error;
 mod key_packages;
 mod profile;
@@ -402,6 +403,10 @@ impl OutboundServiceContext {
         self.perform_queued_resyncs(run_token)
             .await
             .or_abort("queued resyncs")?;
+
+        Box::pin(self.advance_device_links(run_token))
+            .await
+            .or_abort("device links")?;
 
         let mut stale_groups = Box::pin(self.send_pending_chat_operations(run_token))
             .await

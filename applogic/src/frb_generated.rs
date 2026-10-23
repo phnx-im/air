@@ -9148,7 +9148,7 @@ fn wire__crate__api__multi_device__multi_device_link_client_impl(
             let api_user_cubit = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>,
             >>::sse_decode(&mut deserializer);
-            let api_session_id = <String>::sse_decode(&mut deserializer);
+            let api_code = <String>::sse_decode(&mut deserializer);
             let api_confirmation = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<
                     MultiDeviceLinkConfirmation,
@@ -9196,7 +9196,7 @@ fn wire__crate__api__multi_device__multi_device_link_client_impl(
                         let api_confirmation_guard = api_confirmation_guard.unwrap();
                         let output_ok = crate::api::multi_device::multi_device_link_client(
                             &*api_user_cubit_guard,
-                            api_session_id,
+                            api_code,
                             &*api_confirmation_guard,
                             api_sink,
                         )
