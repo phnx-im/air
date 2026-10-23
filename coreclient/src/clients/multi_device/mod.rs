@@ -23,7 +23,8 @@ use aircommon::messages::QueueMessage;
 use aircommon::mls_group_config::{APQ_CIPHERSUITE, self_group_leaf_node_capabilities};
 use airprotos::client::app_data::ClientAppData;
 use airprotos::client::self_group::SettingsUpdate;
-use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
+use airprotos::relay_service::mdl::{MdlMessage, SessionAssigned};
+use airprotos::relay_service::v1::{RelayFrame, RendezVousId};
 use anyhow::{Context, anyhow, bail};
 use apqmls::authentication::ApqCredentialWithKey;
 use apqmls::messages::ApqKeyPackage;
@@ -40,7 +41,6 @@ use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use openmls_traits::OpenMlsProvider;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use sha2::{Digest, Sha256};
 use std::time::Duration;
 use tls_codec::{Deserialize as _, DeserializeBytes, Serialize as _};
 use tokio::{
@@ -97,6 +97,14 @@ pub(crate) use payloads::{ConnectionContact, HigherLevelGroup};
 use payloads::{ProvisioningPackage, SelfGroupJoinRequest};
 
 const EXPORTER_LABEL: &str = "multi-device-linking";
+
+/// How long a linking code stays valid. When no existing device has answered
+/// it by then, the new device ends the session and asks for a new code.
+#[cfg(not(feature = "test_utils"))]
+const CODE_LIFETIME: Duration = Duration::from_secs(60);
+
+#[cfg(feature = "test_utils")]
+const CODE_LIFETIME: Duration = Duration::from_secs(15); // to go faster
 
 /// How long to wait for the new device to disconnect after sending it an
 /// abort.
@@ -178,18 +186,21 @@ fn export_aead_key(
     Ok(MultiDeviceLinkingKey::from_bytes(key_bytes))
 }
 
+/// A step of the new device's provisioning run, reported to the UI.
 #[derive(Debug)]
 pub enum MultiDeviceProvisionStep {
-    /// When the session is open and the server acknowledges it, we can use the session ID.
-    SessionId(LinkingSessionId),
-    /// When the existing client has connected on the other side.
+    Code(String),
     Linking,
 }
 
+/// Why the existing device could not link the new device.
 #[derive(Debug, thiserror::Error)]
 pub enum MultiDeviceLinkClientError {
     #[error("session ID not found")]
     SessionNotFound,
+    /// The code is not a rendezvous ID.
+    #[error("the linking code is malformed")]
+    InvalidCode,
     #[error("device limit reached: max = {max_devices}")]
     DeviceLimitReached { max_devices: u32 },
 }
@@ -254,46 +265,54 @@ impl CoreUser {
         server_url: Option<Url>,
         session_tx: mpsc::Sender<MultiDeviceProvisionStep>,
     ) -> anyhow::Result<Result<CoreUser, MultiDeviceProvisionClientError>> {
-        let (provider, credential_with_key, signature_keys) =
-            make_provider_and_credential(b"initiator")?;
-
-        let key_package_bundle = KeyPackage::builder()
-            .build(CIPHERSUITE, &provider, &signature_keys, credential_with_key)
-            .context("build key package")?;
-        let key_package_bytes = MlsMessageOut::from(key_package_bundle)
-            .to_bytes()
-            .context("serialize key package")?;
-        let key_package_checksum: [u8; 32] = Sha256::digest(&key_package_bytes).into();
-
         let api_clients = ApiClients::new(domain, server_url);
 
-        let (tx, mut rx) = api_clients
-            .default_client()?
-            .rs_multi_device_provision_client()
-            .await?;
+        // Each code gets its own session. Dropping an unanswered session's
+        // streams closes it at the relay.
+        let (tx, mut rx, provider, welcome_bytes) = loop {
+            let (provider, credential_with_key, signature_keys) =
+                make_provider_and_credential(b"initiator")?;
 
-        // Send the key package to the server.
-        tx.send(key_package_bytes.into()).await?;
+            let key_package_bundle = KeyPackage::builder()
+                .build(CIPHERSUITE, &provider, &signature_keys, credential_with_key)
+                .context("build key package")?;
+            let key_package_bytes = MlsMessageOut::from(key_package_bundle)
+                .to_bytes()
+                .context("serialize key package")?;
 
-        // The relay echoes back the session ID as the first frame
-        let session_id_length = rx
-            .next()
-            .await
-            .context("relay connection closed")??
-            .as_u32()
-            .context("unexpected format for first frame")?;
+            let (tx, mut rx) = api_clients
+                .default_client()?
+                .rs_multi_device_provision_client()
+                .await?;
 
-        // we recompose the session ID from our key package digest and the session ID length
-        let session_id = LinkingSessionId::from_digest(&key_package_checksum, session_id_length)
-            .context("invalid session ID")?;
+            // The relay answers the provisioning request with the session's
+            // rendezvous ID, which is the code the user types on the existing
+            // device.
+            let frame = rx.next().await.context("relay connection closed")??;
+            let MdlMessage::SessionAssigned(SessionAssigned { rendezvous_id }) =
+                MdlMessage::from_frame(&frame).context("malformed linking message")?
+            else {
+                bail!("expected a session assignment from the relay");
+            };
 
-        session_tx
-            .send(MultiDeviceProvisionStep::SessionId(session_id))
-            .await
-            .map_err(|_| anyhow!("reporting stream dropped"))?;
+            // The relay holds the key package back until the existing device
+            // answers the code.
+            tx.send(key_package_bytes.into()).await?;
 
-        // wait for the existing (old) client to send us the welcome
-        let welcome_bytes = rx.next().await.context("relay connection closed")??;
+            session_tx
+                .send(MultiDeviceProvisionStep::Code(rendezvous_id))
+                .await
+                .map_err(|_| anyhow!("reporting stream dropped"))?;
+
+            // wait for the existing (old) client to send us the welcome
+            match timeout(CODE_LIFETIME, rx.next()).await {
+                Ok(welcome) => {
+                    let welcome_bytes = welcome.context("relay connection closed")??;
+                    break (tx, rx, provider, welcome_bytes);
+                }
+                Err(_) => info!("the linking code expired unanswered, requesting a new one"),
+            }
+        };
 
         session_tx
             .send(MultiDeviceProvisionStep::Linking)
@@ -397,20 +416,27 @@ impl CoreUser {
         }
     }
 
-    /// Establishes a session with a new device (with the given `session_id`). The `connected_tx` and `confirmation_rx` are
-    /// channels to report established connection and wait for the user's confirmation (with a device name).
+    /// Establishes a session with the new device that shows the linking
+    /// `code`. The `connected_tx` and `confirmation_rx` are channels to report
+    /// established connection and wait for the user's confirmation (with a
+    /// device name).
     pub async fn multi_device_link_client(
         &self,
-        session_id: LinkingSessionId,
+        code: String,
         connected_tx: oneshot::Sender<()>,
         confirmation_rx: oneshot::Receiver<String>,
     ) -> anyhow::Result<Result<(), MultiDeviceLinkClientError>> {
+        let Ok(rendezvous_id) = RendezVousId::new(code) else {
+            warn!("rejected a malformed linking code");
+            return Ok(Err(MultiDeviceLinkClientError::InvalidCode));
+        };
+
         let client = self.api_client()?;
         let qs_user_id = self.inner.qs_user_id;
         let qs_user_signing_key = self.key_store().qs_user_signing_key.clone();
 
         let (tx, mut rx) = match client
-            .rs_multi_device_link_client(qs_user_id, &qs_user_signing_key, session_id.clone())
+            .rs_multi_device_link_client(qs_user_id, &qs_user_signing_key, rendezvous_id)
             .await
         {
             Ok((tx, rx)) => (tx, rx),
@@ -424,10 +450,6 @@ impl CoreUser {
         let _ = connected_tx.send(());
 
         let key_package_bytes = rx.next().await.context("relay connection closed")??;
-
-        if !session_id.validate(key_package_bytes.as_slice()) {
-            bail!("key package does not match session ID");
-        }
 
         let (provider, credential_with_key, signature_keys) =
             make_provider_and_credential(b"existing-client")?;

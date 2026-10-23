@@ -32,7 +32,7 @@ void main() {
     // Injected in place of the real Rust-backed session: drives the linking page
     // from the test-controlled [controller] and records the confirmed name,
     // since the phase transition itself is driven by the UI.
-    LinkSession fakeSession(BuildContext context, String sessionId) => (
+    LinkSession fakeSession(BuildContext context, String code) => (
       events: controller.stream,
       confirm: (deviceName) => confirmedName = deviceName,
     );
