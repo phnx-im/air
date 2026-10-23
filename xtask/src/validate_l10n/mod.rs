@@ -58,6 +58,15 @@ const GREEK_QUESTION_MARK: char = ';';
 /// ending instead, as in "{name} kullanıcısını".
 const TURKISH_FILE: &str = "app_tr.arb";
 
+/// Catalan contracts "de", "el" and "la" before a vowel or an h, as in "d'Anna"
+/// or "l'Oriol", and before numbers such as 1 and 11. The contractions "del",
+/// "al" and "pel" split the same way, as in "de l'Oriol". A placeholder hides
+/// how its value starts, so none of these may stand right before one.
+const CATALAN_FILE: &str = "app_ca.arb";
+const CATALAN_ELIDING_WORDS: &[&str] = &[
+    "de ", "el ", "la ", "del ", "al ", "pel ", "d'", "l'", "d’", "l’",
+];
+
 #[derive(Args, Debug)]
 pub(crate) struct ValidateArgs {
     /// Resolve relative paths against this directory.
@@ -399,6 +408,8 @@ fn check_locale(locale: &ArbFile, template: &ArbFile, report: &mut Report) {
         check_terminal_punctuation(&context, report);
         check_greek_question_marks(&context, report);
         check_turkish_suffixes(&context, &parsed.placeholders, report);
+        check_catalan_elision(&context, report);
+        check_catalan_middle_dot(&context, report);
     }
 }
 
@@ -630,6 +641,51 @@ fn placeholder_takes_suffix(text: &str, name: &str) -> bool {
     })
 }
 
+fn check_catalan_elision(context: &KeyContext<'_>, report: &mut Report) {
+    if context.file != CATALAN_FILE {
+        return;
+    }
+    for (offset, _) in context.translation.match_indices('{') {
+        let before = context.translation[..offset].to_lowercase();
+        let Some(word) = CATALAN_ELIDING_WORDS
+            .iter()
+            .find(|word| ends_with_word(&before, word))
+        else {
+            continue;
+        };
+        report.push(
+            context.file,
+            context.key,
+            format!(
+                "puts '{}' before a placeholder, but Catalan changes its form before a vowel. \
+                 Put a generic noun such as 'el contacte' before the placeholder or reword",
+                word.trim_end()
+            ),
+        );
+    }
+}
+
+/// Whether `text` ends in `word` with no letter or digit running into it.
+fn ends_with_word(text: &str, word: &str) -> bool {
+    text.strip_suffix(word).is_some_and(|rest| {
+        rest.chars()
+            .next_back()
+            .is_none_or(|ch| !ch.is_alphanumeric())
+    })
+}
+
+/// Catalan writes the ela geminada with a middle dot, as in "cancel·la". A
+/// period in its place is a common typing mistake.
+fn check_catalan_middle_dot(context: &KeyContext<'_>, report: &mut Report) {
+    if context.file == CATALAN_FILE && context.translation.to_lowercase().contains("l.l") {
+        report.push(
+            context.file,
+            context.key,
+            "writes 'l.l' but the ela geminada takes the middle dot, as in 'l·l'",
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -644,6 +700,8 @@ mod tests {
         let mut report = Report::default();
         check_terminal_punctuation(&context, &mut report);
         check_greek_question_marks(&context, &mut report);
+        check_catalan_elision(&context, &mut report);
+        check_catalan_middle_dot(&context, &mut report);
         report.findings.len()
     }
 
@@ -748,6 +806,41 @@ mod tests {
             findings_for("app_fr.arb", "Delete chat?", "Supprimer la discussion ?"),
             0
         );
+    }
+
+    #[test]
+    fn catalan_rejects_eliding_words_before_placeholders() {
+        let source = "Messages from {name}";
+        assert_eq!(findings_for(CATALAN_FILE, source, "Missatges de {name}"), 1);
+        assert_eq!(findings_for(CATALAN_FILE, source, "Missatges d'{name}"), 1);
+        assert_eq!(findings_for(CATALAN_FILE, source, "Missatges d’{name}"), 1);
+        assert_eq!(findings_for(CATALAN_FILE, source, "El {name} escriu"), 1);
+        assert_eq!(findings_for(CATALAN_FILE, source, "Obriu l'{name}"), 1);
+        assert_eq!(
+            findings_for(CATALAN_FILE, source, "Missatges del {name}"),
+            1
+        );
+        assert_eq!(findings_for(CATALAN_FILE, source, "Envia al {name}"), 1);
+        assert_eq!(findings_for(CATALAN_FILE, source, "Enviat pel {name}"), 1);
+        assert_eq!(
+            findings_for(CATALAN_FILE, source, "Fins al final {name}"),
+            0
+        );
+        assert_eq!(
+            findings_for(CATALAN_FILE, source, "Missatges del contacte {name}"),
+            0
+        );
+        assert_eq!(findings_for(CATALAN_FILE, source, "Fins a {name}"), 0);
+        assert_eq!(findings_for(CATALAN_FILE, source, "El model {name}"), 0);
+        assert_eq!(findings_for("app_es.arb", source, "Mensajes de {name}"), 0);
+    }
+
+    #[test]
+    fn catalan_ela_geminada_takes_the_middle_dot() {
+        assert_eq!(findings_for(CATALAN_FILE, "Cancel", "Cancel·la"), 0);
+        assert_eq!(findings_for(CATALAN_FILE, "Cancel", "Cancel.la"), 1);
+        assert_eq!(findings_for(CATALAN_FILE, "Cancel", "Sol.licitud"), 1);
+        assert_eq!(findings_for("app_fr.arb", "Cancel", "Cancel.la"), 0);
     }
 
     #[test]
