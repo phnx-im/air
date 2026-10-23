@@ -85,4 +85,31 @@ void main() {
       'Ayşe, Mehmet ve 1 kişi daha',
     );
   });
+
+  test('Catalan uses the singular only for exactly one', () {
+    final loc = lookupAppLocalizations(const Locale('ca'));
+    expect(
+      loc.linkedDevicesScreen_deviceCount(0),
+      'No hi ha cap dispositiu enllaçat.',
+    );
+    expect(loc.linkedDevicesScreen_deviceCount(1), '1 dispositiu enllaçat.');
+    expect(
+      loc.linkedDevicesScreen_deviceCount(21),
+      '21 dispositius enllaçats.',
+    );
+  });
+
+  test('Catalan whole millions fall back to the other form', () {
+    final loc = lookupAppLocalizations(const Locale('ca'));
+    // spellchecker:ignore-next-line
+    expect(loc.groupDetails_memberCount(1000000), '1000000 persones');
+    expect(
+      loc.groupCreationDetails_membersNotAddedOthers('Anna, Pere', 1),
+      'Anna, Pere i 1 persona més',
+    );
+    expect(
+      loc.linkedDevicesScreen_deviceCountWithLimit(1, 5),
+      'Dispositius enllaçats: 1/5.',
+    );
+  });
 }

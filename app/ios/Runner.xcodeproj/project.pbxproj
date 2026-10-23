@@ -137,6 +137,7 @@
 		AE123456000000000000000E /* et */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = et; path = et.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		AE123456000000000000000F /* el */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = el; path = el.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		AE1234560000000000000010 /* tr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = tr; path = tr.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		AE1234560000000000000011 /* ca */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ca; path = ca.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		AE975A052C472F0B00007EF7 /* NotificationService.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AE975A072C472F0B00007EF7 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		AE975A092C472F0B00007EF7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -425,6 +426,7 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				ca,
 				de,
 				el,
 				es,
@@ -651,6 +653,7 @@
 				AE123456000000000000000E /* et */,
 				AE123456000000000000000F /* el */,
 				AE1234560000000000000010 /* tr */,
+				AE1234560000000000000011 /* ca */,
 			);
 			name = InfoPlist.strings;
 			sourceTree = "<group>";
