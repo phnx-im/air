@@ -151,6 +151,7 @@ pub(crate) async fn spawn_app(
 
     let TestBackendParams {
         rate_limits,
+        relay,
         version_policy,
         registration,
         unredeemable_code,
@@ -283,7 +284,7 @@ pub(crate) async fn spawn_app(
         network: network_provider.clone(),
     };
 
-    let rs = Rs::new(stop.clone());
+    let rs = Rs::new(stop.clone(), relay);
 
     // Start the server
     let server = run(

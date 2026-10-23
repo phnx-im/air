@@ -12,6 +12,7 @@ pub use persistence::{AttachmentContent, AttachmentStatus};
 use thiserror::Error;
 pub use thumbnail::AttachmentThumbnail;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
+use tracing::info;
 pub use upload::{ProvisionAttachmentError, UploadTaskError};
 use url::Url;
 use uuid::Uuid;
@@ -30,6 +31,29 @@ pub(crate) mod upload;
 impl CoreUser {
     pub async fn pending_attachments(&self) -> anyhow::Result<Vec<AttachmentId>> {
         Ok(AttachmentRecord::load_all_pending(self.db().read().await?).await?)
+    }
+
+    /// Moves downloads that a killed process left in `Downloading` back to
+    /// `Pending`.
+    pub async fn reset_interrupted_attachment_downloads(&self) -> anyhow::Result<()> {
+        let attachment_ids = AttachmentRecord::reset_downloading(self.db().write().await?).await?;
+        for attachment_id in attachment_ids {
+            info!(
+                ?attachment_id,
+                "Resetting an interrupted attachment download"
+            );
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "test_utils")]
+    pub async fn set_attachment_status(
+        &self,
+        attachment_id: AttachmentId,
+        status: AttachmentStatus,
+    ) -> anyhow::Result<()> {
+        AttachmentRecord::update_status(self.db().write().await?, attachment_id, status).await?;
+        Ok(())
     }
 
     pub async fn load_attachment(

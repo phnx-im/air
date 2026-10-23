@@ -9,6 +9,7 @@
 //! [`ProvisionRequest`] and produces [`SessionAssigned`]. Every other
 //! message is opaque to it.
 
+use aircommon::padme::padme_padding_len;
 use tls_codec::{
     DeserializeBytes, Serialize, TlsDeserializeBytes, TlsSerialize, TlsSize, VLByteSlice,
 };
@@ -22,8 +23,8 @@ pub const MDL_PROTOCOL_VERSION: u16 = 1;
 pub const MDL_PAKE_CIPHER_SUITE: u16 = 1;
 
 /// MLS ciphersuite of the pairing group bound into [`MdlContext`]:
-/// `MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519`.
-pub const MDL_MLS_CIPHER_SUITE: u16 = 0x0001;
+/// `MLS_128_MLKEM768X25519_AES256GCM_SHA384_Ed25519`.
+pub const MDL_MLS_CIPHER_SUITE: u16 = 0x004E;
 
 /// Domain separator of the protocol, bound into [`MdlContext`].
 pub const MDL_PROTOCOL_LABEL: &str = "air multi-device linking";
@@ -63,6 +64,18 @@ impl MdlMessage {
     /// Parses a relay frame's payload.
     pub fn from_frame(frame: &RelayFrame) -> Result<Self, tls_codec::Error> {
         Self::tls_deserialize_exact_bytes(frame.as_slice())
+    }
+
+    /// The message type's name, for logs that must not print payloads.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::ProvisionRequest(_) => "provision_request",
+            Self::SessionAssigned(_) => "session_assigned",
+            Self::PakeShareA(_) => "pake_share_a",
+            Self::PakeShareB(_) => "pake_share_b",
+            Self::GroupMessage(_) => "group_message",
+            Self::Abort(_) => "abort",
+        }
     }
 }
 
@@ -169,11 +182,27 @@ pub struct MdlKdfContext<'a> {
     pub msg_b: VLByteSlice<'a>,
 }
 
-/// The plaintext of a linking-payload application message.
+/// The plaintext of a linking-payload application message. The payload is padded automatically on
+/// creation.
 #[derive(Debug, Clone, PartialEq, Eq, TlsSerialize, TlsDeserializeBytes, TlsSize)]
 pub struct LinkingPayload {
     pub payload_type: LinkingPayloadType,
     pub payload: Vec<u8>,
+    padding: Vec<u8>,
+}
+
+impl LinkingPayload {
+    /// Wraps `payload` of `payload_type`, padding it to its [Padmé] length.
+    ///
+    /// [Padmé]: https://petsymposium.org/popets/2019/popets-2019-0056.php
+    pub fn new(payload_type: LinkingPayloadType, payload: Vec<u8>) -> Self {
+        let padding = vec![0; padme_padding_len(payload.len())];
+        Self {
+            payload_type,
+            payload,
+            padding,
+        }
+    }
 }
 
 /// The provisional registry of linking-payload types.
@@ -278,20 +307,23 @@ mod tests {
 
     #[test]
     fn unknown_linking_payload_type_is_rejected() {
-        assert!(LinkingPayload::tls_deserialize_exact_bytes(&[0, 9, 0]).is_err());
+        assert!(LinkingPayload::tls_deserialize_exact_bytes(&[0, 9, 0, 0]).is_err());
     }
 
     #[test]
     fn linking_payload_round_trips() {
-        let payload = LinkingPayload {
-            payload_type: LinkingPayloadType::ProvisioningPackage,
-            payload: vec![9; 5],
-        };
+        let payload = LinkingPayload::new(LinkingPayloadType::ProvisioningPackage, vec![9; 100]);
         let bytes = payload.tls_serialize_detached().unwrap();
         assert_eq!(
             LinkingPayload::tls_deserialize_exact_bytes(&bytes).unwrap(),
             payload
         );
+    }
+
+    #[test]
+    fn linking_payload_is_padded_to_the_padme_length() {
+        let payload = LinkingPayload::new(LinkingPayloadType::ProvisioningPackage, vec![9; 100]);
+        assert_eq!(payload.payload.len() + payload.padding.len(), 104);
     }
 
     #[test]

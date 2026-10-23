@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE device_link SET state = ?1 WHERE state != ?1 AND expires_at <= ?2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "ada3e2f5b058acca7ee1c67ed07eec0c625336eb43d69ff7392b0601f2e9311f"
+}

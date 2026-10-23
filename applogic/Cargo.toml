@@ -79,6 +79,7 @@ arboard = { workspace = true, features = ["wayland-data-control"] }
 zbus = "6"
 
 [dev-dependencies]
+airserver_test_harness.workspace = true
 mockall.workspace = true
 openmls.workspace = true           # Required for GroupId
 quickcheck.workspace = true
