@@ -1,9 +1,12 @@
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import 'dart:async';
+
 import 'package:air/features/attachments/attachment_file.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/message_bubble/message_bubble.dart';
 import 'package:flutter/material.dart';
@@ -187,6 +190,94 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/attachment_file_overflow.png'),
       );
+    });
+
+    group('download button of a failed download', () {
+      final failedAttachmentId = 3.attachmentId();
+
+      Widget buildFailedAttachment() => buildSubject(
+        (context) => [
+          AttachmentFile(
+            attachment: file.copyWith(attachmentId: failedAttachmentId),
+            isSender: false,
+            color: Colors.black,
+          ),
+        ],
+      );
+
+      testWidgets('shows the progress once the download is registered', (
+        tester,
+      ) async {
+        final registered = Completer<void>();
+        when(
+          () => attachmentsRepository.downloadAttachment(
+            attachmentId: any(named: 'attachmentId'),
+          ),
+        ).thenAnswer((_) => registered.future);
+        when(
+          () => attachmentsRepository.statusStream(
+            attachmentId: failedAttachmentId,
+          ),
+        ).thenAnswer(
+          (_) => Stream.value(
+            registered.isCompleted
+                ? UiAttachmentStatus.progress(BigInt.from(1024))
+                : const UiAttachmentStatus.failed(),
+          ),
+        );
+
+        await tester.pumpWidget(buildFailedAttachment());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(ButtonIcon));
+        await tester.pumpAndSettle();
+        expect(find.byType(CircularProgressIndicator), findsNothing);
+
+        registered.complete();
+        await tester.pumpAndSettle();
+
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        verify(
+          () => attachmentsRepository.downloadAttachment(
+            attachmentId: failedAttachmentId,
+          ),
+        ).called(1);
+      });
+
+      testWidgets('stays when the download fails to start', (tester) async {
+        when(
+          () => attachmentsRepository.downloadAttachment(
+            attachmentId: any(named: 'attachmentId'),
+          ),
+        ).thenAnswer((_) => Future.error(Exception('download failed')));
+
+        await tester.pumpWidget(buildFailedAttachment());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(ButtonIcon));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ButtonIcon), findsOneWidget);
+      });
+
+      testWidgets('is gone before the download is registered', (tester) async {
+        final registered = Completer<void>();
+        when(
+          () => attachmentsRepository.downloadAttachment(
+            attachmentId: any(named: 'attachmentId'),
+          ),
+        ).thenAnswer((_) => registered.future);
+
+        await tester.pumpWidget(buildFailedAttachment());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(ButtonIcon));
+        await tester.pumpWidget(const SizedBox());
+        registered.complete();
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AttachmentFile), findsNothing);
+      });
     });
   });
 }
