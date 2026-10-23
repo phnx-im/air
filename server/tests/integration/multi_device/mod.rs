@@ -141,7 +141,7 @@ async fn in_foreground<T>(existing: &CoreUser, task: impl Future<Output = T>) ->
 }
 
 /// The device's locally stored read-receipts setting. `None` means unset.
-async fn read_receipts(user: &CoreUser) -> Option<bool> {
+pub(crate) async fn read_receipts(user: &CoreUser) -> Option<bool> {
     user.user_setting::<ReadReceiptsSetting>()
         .await
         .map(|ReadReceiptsSetting(value)| value)

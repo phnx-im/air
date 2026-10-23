@@ -9,7 +9,7 @@ use std::assert_matches;
 use airapiclient::{as_api::AsRequestError, qs_api::QsRequestError};
 use aircommon::identifiers::UserId;
 use aircoreclient::{
-    AccountDeletionStatus, SystemMessage, UnlinkReason,
+    AccountDeletionStatus, ReadReceiptsSetting, SystemMessage, UnlinkReason,
     clients::{CoreUser, MarkChatAsRead},
 };
 use airprotos::queue_service::v1::listen_response;
@@ -20,7 +20,7 @@ use airserver_test_harness::utils::{
 use mimi_content::MimiContent;
 use tokio_stream::StreamExt;
 
-use crate::multi_device::link_sibling;
+use crate::multi_device::{link_sibling, read_receipts};
 
 /// Asserts that the account is gone on the server: the sibling's QS client
 /// belongs to a deleted QS user, and the user id can be registered again.
@@ -390,9 +390,68 @@ async fn account_deletion_gives_up_after_repeated_self_group_delete_failures() -
         alice.account_unlink_reason().await?,
         Some(UnlinkReason::AccountDeleted)
     );
+
+    // Nothing is sent once this device resets itself.
+    assert!(alice.self_group_pending_operation_info().await?.is_none());
+    alice
+        .set_synced_user_setting(&ReadReceiptsSetting(true))
+        .await?;
+    alice.outbound_service().run_once().await;
+
     // The DS never accepted a delete, so the sibling keeps the account.
     alice2.drain().await;
     assert_eq!(alice2.account_unlink_reason().await?, None);
+    assert_eq!(read_receipts(&alice2).await, None);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn account_deletion_sends_the_delete_in_place_of_a_parked_self_group_commit()
+-> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice2 = link_sibling(&alice).await;
+    // The initial key package uploads, so that they don't take the self group.
+    for (device, sibling) in [(&alice2, &alice), (&alice, &alice2)] {
+        device.outbound_service().run_once().await;
+        device.drain().await;
+        sibling.drain().await;
+    }
+
+    alice
+        .set_synced_user_setting(&ReadReceiptsSetting(true))
+        .await?;
+    setup.listener_control_handle().set_fail_next_request();
+    alice.outbound_service().run_once().await;
+    let parked = alice
+        .self_group_pending_operation_info()
+        .await?
+        .expect("the settings commit is parked");
+    assert_eq!(parked.operation_type, "self_group_messages");
+    assert_eq!(parked.request_status, "ready_to_retry");
+
+    assert_eq!(
+        alice.delete_account().await?,
+        AccountDeletionStatus::Pending
+    );
+    alice.outbound_service().run_once().await;
+
+    assert_eq!(
+        alice.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
+    );
+    alice2.drain().await;
+    assert_eq!(
+        alice2.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
+    );
+    assert_eq!(
+        read_receipts(&alice2).await,
+        None,
+        "the parked commit is not sent"
+    );
+    assert_account_deleted(&setup, alice.user_id(), &alice2, false).await;
 
     Ok(())
 }

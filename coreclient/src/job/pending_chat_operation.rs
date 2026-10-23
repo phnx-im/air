@@ -459,6 +459,15 @@ impl PendingChatOperation {
         self.operation.is_delete()
     }
 
+    /// Whether a commit of this operation was sent and only the queue tells
+    /// whether the DS accepted it.
+    pub(crate) fn is_waiting_for_queue_response(&self) -> bool {
+        matches!(
+            self.status,
+            PendingChatOperationStatus::WaitingForQueueResponse
+        )
+    }
+
     /// Completes the pending intent this operation asserted, now that its commit
     /// was accepted. No-op for operations that carry no self-group state.
     async fn complete_self_group_intent(
@@ -1395,6 +1404,17 @@ impl PendingChatOperation {
         Ok(())
     }
 
+    /// Deletes this job and its staged commit, which frees the group for
+    /// another commit. Parked self-group changes it carried stay parked for
+    /// the next commit.
+    pub(crate) async fn withdraw(mut self, txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<()> {
+        self.group
+            .group_mut()
+            .discard_pending_commit(&mut *txn)
+            .await?;
+        self.discard(txn).await
+    }
+
     /// Completes the pending job after the queue proved that our own commit
     /// on `group_id` was accepted by the DS.
     ///
@@ -2050,6 +2070,36 @@ pub(crate) mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn withdraw_frees_the_group_and_keeps_the_settings_intent() -> anyhow::Result<()> {
+        let (pool, pending, _signer) = setup_self_group_settings_op().await?;
+        let group_id = pending.group.group_id().clone();
+
+        let mut connection = pool.write().await?;
+        Box::pin(
+            connection.with_transaction(async |txn| -> anyhow::Result<()> {
+                SettingChanges::record(txn, &ReadReceiptsSetting(true)).await?;
+
+                pending.withdraw(txn).await?;
+
+                assert!(
+                    PendingChatOperation::load_by_group_id(&mut *txn, &group_id)
+                        .await?
+                        .is_none()
+                );
+                assert!(
+                    Group::load_clean_verified(&mut *txn, &group_id)
+                        .await?
+                        .is_some(),
+                    "the group should load without a pending commit"
+                );
+                assert!(SettingChanges::has_pending(&mut *txn).await?);
+                Ok(())
+            }),
+        )
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn fatal_clean_up_rolls_back_the_settings_intent() -> anyhow::Result<()> {
         let (pool, mut pending, _signer) = setup_self_group_settings_op().await?;
         let group_id = pending.group.group_id().clone();
@@ -2599,6 +2649,20 @@ pub(crate) mod tests {
             .store(pool.write().await?)
             .await?;
         Ok((pool, chat_id))
+    }
+
+    /// A group and its chat with a pending delete operation.
+    pub(crate) async fn setup_group_with_pending_delete() -> anyhow::Result<(DbAccess, GroupId)> {
+        let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
+        let group_id = group.group_id().clone();
+        let params = group
+            .group_mut()
+            .stage_delete(pool.write().await?, &signing_key, Some(TimeStamp::now()))
+            .await?;
+        PendingChatOperation::new(group, OperationType::Delete(Box::new(params)))
+            .store(pool.write().await?)
+            .await?;
+        Ok((pool, group_id))
     }
 
     #[tokio::test(flavor = "multi_thread")]

@@ -58,14 +58,15 @@ impl CoreUser {
     /// DS refused the first delete sent. The deletion is aborted then and
     /// nothing changed.
     pub async fn delete_account(&self) -> anyhow::Result<AccountDeletionStatus> {
-        match OwnClientInfo::account_unlink_reason(self.db().read().await?).await? {
+        let unlink_reason = self
+            .db()
+            .with_write_transaction(async |txn| AccountDeletion::start(txn).await)
+            .await?;
+        match unlink_reason {
             Some(UnlinkReason::AccountDeleted) => return Ok(AccountDeletionStatus::Completed),
             Some(UnlinkReason::Unlinked) => bail!("this device was unlinked"),
             None => {}
         }
-        self.db()
-            .with_write_transaction(async |txn| AccountDeletion::start(txn).await)
-            .await?;
 
         let wait = async {
             self.outbound_service().notify_account_deletion().await;

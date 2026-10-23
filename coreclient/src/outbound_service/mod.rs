@@ -416,7 +416,8 @@ impl OutboundServiceContext {
             .await
             .or_abort("queued resyncs")?;
 
-        // Nothing else is worth sending for an account that is being deleted.
+        // Nothing else is worth sending for an account that is being deleted,
+        // or from a device that must reset itself.
         if Box::pin(self.run_account_deletion())
             .await
             .or_abort("account deletion")?
