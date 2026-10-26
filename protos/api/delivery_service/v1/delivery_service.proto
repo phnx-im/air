@@ -16,6 +16,12 @@ service DeliveryService {
 
   rpc CreateApqGroup(CreateApqGroupRequest) returns (CreateApqGroupResponse);
 
+  // Creates an APQ group, a self-group included, on one stream. The client
+  // sends a signed `begin` step and gets fresh T and PQ group ids and an
+  // optional group profile upload, then sends the creation request for exactly
+  // these ids.
+  rpc CreateGroupStream(stream CreateGroupStreamRequest) returns (stream CreateGroupStreamResponse);
+
   rpc WelcomeInfo(WelcomeInfoRequest) returns (WelcomeInfoResponse);
 
   rpc ExternalCommitInfo(ExternalCommitInfoRequest) returns (ExternalCommitInfoResponse);
@@ -171,6 +177,50 @@ message SealedClientReference {
 message SealedClientReferencesSignature {
   common.v1.HpkeCiphertext ciphertext = 1;
 }
+
+// create group stream
+
+message CreateGroupStreamRequest {
+  oneof step {
+    CreateGroupStreamBegin begin = 1;
+    // Unsigned, since `begin` authenticated the stream.
+    CreateApqGroupPayload create = 2;
+  }
+}
+
+// Signed with the user's signing key, the key of the credential the AS stores
+// for `payload.user_id`.
+message CreateGroupStreamBegin {
+  CreateGroupStreamBeginPayload payload = 1;
+  common.v1.Signature signature = 2;
+}
+
+// WARNING: The signature of the `begin` step is verified against the server's
+// prost *re-encoding* of this payload, not the wire bytes. A field the server
+// does not know is dropped and breaks the signature, and the encoding must stay
+// stable: never reorder, renumber, or remove fields.
+message CreateGroupStreamBeginPayload {
+  common.v1.ClientMetadata client_metadata = 1;
+  common.v1.UserId user_id = 2;
+  optional int64 group_profile_size = 3;
+}
+
+message CreateGroupStreamResponse {
+  oneof step {
+    CreateGroupStreamReserved reserved = 1;
+    CreateGroupStreamCreated created = 2;
+  }
+}
+
+message CreateGroupStreamReserved {
+  common.v1.QualifiedGroupId group_id = 1;
+  common.v1.QualifiedGroupId pq_group_id = 2;
+  // Set when the begin step asked for a group profile upload and the server
+  // has storage configured.
+  optional ProvisionAttachmentResponse group_profile_provisioning = 3;
+}
+
+message CreateGroupStreamCreated {}
 
 // create apq group
 

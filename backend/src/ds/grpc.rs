@@ -11,7 +11,7 @@ use aircommon::{
             signable::{Verifiable, VerifiedStruct},
         },
     },
-    identifiers::{self, Fqdn, QualifiedGroupId},
+    identifiers::{self, Fqdn, QualifiedGroupId, UserId},
     messages::client_ds::{
         self, GroupBootstrapEcho, GroupOperationParams, QsQueueMessagePayload,
         UserProfileKeyUpdateParams,
@@ -32,6 +32,7 @@ use airprotos::{
     validation::{InvalidTlsExt, MissingFieldExt},
 };
 use chrono::Utc;
+use futures_util::stream::BoxStream;
 use mls_assist::{
     messages::{AssistedMessageIn, SerializedMlsMessage},
     openmls::prelude::{GroupEpoch, GroupId, LeafNodeIndex, Sender, SignaturePublicKey},
@@ -39,15 +40,20 @@ use mls_assist::{
 use semver::Version;
 use sqlx::{PgConnection, PgTransaction};
 use thiserror::Error;
-use tokio::task::{JoinError, JoinSet};
-use tonic::{Request, Response, Status, async_trait};
-use tracing::{Span, error, field::Empty, warn};
+use tokio::{
+    sync::mpsc,
+    task::{JoinError, JoinSet},
+};
+use tokio_stream::wrappers::ReceiverStream;
+use tonic::{Request, Response, Status, Streaming, async_trait};
+use tracing::{Instrument, Span, error, field::Empty, warn};
 
 use crate::{
     auth_service::AsConnector,
     ds::{
         client_references::ClientReferencesSnapshot,
-        create_group::{NewApqChatData, NewGroup, NewGroupLeg, NewGroupState},
+        create_group::{GroupInsert, NewApqChatData, NewGroup, NewGroupLeg, NewGroupState},
+        create_group_stream,
         group_operation::ProcessedApqGroupOperation,
         group_state::MemberProfile,
     },
@@ -64,6 +70,7 @@ use super::{
     welcome_info::DsWelcomeInfo,
 };
 
+#[derive(Clone)]
 pub struct GrpcDs<Qep: QsConnector, As: AsConnector> {
     pub(super) ds: Ds,
     qs_connector: Qep,
@@ -671,7 +678,22 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         Ok(value)
     }
 
-    fn verify_client_version(
+    /// Returns the key the AS stores for `user_id`, or `None` for an unknown
+    /// user.
+    pub(super) async fn load_client_verifying_key(
+        &self,
+        user_id: &UserId,
+    ) -> Result<Option<ClientVerifyingKey>, Status> {
+        self.as_connector
+            .client_verifying_key(user_id)
+            .await
+            .map_err(|error| {
+                error!(%error, "failed to load client verifying key from AS");
+                Status::internal("failed to load client verifying key")
+            })
+    }
+
+    pub(super) fn verify_client_version(
         &self,
         client_metadata: Option<&ClientMetadata>,
     ) -> Result<Option<Version>, Status> {
@@ -904,7 +926,7 @@ impl GroupBootstrapMaterial {
 }
 
 #[async_trait]
-impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
+impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for GrpcDs<Qep, As> {
     async fn request_group_id(
         &self,
         request: Request<RequestGroupIdRequest>,
@@ -982,6 +1004,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             &qgid,
             &ear_key,
             creator_client_reference,
+            GroupInsert::IgnoreConflict,
         )
         .await?;
 
@@ -1009,7 +1032,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let (t_qgid, t_group_state, ear_key) = self.extract_group_state(
             payload
                 .t_group_data
-                .clone()
+                .as_ref()
                 .ok_or_missing_field("t_group_data")?,
             &chat.encrypted_user_profile_key,
             &chat.creator_client_reference,
@@ -1062,10 +1085,42 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             &t_qgid,
             &ear_key,
             chat.creator_client_reference,
+            GroupInsert::IgnoreConflict,
         )
         .await?;
 
         Ok(Response::new(CreateApqGroupResponse {}))
+    }
+
+    type CreateGroupStreamStream = BoxStream<'static, Result<CreateGroupStreamResponse, Status>>;
+
+    async fn create_group_stream(
+        &self,
+        request: Request<Streaming<CreateGroupStreamRequest>>,
+    ) -> Result<Response<Self::CreateGroupStreamStream>, Status> {
+        let incoming = request.into_inner();
+        // The stream sends at most two messages, so no send blocks
+        let (outgoing_tx, outgoing_rx) = mpsc::channel(2);
+
+        // Spawned, so that a client going away cannot cancel a creation between
+        // its commit and the echo dispatch.
+        let ds = self.clone();
+        tokio::spawn(
+            async move {
+                create_group_stream::run_protocol(
+                    &ds,
+                    &ds.ds.create_group_streams,
+                    &ds.ds.stop,
+                    incoming,
+                    outgoing_tx,
+                )
+                .await;
+            }
+            .in_current_span(),
+        );
+
+        let outgoing = ReceiverStream::new(outgoing_rx);
+        Ok(Response::new(Box::pin(outgoing)))
     }
 
     async fn welcome_info(
@@ -2346,13 +2401,8 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .ok_or_missing_field("user_id")?
                     .try_into()?;
                 let client_verifying_key = self
-                    .as_connector
-                    .client_verifying_key(&user_id)
-                    .await
-                    .map_err(|error| {
-                        error!(%error, "failed to load client verifying key from AS");
-                        Status::internal("failed to load client verifying key")
-                    })?
+                    .load_client_verifying_key(&user_id)
+                    .await?
                     .ok_or_else(|| Status::not_found("user not found"))?;
 
                 request
@@ -2423,13 +2473,8 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .ok_or_missing_field("user_id")?
                     .try_into()?;
                 let client_verifying_key = self
-                    .as_connector
-                    .client_verifying_key(&user_id)
-                    .await
-                    .map_err(|error| {
-                        error!(%error, "failed to load client verifying key from AS");
-                        Status::internal("failed to load client verifying key")
-                    })?
+                    .load_client_verifying_key(&user_id)
+                    .await?
                     .ok_or_else(|| Status::not_found("user not found"))?;
 
                 request
@@ -2553,7 +2598,7 @@ impl From<GroupNotFoundError> for Status {
     }
 }
 
-struct InvalidSignature(SignatureVerificationError);
+pub(super) struct InvalidSignature(pub(super) SignatureVerificationError);
 
 impl From<InvalidSignature> for Status {
     fn from(e: InvalidSignature) -> Self {
