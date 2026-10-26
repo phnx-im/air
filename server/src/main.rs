@@ -113,6 +113,8 @@ async fn main() -> anyhow::Result<()> {
         .await;
     }
     let mut ds = ds_result.unwrap();
+    info!(ds = ?configuration.ds, "Applying DS settings");
+    ds.set_settings(configuration.ds.clone());
     if let Some(storage_settings) = &configuration.storage {
         let storage = Storage::new(storage_settings.clone());
         ds.set_storage(storage);

@@ -499,19 +499,36 @@ pub(super) struct StorableDsGroupData<const LOADED_FOR_UPDATE: bool> {
 }
 
 impl StorableDsGroupData<false> {
+    fn new(group_id: ReservedGroupId, encrypted_group_state: EncryptedDsGroupState) -> Self {
+        Self {
+            group_id: group_id.0,
+            encrypted_group_state,
+            last_used: TimeStamp::now(),
+            deleted_queues: vec![],
+        }
+    }
+
+    #[cfg(test)]
     pub(super) async fn new_and_store<'a>(
         connection: impl PgExecutor<'a>,
         group_id: ReservedGroupId,
         encrypted_group_state: EncryptedDsGroupState,
     ) -> Result<Self, StorageError> {
-        let group_data = Self {
-            group_id: group_id.0,
-            encrypted_group_state,
-            last_used: TimeStamp::now(),
-            deleted_queues: vec![],
-        };
+        let group_data = Self::new(group_id, encrypted_group_state);
         group_data.store(connection).await?;
         Ok(group_data)
+    }
+
+    /// Stores a new group unless a group with this id exists. Returns whether
+    /// it was stored.
+    pub(super) async fn store_if_new<'a>(
+        connection: impl PgExecutor<'a>,
+        group_id: ReservedGroupId,
+        encrypted_group_state: EncryptedDsGroupState,
+    ) -> Result<bool, StorageError> {
+        Self::new(group_id, encrypted_group_state)
+            .store(connection)
+            .await
     }
 }
 

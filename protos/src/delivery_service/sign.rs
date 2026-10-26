@@ -39,6 +39,14 @@ impl_signed_payload!(
 );
 
 impl_signed_payload!(
+    request = super::v1::CreateGroupStreamBegin,
+    payload = super::v1::CreateGroupStreamBeginPayload,
+    key_type = ClientKeyType,
+    label = "CreateGroupStreamBeginPayload",
+    seal = private_mod::Seal,
+);
+
+impl_signed_payload!(
     request = super::v1::GroupOperationRequest,
     payload = super::v1::GroupOperationPayload,
     key_type = ClientKeyType,

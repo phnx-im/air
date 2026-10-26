@@ -17,8 +17,13 @@ use crate::{ds::group_state::EncryptedDsGroupState, errors::StorageError};
 use super::StorableDsGroupData;
 
 impl StorableDsGroupData<false> {
-    pub(super) async fn store(&self, connection: impl PgExecutor<'_>) -> Result<(), StorageError> {
-        query!(
+    /// Stores the group unless a group with the same id exists. Returns whether
+    /// it was stored.
+    pub(super) async fn store(
+        &self,
+        connection: impl PgExecutor<'_>,
+    ) -> Result<bool, StorageError> {
+        let result = query!(
             "INSERT INTO
                 encrypted_group
                 (group_id, ciphertext, last_used, deleted_queues)
@@ -32,7 +37,7 @@ impl StorableDsGroupData<false> {
         )
         .execute(connection)
         .await?;
-        Ok(())
+        Ok(result.rows_affected() == 1)
     }
 
     #[cfg(test)]
@@ -314,6 +319,34 @@ mod test {
 
         let loaded = StorableDsGroupData::load_immutable(&mut connection, &qgid).await?;
         assert!(loaded.is_none());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn store_reports_whether_it_stored(pool: PgPool) -> anyhow::Result<()> {
+        let ds = Ds::new_from_pool(
+            pool.clone(),
+            "example.com".parse().unwrap(),
+            Default::default(),
+            0,
+            CancellationToken::new(),
+        )
+        .await?;
+        let (qgid, group) = store_random_group(&pool, &ds).await?;
+
+        let conflicting = random_group(group.group_id);
+        assert!(!conflicting.store(&pool).await?);
+
+        let mut connection = pool.acquire().await?;
+        let loaded = StorableDsGroupData::load_immutable(&mut connection, &qgid).await?;
+        assert_eq!(loaded.unwrap(), group);
+
+        let fresh = random_group(Uuid::new_v4());
+        assert!(fresh.store(&pool).await?);
+        let fresh_qgid = QualifiedGroupId::new(fresh.group_id, "example.com".parse()?);
+        let loaded = StorableDsGroupData::load_immutable(&mut connection, &fresh_qgid).await?;
+        assert_eq!(loaded.unwrap(), fresh);
 
         Ok(())
     }

@@ -32,6 +32,8 @@ pub struct Settings {
     pub registration: RegistrationSettings,
     #[serde(default)]
     pub relay: RelaySettings,
+    #[serde(default)]
+    pub ds: DsSettings,
 }
 
 /// Configuration for the application.
@@ -275,12 +277,48 @@ impl Default for RelaySettings {
     }
 }
 
+/// Bounds of the delivery service.
+///
+/// Field names carry no underscores, because environment overrides split on
+/// them (`AIR_DS_CREATEDEADLINE`).
+#[derive(Debug, Deserialize, Clone)]
+pub struct DsSettings {
+    /// How long a group creation stream may take from its begin step to its
+    /// create step.
+    #[serde(default = "default_5min", with = "duration_seconds")]
+    pub createdeadline: Duration,
+    /// Open group creation streams one user may have at a time.
+    #[serde(default = "default_create_streams_per_user")]
+    pub createstreamsperuser: usize,
+    /// Authenticated group creation streams this process accepts at a time.
+    #[serde(default = "default_create_streams")]
+    pub createstreams: usize,
+}
+
+impl Default for DsSettings {
+    fn default() -> Self {
+        Self {
+            createdeadline: default_5min(),
+            createstreamsperuser: default_create_streams_per_user(),
+            createstreams: default_create_streams(),
+        }
+    }
+}
+
 fn default_session_ttl() -> std::time::Duration {
     std::time::Duration::from_secs(10 * 60)
 }
 
 fn default_id_quarantine() -> std::time::Duration {
     std::time::Duration::from_secs(60)
+}
+
+fn default_create_streams_per_user() -> usize {
+    4
+}
+
+fn default_create_streams() -> usize {
+    10_000
 }
 
 /// How registration is gated.
