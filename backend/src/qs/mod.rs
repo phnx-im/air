@@ -183,6 +183,10 @@ impl Qs {
         Ok(record.is_some_and(|record| record.encrypted_push_token.is_some()))
     }
 
+    pub(crate) fn db_pool(&self) -> &PgPool {
+        &self.db_pool
+    }
+
     pub(crate) fn queues(&self) -> &Queues {
         &self.queues
     }
