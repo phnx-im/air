@@ -13,7 +13,7 @@ use std::{
 use airbackend::{
     air_service::MaxDevices,
     qs::Qs,
-    settings::{RateLimitsSettings, RegistrationPolicy, RegistrationSettings},
+    settings::{DsSettings, RateLimitsSettings, RegistrationPolicy, RegistrationSettings},
     version::VersionPolicy,
 };
 use aircommon::{
@@ -221,6 +221,7 @@ pub struct TestBackendParams {
     pub max_attachment_size: u64,
     /// Overrides the configured device limit.
     pub max_devices: Option<u32>,
+    pub ds: DsSettings,
 }
 
 impl TestBackendParams {
@@ -248,6 +249,7 @@ impl Default for TestBackendParams {
             unredeemable_code: None,
             max_attachment_size: DEFAULT_MAX_ATTACHMENT_SIZE,
             max_devices: None,
+            ds: DsSettings::default(),
         }
     }
 }
