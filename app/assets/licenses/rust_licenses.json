@@ -36,7 +36,7 @@
         },
         {
           "name": "ctutils",
-          "version": "0.4.5",
+          "version": "0.4.6",
           "repository": "https://github.com/RustCrypto/utils"
         },
         {
@@ -1350,7 +1350,7 @@
         },
         {
           "name": "crypto-bigint",
-          "version": "0.7.5",
+          "version": "0.7.10",
           "repository": "https://github.com/RustCrypto/crypto-bigint"
         },
         {
@@ -1651,6 +1651,11 @@
         {
           "name": "getrandom",
           "version": "0.2.17",
+          "repository": "https://github.com/rust-random/getrandom"
+        },
+        {
+          "name": "getrandom",
+          "version": "0.3.4",
           "repository": "https://github.com/rust-random/getrandom"
         },
         {
