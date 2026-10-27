@@ -177,9 +177,9 @@ impl MessageContent {
 
     /// Flattened markdown text.
     pub(crate) fn plain_text(&self) -> String {
-        let mut lines = Vec::new();
-        push_block_lines(&self.elements, &mut lines);
-        lines.join("\n")
+        let mut text = String::new();
+        push_block_text(&self.elements, "\n", &mut text);
+        text
     }
 
     /// Flattened markdown text with a fallback to the raw markdown if the text
@@ -195,50 +195,52 @@ impl MessageContent {
     }
 }
 
-/// Convert block elements to lines of text.
-fn push_block_lines(blocks: &[RangedBlockElement], lines: &mut Vec<String>) {
+/// Append the text of block elements as lines joined by `separator`.
+fn push_block_text(blocks: &[RangedBlockElement], separator: &str, text: &mut String) {
     for block in blocks {
         match &block.element {
             BlockElement::Paragraph(inlines) | BlockElement::Heading(inlines) => {
-                push_line(lines, inline_text(inlines));
+                push_line(text, &inline_text(inlines), separator);
             }
-            BlockElement::Quote(blocks) => push_block_lines(blocks, lines),
+            BlockElement::Quote(blocks) => push_block_text(blocks, separator, text),
             BlockElement::UnorderedList(items) | BlockElement::OrderedList(_, items) => {
                 for item in items {
-                    push_block_lines(item, lines);
+                    push_block_text(item, separator, text);
                 }
             }
             BlockElement::Table { head, rows } => {
-                push_line(lines, table_row_text(head));
+                push_line(text, &table_row_text(head), separator);
                 for row in rows {
-                    push_line(lines, table_row_text(row));
+                    push_line(text, &table_row_text(row), separator);
                 }
             }
             BlockElement::HorizontalRule => (),
             BlockElement::CodeBlock(code_lines) => {
                 for code_line in code_lines {
-                    push_line(lines, code_line.value.clone());
+                    push_line(text, &code_line.value, separator);
                 }
             }
-            BlockElement::Error(message) => push_line(lines, message.clone()),
+            BlockElement::Error(message) => push_line(text, message, separator),
         }
     }
 }
 
 fn table_row_text(cells: &[Vec<RangedBlockElement>]) -> String {
-    let mut cell_texts = Vec::new();
+    let mut text = String::new();
     for cell in cells {
-        let mut cell_lines = Vec::new();
-        push_block_lines(cell, &mut cell_lines);
-        push_line(&mut cell_texts, cell_lines.join(" "));
+        push_block_text(cell, " ", &mut text);
     }
-    cell_texts.join(" ")
+    text
 }
 
-fn push_line(lines: &mut Vec<String>, line: String) {
-    if !line.trim().is_empty() {
-        lines.push(line);
+fn push_line(text: &mut String, line: &str, separator: &str) {
+    if line.trim().is_empty() {
+        return;
     }
+    if !text.is_empty() {
+        text.push_str(separator);
+    }
+    text.push_str(line);
 }
 
 fn inline_text(inlines: &[RangedInlineElement]) -> String {
@@ -1195,8 +1197,8 @@ But it ends after the paragraph"#,
     #[test]
     fn plain_text_of_tables() {
         assert_eq!(
-            plain_text("| a | b |\n|---|---|\n| 1 |   |\n| **2** | 3 |"),
-            "a b\n1\n2 3",
+            plain_text("| a | b |\n|---|---|\n| 1 |   |\n| **2** | 3 |\n|   | 4 |"),
+            "a b\n1\n2 3\n4",
         );
     }
 
@@ -1206,6 +1208,11 @@ But it ends after the paragraph"#,
             plain_text("look ![a *cat*](https://example.com/cat.png) here"),
             "look 🖼️ here"
         );
+    }
+
+    #[test]
+    fn plain_text_skips_empty_blocks() {
+        assert_eq!(plain_text("start\n\n#\n\nend"), "start\nend");
     }
 
     #[test]
