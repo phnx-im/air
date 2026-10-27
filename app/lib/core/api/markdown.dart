@@ -12,7 +12,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'markdown.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `collect_links`, `inline_text`, `parse_block_element`, `parse_inline_elements`, `parse_list_items`, `parse_table_cells`, `parse_table_content`, `plain_text`, `preview_text`, `push_block_lines`, `push_inline_text`, `push_line`, `table_row_text`, `try_parse_markdown`
+// These functions are ignored because they are not marked as `pub`: `collect_links`, `inline_text`, `parse_block_element`, `parse_inline_elements`, `parse_list_items`, `parse_table_cells`, `parse_table_content`, `plain_text`, `preview_text`, `push_block_text`, `push_inline_text`, `push_line`, `table_row_text`, `try_parse_markdown`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `RangedEvent`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`
 
