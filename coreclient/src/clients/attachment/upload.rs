@@ -16,6 +16,7 @@ use aircommon::{
     credentials::keys::ClientKeyType,
     crypto::{
         aead::{AeadCiphertext, AeadEncryptable, keys::AttachmentEarKey},
+        secrets::Secret,
         signatures::private_keys::SigningKey,
     },
     identifiers::{RemoteAttachmentId, UserId},
@@ -177,7 +178,7 @@ impl CoreUser {
 
         let attachment_id = AttachmentId::random();
         let message_id = MessageId::random();
-        let content = attachment_content(probed.provisional_nested_parts(attachment_id));
+        let content = attachment_content(probed.provisional_nested_parts(attachment_id))?;
 
         // Note: Acquire a transaction here to ensure that the attachment will be deleted from the
         // local database in case of an error.
@@ -566,8 +567,9 @@ impl CoreUser {
 ///
 /// The final message is derived by patching field values into these parts, so
 /// what the UI shows first and what goes on the wire have the same shape.
-fn attachment_content(parts: Vec<NestedPart>) -> MimiContent {
-    MimiContent {
+fn attachment_content(parts: Vec<NestedPart>) -> anyhow::Result<MimiContent> {
+    Ok(MimiContent {
+        salt: Secret::<16>::random()?.secret().to_vec(),
         nested_part: NestedPart::MultiPart {
             disposition: Disposition::Attachment,
             part_semantics: PartSemantics::ProcessAll,
@@ -575,7 +577,7 @@ fn attachment_content(parts: Vec<NestedPart>) -> MimiContent {
             language: Default::default(),
         },
         ..Default::default()
-    }
+    })
 }
 
 /// What a send task starts from.
