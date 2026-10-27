@@ -5,6 +5,7 @@
 //! Groups: lifecycle, membership, deletion, group profile, self updates,
 //! resync, epochs and pending operations.
 
+mod creation_stream;
 mod deletion;
 mod epochs;
 mod lifecycle;

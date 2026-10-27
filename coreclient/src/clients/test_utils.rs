@@ -19,14 +19,24 @@ use airprotos::client::{
     group::{EncryptedGroupTitle, GroupData},
 };
 
+use aircommon::{
+    credentials::keys::{LeafSigningKey, SelfGroupSigningKey, UserSigningKey},
+    crypto::{
+        aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
+        indexed_aead::keys::UserProfileKey,
+    },
+    messages::client_ds_out::CreateGroupParamsOut,
+};
+
 use crate::{
     ChatAttributes,
-    groups::{openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
+    groups::{NewGroupContext, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
     job::{
         chat_operation::{ChatOperation, DerivationEpoch},
         create_chat::CreateChat,
         pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     },
+    key_stores::indexed_keys::StorableIndexedKey,
     outbound_service::{
         account_deletion::AccountDeletion,
         error::is_ds_not_found_error,
@@ -508,6 +518,85 @@ impl CoreUser {
         let job =
             CreateChat::new(chat_attributes, client_reference, is_apq).with_profile_component();
         Ok(self.execute_job(job).await?)
+    }
+
+    pub fn signing_key_for_test(&self) -> &UserSigningKey {
+        self.signing_key()
+    }
+
+    /// Builds the parameters that create a fresh APQ group with the given ids
+    /// on the DS. Nothing is kept locally, so the same ids can be built again,
+    /// and nothing is sent to the DS.
+    pub async fn group_creation_params_for_test(
+        &self,
+        group_id: GroupId,
+        pq_group_id: GroupId,
+    ) -> anyhow::Result<(CreateGroupParamsOut, GroupStateEarKey)> {
+        let signer = LeafSigningKey::User(self.signing_key().clone());
+        self.apq_group_creation_params(group_id, pq_group_id, signer, |key| {
+            Ok(NewGroupContext::Chat(GroupData {
+                encrypted_title: Some(EncryptedGroupTitle::encrypt("test", key)?),
+                external_group_profile: None,
+            }))
+        })
+        .await
+    }
+
+    /// Like [`Self::group_creation_params_for_test`], for a self-group.
+    pub async fn self_group_creation_params_for_test(
+        &self,
+        group_id: GroupId,
+        pq_group_id: GroupId,
+    ) -> anyhow::Result<(CreateGroupParamsOut, GroupStateEarKey)> {
+        let client_id = OwnClientInfo::load(self.db().read().await?)
+            .await?
+            .client_id;
+        let signer = LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(client_id)?);
+        let (mut params, ear_key) = self
+            .apq_group_creation_params(group_id, pq_group_id, signer, |_| {
+                Ok(NewGroupContext::SelfGroup(GroupData::empty()))
+            })
+            .await?;
+        params.creator_user_credential = Some(self.signing_key().credential().clone());
+        Ok((params, ear_key))
+    }
+
+    async fn apq_group_creation_params(
+        &self,
+        group_id: GroupId,
+        pq_group_id: GroupId,
+        signer: LeafSigningKey,
+        context: impl FnOnce(&IdentityLinkWrapperKey) -> anyhow::Result<NewGroupContext>,
+    ) -> anyhow::Result<(CreateGroupParamsOut, GroupStateEarKey)> {
+        let own_user_id = self.user_id().clone();
+        let client_reference = self.create_own_client_reference();
+        let is_self_group = matches!(signer, LeafSigningKey::SelfGroup(_));
+        let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
+        let context = context(&identity_link_wrapper_key)?;
+        self.db()
+            .with_write_transaction(async |txn| {
+                let (group, partial_params) = Group::create_apq_group(
+                    &mut *txn,
+                    &signer,
+                    own_user_id.clone(),
+                    identity_link_wrapper_key,
+                    group_id,
+                    pq_group_id,
+                    context,
+                    None,
+                    is_self_group.then_some(&client_reference),
+                )?;
+                let encrypted_user_profile_key = UserProfileKey::load_own(&mut *txn)
+                    .await?
+                    .encrypt(group.identity_link_wrapper_key(), &own_user_id)?;
+                let params =
+                    partial_params.into_params(client_reference, encrypted_user_profile_key);
+                // Deleting also drops the OpenMLS state, but only of a stored group
+                group.store(&mut *txn).await?;
+                Group::delete_from_db(txn, group.group_id()).await?;
+                Ok((params, group.group_state_ear_key().clone()))
+            })
+            .await
     }
 
     /// Whether the group context of the chat carries the group profile component.

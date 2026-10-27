@@ -29,7 +29,8 @@ use aircommon::{
 pub use airprotos::delivery_service::v1::ProvisionAttachmentResponse;
 use airprotos::{
     common::v1::{
-        AttachmentTooLargeDetail, DeviceLimitReachedDetail, StatusDetails, StatusDetailsCode,
+        AttachmentTooLargeDetail, DeviceLimitReachedDetail,
+        QualifiedGroupId as QualifiedGroupIdProto, StatusDetails, StatusDetailsCode,
         status_details::{self, Detail},
     },
     convert::{RefInto, TryRefInto},
@@ -37,12 +38,14 @@ use airprotos::{
         AddUsersInfo, ApqAddUsersInfo, ApqAssistedMlsMessage, ApqDeleteGroupPayload,
         ApqGroupOperationPayload, ApqJoinConnectionGroupRequest, ApqResyncPayload,
         ApqSelfRemovePayload, ConnectionGroupInfoRequest, CreateApqGroupPayload,
-        CreateGroupPayload, DeleteGroupPayload, EpochSnapshotRequest, ExternalCommitInfoRequest,
-        GetAttachmentUrlPayload, GroupInfo, GroupOperationPayload, GroupSessionData,
-        IndexedEncryptedUserProfileKey, JoinConnectionGroupRequest, MlsMessage,
+        CreateGroupPayload, CreateGroupStreamBeginPayload, CreateGroupStreamRequest,
+        CreateGroupStreamResponse, DeleteGroupPayload, EpochSnapshotRequest,
+        ExternalCommitInfoRequest, GetAttachmentUrlPayload, GroupInfo, GroupOperationPayload,
+        GroupSessionData, IndexedEncryptedUserProfileKey, JoinConnectionGroupRequest, MlsMessage,
         ProvisionAttachmentPayload, RatchetTree, RequestGroupIdRequest, ResyncPayload,
         SelfRemovePayload, SendMessageCollisionTags, SendMessagePayload, StorageObjectType,
         TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
+        create_group_stream_request, create_group_stream_response,
     },
     validation::MissingFieldExt,
 };
@@ -55,7 +58,9 @@ use mls_assist::{
         tls_codec::DeserializeBytes as _,
     },
 };
-use tonic::Code;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+use tonic::{Code, Streaming};
 use tracing::error;
 
 use crate::{ApiClient, ClassifyRequestError, RequestErrorKind, classify_status};
@@ -168,6 +173,110 @@ impl DsRequestError {
     }
 }
 
+/// The group ids and group profile upload a group creation stream handed out.
+#[derive(Debug)]
+pub struct DsGroupReservation {
+    pub group_id: GroupId,
+    pub pq_group_id: GroupId,
+    /// Set when a group profile upload was requested and the server has
+    /// storage configured.
+    pub group_profile_provisioning: Option<ProvisionAttachmentResponse>,
+}
+
+/// The open create step of a group creation stream.
+///
+/// Dropping it closes the stream without creating the group.
+#[derive(Debug)]
+pub struct DsGroupCreator {
+    api_client: ApiClient,
+    requests: mpsc::Sender<CreateGroupStreamRequest>,
+    responses: Streaming<CreateGroupStreamResponse>,
+}
+
+impl DsGroupCreator {
+    /// Creates the APQ group. `params` must use both ids of the reservation.
+    pub async fn create(
+        mut self,
+        params: CreateGroupParamsOut,
+        group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<(), DsRequestError> {
+        let payload = match self
+            .api_client
+            .create_group_payload(params, group_state_ear_key)?
+        {
+            CreateGroupPayloads::Apq(payload) => payload,
+            CreateGroupPayloads::Classical(_) => {
+                error!("group creation streams only create APQ groups");
+                return Err(DsRequestError::LibraryError);
+            }
+        };
+        let step = create_group_stream_request::Step::Create(payload);
+        if self
+            .requests
+            .send(CreateGroupStreamRequest { step: Some(step) })
+            .await
+            .is_err()
+        {
+            // The server closed the stream, and its last response carries the
+            // reason.
+            next_create_group_stream_step(&mut self.responses).await?;
+            error!("group creation stream closed before the create step");
+            return Err(DsRequestError::UnexpectedResponse);
+        }
+        match next_create_group_stream_step(&mut self.responses).await? {
+            create_group_stream_response::Step::Created(_) => Ok(()),
+            create_group_stream_response::Step::Reserved(_) => {
+                error!("protocol violation: expected created step");
+                Err(DsRequestError::UnexpectedResponse)
+            }
+        }
+    }
+}
+
+enum CreateGroupPayloads {
+    Classical(CreateGroupPayload),
+    Apq(CreateApqGroupPayload),
+}
+
+fn group_profile_size_to_i64(size: Option<usize>) -> Result<Option<i64>, DsRequestError> {
+    size.map(i64::try_from)
+        .transpose()
+        .inspect_err(|_| {
+            error!("Failed to convert group profile size to i64");
+        })
+        .map_err(|_| DsRequestError::LibraryError)
+}
+
+/// Parses a group id the server must have sent in field `name`.
+fn response_qgid(
+    qgid: Option<QualifiedGroupIdProto>,
+    name: &'static str,
+) -> Result<QualifiedGroupId, DsRequestError> {
+    qgid.ok_or_missing_field(name)
+        .map_err(|error| {
+            error!(%error, "unexpected response");
+            DsRequestError::UnexpectedResponse
+        })?
+        .try_ref_into()
+        .map_err(|error| {
+            error!(%error, "unexpected response");
+            DsRequestError::UnexpectedResponse
+        })
+}
+
+async fn next_create_group_stream_step(
+    responses: &mut Streaming<CreateGroupStreamResponse>,
+) -> Result<create_group_stream_response::Step, DsRequestError> {
+    responses
+        .message()
+        .await?
+        .and_then(|response| response.step)
+        .ok_or_else(|| {
+            error!("protocol violation: missing group creation stream step");
+            DsRequestError::UnexpectedResponse
+        })
+}
+
 pub enum DsAttachmentTarget<'a> {
     Group {
         group_state_ear_key: &'a GroupStateEarKey,
@@ -187,6 +296,80 @@ impl ApiClient {
         signing_key: &UserSigningKey,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<(), DsRequestError> {
+        match self.create_group_payload(params, group_state_ear_key)? {
+            CreateGroupPayloads::Classical(payload) => {
+                let request = payload.sign(signing_key)?;
+                self.ds_grpc_client().create_group(request).await?;
+            }
+            CreateGroupPayloads::Apq(payload) => {
+                let request = payload.sign(signing_key)?;
+                self.ds_grpc_client().create_apq_group(request).await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Opens a group creation stream for an APQ group: authenticates as the
+    /// user of `signing_key`, and reserves fresh T and PQ group ids and
+    /// optionally the upload of a group profile of the given size.
+    ///
+    /// Each call consumes one unit of the user's group creation allowance,
+    /// whether or not the group is created later. The group must be created
+    /// with [`DsGroupCreator::create`] before the server's deadline.
+    pub async fn ds_begin_group_creation(
+        &self,
+        signing_key: &UserSigningKey,
+        group_profile_size: Option<usize>,
+    ) -> Result<(DsGroupReservation, DsGroupCreator), DsRequestError> {
+        let group_profile_size = group_profile_size_to_i64(group_profile_size)?;
+        let payload = CreateGroupStreamBeginPayload {
+            client_metadata: Some(self.metadata().clone()),
+            user_id: Some(signing_key.credential().user_id().clone().into()),
+            group_profile_size,
+        };
+        let begin = payload.sign(signing_key)?;
+
+        let (requests, requests_rx) = mpsc::channel(1);
+        requests
+            .send(CreateGroupStreamRequest {
+                step: Some(create_group_stream_request::Step::Begin(begin)),
+            })
+            .await
+            .map_err(|_| DsRequestError::LibraryError)?;
+        let mut responses = self
+            .ds_grpc_client()
+            .create_group_stream(ReceiverStream::new(requests_rx))
+            .await?
+            .into_inner();
+
+        let reserved = match next_create_group_stream_step(&mut responses).await? {
+            create_group_stream_response::Step::Reserved(reserved) => reserved,
+            create_group_stream_response::Step::Created(_) => {
+                error!("protocol violation: expected reserved step");
+                return Err(DsRequestError::UnexpectedResponse);
+            }
+        };
+        let group_id = response_qgid(reserved.group_id, "group_id")?;
+        let pq_group_id = response_qgid(reserved.pq_group_id, "pq_group_id")?;
+
+        let reservation = DsGroupReservation {
+            group_id: group_id.into(),
+            pq_group_id: pq_group_id.into(),
+            group_profile_provisioning: reserved.group_profile_provisioning,
+        };
+        let creator = DsGroupCreator {
+            api_client: self.clone(),
+            requests,
+            responses,
+        };
+        Ok((reservation, creator))
+    }
+
+    fn create_group_payload(
+        &self,
+        params: CreateGroupParamsOut,
+        group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<CreateGroupPayloads, DsRequestError> {
         let CreateGroupParamsOut {
             group_id,
             group_info,
@@ -231,8 +414,7 @@ impl ApiClient {
                 creator_user_credential,
                 group_bootstrap,
             };
-            let request = payload.sign(signing_key)?;
-            self.ds_grpc_client().create_apq_group(request).await?;
+            Ok(CreateGroupPayloads::Apq(payload))
         } else {
             let payload = CreateGroupPayload {
                 client_metadata: Some(self.metadata().clone()),
@@ -246,10 +428,8 @@ impl ApiClient {
                 creator_user_credential,
                 group_bootstrap,
             };
-            let request = payload.sign(signing_key)?;
-            self.ds_grpc_client().create_group(request).await?;
+            Ok(CreateGroupPayloads::Classical(payload))
         }
-        Ok(())
     }
 
     /// Performs a group operation.
@@ -925,13 +1105,7 @@ impl ApiClient {
         ),
         DsRequestError,
     > {
-        let group_profile_size: Option<i64> = provision_group_profile_size
-            .map(|size| size.try_into())
-            .transpose()
-            .inspect_err(|_| {
-                error!("Failed to convert group profile size to i64");
-            })
-            .map_err(|_| DsRequestError::LibraryError)?;
+        let group_profile_size = group_profile_size_to_i64(provision_group_profile_size)?;
         let response = self
             .ds_grpc_client()
             .request_group_id(RequestGroupIdRequest {
@@ -941,32 +1115,9 @@ impl ApiClient {
             })
             .await?
             .into_inner();
-        let qgid: QualifiedGroupId = response
-            .group_id
-            .ok_or_missing_field("group_id")
-            .map_err(|error| {
-                error!(%error, "unexpected response");
-                DsRequestError::UnexpectedResponse
-            })?
-            .try_ref_into()
-            .map_err(|error| {
-                error!(%error, "unexpected response");
-                DsRequestError::UnexpectedResponse
-            })?;
+        let qgid = response_qgid(response.group_id, "group_id")?;
         let pq_qgid = if request_pq_group_id {
-            let qgid: QualifiedGroupId = response
-                .pq_group_id
-                .ok_or_missing_field("pq_group_id")
-                .map_err(|error| {
-                    error!(%error, "unexpected response");
-                    DsRequestError::UnexpectedResponse
-                })?
-                .try_ref_into()
-                .map_err(|error| {
-                    error!(%error, "unexpected response");
-                    DsRequestError::UnexpectedResponse
-                })?;
-            Some(qgid)
+            Some(response_qgid(response.pq_group_id, "pq_group_id")?)
         } else {
             None
         };
