@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT key_value FROM allowance_record",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key_value",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "allowance_record",
+            "name": "key_value"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a72033bcf0911ade432680eecf803345683611458aa5465bbc7a73644ba3ce45"
+}

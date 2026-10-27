@@ -23,9 +23,9 @@ use crate::{
     auth_service::{
         admission::{ChallengeSender, load_or_generate_endpoint_bucket_key},
         client_record::ClientRecord,
-        registration_gate::{RegistrationGate, load_or_generate_ip_bucket_key},
+        registration_gate::RegistrationGate,
     },
-    bucket_key::BucketKey,
+    bucket_key::{BucketKey, load_or_generate_ip_bucket_key},
     errors::StorageError,
     settings::RegistrationSettings,
     version::VersionPolicy,
