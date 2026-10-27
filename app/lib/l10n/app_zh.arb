@@ -286,8 +286,6 @@
   "chatList_noChats": "使用“发消息”按钮添加你的第一个联系人，开始聊天。",
   "chatList_draft": "草稿",
   "chatList_you": "我",
-  "chatList_imageEmoji": "🖼️",
-  "chatList_fileEmoji": "📎",
   "chatList_blocked": "已屏蔽",
   "chatList_reaction": "{user} 对“{message}”回应了 {emoji}",
   "chatList_reactionByYou": "你对“{message}”回应了 {emoji}",

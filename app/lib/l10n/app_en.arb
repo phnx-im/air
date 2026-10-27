@@ -1530,14 +1530,6 @@
   "@chatList_you": {
     "description": "Refers to the user themselves in member lists and chat list previews."
   },
-  "chatList_imageEmoji": "🖼️",
-  "@chatList_imageEmoji": {
-    "description": "Emoji standing in for an image in a chat list preview. Not translated text."
-  },
-  "chatList_fileEmoji": "📎",
-  "@chatList_fileEmoji": {
-    "description": "Emoji standing in for a file attachment in a chat list preview. Not translated text."
-  },
   "chatList_blocked": "Blocked",
   "@chatList_blocked": {
     "description": "Marker on a chat list row whose contact is blocked."
