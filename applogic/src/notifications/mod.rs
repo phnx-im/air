@@ -8,20 +8,22 @@ use std::sync::Arc;
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
-    Asset, Chat, ChatId, ChatMessage, ChatNotificationEntry, ChatType, UserProfile,
+    Asset, Chat, ChatId, ChatMessage, ChatNotificationEntry, ChatType, Message, UserProfile,
     clients::{
         CoreUser, SiblingClientStates,
         process::process_qs::{NewChat, ReactionNotification},
     },
 };
-use mimi_content::{Disposition, MimiContent, NestedPart, content_container::PartSemantics};
 use serde::{Deserialize, Serialize};
 #[cfg(target_os = "linux")]
 use tokio::sync::OnceCell;
 use tracing::error;
 use uuid::Uuid;
 
-use crate::api::{notifications::DartNotificationService, user::User};
+use crate::{
+    api::{notifications::DartNotificationService, user::User},
+    message_content::MimiContentExt,
+};
 
 #[cfg(target_os = "linux")]
 mod linux;
@@ -37,6 +39,30 @@ impl User {
     /// by one of our own group operations, from any of our clients.
     fn is_own_message(&self, message: &ChatMessage) -> bool {
         message.message().actor() == Some(self.user.user_id())
+    }
+
+    /// Text of a message in a notification, with the sender name in front
+    /// depending on the chat type.
+    async fn message_text(&self, message: &Message, chat_type: &ChatType) -> Option<String> {
+        let content_message = match message {
+            Message::Content(content_message) => content_message,
+            Message::Event(event_message) => {
+                return Some(event_message.string_representation(&self.user).await);
+            }
+        };
+        let content = content_message.content().preview_text()?;
+        let text = match chat_type {
+            ChatType::TargetedMessageConnection(_) | ChatType::Group(_) => {
+                let sender = content_message.sender();
+                let display_name = self.user.user_profile(sender).await.display_name;
+                format!("{display_name}: {content}")
+            }
+            ChatType::HandleConnection(username) => {
+                format!("{username}: {content}", username = username.plaintext())
+            }
+            ChatType::Connection(_) | ChatType::PendingConnection(_) => content,
+        };
+        Some(text)
     }
 
     /// Rebuilds and returns notifications for all chats affected by a batch of new messages,
@@ -123,10 +149,7 @@ impl User {
                     continue;
                 }
                 if let Some((chat, AlertMode::Alert)) = chats.get(&message.chat_id())
-                    && let Some(body) = message
-                        .message()
-                        .string_representation(&self.user, chat.chat_type(), true)
-                        .await
+                    && let Some(body) = self.message_text(message.message(), chat.chat_type()).await
                 {
                     batch.additions.push(NotificationContent {
                         identifier: NotificationId::random(),
@@ -142,10 +165,8 @@ impl User {
                     let reactor = self.user.user_profile(&reaction.reactor).await.display_name;
                     let emoji = &reaction.emoji;
                     // TODO: Localization
-                    let target_text = reaction
-                        .original_chat_message
-                        .message()
-                        .string_representation(&self.user, chat.chat_type(), true)
+                    let target_text = self
+                        .message_text(reaction.original_chat_message.message(), chat.chat_type())
                         .await
                         .unwrap_or_else(|| "your message".to_string());
                     let body = format!("{reactor} reacted {emoji} to {target_text}");
@@ -231,7 +252,7 @@ impl User {
 
         let mut messages = Vec::with_capacity(rebuild.rebuild_set.entries.len());
         for entry in &rebuild.rebuild_set.entries {
-            if let Some(message) = self.conversation_message(&chat, entry).await {
+            if let Some(message) = self.conversation_message(entry).await {
                 messages.push(message);
             }
         }
@@ -269,10 +290,7 @@ impl User {
     ) -> Option<String> {
         match entry {
             ChatNotificationEntry::Message(message) => {
-                message
-                    .message()
-                    .string_representation(&self.user, chat.chat_type(), true)
-                    .await
+                self.message_text(message.message(), chat.chat_type()).await
             }
             ChatNotificationEntry::Reaction(reaction) => {
                 let reactor = match participants.get(&reaction.reactor) {
@@ -280,12 +298,7 @@ impl User {
                     None => &UserProfile::from_user_id(&reaction.reactor).display_name,
                 };
                 let target_text = match &reaction.target {
-                    Some(message) => {
-                        message
-                            .message()
-                            .string_representation(&self.user, chat.chat_type(), true)
-                            .await
-                    }
+                    Some(message) => self.message_text(message.message(), chat.chat_type()).await,
                     None => None,
                 };
                 let target_text = target_text.unwrap_or_else(|| "your message".to_owned());
@@ -301,19 +314,17 @@ impl User {
     /// Renders a rebuild-set entry as a single line of the conversation payload.
     async fn conversation_message(
         &self,
-        chat: &Chat,
         entry: &ChatNotificationEntry,
     ) -> Option<ConversationMessage> {
         match entry {
             ChatNotificationEntry::Message(message) => {
-                let text = match message.message().mimi_content() {
-                    Some(content) => render_message_text(content)?,
+                let text = match message.message() {
+                    Message::Content(content_message) => {
+                        content_message.content().preview_text()?
+                    }
                     // event message: has no sender, the text is self-contained
-                    None => {
-                        message
-                            .message()
-                            .string_representation(&self.user, chat.chat_type(), false)
-                            .await?
+                    Message::Event(event_message) => {
+                        event_message.string_representation(&self.user).await
                     }
                 };
                 Some(ConversationMessage {
@@ -327,7 +338,7 @@ impl User {
                 let target_text = reaction
                     .target
                     .as_ref()
-                    .and_then(|message| render_message_text(message.message().mimi_content()?));
+                    .and_then(|message| message.message().mimi_content()?.preview_text());
                 let target_text = target_text.unwrap_or_else(|| "your message".to_owned());
                 Some(ConversationMessage {
                     sender_uuid: Some(reaction.reactor.uuid()),
@@ -546,45 +557,6 @@ fn conversation_participant(user_id: UserId, profile: UserProfile) -> Conversati
         display_name: profile.display_name.to_string(),
         avatar,
     }
-}
-
-fn render_message_text(content: &MimiContent) -> Option<String> {
-    match content.string_rendering() {
-        Ok(text) => Some(text),
-        Err(mimi_content::Error::UnsupportedContentType) => attachment_placeholder(content),
-        Err(error) => {
-            error!(%error, "Failed to render message content");
-            None
-        }
-    }
-}
-
-fn attachment_placeholder(content: &MimiContent) -> Option<String> {
-    let NestedPart::MultiPart {
-        part_semantics: PartSemantics::ProcessAll,
-        parts,
-        ..
-    } = &content.nested_part
-    else {
-        return None;
-    };
-    if !parts
-        .iter()
-        .any(|part| part.disposition() == Disposition::Attachment)
-    {
-        return None;
-    };
-    let is_image = parts.iter().any(|part| {
-        matches!(
-            &part,
-            NestedPart::SinglePart {
-                content_type,
-                disposition: Disposition::Preview,
-                ..
-            } if content_type == "text/blurhash"
-        )
-    });
-    Some(if is_image { "🖼️" } else { "📎" }.to_owned())
 }
 
 mod base64_avatar {

@@ -286,8 +286,6 @@
   "chatList_noChats": "Feu servir el botó de redacció per a afegir el primer contacte i començar a xatejar.",
   "chatList_draft": "Esborrany",
   "chatList_you": "Vós",
-  "chatList_imageEmoji": "🖼️",
-  "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blocat",
   "chatList_reaction": "{user} ha reaccionat amb {emoji} a «{message}»",
   "chatList_reactionByYou": "Heu reaccionat amb {emoji} a «{message}»",

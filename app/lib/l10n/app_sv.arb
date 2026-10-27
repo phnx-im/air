@@ -297,8 +297,6 @@
   "chatList_noChats": "Använd Skriv-knappen för att lägga till din första kontakt och börja chatta.",
   "chatList_draft": "Utkast",
   "chatList_you": "Du",
-  "chatList_imageEmoji": "🖼️",
-  "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blockerad",
   "chatList_reaction": "{user} reagerade {emoji} på \"{message}\"",
   "chatList_reactionByYou": "Du reagerade {emoji} på \"{message}\"",

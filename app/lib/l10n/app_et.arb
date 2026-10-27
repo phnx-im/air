@@ -286,8 +286,6 @@
   "chatList_noChats": "Kasuta uue vestluse nuppu, et lisada oma esimene kontakt ja alustada vestlemist.",
   "chatList_draft": "Mustand",
   "chatList_you": "Sina",
-  "chatList_imageEmoji": "🖼️",
-  "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blokeeritud",
   "chatList_reaction": "{user} reageeris {emoji} sõnumile „{message}“",
   "chatList_reactionByYou": "Sa reageerisid {emoji} sõnumile „{message}“",

@@ -6,7 +6,7 @@ use aircommon::{OpenMlsRand, RustCrypto, identifiers::MimiId, time::TimeStamp};
 use indexmap::IndexMap;
 use mimi_content::{
     MessageStatus, MimiContent,
-    content_container::{Disposition, NestedPart, PartSemantics},
+    content_container::{Disposition, NestedPart},
 };
 use tracing::{error, warn};
 
@@ -371,59 +371,6 @@ impl Message {
         Self::Content(Box::new(content))
     }
 
-    /// Returns a string representation of the message for use in UI
-    /// notifications.
-    pub async fn string_representation(
-        &self,
-        core_user: &CoreUser,
-        chat_type: &ChatType,
-        with_sender_name: bool,
-    ) -> Option<String> {
-        match self {
-            Message::Content(content_message) => {
-                let content = match content_message.content.string_rendering() {
-                    Ok(content) => content,
-                    Err(mimi_content::Error::UnsupportedContentType) => {
-                        match self.attachment_type() {
-                            Some(AttachmentType::Image) => "🖼️".to_owned(),
-                            Some(AttachmentType::File) => "📎".to_owned(),
-                            None => {
-                                error!("Unsupported content type");
-                                return None;
-                            }
-                        }
-                    }
-                    Err(error) => {
-                        error!(%error, "Failed to render message content");
-                        return None;
-                    }
-                };
-                let repr = match chat_type {
-                    ChatType::TargetedMessageConnection(_) | ChatType::Group(_) => {
-                        if with_sender_name {
-                            let display_name = core_user
-                                .user_profile(&content_message.sender)
-                                .await
-                                .display_name;
-                            format!("{display_name}: {content}")
-                        } else {
-                            content
-                        }
-                    }
-                    ChatType::HandleConnection(username) => {
-                        format!("{username}: {content}", username = username.plaintext())
-                    }
-                    ChatType::Connection(_) | ChatType::PendingConnection(_) => content,
-                };
-                Some(repr)
-            }
-            Message::Event(event_message) => match &event_message {
-                EventMessage::System(system) => Some(system.string_representation(core_user).await),
-                EventMessage::Error(error) => Some(error.message().to_string()),
-            },
-        }
-    }
-
     pub fn mimi_id(&self) -> Option<&MimiId> {
         match self {
             Message::Content(content_message) => content_message.mimi_id(),
@@ -461,45 +408,6 @@ impl Message {
         }
     }
 
-    /// Returns `Some(AttachmentType)` if the message contains an attachment.
-    ///
-    /// Otherwise, returns `None`.
-    fn attachment_type(&self) -> Option<AttachmentType> {
-        let Self::Content(content_message) = self else {
-            return None;
-        };
-
-        match &content_message.content().nested_part {
-            // Attachment
-            NestedPart::MultiPart {
-                part_semantics: PartSemantics::ProcessAll,
-                parts,
-                ..
-            } if parts
-                .iter()
-                .any(|part| part.disposition() == Disposition::Attachment) =>
-            {
-                // Blurhash preview indicates an image
-                let is_image = parts.iter().any(|part| {
-                    matches!(
-                        &part,
-                        NestedPart::SinglePart {
-                            content_type,
-                            disposition: Disposition::Preview,
-                            ..
-                        } if content_type == "text/blurhash"
-                    )
-                });
-                Some(if is_image {
-                    AttachmentType::Image
-                } else {
-                    AttachmentType::File
-                })
-            }
-            _ => None,
-        }
-    }
-
     pub fn is_deleted(&self) -> bool {
         self.mimi_content().is_some_and(|c| {
             matches!(
@@ -518,11 +426,6 @@ impl Message {
         self.mimi_content()
             .is_some_and(|content| content.replaces.is_some())
     }
-}
-
-enum AttachmentType {
-    Image,
-    File,
 }
 
 // WARNING: If this type is changed, a new `VersionedMessage` variant must be
@@ -695,6 +598,15 @@ impl EventMessage {
         match self {
             EventMessage::System(system_message) => system_message.actor(),
             EventMessage::Error(_) => None,
+        }
+    }
+
+    /// Returns a string representation of the event for use in UI
+    /// notifications.
+    pub async fn string_representation(&self, core_user: &CoreUser) -> String {
+        match self {
+            EventMessage::System(system) => system.string_representation(core_user).await,
+            EventMessage::Error(error) => error.message().to_string(),
         }
     }
 }

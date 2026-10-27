@@ -286,8 +286,6 @@
   "chatList_noChats": "İlk kişinizi eklemek ve sohbete başlamak için yeni mesaj butonunu kullanın.",
   "chatList_draft": "Taslak",
   "chatList_you": "Siz",
-  "chatList_imageEmoji": "🖼️",
-  "chatList_fileEmoji": "📎",
   "chatList_blocked": "Engellendi",
   "chatList_reaction": "{user}, “{message}” mesajına {emoji} ile tepki verdi",
   "chatList_reactionByYou": "“{message}” mesajına {emoji} ile tepki verdiniz",
