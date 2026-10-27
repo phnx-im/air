@@ -2,16 +2,20 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Re-fetching of all group and contact profiles.
+//! Re-fetching of all group and group member profiles.
 
-use std::time::Duration;
+use std::{collections::HashSet, time::Duration};
 
 use airapiclient::{ClassifyRequestError, RequestErrorKind, ds_api::DsRequestError};
 use aircommon::{
-    credentials::LeafCredential, crypto::indexed_aead::keys::UserProfileKey,
-    identifiers::QualifiedGroupId, time::TimeStamp, utils::FibonacciBackoff,
+    credentials::LeafCredential,
+    crypto::indexed_aead::keys::UserProfileKey,
+    identifiers::{QualifiedGroupId, UserId},
+    time::TimeStamp,
+    utils::FibonacciBackoff,
 };
 use anyhow::Context;
+use openmls::{group::GroupId, prelude::LeafNodeIndex};
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 
@@ -19,18 +23,18 @@ use crate::{
     Chat, ChatId,
     chats::GroupDataExt,
     clients::block_contact::BlockedContact,
-    contacts::Contact,
+    db::access::ReadConnection,
     groups::{Group, client_auth_info::StorableUserCredential},
     user_profiles::process::ExistingUserProfile,
 };
 
 use super::CoreUser;
 
-/// Consecutive rate limited attempts before the contact pass gives up.
+/// Consecutive rate limited attempts before the member pass gives up.
 const MAX_RATE_LIMITED_RETRIES: usize = 8;
 
 impl CoreUser {
-    /// Spawns a refresh of the profiles of all groups and contacts.
+    /// Spawns a refresh of the profiles of all groups and group members.
     pub fn spawn_refresh_all_profiles(&self) {
         let user = self.clone();
         let cancel = self.inner.event_loop_cancel.token().clone();
@@ -48,27 +52,27 @@ impl CoreUser {
         });
     }
 
-    /// Schedules a fetch of the profile of every group and contact.
+    /// Schedules a fetch of the profile of every group and group member.
     ///
-    /// Contact profile keys are refreshed from the DS first.
+    /// Member profile keys are refreshed from the DS first.
     async fn refresh_all_profiles(&self) -> anyhow::Result<()> {
         info!("Refreshing all profiles");
         let groups = self.refresh_group_profiles().await?;
         info!(groups, "Scheduled group profile fetches");
-        // Group fetches can run while the contact keys are refreshed
+        // Group fetches can run while the member keys are refreshed
         self.outbound_service().notify_profile_fetches();
 
-        let ContactRefreshStats {
+        let MemberRefreshStats {
             outdated,
             up_to_date,
             skipped,
-            failed,
-        } = self.refresh_contact_profiles().await?;
+            failed_groups,
+        } = self.refresh_member_profiles().await?;
         self.outbound_service().notify_profile_fetches();
 
         info!(
             outdated,
-            up_to_date, skipped, failed, "Refreshed contact profile keys"
+            up_to_date, skipped, failed_groups, "Refreshed member profile keys"
         );
         Ok(())
     }
@@ -78,24 +82,18 @@ impl CoreUser {
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<usize> {
                 let group_ids = Group::load_all_group_ids(&mut *txn).await?;
-                let mut chat_ids = Chat::load_ordered_ids(&mut *txn).await?;
-                chat_ids.sort_unstable();
+                let chat_ids: HashSet<ChatId> = Chat::load_ordered_ids(&mut *txn)
+                    .await?
+                    .into_iter()
+                    .collect();
 
                 let mut scheduled = 0;
                 for group_id in group_ids {
-                    let chat_id = ChatId::try_from(&group_id).context("invalid group id")?;
-                    if chat_ids.binary_search(&chat_id).is_err() {
-                        continue;
-                    }
-                    if BlockedContact::check_blocked_chat(&mut *txn, chat_id).await? {
-                        continue;
-                    }
-                    let Some(group) = Group::load(&mut *txn, &group_id).await? else {
+                    let Some((chat_id, group)) =
+                        load_refreshable_group(&mut *txn, &group_id, &chat_ids).await?
+                    else {
                         continue;
                     };
-                    if group.is_self_group() || !group.mls_group().is_active() {
-                        continue;
-                    }
 
                     let group_data = match group.group_data() {
                         Ok(group_data) => group_data,
@@ -129,25 +127,34 @@ impl CoreUser {
             .await
     }
 
-    async fn refresh_contact_profiles(&self) -> anyhow::Result<ContactRefreshStats> {
-        let mut stats = ContactRefreshStats::default();
+    /// Refreshes the profile keys of the members of all groups from the DS.
+    ///
+    /// A user in several groups is only checked in the first group that
+    /// succeeds.
+    async fn refresh_member_profiles(&self) -> anyhow::Result<MemberRefreshStats> {
+        let (group_ids, chat_ids) = {
+            let mut connection = self.db().read().await?;
+            let group_ids = Group::load_all_group_ids(&mut connection).await?;
+            let chat_ids: HashSet<ChatId> = Chat::load_ordered_ids(&mut connection)
+                .await?
+                .into_iter()
+                .collect();
+            (group_ids, chat_ids)
+        };
+
+        let mut stats = MemberRefreshStats::default();
+        let mut seen = HashSet::new();
         let mut backoff = FibonacciBackoff::new();
         let mut rate_limited = 0;
-        let contacts = self.contacts().await?;
-        let total = contacts.len();
-        let mut contacts = contacts.into_iter().enumerate().peekable();
-        while let Some((idx, contact)) = contacts.peek() {
-            let user_id = &contact.user_id;
+        let total = group_ids.len();
+        let mut group_ids = group_ids.into_iter().enumerate().peekable();
+        while let Some((idx, group_id)) = group_ids.peek() {
             let progress = format!("{}/{total}", idx + 1);
-            match self.refresh_contact_profile(contact).await {
-                Ok(outcome) => {
-                    info!(%progress, ?user_id, ?outcome, "Refreshed contact profile key");
-                    match outcome {
-                        ContactRefresh::Outdated => stats.outdated += 1,
-                        ContactRefresh::UpToDate => stats.up_to_date += 1,
-                        ContactRefresh::Skipped => stats.skipped += 1,
-                    }
-                }
+            match self
+                .refresh_group_member_profiles(group_id, &chat_ids, &mut seen, &mut stats)
+                .await
+            {
+                Ok(()) => {}
                 Err(error) => {
                     if let Some(retry_after) = rate_limited_retry_after(&error) {
                         rate_limited += 1;
@@ -159,48 +166,64 @@ impl CoreUser {
                             %progress,
                             ?delay,
                             attempt = rate_limited,
-                            "Rate limited while refreshing contact profiles"
+                            "Rate limited while refreshing member profiles"
                         );
                         sleep(delay).await;
-                        // Retry the same contact
+                        // Retry the same group
                         continue;
                     }
-                    warn!(%progress, ?user_id, %error, "Failed to refresh contact profile");
-                    stats.failed += 1;
+                    warn!(%progress, ?group_id, %error, "Failed to refresh member profiles");
+                    stats.failed_groups += 1;
                 }
             }
             backoff.reset();
             rate_limited = 0;
-            contacts.next();
+            group_ids.next();
         }
         Ok(stats)
     }
 
-    async fn refresh_contact_profile(&self, contact: &Contact) -> anyhow::Result<ContactRefresh> {
-        let Contact {
-            user_id, chat_id, ..
-        } = contact;
-
+    async fn refresh_group_member_profiles(
+        &self,
+        group_id: &GroupId,
+        chat_ids: &HashSet<ChatId>,
+        seen: &mut HashSet<UserId>,
+        stats: &mut MemberRefreshStats,
+    ) -> anyhow::Result<()> {
         let mut connection = self.db().read().await?;
-        if BlockedContact::check_blocked(&mut connection, user_id).await? {
-            return Ok(ContactRefresh::Skipped);
-        }
-        let group = Group::load_with_chat_id(&mut connection, *chat_id)
-            .await?
-            .context("connection group not found")?;
-        let Some(credential) =
-            StorableUserCredential::load_by_user_id(&mut connection, user_id).await?
+        let Some((_chat_id, group)) =
+            load_refreshable_group(&mut connection, group_id, chat_ids).await?
         else {
-            warn!(?user_id, "No credential for contact; skipping");
-            return Ok(ContactRefresh::Skipped);
+            return Ok(());
         };
-        drop(connection);
 
-        let leaf_index = group.mls_group().members().find_map(|member| {
-            let leaf_credential = LeafCredential::from_credential(&member.credential).ok()?;
-            (leaf_credential.user_id(group.own_user_id()) == user_id).then_some(member.index)
-        });
-        let leaf_index = leaf_index.context("contact is not a member of the connection group")?;
+        let mut members: Vec<(LeafNodeIndex, StorableUserCredential)> = Vec::new();
+        for member in group.mls_group().members() {
+            let Ok(leaf_credential) = LeafCredential::from_credential(&member.credential) else {
+                continue;
+            };
+            let user_id = leaf_credential.user_id(group.own_user_id());
+            if user_id == self.user_id() || seen.contains(user_id) {
+                continue;
+            }
+            if BlockedContact::check_blocked(&mut connection, user_id).await? {
+                stats.skipped += 1;
+                seen.insert(user_id.clone());
+                continue;
+            }
+            let Some(credential) =
+                StorableUserCredential::load_by_user_id(&mut connection, user_id).await?
+            else {
+                warn!(?user_id, "No credential for group member, skipping");
+                stats.skipped += 1;
+                continue;
+            };
+            members.push((member.index, credential));
+        }
+        drop(connection);
+        if members.is_empty() {
+            return Ok(());
+        }
 
         let qgid: QualifiedGroupId = group.group_id().try_into()?;
         let external_commit_info = self
@@ -213,49 +236,85 @@ impl CoreUser {
             )
             .await?;
 
-        let Some(eupk) = external_commit_info
-            .indexed_encrypted_user_profile_keys
-            .get(&leaf_index)
-        else {
-            warn!(
-                ?user_id,
-                "No user profile key on the DS for contact; skipping"
-            );
-            return Ok(ContactRefresh::Skipped);
-        };
-        let user_profile_key =
-            UserProfileKey::decrypt(group.identity_link_wrapper_key(), eupk, user_id)?;
-
-        let outcome = self
-            .db()
-            .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                let existing = ExistingUserProfile::load(&mut *txn, user_id).await?;
-                if existing.matches_index(user_profile_key.index()) {
-                    return Ok(ContactRefresh::UpToDate);
+        let mut fetches = Vec::new();
+        for (leaf_index, credential) in members {
+            let user_id = credential.user_id().clone();
+            let Some(eupk) = external_commit_info
+                .indexed_encrypted_user_profile_keys
+                .get(&leaf_index)
+            else {
+                warn!(
+                    ?user_id,
+                    "No user profile key on the DS for member, skipping"
+                );
+                stats.skipped += 1;
+                continue;
+            };
+            match UserProfileKey::decrypt(group.identity_link_wrapper_key(), eupk, &user_id) {
+                Ok(user_profile_key) => {
+                    fetches.push((credential, user_profile_key));
+                    seen.insert(user_id);
                 }
-                Self::schedule_fetch_user_profile(&mut *txn, (credential.into(), user_profile_key))
+                Err(error) => {
+                    warn!(?user_id, %error, "Failed to decrypt member profile key");
+                    stats.skipped += 1;
+                }
+            }
+        }
+
+        self.db()
+            .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                for (credential, user_profile_key) in fetches {
+                    let user_id = credential.user_id();
+                    let existing = ExistingUserProfile::load(&mut *txn, user_id).await?;
+                    if existing.matches_index(user_profile_key.index()) {
+                        stats.up_to_date += 1;
+                        continue;
+                    }
+                    info!(?user_id, "Member profile key is outdated, scheduling fetch");
+                    Self::schedule_fetch_user_profile(
+                        &mut *txn,
+                        (credential.into(), user_profile_key),
+                    )
                     .await?;
-                Ok(ContactRefresh::Outdated)
+                    stats.outdated += 1;
+                }
+                Ok(())
             })
-            .await?;
-        Ok(outcome)
+            .await
     }
 }
 
-#[derive(Debug)]
-enum ContactRefresh {
-    /// The stored profile key is outdated, a fetch was scheduled.
-    Outdated,
-    UpToDate,
-    Skipped,
+/// Loads the group if it belongs to a non-blocked chat and is active and not
+/// the self group.
+async fn load_refreshable_group(
+    connection: &mut impl ReadConnection,
+    group_id: &GroupId,
+    chat_ids: &HashSet<ChatId>,
+) -> anyhow::Result<Option<(ChatId, Group)>> {
+    let chat_id = ChatId::try_from(group_id).context("invalid group id")?;
+    if !chat_ids.contains(&chat_id) {
+        return Ok(None);
+    }
+    if BlockedContact::check_blocked_chat(&mut *connection, chat_id).await? {
+        return Ok(None);
+    }
+    let Some(group) = Group::load(&mut *connection, group_id).await? else {
+        return Ok(None);
+    };
+    if group.is_self_group() || !group.mls_group().is_active() {
+        return Ok(None);
+    }
+    Ok(Some((chat_id, group)))
 }
 
 #[derive(Default)]
-struct ContactRefreshStats {
+struct MemberRefreshStats {
+    /// Stored profile key is outdated, a fetch was scheduled.
     outdated: usize,
     up_to_date: usize,
     skipped: usize,
-    failed: usize,
+    failed_groups: usize,
 }
 
 /// The server's retry-after, if `error` is a rate limited DS request.
