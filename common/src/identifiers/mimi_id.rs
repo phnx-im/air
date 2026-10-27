@@ -197,6 +197,45 @@ mod tests {
         }
     }
 
+    /// Frozen wire bytes of the message shapes Air sends, with the legacy IDs computed by an
+    /// independent encoder. Guards two things at once: that re-serialization reproduces the
+    /// bytes, and that unmarked content keeps the ID it had before the scheme marker existed.
+    #[test]
+    fn legacy_ids_of_frozen_messages_are_stable() {
+        const SENDER: &[u8] = b"sender-bytes";
+        const ROOM: &[u8] = b"room-bytes";
+        let fixtures = [
+            (
+                "markdown",
+                "8750000102030405060708090a0b0c0d0e0ff640f6f6a0850160016d746578742f6d61726b646f776e4c48656c6c6f20776f726c6421",
+                "011177d81278d36a24c82272c5d6eeda54467e980907f2dc80de11bc32ce10d8",
+            ),
+            (
+                "reply",
+                "8750000102030405060708090a0b0c0d0e0ff640f658200100000000000000000000000000000000000000000000000000000000000000a0850160016d746578742f6d61726b646f776e424869",
+                "01648ea25c908388f623a9256ab7836ac365a44fbc0f641f79b59e3949416b15",
+            ),
+            (
+                "empty salt attachment",
+                "8740f640f6f6a08506600302828f06600269696d6167652f706e6778476169723a2f2f2f6174746163686d656e742f30313933613264342d313233342d373030302d383030302d3030303030303030303030303f77696474683d34266865696768743d3400187802582000000000000000000000000000000000000000000000000000000000000000004c000000000000000000000000400158200000000000000000000000000000000000000000000000000000000000000000606970686f746f2e706e67850860016d746578742f626c757268617368581c4c454856366e574232796b3870796f306164522a2e376b434d646e6a",
+                "01f81322ee5cf5218e141c4e7e5eb79dbb76df3ce4c2bf6c736f90b52c9037b7",
+            ),
+            (
+                "self group deletion",
+                "8750000102030405060708090a0b0c0d0e0ff640f6f6a120a10282582001000000000000000000000000000000000000000000000000000000000000005820010202020202020202020202020202020202020202020202020202020202020283006000",
+                "0160703d11dddf4cc56b60196618e41888b75d9b19b10f088efdf78371e262e9",
+            ),
+        ];
+
+        for (name, bytes, expected_id) in fixtures {
+            let bytes = hex::decode(bytes).unwrap();
+            let content = MimiContent::deserialize(&bytes).unwrap();
+            assert_eq!(content.serialize().unwrap(), bytes, "{name}");
+            let id = content.message_id_draft07(SENDER, ROOM).unwrap();
+            assert_eq!(hex::encode(id), expected_id, "{name}");
+        }
+    }
+
     #[test]
     fn marked_content_uses_length_prefixed_derivation() {
         let sender = sender();
