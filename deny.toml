@@ -24,6 +24,7 @@ ignore = [
     # attacker-observable timing oracle is available
     { id = "RUSTSEC-2023-0071", reason = "fix unreleased, rsa 0.10 is still in rc and jsonwebtoken pins 0.9" },
     { id = "RUSTSEC-2026-0253", reason = "lru 0.16 pinned by aws-sdk-s3, no 0.16.x patch available" },
+    { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5 pinned via elliptic-curve 0.13 by jsonwebtoken and privacypass, no 0.5.x patch available" },
 ]
 
 [licenses]
