@@ -96,7 +96,7 @@ openmls_traits = { git = "https://github.com/openmls/openmls", rev = "7c94cc351e
 parking_lot = "0.12"
 pin-project = "1.1.10"
 png = "0.18.1"
-privacypass = { version = "0.2.0-pre.3", features = ["deterministic-issuance"] }
+privacypass = { version = "0.2.0-pre.4", features = ["deterministic-issuance"] }
 prost = "0.14.0"
 protoc-bin-vendored = "3.1.0"
 pulldown-cmark = "0.13.0"
