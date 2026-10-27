@@ -39,7 +39,6 @@ use privacypass::{
     amortized_tokens::{AmortizedBatchTokenRequest, AmortizedToken},
     private_tokens::Ristretto255,
 };
-use prost::Message;
 use semver::Version;
 use tls_codec::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -795,14 +794,15 @@ impl auth_service_server::AuthService for GrpcAs {
             return Err(ListenHandleProtocolViolation::MissingInitRequest.into());
         };
 
-        let payload = init_request
+        let signed_request: SignedRequest<InitListenUsernameRequest> =
+            SignedRequest::from_nested(init_request, |request| request.payload.as_ref())
+                .ok_or_missing_field("payload")?;
+        let client_metadata = signed_request
+            .inner()
             .payload
             .as_ref()
-            .ok_or_missing_field("payload")?;
-        self.verify_client_version(payload.client_metadata.as_ref())?;
-        let init_payload_bytes = payload.encode_to_vec();
-        let signed_request: SignedRequest<InitListenUsernameRequest> =
-            SignedRequest::new(init_request, init_payload_bytes.into());
+            .and_then(|payload| payload.client_metadata.as_ref());
+        self.verify_client_version(client_metadata)?;
         let (hash, _payload) = self
             .verify_username_auth::<_, InitListenUsernamePayload, _>(signed_request)
             .await?;

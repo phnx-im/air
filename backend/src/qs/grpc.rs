@@ -24,7 +24,6 @@ use aircommon::{
 use chrono::Utc;
 use displaydoc::Display;
 use mls_assist::openmls::{components::vc_derivation_info::EpochId, prelude::LeafNodeIndex};
-use prost::Message;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::{error, info_span, warn};
@@ -488,11 +487,9 @@ impl QueueService for GrpcQs {
             })),
         };
 
-        let payload_bytes = init_request
-            .payload
-            .as_ref()
-            .ok_or_missing_field("payload")?
-            .encode_to_vec();
+        let init_request =
+            SignedRequest::from_nested(init_request, |request| request.payload.as_ref())
+                .ok_or_missing_field("payload")?;
         let (
             InitListenPayload {
                 client_metadata: _,
@@ -501,10 +498,7 @@ impl QueueService for GrpcQs {
             },
             user_id,
         ) = self
-            .verify_queue_client_auth_with_user_id(SignedRequest::<_, 1>::new(
-                init_request,
-                payload_bytes.into(),
-            ))
+            .verify_queue_client_auth_with_user_id(init_request)
             .await?;
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
