@@ -276,6 +276,8 @@ class MockUserSessionCubit extends MockCubit<UserSessionState>
 
 class MockUser extends Mock implements User {}
 
+class MockCoreClient extends Mock implements CoreClient {}
+
 class MockMultiDeviceProvisionedUser extends Mock
     implements MultiDeviceProvisionedUser {}
 

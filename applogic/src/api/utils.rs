@@ -34,6 +34,17 @@ pub async fn delete_client_database(
     aircoreclient::delete_client_database(&db_path, client_record_id).await
 }
 
+/// Delete the database of a client that is not loaded.
+///
+/// Unlike `delete_client_database`, this does not close an open database and
+/// the caller must make sure no user is loaded.
+pub async fn delete_unloaded_client_database(
+    db_path: String,
+    client_record_id: Uuid,
+) -> anyhow::Result<()> {
+    aircoreclient::delete_client_database(&db_path, client_record_id).await
+}
+
 /// Returns whether the file at the given path is a recognized image format.
 /// Uses the same detection as `load_attachment_image()`.
 pub fn is_image_file(path: String) -> bool {
