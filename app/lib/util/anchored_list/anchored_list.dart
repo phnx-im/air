@@ -50,7 +50,6 @@ class AnchoredList<T> extends StatefulWidget {
   const AnchoredList({
     required this.data,
     required this.itemBuilder,
-    required this.idExtractor,
     this.controller,
     this.canLoadOlder = true,
     this.canLoadNewer = true,
@@ -72,9 +71,6 @@ class AnchoredList<T> extends StatefulWidget {
   final AnchoredListData<T> data;
   final Widget Function(BuildContext context, T item, int index) itemBuilder;
 
-  /// Extracts a stable, unique identity from an item. Used as the key for
-  /// height caching, child-index lookup, and anchor resolution.
-  final Object Function(T) idExtractor;
   final AnchoredListController? controller;
   final bool canLoadOlder;
   final bool canLoadNewer;
@@ -234,7 +230,7 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
     final duplicateIds = <Object>{};
     final items = widget.data.items;
     for (var i = 0; i < items.length; i++) {
-      final id = widget.idExtractor(items[i]);
+      final id = widget.data.idOf(items[i]);
       if (newMap[id] == null) {
         newMap[id] = i;
       } else {
@@ -588,14 +584,14 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
           break;
         case AnchoredListRemove<T>(:final removedItems):
           for (final item in removedItems) {
-            _heightCache.remove(widget.idExtractor(item));
+            _heightCache.remove(widget.data.idOf(item));
           }
         case AnchoredListUpdate<T>(:final oldItem, :final index):
           // Only evict when the identity changed — same-id updates will
           // get a fresh measurement on the next layout pass.
-          final oldId = widget.idExtractor(oldItem);
+          final oldId = widget.data.idOf(oldItem);
           if (index >= 0 && index < widget.data.length) {
-            final newId = widget.idExtractor(widget.data[index]);
+            final newId = widget.data.idOf(widget.data[index]);
             if (newId != oldId) {
               _heightCache.remove(oldId);
             }
@@ -878,7 +874,7 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
   /// viewport height + item height + top inset.
   double _topAlignedOffset(int index) {
     final offset = _estimateOffsetAtIndex(index);
-    final targetId = widget.idExtractor(widget.data[index]);
+    final targetId = widget.data.idOf(widget.data[index]);
     final itemHeight = _estimatedHeight(targetId);
     final viewportBox = _viewportBox;
     if (viewportBox == null) return offset;
@@ -1139,7 +1135,7 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
 
   Widget _buildItem(BuildContext context, int index) {
     final item = widget.data[index];
-    final id = widget.idExtractor(item);
+    final id = widget.data.idOf(item);
     // A repeated id key would let the sliver remap two live children onto
     // one index and corrupt its child order.
     final key = _duplicateIndices.contains(index)
@@ -1215,7 +1211,7 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
     var offset = 0.0;
     final items = widget.data.items;
     for (var i = 0; i < index && i < items.length; i++) {
-      final id = widget.idExtractor(items[i]);
+      final id = widget.data.idOf(items[i]);
       offset += _estimatedHeight(id);
     }
     return offset;

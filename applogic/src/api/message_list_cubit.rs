@@ -11,6 +11,7 @@ use aircoreclient::{
     clients::CoreUser,
     db::notification::{DbEntityId, DbNotification, DbOperation},
 };
+use chrono::{DateTime, Local};
 use flutter_rust_bridge::frb;
 use tokio::sync::{Notify, broadcast, mpsc, watch};
 use tokio_stream::{Stream, StreamExt};
@@ -125,6 +126,11 @@ fn newest_index(len: usize, oldest_index: usize) -> usize {
     len - 1 - oldest_index
 }
 
+/// Matches the order of the paginating queries in coreclient.
+fn sort_key(message: &UiChatMessage) -> (DateTime<Local>, MessageId) {
+    (message.timestamp, message.id)
+}
+
 fn rebuild_message_ids_index(data: &mut MessageListData) {
     data.message_ids_index.clear();
     for (i, msg) in data.messages.iter().enumerate() {
@@ -201,6 +207,7 @@ impl MessageListData {
                 kind = MessageListTransitionKind::WindowReplaced;
             }
             LoadDirection::PrependOlder { has_older } => {
+                changes.extend(self.remove_loaded(state, &new_messages));
                 let prepended: Vec<UiChatMessage> = new_messages
                     .into_iter()
                     .map(|m| {
@@ -245,6 +252,7 @@ impl MessageListData {
                 kind = MessageListTransitionKind::OlderPageLoaded;
             }
             LoadDirection::AppendNewer { has_newer } => {
+                changes.extend(self.remove_loaded(state, &new_messages));
                 let appended: Vec<UiChatMessage> = new_messages
                     .into_iter()
                     .map(|m| {
@@ -332,13 +340,25 @@ impl MessageListData {
             return None;
         }
 
-        let len = self.messages.len();
-        self.messages[idx] = updated.clone();
+        let key = sort_key(&updated);
+        let in_order = idx
+            .checked_sub(1)
+            .is_none_or(|prev| sort_key(&self.messages[prev]) < key)
+            && self
+                .messages
+                .get(idx + 1)
+                .is_none_or(|next| key < sort_key(next));
 
-        let changes = vec![MessageListChange::Patch {
-            index: newest_index(len, idx),
-            message: updated,
-        }];
+        let changes = if in_order {
+            let len = self.messages.len();
+            self.messages[idx] = updated.clone();
+            vec![MessageListChange::Patch {
+                index: newest_index(len, idx),
+                message: updated,
+            }]
+        } else {
+            self.move_message(state, idx, updated)
+        };
 
         state.revision += 1;
         Some(MessageListTransition {
@@ -355,8 +375,21 @@ impl MessageListData {
         message_id: MessageId,
     ) -> Option<MessageListTransition> {
         let idx = self.message_ids_index.get(&message_id).copied()?;
-        let len_before = self.messages.len();
+        let changes = vec![self.remove_at(state, idx)];
+        rebuild_message_ids_index(self);
 
+        state.revision += 1;
+        Some(MessageListTransition {
+            revision: state.revision,
+            kind: MessageListTransitionKind::MessageDeleted,
+            changes,
+            command: None,
+        })
+    }
+
+    /// Removes the message at `idx` without rebuilding the ids index.
+    fn remove_at(&mut self, state: &mut MessageListState, idx: usize) -> MessageListChange {
+        let len_before = self.messages.len();
         self.messages.remove(idx);
 
         state.first_unread_index = match state.first_unread_index {
@@ -371,21 +404,68 @@ impl MessageListData {
             other => other,
         };
 
-        rebuild_message_ids_index(self);
-
-        let changes = vec![MessageListChange::Splice {
+        MessageListChange::Splice {
             index: newest_index(len_before, idx),
             delete_count: 1,
             messages: Vec::new(),
-        }];
+        }
+    }
 
-        state.revision += 1;
-        Some(MessageListTransition {
-            revision: state.revision,
-            kind: MessageListTransitionKind::MessageDeleted,
-            changes,
-            command: None,
-        })
+    /// Moves the message at `idx` to the position of its new sort key. Drops it
+    /// from the window when that position lies in a range that is not loaded.
+    fn move_message(
+        &mut self,
+        state: &mut MessageListState,
+        idx: usize,
+        message: UiChatMessage,
+    ) -> Vec<MessageListChange> {
+        let mut changes = vec![self.remove_at(state, idx)];
+
+        let key = sort_key(&message);
+        let pos = self.messages.partition_point(|m| sort_key(m) < key);
+        let outside_window =
+            (pos == 0 && state.has_older) || (pos == self.messages.len() && state.has_newer);
+        if !outside_window {
+            self.messages.insert(pos, message.clone());
+            if let Some(first_unread) = &mut state.first_unread_index
+                && *first_unread >= pos
+            {
+                *first_unread += 1;
+            }
+            changes.push(MessageListChange::Splice {
+                index: newest_index(self.messages.len(), pos),
+                delete_count: 0,
+                messages: vec![message],
+            });
+        }
+
+        rebuild_message_ids_index(self);
+        changes
+    }
+
+    /// Removes the window copies of already loaded `messages`.
+    ///
+    /// A copy is stale when the sort key of its message changed in the
+    /// database, e.g. when it was marked as sent, and the update was not
+    /// processed yet.
+    fn remove_loaded(
+        &mut self,
+        state: &mut MessageListState,
+        messages: &[ChatMessage],
+    ) -> Vec<MessageListChange> {
+        let mut changes = Vec::new();
+        for message in messages {
+            if !self.message_ids_index.contains_key(&message.id()) {
+                continue;
+            }
+            if let Some(idx) = self.messages.iter().position(|m| m.id == message.id()) {
+                changes.push(self.remove_at(state, idx));
+            }
+        }
+        if !changes.is_empty() {
+            rebuild_message_ids_index(self);
+        }
+        changes
     }
 
     fn issue_command(
@@ -1355,5 +1435,100 @@ mod tests {
 
         assert!(data.clear_first_unread_index(&mut state).is_none());
         assert_eq!(state.revision, 2);
+    }
+
+    fn splices(transition: &MessageListTransition) -> Vec<(usize, usize, Vec<MessageId>)> {
+        transition
+            .changes
+            .iter()
+            .filter_map(|change| match change {
+                MessageListChange::Splice {
+                    index,
+                    delete_count,
+                    messages,
+                } => Some((*index, *delete_count, ui_ids(messages))),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_update_changing_sort_key_moves_message() {
+        let alice = UserId::random("localhost".parse().unwrap());
+        let first = new_test_message_with_id(&alice, 1, 0);
+        let second = new_test_message_with_id(&alice, 2, 1);
+        let third = new_test_message_with_id(&alice, 3, 2);
+        let first_sent = new_test_message_with_id(&alice, 1, 3);
+
+        let mut state = MessageListState::default();
+        let mut data = MessageListData::default();
+
+        replace_with(
+            &mut data,
+            &mut state,
+            vec![first.clone(), second.clone(), third.clone()],
+        );
+
+        let transition = data
+            .update_message_in_place(&mut state, first_sent, &[])
+            .expect("message should exist");
+
+        assert_eq!(
+            ui_ids(&data.messages),
+            vec![second.id(), third.id(), first.id()]
+        );
+        assert_eq!(
+            splices(&transition),
+            vec![(2, 1, vec![]), (0, 0, vec![first.id()])]
+        );
+    }
+
+    #[test]
+    fn test_update_moving_message_past_the_window_drops_it() {
+        let alice = UserId::random("localhost".parse().unwrap());
+        let first = new_test_message_with_id(&alice, 1, 0);
+        let second = new_test_message_with_id(&alice, 2, 1);
+        let first_sent = new_test_message_with_id(&alice, 1, 3);
+
+        let mut state = MessageListState::default();
+        let mut data = MessageListData::default();
+
+        replace_with(&mut data, &mut state, vec![first, second.clone()]);
+        state.has_newer = true;
+
+        let transition = data
+            .update_message_in_place(&mut state, first_sent, &[])
+            .expect("message should exist");
+
+        assert_eq!(ui_ids(&data.messages), vec![second.id()]);
+        assert_eq!(splices(&transition), vec![(1, 1, vec![])]);
+    }
+
+    #[test]
+    fn test_append_newer_replaces_stale_copy_of_loaded_message() {
+        let alice = UserId::random("localhost".parse().unwrap());
+        let first = new_test_message_with_id(&alice, 1, 0);
+        let second = new_test_message_with_id(&alice, 2, 1);
+        let first_sent = new_test_message_with_id(&alice, 1, 3);
+
+        let mut state = MessageListState::default();
+        let mut data = MessageListData::default();
+
+        replace_with(&mut data, &mut state, vec![first.clone(), second.clone()]);
+
+        let transition = data.apply_messages(
+            &mut state,
+            vec![first_sent],
+            Default::default(),
+            None,
+            LoadDirection::AppendNewer { has_newer: false },
+        );
+
+        assert_eq!(ui_ids(&data.messages), vec![second.id(), first.id()]);
+        assert_eq!(data.message_ids_index[&first.id()], 1);
+        assert_eq!(
+            splices(&transition),
+            vec![(1, 1, vec![]), (0, 0, vec![first.id()])]
+        );
     }
 }
