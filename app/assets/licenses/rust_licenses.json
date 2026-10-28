@@ -36,7 +36,7 @@
         },
         {
           "name": "ctutils",
-          "version": "0.4.2",
+          "version": "0.4.6",
           "repository": "https://github.com/RustCrypto/utils"
         },
         {
@@ -744,6 +744,11 @@
           "repository": "https://github.com/marshallpierce/rust-base64"
         },
         {
+          "name": "base64",
+          "version": "0.23.1",
+          "repository": "https://github.com/marshallpierce/rust-base64"
+        },
+        {
           "name": "bitflags",
           "version": "2.13.2",
           "repository": "https://github.com/bitflags/bitflags"
@@ -872,11 +877,6 @@
           "name": "gimli",
           "version": "0.32.3",
           "repository": "https://github.com/gimli-rs/gimli"
-        },
-        {
-          "name": "group",
-          "version": "0.13.0",
-          "repository": "https://github.com/zkcrypto/group"
         },
         {
           "name": "group",
@@ -1197,11 +1197,6 @@
       "used_by": [
         {
           "name": "ff",
-          "version": "0.13.1",
-          "repository": "https://github.com/zkcrypto/ff"
-        },
-        {
-          "name": "ff",
           "version": "0.14.0",
           "repository": "https://github.com/zkcrypto/ff"
         }
@@ -1270,11 +1265,6 @@
         },
         {
           "name": "base16ct",
-          "version": "0.2.0",
-          "repository": "https://github.com/RustCrypto/formats/tree/master/base16ct"
-        },
-        {
-          "name": "base16ct",
           "version": "1.0.0",
           "repository": "https://github.com/RustCrypto/formats"
         },
@@ -1324,11 +1314,6 @@
           "repository": "https://github.com/RustCrypto/formats"
         },
         {
-          "name": "const-oid",
-          "version": "0.9.6",
-          "repository": "https://github.com/RustCrypto/formats/tree/master/const-oid"
-        },
-        {
           "name": "cpubits",
           "version": "0.1.1",
           "repository": "https://github.com/RustCrypto/utils"
@@ -1345,12 +1330,7 @@
         },
         {
           "name": "crypto-bigint",
-          "version": "0.5.5",
-          "repository": "https://github.com/RustCrypto/crypto-bigint"
-        },
-        {
-          "name": "crypto-bigint",
-          "version": "0.7.5",
+          "version": "0.7.10",
           "repository": "https://github.com/RustCrypto/crypto-bigint"
         },
         {
@@ -1367,11 +1347,6 @@
           "name": "ctr",
           "version": "0.10.1",
           "repository": "https://github.com/RustCrypto/block-modes"
-        },
-        {
-          "name": "der",
-          "version": "0.7.10",
-          "repository": "https://github.com/RustCrypto/formats/tree/master/der"
         },
         {
           "name": "der",
@@ -1395,11 +1370,6 @@
         },
         {
           "name": "elliptic-curve",
-          "version": "0.13.8",
-          "repository": "https://github.com/RustCrypto/traits/tree/master/elliptic-curve"
-        },
-        {
-          "name": "elliptic-curve",
           "version": "0.14.1",
           "repository": "https://github.com/RustCrypto/traits"
         },
@@ -1409,13 +1379,18 @@
           "repository": "https://github.com/RustCrypto/universal-hashes"
         },
         {
+          "name": "hash2curve",
+          "version": "0.14.0",
+          "repository": "https://github.com/RustCrypto/elliptic-curves"
+        },
+        {
           "name": "hmac",
           "version": "0.13.0",
           "repository": "https://github.com/RustCrypto/MACs"
         },
         {
           "name": "hybrid-array",
-          "version": "0.4.14",
+          "version": "0.4.15",
           "repository": "https://github.com/RustCrypto/hybrid-array"
         },
         {
@@ -1460,11 +1435,6 @@
         },
         {
           "name": "p384",
-          "version": "0.13.1",
-          "repository": "https://github.com/RustCrypto/elliptic-curves/tree/master/p384"
-        },
-        {
-          "name": "p384",
           "version": "0.14.0",
           "repository": "https://github.com/RustCrypto/elliptic-curves"
         },
@@ -1505,18 +1475,8 @@
         },
         {
           "name": "primeorder",
-          "version": "0.13.6",
-          "repository": "https://github.com/RustCrypto/elliptic-curves/tree/master/primeorder"
-        },
-        {
-          "name": "primeorder",
           "version": "0.14.0",
           "repository": "https://github.com/RustCrypto/elliptic-curves"
-        },
-        {
-          "name": "sec1",
-          "version": "0.7.3",
-          "repository": "https://github.com/RustCrypto/formats/tree/master/sec1"
         },
         {
           "name": "sec1",
@@ -1951,7 +1911,7 @@
         },
         {
           "name": "rand",
-          "version": "0.10.2",
+          "version": "0.10.3",
           "repository": "https://github.com/rust-random/rand"
         },
         {
@@ -2091,7 +2051,7 @@
         },
         {
           "name": "voprf-ng",
-          "version": "0.6.0-pre.3",
+          "version": "0.6.0",
           "repository": "https://github.com/raphaelrobert/voprf-ng/"
         },
         {
@@ -2228,7 +2188,7 @@
       "used_by": [
         {
           "name": "clipboard-win",
-          "version": "5.4.1",
+          "version": "5.4.3",
           "repository": "https://github.com/DoumanAsh/clipboard-win"
         }
       ]
@@ -3132,7 +3092,7 @@
       "used_by": [
         {
           "name": "blind-rsa-signatures",
-          "version": "0.17.2",
+          "version": "0.18.0",
           "repository": "https://github.com/jedisct1/rust-blind-rsa-signatures"
         }
       ]
@@ -3156,7 +3116,7 @@
       "used_by": [
         {
           "name": "privacypass",
-          "version": "0.2.0-pre.3",
+          "version": "0.2.0-pre.4",
           "repository": "https://github.com/raphaelrobert/privacypass"
         }
       ]
@@ -3335,7 +3295,7 @@
         },
         {
           "name": "pulldown-cmark",
-          "version": "0.13.4",
+          "version": "0.13.5",
           "repository": "https://github.com/raphlinus/pulldown-cmark"
         }
       ]
@@ -3488,11 +3448,6 @@
         {
           "name": "generic-array",
           "version": "0.14.7",
-          "repository": "https://github.com/fizyk20/generic-array.git"
-        },
-        {
-          "name": "generic-array",
-          "version": "1.4.4",
           "repository": "https://github.com/fizyk20/generic-array.git"
         }
       ]

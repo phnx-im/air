@@ -31,6 +31,7 @@ pub enum Mode {
     DropConnectionOnWrite = 4,
     RejectNextRequest = 5,
     DelayNextRequest = 6,
+    FailNextRequest = 7,
 }
 
 impl Mode {
@@ -42,6 +43,7 @@ impl Mode {
             4 => Mode::DropConnectionOnWrite,
             5 => Mode::RejectNextRequest,
             6 => Mode::DelayNextRequest,
+            7 => Mode::FailNextRequest,
             _ => Mode::Normal,
         }
     }
@@ -164,6 +166,13 @@ impl ControlHandle {
 
     pub(super) fn delay(&self) -> Duration {
         Duration::from_millis(self.delay_millis.load(Ordering::Relaxed))
+    }
+
+    /// Fails the next request with an internal server error.
+    ///
+    /// Unlike [`Self::set_reject_next_request`], the client may retry it.
+    pub fn set_fail_next_request(&self) {
+        self.arm(Mode::FailNextRequest, 0);
     }
 
     fn arm(&self, mode: Mode, skip: usize) {

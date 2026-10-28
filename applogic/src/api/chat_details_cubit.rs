@@ -480,7 +480,7 @@ impl ChatDetailsCubitBase {
             };
             match &mut chat.draft {
                 Some(draft) if draft.message != draft_message => {
-                    draft.message = draft_message;
+                    draft.set_message(draft_message);
                     draft.updated_at = Utc::now();
                     draft.is_committed = is_committed;
                     true
@@ -491,11 +491,10 @@ impl ChatDetailsCubitBase {
                 }
                 Some(_) => false,
                 None => {
-                    chat.draft.replace(UiMessageDraft {
-                        message: draft_message,
-                        is_committed,
-                        ..UiMessageDraft::empty()
-                    });
+                    let mut draft = UiMessageDraft::empty();
+                    draft.set_message(draft_message);
+                    draft.is_committed = is_committed;
+                    chat.draft.replace(draft);
                     true
                 }
             }
@@ -573,7 +572,7 @@ impl ChatDetailsCubitBase {
 
             // otherwise, reset the draft
             let mut draft = UiMessageDraft::empty();
-            draft.message = body.to_owned();
+            draft.set_message(body.to_owned());
             draft.editing_id = Some(message.id());
             draft.in_reply_to = None;
             draft.is_committed = false;
@@ -638,7 +637,7 @@ impl ChatDetailsCubitBase {
 
             let draft = chat.draft.get_or_insert_with(UiMessageDraft::empty);
 
-            draft.message = String::new();
+            draft.set_message(String::new());
             draft.in_reply_to = Some((
                 mimi_id.into(),
                 UiInReplyToMessage::Resolved {

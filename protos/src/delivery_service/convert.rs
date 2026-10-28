@@ -6,7 +6,9 @@ use aircommon::{
     credentials::{self, keys},
     crypto::{aead, secrets},
     identifiers,
-    messages::{client_ds, client_ds_out::AddUsersInfoOut, welcome_attribution_info},
+    messages::{
+        client_ds, client_ds_out::AddUsersInfoOut, client_references, welcome_attribution_info,
+    },
 };
 use apqmls::messages::{ApqMlsMessageIn, ApqMlsMessageOut};
 use mls_assist::messages::AssistedWelcome;
@@ -27,7 +29,8 @@ use crate::{
 use super::v1::{
     AddUsersInfo, AssistedMessage, ClientVerifyingKey, EncryptedUserProfileKey,
     EncryptedWelcomeAttributionInfo, GroupEpoch, GroupInfo, GroupStateEarKey, LeafNodeIndex,
-    MlsMessage, QsReference, RatchetTree, RoomState, SealedClientReference, UserCredential,
+    MlsMessage, QsReference, RatchetTree, RoomState, SealedClientReference,
+    SealedClientReferencesSignature, UserCredential,
 };
 
 impl From<identifiers::SealedClientReference> for SealedClientReference {
@@ -42,6 +45,26 @@ impl TryFrom<SealedClientReference> for identifiers::SealedClientReference {
     type Error = MissingFieldError<&'static str>;
 
     fn try_from(proto: SealedClientReference) -> Result<Self, Self::Error> {
+        let ciphertext = proto.ciphertext.ok_or_missing_field("ciphertext")?;
+        let ciphertext = openmls::prelude::HpkeCiphertext::from(ciphertext);
+        Ok(ciphertext.into())
+    }
+}
+
+impl From<client_references::SealedClientReferencesSignature> for SealedClientReferencesSignature {
+    fn from(value: client_references::SealedClientReferencesSignature) -> Self {
+        Self {
+            ciphertext: Some(value.into_ciphertext().into()),
+        }
+    }
+}
+
+impl TryFrom<SealedClientReferencesSignature>
+    for client_references::SealedClientReferencesSignature
+{
+    type Error = MissingFieldError<&'static str>;
+
+    fn try_from(proto: SealedClientReferencesSignature) -> Result<Self, Self::Error> {
         let ciphertext = proto.ciphertext.ok_or_missing_field("ciphertext")?;
         let ciphertext = openmls::prelude::HpkeCiphertext::from(ciphertext);
         Ok(ciphertext.into())

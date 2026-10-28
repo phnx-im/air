@@ -315,12 +315,9 @@ async fn sibling_derives_key_packages_from_upload_commit() -> anyhow::Result<()>
     alice.drain().await;
     alice2.drain().await;
 
+    // The existing device may already have replaced its key packages while it
+    // linked the sibling, so the sibling can start out with that batch.
     let live_before = alice2.live_key_package_refs().await?;
-    assert_eq!(
-        live_before,
-        (vec![], vec![]),
-        "a freshly linked device has no key packages of its own"
-    );
 
     // Device A runs a full upload cycle, including the echo that marks the batch live.
     {
@@ -340,6 +337,7 @@ async fn sibling_derives_key_packages_from_upload_commit() -> anyhow::Result<()>
         !live_a.0.is_empty() && !live_a.1.is_empty(),
         "the uploader should have live plain and APQ key packages"
     );
+    assert_ne!(live_a, live_before, "the upload should publish a new batch");
 
     // Processing A's self-group commit makes A's batch B's live set too.
     alice2.drain().await;

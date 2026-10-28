@@ -29,6 +29,32 @@ pub(crate) struct OwnClientInfo {
     pub(crate) self_group_signing_key: Option<SelfGroupSigningKey>,
 }
 
+/// The reason a device has lost access to the account and must reset itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnlinkReason {
+    /// A sibling device removed this device from the self group.
+    Unlinked,
+    /// The account is deleted, by this or a sibling device.
+    AccountDeleted,
+}
+
+impl UnlinkReason {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Unlinked => "unlinked",
+            Self::AccountDeleted => "account_deleted",
+        }
+    }
+
+    fn from_str(reason: &str) -> Option<Self> {
+        match reason {
+            "unlinked" => Some(Self::Unlinked),
+            "account_deleted" => Some(Self::AccountDeleted),
+            _ => None,
+        }
+    }
+}
+
 impl OwnClientInfo {
     /// The signing key for the local client's leaf in `group_id`.
     ///

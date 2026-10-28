@@ -113,13 +113,17 @@ impl CoreUser {
         // valid. Other errors leave the redemption unknown, so the token is
         // given up.
         let (connection_package, connection_offer_responder) = match client
-            .as_connect_username(hash, Some(consumed.token.clone()))
+            .as_connect_username(hash, consumed.token.clone())
             .await
         {
             Ok(res) => res,
             Err(error) if error.is_not_found() => {
-                self.restore_unredeemed_token(OperationType::ConnectUsername, consumed)
-                    .await;
+                privacy_pass::restore_unredeemed_token(
+                    self.db(),
+                    OperationType::ConnectUsername,
+                    consumed,
+                )
+                .await;
                 return Ok(Err(AddUsernameContactError::UsernameNotFound));
             }
             Err(error) if error.is_unknown_token_key_id() => {

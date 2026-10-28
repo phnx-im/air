@@ -9,12 +9,16 @@ use std::sync::Arc;
 pub(crate) use aircommon::identifiers::UsernameHash;
 use aircommon::identifiers::{UserId, Username};
 use aircoreclient::clients::StorageObjectType;
-use aircoreclient::{Asset, ChatId, ContactType, PartialContact, clients::CoreUser};
+use aircoreclient::{
+    AccountDeletionStatus, Asset, ChatId, ContactType, PartialContact, UnlinkReason,
+    clients::CoreUser, db::notification::DbEntityId,
+};
 use anyhow::ensure;
 use chrono::{DateTime, Utc};
 use flutter_rust_bridge::frb;
 use qs::QueueContext;
 use tokio::sync::watch;
+use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 use url::Url;
@@ -65,8 +69,10 @@ struct UiUserInner {
     usernames: Vec<Username>,
     /// Status of the version of the client communicated by the server.
     version_status: VersionStatus,
-    /// Another device of this user removed this one from the self group.
-    account_unlinked: bool,
+    /// Why this device must reset itself, if it must.
+    unlink_reason: Option<UiUnlinkReason>,
+    /// Whether the account deletion was aborted and the user wasn't told yet.
+    account_deletion_aborted: bool,
     /// The maximum number of devices that can be linked.
     ///
     /// Communicated by the server at connection establishment. 0 means unlimited.
@@ -84,6 +90,42 @@ pub enum VersionStatus {
     ExpiresAt(DateTime<Utc>),
 }
 
+/// Why this device must reset itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UiUnlinkReason {
+    /// Another device of this user removed this one from the self group.
+    Unlinked,
+    /// The account is deleted, by this or another device of this user.
+    AccountDeleted,
+}
+
+impl From<UnlinkReason> for UiUnlinkReason {
+    fn from(reason: UnlinkReason) -> Self {
+        match reason {
+            UnlinkReason::Unlinked => Self::Unlinked,
+            UnlinkReason::AccountDeleted => Self::AccountDeleted,
+        }
+    }
+}
+
+/// Whether the account deletion finished.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UiAccountDeletionStatus {
+    /// The account is deleted.
+    Completed,
+    /// The deletion continues in the background, also after a restart.
+    Pending,
+}
+
+impl From<AccountDeletionStatus> for UiAccountDeletionStatus {
+    fn from(status: AccountDeletionStatus) -> Self {
+        match status {
+            AccountDeletionStatus::Completed => Self::Completed,
+            AccountDeletionStatus::Pending => Self::Pending,
+        }
+    }
+}
+
 impl UiUser {
     fn new(inner: Arc<UiUserInner>) -> Self {
         Self { inner }
@@ -92,21 +134,10 @@ impl UiUser {
     /// Loads state in the background
     fn spawn_load(state_tx: watch::Sender<UiUser>, core_user: CoreUser) {
         spawn_from_sync(async move {
-            match core_user.usernames().await {
-                Ok(usernames) => {
-                    state_tx.send_modify(|state| {
-                        let inner = Arc::make_mut(&mut state.inner);
-                        inner.usernames = usernames;
-                    });
-                }
-                Err(error) => {
-                    error!(%error, "failed to load usernames");
-                }
-            }
-
-            // The flag is durable, so a device that was unlinked while it was
-            // not running still reports it on the next launch.
-            Self::reload_account_unlinked(&state_tx, &core_user).await;
+            // The state is durable, so a device that was unlinked, or whose
+            // account deletion was aborted, while it was not running still
+            // reports it on the next launch.
+            Self::reload_account_state(&state_tx, &core_user).await;
 
             // Load the max_devices from local storage.
             match core_user.max_devices().await {
@@ -126,24 +157,35 @@ impl UiUser {
         });
     }
 
-    /// Re-reads the unlinked flag and emits it if it flipped.
+    /// Re-reads the unlink reason and whether an account deletion was
+    /// aborted, and emits them if they changed.
     #[frb(ignore)]
-    pub(crate) async fn reload_account_unlinked(
-        state_tx: &watch::Sender<UiUser>,
-        core_user: &CoreUser,
-    ) {
-        match core_user.is_account_unlinked().await {
-            Ok(unlinked) => {
+    async fn reload_account_state(state_tx: &watch::Sender<UiUser>, core_user: &CoreUser) {
+        match core_user.has_unreported_account_deletion_abort().await {
+            Ok(aborted) => {
                 state_tx.send_if_modified(|state| {
-                    if state.inner.account_unlinked == unlinked {
+                    if state.inner.account_deletion_aborted == aborted {
                         return false;
                     }
-                    let inner = Arc::make_mut(&mut state.inner);
-                    inner.account_unlinked = unlinked;
+                    Arc::make_mut(&mut state.inner).account_deletion_aborted = aborted;
                     true
                 });
             }
-            Err(error) => error!(%error, "failed to read the account-unlinked flag"),
+            Err(error) => error!(%error, "failed to read whether the account deletion was aborted"),
+        }
+        match core_user.account_unlink_reason().await {
+            Ok(reason) => {
+                let reason = reason.map(UiUnlinkReason::from);
+                state_tx.send_if_modified(|state| {
+                    if state.inner.unlink_reason == reason {
+                        return false;
+                    }
+                    let inner = Arc::make_mut(&mut state.inner);
+                    inner.unlink_reason = reason;
+                    true
+                });
+            }
+            Err(error) => error!(%error, "failed to read the unlink reason"),
         }
     }
 
@@ -168,9 +210,18 @@ impl UiUser {
         self.inner.version_status
     }
 
+    /// Why this device must reset itself, if it must.
     #[frb(getter, sync)]
-    pub fn account_unlinked(&self) -> bool {
-        self.inner.account_unlinked
+    pub fn unlink_reason(&self) -> Option<UiUnlinkReason> {
+        self.inner.unlink_reason
+    }
+
+    /// Whether the account deletion was aborted and the user wasn't told yet,
+    /// for example because it aborted in the background. See
+    /// [`UserCubitBase::account_deletion_abort_reported`].
+    #[frb(getter, sync)]
+    pub fn account_deletion_aborted(&self) -> bool {
+        self.inner.account_deletion_aborted
     }
 
     #[frb(getter, sync)]
@@ -201,7 +252,8 @@ pub struct UserCubitBase {
     core: CubitCore<UiUser>,
     context: CubitContext,
     app_state_tx: watch::Sender<AppState>,
-    background_listen_username_tasks: UsernameBackgroundTasks,
+    /// Held for its drop guards. They stop the listeners with the cubit.
+    _background_listen_username_tasks: UsernameBackgroundTasks,
     cancel: CancellationToken,
 }
 
@@ -214,7 +266,8 @@ impl UserCubitBase {
             user_id: user.user.user_id().clone(),
             usernames: Vec::new(),
             version_status: VersionStatus::Supported,
-            account_unlinked: false,
+            unlink_reason: None,
+            account_deletion_aborted: false,
             max_devices: 0,
         })));
 
@@ -238,6 +291,10 @@ impl UserCubitBase {
         // emit persisted store notifications
         context.spawn_emit_stored_notifications(cancel.clone());
 
+        // react to an unlink reason or an aborted account deletion recorded in
+        // the background
+        context.spawn_reload_account_state(cancel.clone());
+
         // start background task listening for incoming messages
         QueueContext::new(context.clone())
             .into_task(cancel.clone())
@@ -245,13 +302,13 @@ impl UserCubitBase {
 
         // start background tasks listening for incoming username messages
         let background_listen_username_tasks =
-            UsernameContext::spawn_loading(context.clone(), cancel.clone());
+            UsernameContext::spawn_sync(context.clone(), cancel.clone());
 
         Self {
             core,
             context,
             app_state_tx,
-            background_listen_username_tasks,
+            _background_listen_username_tasks: background_listen_username_tasks,
             cancel: cancel.clone(),
         }
     }
@@ -446,52 +503,19 @@ impl UserCubitBase {
         let _no_receivers = self.app_state_tx.send(app_state);
     }
 
+    /// Registers a new username.
+    ///
+    /// Returns `false` if the username is taken.
+    /// [`UsernameContext::spawn_sync`] updates the UI state and the listener.
     pub async fn add_username(&self, username: UiUsername) -> anyhow::Result<bool> {
         let username = Username::new(username.plaintext)?;
-        let Some(record) = self
-            .context
-            .core_user
-            .add_username(username.clone())
-            .await?
-        else {
-            return Ok(false);
-        };
-
-        // add username to UI state
-        self.core.state_tx().send_modify(|state| {
-            let inner = Arc::make_mut(&mut state.inner);
-            inner.usernames.push(username);
-        });
-
-        // start background listen stream for the username
-        UsernameContext::new(self.context.clone(), record)
-            .into_task(
-                self.cancel.child_token(),
-                &self.background_listen_username_tasks,
-            )
-            .spawn();
-
-        Ok(true)
+        let added = self.context.core_user.add_username(username).await?;
+        Ok(added.is_some())
     }
 
     pub async fn remove_username(&self, username: UiUsername) -> anyhow::Result<()> {
         let username = Username::new(username.plaintext)?;
         self.context.core_user.remove_username(&username).await?;
-
-        // remove username from UI state
-        self.core.state_tx().send_if_modified(|state| {
-            let inner = Arc::make_mut(&mut state.inner);
-            let Some(idx) = inner.usernames.iter().position(|u| u == &username) else {
-                error!("username is not found");
-                return false;
-            };
-            inner.usernames.remove(idx);
-            true
-        });
-
-        // stop background listen stream for the username
-        self.background_listen_username_tasks.remove(username);
-
         Ok(())
     }
 
@@ -507,16 +531,27 @@ impl UserCubitBase {
         self.context.core_user.unblock_contact(user_id.into()).await
     }
 
+    /// Records that the user was told that the account deletion was aborted.
+    pub async fn account_deletion_abort_reported(&self) -> anyhow::Result<()> {
+        self.context
+            .core_user
+            .mark_account_deletion_abort_reported()
+            .await
+    }
+
+    /// Deletes the account. Once the deletion completes, the unlink reason is
+    /// `AccountDeleted`, also when it completes in the background. A failure
+    /// counts as reported to the user.
     pub async fn delete_account(
         &self,
-        db_path: &str,
         confirmation_text: &str,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<UiAccountDeletionStatus> {
         ensure!(
             confirmation_text == DELETE_ACCOUNT_CONFIRMATION_TEXT,
             "unexpected confirmation text"
         );
-        self.context.core_user.delete_account(Some(db_path)).await
+        let status = self.context.core_user.delete_account().await?;
+        Ok(status.into())
     }
 
     pub async fn add_contact_from_group(
@@ -608,6 +643,28 @@ struct CubitContext {
 }
 
 impl CubitContext {
+    /// Re-reads the account state whenever the own user is updated.
+    fn spawn_reload_account_state(&self, cancel: CancellationToken) {
+        let core_user = self.core_user.clone();
+        let state_tx = self.state_tx.clone();
+        let mut notifications = core_user.db_notifications();
+        spawn_from_sync(async move {
+            let own_user = DbEntityId::User(core_user.user_id().clone());
+            loop {
+                let notification = tokio::select! {
+                    _ = cancel.cancelled() => return,
+                    notification = notifications.next() => notification,
+                };
+                let Some(notification) = notification else {
+                    return;
+                };
+                if notification.ops.contains_key(&own_user) {
+                    UiUser::reload_account_state(&state_tx, &core_user).await;
+                }
+            }
+        });
+    }
+
     fn spawn_emit_stored_notifications(&self, cancel: CancellationToken) {
         let core_user = self.core_user.clone();
         let app_state = self.app_state.clone();

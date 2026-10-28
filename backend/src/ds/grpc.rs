@@ -23,7 +23,7 @@ use airprotos::{
     common::v1::{
         ClientMetadata, GroupClosedDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
     },
-    convert::{RefInto, TryFromRef as _, TryRefInto},
+    convert::{RefInto, TryRefInto},
     delivery_service::v1::{
         self, delivery_service_server::DeliveryService,
         targeted_message_payload::TargetedMessageType, *,
@@ -31,16 +31,10 @@ use airprotos::{
     signed::{SignedRequest, VerifiableRequest},
     validation::{InvalidTlsExt, MissingFieldExt},
 };
-use apqmls::validation::validate_apq_group_contexts;
-use chrono::{TimeDelta, Utc};
-use mimi_room_policy::VerifiedRoomState;
+use chrono::Utc;
 use mls_assist::{
-    group::Group,
     messages::{AssistedMessageIn, SerializedMlsMessage},
-    openmls::prelude::{
-        GroupEpoch, GroupId, LeafNodeIndex, MlsMessageBodyIn, MlsMessageIn, RatchetTreeIn, Sender,
-        SignaturePublicKey,
-    },
+    openmls::prelude::{GroupEpoch, GroupId, LeafNodeIndex, Sender, SignaturePublicKey},
 };
 use semver::Version;
 use sqlx::{PgConnection, PgTransaction};
@@ -52,12 +46,14 @@ use tracing::{Span, error, field::Empty, warn};
 use crate::{
     auth_service::AsConnector,
     ds::{
-        attachments::ProvisionObjectError, group_operation::ProcessedApqGroupOperation,
-        group_state::MemberProfile, process::Provider,
+        client_references::ClientReferencesSnapshot,
+        create_group::{NewApqChatData, NewGroup, NewGroupLeg, NewGroupState},
+        group_operation::ProcessedApqGroupOperation,
+        group_state::MemberProfile,
     },
+    errors::GroupOperationError,
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
     qs::QsConnector,
-    rate_limiter::{RateLimiter, RlConfig, RlKey, RlOperation, provider::RlPostgresStorage},
 };
 
 use super::{
@@ -418,7 +414,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 
     /// Enqueue the echo of an accepted bootstrap-carrying request to every
     /// client queue of the acting user.
-    async fn dispatch_group_bootstrap_echo(
+    pub(super) async fn dispatch_group_bootstrap_echo(
         &self,
         echo: QsQueueMessagePayload,
         acting_client: identifiers::QsReference,
@@ -839,15 +835,15 @@ struct ApqFanOut<T> {
 }
 
 /// The snapshot they join the group at and the echo.
-struct GroupBootstrapMaterial {
+pub(super) struct GroupBootstrapMaterial {
     epoch: GroupEpoch,
     snapshot: DsEpochSnapshot,
-    echo: QsQueueMessagePayload,
+    pub(super) echo: QsQueueMessagePayload,
 }
 
 impl GroupBootstrapMaterial {
     /// The material for a group a virtual client just created.
-    fn for_creation(
+    pub(super) fn for_creation(
         group_state: &DsGroupState,
         group_id: GroupId,
         pq: Option<(GroupId, &DsGroupState)>,
@@ -894,7 +890,7 @@ impl GroupBootstrapMaterial {
         })
     }
 
-    async fn store(
+    pub(super) async fn store(
         &self,
         txn: &mut PgTransaction<'_>,
         group_id: uuid::Uuid,
@@ -917,26 +913,10 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         self.verify_client_version(request.client_metadata.as_ref())?;
         let (qgid, pq_qgid) = self.ds.request_group_ids(request.request_pq_group_id)?;
 
-        let group_profile_provisioning =
-            if let Some(group_profile_size) = request.group_profile_size {
-                let content_length = group_profile_size
-                    .try_into()
-                    .map_err(|_| Status::invalid_argument("invalid group profile size"))?;
-                match self
-                    .ds
-                    .provision_object(StorageObjectType::GroupProfile, Some(content_length), false)
-                    .await
-                {
-                    Ok(response) => Some(response),
-                    Err(ProvisionObjectError::NoStorageConfigured) => None,
-                    Err(error) => {
-                        error!(%error, "Failed to provision attachment");
-                        return Err(Status::internal("Failed to provision attachment"));
-                    }
-                }
-            } else {
-                None
-            };
+        let group_profile_provisioning = match request.group_profile_size {
+            Some(group_profile_size) => self.provision_group_profile(group_profile_size).await?,
+            None => None,
+        };
 
         Ok(Response::new(RequestGroupIdResponse {
             group_id: Some(qgid.ref_into()),
@@ -960,33 +940,12 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
-        let qgid = payload.validated_qgid(&self.ds.own_domain)?;
-        let ear_key = payload.ear_key()?;
-
-        // create group
-        let group_info: MlsMessageIn = payload
-            .group_info
-            .as_ref()
-            .ok_or_missing_field("group_info")?
-            .try_ref_into()
-            .invalid_tls("group_info")?;
-        let MlsMessageBodyIn::GroupInfo(group_info) = group_info.extract() else {
-            return Err(Status::invalid_argument("invalid message"));
-        };
-
-        let ratchet_tree: RatchetTreeIn = payload
-            .ratchet_tree
-            .as_ref()
-            .ok_or_missing_field("ratchet_tree")?
-            .try_ref_into()
-            .invalid_tls("ratchet_tree")?;
-
-        let provider = Provider::default();
-        let group = Group::new(&provider, group_info.clone(), ratchet_tree).map_err(|error| {
-            error!(%error, "failed to create group");
-            Status::internal("failed to create group")
-        })?;
-        super::create_group::ensure_created_without_tombstone(&group)?;
+        let NewGroup {
+            qgid,
+            ear_key,
+            provider,
+            group,
+        } = self.new_group(payload)?;
 
         let credential =
             Self::creator_credential(&group, payload.creator_user_credential.as_ref())?;
@@ -996,96 +955,35 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .verify(credential.verifying_key())
             .map_err(InvalidSignature)?;
 
-        // Configure the rate-limiting. Only after verification, so a forged
-        // request cannot spend another user's allowance.
-        let rl_key = RlKey::new(
-            RlOperation::ReserveGroupId,
-            &[b"user_uuid", credential.user_id().uuid().as_bytes()],
-        );
-        let config = RlConfig {
-            max_requests: 100,
-            time_window: TimeDelta::hours(1),
-        };
-        let rl_storage = RlPostgresStorage::new(self.ds.db_pool.clone());
-        let rl = RateLimiter::new(config, rl_storage);
-
-        // Apply the rate-limiting
-        if !rl.allowed(rl_key, Utc::now()).await {
-            return Err(Status::resource_exhausted(
-                "Too many requests, please try again later",
-            ));
-        }
+        // Only after verification, so a forged request cannot spend another
+        // user's allowance.
+        self.consume_creation_allowance(credential.user_id())
+            .await?;
 
         let reserved_group_id = self
             .ds
             .claim_reserved_group_id(qgid.group_uuid())
             .ok_or_else(|| Status::invalid_argument("unreserved group id"))?;
 
-        // encrypt and store group state
-        let encrypted_user_profile_key = payload
-            .encrypted_user_profile_key
-            .ok_or_missing_field("encrypted_user_profile_key")?
-            .try_into()?;
-        let creator_client_reference: identifiers::QsReference = payload
-            .creator_client_reference
-            .ok_or_missing_field("creator_client_reference")?
-            .try_into()?;
-        let room_state = mimi_room_policy::RoomState::try_from_ref(
-            &payload.room_state.ok_or_missing_field("room_state")?,
-        )
-        .map_err(|_| Status::invalid_argument("Invalid room_state message"))?;
-
-        let room_state = VerifiedRoomState::verify(room_state).map_err(|e| {
-            warn!(%e, "proposed room policy failed verification");
-            Status::invalid_argument("Room state verification failed")
-        })?;
-
-        let group_state = DsGroupState::new(
-            provider,
-            group,
-            encrypted_user_profile_key,
-            creator_client_reference.clone(),
-            room_state,
-        );
-
-        let bootstrap = payload
-            .group_bootstrap
-            .map(|group_bootstrap| {
-                GroupBootstrapMaterial::for_creation(
-                    &group_state,
-                    qgid.clone().into(),
-                    None,
-                    group_bootstrap,
-                )
-            })
-            .transpose()?;
-
+        let NewGroupState {
+            group_state,
+            creator_client_reference,
+            bootstrap,
+        } = Self::new_group_state(provider, group, &qgid, payload)?;
         let encrypted_group_state = group_state.encrypt(&ear_key)?;
 
-        let mut txn = self.ds.db_pool.begin().await.map_err(|error| {
-            error!(%error, "failed to start transaction");
-            Status::internal("database error")
-        })?;
-        StorableDsGroupData::new_and_store(txn.as_mut(), reserved_group_id, encrypted_group_state)
-            .await
-            .map_err(|error| {
-                error!(%error, "failed to store group state");
-                Status::internal("failed to store group state")
-            })?;
-        if let Some(bootstrap) = bootstrap.as_ref() {
-            bootstrap
-                .store(&mut txn, qgid.group_uuid(), &ear_key)
-                .await?;
-        }
-        txn.commit().await.map_err(|error| {
-            error!(%error, "failed to commit transaction");
-            Status::internal("database error")
-        })?;
-
-        if let Some(bootstrap) = bootstrap {
-            self.dispatch_group_bootstrap_echo(bootstrap.echo, creator_client_reference)
-                .await;
-        }
+        self.store_new_group(
+            [NewGroupLeg {
+                group_id: reserved_group_id,
+                encrypted_group_state,
+                label: "group state",
+            }],
+            bootstrap,
+            &qgid,
+            &ear_key,
+            creator_client_reference,
+        )
+        .await?;
 
         Ok(Response::new(CreateGroupResponse {}))
     }
@@ -1105,38 +1003,17 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
-        // Extract chat related data
-        let encrypted_user_profile_key = payload
-            .encrypted_user_profile_key
-            .clone()
-            .ok_or_missing_field("encrypted_user_profile_key")?
-            .try_into()?;
-        let creator_client_reference = payload
-            .creator_client_reference
-            .clone()
-            .ok_or_missing_field("creator_client_reference")?
-            .try_into()?;
-        let room_state = mimi_room_policy::RoomState::try_from_ref(
-            payload
-                .room_state
-                .as_ref()
-                .ok_or_missing_field("room_state")?,
-        )
-        .map_err(|_| Status::invalid_argument("Invalid room_state message"))?;
-        let room_state = VerifiedRoomState::verify(room_state).map_err(|error| {
-            error!(%error, "proposed room policy failed verification");
-            Status::invalid_argument("Room state verification failed")
-        })?;
+        let chat = NewApqChatData::from_payload(payload)?;
 
         // Create t group state
         let (t_qgid, t_group_state, ear_key) = self.extract_group_state(
             payload
-                .clone()
                 .t_group_data
+                .clone()
                 .ok_or_missing_field("t_group_data")?,
-            &encrypted_user_profile_key,
-            &creator_client_reference,
-            &room_state,
+            &chat.encrypted_user_profile_key,
+            &chat.creator_client_reference,
+            &chat.room_state,
         )?;
         let t_user_credential = Self::creator_credential(
             &t_group_state.group,
@@ -1148,68 +1025,13 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .verify(t_user_credential.verifying_key())
             .map_err(InvalidSignature)?;
 
-        // Configure and apply rate-limiting. Only after verification, so a
-        // forged request cannot spend another user's allowance.
-        let rl_key = RlKey::new(
-            RlOperation::ReserveGroupId,
-            &[b"user_uuid", t_user_credential.user_id().uuid().as_bytes()],
-        );
-        let config = RlConfig {
-            max_requests: 100,
-            time_window: TimeDelta::hours(1),
-        };
-        let rl_storage = RlPostgresStorage::new(self.ds.db_pool.clone());
-        let rl = RateLimiter::new(config, rl_storage);
-        if !rl.allowed(rl_key, Utc::now()).await {
-            return Err(Status::resource_exhausted(
-                "Too many requests, please try again later",
-            ));
-        }
+        // Only after verification, so a forged request cannot spend another
+        // user's allowance.
+        self.consume_creation_allowance(t_user_credential.user_id())
+            .await?;
 
-        // Extract pq group state (PQ group uses the same ear_key as the T group)
-        let (pq_qgid, pq_group_state, _) = Self::extract_group_state(
-            &self,
-            payload.pq_group_data.ok_or_missing_field("pq_group_data")?,
-            &encrypted_user_profile_key,
-            &creator_client_reference,
-            &room_state,
-        )?;
-        // The T leg carries the meaningful creator credential, enforced above via
-        // `creator_credential`. The PQ leg's leaf holds only an empty placeholder credential, so we
-        // cannot check its variant. Instead the two legs must agree on the self-group flag, which
-        // transfers the T-leg consistency to the PQ leg.
-        if t_group_state.is_self_group() != pq_group_state.is_self_group() {
-            return Err(Status::invalid_argument(
-                "self-group flag mismatch between t and pq groups",
-            ));
-        }
-
-        // Check that the t and pq client signature keys match
-        Self::verify_signing_key(&t_group_state.group, &pq_group_state.group)?;
-
-        // Both legs must carry the same APQInfo, describing the two groups with a
-        // mode that matches their ciphersuites. Commits cannot change it later.
-        validate_apq_group_contexts(
-            t_group_state.group().group_info().group_context(),
-            pq_group_state.group().group_info().group_context(),
-        )
-        .map_err(|error| {
-            warn!(%error, "Invalid APQInfo in new APQ group");
-            Status::invalid_argument("Invalid APQInfo")
-        })?;
-
-        // Both legs live in the snapshot of the T leg's group id
-        let bootstrap = payload
-            .group_bootstrap
-            .map(|group_bootstrap| {
-                GroupBootstrapMaterial::for_creation(
-                    &t_group_state,
-                    t_qgid.clone().into(),
-                    Some((pq_qgid.clone().into(), &pq_group_state)),
-                    group_bootstrap,
-                )
-            })
-            .transpose()?;
+        let (pq_qgid, pq_group_state, bootstrap) =
+            self.new_pq_leg(payload, &chat, &t_qgid, &t_group_state)?;
 
         // Encrypt and store group state
         let t_reserved_group_id = self
@@ -1223,44 +1045,25 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let encrypted_t_group_state = t_group_state.encrypt(&ear_key)?;
         let encrypted_pq_group_state = pq_group_state.encrypt(&ear_key)?;
 
-        let mut txn = self.ds.db_pool.begin().await.map_err(|error| {
-            error!(%error, "failed to start transaction");
-            Status::internal("database error")
-        })?;
-        StorableDsGroupData::new_and_store(
-            txn.as_mut(),
-            t_reserved_group_id,
-            encrypted_t_group_state,
+        self.store_new_group(
+            [
+                NewGroupLeg {
+                    group_id: t_reserved_group_id,
+                    encrypted_group_state: encrypted_t_group_state,
+                    label: "t group state",
+                },
+                NewGroupLeg {
+                    group_id: pq_reserved_group_id,
+                    encrypted_group_state: encrypted_pq_group_state,
+                    label: "pq group state",
+                },
+            ],
+            bootstrap,
+            &t_qgid,
+            &ear_key,
+            chat.creator_client_reference,
         )
-        .await
-        .map_err(|error| {
-            error!(%error, "failed to store t group state");
-            Status::internal("failed to store t group state")
-        })?;
-        StorableDsGroupData::new_and_store(
-            txn.as_mut(),
-            pq_reserved_group_id,
-            encrypted_pq_group_state,
-        )
-        .await
-        .map_err(|error| {
-            error!(%error, "failed to store pq group state");
-            Status::internal("failed to store pq group state")
-        })?;
-        if let Some(bootstrap) = bootstrap.as_ref() {
-            bootstrap
-                .store(&mut txn, t_qgid.group_uuid(), &ear_key)
-                .await?;
-        }
-        txn.commit().await.map_err(|error| {
-            error!(%error, "failed to commit transaction");
-            Status::internal("database error")
-        })?;
-
-        if let Some(bootstrap) = bootstrap {
-            self.dispatch_group_bootstrap_echo(bootstrap.echo, creator_client_reference)
-                .await;
-        }
+        .await?;
 
         Ok(Response::new(CreateApqGroupResponse {}))
     }
@@ -2212,6 +2015,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         .map(|info| info.try_into())
                         .transpose()?,
                 };
+                let client_references_signature = payload
+                    .client_references_signature
+                    .map(TryInto::try_into)
+                    .transpose()?;
+                let client_references_before = ClientReferencesSnapshot::of(group_state);
 
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
@@ -2222,6 +2030,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     group_state
                         .group_operation(params, ear_key, self.ds.max_devices.get())
                         .await?;
+                let virtual_client_hint = client_references_before
+                    .compare(group_state)
+                    .commit_hint(
+                        client_references_signature,
+                        virtual_client_hint,
+                        self.ds.own_domain(),
+                    )
+                    .map_err(GroupOperationError::from)?;
 
                 group_state.proposals.clear();
 
@@ -2328,6 +2144,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         .add_users_info
                         .map(|info| info.try_into())
                         .transpose()?;
+                    let client_references_signature = payload
+                        .client_references_signature
+                        .map(TryInto::try_into)
+                        .transpose()?;
+                    let client_references_before = ClientReferencesSnapshot::of(t_group_state);
                     let (t_add_users_info, pq_add_users_info) =
                         add_users_info.map(|info| info.split()).unzip();
 
@@ -2351,6 +2172,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         pq_add_users_info,
                         self.ds.max_devices.get(),
                     )?;
+                    let virtual_client_hint = client_references_before
+                        .compare(t_group_state)
+                        .commit_hint(
+                            client_references_signature,
+                            virtual_client_hint,
+                            self.ds.own_domain(),
+                        )
+                        .map_err(GroupOperationError::from)?;
 
                     // Fan out the commit message to the destination clients
                     let timestamp = TimeStamp::now();

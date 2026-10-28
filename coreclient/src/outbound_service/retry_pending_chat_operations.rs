@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use aircommon::credentials::keys::SelfGroupSigningKey;
 use airprotos::client::self_group::{
     BlockedContactsUpdate, ConnectionRequestsUpdate, SelfGroupMessage, SettingsUpdate,
+    UsernamesUpdate,
 };
 use anyhow::Context as _;
 use openmls::group::GroupId;
@@ -29,7 +30,7 @@ use crate::{
         recoverable::{Recoverable, RecoverableCause},
     },
     outbound_service::{OutboundServiceContext, error::OutboundServiceError},
-    privacy_pass,
+    privacy_pass, usernames,
 };
 
 impl OutboundServiceContext {
@@ -208,6 +209,13 @@ async fn drain_outbox(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<Vec<Se
         ));
     }
 
+    let usernames = usernames::sync::entries_to_broadcast(&mut *txn).await?;
+    if !usernames.is_empty() {
+        messages.push(SelfGroupMessage::UsernamesUpdate(UsernamesUpdate {
+            usernames,
+        }));
+    }
+
     let requests = connection_requests::staged_entries(&mut *txn).await?;
     if !requests.is_empty() {
         messages.push(SelfGroupMessage::ConnectionRequestsUpdate(
@@ -231,7 +239,7 @@ async fn drain_outbox(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<Vec<Se
 /// on a wrong-epoch rejection, which waits for the winning commit to arrive
 /// through the queue and delete it), or when the self group carries a pending
 /// commit that no operation row belongs to.
-async fn free_self_group(
+pub(super) async fn free_self_group(
     txn: &mut WriteDbTransaction<'_>,
     self_group_id: &GroupId,
 ) -> anyhow::Result<Option<VerifiedGroup>> {

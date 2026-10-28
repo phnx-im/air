@@ -175,6 +175,11 @@ async fn redeemed_token_is_removed_from_sibling() {
         "the sibling still holds the spent token"
     );
 
+    // Adding the username also parks it for the sibling. We send that commit
+    // first. The epochs below then only see the broadcast.
+    alice.outbound_service().run_once().await;
+    alice.drain().await;
+
     // The broadcast is held back to keep it apart from the redemption. The
     // test skips that wait.
     alice.expedite_redeemed_token_broadcast().await.unwrap();

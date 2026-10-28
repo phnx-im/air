@@ -32,7 +32,7 @@ pub use crate::{
         reactions::LastReaction,
     },
     clients::{
-        MarkChatAsRead,
+        AccountDeletionStatus, MarkChatAsRead,
         add_contact::AddUsernameContactError,
         attachment::{
             AttachmentContent, AttachmentId, AttachmentInfo, AttachmentStatus, AttachmentThumbnail,
@@ -45,6 +45,7 @@ pub use crate::{
         invitation_code::{InvitationCode, RequestInvitationCodeError},
         invite_users::InviteUsersResult,
         linked_devices::{LinkedDevicesSetting, current_platform},
+        own_client_info::UnlinkReason,
         safety_code::SafetyCode,
         user_settings::{
             DefaultEmojiSkinToneSetting, DeleteExpiredContactRequestsSetting, DeveloperModeSetting,

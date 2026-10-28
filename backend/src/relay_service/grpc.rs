@@ -6,18 +6,20 @@ use std::pin::Pin;
 
 use aircommon::crypto::signatures::{keys::QsUserVerifyingKey, signable::Verifiable};
 use airprotos::{
-    relay_service::v1::{
-        LinkClientRequest, LinkClientRequestPayload, LinkingSessionId, RelayFrame,
-        relay_service_server::RelayService,
+    relay_service::{
+        mdl::{MDL_PROTOCOL_VERSION, MdlMessage, ProvisionRequest, SessionAssigned},
+        v1::{
+            LinkClientRequest, LinkClientRequestPayload, RelayFrame, RendezVousId,
+            relay_service_server::RelayService,
+        },
     },
     signed::SignedRequest,
     validation::MissingFieldExt,
 };
 use futures_util::Stream;
-use prost::bytes::Bytes;
 use tokio::{
     sync::{mpsc, oneshot},
-    time::timeout,
+    time::timeout_at,
 };
 use tokio_stream::{StreamExt, wrappers::ReceiverStream};
 use tonic::{Request, Response, Status, Streaming, async_trait};
@@ -25,41 +27,100 @@ use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use crate::{
+    client_ip::{ClientIp, IpBucket},
     qs::QsConnector,
-    relay_service::{Pending, Rs, SESSION_TIMEOUT},
+    relay_service::{RelayLimits, Rs, sessions::Outbound},
 };
+
+/// Frames a peer may fall behind by before its sender blocks. The protocol
+/// is a ping-pong, so anything beyond a couple of frames is slack.
+const CHANNEL_CAPACITY: usize = 8;
 
 pub struct GrpcRs<Qep: QsConnector> {
     rs: Rs,
+    limits: RelayLimits,
     qs_connector: Qep,
 }
 
 impl<Qep: QsConnector> GrpcRs<Qep> {
-    pub fn new(rs: Rs, qs_connector: Qep) -> Self {
-        Self { rs, qs_connector }
+    pub fn new(rs: Rs, limits: RelayLimits, qs_connector: Qep) -> Self {
+        Self {
+            rs,
+            limits,
+            qs_connector,
+        }
     }
 }
 
-async fn pipe_inbound_to_peer_outbound(
-    session_id: LinkingSessionId,
-    mut inbound: Streaming<RelayFrame>,
-    peer_outbound: mpsc::Sender<Result<RelayFrame, Status>>,
-) {
-    while let Some(msg) = inbound.next().await {
-        match msg {
+/// The address bucket a request counts under.
+fn ip_bucket<T>(request: &Request<T>) -> Result<IpBucket, Status> {
+    request
+        .extensions()
+        .get::<ClientIp>()
+        .map(ClientIp::bucket)
+        .ok_or_else(|| {
+            error!("no client address on a relay request");
+            Status::internal("failed to resolve the client address")
+        })
+}
+
+fn too_many_requests() -> Status {
+    Status::resource_exhausted("Too many requests, please try again later")
+}
+
+/// Pipes one peer's inbound frames to the other peer.
+async fn forward(id: &RendezVousId, mut inbound: Streaming<RelayFrame>, peer: Outbound) {
+    while let Some(frame) = inbound.next().await {
+        match frame {
             Ok(frame) => {
-                if peer_outbound.send(Ok(frame)).await.is_err() {
+                if peer.send(Ok(frame)).await.is_err() {
                     break;
                 }
             }
             Err(status) => {
-                warn!(%session_id, %status, "inbound error");
+                warn!(rendezvous_id = %id, %status, "inbound stream failed");
                 break;
             }
         }
     }
+    info!(rendezvous_id = %id, "peer disconnected");
+}
 
-    info!(session_id = %session_id, "client disconnected");
+/// Pipes the provisioner's frames to the responder once one attaches.
+async fn relay_provisioner(
+    id: &RendezVousId,
+    mut inbound: Streaming<RelayFrame>,
+    responder_ready_rx: oneshot::Receiver<Outbound>,
+) {
+    let buffered = match inbound.next().await {
+        Some(Ok(frame)) => frame,
+        Some(Err(status)) => {
+            warn!(rendezvous_id = %id, %status, "provisioner stream failed");
+            return;
+        }
+        None => return,
+    };
+
+    // The provisioner sends nothing more until a responder attaches, so the
+    // stream ending or carrying another frame means the session is over. A
+    // closed stream must end the session right away, or its code stays
+    // claimable after the new device moved on.
+    let responder = tokio::select! {
+        responder = responder_ready_rx => match responder {
+            Ok(responder) => responder,
+            Err(_) => return,
+        },
+        frame = inbound.next() => {
+            if let Some(Ok(_)) = frame {
+                warn!(rendezvous_id = %id, "provisioner sent a frame before the responder attached");
+            }
+            return;
+        }
+    };
+
+    if responder.send(Ok(buffered)).await.is_ok() {
+        forward(id, inbound, responder).await;
+    }
 }
 
 #[async_trait]
@@ -71,84 +132,57 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
         &self,
         request: Request<Streaming<RelayFrame>>,
     ) -> Result<Response<Self::MultiDeviceProvisionClientStream>, Status> {
+        if !self.limits.allow_provision(ip_bucket(&request)?).await {
+            return Err(too_many_requests());
+        }
         let mut inbound = request.into_inner();
 
-        let (outbound_tx, outbound_rx) = mpsc::channel::<Result<RelayFrame, Status>>(8);
-        let first_frame_outbound_tx = outbound_tx.clone();
+        let frame = inbound.message().await?.ok_or_else(|| {
+            Status::invalid_argument("stream closed before the provisioning request")
+        })?;
+        let message = MdlMessage::from_frame(&frame).map_err(|error| {
+            warn!(%error, "malformed linking frame");
+            Status::invalid_argument("malformed linking message")
+        })?;
+        let MdlMessage::ProvisionRequest(ProvisionRequest { version }) = message else {
+            return Err(Status::invalid_argument("expected a provisioning request"));
+        };
+        if version != MDL_PROTOCOL_VERSION {
+            return Err(Status::failed_precondition(
+                "unsupported linking protocol version",
+            ));
+        }
 
-        let relay_sessions = self.rs.sessions.clone();
-        tokio::spawn(self.rs.stop.clone().run_until_cancelled_owned(async move {
-            // Expect a KeyPackage as the first frame; its SHA256 digest becomes the session ID.
-            let Some(Ok(key_package_bytes)) = inbound.next().await else {
-                error!("failed to receive KeyPackage");
-                return;
-            };
+        let (outbound_tx, outbound_rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let (session, responder_ready_rx, cancel) = self
+            .rs
+            .open(outbound_tx.clone())
+            .ok_or_else(|| Status::resource_exhausted("no rendezvous id available"))?;
 
-            // Lock sessions for all clients because we might check many buckets.
-            let mut sessions = relay_sessions.lock().await;
-            let Some(truncated_session_id) =
-                LinkingSessionId::generate(key_package_bytes.as_slice(), |session_id| {
-                    sessions.contains_key(session_id)
-                })
-            else {
-                error!("linking session ID collision");
-                return;
-            };
+        let assigned = MdlMessage::SessionAssigned(SessionAssigned {
+            rendezvous_id: session.id().value.clone(),
+        })
+        .into_frame()
+        .map_err(|error| {
+            error!(%error, "failed to encode the session assignment");
+            Status::internal("encoding failure")
+        })?;
+        outbound_tx
+            .try_send(Ok(assigned))
+            .expect("a fresh channel whose receiver is held here has room");
 
-            info!(%truncated_session_id, "starting new linking session");
-
-            let (peer_ready_tx, peer_ready_rx) = oneshot::channel();
-
-            sessions.insert(
-                truncated_session_id.clone(),
-                Pending {
-                    outbound_tx,
-                    peer_ready_tx,
-                },
-            );
-
-            // Release the lock.
-            drop(sessions);
-
-            // Report the session ID length to the peer.
-            if let Err(error) = first_frame_outbound_tx
-                .send(Ok(RelayFrame {
-                    payload: Bytes::from_owner(truncated_session_id.digits().to_be_bytes()),
-                }))
-                .await
-            {
-                error!(%error, "failed to send session ID length");
-                return;
-            };
-
-            // Wait for the peer to connect.
-            let peer_outbound = match timeout(SESSION_TIMEOUT, peer_ready_rx).await {
-                Ok(Ok(tx)) => tx,
-                Ok(Err(error)) => {
-                    relay_sessions.lock().await.remove(&truncated_session_id);
-                    info!(%error, "peer disconnected before sending outbound channel");
-                    return;
-                }
-                Err(_) => {
-                    relay_sessions.lock().await.remove(&truncated_session_id);
-                    info!(%truncated_session_id, "timed out waiting for peer");
-                    return;
-                }
-            };
-
-            // Forward the key package to the peer.
-            if let Err(error) = peer_outbound.send(Ok(key_package_bytes)).await {
-                error!(%error, "failed to send key package");
-                return;
-            };
-
-            // Pipe inbound relay frames to the peer.
-            pipe_inbound_to_peer_outbound(truncated_session_id, inbound, peer_outbound).await;
+        // The guard's drop ends the session, so hitting the deadline tears
+        // down both peers' forwarding tasks.
+        let expires_at = session.expires_at();
+        tokio::spawn(cancel.run_until_cancelled_owned(async move {
+            let relay = relay_provisioner(session.id(), inbound, responder_ready_rx);
+            if timeout_at(expires_at, relay).await.is_err() {
+                warn!(rendezvous_id = %session.id(), "linking session expired");
+            }
         }));
 
-        let out_stream = ReceiverStream::new(outbound_rx);
         Ok(Response::new(
-            Box::pin(out_stream) as Self::MultiDeviceProvisionClientStream
+            Box::pin(ReceiverStream::new(outbound_rx)) as Self::MultiDeviceProvisionClientStream
         ))
     }
 
@@ -159,9 +193,13 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
         &self,
         request: Request<Streaming<RelayFrame>>,
     ) -> Result<Response<Self::MultiDeviceLinkClientStream>, Status> {
+        if !self.limits.allow_link_from(ip_bucket(&request)?).await {
+            return Err(too_many_requests());
+        }
         let mut inbound = request.into_inner();
 
-        // The first frame is the initial request payload.
+        // The first frame is the signed request, so only a registered user
+        // can consume a session's single authentication attempt.
         let first_frame = inbound
             .message()
             .await?
@@ -183,10 +221,11 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             .value
             .ok_or_missing_field("uuid value")?
             .into();
+        let qs_user_id = aircommon::identifiers::QsUserId::from(qs_user_id);
 
         let qs_user_signature_key: QsUserVerifyingKey = self
             .qs_connector
-            .user_verifying_key(aircommon::identifiers::QsUserId::from(qs_user_id))
+            .user_verifying_key(qs_user_id)
             .await
             .map_err(|error| {
                 error!(%error, "failed to load QS user signing key");
@@ -198,31 +237,29 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             .verify(&qs_user_signature_key)
             .map_err(|_| Status::invalid_argument("invalid signature"))?;
 
-        let session_id = payload.session_id.ok_or_missing_field("session_id")?;
-        info!(%session_id, "linking with existing session");
-
-        // Outbound channel: messages we will send back to *this* client.
-        let (outbound_tx, outbound_rx) = mpsc::channel::<Result<RelayFrame, Status>>(8);
-
-        if let Some(pending) = self.rs.sessions.lock().await.remove(&session_id) {
-            // Fire the peer's oneshot with our outbound sender so they can start forwarding to us.
-            if pending.peer_ready_tx.send(outbound_tx).is_err() {
-                warn!("failed to signal that peer is ready (initiator disconnected)");
-                return Err(Status::aborted(
-                    "peer disconnected before establishing relay pipe",
-                ));
-            }
-
-            tokio::spawn(self.rs.stop.clone().run_until_cancelled_owned(
-                pipe_inbound_to_peer_outbound(session_id, inbound, pending.outbound_tx),
-            ));
-        } else {
-            return Err(Status::not_found("session not found"));
+        // Charged only now that the sender proved it owns the account, and
+        // before the lookup, so attempts at sessions that do not exist count.
+        if !self.limits.allow_link_by(qs_user_id).await {
+            return Err(too_many_requests());
         }
 
-        let out_stream = ReceiverStream::new(outbound_rx);
+        let rendezvous_id = payload.rendezvous_id.ok_or_missing_field("rendezvous_id")?;
+        let Ok(id) = RendezVousId::new(rendezvous_id.value) else {
+            return Err(Status::not_found("session not found"));
+        };
+
+        let (outbound_tx, outbound_rx) = mpsc::channel(CHANNEL_CAPACITY);
+        let Some((provisioner, cancel, session)) = self.rs.claim(&id, outbound_tx) else {
+            return Err(Status::not_found("session not found"));
+        };
+        info!(rendezvous_id = %id, "attached the responder to a linking session");
+
+        tokio::spawn(cancel.run_until_cancelled_owned(async move {
+            forward(session.id(), inbound, provisioner).await;
+        }));
+
         Ok(Response::new(
-            Box::pin(out_stream) as Self::MultiDeviceLinkClientStream
+            Box::pin(ReceiverStream::new(outbound_rx)) as Self::MultiDeviceLinkClientStream
         ))
     }
 }

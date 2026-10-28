@@ -88,14 +88,12 @@ void main() {
           .called(1);
     });
 
-    testWidgets('the sections behind the developer flags stay hidden', (
-      tester,
-    ) async {
+    testWidgets('the developer section stays hidden', (tester) async {
       await pumpSubject(tester);
 
-      expect(find.text('Devices'), findsNothing);
       expect(find.text('Developer'), findsNothing);
       expect(find.text('Profile'), findsOneWidget);
+      expect(find.text('Devices'), findsOneWidget);
     });
 
     testWidgets('developer mode reveals the developer settings', (
@@ -107,35 +105,10 @@ void main() {
           .thenAnswer((_) async {});
 
       await pumpSubject(tester);
-
-      // Devices rides on the experiments switch, which is off.
-      expect(find.text('Devices'), findsNothing);
-
       await tester.tap(find.text('Developer'));
 
       verify(() => navigationCubit.openYouSection(YouSection.developer))
           .called(1);
-    });
-
-    testWidgets('the experiments switch alone reveals nothing', (tester) async {
-      when(() => userSettingsCubit.state)
-          .thenReturn(const UserSettings(experimentalFeatures: true));
-
-      await pumpSubject(tester);
-
-      expect(find.text('Devices'), findsNothing);
-      expect(find.text('Developer'), findsNothing);
-    });
-
-    testWidgets('experimental features reveal devices', (tester) async {
-      when(() => userSettingsCubit.state).thenReturn(
-        const UserSettings(developerMode: true, experimentalFeatures: true),
-      );
-
-      await pumpSubject(tester);
-
-      expect(find.text('Devices'), findsOneWidget);
-      expect(find.text('Developer'), findsOneWidget);
     });
   });
 }

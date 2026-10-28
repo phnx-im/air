@@ -9,7 +9,7 @@ use airbackend::{
     auth_service::AuthService,
     ds::{Ds, storage::Storage},
     qs::Qs,
-    relay_service::Rs,
+    relay_service::{RelayLimits, Rs},
     settings::RegistrationPolicy,
     version::VersionPolicy,
 };
@@ -131,7 +131,10 @@ async fn main() -> anyhow::Result<()> {
     .await
     .expect("Failed to connect to database.");
 
-    let rs = Rs::new(shutdown.clone());
+    let relay_limits = RelayLimits::new(&qs, &configuration.relay, shutdown.clone())
+        .await
+        .expect("Failed to set up the relay's rate limits.");
+    let rs = Rs::new(shutdown.clone(), configuration.relay.clone());
 
     // New database name for the AS provider
     configuration.database.name = format!("{base_db_name}_as");
@@ -190,6 +193,7 @@ async fn main() -> anyhow::Result<()> {
             qs,
             qs_connector,
             rs,
+            relay_limits,
             rate_limits: configuration.ratelimits,
             shutdown,
         },

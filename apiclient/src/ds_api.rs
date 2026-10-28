@@ -22,6 +22,7 @@ use aircommon::{
             PqExternalCommitInfoIn, SelfRemoveParamsOut, SendMessageCollisionTag,
             SendMessageParamsOut, TargetedMessageParamsOut, WelcomeInfoIn,
         },
+        client_references::SealedClientReferencesSignature,
     },
     time::TimeStamp,
 };
@@ -259,6 +260,7 @@ impl ApiClient {
         group_state_ear_key: &GroupStateEarKey,
         qs_client_reference: QsReference,
         encrypted_user_profile_key: EncryptedUserProfileKey,
+        client_references_signature: Option<SealedClientReferencesSignature>,
     ) -> Result<TimeStamp, DsRequestError> {
         let add_users_info = payload
             .add_users_info_option
@@ -280,6 +282,7 @@ impl ApiClient {
             add_users_info,
             qs_client_reference: Some(qs_client_reference.into()),
             encrypted_user_profile_key: Some(encrypted_user_profile_key.into()),
+            client_references_signature: client_references_signature.map(From::from),
         };
         let request = payload.sign(signing_key)?;
         let response = self
@@ -301,6 +304,7 @@ impl ApiClient {
         group_state_ear_key: &GroupStateEarKey,
         qs_client_reference: QsReference,
         encrypted_user_profile_key: EncryptedUserProfileKey,
+        client_references_signature: Option<SealedClientReferencesSignature>,
     ) -> Result<TimeStamp, DsRequestError> {
         let ApqGroupOperationParamsOut {
             bundle:
@@ -339,6 +343,7 @@ impl ApiClient {
             add_users_info,
             qs_client_reference: Some(qs_client_reference.into()),
             encrypted_user_profile_key: Some(encrypted_user_profile_key.into()),
+            client_references_signature: client_references_signature.map(From::from),
         };
         let request = payload.sign(signing_key)?;
         let response = self

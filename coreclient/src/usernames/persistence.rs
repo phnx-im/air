@@ -10,7 +10,10 @@ use aircommon::{
 use chrono::{DateTime, Utc};
 use sqlx::{query, query_as, query_scalar};
 
-use crate::db::access::{ReadConnection, WriteConnection};
+use crate::db::{
+    access::{ReadConnection, WriteConnection},
+    notification::DbEntityId,
+};
 
 /// A username record stored in the client database.
 ///
@@ -58,24 +61,11 @@ impl UsernameRecord {
     }
 
     pub(super) async fn load(
-        mut connection: impl ReadConnection,
+        connection: impl ReadConnection,
         username: &Username,
     ) -> sqlx::Result<Option<Self>> {
-        let record = query_as!(
-            SqlUsernameRecord,
-            r#"
-                SELECT
-                    handle AS "username: _",
-                    hash AS "hash: _",
-                    signing_key AS "signing_key: _"
-                FROM user_handle
-                WHERE handle = ?
-            "#,
-            username
-        )
-        .fetch_optional(connection.as_mut())
-        .await?;
-        Ok(record.map(From::from))
+        let record = Self::load_with_timestamps(connection, username).await?;
+        Ok(record.map(|(record, ..)| record))
     }
 
     pub(crate) async fn load_all(mut connection: impl ReadConnection) -> sqlx::Result<Vec<Self>> {
@@ -109,10 +99,19 @@ impl UsernameRecord {
         .await
     }
 
-    pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
-        let signing_key = BlobEncoded(&self.signing_key);
+    pub(crate) async fn store(&self, connection: impl WriteConnection) -> sqlx::Result<()> {
         let created_at = Utc::now();
-        let refreshed_at = created_at;
+        self.store_with_timestamps(connection, created_at, created_at)
+            .await
+    }
+
+    pub(super) async fn store_with_timestamps(
+        &self,
+        mut connection: impl WriteConnection,
+        created_at: DateTime<Utc>,
+        refreshed_at: DateTime<Utc>,
+    ) -> sqlx::Result<()> {
+        let signing_key = BlobEncoded(&self.signing_key);
         query!(
             r#"
                 INSERT INTO user_handle (
@@ -131,7 +130,40 @@ impl UsernameRecord {
         )
         .execute(connection.as_mut())
         .await?;
+        connection
+            .notifier()
+            .add(DbEntityId::Username(self.username.clone()));
         Ok(())
+    }
+
+    /// Loads a username with its creation and last refresh times.
+    pub(crate) async fn load_with_timestamps(
+        mut connection: impl ReadConnection,
+        username: &Username,
+    ) -> sqlx::Result<Option<(Self, DateTime<Utc>, DateTime<Utc>)>> {
+        let record = query!(
+            r#"
+                SELECT
+                    handle AS "username: Username",
+                    hash AS "hash: UsernameHash",
+                    signing_key AS "signing_key: BlobDecoded<UsernameSigningKey>",
+                    created_at AS "created_at: DateTime<Utc>",
+                    refreshed_at AS "refreshed_at: DateTime<Utc>"
+                FROM user_handle
+                WHERE handle = ?
+            "#,
+            username
+        )
+        .fetch_optional(connection.as_mut())
+        .await?;
+        Ok(record.map(|record| {
+            let username_record = Self {
+                username: record.username,
+                hash: record.hash,
+                signing_key: record.signing_key.into_inner(),
+            };
+            (username_record, record.created_at, record.refreshed_at)
+        }))
     }
 
     /// Load usernames where `refreshed_at` is older than the given threshold.
@@ -176,7 +208,27 @@ impl UsernameRecord {
         Ok(())
     }
 
-    pub(super) async fn delete(
+    /// Moves `refreshed_at` forward to the given time, never back.
+    pub(crate) async fn advance_refreshed_at(
+        mut connection: impl WriteConnection,
+        username: &Username,
+        refreshed_at: DateTime<Utc>,
+    ) -> sqlx::Result<()> {
+        query!(
+            r#"
+                UPDATE user_handle
+                SET refreshed_at = ?1
+                WHERE handle = ?2 AND refreshed_at < ?1
+            "#,
+            refreshed_at,
+            username,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        Ok(())
+    }
+
+    pub(crate) async fn delete(
         mut connection: impl WriteConnection,
         username: &Username,
     ) -> sqlx::Result<()> {
@@ -189,6 +241,9 @@ impl UsernameRecord {
         )
         .execute(connection.as_mut())
         .await?;
+        connection
+            .notifier()
+            .remove(DbEntityId::Username(username.clone()));
         Ok(())
     }
 }

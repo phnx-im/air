@@ -119,11 +119,12 @@ class UserCubit implements StateStreamableSource<UiUser> {
   Future<void> reportSpam(UiUserId spammerId) =>
       _impl.reportSpam(spammerId: spammerId);
 
-  Future<void> deleteAccount({required String confirmationText}) async =>
-      _impl.deleteAccount(
-        dbPath: await dbPath(),
-        confirmationText: confirmationText,
-      );
+  Future<UiAccountDeletionStatus> deleteAccount({
+    required String confirmationText,
+  }) => _impl.deleteAccount(confirmationText: confirmationText);
+
+  Future<void> accountDeletionAbortReported() =>
+      _impl.accountDeletionAbortReported();
 
   Future<UiContact?> contact({required UiUserId userId}) =>
       _impl.contact(userId: userId);
@@ -153,11 +154,11 @@ class UserCubit implements StateStreamableSource<UiUser> {
   /// [MultiDeviceLinkEvent_AwaitingConfirmation] once connected, then completes
   /// the handshake after the user approves via [confirmation].
   Stream<MultiDeviceLinkEvent> linkDevice(
-    String sessionId,
+    String code,
     MultiDeviceLinkConfirmation confirmation,
   ) => multiDeviceLinkClient(
     userCubit: _impl,
-    sessionId: sessionId,
+    code: code,
     confirmation: confirmation,
   );
 

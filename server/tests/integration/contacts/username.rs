@@ -105,7 +105,7 @@ async fn connection_request_spends_token() {
     // The AS does not take the same token twice.
     let client = ApiClient::with_endpoint(&setup.server_url()).unwrap();
     let result = client
-        .as_connect_username(record.hash, Some(SerializedToken::new(spent)))
+        .as_connect_username(record.hash, SerializedToken::new(spent))
         .await;
     let Err(AsRequestError::Tonic(status)) = result else {
         panic!("a spent token must be rejected with a status");

@@ -9,6 +9,7 @@ use std::fmt;
 use hmac::{Hmac, KeyInit, Mac};
 use rand::RngExt;
 use sha2::Sha256;
+use sqlx::PgPool;
 
 /// A key that stored bucket names are computed under.
 #[derive(Clone)]
@@ -46,6 +47,23 @@ impl fmt::Debug for BucketKey {
     }
 }
 
+/// Loads the database's address bucket key, generating it on first start.
+pub(crate) async fn load_or_generate_ip_bucket_key(pool: &PgPool) -> sqlx::Result<BucketKey> {
+    let fresh = BucketKey::random();
+
+    let stored = sqlx::query_scalar!(
+        "INSERT INTO registration_ip_bucket_key (key)
+        VALUES ($1)
+        ON CONFLICT (singleton) DO UPDATE SET key = registration_ip_bucket_key.key
+        RETURNING key",
+        fresh.as_bytes(),
+    )
+    .fetch_one(pool)
+    .await?;
+
+    BucketKey::from_stored(stored)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -70,5 +88,18 @@ mod test {
     #[test]
     fn debug_hides_the_key() {
         assert_eq!(format!("{:?}", BucketKey::random()), "BucketKey(redacted)");
+    }
+
+    #[sqlx::test]
+    async fn the_ip_bucket_key_is_stable_across_loads(pool: PgPool) -> anyhow::Result<()> {
+        let first = load_or_generate_ip_bucket_key(&pool).await?;
+        let second = load_or_generate_ip_bucket_key(&pool).await?;
+
+        assert_eq!(
+            first.bucket(b"label", b"input"),
+            second.bucket(b"label", b"input")
+        );
+
+        Ok(())
     }
 }

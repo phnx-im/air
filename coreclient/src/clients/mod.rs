@@ -29,6 +29,7 @@ use aircommon::{
     identifiers::{ClientConfig, QsClientId, QsReference, QsUserId, UserId},
     messages::{FriendshipToken, QueueMessage, push_token::PushToken},
     registration::RegistrationChallenge,
+    time::TimeStamp,
 };
 pub use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
 use airprotos::common::v1::Version;
@@ -53,7 +54,10 @@ use uuid::Uuid;
 
 use crate::{
     Asset, ChatMuted, PartialContact, StoredRequest, UsernameRecord,
-    clients::event_loop::{EventLoop, EventLoopSender},
+    clients::{
+        event_loop::{EventLoop, EventLoopSender},
+        process::process_as::keep_failed_username_message,
+    },
     contacts::{TargetedMessageContact, UsernameContact},
     db::access::{DbAccess, WriteDbTransaction},
     groups::{Group, self_group::SelfGroupNotJoinedYet},
@@ -83,6 +87,7 @@ use crate::{
 
 use self::{api_clients::ApiClients, create_user::InitialUserState, store::UserCreationState};
 
+pub use delete_account::AccountDeletionStatus;
 pub use message::MarkChatAsRead;
 pub use sibling_client_state::SiblingClientStates;
 
@@ -313,6 +318,11 @@ impl CoreUser {
             final_state.into_self_user(client_db, client_record_id, api_clients, global_lock);
         self_user.publish_own_device_entry(client_created_at).await;
         self_user.spawn_ensure_self_group();
+        match self_user.continue_account_deletion().await {
+            // Dropped, so the start doesn't wait for the deletion to finish.
+            Ok(_deletion_done) => {}
+            Err(error) => error!(%error, "failed to continue the account deletion"),
+        }
 
         Ok(self_user)
     }
@@ -524,6 +534,7 @@ impl CoreUser {
                 error!("no message id in username queue message");
                 return false;
             };
+            let created_at = message.created_at.map(TimeStamp::from);
             match self
                 .process_username_queue_message(record.username.clone(), message)
                 .await
@@ -533,9 +544,11 @@ impl CoreUser {
                 }
                 Err(error) => {
                     error!(%error, "failed to process username queue message");
+                    if keep_failed_username_message(&error, created_at) {
+                        return false;
+                    }
                 }
             }
-            // ack the message independently of the result of processing the message
             responder.ack(message_id.into()).await;
             true
         })

@@ -1,0 +1,3 @@
+CFBundleDisplayName = "Air";
+NSCameraUsageDescription = "L'Air fa servir la càmera per a fer fotos per als xats i per a escanejar el codi QR quan enllaceu un dispositiu.";
+NSPhotoLibraryUsageDescription = "L'Air fa servir la fototeca per a enviar fotos als xats i per a definir les imatges de perfil i de grup.";

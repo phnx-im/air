@@ -17,7 +17,7 @@ use airbackend::{
         grpc::GrpcQs,
         network_provider::NetworkProvider,
     },
-    relay_service::{Rs, grpc::GrpcRs},
+    relay_service::{RelayLimits, Rs, grpc::GrpcRs},
     settings::RateLimitsSettings,
 };
 use airprotos::{
@@ -78,6 +78,7 @@ pub struct ServerRunParams<Qc, Ac, Listener> {
     pub qs: Qs,
     pub qs_connector: Qc,
     pub rs: Rs,
+    pub relay_limits: RelayLimits,
     pub rate_limits: RateLimitsSettings,
     pub shutdown: CancellationToken,
 }
@@ -126,6 +127,7 @@ pub async fn run<
         qs,
         qs_connector,
         rs,
+        relay_limits,
         as_connector,
         rate_limits,
         shutdown,
@@ -189,7 +191,7 @@ pub async fn run<
     let grpc_as = GrpcAs::new(auth_service);
     let grpc_ds = GrpcDs::new(ds, qs_connector.clone(), as_connector);
     let grpc_qs = GrpcQs::new(qs);
-    let grpc_rs = GrpcRs::new(rs, qs_connector);
+    let grpc_rs = GrpcRs::new(rs, relay_limits, qs_connector);
 
     info!(?rate_limits, "Applying rate limits");
     let RateLimitsSettings { period, burst } = rate_limits;

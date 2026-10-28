@@ -28,6 +28,7 @@ use crate::{
 
 pub(crate) mod connection_packages;
 mod persistence;
+pub(crate) mod sync;
 
 impl CoreUser {
     /// Check whether a username exists on the AS. Relatively expensive operation, as it
@@ -86,7 +87,7 @@ impl CoreUser {
         };
         if !created {
             // The AS rolls the redemption back when the username is taken.
-            self.restore_unredeemed_token(OperationType::AddUsername, consumed)
+            privacy_pass::restore_unredeemed_token(self.db(), OperationType::AddUsername, consumed)
                 .await;
             return Ok(None);
         }
@@ -160,6 +161,17 @@ impl CoreUser {
             rollback(write, true).await;
             return Err(error.into());
         }
+        drop(write);
+
+        // We hand only a fully published username to the siblings. A rollback
+        // then never has to reach them.
+        let parked = self
+            .db()
+            .with_write_transaction(async |txn| sync::park_claimed(txn, &username).await)
+            .await?;
+        if parked {
+            self.outbound_service().notify_pending_chat_operations();
+        }
 
         Ok(Some(record))
     }
@@ -200,8 +212,21 @@ impl CoreUser {
         Ok(res)
     }
 
+    /// Removes the username on this device and on its siblings.
     pub(crate) async fn remove_username_locally(&self, username: &Username) -> anyhow::Result<()> {
-        UsernameRecord::delete(self.db().write().await?, username).await?;
+        let parked = self
+            .db()
+            .with_write_transaction(async |txn| -> anyhow::Result<bool> {
+                let Some(record) = UsernameRecord::load(&mut *txn, username).await? else {
+                    return Ok(false);
+                };
+                UsernameRecord::delete(&mut *txn, username).await?;
+                Ok(sync::park_released(txn, username, record.signing_key.verifying_key()).await?)
+            })
+            .await?;
+        if parked {
+            self.outbound_service().notify_pending_chat_operations();
+        }
         Ok(())
     }
 
@@ -244,18 +269,6 @@ impl CoreUser {
         )
         .await?;
         Ok(Err(shortage))
-    }
-
-    /// Puts a token back that the AS answered without redeeming. In case of
-    /// failure, we only log the warning, as there is nothing else to do.
-    pub(crate) async fn restore_unredeemed_token(
-        &self,
-        operation_type: OperationType,
-        consumed: ConsumedToken,
-    ) {
-        if let Err(error) = privacy_pass::restore_token(self.db(), operation_type, consumed).await {
-            warn!(%error, %operation_type, "failed to restore an unredeemed privacy pass token");
-        }
     }
 
     /// Purges all cached tokens (key rotation) and replenishes.

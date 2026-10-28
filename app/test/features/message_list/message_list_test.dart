@@ -36,12 +36,7 @@ const highTestSize = Size(1080, 4500);
 
 final chatId = 1.chatId();
 
-final firstMessageContent = UiMimiContent(
-  plainBody: 'Hello Alice from Bob',
-  topicId: Uint8List(0),
-  content: simpleMessage('Hello Alice from Bob'),
-  attachments: [],
-);
+final firstMessageContent = textContent('Hello Alice from Bob');
 
 final firstDeletedMessageContent = UiMimiContent(
   topicId: Uint8List(0),
@@ -50,17 +45,10 @@ final firstDeletedMessageContent = UiMimiContent(
   replaces: Uint8List(0),
 );
 
-final veryLongMimiContent = UiMimiContent(
-  topicId: Uint8List(0),
-  plainBody: '''Nice to see you both here! 👋
+final veryLongMimiContent = textContent(
+  '''Nice to see you both here! 👋
 
 This is a message with multiple lines. It should be properly displayed in the message bubble and split between multiple lines.''',
-  content: simpleMessage(
-    '''Nice to see you both here! 👋
-
-This is a message with multiple lines. It should be properly displayed in the message bubble and split between multiple lines.''',
-  ),
-  attachments: [],
 );
 
 final messages = [
@@ -711,7 +699,7 @@ final attachmentMessages = [
               description: "Failing golden tests",
             ),
           ],
-          firstAttachmentType: UiAttachmentType.file,
+          previewText: '📎',
         ),
       ),
     ),
@@ -732,7 +720,7 @@ final attachmentMessages = [
           plainBody: "Look what I've got to eat",
           content: simpleMessage("Look what I've got to eat"),
           attachments: [imageAttachment],
-          firstAttachmentType: UiAttachmentType.image,
+          previewText: '🖼️',
         ),
       ),
     ),
@@ -751,7 +739,7 @@ final attachmentMessages = [
         content: UiMimiContent(
           topicId: Uint8List(0),
           attachments: [imageAttachment],
-          firstAttachmentType: UiAttachmentType.image,
+          previewText: '🖼️',
         ),
       ),
     ),
@@ -779,7 +767,7 @@ final attachmentMessages = [
               ),
             ),
           ],
-          firstAttachmentType: UiAttachmentType.image,
+          previewText: '🖼️',
         ),
       ),
     ),
@@ -831,12 +819,7 @@ final replyMessages = [
     inReplyToMessage: UiInReplyToMessage.resolved(
       messageId: 2.messageId(),
       sender: 2.userId(),
-      mimiContent: UiMimiContent(
-        topicId: Uint8List(0),
-        plainBody: "Hi!",
-        content: simpleMessage("Hi!"),
-        attachments: [],
-      ),
+      mimiContent: textContent("Hi!"),
     ),
     status: UiMessageStatus.sent,
     reactions: [],
@@ -888,12 +871,7 @@ final replyMessages = [
     inReplyToMessage: UiInReplyToMessage.resolved(
       messageId: 3.messageId(),
       sender: 2.userId(),
-      mimiContent: UiMimiContent(
-        topicId: Uint8List(0),
-        plainBody: "🎉🎊✨",
-        content: simpleMessage("🎉🎊✨"),
-        attachments: [],
-      ),
+      mimiContent: textContent("🎉🎊✨"),
     ),
     status: UiMessageStatus.sent,
     reactions: [],

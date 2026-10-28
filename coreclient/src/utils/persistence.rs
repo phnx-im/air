@@ -174,6 +174,26 @@ async fn migrate_db_in_memory(
     Ok(data[..].into())
 }
 
+/// An in-memory database with the migrations before `version`. A migration
+/// test stores rows the way older clients did and then runs the rest.
+#[cfg(test)]
+pub(crate) async fn open_db_in_memory_before(version: i64) -> sqlx::Result<SqlitePool> {
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await?;
+    let mut migrator = sqlx::migrate!();
+    migrator.migrations = migrator
+        .migrations
+        .iter()
+        .filter(|migration| migration.version < version)
+        .cloned()
+        .collect::<Vec<_>>()
+        .into();
+    migrator.run(&pool).await?;
+    Ok(pool)
+}
+
 async fn write_pool(opts: SqliteConnectOptions) -> sqlx::Result<SqlitePool> {
     let write_opts = opts
         .clone()

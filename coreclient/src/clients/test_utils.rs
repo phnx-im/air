@@ -28,10 +28,11 @@ use crate::{
         pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     },
     outbound_service::{
+        account_deletion::AccountDeletion,
         error::is_ds_not_found_error,
         resync::{Resync, ResyncReason, ResyncStatus},
     },
-    usernames::connection_packages::ConnectionPackageRecord,
+    usernames::{UsernameRecord, connection_packages::ConnectionPackageRecord},
 };
 
 use super::*;
@@ -89,6 +90,30 @@ impl CoreUser {
 
     pub fn qs_client_id(&self) -> aircommon::identifiers::QsClientId {
         self.inner.qs_client_id
+    }
+
+    /// Creates a QS client record of this user that belongs to no device. An
+    /// unlinked device leaves such a record behind.
+    pub async fn create_detached_qs_client(
+        &self,
+        push_token: PushToken,
+    ) -> anyhow::Result<QsClientId> {
+        use aircommon::crypto::aead::AeadEncryptable;
+
+        let key_store = &self.inner.key_store;
+        let encrypted_push_token = push_token.encrypt(&key_store.push_token_ear_key)?;
+        let response = self
+            .api_client()?
+            .qs_create_client(
+                self.inner.qs_user_id,
+                QsClientSigningKey::generate()?.verifying_key().clone(),
+                RatchetDecryptionKey::generate()?.encryption_key().clone(),
+                Some(encrypted_push_token),
+                RatchetSecret::random()?,
+                &key_store.qs_user_signing_key,
+            )
+            .await?;
+        Ok(response.qs_client_id)
     }
 
     /// Deletes the QS user record without touching anything else.
@@ -211,6 +236,34 @@ impl CoreUser {
                 anyhow::Ok(epoch_id.is_some())
             })
             .await
+    }
+
+    /// Whether the account deletion this device started was aborted.
+    pub async fn account_deletion_is_aborted(&self) -> anyhow::Result<bool> {
+        Ok(matches!(
+            AccountDeletion::load(self.db().read().await?).await?,
+            Some(AccountDeletion::Aborted { .. })
+        ))
+    }
+
+    /// Deletes the username on the server but keeps its local record, as if
+    /// the device stopped before it deleted the record.
+    pub async fn delete_username_on_server_only(&self, username: &Username) -> anyhow::Result<()> {
+        let record = UsernameRecord::load_all(self.db().read().await?)
+            .await?
+            .into_iter()
+            .find(|record| &record.username == username)
+            .context("no username found")?;
+        let (token_request, _token_state) = crate::privacy_pass::prepare_delete_token_request(
+            self.db().read().await?,
+            self.user_id().domain(),
+        )
+        .await?
+        .context("no VOPRF keys available for delete token request")?;
+        self.api_client()?
+            .as_delete_username(record.hash, &record.signing_key, token_request)
+            .await?;
+        Ok(())
     }
 
     /// Returns the pending chat operation info for the self-group, if any.
@@ -609,15 +662,54 @@ impl CoreUser {
         Ok(())
     }
 
+    /// Deletes the connection package keys of `username` to simulate a device
+    /// still waiting for them.
+    pub async fn forget_connection_package_keys(&self, username: &Username) -> anyhow::Result<()> {
+        let keys =
+            ConnectionPackageRecord::load_keys_for_username(self.db().read().await?, username)
+                .await?;
+        let mut connection = self.db().write().await?;
+        for (record, _) in keys {
+            ConnectionPackageRecord::delete(&mut connection, &record.hash).await?;
+        }
+        Ok(())
+    }
+
+    /// When `username` was last refreshed, as far as this device knows.
+    pub async fn username_refreshed_at(
+        &self,
+        username: &Username,
+    ) -> anyhow::Result<Option<DateTime<Utc>>> {
+        let record =
+            UsernameRecord::load_with_timestamps(self.db().read().await?, username).await?;
+        Ok(record.map(|(_, _, refreshed_at)| refreshed_at))
+    }
+
+    /// Sets the last refresh time of `username` to simulate a missed refresh by
+    /// a sibling.
+    pub async fn set_username_refreshed_at(
+        &self,
+        username: &Username,
+        refreshed_at: DateTime<Utc>,
+    ) -> anyhow::Result<()> {
+        let (record, _, _) =
+            UsernameRecord::load_with_timestamps(self.db().read().await?, username)
+                .await?
+                .context("no such username")?;
+        UsernameRecord::update_refreshed_at(self.db().write().await?, &record.hash, refreshed_at)
+            .await?;
+        Ok(())
+    }
+
     /// The hashes of the connection packages of `username` whose decryption
     /// keys this device holds.
     pub async fn connection_package_hashes(
         &self,
         username: &Username,
     ) -> anyhow::Result<Vec<ConnectionPackageHash>> {
-        Ok(
-            ConnectionPackageRecord::load_hashes_for_username(self.db().read().await?, username)
-                .await?,
-        )
+        let keys =
+            ConnectionPackageRecord::load_keys_for_username(self.db().read().await?, username)
+                .await?;
+        Ok(keys.into_iter().map(|(record, _)| record.hash).collect())
     }
 }

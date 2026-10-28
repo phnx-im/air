@@ -23,7 +23,7 @@ use crate::{
     util::{BackgroundStreamContext, BackgroundStreamTask, spawn_from_sync},
 };
 
-use super::{AppState, CubitContext, UiUser};
+use super::{AppState, CubitContext};
 
 #[derive(Debug)]
 #[frb(ignore)]
@@ -152,7 +152,15 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
                 });
                 return Err(error.into());
             }
-            Err(error) => return Err(error.into()),
+            Err(error) => {
+                // An account deletion past the QS client can't listen to the
+                // queue anymore, which is what starts the outbound service
+                // otherwise, for example after the app was in the background.
+                if let Err(error) = self.cubit_context.core_user.resume_account_deletion().await {
+                    error!(%error, "failed to resume the account deletion");
+                }
+                return Err(error.into());
+            }
         };
         self.sibling_client_states = Some(self.cubit_context.core_user.sibling_client_states()?);
         self.spawn_report_client_state(responder.clone());
@@ -237,13 +245,6 @@ impl BackgroundStreamContext<ListenResponse> for QueueContext {
                         self.sibling_client_states.as_ref(),
                     )
                     .await;
-                // A commit in this batch may have removed this device from the
-                // self group, which the app has to act on.
-                UiUser::reload_account_unlinked(
-                    &self.cubit_context.state_tx,
-                    &self.cubit_context.core_user,
-                )
-                .await;
             }
             QsProcessEventResult::Accumulated | QsProcessEventResult::Ignored => (),
         };

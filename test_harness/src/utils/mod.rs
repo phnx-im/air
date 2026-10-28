@@ -20,7 +20,7 @@ use airbackend::{
     },
     ds::{Ds, storage::Storage},
     qs::Qs,
-    relay_service::Rs,
+    relay_service::{RelayLimits, Rs},
     settings::{DatabaseSettings, RateLimitsSettings, RegistrationPolicy},
 };
 use aircommon::{
@@ -151,6 +151,7 @@ pub(crate) async fn spawn_app(
 
     let TestBackendParams {
         rate_limits,
+        relay,
         version_policy,
         registration,
         unredeemable_code,
@@ -190,6 +191,10 @@ pub(crate) async fn spawn_app(
                 let delay = interceptor_control_handle.delay();
                 interceptor_control_handle.fired();
                 std::thread::sleep(delay);
+            }
+            Mode::FailNextRequest if interceptor_control_handle.take_armed(path) => {
+                interceptor_control_handle.fired();
+                return Err(Status::internal("failed for interop test"));
             }
             _ => {}
         }
@@ -288,7 +293,10 @@ pub(crate) async fn spawn_app(
         network: network_provider.clone(),
     };
 
-    let rs = Rs::new(stop.clone());
+    let relay_limits = RelayLimits::new(&qs, &relay, stop.clone())
+        .await
+        .expect("Failed to set up the relay's rate limits.");
+    let rs = Rs::new(stop.clone(), relay);
 
     // Start the server
     let server = run(
@@ -301,6 +309,7 @@ pub(crate) async fn spawn_app(
             qs,
             qs_connector,
             rs,
+            relay_limits,
             rate_limits: rate_limits.unwrap_or(TEST_RATE_LIMITS),
             shutdown: stop.clone(),
         },

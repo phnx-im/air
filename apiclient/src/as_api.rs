@@ -27,6 +27,7 @@ use aircommon::{
         push_token::{PushToken, PushTokenOperator},
     },
     registration::{ChallengeKind, NewAdmissionSession, RegistrationChallenge, RegistrationInfo},
+    time::TimeStamp,
     utils::KeepAliveStream,
 };
 use airprotos::{
@@ -40,10 +41,10 @@ use airprotos::{
         InvitationCode, IssueTokenBatchPayload, IssueTokenBatchResponse,
         KeepAliveListenUsernameRequest, ListenUsernameRequest, MergeUserProfilePayload,
         OperationType, PublishConnectionPackagesPayload, PushPlatform, RefreshUsernamePayload,
-        RegisterUserRequest, RegisterUserResponse, ReportSpamPayload, SignedConnectionPackage,
-        StageUserProfilePayload, UsernameQueueMessage, connect_username_request,
-        connect_username_response, issue_token_batch_response, listen_username_request,
-        register_user_response,
+        RefreshUsernameResponse, RegisterUserRequest, RegisterUserResponse, ReportSpamPayload,
+        SignedConnectionPackage, StageUserProfilePayload, UsernameQueueMessage,
+        connect_username_request, connect_username_response, issue_token_batch_response,
+        listen_username_request, register_user_response,
     },
     client::signed_connection_package::AnyConnectionPackageIn,
     common::v1::{StatusDetails, StatusDetailsCode},
@@ -401,23 +402,21 @@ impl ApiClient {
 
     /// Runs the connect username protocol.
     ///
-    /// `token` pays for the run and is redeemed with the fetch step. The server
-    /// does not require one yet, so a caller without a token still gets a
-    /// package during the rollout.
+    /// `token` pays for the run and is redeemed with the fetch step.
     pub async fn as_connect_username(
         &self,
         hash: UsernameHash,
-        token: Option<SerializedToken>,
+        token: SerializedToken,
     ) -> Result<(AnyConnectionPackageIn, AsConnectionOfferResponder), AsRequestError> {
         // Step 1: Fetch connection package
         let fetch_request = ConnectUsernameRequest {
-            // Already try to fetch a signed connection package. If there is no such package, the
-            // server will answer with a legacy connection package.
+            // Ask for a signed connection package. If there is no such package, the server
+            // answers with a legacy connection package.
             step: Some(connect_username_request::Step::FetchSigned(
                 FetchSignedConnectionPackageStep {
                     client_metadata: Some(self.metadata().clone()),
                     hash: Some(hash.into()),
-                    token: token.map(SerializedToken::into_bytes),
+                    token: Some(token.into_bytes()),
                 },
             )),
         };
@@ -669,15 +668,19 @@ impl ApiClient {
         hash: UsernameHash,
         signing_key: &UsernameSigningKey,
         token: SerializedToken,
-    ) -> Result<(), AsRequestError> {
+    ) -> Result<UsernameRefresh, AsRequestError> {
         let payload = RefreshUsernamePayload {
             client_metadata: Some(self.metadata().clone()),
             hash: Some(hash.into()),
             token: Some(token.into_bytes()),
         };
         let request = payload.sign(signing_key)?;
-        self.as_grpc_client().refresh_username(request).await?;
-        Ok(())
+        let response = self
+            .as_grpc_client()
+            .refresh_username(request)
+            .await?
+            .into_inner();
+        response.try_into()
     }
 
     pub async fn as_delete_username(
@@ -736,6 +739,34 @@ impl ApiClient {
             .await?
             .into_inner();
         response.try_into()
+    }
+}
+
+/// What the AS did with a username refresh.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UsernameRefresh {
+    Refreshed,
+    /// The username is not due for a refresh. The AS does not redeem the token.
+    Skipped {
+        expires_at: TimeStamp,
+    },
+}
+
+impl TryFrom<RefreshUsernameResponse> for UsernameRefresh {
+    type Error = AsRequestError;
+
+    fn try_from(response: RefreshUsernameResponse) -> Result<Self, Self::Error> {
+        // A server without the refresh guard answers with an empty response.
+        if !response.skipped {
+            return Ok(Self::Refreshed);
+        }
+        let expires_at = response.expires_at.ok_or_else(|| {
+            error!("missing `expires_at` in a skipped refresh");
+            AsRequestError::UnexpectedResponse
+        })?;
+        Ok(Self::Skipped {
+            expires_at: expires_at.into(),
+        })
     }
 }
 

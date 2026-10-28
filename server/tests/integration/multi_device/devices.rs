@@ -4,6 +4,7 @@
 
 //! Managing linked devices: unlinking and renaming.
 
+use aircoreclient::UnlinkReason;
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use uuid::Uuid;
 
@@ -43,17 +44,19 @@ async fn unlinked_device_flags_itself() -> anyhow::Result<()> {
     alice2.drain().await;
 
     let b_id = alice2.own_client_id().await?;
-    assert!(!alice2.is_account_unlinked().await?);
+    assert_eq!(alice2.account_unlink_reason().await?, None);
 
     alice.unlink_device(b_id).await?;
     alice2.drain().await;
 
-    assert!(
-        alice2.is_account_unlinked().await?,
+    assert_eq!(
+        alice2.account_unlink_reason().await?,
+        Some(UnlinkReason::Unlinked),
         "the removed device must know it was unlinked"
     );
-    assert!(
-        !alice.is_account_unlinked().await?,
+    assert_eq!(
+        alice.account_unlink_reason().await?,
+        None,
         "the remover must not flag itself"
     );
 

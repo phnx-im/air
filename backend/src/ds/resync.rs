@@ -24,6 +24,7 @@ use crate::errors::ResyncClientError;
 
 use super::{
     apq::ApqExternalCommit,
+    client_references::ClientReferencesSnapshot,
     group_state::{DsGroupState, leaf_credential_matches_flag},
 };
 
@@ -209,6 +210,7 @@ impl DsGroupState {
         pq_message: AssistedMessageIn,
         t_sender_index: LeafNodeIndex,
     ) -> Result<ResyncOutcome, ResyncClientError> {
+        let client_references_before = ClientReferencesSnapshot::of(t_group_state);
         let processed_assisted_message_plus =
             ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
                 .process_apq_assisted_message(
@@ -290,6 +292,10 @@ impl DsGroupState {
                 pq_group_state.provider.storage(),
                 processed_assisted_message_plus.processed_assisted_message,
             )?;
+
+        client_references_before
+            .compare(t_group_state)
+            .check_resync()?;
 
         t_group_state.remove_profiles(t_removed_indices);
 

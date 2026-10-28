@@ -38,6 +38,7 @@ use crate::{
         api_clients::ApiClients,
         block_contact,
         linked_devices::merge_device_entry_locally,
+        multi_device::device_link::{DeviceLink, DeviceLinkFailure},
         own_client_info::OwnClientInfo,
         update_key::update_chat_attributes,
         user_settings::{SettingChanges, SettingsUpdateExt},
@@ -58,7 +59,7 @@ use crate::{
         key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
     },
     outbound_service::timed_tasks::{TimedTask, TimedTaskKind},
-    privacy_pass,
+    privacy_pass, usernames,
 };
 
 // Having separate retry intervals for test and non-test is a hack until we can
@@ -123,6 +124,10 @@ pub(super) enum OperationType {
     },
     SelfGroupAdd {
         params: Box<ApqGroupOperationParamsOut>,
+        /// The device being added, so a terminal failure reaches its
+        /// device link.
+        #[serde(default)]
+        client_id: Option<Uuid>,
     },
 }
 
@@ -229,6 +234,9 @@ async fn complete_sent_messages(
             SelfGroupMessage::DeletedChat(chat) => {
                 chats::persistence::remove_staged_deletion(txn, std::slice::from_ref(chat)).await?
             }
+            SelfGroupMessage::UsernamesUpdate(update) => {
+                usernames::sync::complete_sent_entries(txn, &update.usernames).await?
+            }
             SelfGroupMessage::ConnectionRequestsUpdate(update) => {
                 chats::connection_requests::complete_sent_entries(txn, &update.requests).await?
             }
@@ -245,7 +253,7 @@ async fn complete_sent_messages(
 /// Settings return to the values stored before they were touched, because the
 /// local write was optimistic. A block stays applied and parked: it is not an
 /// optimistic edit to undo, and it reaches the siblings on a later commit. The
-/// same holds for a deleted chat and a connection request.
+/// same holds for a deleted chat, a username and a connection request.
 async fn roll_back_sent_messages(
     txn: &mut WriteDbTransaction<'_>,
     messages: &[SelfGroupMessage],
@@ -314,7 +322,15 @@ impl Job for PendingChatOperation {
                 JobError::Fatal(_)
                 | JobError::Domain(ChatOperationError::DeviceLimitReached { .. }),
             ) => {
-                self.clean_up(context, true).await;
+                let failure = match &error {
+                    Err(JobError::Domain(ChatOperationError::DeviceLimitReached {
+                        max_devices,
+                    })) => DeviceLinkFailure::DeviceLimitReached {
+                        max_devices: *max_devices,
+                    },
+                    _ => DeviceLinkFailure::Rejected,
+                };
+                self.clean_up(context, Some(failure)).await;
                 error
             }
             // The staged commit is stale, so only a new commit can carry its
@@ -325,7 +341,7 @@ impl Job for PendingChatOperation {
                 cause: RecoverableCause::Stale,
                 ..
             })) => {
-                self.clean_up(context, false).await;
+                self.clean_up(context, None).await;
                 error
             }
             // Update retry_due at on errors a later attempt may get past
@@ -354,7 +370,8 @@ impl Job for PendingChatOperation {
                     .write()
                     .await?
                     .with_transaction(async |txn| {
-                        self.roll_back_self_group_intent(txn).await?;
+                        self.roll_back_self_group_intent(txn, DeviceLinkFailure::Rejected)
+                            .await?;
                         handle_group_not_found_on_ds(txn, &group_id).await
                     })
                     .await?;
@@ -368,7 +385,8 @@ impl Job for PendingChatOperation {
                     .write()
                     .await?
                     .with_transaction(async |txn| {
-                        self.clean_up_in_transaction(txn, true).await?;
+                        self.clean_up_in_transaction(txn, Some(DeviceLinkFailure::Rejected))
+                            .await?;
                         handle_group_closed_on_ds(txn, &group_id).await
                     })
                     .await?;
@@ -380,17 +398,22 @@ impl Job for PendingChatOperation {
 }
 
 impl PendingChatOperation {
-    /// Drops the operation and its staged commit. With `roll_back_intent`, the
-    /// parked self-group changes it carried are given up as well, otherwise
-    /// they stay parked for the next commit.
-    async fn clean_up(&mut self, context: &mut JobContext<'_, '_>, roll_back_intent: bool) {
+    /// Drops the operation and its staged commit. With a `roll_back` failure,
+    /// the parked self-group changes it carried are given up as well, and a
+    /// device add reports that failure to its device link. Otherwise they stay
+    /// parked for the next commit.
+    async fn clean_up(
+        &mut self,
+        context: &mut JobContext<'_, '_>,
+        roll_back: Option<DeviceLinkFailure>,
+    ) {
         let Ok(mut connection) = context.db.write().await.inspect_err(|error| {
             error!(%error, "Failed to delete pending chat operation");
         }) else {
             return;
         };
         connection
-            .with_transaction(async |txn| self.clean_up_in_transaction(txn, roll_back_intent).await)
+            .with_transaction(async |txn| self.clean_up_in_transaction(txn, roll_back).await)
             .await
             .inspect_err(|error| {
                 error!(%error, "Failed to delete pending chat operation");
@@ -401,10 +424,10 @@ impl PendingChatOperation {
     async fn clean_up_in_transaction(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
-        roll_back_intent: bool,
+        roll_back: Option<DeviceLinkFailure>,
     ) -> anyhow::Result<()> {
-        if roll_back_intent {
-            self.roll_back_self_group_intent(txn).await?;
+        if let Some(failure) = roll_back {
+            self.roll_back_self_group_intent(txn, failure).await?;
         }
         self.group
             .group_mut()
@@ -430,6 +453,17 @@ impl PendingChatOperation {
 
     pub(crate) fn is_leave(&self) -> bool {
         matches!(self.operation, OperationType::Leave(_))
+    }
+
+    pub(crate) fn is_delete(&self) -> bool {
+        self.operation.is_delete()
+    }
+
+    pub(crate) fn is_waiting_for_queue_response(&self) -> bool {
+        matches!(
+            self.status,
+            PendingChatOperationStatus::WaitingForQueueResponse
+        )
     }
 
     /// Completes the pending intent this operation asserted, now that its commit
@@ -470,6 +504,7 @@ impl PendingChatOperation {
     async fn roll_back_self_group_intent(
         &self,
         txn: &mut WriteDbTransaction<'_>,
+        failure: DeviceLinkFailure,
     ) -> anyhow::Result<()> {
         match &self.operation {
             OperationType::SelfGroupMessages { messages, .. } => {
@@ -480,6 +515,11 @@ impl PendingChatOperation {
             OperationType::TokenSeeds { seeds, .. } => {
                 privacy_pass::roll_back_sent_seeds(txn, seeds).await
             }
+            // The linking flow learns of the failure through the device link.
+            OperationType::SelfGroupAdd {
+                client_id: Some(client_id),
+                ..
+            } => Ok(DeviceLink::fail_add(txn, *client_id, failure).await?),
             _ => Ok(()),
         }
     }
@@ -582,6 +622,10 @@ impl PendingChatOperation {
                 let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
                 let own_encrypted_user_profile_key =
                     encrypt_user_profile_key(db.read().await?).await?;
+                // In the self group, this is the daily self-update of the T leg only. See
+                // `ApqOther`.
+                let client_references_signature =
+                    self.group.client_references_signature(key_store, true)?;
 
                 api_client
                     .ds_group_operation(
@@ -590,6 +634,7 @@ impl PendingChatOperation {
                         self.group.group_state_ear_key(),
                         own_qs_client_reference,
                         own_encrypted_user_profile_key,
+                        client_references_signature,
                     )
                     .await
             }
@@ -601,6 +646,11 @@ impl PendingChatOperation {
                 let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
                 let own_encrypted_user_profile_key =
                     encrypt_user_profile_key(db.read().await?).await?;
+                // In the self group, this is the daily self-update when the PQ leg is due as well.
+                // We sign the references even if they are unchanged. The QS can then catch up with
+                // a reconciliation it missed.
+                let client_references_signature =
+                    self.group.client_references_signature(key_store, true)?;
 
                 api_client
                     .ds_apq_group_operation(
@@ -609,17 +659,20 @@ impl PendingChatOperation {
                         self.group.group_state_ear_key(),
                         own_qs_client_reference,
                         own_encrypted_user_profile_key,
+                        client_references_signature,
                     )
                     .await
             }
             OperationType::SelfGroupMessages { params, .. }
             | OperationType::TokenSeeds { params, .. }
             | OperationType::SelfGroupRemove { params }
-            | OperationType::SelfGroupAdd { params }
+            | OperationType::SelfGroupAdd { params, .. }
             | OperationType::SelfGroupKeyPackageUpload { params, .. } => {
                 let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
                 let own_encrypted_user_profile_key =
                     encrypt_user_profile_key(db.read().await?).await?;
+                let client_references_signature =
+                    self.group.client_references_signature(key_store, false)?;
 
                 api_client
                     .ds_apq_group_operation(
@@ -628,6 +681,7 @@ impl PendingChatOperation {
                         self.group.group_state_ear_key(),
                         own_qs_client_reference,
                         own_encrypted_user_profile_key,
+                        client_references_signature,
                     )
                     .await
             }
@@ -989,7 +1043,7 @@ impl PendingChatOperation {
     }
 
     /// Stages a self-group commit removing the given devices' leaves.
-    pub(super) async fn create_remove_clients(
+    pub(crate) async fn create_remove_clients(
         txn: &mut WriteDbTransaction<'_>,
         client_ids: Vec<Uuid>,
     ) -> anyhow::Result<Self> {
@@ -1030,13 +1084,14 @@ impl PendingChatOperation {
     ///
     /// The commit also carries the device's metadata entry, so the siblings
     /// learn it without a second commit advancing the epoch behind our back.
-    pub(super) async fn create_add_client(
+    pub(crate) async fn create_add_client(
         txn: &mut WriteDbTransaction<'_>,
         signer: &UserSigningKey,
         wai_key: &WelcomeAttributionInfoEarKey,
         key_package: ApqKeyPackage,
         device: LinkedDevice,
     ) -> anyhow::Result<Self> {
+        let client_id = device.client_id;
         let own_info = OwnClientInfo::load(&mut *txn).await?;
         let self_group_id = own_info.self_group_id.context("no self group")?;
         let self_group_signer = own_info
@@ -1091,6 +1146,7 @@ impl PendingChatOperation {
             group,
             OperationType::SelfGroupAdd {
                 params: Box::new(params),
+                client_id: Some(client_id),
             },
         );
         job.store(txn).await?;
@@ -1163,11 +1219,12 @@ impl PendingChatOperation {
         let mut group = Group::load_clean_verified(&mut *txn, group_id)
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+        let signer = OwnClientInfo::signer_for_group(&mut *txn, group_id, signer).await?;
 
         let operation_type = if group.is_apq() {
             let bundle = group
                 .group_mut()
-                .stage_apq_delete(&mut *txn, signer, deleted)
+                .stage_apq_delete(&mut *txn, &signer, deleted)
                 .await?;
             OperationType::ApqDelete {
                 commit: Box::new(bundle),
@@ -1175,7 +1232,7 @@ impl PendingChatOperation {
         } else {
             let message = group
                 .group_mut()
-                .stage_delete(&mut *txn, signer, deleted)
+                .stage_delete(&mut *txn, &signer, deleted)
                 .await?;
             OperationType::Delete(Box::new(message))
         };
@@ -1870,6 +1927,8 @@ pub mod test_utils {
 #[cfg(test)]
 pub(crate) mod tests {
 
+    use std::collections::HashSet;
+
     use aircommon::{
         credentials::{
             keys::{LeafSigningKey, SelfGroupSigningKey, UserSigningKey},
@@ -1980,7 +2039,7 @@ pub(crate) mod tests {
                 SettingChanges::record(txn, &ReadReceiptsSetting(true)).await?;
                 assert!(SettingChanges::has_pending(&mut *txn).await?);
 
-                pending.clean_up_in_transaction(txn, false).await?;
+                pending.clean_up_in_transaction(txn, None).await?;
 
                 assert!(
                     PendingChatOperation::load_by_group_id(&mut *txn, &group_id)
@@ -2008,7 +2067,9 @@ pub(crate) mod tests {
                 SettingChanges::record(txn, &ReadReceiptsSetting(true)).await?;
                 assert!(SettingChanges::has_pending(&mut *txn).await?);
 
-                pending.clean_up_in_transaction(txn, true).await?;
+                pending
+                    .clean_up_in_transaction(txn, Some(DeviceLinkFailure::Rejected))
+                    .await?;
 
                 assert!(
                     PendingChatOperation::load_by_group_id(&mut *txn, &group_id)
@@ -2147,13 +2208,9 @@ pub(crate) mod tests {
     }
 
     fn leaf_client_reference(leaf: &openmls::prelude::LeafNode) -> Option<QsReference> {
-        use aircommon::mls_group_config::QS_CLIENT_REFERENCE_EXTENSION_TYPE;
-        use tls_codec::DeserializeBytes as _;
-
-        let extension = leaf
-            .extensions()
-            .unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE)?;
-        QsReference::tls_deserialize_exact_bytes(&extension.0).ok()
+        aircommon::mls_group_config::leaf_client_reference(leaf)?
+            .decode()
+            .ok()
     }
 
     /// A self-update staged in the self group keeps the self-group credential
@@ -2197,7 +2254,12 @@ pub(crate) mod tests {
 
         assert_eq!(
             leaf_client_reference(&update_path_leaf(&group)?),
-            Some(own_client_reference)
+            Some(own_client_reference.clone())
+        );
+        // The repair changes the references. The commit therefore signs them.
+        assert_eq!(
+            group.client_references_to_sign(false)?,
+            Some(HashSet::from([own_client_reference]))
         );
         Ok(())
     }
@@ -2215,7 +2277,12 @@ pub(crate) mod tests {
 
         assert_eq!(
             leaf_client_reference(&update_path_leaf(&group)?),
-            Some(creator_client_reference)
+            Some(creator_client_reference.clone())
+        );
+        assert_eq!(group.client_references_to_sign(false)?, None);
+        assert_eq!(
+            group.client_references_to_sign(true)?,
+            Some(HashSet::from([creator_client_reference]))
         );
         Ok(())
     }
@@ -2383,6 +2450,59 @@ pub(crate) mod tests {
         Ok(())
     }
 
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_failed_add_marks_its_device_link_failed() -> anyhow::Result<()> {
+        use aircommon::crypto::signatures::keys::QsClientSigningKey;
+
+        use crate::clients::multi_device::device_link::{
+            DeviceLinkState, ProvisionedQueue, SelfGroupJoinRequest,
+        };
+
+        let (pool, user_id, signing_key, _group_id) = setup_self_group().await?;
+        let wai_key = WelcomeAttributionInfoEarKey::random()?;
+        let client_id = Uuid::new_v4();
+        let queue = ProvisionedQueue {
+            qs_client_id: Uuid::new_v4().into(),
+            qs_client_signing_key: QsClientSigningKey::generate()?,
+        };
+        let deadline = Utc::now() + Duration::minutes(10);
+
+        let link_id = pool
+            .write()
+            .await?
+            .with_transaction(async |txn| -> anyhow::Result<Uuid> {
+                let link_id = DeviceLink::create(&mut *txn, queue, deadline).await?;
+                let key_package = linked_device_key_package(txn, &user_id, client_id).await?;
+                let request = SelfGroupJoinRequest {
+                    key_package: key_package.clone(),
+                    device: linked_device(client_id),
+                };
+                DeviceLink::request_add(&mut *txn, link_id, request, deadline).await?;
+                let job = PendingChatOperation::create_add_client(
+                    txn,
+                    &signing_key,
+                    &wai_key,
+                    key_package,
+                    linked_device(client_id),
+                )
+                .await?;
+                let failure = DeviceLinkFailure::DeviceLimitReached { max_devices: 2 };
+                job.roll_back_self_group_intent(txn, failure).await?;
+                Ok(link_id)
+            })
+            .await?;
+
+        let link = DeviceLink::load(pool.read().await?, link_id)
+            .await?
+            .expect("the link should be stored");
+        assert_eq!(link.state, DeviceLinkState::Failed);
+        assert_eq!(
+            link.failure,
+            Some(DeviceLinkFailure::DeviceLimitReached { max_devices: 2 })
+        );
+        Ok(())
+    }
+
     /// Discarding the add job (what a foreign commit and the terminal-failure
     /// path both do) drops the staged commit, so the self group is usable
     /// again instead of being wedged by a failed linking attempt.
@@ -2486,6 +2606,20 @@ pub(crate) mod tests {
             .store(pool.write().await?)
             .await?;
         Ok((pool, chat_id))
+    }
+
+    /// A group and its chat with a pending delete operation.
+    pub(crate) async fn setup_group_with_pending_delete() -> anyhow::Result<(DbAccess, GroupId)> {
+        let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
+        let group_id = group.group_id().clone();
+        let params = group
+            .group_mut()
+            .stage_delete(pool.write().await?, &signing_key, Some(TimeStamp::now()))
+            .await?;
+        PendingChatOperation::new(group, OperationType::Delete(Box::new(params)))
+            .store(pool.write().await?)
+            .await?;
+        Ok((pool, group_id))
     }
 
     #[tokio::test(flavor = "multi_thread")]

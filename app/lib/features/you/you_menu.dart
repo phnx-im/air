@@ -31,9 +31,8 @@ class YouMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (developerMode, experimentalFeatures) = context.select(
-      (UserSettingsCubit cubit) =>
-          (cubit.state.developerMode, cubit.state.experimentalFeaturesActive),
+    final developerMode = context.select(
+      (UserSettingsCubit cubit) => cubit.state.developerMode,
     );
     final activeSection = context.select(
       (NavigationCubit cubit) => switch (cubit.state) {
@@ -42,14 +41,8 @@ class YouMenu extends StatelessWidget {
       },
     );
 
-    // Linking a device is not ready yet, so it rides on the experiments
-    // switch. The developer section is the surface itself.
     final groups = [
-      [
-        YouSection.profile,
-        if (experimentalFeatures) YouSection.devices,
-        YouSection.account,
-      ],
+      [YouSection.profile, YouSection.devices, YouSection.account],
       [YouSection.preferences, YouSection.help],
       if (developerMode) [YouSection.developer],
     ];

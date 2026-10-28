@@ -4,6 +4,7 @@
 
 pub(crate) mod apq_group;
 pub(crate) mod client_auth_info;
+pub(crate) mod client_references;
 pub(crate) mod compatibility;
 pub(crate) mod debug_info;
 // TODO: Allowing dead code here for now. We'll need diffs when we start
@@ -115,7 +116,10 @@ use crate::{
     groups::{apq_group::PqGroup, client_auth_info::VerifiableUserCredentialExt},
     job::chat_operation::DerivationEpoch,
     key_stores::as_credentials::AsCredentials,
-    outbound_service::resync::{Resync, ResyncReason},
+    outbound_service::{
+        account_deletion::AccountDeletion,
+        resync::{Resync, ResyncReason},
+    },
 };
 
 use openmls::{
@@ -1302,7 +1306,7 @@ impl Group {
 
         // Every leaf of the self group contains the QS client reference of its
         // device. We need to make sure the reference is preserved during a
-        // resync.
+        // resync. The DS rejects a resync that changes the client references.
         let replaced_client_reference = match signer {
             LeafSigningKey::User(_) => None,
             LeafSigningKey::SelfGroup(_) => own_client_reference_extension(&t_ratchet_tree, signer),
@@ -1797,7 +1801,7 @@ impl Group {
     pub(super) async fn stage_delete(
         &mut self,
         mut connection: impl WriteConnection,
-        signer: &UserSigningKey,
+        signer: &impl Signer,
         deleted: Option<TimeStamp>,
     ) -> anyhow::Result<DeleteGroupParamsOut> {
         let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
@@ -1856,7 +1860,7 @@ impl Group {
     pub(super) async fn stage_apq_delete(
         &mut self,
         mut connection: impl WriteConnection,
-        signer: &UserSigningKey,
+        signer: &impl ApqSigner,
         deleted: Option<TimeStamp>,
     ) -> anyhow::Result<ApqCommitMessageBundle> {
         let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
@@ -3192,10 +3196,16 @@ pub(crate) async fn handle_group_not_found_on_ds(
 /// with a message naming who closed the group. Without an active chat there is
 /// nothing to announce, and the group is cleaned up like one the DS doesn't
 /// know.
+///
+/// A closed own self group means that the account is deleted, see
+/// [`AccountDeletion::self_group_closed`].
 pub(crate) async fn handle_group_closed_on_ds(
     txn: &mut WriteDbTransaction<'_>,
     group_id: &GroupId,
 ) -> anyhow::Result<()> {
+    if OwnClientInfo::is_own_self_group(&mut *txn, group_id).await? {
+        AccountDeletion::self_group_closed(&mut *txn).await?;
+    }
     let Some(group) = Group::load(&mut *txn, group_id).await? else {
         return handle_group_not_found_on_ds(txn, group_id).await;
     };

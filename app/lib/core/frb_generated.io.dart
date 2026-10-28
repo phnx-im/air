@@ -813,9 +813,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_box_autoadd_ui_accept_contact_request_error(dynamic raw);
 
   @protected
-  UiAttachmentType dco_decode_box_autoadd_ui_attachment_type(dynamic raw);
-
-  @protected
   UiChatAttributes dco_decode_box_autoadd_ui_chat_attributes(dynamic raw);
 
   @protected
@@ -862,6 +859,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiSystemMessage dco_decode_box_autoadd_ui_system_message(dynamic raw);
+
+  @protected
+  UiUnlinkReason dco_decode_box_autoadd_ui_unlink_reason(dynamic raw);
 
   @protected
   UiUserId dco_decode_box_autoadd_ui_user_id(dynamic raw);
@@ -1244,9 +1244,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_opt_box_autoadd_ui_accept_contact_request_error(dynamic raw);
 
   @protected
-  UiAttachmentType? dco_decode_opt_box_autoadd_ui_attachment_type(dynamic raw);
-
-  @protected
   UiChatDetails? dco_decode_opt_box_autoadd_ui_chat_details(dynamic raw);
 
   @protected
@@ -1271,6 +1268,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiMessageDraft? dco_decode_opt_box_autoadd_ui_message_draft(dynamic raw);
+
+  @protected
+  UiUnlinkReason? dco_decode_opt_box_autoadd_ui_unlink_reason(dynamic raw);
 
   @protected
   UiUserId? dco_decode_opt_box_autoadd_ui_user_id(dynamic raw);
@@ -1375,13 +1375,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UiAccountDeletionStatus dco_decode_ui_account_deletion_status(dynamic raw);
+
+  @protected
   UiAttachment dco_decode_ui_attachment(dynamic raw);
 
   @protected
   UiAttachmentStatus dco_decode_ui_attachment_status(dynamic raw);
-
-  @protected
-  UiAttachmentType dco_decode_ui_attachment_type(dynamic raw);
 
   @protected
   UiChatAttributes dco_decode_ui_chat_attributes(dynamic raw);
@@ -1466,6 +1466,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiSystemMessage dco_decode_ui_system_message(dynamic raw);
+
+  @protected
+  UiUnlinkReason dco_decode_ui_unlink_reason(dynamic raw);
 
   @protected
   UiUserId dco_decode_ui_user_id(dynamic raw);
@@ -2209,11 +2212,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UiAttachmentType sse_decode_box_autoadd_ui_attachment_type(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   UiChatAttributes sse_decode_box_autoadd_ui_chat_attributes(
     SseDeserializer deserializer,
   );
@@ -2288,6 +2286,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiSystemMessage sse_decode_box_autoadd_ui_system_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiUnlinkReason sse_decode_box_autoadd_ui_unlink_reason(
     SseDeserializer deserializer,
   );
 
@@ -2770,11 +2773,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UiAttachmentType? sse_decode_opt_box_autoadd_ui_attachment_type(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   UiChatDetails? sse_decode_opt_box_autoadd_ui_chat_details(
     SseDeserializer deserializer,
   );
@@ -2811,6 +2809,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiMessageDraft? sse_decode_opt_box_autoadd_ui_message_draft(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiUnlinkReason? sse_decode_opt_box_autoadd_ui_unlink_reason(
     SseDeserializer deserializer,
   );
 
@@ -2933,15 +2936,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UiAccountDeletionStatus sse_decode_ui_account_deletion_status(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiAttachment sse_decode_ui_attachment(SseDeserializer deserializer);
 
   @protected
   UiAttachmentStatus sse_decode_ui_attachment_status(
     SseDeserializer deserializer,
   );
-
-  @protected
-  UiAttachmentType sse_decode_ui_attachment_type(SseDeserializer deserializer);
 
   @protected
   UiChatAttributes sse_decode_ui_chat_attributes(SseDeserializer deserializer);
@@ -3034,6 +3039,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiSystemMessage sse_decode_ui_system_message(SseDeserializer deserializer);
+
+  @protected
+  UiUnlinkReason sse_decode_ui_unlink_reason(SseDeserializer deserializer);
 
   @protected
   UiUserId sse_decode_ui_user_id(SseDeserializer deserializer);
@@ -3929,12 +3937,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_ui_attachment_type(
-    UiAttachmentType self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_box_autoadd_ui_chat_attributes(
     UiChatAttributes self,
     SseSerializer serializer,
@@ -4027,6 +4029,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_ui_system_message(
     UiSystemMessage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_ui_unlink_reason(
+    UiUnlinkReason self,
     SseSerializer serializer,
   );
 
@@ -4628,12 +4636,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_opt_box_autoadd_ui_attachment_type(
-    UiAttachmentType? self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_opt_box_autoadd_ui_chat_details(
     UiChatDetails? self,
     SseSerializer serializer,
@@ -4678,6 +4680,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_ui_message_draft(
     UiMessageDraft? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_ui_unlink_reason(
+    UiUnlinkReason? self,
     SseSerializer serializer,
   );
 
@@ -4835,17 +4843,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_ui_account_deletion_status(
+    UiAccountDeletionStatus self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_ui_attachment(UiAttachment self, SseSerializer serializer);
 
   @protected
   void sse_encode_ui_attachment_status(
     UiAttachmentStatus self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_attachment_type(
-    UiAttachmentType self,
     SseSerializer serializer,
   );
 
@@ -4984,6 +4992,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ui_system_message(
     UiSystemMessage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ui_unlink_reason(
+    UiUnlinkReason self,
     SseSerializer serializer,
   );
 

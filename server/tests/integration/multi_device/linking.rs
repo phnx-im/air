@@ -5,28 +5,30 @@
 //! Linking new devices: the linking session, its error cases, device names and
 //! resulting client state.
 
-use std::{assert_matches, collections::HashSet};
+use std::{assert_matches, collections::HashSet, time::Duration};
 
+use aircommon::crypto::mdl::code::{LinkingCode, MIN_CODE_DIGITS, PASSWORD_DIGITS};
 use aircoreclient::{
     ChatId, ChatStatus, UserProfile,
     clients::{
-        CoreUser, ListenResponse, listen_response, multi_device::MultiDeviceLinkClientError,
+        CoreUser, ListenResponse, listen_response,
+        multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
         store::ClientRecord,
     },
 };
-use airprotos::{
-    queue_service::v1::{SiblingClientState, sibling_client_state},
-    relay_service::v1::LinkingSessionId,
+use airprotos::queue_service::v1::{SiblingClientState, sibling_client_state};
+use airserver_test_harness::utils::{
+    core_user_ext::CoreUserExt,
+    setup::{RelaySettings, TestBackend, TestBackendParams},
 };
-use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use tempfile::TempDir;
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::{
-    auto_confirm, client_db_files, device_linked_client_ids, ignore_connected,
-    next_sibling_client_state, recv_session_id, self_chat_id, self_group_client_ids,
+    auto_confirm, client_db_files, device_linked_client_ids, ignore_connected, in_foreground,
+    next_sibling_client_state, recv_linking_code, self_chat_id, self_group_client_ids,
     send_and_receive,
 };
 
@@ -268,15 +270,13 @@ async fn link_with_unknown_session_fails() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
-    let fake_digest =
-        hex::decode("68924f1f6f60d5fdb8463881a5945e58c3f1402c65681b1270f5aeccbed17bd1")
-            .unwrap()
-            .try_into()
-            .unwrap();
-    let fake_session_id = LinkingSessionId::from_digest(&fake_digest, 8).unwrap();
-    let result = alice
-        .multi_device_link_client(fake_session_id, ignore_connected(), auto_confirm())
-        .await;
+    // A well-formed code for a session that was never opened.
+    let fake_code = LinkingCode::generate("999").unwrap().to_digits();
+    let result = in_foreground(
+        &alice,
+        alice.multi_device_link_client(fake_code, ignore_connected(), auto_confirm()),
+    )
+    .await;
 
     assert!(matches!(
         result,
@@ -299,23 +299,26 @@ async fn consumed_session_cannot_be_linked_again() {
         CoreUser::new_linked_ephemeral(domain, server_url, session_tx)
             .await
             .unwrap()
-            .unwrap()
     });
 
-    let session_id = recv_session_id(&mut session_rx).await;
+    let session_id = recv_linking_code(&mut session_rx).await;
 
-    alice
-        .multi_device_link_client(session_id.clone(), ignore_connected(), auto_confirm())
-        .await
-        .unwrap()
-        .unwrap();
+    in_foreground(
+        &alice,
+        alice.multi_device_link_client(session_id.clone(), ignore_connected(), auto_confirm()),
+    )
+    .await
+    .unwrap()
+    .unwrap();
 
     new_device_task.await.unwrap();
 
     // Session was already consumed — a second attempt must fail.
-    let second_result = alice
-        .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
-        .await;
+    let second_result = in_foreground(
+        &alice,
+        alice.multi_device_link_client(session_id, ignore_connected(), auto_confirm()),
+    )
+    .await;
 
     assert!(matches!(
         second_result,
@@ -341,7 +344,6 @@ async fn concurrent_linking_sessions_stay_separate() {
         CoreUser::new_linked_ephemeral(alice_domain, alice_server_url, alice_session_tx)
             .await
             .unwrap()
-            .unwrap()
     });
 
     let bob_domain = domain.clone();
@@ -350,25 +352,30 @@ async fn concurrent_linking_sessions_stay_separate() {
         CoreUser::new_linked_ephemeral(bob_domain, bob_server_url, bob_session_tx)
             .await
             .unwrap()
-            .unwrap()
     });
 
-    let alice_session_id = recv_session_id(&mut alice_session_rx).await;
-    let bob_session_id = recv_session_id(&mut bob_session_rx).await;
+    let alice_session_id = recv_linking_code(&mut alice_session_rx).await;
+    let bob_session_id = recv_linking_code(&mut bob_session_rx).await;
 
-    // Session IDs derived from different key packages must be distinct.
+    // Concurrent sessions must get distinct rendezvous ids, and therefore
+    // distinct codes.
     assert_ne!(alice_session_id, bob_session_id);
 
-    alice
-        .multi_device_link_client(alice_session_id, ignore_connected(), auto_confirm())
-        .await
-        .unwrap()
-        .unwrap();
+    in_foreground(
+        &alice,
+        alice.multi_device_link_client(alice_session_id, ignore_connected(), auto_confirm()),
+    )
+    .await
+    .unwrap()
+    .unwrap();
 
-    bob.multi_device_link_client(bob_session_id, ignore_connected(), auto_confirm())
-        .await
-        .unwrap()
-        .unwrap();
+    in_foreground(
+        &bob,
+        bob.multi_device_link_client(bob_session_id, ignore_connected(), auto_confirm()),
+    )
+    .await
+    .unwrap()
+    .unwrap();
 
     // Each new device must be linked to the correct existing virtual client.
     let alice2 = alice2_task.await.unwrap();
@@ -660,7 +667,7 @@ async fn cancelled_provisioning_leaves_no_client() -> anyhow::Result<()> {
         let cancel = cancel.clone();
         async move { CoreUser::new_linked(&db_path, domain, Some(server_url), session_tx, cancel).await }
     });
-    recv_session_id(&mut session_rx).await;
+    recv_linking_code(&mut session_rx).await;
 
     cancel.cancel();
     assert!(task.await?.is_err(), "cancelled provisioning must fail");
@@ -735,4 +742,255 @@ async fn sibling_client_state_is_relayed() {
         panic!("expected updated");
     };
     assert_eq!(updated.blob.unwrap().encrypted_blob, b"after");
+}
+
+/// The digits of the rendezvous ID a code was issued for.
+fn rendezvous_id_of(code: &str) -> &str {
+    &code[..code.len() - PASSWORD_DIGITS]
+}
+
+/// A code for the same session with a different password.
+fn code_with_a_wrong_password(code: &str) -> String {
+    let mut digits = code.as_bytes().to_vec();
+    let password_start = digits.len() - PASSWORD_DIGITS;
+    digits[password_start] = if digits[password_start] == b'0' {
+        b'1'
+    } else {
+        b'0'
+    };
+    String::from_utf8(digits).unwrap()
+}
+
+/// Spawns a provisioning device and hands back its linking code together
+/// with the task.
+async fn provision_device(
+    setup: &TestBackend,
+) -> (
+    String,
+    tokio::task::JoinHandle<anyhow::Result<CoreUser>>,
+    tokio::sync::mpsc::Receiver<MultiDeviceProvisionStep>,
+) {
+    let domain = setup.domain().clone();
+    let server_url = setup.server_url();
+    let (session_tx, mut session_rx) = tokio::sync::mpsc::channel(1);
+
+    let task = tokio::spawn(async move {
+        CoreUser::new_linked_ephemeral(domain, server_url, session_tx).await
+    });
+
+    let code = recv_linking_code(&mut session_rx).await;
+    (code, task, session_rx)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn wrong_password_fails_authentication() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    let (code, new_device_task, _session_rx) = provision_device(&setup).await;
+    let wrong_code = code_with_a_wrong_password(&code);
+    assert_eq!(rendezvous_id_of(&wrong_code), rendezvous_id_of(&code));
+
+    let linked = in_foreground(
+        &alice,
+        alice.multi_device_link_client(wrong_code, ignore_connected(), auto_confirm()),
+    )
+    .await;
+
+    let error = linked
+        .expect_err("the existing device must learn about the failure")
+        .to_string();
+    assert!(
+        error.contains("AuthenticationFailed"),
+        "expected a forwarded authentication failure, got {error}"
+    );
+
+    let error = new_device_task
+        .await
+        .unwrap()
+        .expect_err("the new device must reject the welcome")
+        .to_string();
+    assert!(
+        error.contains("authentication failed"),
+        "expected an authentication failure, got {error}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn short_code_does_not_burn_the_session() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    let (code, new_device_task, _session_rx) = provision_device(&setup).await;
+
+    // Cut to below the minimum rather than dropping one digit, because a
+    // longer rendezvous ID would make the shortened code still parse.
+    let short = code[..MIN_CODE_DIGITS - 1].to_owned();
+
+    let rejected = in_foreground(
+        &alice,
+        alice.multi_device_link_client(short, ignore_connected(), auto_confirm()),
+    )
+    .await;
+    assert!(matches!(
+        rejected,
+        Ok(Err(MultiDeviceLinkClientError::InvalidCode))
+    ));
+
+    // The session was never touched, so the correct code still links.
+    in_foreground(
+        &alice,
+        alice.multi_device_link_client(code, ignore_connected(), auto_confirm()),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    new_device_task.await.unwrap().unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn linking_session_expires() {
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        relay: RelaySettings {
+            sessionttl: Duration::from_millis(300),
+            ..RelaySettings::default()
+        },
+        ..Default::default()
+    })
+    .await;
+    let alice = setup.add_user().await;
+
+    let (code, new_device_task, _session_rx) = provision_device(&setup).await;
+
+    assert!(
+        new_device_task.await.unwrap().is_err(),
+        "the new device's session must end when the relay reaps it"
+    );
+
+    let result = in_foreground(
+        &alice,
+        alice.multi_device_link_client(code, ignore_connected(), auto_confirm()),
+    )
+    .await;
+    assert!(matches!(
+        result,
+        Ok(Err(MultiDeviceLinkClientError::SessionNotFound))
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn rendezvous_id_is_not_reused() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    let (first_code, first_task, _first_rx) = provision_device(&setup).await;
+    in_foreground(
+        &alice,
+        alice.multi_device_link_client(first_code.clone(), ignore_connected(), auto_confirm()),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let _first_device = first_task.await.unwrap().unwrap();
+
+    let (second_code, second_task, _second_rx) = provision_device(&setup).await;
+    assert_ne!(
+        rendezvous_id_of(&second_code),
+        rendezvous_id_of(&first_code),
+        "an ended rendezvous id must stay in quarantine"
+    );
+    second_task.abort();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn unanswered_code_is_replaced() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    let (expired_code, new_device_task, mut session_rx) = provision_device(&setup).await;
+    let code = recv_linking_code(&mut session_rx).await;
+    assert_ne!(rendezvous_id_of(&code), rendezvous_id_of(&expired_code));
+
+    let stale = in_foreground(
+        &alice,
+        alice.multi_device_link_client(expired_code, ignore_connected(), auto_confirm()),
+    )
+    .await;
+    assert!(matches!(
+        stale,
+        Ok(Err(MultiDeviceLinkClientError::SessionNotFound))
+    ));
+
+    in_foreground(
+        &alice,
+        alice.multi_device_link_client(code, ignore_connected(), auto_confirm()),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let _new_device = new_device_task.await.unwrap().unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn link_attempts_are_rate_limited_per_user() {
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        relay: RelaySettings {
+            peruser: 1,
+            ..RelaySettings::default()
+        },
+        ..Default::default()
+    })
+    .await;
+    let alice = setup.add_user().await;
+
+    // Every attempt with a valid signature counts, whether or not its session
+    // exists, so a code for a session that was never opened is enough.
+    let code = LinkingCode::generate("999").unwrap().to_digits();
+    let first = in_foreground(
+        &alice,
+        alice.multi_device_link_client(code.clone(), ignore_connected(), auto_confirm()),
+    )
+    .await;
+    assert!(matches!(
+        first,
+        Ok(Err(MultiDeviceLinkClientError::SessionNotFound))
+    ));
+
+    let error = in_foreground(
+        &alice,
+        alice.multi_device_link_client(code, ignore_connected(), auto_confirm()),
+    )
+    .await
+    .expect_err("the second attempt must be rate limited");
+    let error = format!("{error:#}");
+    assert!(
+        error.contains("Too many requests"),
+        "expected a rate-limit error, got {error}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn provisioning_is_rate_limited_per_address() {
+    let setup = TestBackend::single_with_params(TestBackendParams {
+        relay: RelaySettings {
+            perip: 1,
+            ..RelaySettings::default()
+        },
+        ..Default::default()
+    })
+    .await;
+
+    let (_code, first_task, _session_rx) = provision_device(&setup).await;
+
+    let (session_tx, _session_rx) = tokio::sync::mpsc::channel(1);
+    let error =
+        CoreUser::new_linked_ephemeral(setup.domain().clone(), setup.server_url(), session_tx)
+            .await
+            .expect_err("the second session from the same address must be rate limited");
+    let error = format!("{error:#}");
+    assert!(
+        error.contains("Too many requests"),
+        "expected a rate-limit error, got {error}"
+    );
+    first_task.abort();
 }

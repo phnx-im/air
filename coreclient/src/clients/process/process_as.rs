@@ -10,7 +10,7 @@ use aircommon::{
         client_as::{ConnectionOfferHash, ConnectionOfferMessage},
         connection_package::ConnectionPackageHash,
     },
-    time::TimeStamp,
+    time::{Duration, TimeStamp},
 };
 use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
 use anyhow::{Context, Result, anyhow, bail};
@@ -37,6 +37,29 @@ use crate::{
 };
 
 use super::{AsCredentials, Chat, ChatId, CoreUser};
+
+/// How long an offer to an unknown connection package stays in the queue.
+const UNKNOWN_CONNECTION_PACKAGE_GRACE: Duration = Duration::days(7);
+
+/// This device lacks the decryption key of the offer's connection package.
+#[derive(Debug, thiserror::Error)]
+#[error("no decryption key for the connection package of an incoming offer")]
+pub struct UnknownConnectionPackageError;
+
+/// We keep offers around for a short time (`UNKNOWN_CONNECTION_PACKAGE_GRACE`)
+/// when we don't have the necessary key material for it. This is to cover the
+/// edge case when a client registered a new username but then couldn't share
+/// the connection packages with its siblings. If that client never comes back
+/// online, we have to do some cleanup.
+pub fn keep_failed_username_message(error: &anyhow::Error, created_at: Option<TimeStamp>) -> bool {
+    let Some(created_at) = created_at else {
+        return false;
+    };
+    error
+        .downcast_ref::<UnknownConnectionPackageError>()
+        .is_some()
+        && !created_at.has_expired(UNKNOWN_CONNECTION_PACKAGE_GRACE)
+}
 
 pub(crate) enum ConnectionInfoSource {
     ConnectionOffer(Box<ConnectionOfferSource>),
@@ -286,7 +309,7 @@ impl CoreUser {
 
         let decryption_key = ConnectionPackageRecord::load_decryption_key(&mut connection, &hash)
             .await?
-            .context("No decryption key found for incoming connection offer")?;
+            .ok_or(UnknownConnectionPackageError)?;
 
         let cep_in = ConnectionOfferIn::decrypt(eco, &decryption_key, &[], &[])?;
         // Fetch authentication AS credentials of the sender if we don't have them already.
@@ -312,5 +335,45 @@ impl CoreUser {
             })?;
 
         Ok((payload, hash))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn created(ago: Duration) -> Option<TimeStamp> {
+        Some(TimeStamp::from(Utc::now() - ago))
+    }
+
+    #[test]
+    fn an_offer_to_an_unknown_package_waits_for_the_grace_period() {
+        let unknown = anyhow::Error::from(UnknownConnectionPackageError);
+        assert!(keep_failed_username_message(
+            &unknown,
+            created(Duration::hours(1))
+        ));
+        assert!(!keep_failed_username_message(
+            &unknown,
+            created(UNKNOWN_CONNECTION_PACKAGE_GRACE + Duration::hours(1))
+        ));
+        assert!(
+            !keep_failed_username_message(&unknown, None),
+            "an offer of unknown age cannot be aged out, so it is not kept"
+        );
+    }
+
+    #[test]
+    fn any_other_failure_is_acknowledged() {
+        let other = anyhow!("invalid signature");
+        assert!(!keep_failed_username_message(
+            &other,
+            created(Duration::hours(1))
+        ));
+        let wrapped = anyhow::Error::from(UnknownConnectionPackageError).context("processing");
+        assert!(
+            keep_failed_username_message(&wrapped, created(Duration::hours(1))),
+            "context around the error must not hide it"
+        );
     }
 }

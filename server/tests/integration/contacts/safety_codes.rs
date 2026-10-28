@@ -67,7 +67,10 @@ async fn safety_code_follows_reregistered_user() {
     let alice_id = alice.user_id().clone();
     let old_code = bob.safety_code(&alice_id).await.unwrap();
 
-    alice.delete_account(None).await.unwrap();
+    alice.outbound_service().run_once().await;
+    alice.drain().await;
+    alice.outbound_service().start_and_wait().await;
+    alice.delete_account().await.unwrap();
     bob.drain_unchecked().await;
 
     // The user id registers again with a new credential and connects to bob.

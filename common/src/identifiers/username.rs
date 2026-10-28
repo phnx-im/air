@@ -21,7 +21,17 @@ pub const USERNAME_REFRESH_THRESHOLD: Duration = Duration::days(90);
 
 /// Validated plaintext username
 #[derive(
-    Clone, PartialEq, Eq, Hash, TlsSize, TlsSerialize, TlsDeserializeBytes, Serialize, Deserialize,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    TlsSize,
+    TlsSerialize,
+    TlsDeserializeBytes,
+    Serialize,
+    Deserialize,
 )]
 #[serde(transparent)]
 pub struct Username {
