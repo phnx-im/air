@@ -14,7 +14,7 @@ use uuid::Uuid;
 use super::*;
 use crate::{
     clients::{attachment::MimiContentExt, own_client_info::OwnClientInfo},
-    groups::suppress_notifications,
+    groups::application_message::suppress_notifications,
 };
 
 const OPERATION_TYPE: OperationType = OperationType::AddUsername;
