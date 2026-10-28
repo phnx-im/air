@@ -331,9 +331,10 @@ mod tests {
         52, 45, 2, 134, 87, 81, 168, 75, 225, 173, 118, 108, 250,
     ]);
 
-    async fn issue_token(
+    pub(super) async fn issue_token(
         service: &AuthService,
         pool: &PgPool,
+        operation_type: OperationType,
     ) -> anyhow::Result<AmortizedToken<Ristretto255>> {
         let public_keys: HashMap<OperationType, PublicKey<Ristretto255>> =
             crate::auth_service::privacy_pass::load_batched_token_keys(pool)
@@ -346,7 +347,7 @@ mod tests {
                 })
                 .collect();
 
-        let public_key = *public_keys.get(&OperationType::AddUsername).unwrap();
+        let public_key = *public_keys.get(&operation_type).unwrap();
         let user_record = store_random_user_record(pool).await?;
         let _client_record =
             store_random_client_record(pool, user_record.user_id().clone()).await?;
@@ -364,7 +365,7 @@ mod tests {
         let token_response = service
             .as_issue_tokens(
                 user_record.user_id(),
-                OperationType::AddUsername,
+                operation_type,
                 token_request,
                 Utc::now(),
             )
@@ -372,6 +373,13 @@ mod tests {
 
         let mut tokens = token_response.issue_tokens(&token_state)?;
         Ok(tokens.remove(0))
+    }
+
+    async fn username_token(
+        service: &AuthService,
+        pool: &PgPool,
+    ) -> anyhow::Result<AmortizedToken<Ristretto255>> {
+        issue_token(service, pool, OperationType::AddUsername).await
     }
 
     // as_check_username_exists
@@ -415,7 +423,7 @@ mod tests {
     #[sqlx::test]
     async fn create_username_success_with_token(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
-        let token = issue_token(&service, &pool).await?;
+        let token = username_token(&service, &pool).await?;
 
         service
             .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, Some(token))
@@ -426,7 +434,7 @@ mod tests {
     #[sqlx::test]
     async fn create_username_token_redemption_fails(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
-        let token = issue_token(&service, &pool).await?;
+        let token = username_token(&service, &pool).await?;
 
         // Spend the token first so it cannot be reused.
         service
@@ -602,7 +610,7 @@ mod tests {
         let service = setup(&pool).await?;
         store_username_expiring_in(&pool, HASH, Duration::days(30)).await?;
 
-        let token = issue_token(&service, &pool).await?;
+        let token = username_token(&service, &pool).await?;
         let refresh = service.as_refresh_username(HASH, Some(token)).await?;
         assert!(matches!(refresh, UsernameRefresh::Refreshed { .. }));
         Ok(())
@@ -615,7 +623,7 @@ mod tests {
         let expires_before = expires_at(&pool, &HASH).await?;
 
         // Spend the token first so it cannot be reused.
-        let token = issue_token(&service, &pool).await?;
+        let token = username_token(&service, &pool).await?;
         service
             .as_redeem_token(
                 pool.acquire().await?.as_mut(),
@@ -643,7 +651,7 @@ mod tests {
             .await?;
         let expires_before = expires_at(&pool, &HASH).await?;
 
-        let token = issue_token(&service, &pool).await?;
+        let token = username_token(&service, &pool).await?;
         let refresh = service
             .as_refresh_username(HASH, Some(token.clone()))
             .await?;
