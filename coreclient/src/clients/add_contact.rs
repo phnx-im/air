@@ -26,7 +26,7 @@ use airprotos::{
             ConnectionContext, GroupBootstrapCarrier, HandleInitiatorContext,
             TargetedInitiatorContext,
         },
-        signed_connection_package::AnyConnectionPackage,
+        signed_connection_package::VerifiedSignedConnectionPackage,
     },
 };
 use anyhow::{Context, bail};
@@ -146,11 +146,11 @@ impl CoreUser {
         }
 
         // Verify the connection package
-        let verified_connection_package = connection_package.verify(&hash)?;
+        let verified_connection_package = connection_package.verify_for_username(&hash)?;
         let is_apq = prefer_apq
             && verified_connection_package
                 .air_features()
-                .is_some_and(|features| features.apq_connection_groups);
+                .apq_connection_groups;
 
         // Prepare the connection locally
         // No need to provision a group profile here, because we only have the group title and no
@@ -365,7 +365,7 @@ enum ConnectionGroupError {
     CreatedThenFailed(anyhow::Error),
 }
 
-struct VerifiedConnectionPackagesWithGroupId<Payload = AnyConnectionPackage> {
+struct VerifiedConnectionPackagesWithGroupId<Payload = VerifiedSignedConnectionPackage> {
     payload: Payload,
     group_id: GroupId,
     pq_group_id: Option<GroupId>,
@@ -424,14 +424,14 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
     }
 }
 
-struct LocalGroup<Payload = AnyConnectionPackage> {
+struct LocalGroup<Payload = VerifiedSignedConnectionPackage> {
     group: Group,
     partial_params: PartialCreateGroupParams,
     self_group: Option<SelfGroup>,
     payload: Payload,
 }
 
-impl LocalGroup<AnyConnectionPackage> {
+impl LocalGroup<VerifiedSignedConnectionPackage> {
     async fn create_username_contact(
         self,
         txn: &mut WriteDbTransaction<'_>,
@@ -614,7 +614,7 @@ struct TargetedMessagePayload {
 
 struct UsernamePayload {
     connection_offer: EncryptedConnectionOffer,
-    verified_connection_package: AnyConnectionPackage,
+    verified_connection_package: VerifiedSignedConnectionPackage,
 }
 
 struct LocalUsernameContact<Payload = UsernamePayload> {

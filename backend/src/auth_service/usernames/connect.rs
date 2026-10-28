@@ -2,18 +2,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{
-    identifiers::UsernameHash, messages::connection_package::VersionedConnectionPackage,
-    time::ExpirationData,
-};
+use aircommon::{identifiers::UsernameHash, time::ExpirationData};
 use airprotos::{
     auth_service::{
         convert::UsernameHashError,
         v1::{
             ConnectUsernameRequest, ConnectUsernameResponse, ConnectionOfferMessage,
-            EnqueueConnectionOfferResponse, FetchConnectionPackageResponse,
-            FetchSignedConnectionPackageResponse, OperationType, SignedConnectionPackage,
-            connect_username_request::Step, connect_username_response, username_queue_message,
+            EnqueueConnectionOfferResponse, FetchSignedConnectionPackageResponse, OperationType,
+            SignedConnectionPackage, connect_username_request::Step, connect_username_response,
+            username_queue_message,
         },
     },
     validation::{MissingFieldError, MissingFieldExt},
@@ -31,10 +28,7 @@ use tonic::{Status, Streaming};
 use tracing::{debug, error};
 
 use crate::{
-    auth_service::{
-        AuthService,
-        connection_package::{StorableConnectionPackage, signed::StorableSignedConnectionPackage},
-    },
+    auth_service::{AuthService, connection_package::StorableSignedConnectionPackage},
     errors::auth_service::RedeemTokenError,
     version::VersionPolicy,
 };
@@ -67,7 +61,7 @@ pub(crate) trait ConnectUsernameProtocol {
         &self,
         hash: &UsernameHash,
         token: AmortizedToken<Ristretto255>,
-    ) -> Result<FetchedConnectionPackage, ConnectProtocolError>;
+    ) -> Result<SignedConnectionPackage, ConnectProtocolError>;
 
     async fn enqueue_connection_offer(
         &self,
@@ -76,13 +70,6 @@ pub(crate) trait ConnectUsernameProtocol {
     ) -> Result<(), UsernameQueueError>;
 
     fn version_policy(&self) -> &VersionPolicy;
-}
-
-/// The connection package returned by a fetch step.
-#[derive(Debug, Clone)]
-pub(crate) enum FetchedConnectionPackage {
-    Legacy(VersionedConnectionPackage),
-    Signed(SignedConnectionPackage),
 }
 
 async fn run_protocol(
@@ -142,20 +129,12 @@ async fn run_protocol_impl(
         .map_err(|_| ConnectProtocolError::MalformedToken)?;
 
     debug!("get connection package for username");
-    let step = match protocol.fetch_connection_package(&hash, token).await? {
-        FetchedConnectionPackage::Signed(connection_package) => {
-            connect_username_response::Step::FetchSignedResponse(
-                FetchSignedConnectionPackageResponse {
-                    connection_package: Some(connection_package),
-                },
-            )
-        }
-        FetchedConnectionPackage::Legacy(connection_package) => {
-            connect_username_response::Step::FetchResponse(FetchConnectionPackageResponse {
-                connection_package: Some(connection_package.into()),
-            })
-        }
-    };
+    let connection_package = protocol.fetch_connection_package(&hash, token).await?;
+    let step = connect_username_response::Step::FetchSignedResponse(
+        FetchSignedConnectionPackageResponse {
+            connection_package: Some(connection_package),
+        },
+    );
     if outgoing
         .send(Ok(ConnectUsernameResponse { step: Some(step) }))
         .await
@@ -216,6 +195,8 @@ pub(crate) enum ConnectProtocolError {
     Database(#[from] sqlx::Error),
     /// Username not found
     UsernameNotFound,
+    /// No connection package available
+    NoConnectionPackage,
     /// Invalid hash: $0
     InvalidHash(#[from] UsernameHashError),
     /// Missing required field in request
@@ -241,7 +222,9 @@ impl From<ConnectProtocolError> for Status {
                 error!(%error, "database error");
                 Status::internal(msg)
             }
-            ConnectProtocolError::UsernameNotFound => Status::not_found(msg),
+            ConnectProtocolError::UsernameNotFound | ConnectProtocolError::NoConnectionPackage => {
+                Status::not_found(msg)
+            }
             ConnectProtocolError::MissingField(_)
             | ConnectProtocolError::InvalidHash(_)
             | ConnectProtocolError::MalformedToken => Status::invalid_argument(msg),
@@ -268,20 +251,14 @@ impl ConnectUsernameProtocol for AuthService {
         &self,
         hash: &UsernameHash,
         token: AmortizedToken<Ristretto255>,
-    ) -> Result<FetchedConnectionPackage, ConnectProtocolError> {
+    ) -> Result<SignedConnectionPackage, ConnectProtocolError> {
         let mut txn = self.db_pool.begin().await?;
         debug!("redeem connection request token");
         self.as_redeem_token(&mut txn, token, OperationType::ConnectUsername)
             .await?;
-        let package = if let Some(package) =
-            StorableSignedConnectionPackage::load_for_username(txn.as_mut(), hash).await?
-        {
-            FetchedConnectionPackage::Signed(package)
-        } else {
-            FetchedConnectionPackage::Legacy(
-                StorableConnectionPackage::load_for_username(txn.as_mut(), hash).await?,
-            )
-        };
+        let package = StorableSignedConnectionPackage::load_for_username(txn.as_mut(), hash)
+            .await?
+            .ok_or(ConnectProtocolError::NoConnectionPackage)?;
         txn.commit().await?;
         Ok(package)
     }
@@ -331,8 +308,8 @@ mod tests {
     };
     use airprotos::{
         auth_service::v1::{
-            self, ConnectionOfferMessage, EnqueueConnectionOfferResponse,
-            EnqueueConnectionOfferStep, FetchSignedConnectionPackageStep, connect_username_request,
+            ConnectionOfferMessage, EnqueueConnectionOfferResponse, EnqueueConnectionOfferStep,
+            FetchSignedConnectionPackageStep, connect_username_request,
         },
         common::{self, v1::ClientMetadata},
     };
@@ -343,15 +320,7 @@ mod tests {
     use tokio_stream::wrappers::ReceiverStream;
     use tokio_util::sync::CancellationToken;
 
-    use crate::{
-        air_service::BackendService,
-        auth_service::{
-            connection_package::persistence::tests::{
-                ConnectionPackageType, random_connection_package,
-            },
-            usernames::tests::issue_token,
-        },
-    };
+    use crate::{air_service::BackendService, auth_service::usernames::tests::issue_token};
 
     use super::*;
 
@@ -460,11 +429,7 @@ mod tests {
         mock_protocol
             .expect_fetch_connection_package()
             .withf(move |fetched_hash, _token| *fetched_hash == hash)
-            .returning(move |_, _| {
-                Ok(FetchedConnectionPackage::Signed(
-                    inner_connection_package.clone(),
-                ))
-            });
+            .returning(move |_, _| Ok(inner_connection_package.clone()));
 
         mock_protocol
             .expect_enqueue_connection_offer()
@@ -521,69 +486,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn connect_username_protocol_fetch_signed_falls_back_to_legacy() -> anyhow::Result<()> {
-        init_test_tracing();
-
-        let signing_key = UsernameSigningKey::generate()?;
-
-        let hash = UsernameHash::new([1; 32]);
-        let expiration_data = ExpirationData::new(Duration::days(1));
-        let connection_package = random_connection_package(
-            signing_key.verifying_key().clone(),
-            ConnectionPackageType::V2 {
-                is_last_resort: false,
-            },
-        );
-
-        let mut mock_protocol = MockConnectUsernameProtocol::new();
-
-        mock_protocol
-            .expect_load_username_expiration_data()
-            .with(eq(hash))
-            .returning(move |_| Ok(Some(expiration_data.clone())));
-
-        let inner_connection_package = connection_package.clone();
-        mock_protocol
-            .expect_fetch_connection_package()
-            .withf(move |fetched_hash, _token| *fetched_hash == hash)
-            .returning(move |_, _| {
-                Ok(FetchedConnectionPackage::Legacy(
-                    inner_connection_package.clone(),
-                ))
-            });
-
-        mock_protocol
-            .expect_version_policy()
-            .return_const(Default::default());
-
-        let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
-
-        requests
-            .send(Ok(fetch_signed_request(hash, Some(dummy_token()))))
-            .await
-            .unwrap();
-        match responses.recv().await.unwrap() {
-            Ok(ConnectUsernameResponse {
-                step:
-                    Some(connect_username_response::Step::FetchResponse(
-                        FetchConnectionPackageResponse {
-                            connection_package: Some(received_connection_package),
-                        },
-                    )),
-            }) => {
-                let connection_package_proto: v1::ConnectionPackage = connection_package.into();
-                assert_eq!(connection_package_proto, received_connection_package);
-            }
-            _ => panic!("unexpected response type"),
-        }
-
-        drop(requests);
-        run_handle.await.expect("protocol panicked");
-
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn connect_username_protocol_protocol_violation() -> anyhow::Result<()> {
         init_test_tracing();
 
@@ -633,12 +535,8 @@ mod tests {
 
         let hash = UsernameHash::new([1; 32]);
         let expiration_data = ExpirationData::new(Duration::days(1));
-        let connection_package = random_connection_package(
-            signing_key.verifying_key().clone(),
-            ConnectionPackageType::V2 {
-                is_last_resort: false,
-            },
-        );
+        let (_decryption_key, connection_package, _metadata) =
+            SignedConnectionPackage::generate(hash, &signing_key, false)?;
 
         let mut mock_protocol = MockConnectUsernameProtocol::new();
 
@@ -651,11 +549,7 @@ mod tests {
         mock_protocol
             .expect_fetch_connection_package()
             .withf(move |fetched_hash, _token| *fetched_hash == hash)
-            .returning(move |_, _| {
-                Ok(FetchedConnectionPackage::Legacy(
-                    inner_connection_package.clone(),
-                ))
-            });
+            .returning(move |_, _| Ok(inner_connection_package.clone()));
 
         mock_protocol
             .expect_version_policy()
@@ -856,25 +750,20 @@ mod tests {
 
     /// The fallback used to live in the protocol, where the mock covered it.
     #[sqlx::test]
-    async fn fetch_connection_package_falls_back_to_legacy(pool: PgPool) -> anyhow::Result<()> {
+    async fn fetch_connection_package_without_packages_is_not_found(
+        pool: PgPool,
+    ) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
         let signing_key = UsernameSigningKey::generate()?;
         let hash = UsernameHash::new([1; 32]);
         store_username(&pool, hash, &signing_key).await?;
-        let stored = random_connection_package(
-            signing_key.verifying_key().clone(),
-            ConnectionPackageType::V2 {
-                is_last_resort: false,
-            },
-        );
-        StorableConnectionPackage::store_multiple_for_username(&pool, [&stored], &hash).await?;
 
         let token = issue_token(&service, &pool, OperationType::ConnectUsername).await?;
-        let fetched = service.fetch_connection_package(&hash, token).await?;
-        let FetchedConnectionPackage::Legacy(fetched) = fetched else {
-            panic!("expected the legacy package");
-        };
-        assert_eq!(fetched, stored);
+        let result = service.fetch_connection_package(&hash, token).await;
+        assert!(matches!(
+            result,
+            Err(ConnectProtocolError::NoConnectionPackage)
+        ));
         Ok(())
     }
 }
