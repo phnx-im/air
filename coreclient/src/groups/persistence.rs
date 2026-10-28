@@ -27,7 +27,7 @@ use crate::{
     chats::messages::TimestampedMessage,
     clients::own_client_info::OwnClientInfo,
     db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
-    groups::apq_group::PqGroup,
+    groups::PqGroup,
     utils::persistence::{GroupIdRefWrapper, GroupIdWrapper},
 };
 
