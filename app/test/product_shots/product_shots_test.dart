@@ -53,20 +53,22 @@ const _renderAllPlatforms = bool.fromEnvironment(
 );
 
 /// Which shot to record: `marketing` (the store canvas -- headline, subtitle
-/// and the device framed on a coloured background), `device` (the framed
-/// device alone, on a transparent background) or `window` (the Linux app in a
-/// GNOME window, on a transparent background).
+/// and the device framed on a coloured background) or `device` (the framed
+/// device alone, on a transparent background).
 ///
-/// A run records one variant only. This repo records the marketing and window
-/// shots, the device shots are recorded into the private campaign directories,
-/// which pass `--dart-define=SHOT_VARIANT=device`.
+/// The two go to different places, so a run records one or the other, never
+/// both. This repo records the marketing shots; the device shots are recorded
+/// into the private campaign directories, which pass
+/// `--dart-define=SHOT_VARIANT=device`.
+///
+/// Linux is the exception: Flathub takes plain window screenshots, so its
+/// marketing shot is the app in a GNOME window, and it has no device shot.
 const _shotVariant = String.fromEnvironment(
   'SHOT_VARIANT',
   defaultValue: 'marketing',
 );
 
 const _marketingShots = _shotVariant == 'marketing';
-const _windowShots = _shotVariant == 'window';
 
 String _golden(String name) => '$_goldensDir/$name';
 
@@ -75,29 +77,16 @@ const iosPhysicalSize = Size(1290, 2796);
 // One of the sizes accepted by the Mac App Store (16:10 retina).
 const laptopPhysicalSize = Size(2880, 1800);
 
-/// Every host/target combination a product shot is recorded for. The window
-/// shots only exist for Linux.
-const _productShotsMatrix = _windowShots
-    ? [
-        ProductShotInfo(
-          hostPlatform: 'linux',
-          targetPlatform: TargetPlatform.linux,
-        ),
-      ]
-    : [
-        ProductShotInfo(
-          hostPlatform: 'macos',
-          targetPlatform: TargetPlatform.iOS,
-        ),
-        ProductShotInfo(
-          hostPlatform: 'macos',
-          targetPlatform: TargetPlatform.macOS,
-        ),
-        ProductShotInfo(
-          hostPlatform: 'linux',
-          targetPlatform: TargetPlatform.android,
-        ),
-      ];
+/// Every host/target combination a product shot is recorded for.
+const _productShotsMatrix = [
+  ProductShotInfo(hostPlatform: 'macos', targetPlatform: TargetPlatform.iOS),
+  ProductShotInfo(hostPlatform: 'macos', targetPlatform: TargetPlatform.macOS),
+  ProductShotInfo(
+    hostPlatform: 'linux',
+    targetPlatform: TargetPlatform.android,
+  ),
+  ProductShotInfo(hostPlatform: 'linux', targetPlatform: TargetPlatform.linux),
+];
 
 /// The marketing canvas size for a framed product shot, distinct from the
 /// device's own screen resolution (used as-is for the frameless shots).
@@ -168,7 +157,7 @@ class ProductShotInfo {
 /// Providers + app scaffolding shared by every product shot subject.
 ///
 /// [shot] is a [ProductShot] for the marketing variant, or a [DeviceShotFrame]
-/// or [LinuxWindowFrame] for the frameless ones, which also centers it on a
+/// or [LinuxWindowFrame] for the frameless shots, which also centers it on a
 /// transparent background instead of stretching it under the marketing canvas.
 Widget _buildProductShotSubject({
   required List<SingleChildWidget> providers,
@@ -269,6 +258,8 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
   group(groupName, () {
     for (final productShotInfo in _productShotsMatrix) {
       final platform = productShotInfo.targetPlatform;
+      final windowShot = platform == TargetPlatform.linux;
+      if (windowShot && !_marketingShots) continue;
 
       for (final brightness in Brightness.values) {
         final palette = spec.paletteFor(brightness);
@@ -278,11 +269,10 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
 
         final marketingDevice = _marketingDeviceFor(platform);
         final deviceShotDevice = platform.deviceShot(brightness: brightness);
-        const useMarketingDevice = _marketingShots || _windowShots;
-        final identifier = useMarketingDevice
+        final identifier = _marketingShots
             ? _platformSlug(platform)
             : deviceShotDevice.identifier;
-        final name = useMarketingDevice
+        final name = _marketingShots
             ? marketingDevice.name
             : deviceShotDevice.name;
 
@@ -291,12 +281,12 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
         // device's own pixel ratio, landing near a real screenshot's
         // resolution.
         final Size logicalSize;
-        if (_marketingShots) {
-          logicalSize = _canvasSizeFor(platform);
-        } else if (_windowShots) {
+        if (windowShot) {
           logicalSize =
               LinuxWindowFrame.sizeFor(marketingDevice.screenSize) *
               marketingDevice.pixelRatio;
+        } else if (_marketingShots) {
+          logicalSize = _canvasSizeFor(platform);
         } else {
           logicalSize =
               deviceShotDevice.frameBounds.size * deviceShotDevice.exportScale;
@@ -309,7 +299,15 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
           (tester) async {
             final screen = InterfaceScale(child: spec.buildScreen(platform));
             final Widget shot;
-            if (_marketingShots) {
+            if (windowShot) {
+              shot = LinuxWindowFrame(
+                screenSize: marketingDevice.screenSize,
+                devicePixelRatio: marketingDevice.pixelRatio,
+                title: 'Air',
+                scale: marketingDevice.pixelRatio,
+                child: screen,
+              );
+            } else if (_marketingShots) {
               shot = ProductShot(
                 size: _canvasSizeFor(platform),
                 backgroundColor: palette.backgroundColor,
@@ -320,14 +318,6 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
                 subtitle: spec.copy.subtitle,
                 brightness: brightness,
                 device: marketingDevice,
-                child: screen,
-              );
-            } else if (_windowShots) {
-              shot = LinuxWindowFrame(
-                screenSize: marketingDevice.screenSize,
-                devicePixelRatio: marketingDevice.pixelRatio,
-                title: 'Air',
-                scale: marketingDevice.pixelRatio,
                 child: screen,
               );
             } else {
@@ -341,7 +331,7 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
               _buildProductShotSubject(
                 providers: spec.buildProviders(platform),
                 brightness: brightness,
-                frameless: !_marketingShots,
+                frameless: windowShot || !_marketingShots,
                 shot: shot,
               ),
             );

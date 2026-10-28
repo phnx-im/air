@@ -191,8 +191,9 @@ start-docker-compose:
 [working-directory: 'app']
 update-goldens:
     # Delete existing goldens, so that the ones whose test is gone do not
-    # linger.
-    git ls-files -z 'test/**/goldens/*.{{ os() }}.png' | xargs -0 rm -f
+    # linger. The trailing wildcard also catches the product shots' `.dark`
+    # variants.
+    git ls-files -z 'test/**/goldens/*.{{ os() }}*.png' | xargs -0 rm -f
     # Update golden snapshots
     just test-flutter --update-goldens
 
