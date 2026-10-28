@@ -198,6 +198,29 @@ pub(crate) mod persistence {
             .await
         }
 
+        /// Like [`Self::lock_active_owner`], but locks `FOR NO KEY UPDATE`.
+        ///
+        /// The key package writers of a user then run one at a time. Promotion
+        /// of a staged batch takes the same lock.
+        pub(in crate::qs) async fn lock_active_owner_for_write(
+            connection: impl PgExecutor<'_>,
+            client_id: &QsClientId,
+        ) -> sqlx::Result<Option<QsUserId>> {
+            query_scalar!(
+                r#"SELECT u.user_id AS "user_id: QsUserId"
+                FROM qs_user_record u
+                WHERE u.user_id = (
+                        SELECT c.user_id FROM qs_client_record c
+                        WHERE c.client_id = $1 AND c.deleted_at IS NULL
+                    )
+                    AND u.deleted_at IS NULL
+                FOR NO KEY UPDATE OF u"#,
+                client_id.as_uuid(),
+            )
+            .fetch_optional(connection)
+            .await
+        }
+
         /// Marks the user as deleted and removes KeyPackages and push tokens.  Does nothing if the
         /// user is already deleted or does not exist.
         pub(in crate::qs) async fn soft_delete(
@@ -324,6 +347,7 @@ pub(crate) mod persistence {
             client_record::{QsClientRecord, persistence::tests::store_random_client_record},
             queue::tests::{enqueue_test_messages, queue_len},
         };
+        use crate::util::wait_for_lock_waiter;
 
         use super::*;
 
@@ -383,27 +407,6 @@ pub(crate) mod persistence {
             assert_eq!(loaded, user_record);
 
             Ok(())
-        }
-
-        /// Waits until a statement on the test database waits for a lock.
-        async fn wait_for_lock_waiter(pool: &PgPool) -> anyhow::Result<()> {
-            tokio::time::timeout(std::time::Duration::from_secs(10), async {
-                loop {
-                    let is_waiting: bool = sqlx::query_scalar(
-                        "SELECT EXISTS (
-                            SELECT 1 FROM pg_stat_activity
-                            WHERE datname = current_database() AND wait_event_type = 'Lock'
-                        )",
-                    )
-                    .fetch_one(pool)
-                    .await?;
-                    if is_waiting {
-                        return Ok(());
-                    }
-                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                }
-            })
-            .await?
         }
 
         /// Runs `operation` while the soft delete of the user is uncommitted,
