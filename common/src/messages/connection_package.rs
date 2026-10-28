@@ -2,223 +2,30 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+//! Facts about connection packages that the client keeps and the server
+//! stores. The package itself is the proto `SignedConnectionPackage` in
+//! `airprotos`.
+
+use chrono::Duration;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
-use tls_codec::{Serialize as _, TlsSerialize, TlsSize};
 
 use crate::{
-    LibraryError,
-    credentials::keys::{UsernameSignature, UsernameSigningKey},
-    crypto::{
-        ConnectionDecryptionKey, ConnectionEncryptionKey, Labeled,
-        errors::RandomnessError,
-        hash::{Hash, Hashable},
-        signatures::{private_keys::SignatureVerificationError, signable::Signable},
-    },
-    identifiers::UsernameHash,
-    messages::{
-        AirProtocolVersion,
-        connection_package::payload::TlsBool,
-        connection_package_v1::{
-            CONNECTION_PACKAGE_EXPIRATION, ConnectionPackageV1, ConnectionPackageV1In,
-        },
-    },
-    time::{ExpirationData, TimeStamp},
+    crypto::{Labeled, hash::Hash},
+    time::ExpirationData,
 };
 
-pub use payload::{ConnectionPackageIn, ConnectionPackagePayload};
+pub const CONNECTION_PACKAGE_EXPIRATION: Duration = Duration::days(30);
 
-const LABEL: &str = "ConnectionPackage";
+/// Label of [`ConnectionPackageHash`]. The hash is computed over the signed
+/// payload of the package in `airprotos`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConnectionPackageLabel;
 
-/// This enum holds different versions of `ConnectionPackage`. It exists to
-/// allow separate processing (especially signature verification) of the
-/// ProtoBuf ConnectionPackage. For example, the ProtoBuf version gained an
-/// extra field that indicates whether the connection is a last resort. This
-/// field is not present in the original version of ConnectionPackage and the
-/// presence of the signature means we cannot just change the struct without
-/// breaking backwards compatibility.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum VersionedConnectionPackage {
-    V1(ConnectionPackageV1),
-    V2(ConnectionPackage),
+impl Labeled for ConnectionPackageLabel {
+    const LABEL: &'static str = "ConnectionPackage";
 }
 
-impl VersionedConnectionPackage {
-    pub fn is_last_resort(&self) -> Option<bool> {
-        match self {
-            VersionedConnectionPackage::V1(_) => None,
-            VersionedConnectionPackage::V2(cp_v2) => Some(cp_v2.is_last_resort()),
-        }
-    }
-
-    pub fn into_current(self) -> ConnectionPackage {
-        match self {
-            VersionedConnectionPackage::V1(cp) => cp.into(),
-            VersionedConnectionPackage::V2(cp_v2) => cp_v2,
-        }
-    }
-
-    pub fn username_hash(&self) -> &UsernameHash {
-        match self {
-            VersionedConnectionPackage::V1(cp) => cp.username_hash(),
-            VersionedConnectionPackage::V2(cp) => &cp.payload.user_handle_hash,
-        }
-    }
-}
-
-/// See [`VersionedConnectionPackage`].
-pub enum VersionedConnectionPackageIn {
-    V1(ConnectionPackageV1In),
-    V2(ConnectionPackageIn),
-}
-
-impl VersionedConnectionPackageIn {
-    pub fn verify(self) -> Result<VersionedConnectionPackage, SignatureVerificationError> {
-        match self {
-            VersionedConnectionPackageIn::V1(cp) => {
-                let verified = cp.verify()?;
-                Ok(VersionedConnectionPackage::V1(verified))
-            }
-            VersionedConnectionPackageIn::V2(cp) => {
-                let verified = cp.verify()?;
-                Ok(VersionedConnectionPackage::V2(verified))
-            }
-        }
-    }
-}
-
-mod payload {
-    use super::*;
-    use crate::{
-        credentials::keys::{UsernameKeyType, UsernameVerifyingKey},
-        crypto::{
-            ConnectionEncryptionKey,
-            signatures::{
-                private_keys::SignatureVerificationError,
-                signable::{Signable, SignedStruct, Verifiable, VerifiedStruct},
-            },
-        },
-        identifiers::UsernameHash,
-        messages::AirProtocolVersion,
-        time::ExpirationData,
-    };
-
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    #[serde(transparent)]
-    pub struct TlsBool(pub bool);
-
-    impl From<bool> for TlsBool {
-        fn from(value: bool) -> Self {
-            TlsBool(value)
-        }
-    }
-
-    impl tls_codec::Size for TlsBool {
-        fn tls_serialized_len(&self) -> usize {
-            1
-        }
-    }
-
-    impl tls_codec::Serialize for TlsBool {
-        fn tls_serialize<W: std::io::Write>(
-            &self,
-            writer: &mut W,
-        ) -> Result<usize, tls_codec::Error> {
-            let byte = if self.0 { 1u8 } else { 0u8 };
-            writer.write_all(&[byte])?;
-            Ok(1)
-        }
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, TlsSerialize, TlsSize, Serialize, Deserialize)]
-    pub struct ConnectionPackagePayload {
-        pub protocol_version: AirProtocolVersion,
-        pub user_handle_hash: UsernameHash,
-        pub encryption_key: ConnectionEncryptionKey,
-        pub lifetime: ExpirationData,
-        pub verifying_key: UsernameVerifyingKey,
-        pub is_last_resort: TlsBool,
-    }
-
-    mod private_mod {
-        #[derive(Default)]
-        pub struct Seal;
-    }
-
-    impl Signable for ConnectionPackagePayload {
-        type SignedOutput = ConnectionPackage;
-
-        fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
-            self.tls_serialize_detached()
-        }
-
-        fn label(&self) -> &str {
-            LABEL
-        }
-    }
-
-    impl SignedStruct<ConnectionPackagePayload, UsernameKeyType> for ConnectionPackage {
-        fn from_payload(payload: ConnectionPackagePayload, signature: UsernameSignature) -> Self {
-            Self { payload, signature }
-        }
-    }
-
-    #[derive(Debug)]
-    pub struct ConnectionPackageIn {
-        payload: ConnectionPackagePayload,
-        signature: UsernameSignature,
-    }
-
-    impl ConnectionPackageIn {
-        pub fn new(payload: ConnectionPackagePayload, signature: UsernameSignature) -> Self {
-            Self { payload, signature }
-        }
-
-        pub fn verify(self) -> Result<ConnectionPackage, SignatureVerificationError> {
-            let verifying_key = self.payload.verifying_key.clone();
-            <Self as Verifiable>::verify(self, &verifying_key)
-        }
-    }
-
-    impl Verifiable for ConnectionPackageIn {
-        fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
-            self.payload.tls_serialize_detached()
-        }
-
-        fn signature(&self) -> impl AsRef<[u8]> {
-            &self.signature
-        }
-
-        fn label(&self) -> &str {
-            LABEL
-        }
-    }
-
-    impl VerifiedStruct<ConnectionPackageIn> for ConnectionPackage {
-        type SealingType = private_mod::Seal;
-
-        fn from_verifiable(verifiable: ConnectionPackageIn, _seal: Self::SealingType) -> Self {
-            ConnectionPackage {
-                payload: verifiable.payload,
-                signature: verifiable.signature,
-            }
-        }
-    }
-}
-
-impl Labeled for ConnectionPackage {
-    const LABEL: &'static str = LABEL;
-}
-
-pub type ConnectionPackageHash = Hash<ConnectionPackage>;
-
-impl Hashable for ConnectionPackage {}
-
-#[derive(Debug, Clone, PartialEq, Eq, TlsSerialize, TlsSize, Serialize, Deserialize)]
-pub struct ConnectionPackage {
-    payload: ConnectionPackagePayload,
-    signature: UsernameSignature,
-}
+pub type ConnectionPackageHash = Hash<ConnectionPackageLabel>;
 
 /// The facts about a connection package that its owner needs to keep outside the (possibly sealed)
 /// package representation.
@@ -227,81 +34,4 @@ pub struct ConnectionPackageMetadata {
     pub hash: ConnectionPackageHash,
     pub lifetime: ExpirationData,
     pub is_last_resort: bool,
-}
-
-#[derive(Debug, Error)]
-pub enum ConnectionPackageError {
-    #[error(transparent)]
-    LibraryError(#[from] LibraryError),
-    #[error("Error generating decryption key: {0}")]
-    DecryptionKeyError(#[from] RandomnessError),
-}
-
-impl ConnectionPackage {
-    pub fn generate(
-        user_handle_hash: UsernameHash,
-        signing_key: &UsernameSigningKey,
-        is_last_resort: bool,
-    ) -> Result<(ConnectionDecryptionKey, Self, ConnectionPackageMetadata), ConnectionPackageError>
-    {
-        let decryption_key = ConnectionDecryptionKey::generate()?;
-        let lifetime = ExpirationData::new(CONNECTION_PACKAGE_EXPIRATION);
-        let payload = ConnectionPackagePayload {
-            protocol_version: AirProtocolVersion::default(),
-            user_handle_hash,
-            encryption_key: decryption_key.encryption_key().clone(),
-            lifetime: lifetime.clone(),
-            verifying_key: signing_key.verifying_key().clone(),
-            is_last_resort: TlsBool(is_last_resort),
-        };
-        let connection_package = payload.sign(signing_key)?;
-
-        let metadata = ConnectionPackageMetadata {
-            hash: connection_package.hash(),
-            lifetime,
-            is_last_resort,
-        };
-
-        Ok((decryption_key, connection_package, metadata))
-    }
-
-    pub fn from_parts(payload: ConnectionPackagePayload, signature: UsernameSignature) -> Self {
-        Self { payload, signature }
-    }
-
-    pub fn into_parts(self) -> (ConnectionPackagePayload, UsernameSignature) {
-        (self.payload, self.signature)
-    }
-
-    pub fn encryption_key(&self) -> &ConnectionEncryptionKey {
-        &self.payload.encryption_key
-    }
-
-    pub fn expires_at(&self) -> TimeStamp {
-        self.payload.lifetime.not_after()
-    }
-
-    pub fn is_last_resort(&self) -> bool {
-        self.payload.is_last_resort.0
-    }
-
-    #[cfg(feature = "test_utils")]
-    pub fn new_for_test(payload: ConnectionPackagePayload, signature: UsernameSignature) -> Self {
-        Self { payload, signature }
-    }
-}
-
-impl From<ConnectionPackageV1> for ConnectionPackage {
-    fn from(v1: ConnectionPackageV1) -> Self {
-        let (payload, signature) = v1.into_parts();
-        let payload = ConnectionPackagePayload {
-            protocol_version: payload.protocol_version,
-            user_handle_hash: payload.user_handle_hash,
-            encryption_key: payload.encryption_key,
-            lifetime: payload.lifetime,
-            verifying_key: payload.verifying_key,
-            is_last_resort: false.into(),
-        };
-        Self { payload, signature }
-    }
 }

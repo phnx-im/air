@@ -19,12 +19,8 @@ use aircommon::{
         },
     },
     identifiers::UsernameHash,
-    messages::{
-        connection_package::{
-            ConnectionPackage, ConnectionPackageHash, ConnectionPackageMetadata,
-            VersionedConnectionPackageIn,
-        },
-        connection_package_v1::CONNECTION_PACKAGE_EXPIRATION,
+    messages::connection_package::{
+        CONNECTION_PACKAGE_EXPIRATION, ConnectionPackageHash, ConnectionPackageMetadata,
     },
     time::{ExpirationData, TimeStamp},
 };
@@ -171,6 +167,19 @@ impl SignedConnectionPackageIn {
 
     pub fn payload_bytes(&self) -> &[u8] {
         self.tbs.payload_bytes.as_slice()
+    }
+
+    /// Verifies the signature with the key the package carries and that the
+    /// package belongs to `expected_hash`.
+    pub fn verify_for_username(
+        self,
+        expected_hash: &UsernameHash,
+    ) -> Result<VerifiedSignedConnectionPackage, ConnectionPackageVerificationError> {
+        if self.payload.username_hash != *expected_hash {
+            return Err(ConnectionPackageVerificationError::UsernameHashMismatch);
+        }
+        let verifying_key = self.payload.verifying_key.clone();
+        Ok(self.verify(&verifying_key)?)
     }
 }
 
@@ -324,84 +333,12 @@ impl VerifiedSignedConnectionPackage {
     }
 }
 
-pub enum AnyConnectionPackageIn {
-    Legacy(VersionedConnectionPackageIn),
-    Signed(SignedConnectionPackageIn),
-}
-
-pub enum AnyConnectionPackage {
-    Legacy(ConnectionPackage),
-    Signed(VerifiedSignedConnectionPackage),
-}
-
-impl AnyConnectionPackageIn {
-    pub fn verify(
-        self,
-        expected_hash: &UsernameHash,
-    ) -> Result<AnyConnectionPackage, ConnectionPackageVerificationError> {
-        match self {
-            AnyConnectionPackageIn::Legacy(package) => {
-                let verified = package.verify()?;
-                if verified.username_hash() != expected_hash {
-                    return Err(ConnectionPackageVerificationError::UsernameHashMismatch);
-                }
-                Ok(AnyConnectionPackage::Legacy(verified.into_current()))
-            }
-            AnyConnectionPackageIn::Signed(package) => {
-                if package.payload.username_hash != *expected_hash {
-                    return Err(ConnectionPackageVerificationError::UsernameHashMismatch);
-                }
-                let verifying_key = package.payload.verifying_key.clone();
-                let verified: VerifiedSignedConnectionPackage = package.verify(&verifying_key)?;
-                Ok(AnyConnectionPackage::Signed(verified))
-            }
-        }
-    }
-}
-
 #[derive(Debug, Error)]
 pub enum ConnectionPackageVerificationError {
     #[error(transparent)]
     Signature(#[from] SignatureVerificationError),
     #[error("Username hash does not match the requested username")]
     UsernameHashMismatch,
-}
-
-impl AnyConnectionPackage {
-    pub fn hash(&self) -> ConnectionPackageHash {
-        match self {
-            AnyConnectionPackage::Legacy(cp) => cp.hash(),
-            AnyConnectionPackage::Signed(cp) => cp.hash(),
-        }
-    }
-
-    pub fn encryption_key(&self) -> &ConnectionEncryptionKey {
-        match self {
-            AnyConnectionPackage::Legacy(cp) => cp.encryption_key(),
-            AnyConnectionPackage::Signed(cp) => cp.encryption_key(),
-        }
-    }
-
-    pub fn expires_at(&self) -> TimeStamp {
-        match self {
-            AnyConnectionPackage::Legacy(cp) => cp.expires_at(),
-            AnyConnectionPackage::Signed(cp) => cp.expires_at(),
-        }
-    }
-
-    pub fn is_last_resort(&self) -> bool {
-        match self {
-            AnyConnectionPackage::Legacy(cp) => cp.is_last_resort(),
-            AnyConnectionPackage::Signed(cp) => cp.is_last_resort(),
-        }
-    }
-
-    pub fn air_features(&self) -> Option<&AirFeatures> {
-        match self {
-            AnyConnectionPackage::Legacy(_) => None,
-            AnyConnectionPackage::Signed(cp) => Some(cp.air_features()),
-        }
-    }
 }
 
 #[cfg(test)]
@@ -498,7 +435,7 @@ mod tests {
     }
 
     #[test]
-    fn any_verify_signed_binds_username_hash() {
+    fn verify_for_username_binds_username_hash() {
         let signing_key = UsernameSigningKey::generate().unwrap();
         let hash_a = username_hash("alice");
         let hash_b = username_hash("bobby");
@@ -506,9 +443,8 @@ mod tests {
         let (_decryption_key, package, _metadata) =
             SignedConnectionPackage::generate(hash_a, &signing_key, false).unwrap();
         let package_in = SignedConnectionPackageIn::try_from(package).unwrap();
-        let any_in = AnyConnectionPackageIn::Signed(package_in);
 
-        let Err(error) = any_in.verify(&hash_b) else {
+        let Err(error) = package_in.verify_for_username(&hash_b) else {
             panic!("verification should fail on username hash mismatch");
         };
         assert!(matches!(
@@ -519,43 +455,8 @@ mod tests {
         let (_decryption_key, package, metadata) =
             SignedConnectionPackage::generate(hash_a, &signing_key, false).unwrap();
         let package_in = SignedConnectionPackageIn::try_from(package).unwrap();
-        let any_in = AnyConnectionPackageIn::Signed(package_in);
 
-        let any = any_in.verify(&hash_a).unwrap();
-        assert!(any.air_features().is_some());
-        assert_eq!(any.hash(), metadata.hash);
-        assert!(matches!(any, AnyConnectionPackage::Signed(_)));
-    }
-
-    #[test]
-    fn any_verify_legacy_binds_username_hash() {
-        let signing_key = UsernameSigningKey::generate().unwrap();
-        let hash_a = username_hash("alice");
-        let hash_b = username_hash("bobby");
-
-        let (_decryption_key, cp, _metadata) =
-            ConnectionPackage::generate(hash_a, &signing_key, false).unwrap();
-        let proto = crate::auth_service::v1::ConnectionPackage::from(cp);
-        let cp_in = VersionedConnectionPackageIn::try_from(proto).unwrap();
-        let any_in = AnyConnectionPackageIn::Legacy(cp_in);
-
-        let Err(error) = any_in.verify(&hash_b) else {
-            panic!("verification should fail on username hash mismatch");
-        };
-        assert!(matches!(
-            error,
-            ConnectionPackageVerificationError::UsernameHashMismatch
-        ));
-
-        let (_decryption_key, cp, metadata) =
-            ConnectionPackage::generate(hash_a, &signing_key, false).unwrap();
-        let proto = crate::auth_service::v1::ConnectionPackage::from(cp);
-        let cp_in = VersionedConnectionPackageIn::try_from(proto).unwrap();
-        let any_in = AnyConnectionPackageIn::Legacy(cp_in);
-
-        let any = any_in.verify(&hash_a).unwrap();
-        assert!(any.air_features().is_none());
-        assert_eq!(any.hash(), metadata.hash);
-        assert!(matches!(any, AnyConnectionPackage::Legacy(_)));
+        let verified = package_in.verify_for_username(&hash_a).unwrap();
+        assert_eq!(verified.hash(), metadata.hash);
     }
 }

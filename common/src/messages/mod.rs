@@ -22,7 +22,6 @@ pub mod client_qs;
 pub mod client_references;
 pub mod client_state;
 pub mod connection_package;
-pub mod connection_package_v1;
 pub mod push_token;
 pub mod welcome_attribution_info;
 

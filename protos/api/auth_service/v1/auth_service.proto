@@ -71,12 +71,9 @@ service AuthService {
   // A connection establishment protocol between a user and a user
   // identified by a username.
   //
-  // 1. User sends a `fetch` (legacy) or `fetch_signed` request for a specific
-  //    username hash.
-  // 2. Server responds with a connection package for the username hash. A
-  //    `fetch_signed` request is answered with `fetch_signed_response`, or
-  //    with legacy `fetch_response` if the user has not published signed
-  //    connection packages.
+  // 1. User sends a `fetch_signed` request for a specific username hash.
+  // 2. Server responds with a signed connection package for the username
+  //    hash in `fetch_signed_response`.
   // 3. User sends an `enqueue` request with an encrypted connection offer.
   // 4. Server responds with an empty acknowledgement.
   rpc ConnectUsername(stream ConnectUsernameRequest) returns (stream ConnectUsernameResponse);
@@ -107,20 +104,6 @@ message AirProtocolVersion {
 
 message EncryptedUserProfile {
   common.v1.IndexedCiphertext ciphertext = 1;
-}
-
-message ConnectionPackage {
-  ConnectionPackagePayload payload = 1;
-  common.v1.Signature signature = 2;
-}
-
-message ConnectionPackagePayload {
-  AirProtocolVersion protocol_version = 1;
-  ConnectionEncryptionKey encryption_key = 2;
-  common.v1.ExpirationData lifetime = 3;
-  UsernameVerifyingKey verifying_key = 5;
-  UsernameHash username_hash = 6;
-  optional bool is_last_resort = 7;
 }
 
 message SignedConnectionPackage {
@@ -321,9 +304,10 @@ message PublishConnectionPackagesRequest {
 }
 
 message PublishConnectionPackagesPayload {
+  // 2 = removed legacy connection_packages
+  reserved 2;
   common.v1.ClientMetadata client_metadata = 4;
   UsernameHash hash = 3;
-  repeated ConnectionPackage connection_packages = 2;
   repeated SignedConnectionPackage signed_connection_packages = 5;
 }
 
@@ -590,10 +574,6 @@ message ConnectUsernameRequest {
   }
 }
 
-message FetchConnectionPackageResponse {
-  ConnectionPackage connection_package = 1;
-}
-
 message FetchSignedConnectionPackageStep {
   common.v1.ClientMetadata client_metadata = 1;
   UsernameHash hash = 2;
@@ -615,8 +595,9 @@ message ConnectionOfferMessage {
 }
 
 message ConnectUsernameResponse {
+  // 1 = removed legacy fetch_response step
+  reserved 1;
   oneof step {
-    FetchConnectionPackageResponse fetch_response = 1;
     EnqueueConnectionOfferResponse enqueue_response = 2;
     FetchSignedConnectionPackageResponse fetch_signed_response = 3;
   }

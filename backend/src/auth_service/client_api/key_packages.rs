@@ -3,10 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::UsernameVerifyingKey,
-    crypto::signatures::signable::Verifiable,
+    credentials::keys::UsernameVerifyingKey, crypto::signatures::signable::Verifiable,
     identifiers::UsernameHash,
-    messages::connection_package::{VersionedConnectionPackage, VersionedConnectionPackageIn},
 };
 use airprotos::client::signed_connection_package::{
     SignedConnectionPackageIn, VerifiedSignedConnectionPackage,
@@ -16,10 +14,7 @@ use tonic::Status;
 use tracing::{error, warn};
 
 use crate::{
-    auth_service::{
-        AuthService,
-        connection_package::{StorableConnectionPackage, signed::StorableSignedConnectionPackage},
-    },
+    auth_service::{AuthService, connection_package::StorableSignedConnectionPackage},
     errors::{DatabaseError, StorageError},
 };
 
@@ -28,22 +23,8 @@ impl AuthService {
         &self,
         hash: &UsernameHash,
         verifying_key: &UsernameVerifyingKey,
-        connection_packages: Vec<VersionedConnectionPackageIn>,
         signed_connection_packages: Vec<SignedConnectionPackageIn>,
     ) -> Result<(), PublishConnectionPackageError> {
-        let connection_packages = connection_packages
-            .into_iter()
-            .map(|cp| {
-                let verified: VersionedConnectionPackage = cp
-                    .verify()
-                    .map_err(|_| PublishConnectionPackageError::InvalidKeyPackage)?;
-                if verified.username_hash() != hash {
-                    return Err(PublishConnectionPackageError::UsernameHashMismatch);
-                }
-                Ok(verified)
-            })
-            .collect::<Result<Vec<VersionedConnectionPackage>, PublishConnectionPackageError>>()?;
-
         let signed_connection_packages = signed_connection_packages
             .into_iter()
             .map(|cp| {
@@ -61,12 +42,6 @@ impl AuthService {
             .collect::<Result<Vec<VerifiedSignedConnectionPackage>, _>>()?;
 
         let mut txn = self.db_pool.begin().await?;
-        StorableConnectionPackage::store_multiple_for_username(
-            txn.as_mut(),
-            &connection_packages,
-            hash,
-        )
-        .await?;
         StorableSignedConnectionPackage::store_multiple_for_username(
             txn.as_mut(),
             hash,
@@ -142,10 +117,7 @@ impl From<PublishConnectionPackageError> for Status {
 #[cfg(test)]
 mod tests {
     use aircommon::{
-        credentials::keys::UsernameSigningKey,
-        identifiers::UsernameHash,
-        messages::connection_package::{ConnectionPackage, VersionedConnectionPackageIn},
-        time::ExpirationData,
+        credentials::keys::UsernameSigningKey, identifiers::UsernameHash, time::ExpirationData,
     };
     use airprotos::{
         auth_service::v1::SignedConnectionPackage,
@@ -157,8 +129,7 @@ mod tests {
 
     use crate::air_service::BackendService;
     use crate::auth_service::{
-        AuthService, connection_package::signed::StorableSignedConnectionPackage,
-        usernames::UsernameRecord,
+        AuthService, connection_package::StorableSignedConnectionPackage, usernames::UsernameRecord,
     };
 
     use super::PublishConnectionPackageError;
@@ -196,10 +167,6 @@ mod tests {
         let signing_key = UsernameSigningKey::generate()?;
         register_handle(&pool, hash, &signing_key).await?;
 
-        let (_, legacy_package, _) = ConnectionPackage::generate(hash, &signing_key, false)?;
-        let legacy_proto = airprotos::auth_service::v1::ConnectionPackage::from(legacy_package);
-        let legacy_in = VersionedConnectionPackageIn::try_from(legacy_proto)?;
-
         let (_, signed_package, _) = SignedConnectionPackage::generate(hash, &signing_key, false)?;
         let signed_in = SignedConnectionPackageIn::try_from(signed_package)?;
 
@@ -211,7 +178,6 @@ mod tests {
             .as_publish_connection_packages_for_handle(
                 &hash,
                 signing_key.verifying_key(),
-                vec![legacy_in],
                 vec![signed_in, last_resort_in],
             )
             .await?;
@@ -236,7 +202,6 @@ mod tests {
             .as_publish_connection_packages_for_handle(
                 &hash,
                 signing_key.verifying_key(),
-                Vec::new(),
                 vec![signed_in],
             )
             .await?;
@@ -253,10 +218,6 @@ mod tests {
         let hash = UsernameHash::new([1; 32]);
         let signing_key = UsernameSigningKey::generate()?;
 
-        let (_, legacy_package, _) = ConnectionPackage::generate(hash, &signing_key, false)?;
-        let legacy_proto = airprotos::auth_service::v1::ConnectionPackage::from(legacy_package);
-        let legacy_in = VersionedConnectionPackageIn::try_from(legacy_proto)?;
-
         let (_, signed_package, _) = SignedConnectionPackage::generate(hash, &signing_key, false)?;
         let signed_in = SignedConnectionPackageIn::try_from(signed_package)?;
 
@@ -264,7 +225,6 @@ mod tests {
             .as_publish_connection_packages_for_handle(
                 &hash,
                 signing_key.verifying_key(),
-                vec![legacy_in],
                 vec![signed_in],
             )
             .await;
@@ -295,7 +255,6 @@ mod tests {
             .as_publish_connection_packages_for_handle(
                 &hash_a,
                 signing_key.verifying_key(),
-                Vec::new(),
                 vec![signed_in],
             )
             .await;
@@ -328,7 +287,6 @@ mod tests {
             .as_publish_connection_packages_for_handle(
                 &hash,
                 signing_key_a.verifying_key(),
-                Vec::new(),
                 vec![signed_in],
             )
             .await;
@@ -339,34 +297,6 @@ mod tests {
 
         let loaded = StorableSignedConnectionPackage::load_for_username(&pool, &hash).await?;
         assert!(loaded.is_none());
-
-        Ok(())
-    }
-
-    #[sqlx::test]
-    async fn publish_rejects_legacy_package_for_other_handle(pool: PgPool) -> anyhow::Result<()> {
-        let service = init_service(&pool).await?;
-        let hash_a = UsernameHash::new([1; 32]);
-        let hash_b = UsernameHash::new([2; 32]);
-        let signing_key = UsernameSigningKey::generate()?;
-        register_handle(&pool, hash_a, &signing_key).await?;
-
-        let (_, legacy_package, _) = ConnectionPackage::generate(hash_b, &signing_key, false)?;
-        let legacy_proto = airprotos::auth_service::v1::ConnectionPackage::from(legacy_package);
-        let legacy_in = VersionedConnectionPackageIn::try_from(legacy_proto)?;
-
-        let result = service
-            .as_publish_connection_packages_for_handle(
-                &hash_a,
-                signing_key.verifying_key(),
-                vec![legacy_in],
-                Vec::new(),
-            )
-            .await;
-        assert!(matches!(
-            result,
-            Err(PublishConnectionPackageError::UsernameHashMismatch)
-        ));
 
         Ok(())
     }

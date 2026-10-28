@@ -106,9 +106,6 @@ impl TimedTaskKind {
                 OperationType::GetInviteCode => "Token Replenishment (Invite Code)",
                 OperationType::ConnectUsername => "Token Replenishment (Connect Username)",
             },
-            TimedTaskKind::SignedConnectionPackageUpload { .. } => {
-                "Signed Connection Package Upload"
-            }
             TimedTaskKind::ConnectionRequestExpiry => "Connection Request Expiry",
         }
     }

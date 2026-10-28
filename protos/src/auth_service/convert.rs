@@ -30,9 +30,9 @@ use super::v1::{
     AirProtocolVersion, AsCredential, AsCredentialBody, AsIntermediateCredential,
     AsIntermediateCredentialBody, AsIntermediateCredentialCsr, AsIntermediateCredentialPayload,
     AsIntermediateVerifyingKey, AsVerifyingKey, ChallengeType, ClientVerifyingKey,
-    ConnectionEncryptionKey, ConnectionOfferMessage, ConnectionPackage, ConnectionPackagePayload,
-    EncryptedUserProfile, Hash, SignatureScheme, UserCredential, UserCredentialCsr,
-    UserCredentialPayload, UsernameHash, UsernameSignature, UsernameVerifyingKey,
+    ConnectionEncryptionKey, ConnectionOfferMessage, EncryptedUserProfile, Hash, SignatureScheme,
+    UserCredential, UserCredentialCsr, UserCredentialPayload, UsernameHash, UsernameSignature,
+    UsernameVerifyingKey,
 };
 
 impl From<identifiers::UserId> for UserId {
@@ -293,144 +293,6 @@ pub enum UserCredentialPayloadError {
 impl From<UserCredentialPayloadError> for Status {
     fn from(e: UserCredentialPayloadError) -> Self {
         Status::invalid_argument(format!("invalid client payload: {e}"))
-    }
-}
-
-impl From<messages::connection_package_v1::ConnectionPackageV1> for ConnectionPackage {
-    fn from(value: messages::connection_package_v1::ConnectionPackageV1) -> Self {
-        let (payload, signature) = value.into_parts();
-        Self {
-            payload: Some(payload.into()),
-            signature: Some(signature.into()),
-        }
-    }
-}
-
-impl From<messages::connection_package::ConnectionPackage> for ConnectionPackage {
-    fn from(value: messages::connection_package::ConnectionPackage) -> Self {
-        let (payload, signature) = value.into_parts();
-        Self {
-            payload: Some(payload.into()),
-            signature: Some(signature.into()),
-        }
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ConnectionPackageError {
-    #[error(transparent)]
-    MissingField(#[from] MissingFieldError<&'static str>),
-    #[error(transparent)]
-    Csr(#[from] UserCredentialCsrError),
-    #[error(transparent)]
-    ExpirationData(#[from] ExpirationDataError),
-    #[error("Invalid credential fingerprint: {0}")]
-    CredentialFingerprint(#[from] HashError),
-    #[error(transparent)]
-    UsernameHash(#[from] UsernameHashError),
-    #[error(transparent)]
-    Version(#[from] UnsupportedMlsVersion),
-}
-
-impl From<ConnectionPackageError> for Status {
-    fn from(error: ConnectionPackageError) -> Self {
-        Status::invalid_argument(format!("invalid connection package: {error}"))
-    }
-}
-
-impl From<messages::connection_package::ConnectionPackagePayload> for ConnectionPackagePayload {
-    fn from(value: messages::connection_package::ConnectionPackagePayload) -> Self {
-        Self {
-            protocol_version: Some(value.protocol_version.into()),
-            encryption_key: Some(value.encryption_key.into()),
-            lifetime: Some(value.lifetime.into()),
-            verifying_key: Some(value.verifying_key.into()),
-            username_hash: Some(value.user_handle_hash.into()),
-            is_last_resort: Some(value.is_last_resort.0),
-        }
-    }
-}
-
-impl From<messages::connection_package_v1::ConnectionPackageV1Payload>
-    for ConnectionPackagePayload
-{
-    fn from(value: messages::connection_package_v1::ConnectionPackageV1Payload) -> Self {
-        Self {
-            protocol_version: Some(value.protocol_version.into()),
-            encryption_key: Some(value.encryption_key.into()),
-            lifetime: Some(value.lifetime.into()),
-            verifying_key: Some(value.verifying_key.into()),
-            username_hash: Some(value.user_handle_hash.into()),
-            is_last_resort: None,
-        }
-    }
-}
-
-impl From<messages::connection_package::VersionedConnectionPackage> for ConnectionPackage {
-    fn from(value: messages::connection_package::VersionedConnectionPackage) -> Self {
-        match value {
-            messages::connection_package::VersionedConnectionPackage::V1(cp_v1) => {
-                ConnectionPackage::from(cp_v1)
-            }
-            messages::connection_package::VersionedConnectionPackage::V2(cp_v2) => {
-                ConnectionPackage::from(cp_v2)
-            }
-        }
-    }
-}
-
-impl TryFrom<ConnectionPackage> for messages::connection_package::VersionedConnectionPackageIn {
-    type Error = ConnectionPackageError;
-
-    fn try_from(proto: ConnectionPackage) -> Result<Self, Self::Error> {
-        let payload: ConnectionPackagePayload = proto.payload.ok_or_missing_field("payload")?;
-        let protocol_version = payload
-            .protocol_version
-            .ok_or_missing_field("protocol_version")?
-            .try_into()?;
-        let encryption_key = payload
-            .encryption_key
-            .ok_or_missing_field("encryption_key")?
-            .into();
-        let lifetime = payload
-            .lifetime
-            .ok_or_missing_field("lifetime")?
-            .try_into()?;
-        let verifying_key = payload
-            .verifying_key
-            .ok_or_missing_field("verifying_key")?
-            .into();
-        let user_handle_hash = payload
-            .username_hash
-            .ok_or_missing_field("username_hash")?
-            .try_into()?;
-        let is_last_resort = payload.is_last_resort.map(|b| b.into());
-        let signature = proto.signature.ok_or_missing_field("signature")?.into();
-        let result = if let Some(is_last_resort) = is_last_resort {
-            let payload = messages::connection_package::ConnectionPackagePayload {
-                protocol_version,
-                encryption_key,
-                lifetime,
-                verifying_key,
-                user_handle_hash,
-                is_last_resort,
-            };
-            Self::V2(messages::connection_package::ConnectionPackageIn::new(
-                payload, signature,
-            ))
-        } else {
-            let payload = messages::connection_package_v1::ConnectionPackageV1Payload {
-                protocol_version,
-                encryption_key,
-                lifetime,
-                verifying_key,
-                user_handle_hash,
-            };
-            Self::V1(messages::connection_package_v1::ConnectionPackageV1In::new(
-                payload, signature,
-            ))
-        };
-        Ok(result)
     }
 }
 

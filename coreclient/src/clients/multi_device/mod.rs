@@ -87,7 +87,6 @@ use crate::{
         MemoryUserKeyStore, indexed_keys::StorableIndexedKey,
         queue_ratchets::StorableQsQueueRatchet,
     },
-    outbound_service::timed_tasks::skip_signed_connection_package_upload,
     privacy_pass,
     usernames::sync::{apply_usernames_update, usernames_snapshot},
     utils::{
@@ -1423,7 +1422,6 @@ impl CoreUser {
                 privacy_pass::apply_redeemed_tokens(txn, &redeemed_tokens).await?;
                 apply_usernames_update(txn, &usernames).await?;
                 store_provisioned_requests(txn, &connection_requests, Utc::now()).await?;
-                skip_signed_connection_package_upload(&mut *txn).await?;
 
                 // Queue the onboarding into the groups the virtual client is
                 // already a member of.

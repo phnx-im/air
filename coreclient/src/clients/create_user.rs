@@ -28,7 +28,6 @@ use aircommon::{
     messages::{
         client_as_out::EncryptedUserProfile,
         client_qs::CreateUserRecordResponse,
-        connection_package_v1::ConnectionPackageV1,
         push_token::{EncryptedPushToken, PushToken},
     },
     registration::RegistrationChallenge,
@@ -270,7 +269,6 @@ impl PostAsRegistrationState {
         let unfinalized_registration_state = UnfinalizedRegistrationState {
             key_store,
             qs_initial_ratchet_secret,
-            connection_packages: Vec::new(),
             encrypted_push_token,
         };
 
@@ -290,7 +288,6 @@ impl PostAsRegistrationState {
 pub(crate) struct UnfinalizedRegistrationState {
     key_store: MemoryUserKeyStore,
     qs_initial_ratchet_secret: RatchetSecret,
-    connection_packages: Vec<ConnectionPackageV1>,
     encrypted_push_token: Option<EncryptedPushToken>,
 }
 
@@ -301,7 +298,6 @@ impl UnfinalizedRegistrationState {
         let UnfinalizedRegistrationState {
             key_store,
             qs_initial_ratchet_secret,
-            connection_packages: _,
             encrypted_push_token,
         } = self;
         AsRegisteredUserState {

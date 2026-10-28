@@ -919,12 +919,14 @@ mod tests {
             indexed_aead::keys::UserProfileBaseSecret,
         },
         identifiers::QualifiedGroupId,
-        messages::{FriendshipToken, connection_package::ConnectionPackage},
+        messages::FriendshipToken,
     };
     use chrono::{DateTime, Utc};
     use uuid::Uuid;
 
-    use airprotos::client::self_group::BlockedContactEntry;
+    use airprotos::{
+        auth_service::v1::SignedConnectionPackage, client::self_group::BlockedContactEntry,
+    };
 
     use crate::{
         ChatAttributes, UsernameRecord,
@@ -1192,8 +1194,11 @@ mod tests {
             record.store(&mut *txn).await?;
             let mut hashes = Vec::new();
             for last_resort in [false, true] {
-                let (key, _package, metadata) =
-                    ConnectionPackage::generate(record.hash, &record.signing_key, last_resort)?;
+                let (key, _package, metadata) = SignedConnectionPackage::generate(
+                    record.hash,
+                    &record.signing_key,
+                    last_resort,
+                )?;
                 hashes.push(metadata.hash);
                 ConnectionPackageRecord::from(metadata)
                     .store_for_username(&mut *txn, &username, &key)

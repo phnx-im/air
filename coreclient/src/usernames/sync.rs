@@ -430,12 +430,12 @@ fn parked_username(parked: &OutboxEntry) -> Option<Username> {
 #[cfg(test)]
 mod tests {
     use aircommon::{
-        codec::PersistenceCodec,
-        credentials::keys::UsernameSigningKey,
-        identifiers::QualifiedGroupId,
-        messages::connection_package::{ConnectionPackage, ConnectionPackageHash},
+        codec::PersistenceCodec, credentials::keys::UsernameSigningKey,
+        identifiers::QualifiedGroupId, messages::connection_package::ConnectionPackageHash,
     };
-    use airprotos::client::self_group::UsernamesUpdate;
+    use airprotos::{
+        auth_service::v1::SignedConnectionPackage, client::self_group::UsernamesUpdate,
+    };
     use openmls::group::GroupId;
     use sqlx::SqlitePool;
     use uuid::Uuid;
@@ -477,7 +477,7 @@ mod tests {
         record.store(&mut *txn).await?;
         for _ in 0..packages {
             let (key, _package, metadata) =
-                ConnectionPackage::generate(record.hash, &record.signing_key, false)?;
+                SignedConnectionPackage::generate(record.hash, &record.signing_key, false)?;
             ConnectionPackageRecord::from(metadata)
                 .store_for_username(&mut *txn, &record.username, &key)
                 .await?;
@@ -944,7 +944,7 @@ mod tests {
             let record = store_username(txn, "ellie-03", 1).await?;
             let sibling_claim = usernames_snapshot(&mut *txn).await?;
             let (key, _package, metadata) =
-                ConnectionPackage::generate(record.hash, &record.signing_key, false)?;
+                SignedConnectionPackage::generate(record.hash, &record.signing_key, false)?;
             ConnectionPackageRecord::from(metadata)
                 .store_for_username(&mut *txn, &record.username, &key)
                 .await?;

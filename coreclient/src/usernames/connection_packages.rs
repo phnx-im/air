@@ -144,9 +144,8 @@ mod tests {
 
     use super::*;
 
-    use aircommon::{
-        credentials::keys::UsernameSigningKey, messages::connection_package::ConnectionPackage,
-    };
+    use aircommon::credentials::keys::UsernameSigningKey;
+    use airprotos::auth_service::v1::SignedConnectionPackage;
 
     use sqlx::SqlitePool;
 
@@ -160,9 +159,12 @@ mod tests {
         let hash = username.calculate_hash().unwrap();
         let username_record = UsernameRecord::new(username, hash, signing_key);
         username_record.store(&mut connection).await.unwrap();
-        let (decryption_key, _package, metadata) =
-            ConnectionPackage::generate(username_record.hash, &username_record.signing_key, false)
-                .unwrap();
+        let (decryption_key, _package, metadata) = SignedConnectionPackage::generate(
+            username_record.hash,
+            &username_record.signing_key,
+            false,
+        )
+        .unwrap();
         let record = ConnectionPackageRecord::from(metadata);
 
         record
@@ -198,9 +200,12 @@ mod tests {
         let hash = username.calculate_hash().unwrap();
         let username_record = UsernameRecord::new(username, hash, signing_key);
         username_record.store(&mut connection).await.unwrap();
-        let (decryption_key, _package, metadata) =
-            ConnectionPackage::generate(username_record.hash, &username_record.signing_key, false)
-                .unwrap();
+        let (decryption_key, _package, metadata) = SignedConnectionPackage::generate(
+            username_record.hash,
+            &username_record.signing_key,
+            false,
+        )
+        .unwrap();
         let record = ConnectionPackageRecord::from(metadata);
         record
             .store_for_username(&mut connection, &username_record.username, &decryption_key)
