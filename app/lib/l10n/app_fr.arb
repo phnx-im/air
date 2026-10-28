@@ -297,8 +297,6 @@
   "chatList_noChats": "Utilisez le bouton Composer pour ajouter votre premier contact et commencer à discuter.",
   "chatList_draft": "Brouillon",
   "chatList_you": "Vous",
-  "chatList_imageEmoji": "🖼️",
-  "chatList_fileEmoji": "📎",
   "chatList_blocked": "Bloqué",
   "chatList_reaction": "{user} a réagi {emoji} à \"{message}\"",
   "chatList_reactionByYou": "Vous avez réagi {emoji} à \"{message}\"",

@@ -345,26 +345,6 @@ struct RegistrationRetention {
     completions: Duration,
 }
 
-/// Loads the deployment's address bucket key, generating it on first start.
-///
-/// The no-op update makes the insert return the existing row, so a concurrent
-/// first start cannot end up with two keys.
-pub(crate) async fn load_or_generate_ip_bucket_key(pool: &PgPool) -> sqlx::Result<BucketKey> {
-    let fresh = BucketKey::random();
-
-    let stored = sqlx::query_scalar!(
-        "INSERT INTO registration_ip_bucket_key (key)
-        VALUES ($1)
-        ON CONFLICT (singleton) DO UPDATE SET key = registration_ip_bucket_key.key
-        RETURNING key",
-        fresh.as_bytes(),
-    )
-    .fetch_one(pool)
-    .await?;
-
-    BucketKey::from_stored(stored)
-}
-
 #[cfg(test)]
 mod test {
     use std::{
@@ -377,7 +357,7 @@ mod test {
 
     use aircommon::registration::ChallengeKind;
 
-    use crate::settings::RegistrationThreshold;
+    use crate::{bucket_key::load_or_generate_ip_bucket_key, settings::RegistrationThreshold};
 
     use super::*;
 
@@ -809,20 +789,6 @@ mod test {
         assert_eq!(pruned, 2);
         assert_eq!(attempts(&pool).await?, 1);
         assert_eq!(completions(&pool).await?, 2);
-
-        Ok(())
-    }
-
-    #[sqlx::test]
-    async fn the_bucket_key_is_stable_across_loads(pool: PgPool) -> anyhow::Result<()> {
-        let first = load_or_generate_ip_bucket_key(&pool).await?;
-        let second = load_or_generate_ip_bucket_key(&pool).await?;
-
-        let bucket = client_ip(1).bucket();
-        assert_eq!(
-            first.bucket(BUCKET_LABEL, &bucket),
-            second.bucket(BUCKET_LABEL, &bucket)
-        );
 
         Ok(())
     }

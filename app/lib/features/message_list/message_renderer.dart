@@ -46,7 +46,7 @@ import 'package:url_launcher/url_launcher.dart';
           (UsersCubit cubit) => cubit.state.displayName(userId: sender),
         ),
         preview:
-            mimiContent.plaintextPreview(loc) ??
+            mimiContent.plaintextPreview ??
             loc.composer_reply_noaccess_message_placeholder,
       ),
     UiInReplyToMessage_Resolved() => (

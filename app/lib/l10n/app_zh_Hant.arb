@@ -286,8 +286,6 @@
   "chatList_noChats": "使用「傳訊息」按鈕新增你的第一位聯絡人，開始聊天。",
   "chatList_draft": "草稿",
   "chatList_you": "我",
-  "chatList_imageEmoji": "🖼️",
-  "chatList_fileEmoji": "📎",
   "chatList_blocked": "已封鎖",
   "chatList_reaction": "{user} 對「{message}」回應了 {emoji}",
   "chatList_reactionByYou": "你對「{message}」回應了 {emoji}",

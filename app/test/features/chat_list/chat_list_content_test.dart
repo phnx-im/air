@@ -49,12 +49,7 @@ final chats = [
           sender: 2.userId(),
           sent: true,
           edited: false,
-          content: UiMimiContent(
-            plainBody: 'Hello Alice',
-            topicId: Uint8List(0),
-            content: simpleMessage('Hello Alice'),
-            attachments: [],
-          ),
+          content: textContent('Hello Alice'),
         ),
       ),
       status: UiMessageStatus.sent,
@@ -87,13 +82,8 @@ final chats = [
           sender: 3.userId(),
           sent: true,
           edited: true,
-          content: UiMimiContent(
-            plainBody: 'Hello Alice. This is a long message that should not be truncated but properly split into multiple lines.',
-            topicId: Uint8List(0),
-            content: simpleMessage(
-              'Hello Alice. This is a long message that should not be truncated but properly split into multiple lines.',
-            ),
-            attachments: [],
+          content: textContent(
+            'Hello Alice. This is a long message that should not be truncated but properly split into multiple lines.',
           ),
         ),
       ),
@@ -126,12 +116,7 @@ final chats = [
           sender: 4.userId(),
           sent: true,
           edited: false,
-          content: UiMimiContent(
-            plainBody: 'Hello All',
-            topicId: Uint8List(0),
-            content: simpleMessage('Hello All'),
-            attachments: [],
-          ),
+          content: textContent('Hello All'),
         ),
       ),
       status: UiMessageStatus.sent,
@@ -161,12 +146,7 @@ final chats = [
           sender: 4.userId(),
           sent: true,
           edited: false,
-          content: UiMimiContent(
-            plainBody: 'Hello All',
-            topicId: Uint8List(0),
-            content: simpleMessage('Hello All'),
-            attachments: [],
-          ),
+          content: textContent('Hello All'),
         ),
       ),
       status: UiMessageStatus.sent,
@@ -174,6 +154,7 @@ final chats = [
     ),
     draft: UiMessageDraft(
       message: 'Some draft message',
+      previewText: 'Some draft message',
       editingId: null,
       updatedAt: DateTime.now(),
       isCommitted: true,
@@ -214,12 +195,7 @@ final chats = [
           sender: 3.userId(),
           sent: true,
           edited: false,
-          content: UiMimiContent(
-            plainBody: "Don't forget: I muted this chat!",
-            topicId: Uint8List(0),
-            content: simpleMessage("Don't forget: I muted this chat!"),
-            attachments: [],
-          ),
+          content: textContent("Don't forget: I muted this chat!"),
         ),
       ),
       status: UiMessageStatus.sent,
@@ -260,7 +236,7 @@ final chats = [
                 size: 1024,
               ),
             ],
-            firstAttachmentType: .image,
+            previewText: '🖼️',
           ),
         ),
       ),
@@ -300,7 +276,7 @@ final chats = [
                 size: 128,
               ),
             ],
-            firstAttachmentType: .file,
+            previewText: '📎',
           ),
         ),
       ),
@@ -330,12 +306,7 @@ final chats = [
           sender: 2.userId(),
           sent: true,
           edited: false,
-          content: UiMimiContent(
-            plainBody: "Heya!",
-            topicId: Uint8List(0),
-            content: simpleMessage("Heya!"),
-            attachments: [],
-          ),
+          content: textContent("Heya!"),
         ),
       ),
       status: UiMessageStatus.sent,
@@ -349,6 +320,16 @@ final chats = [
 ];
 
 final chatIds = chats.map((chat) => chat.id).toList();
+
+/// A message whose markdown [body] has no markup, which makes the body its own
+/// preview.
+UiMimiContent textContent(String body) => UiMimiContent(
+  plainBody: body,
+  previewText: body,
+  topicId: Uint8List(0),
+  content: simpleMessage(body),
+  attachments: [],
+);
 
 MessageContent simpleMessage(String msg) {
   return MessageContent(
@@ -556,44 +537,45 @@ void main() {
       expect(find.textContaining('Some draft message'), findsOne);
     });
 
-    Future<void> pumpReactionChat(
-      WidgetTester tester, {
-      required UiLastReaction reaction,
-      UiMessageDraft? draft,
-    }) async {
-      final chat = reactedChat(reaction: reaction, draft: draft);
-
+    Future<void> pumpChat(WidgetTester tester, UiChatDetails chat) async {
       sizeView(tester, const Size(400, 120));
       await tester.pumpWidget(buildSubject(chats: [chat]));
     }
 
     testWidgets('reports a reaction on the last message', (tester) async {
-      await pumpReactionChat(
+      await pumpChat(
         tester,
-        reaction: UiLastReaction(reactor: 2.userId(), emoji: '👍'),
+        reactedChat(
+          reaction: UiLastReaction(reactor: 2.userId(), emoji: '👍'),
+        ),
       );
 
       expect(find.text('Bob reacted 👍 to "Hello Alice"'), findsOne);
     });
 
     testWidgets('names the reader as the reactor', (tester) async {
-      await pumpReactionChat(
+      await pumpChat(
         tester,
-        reaction: UiLastReaction(reactor: 1.userId(), emoji: '👍'),
+        reactedChat(
+          reaction: UiLastReaction(reactor: 1.userId(), emoji: '👍'),
+        ),
       );
 
       expect(find.text('You reacted 👍 to "Hello Alice"'), findsOne);
     });
 
     testWidgets('keeps the draft over a reaction', (tester) async {
-      await pumpReactionChat(
+      await pumpChat(
         tester,
-        reaction: UiLastReaction(reactor: 2.userId(), emoji: '👍'),
-        draft: UiMessageDraft(
-          message: 'Some draft message',
-          editingId: null,
-          updatedAt: DateTime.now(),
-          isCommitted: true,
+        reactedChat(
+          reaction: UiLastReaction(reactor: 2.userId(), emoji: '👍'),
+          draft: UiMessageDraft(
+            message: 'Some draft message',
+            previewText: 'Some draft message',
+            editingId: null,
+            updatedAt: DateTime.now(),
+            isCommitted: true,
+          ),
         ),
       );
 
@@ -628,51 +610,90 @@ void main() {
       );
     });
 
-    Future<void> pumpAttachmentChat(
-      WidgetTester tester,
-      UiAttachment attachment, {
-      UiUserId? sender,
-    }) async {
-      final chat = attachmentChat(attachment, sender: sender);
-
-      sizeView(tester, const Size(400, 120));
-      await tester.pumpWidget(buildSubject(chats: [chat]));
-    }
-
     testWidgets('stands in for a picture with an emoji', (tester) async {
-      await pumpAttachmentChat(tester, pictureAttachment);
+      await pumpChat(tester, attachmentChat(pictureAttachment));
 
       expect(find.text('You: 🖼️'), findsOne);
     });
 
     testWidgets('stands in for a file with an emoji', (tester) async {
-      await pumpAttachmentChat(tester, fileAttachment);
+      await pumpChat(tester, attachmentChat(fileAttachment));
 
       expect(find.text('You: 📎'), findsOne);
     });
 
     // A chat with a single contact names no sender, so the emoji stands alone.
     testWidgets('stands in for a picture from the contact', (tester) async {
-      await pumpAttachmentChat(
+      await pumpChat(
         tester,
-        pictureAttachment,
-        sender: userProfiles[1].userId,
+        attachmentChat(pictureAttachment, sender: userProfiles[1].userId),
       );
 
       expect(find.text('🖼️'), findsOne);
     });
 
     testWidgets('stands in for a file from the contact', (tester) async {
-      await pumpAttachmentChat(
+      await pumpChat(
         tester,
-        fileAttachment,
-        sender: userProfiles[1].userId,
+        attachmentChat(fileAttachment, sender: userProfiles[1].userId),
       );
 
       expect(find.text('📎'), findsOne);
     });
+
+    testWidgets('shows a message without its markdown', (tester) async {
+      await pumpChat(
+        tester,
+        contentChat(linkContent, sender: userProfiles[1].userId),
+      );
+
+      expect(find.text("I've written up an introduction to MLS"), findsOne);
+    });
+
+    testWidgets('runs the lines of a preview together', (tester) async {
+      await pumpChat(
+        tester,
+        contentChat(
+          UiMimiContent(
+            plainBody: '- one\n- two',
+            previewText: 'one\ntwo',
+            topicId: Uint8List(0),
+            attachments: [],
+          ),
+          sender: userProfiles[1].userId,
+        ),
+      );
+
+      expect(find.text('one two'), findsOne);
+    });
+
+    testWidgets('shows a draft without its markdown', (tester) async {
+      await pumpChat(
+        tester,
+        contentChat(
+          linkContent,
+          sender: userProfiles[1].userId,
+          draft: UiMessageDraft(
+            message: '**Bold**\nplans',
+            previewText: 'Bold\nplans',
+            updatedAt: DateTime.parse('2023-01-01T00:00:00.000Z'),
+            isCommitted: true,
+          ),
+        ),
+      );
+
+      expect(find.text('Draft: Bold plans'), findsOne);
+    });
   });
 }
+
+final linkContent = UiMimiContent(
+  plainBody:
+      "I've written up an [introduction to MLS](https://ratchet.ing/mls-intro)",
+  previewText: "I've written up an introduction to MLS",
+  topicId: Uint8List(0),
+  attachments: [],
+);
 
 final pictureAttachment = UiAttachment(
   attachmentId: 1.attachmentId(),
@@ -697,46 +718,24 @@ final fileAttachment = UiAttachment(
 /// A contact chat whose last message is [attachment], sent by [sender] (the
 /// reader by default) with nothing written alongside it.
 UiChatDetails attachmentChat(UiAttachment attachment, {UiUserId? sender}) =>
-    UiChatDetails(
-      id: 8.chatId(),
-      status: const UiChatStatus.active(),
-      isApq: false,
-      isSelfChat: false,
-      chatType: UiChatType_Connection(userProfiles[1]),
-      unreadMessages: 0,
-      lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
-      lastMessage: UiChatMessage(
-        id: 8.messageId(),
-        chatId: 8.chatId(),
-        timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
-        message: UiMessage_Content(
-          UiContentMessage(
-            sender: sender ?? 1.userId(),
-            sent: true,
-            edited: false,
-            content: UiMimiContent(
-              topicId: Uint8List(0),
-              attachments: [attachment],
-              firstAttachmentType: attachment.imageMetadata != null
-                  ? UiAttachmentType.image
-                  : UiAttachmentType.file,
-            ),
-          ),
-        ),
-        status: UiMessageStatus.sent,
-        reactions: [],
+    contentChat(
+      UiMimiContent(
+        topicId: Uint8List(0),
+        attachments: [attachment],
+        previewText: attachment.isImage ? '🖼️' : '📎',
       ),
-      mutedUntil: null,
-      pendingCommitFailed: false,
-      resyncFailed: false,
+      sender: sender,
     );
 
-/// A contact chat whose last message, "Hello Alice", carries [reaction].
-UiChatDetails reactedChat({
-  required UiLastReaction reaction,
+/// A contact chat whose last message has [content], sent by [sender] (the
+/// reader by default) and possibly carrying [reaction].
+UiChatDetails contentChat(
+  UiMimiContent content, {
+  UiUserId? sender,
+  UiLastReaction? reaction,
   UiMessageDraft? draft,
 }) => UiChatDetails(
-  id: 7.chatId(),
+  id: 8.chatId(),
   status: const UiChatStatus.active(),
   isApq: false,
   isSelfChat: false,
@@ -744,25 +743,21 @@ UiChatDetails reactedChat({
   unreadMessages: 0,
   lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
   lastMessage: UiChatMessage(
-    id: 7.messageId(),
-    chatId: 7.chatId(),
+    id: 8.messageId(),
+    chatId: 8.chatId(),
     timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
-        sender: 1.userId(),
+        sender: sender ?? 1.userId(),
         sent: true,
         edited: false,
-        content: UiMimiContent(
-          plainBody: 'Hello Alice',
-          topicId: Uint8List(0),
-          content: simpleMessage('Hello Alice'),
-          attachments: [],
-        ),
+        content: content,
       ),
     ),
     status: UiMessageStatus.sent,
     reactions: [
-      UiReaction(emoji: reaction.emoji, users: [reaction.reactor]),
+      if (reaction != null)
+        UiReaction(emoji: reaction.emoji, users: [reaction.reactor]),
     ],
   ),
   lastReaction: reaction,
@@ -771,6 +766,12 @@ UiChatDetails reactedChat({
   pendingCommitFailed: false,
   resyncFailed: false,
 );
+
+/// A contact chat whose last message, "Hello Alice", carries [reaction].
+UiChatDetails reactedChat({
+  required UiLastReaction reaction,
+  UiMessageDraft? draft,
+}) => contentChat(textContent('Hello Alice'), reaction: reaction, draft: draft);
 
 /// A group chat titled [title], with no messages.
 UiChatDetails groupChat(ChatId id, String title) => UiChatDetails(

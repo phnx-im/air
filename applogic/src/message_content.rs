@@ -10,16 +10,21 @@ use mimi_content::{
 use tracing::warn;
 
 use crate::api::{
-    markdown::MessageContent,
+    markdown::{FILE_PREVIEW, IMAGE_PREVIEW, MessageContent},
     message_content::{UiImageMetadata, UnresolvedAttachment, UnresolvedMimiContent},
 };
 
 pub(crate) trait MimiContentExt {
     fn plain_body(&self) -> Option<&str>;
+
+    /// Plain text preview of the message.
+    fn preview_text(&self) -> Option<String>;
 }
 
 impl MimiContentExt for MimiContent {
-    // Message editing relies on this function returning the original input again. When we add processing to the input or the plain_body function, we need to adjust message editing.
+    // Message editing relies on this function returning the original input
+    // again. When we add processing to the input or the plain_body function, we
+    // need to adjust message editing.
     fn plain_body(&self) -> Option<&str> {
         match &self.nested_part {
             // single part message
@@ -31,6 +36,10 @@ impl MimiContentExt for MimiContent {
             _ => None,
         }
     }
+
+    fn preview_text(&self) -> Option<String> {
+        UnresolvedMimiContent::from(self.clone()).preview_text()
+    }
 }
 
 impl UnresolvedMimiContent {
@@ -39,6 +48,21 @@ impl UnresolvedMimiContent {
         self.plain_body = Some(message.clone());
         self.content = Some(MessageContent::error(message));
         self
+    }
+
+    /// Plain text preview of the message. Returns `None` when the message is
+    /// deleted.
+    pub(crate) fn preview_text(&self) -> Option<String> {
+        if let Some(attachment) = self.attachments.first() {
+            let preview = if attachment.image_metadata.is_some() {
+                IMAGE_PREVIEW
+            } else {
+                FILE_PREVIEW
+            };
+            return Some(preview.to_owned());
+        }
+        let markdown = self.plain_body.as_deref().unwrap_or_default();
+        self.content.as_ref()?.preview_text(markdown)
     }
 }
 
@@ -180,4 +204,145 @@ fn convert_attachment(parts: Vec<NestedPart>) -> Option<UnresolvedAttachment> {
     }
 
     attachment
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::identifiers::RemoteAttachmentId;
+    use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
+    use quickcheck_macros::quickcheck;
+    use uuid::Uuid;
+
+    use super::*;
+
+    fn markdown_message(markdown: &str) -> MimiContent {
+        MimiContent::simple_markdown_message(markdown.to_owned(), [0; 16])
+    }
+
+    fn attachment_message(dimensions: Option<(u32, u32)>) -> MimiContent {
+        let url = AttachmentUrl::new(RemoteAttachmentId::new(Uuid::nil()), dimensions);
+        MimiContent {
+            nested_part: NestedPart::MultiPart {
+                disposition: Disposition::Attachment,
+                language: String::new(),
+                part_semantics: PartSemantics::ProcessAll,
+                parts: vec![NestedPart::ExternalPart {
+                    disposition: Disposition::Attachment,
+                    language: String::new(),
+                    content_type: "application/octet-stream".to_owned(),
+                    url: url.to_string(),
+                    expires: 0,
+                    size: 1,
+                    enc_alg: EncryptionAlgorithm::None,
+                    key: Vec::new(),
+                    nonce: Vec::new(),
+                    aad: Vec::new(),
+                    hash_alg: HashAlgorithm::Unspecified,
+                    content_hash: Vec::new(),
+                    description: String::new(),
+                    filename: "file".to_owned(),
+                }],
+            },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn markdown_preview_is_plain_text() {
+        let content = markdown_message("**Hi**, see [the docs](https://example.com)\n\n- one");
+        assert_eq!(
+            content.preview_text().as_deref(),
+            Some("Hi, see the docs\none")
+        );
+    }
+
+    #[test]
+    fn markdown_preview_falls_back_to_source() {
+        assert_eq!(
+            markdown_message(" --- ").preview_text().as_deref(),
+            Some("---")
+        );
+        assert_eq!(markdown_message("  ").preview_text(), None);
+    }
+
+    #[test]
+    fn image_attachment_preview() {
+        assert_eq!(
+            attachment_message(Some((10, 20))).preview_text().as_deref(),
+            Some(IMAGE_PREVIEW)
+        );
+    }
+
+    #[test]
+    fn file_attachment_preview() {
+        assert_eq!(
+            attachment_message(None).preview_text().as_deref(),
+            Some(FILE_PREVIEW)
+        );
+    }
+
+    #[test]
+    fn unsupported_attachment_preview_is_the_error() {
+        let content = MimiContent {
+            nested_part: NestedPart::MultiPart {
+                disposition: Disposition::Attachment,
+                language: String::new(),
+                part_semantics: PartSemantics::ProcessAll,
+                parts: Vec::new(),
+            },
+            ..Default::default()
+        };
+        assert_eq!(
+            content.preview_text().as_deref(),
+            Some("Unsupported attachment message")
+        );
+    }
+
+    #[test]
+    fn deleted_message_has_no_preview() {
+        let content = MimiContent {
+            nested_part: NestedPart::NullPart {
+                disposition: Disposition::Render,
+                language: String::new(),
+            },
+            ..Default::default()
+        };
+        assert_eq!(content.preview_text(), None);
+    }
+
+    #[test]
+    fn unsupported_message_preview_is_the_error() {
+        let content = MimiContent {
+            nested_part: NestedPart::SinglePart {
+                disposition: Disposition::Render,
+                language: String::new(),
+                content_type: "text/plain".to_owned(),
+                content: b"hello".to_vec(),
+            },
+            ..Default::default()
+        };
+        assert_eq!(
+            content.preview_text().as_deref(),
+            Some("Unsupported message: Render")
+        );
+    }
+
+    #[quickcheck]
+    fn non_blank_message_has_non_blank_preview(markdown: String) -> bool {
+        let preview = markdown_message(&markdown).preview_text();
+        match preview {
+            Some(preview) => !preview.trim().is_empty(),
+            None => markdown.trim().is_empty(),
+        }
+    }
+
+    #[quickcheck]
+    fn text_without_syntax_is_kept(text: String) -> bool {
+        let text: String = text
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || *c == ' ')
+            .collect();
+        let expected = Some(text.trim()).filter(|text| !text.is_empty());
+        markdown_message(&text).preview_text().as_deref() == expected
+    }
 }

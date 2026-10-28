@@ -2030,7 +2030,7 @@ $UiEventMessageCopyWith<$Res> get field0 {
 /// @nodoc
 mixin _$UiMessageDraft {
 
- String get message; MessageId? get editingId; (UiMimiId, UiInReplyToMessage,)? get inReplyTo; DateTime get updatedAt; bool get isCommitted;
+ String get message; String get previewText; MessageId? get editingId; (UiMimiId, UiInReplyToMessage,)? get inReplyTo; DateTime get updatedAt; bool get isCommitted;
 /// Create a copy of UiMessageDraft
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2042,20 +2042,20 @@ $UiMessageDraftCopyWith<UiMessageDraft> get copyWith => _$UiMessageDraftCopyWith
 @override
 bool operator ==(Object other) {
   final _this = this as UiMessageDraft;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiMessageDraft&&(identical(other.message, _this.message) || other.message == _this.message)&&(identical(other.editingId, _this.editingId) || other.editingId == _this.editingId)&&(identical(other.inReplyTo, _this.inReplyTo) || other.inReplyTo == _this.inReplyTo)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.isCommitted, _this.isCommitted) || other.isCommitted == _this.isCommitted));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiMessageDraft&&(identical(other.message, _this.message) || other.message == _this.message)&&(identical(other.previewText, _this.previewText) || other.previewText == _this.previewText)&&(identical(other.editingId, _this.editingId) || other.editingId == _this.editingId)&&(identical(other.inReplyTo, _this.inReplyTo) || other.inReplyTo == _this.inReplyTo)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.isCommitted, _this.isCommitted) || other.isCommitted == _this.isCommitted));
 }
 
 
 @override
 int get hashCode {
   final _this = this as UiMessageDraft;
-  return Object.hash(runtimeType,_this.message,_this.editingId,_this.inReplyTo,_this.updatedAt,_this.isCommitted);
+  return Object.hash(runtimeType,_this.message,_this.previewText,_this.editingId,_this.inReplyTo,_this.updatedAt,_this.isCommitted);
 }
 
 @override
 String toString() {
   final _this = this as UiMessageDraft;
-  return 'UiMessageDraft(message: ${_this.message}, editingId: ${_this.editingId}, inReplyTo: ${_this.inReplyTo}, updatedAt: ${_this.updatedAt}, isCommitted: ${_this.isCommitted})';
+  return 'UiMessageDraft(message: ${_this.message}, previewText: ${_this.previewText}, editingId: ${_this.editingId}, inReplyTo: ${_this.inReplyTo}, updatedAt: ${_this.updatedAt}, isCommitted: ${_this.isCommitted})';
 }
 
 
@@ -2066,7 +2066,7 @@ abstract mixin class $UiMessageDraftCopyWith<$Res>  {
   factory $UiMessageDraftCopyWith(UiMessageDraft value, $Res Function(UiMessageDraft) _then) = _$UiMessageDraftCopyWithImpl;
 @useResult
 $Res call({
- String message, MessageId? editingId, (UiMimiId, UiInReplyToMessage,)? inReplyTo, DateTime updatedAt, bool isCommitted
+ String message, String previewText, MessageId? editingId, (UiMimiId, UiInReplyToMessage,)? inReplyTo, DateTime updatedAt, bool isCommitted
 });
 
 
@@ -2083,9 +2083,10 @@ class _$UiMessageDraftCopyWithImpl<$Res>
 
 /// Create a copy of UiMessageDraft
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? message = null,Object? editingId = freezed,Object? inReplyTo = freezed,Object? updatedAt = null,Object? isCommitted = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? message = null,Object? previewText = null,Object? editingId = freezed,Object? inReplyTo = freezed,Object? updatedAt = null,Object? isCommitted = null,}) {
   return _then(UiMessageDraft(
 message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,previewText: null == previewText ? _self.previewText : previewText // ignore: cast_nullable_to_non_nullable
 as String,editingId: freezed == editingId ? _self.editingId : editingId // ignore: cast_nullable_to_non_nullable
 as MessageId?,inReplyTo: freezed == inReplyTo ? _self.inReplyTo : inReplyTo // ignore: cast_nullable_to_non_nullable
 as (UiMimiId, UiInReplyToMessage,)?,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
@@ -2102,10 +2103,11 @@ as bool,
 
 
 class _UiMessageDraft implements UiMessageDraft {
-  const _UiMessageDraft({required this.message, this.editingId, this.inReplyTo, required this.updatedAt, required this.isCommitted});
+  const _UiMessageDraft({required this.message, required this.previewText, this.editingId, this.inReplyTo, required this.updatedAt, required this.isCommitted});
   
 
 @override final  String message;
+@override final  String previewText;
 @override final  MessageId? editingId;
 @override final  (UiMimiId, UiInReplyToMessage,)? inReplyTo;
 @override final  DateTime updatedAt;
@@ -2121,18 +2123,18 @@ _$UiMessageDraftCopyWith<_UiMessageDraft> get copyWith => __$UiMessageDraftCopyW
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiMessageDraft&&(identical(other.message, message) || other.message == message)&&(identical(other.editingId, editingId) || other.editingId == editingId)&&(identical(other.inReplyTo, inReplyTo) || other.inReplyTo == inReplyTo)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isCommitted, isCommitted) || other.isCommitted == isCommitted));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiMessageDraft&&(identical(other.message, message) || other.message == message)&&(identical(other.previewText, previewText) || other.previewText == previewText)&&(identical(other.editingId, editingId) || other.editingId == editingId)&&(identical(other.inReplyTo, inReplyTo) || other.inReplyTo == inReplyTo)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.isCommitted, isCommitted) || other.isCommitted == isCommitted));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,message,editingId,inReplyTo,updatedAt,isCommitted);
+    return Object.hash(runtimeType,message,previewText,editingId,inReplyTo,updatedAt,isCommitted);
 }
 
 @override
 String toString() {
-    return 'UiMessageDraft(message: $message, editingId: $editingId, inReplyTo: $inReplyTo, updatedAt: $updatedAt, isCommitted: $isCommitted)';
+    return 'UiMessageDraft(message: $message, previewText: $previewText, editingId: $editingId, inReplyTo: $inReplyTo, updatedAt: $updatedAt, isCommitted: $isCommitted)';
 }
 
 
@@ -2143,7 +2145,7 @@ abstract mixin class _$UiMessageDraftCopyWith<$Res> implements $UiMessageDraftCo
   factory _$UiMessageDraftCopyWith(_UiMessageDraft value, $Res Function(_UiMessageDraft) _then) = __$UiMessageDraftCopyWithImpl;
 @override @useResult
 $Res call({
- String message, MessageId? editingId, (UiMimiId, UiInReplyToMessage,)? inReplyTo, DateTime updatedAt, bool isCommitted
+ String message, String previewText, MessageId? editingId, (UiMimiId, UiInReplyToMessage,)? inReplyTo, DateTime updatedAt, bool isCommitted
 });
 
 
@@ -2160,9 +2162,10 @@ class __$UiMessageDraftCopyWithImpl<$Res>
 
 /// Create a copy of UiMessageDraft
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? message = null,Object? editingId = freezed,Object? inReplyTo = freezed,Object? updatedAt = null,Object? isCommitted = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? message = null,Object? previewText = null,Object? editingId = freezed,Object? inReplyTo = freezed,Object? updatedAt = null,Object? isCommitted = null,}) {
   return _then(_UiMessageDraft(
 message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,previewText: null == previewText ? _self.previewText : previewText // ignore: cast_nullable_to_non_nullable
 as String,editingId: freezed == editingId ? _self.editingId : editingId // ignore: cast_nullable_to_non_nullable
 as MessageId?,inReplyTo: freezed == inReplyTo ? _self.inReplyTo : inReplyTo // ignore: cast_nullable_to_non_nullable
 as (UiMimiId, UiInReplyToMessage,)?,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
