@@ -416,7 +416,6 @@ class _MessageListViewState extends State<MessageListView>
           child: AnchoredList<UiChatMessage>(
             data: context.read<MessageListCubit>().messageData,
             controller: _listController,
-            idExtractor: (msg) => msg.id,
             topPadding: topInset,
             bottomPadding: bottomPadding,
             oldestVisibleTopThreshold: swapTopThreshold,

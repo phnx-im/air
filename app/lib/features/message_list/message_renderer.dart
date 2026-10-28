@@ -959,7 +959,6 @@ class CustomTextEditingController extends TextEditingController {
     RangedInlineElement inline,
   ) {
     return switch (inline.element) {
-      // TODO: Handle this case.
       InlineElement_Text() => TextSpan(
         text: utf8.decode(raw.sublist(inline.start, inline.end)),
       ),

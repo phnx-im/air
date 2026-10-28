@@ -3,9 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
-import 'dart:collection';
 
-import 'package:collection/collection.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -15,25 +13,10 @@ import 'package:logging/logging.dart';
 final _log = Logger("MessageListCubit");
 
 class MessageListStateWrapper {
-  MessageListStateWrapper._({
-    required this.state,
-    required this.messageData,
-    required Set<MessageId> loadedMessages,
-  }) : loadedMessages = Set.unmodifiable(loadedMessages);
-
-  factory MessageListStateWrapper.test({
-    required MessageListState state,
-    required AnchoredListData<UiChatMessage> messageData,
-    Set<MessageId> loadedMessages = const {},
-  }) => MessageListStateWrapper._(
-    state: state,
-    messageData: messageData,
-    loadedMessages: loadedMessages,
-  );
+  MessageListStateWrapper({required this.state, required this.messageData});
 
   final MessageListState state;
   final AnchoredListData<UiChatMessage> messageData; // reference, not value
-  final Set<MessageId> loadedMessages;
 
   // Delegate Rust state fields
   bool get hasOlder => state.hasOlder;
@@ -47,9 +30,7 @@ class MessageListStateWrapper {
     return (idx >= 0 && idx < messageData.length) ? messageData[idx] : null;
   }
 
-  // TODO: Linear search
-  UiChatMessage? messageById(MessageId id) =>
-      messageData.items.firstWhereOrNull((m) => m.id == id);
+  UiChatMessage? messageById(MessageId id) => messageData.itemById(id);
 
   /// Equality is based on the revision of the Rust state
   @override
@@ -64,11 +45,10 @@ class MessageListStateWrapper {
 class MessageListCubit extends StateStreamableSource<MessageListStateWrapper> {
   MessageListCubit({required UserCubit userCubit, required ChatId chatId})
     : _impl = MessageListCubitBase(userCubit: userCubit.impl, chatId: chatId) {
-    messageData = AnchoredListData();
-    _state = MessageListStateWrapper._(
+    messageData = AnchoredListData(idOf: (message) => message.id);
+    _state = MessageListStateWrapper(
       state: _impl.state,
       messageData: messageData,
-      loadedMessages: HashSet(),
     );
     _appliedRevision = _state.state.revision;
     _transitionSubscription = _impl.transitions().listen(_handleTransition);
@@ -87,7 +67,6 @@ class MessageListCubit extends StateStreamableSource<MessageListStateWrapper> {
   // Cubit Data
 
   late MessageListStateWrapper _state;
-  final Set<MessageId> _loadedMessages = HashSet<MessageId>();
 
   int _appliedRevision = 0;
   int? _lastCommandRevision;
@@ -133,15 +112,20 @@ class MessageListCubit extends StateStreamableSource<MessageListStateWrapper> {
 
   void _applyTransition(MessageListTransition transition) {
     if (transition.changes.isEmpty) return;
-    final incoming = <MessageId>{};
+    // Checked before applying, since a message that moves within the window is
+    // removed and reinserted by the same transition.
+    final incoming = <MessageId>{
+      if (transition.kind == MessageListTransitionKind.newerPageLoaded)
+        for (final change in transition.changes)
+          if (change case MessageListChange_Splice(:final messages))
+            for (final m in messages)
+              if (!messageData.containsId(m.id)) m.id,
+    };
     messageData.batch(() {
       for (final change in transition.changes) {
         switch (change) {
           case MessageListChange_Reload(:final messages):
             messageData.reload(messages);
-            _loadedMessages
-              ..clear()
-              ..addAll(messages.map((m) => m.id));
 
           case MessageListChange_Splice(
             :final index,
@@ -151,21 +135,9 @@ class MessageListCubit extends StateStreamableSource<MessageListStateWrapper> {
             final start = index.toInt();
             final count = deleteCount.toInt();
             if (count > 0) {
-              for (var i = start; i < start + count; i++) {
-                _loadedMessages.remove(messageData[i].id);
-              }
               messageData.removeRange(start, count);
             }
             if (messages.isNotEmpty) {
-              if (transition.kind ==
-                  MessageListTransitionKind.newerPageLoaded) {
-                for (final m in messages) {
-                  if (!_loadedMessages.contains(m.id)) {
-                    incoming.add(m.id);
-                  }
-                }
-              }
-              _loadedMessages.addAll(messages.map((m) => m.id));
               messageData.insertAll(start, messages);
             }
           case MessageListChange_Patch(:final index, :final message):
@@ -179,11 +151,7 @@ class MessageListCubit extends StateStreamableSource<MessageListStateWrapper> {
   }
 
   void _emitState(MessageListState state) {
-    _state = MessageListStateWrapper._(
-      state: state,
-      messageData: messageData,
-      loadedMessages: _loadedMessages, // takes a snapshot
-    );
+    _state = MessageListStateWrapper(state: state, messageData: messageData);
     if (!_stateController.isClosed) {
       _stateController.add(_state);
     }
