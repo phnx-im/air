@@ -66,8 +66,7 @@ pub(crate) trait ConnectUsernameProtocol {
     async fn fetch_connection_package(
         &self,
         hash: &UsernameHash,
-        token: Option<AmortizedToken<Ristretto255>>,
-        fetch_signed: bool,
+        token: AmortizedToken<Ristretto255>,
     ) -> Result<FetchedConnectionPackage, ConnectProtocolError>;
 
     async fn enqueue_connection_offer(
@@ -105,19 +104,13 @@ async fn run_protocol_impl(
     // step 1: fetch connection package for a handle hash
     debug!("step 1: waiting for fetch connection package step");
     let step = incoming.next().await;
-    let (hash, client_metadata, fetch_signed, token) = match step {
-        Some(Ok(ConnectUsernameRequest { step: Some(step) })) => match step {
-            Step::Fetch(fetch) => (fetch.hash, fetch.client_metadata, false, None),
-            Step::FetchSigned(fetch) => (fetch.hash, fetch.client_metadata, true, fetch.token),
-            Step::Enqueue(_) => {
-                return Err(ConnectProtocolError::ProtocolViolation(
-                    "expected fetch or fetch signed",
-                ));
-            }
-        },
+    let fetch = match step {
+        Some(Ok(ConnectUsernameRequest {
+            step: Some(Step::FetchSigned(fetch)),
+        })) => fetch,
         Some(Ok(_)) => {
             return Err(ConnectProtocolError::ProtocolViolation(
-                "expected fetch or fetch signed",
+                "expected fetch signed",
             ));
         }
         Some(Err(error)) => {
@@ -130,10 +123,10 @@ async fn run_protocol_impl(
     // TODO: Communicate verification result to the client
     let _verified = protocol
         .version_policy()
-        .verify_client_version(client_metadata.as_ref(), Utc::now())
+        .verify_client_version(fetch.client_metadata.as_ref(), Utc::now())
         .map_err(ConnectProtocolError::UnsupportedVersion)?;
 
-    let hash = hash.ok_or_missing_field("hash")?.try_into()?;
+    let hash = fetch.hash.ok_or_missing_field("hash")?.try_into()?;
 
     debug!("load username expiration data");
     if protocol
@@ -144,17 +137,12 @@ async fn run_protocol_impl(
         return Err(ConnectProtocolError::UsernameNotFound);
     }
 
-    // Optional while clients roll out.
-    let token = token
-        .map(|token| AmortizedToken::<Ristretto255>::tls_deserialize_exact(&token))
-        .transpose()
+    let token = fetch.token.ok_or(ConnectProtocolError::MissingToken)?;
+    let token = AmortizedToken::<Ristretto255>::tls_deserialize_exact(&token)
         .map_err(|_| ConnectProtocolError::MalformedToken)?;
 
-    debug!(?fetch_signed, "get connection package for username");
-    let step = match protocol
-        .fetch_connection_package(&hash, token, fetch_signed)
-        .await?
-    {
+    debug!("get connection package for username");
+    let step = match protocol.fetch_connection_package(&hash, token).await? {
         FetchedConnectionPackage::Signed(connection_package) => {
             connect_username_response::Step::FetchSignedResponse(
                 FetchSignedConnectionPackageResponse {
@@ -236,6 +224,8 @@ pub(crate) enum ConnectProtocolError {
     Enqueue(#[from] UsernameQueueError),
     /// Unsupported version
     UnsupportedVersion(Status),
+    /// Missing token
+    MissingToken,
     /// Malformed token
     MalformedToken,
     /// Token redemption failed
@@ -255,6 +245,7 @@ impl From<ConnectProtocolError> for Status {
             ConnectProtocolError::MissingField(_)
             | ConnectProtocolError::InvalidHash(_)
             | ConnectProtocolError::MalformedToken => Status::invalid_argument(msg),
+            ConnectProtocolError::MissingToken => Status::unauthenticated(msg),
             ConnectProtocolError::TokenRedemption(error) => error.into(),
             ConnectProtocolError::Enqueue(error) => {
                 error!(%error, "enqueue failed");
@@ -276,18 +267,14 @@ impl ConnectUsernameProtocol for AuthService {
     async fn fetch_connection_package(
         &self,
         hash: &UsernameHash,
-        token: Option<AmortizedToken<Ristretto255>>,
-        fetch_signed: bool,
+        token: AmortizedToken<Ristretto255>,
     ) -> Result<FetchedConnectionPackage, ConnectProtocolError> {
         let mut txn = self.db_pool.begin().await?;
-        if let Some(token) = token {
-            debug!("redeem connection request token");
-            self.as_redeem_token(&mut txn, token, OperationType::ConnectUsername)
-                .await?;
-        }
-        let package = if fetch_signed
-            && let Some(package) =
-                StorableSignedConnectionPackage::load_for_username(txn.as_mut(), hash).await?
+        debug!("redeem connection request token");
+        self.as_redeem_token(&mut txn, token, OperationType::ConnectUsername)
+            .await?;
+        let package = if let Some(package) =
+            StorableSignedConnectionPackage::load_for_username(txn.as_mut(), hash).await?
         {
             FetchedConnectionPackage::Signed(package)
         } else {
@@ -345,8 +332,7 @@ mod tests {
     use airprotos::{
         auth_service::v1::{
             self, ConnectionOfferMessage, EnqueueConnectionOfferResponse,
-            EnqueueConnectionOfferStep, FetchConnectionPackageStep,
-            FetchSignedConnectionPackageStep, connect_username_request,
+            EnqueueConnectionOfferStep, FetchSignedConnectionPackageStep, connect_username_request,
         },
         common::{self, v1::ClientMetadata},
     };
@@ -359,8 +345,11 @@ mod tests {
 
     use crate::{
         air_service::BackendService,
-        auth_service::connection_package::persistence::tests::{
-            ConnectionPackageType, random_connection_package,
+        auth_service::{
+            connection_package::persistence::tests::{
+                ConnectionPackageType, random_connection_package,
+            },
+            usernames::tests::issue_token,
         },
     };
 
@@ -412,102 +401,6 @@ mod tests {
         });
 
         (requests_tx, responses_rx, run_handle)
-    }
-
-    #[tokio::test]
-    async fn connect_username_protocol_success() -> anyhow::Result<()> {
-        init_test_tracing();
-
-        let signing_key = UsernameSigningKey::generate().unwrap();
-
-        let hash = UsernameHash::new([1; 32]);
-        let expiration_data = ExpirationData::new(Duration::days(1));
-        let connection_package = random_connection_package(
-            signing_key.verifying_key().clone(),
-            ConnectionPackageType::V2 {
-                is_last_resort: false,
-            },
-        );
-        let connection_offer = ConnectionOfferMessage::default();
-
-        let mut mock_protocol = MockConnectUsernameProtocol::new();
-
-        mock_protocol
-            .expect_load_username_expiration_data()
-            .with(eq(hash))
-            .returning(move |_| Ok(Some(expiration_data.clone())));
-
-        let inner_connection_package = connection_package.clone();
-        mock_protocol
-            .expect_fetch_connection_package()
-            .withf(move |fetched_hash, token, fetch_signed| {
-                *fetched_hash == hash && token.is_none() && !fetch_signed
-            })
-            .returning(move |_, _, _| {
-                Ok(FetchedConnectionPackage::Legacy(
-                    inner_connection_package.clone(),
-                ))
-            });
-
-        mock_protocol
-            .expect_enqueue_connection_offer()
-            .with(eq(hash), eq(connection_offer.clone()))
-            .returning(|_, _| Ok(()));
-
-        mock_protocol
-            .expect_version_policy()
-            .return_const(Default::default());
-
-        let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
-
-        let request_fetch = ConnectUsernameRequest {
-            step: Some(connect_username_request::Step::Fetch(
-                FetchConnectionPackageStep {
-                    client_metadata: Some(CLIENT_METADATA.clone()),
-                    hash: Some(hash.into()),
-                },
-            )),
-        };
-
-        // step 1
-        requests.send(Ok(request_fetch)).await.unwrap();
-        match responses.recv().await.unwrap() {
-            Ok(ConnectUsernameResponse {
-                step:
-                    Some(connect_username_response::Step::FetchResponse(
-                        FetchConnectionPackageResponse {
-                            connection_package: Some(received_connection_package),
-                        },
-                    )),
-            }) => {
-                let connection_package_proto: v1::ConnectionPackage = connection_package.into();
-                assert_eq!(connection_package_proto, received_connection_package);
-            }
-            _ => panic!("unexpected response type"),
-        }
-
-        // step 2
-        let request_enqueue = ConnectUsernameRequest {
-            step: Some(connect_username_request::Step::Enqueue(
-                EnqueueConnectionOfferStep {
-                    connection_offer: Some(connection_offer.clone()),
-                },
-            )),
-        };
-        requests.send(Ok(request_enqueue)).await.unwrap();
-        match responses.recv().await.unwrap() {
-            Ok(ConnectUsernameResponse {
-                step:
-                    Some(connect_username_response::Step::EnqueueResponse(
-                        EnqueueConnectionOfferResponse {},
-                    )),
-            }) => {}
-            _ => panic!("unexpected response type"),
-        }
-
-        run_handle.await.expect("protocol panicked");
-
-        Ok(())
     }
 
     #[tokio::test]
@@ -566,10 +459,8 @@ mod tests {
         let inner_connection_package = connection_package.clone();
         mock_protocol
             .expect_fetch_connection_package()
-            .withf(move |fetched_hash, token, fetch_signed| {
-                *fetched_hash == hash && token.is_some() && *fetch_signed
-            })
-            .returning(move |_, _, _| {
+            .withf(move |fetched_hash, _token| *fetched_hash == hash)
+            .returning(move |_, _| {
                 Ok(FetchedConnectionPackage::Signed(
                     inner_connection_package.clone(),
                 ))
@@ -654,10 +545,8 @@ mod tests {
         let inner_connection_package = connection_package.clone();
         mock_protocol
             .expect_fetch_connection_package()
-            .withf(move |fetched_hash, token, fetch_signed| {
-                *fetched_hash == hash && token.is_none() && *fetch_signed
-            })
-            .returning(move |_, _, _| {
+            .withf(move |fetched_hash, _token| *fetched_hash == hash)
+            .returning(move |_, _| {
                 Ok(FetchedConnectionPackage::Legacy(
                     inner_connection_package.clone(),
                 ))
@@ -669,17 +558,10 @@ mod tests {
 
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 
-        let request_fetch = ConnectUsernameRequest {
-            step: Some(connect_username_request::Step::FetchSigned(
-                FetchSignedConnectionPackageStep {
-                    client_metadata: Some(CLIENT_METADATA.clone()),
-                    hash: Some(hash.into()),
-                    token: None,
-                },
-            )),
-        };
-
-        requests.send(Ok(request_fetch)).await.unwrap();
+        requests
+            .send(Ok(fetch_signed_request(hash, Some(dummy_token()))))
+            .await
+            .unwrap();
         match responses.recv().await.unwrap() {
             Ok(ConnectUsernameResponse {
                 step:
@@ -768,10 +650,8 @@ mod tests {
         let inner_connection_package = connection_package.clone();
         mock_protocol
             .expect_fetch_connection_package()
-            .withf(move |fetched_hash, token, fetch_signed| {
-                *fetched_hash == hash && token.is_none() && !fetch_signed
-            })
-            .returning(move |_, _, _| {
+            .withf(move |fetched_hash, _token| *fetched_hash == hash)
+            .returning(move |_, _| {
                 Ok(FetchedConnectionPackage::Legacy(
                     inner_connection_package.clone(),
                 ))
@@ -784,28 +664,14 @@ mod tests {
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 
         requests
-            .send(Ok(ConnectUsernameRequest {
-                step: Some(connect_username_request::Step::Fetch(
-                    FetchConnectionPackageStep {
-                        client_metadata: Some(CLIENT_METADATA.clone()),
-                        hash: Some(hash.into()),
-                    },
-                )),
-            }))
+            .send(Ok(fetch_signed_request(hash, Some(dummy_token()))))
             .await
             .unwrap();
         let response = responses.recv().await.unwrap();
         assert!(response.is_ok());
 
         requests
-            .send(Ok(ConnectUsernameRequest {
-                step: Some(connect_username_request::Step::Fetch(
-                    FetchConnectionPackageStep {
-                        client_metadata: Some(CLIENT_METADATA.clone()),
-                        hash: Some(hash.into()),
-                    },
-                )),
-            }))
+            .send(Ok(fetch_signed_request(hash, Some(dummy_token()))))
             .await
             .unwrap();
         let response = responses.recv().await.unwrap();
@@ -913,12 +779,29 @@ mod tests {
         mock_protocol
             .expect_fetch_connection_package()
             .times(1)
-            .returning(|_, _, _| Err(RedeemTokenError::InvalidToken.into()));
+            .returning(|_, _| Err(RedeemTokenError::InvalidToken.into()));
 
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
         requests
             .send(Ok(fetch_signed_request(hash, Some(dummy_token()))))
             .await?;
+        let response = responses.recv().await.unwrap();
+        assert_eq!(response.unwrap_err().code(), tonic::Code::Unauthenticated);
+
+        run_handle.await.expect("protocol panicked");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn connect_username_protocol_rejects_a_missing_token() -> anyhow::Result<()> {
+        init_test_tracing();
+
+        let hash = UsernameHash::new([1; 32]);
+        // No fetch is expected: nothing is handed out for free.
+        let mock_protocol = protocol_with_username(hash);
+
+        let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
+        requests.send(Ok(fetch_signed_request(hash, None))).await?;
         let response = responses.recv().await.unwrap();
         assert_eq!(response.unwrap_err().code(), tonic::Code::Unauthenticated);
 
@@ -986,7 +869,8 @@ mod tests {
         );
         StorableConnectionPackage::store_multiple_for_username(&pool, [&stored], &hash).await?;
 
-        let fetched = service.fetch_connection_package(&hash, None, true).await?;
+        let token = issue_token(&service, &pool, OperationType::ConnectUsername).await?;
+        let fetched = service.fetch_connection_package(&hash, token).await?;
         let FetchedConnectionPackage::Legacy(fetched) = fetched else {
             panic!("expected the legacy package");
         };
