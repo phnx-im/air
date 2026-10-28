@@ -35,6 +35,14 @@
       <caption>Group chat</caption>
       <image type="source">https://packages.air.ms/screenshots/v1/en-US/2_group_chat.png</image>
     </screenshot>
+    <screenshot environment="gnome:dark">
+      <caption>Private chat</caption>
+      <image type="source">https://packages.air.ms/screenshots/v1/en-US/1_private_chat_dark.png</image>
+    </screenshot>
+    <screenshot environment="gnome:dark">
+      <caption>Group chat</caption>
+      <image type="source">https://packages.air.ms/screenshots/v1/en-US/2_group_chat_dark.png</image>
+    </screenshot>
   </screenshots>
   <content_rating type="oars-1.1">
     <content_attribute id="social-chat">intense</content_attribute>
