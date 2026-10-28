@@ -38,6 +38,7 @@ import 'content.dart';
 import 'product_shot.dart';
 import 'product_shot_device.dart';
 import 'device_shot.dart';
+import 'linux_window_frame.dart';
 
 /// Override with `--dart-define=GOLDENS_DIR=path/to/dir`.
 const _goldensDir = String.fromEnvironment(
@@ -52,19 +53,20 @@ const _renderAllPlatforms = bool.fromEnvironment(
 );
 
 /// Which shot to record: `marketing` (the store canvas -- headline, subtitle
-/// and the device framed on a coloured background) or `device` (the framed
-/// device alone, on a transparent background).
+/// and the device framed on a coloured background), `device` (the framed
+/// device alone, on a transparent background) or `window` (the Linux app in a
+/// GNOME window, on a transparent background).
 ///
-/// The two go to different places, so a run records one or the other, never
-/// both. This repo records the marketing shots; the device shots are recorded
-/// into the private campaign directories, which pass
-/// `--dart-define=SHOT_VARIANT=device`.
+/// A run records one variant only. This repo records the marketing and window
+/// shots, the device shots are recorded into the private campaign directories,
+/// which pass `--dart-define=SHOT_VARIANT=device`.
 const _shotVariant = String.fromEnvironment(
   'SHOT_VARIANT',
   defaultValue: 'marketing',
 );
 
 const _marketingShots = _shotVariant == 'marketing';
+const _windowShots = _shotVariant == 'window';
 
 String _golden(String name) => '$_goldensDir/$name';
 
@@ -73,15 +75,29 @@ const iosPhysicalSize = Size(1290, 2796);
 // One of the sizes accepted by the Mac App Store (16:10 retina).
 const laptopPhysicalSize = Size(2880, 1800);
 
-/// Every host/target combination a product shot is recorded for.
-const _productShotsMatrix = [
-  ProductShotInfo(hostPlatform: 'macos', targetPlatform: TargetPlatform.iOS),
-  ProductShotInfo(hostPlatform: 'macos', targetPlatform: TargetPlatform.macOS),
-  ProductShotInfo(
-    hostPlatform: 'linux',
-    targetPlatform: TargetPlatform.android,
-  ),
-];
+/// Every host/target combination a product shot is recorded for. The window
+/// shots only exist for Linux.
+const _productShotsMatrix = _windowShots
+    ? [
+        ProductShotInfo(
+          hostPlatform: 'linux',
+          targetPlatform: TargetPlatform.linux,
+        ),
+      ]
+    : [
+        ProductShotInfo(
+          hostPlatform: 'macos',
+          targetPlatform: TargetPlatform.iOS,
+        ),
+        ProductShotInfo(
+          hostPlatform: 'macos',
+          targetPlatform: TargetPlatform.macOS,
+        ),
+        ProductShotInfo(
+          hostPlatform: 'linux',
+          targetPlatform: TargetPlatform.android,
+        ),
+      ];
 
 /// The marketing canvas size for a framed product shot, distinct from the
 /// device's own screen resolution (used as-is for the frameless shots).
@@ -113,7 +129,8 @@ String _platformSlug(TargetPlatform platform) => switch (platform) {
   _ => throw "Unsupported platform",
 };
 
-/// The hand-declared device the tinted marketing bezel is drawn around.
+/// The hand-declared device the tinted marketing bezel or the Linux window is
+/// drawn around.
 ProductShotDevice _marketingDeviceFor(TargetPlatform platform) =>
     ProductShotDevices.forPlatform(switch (platform) {
       TargetPlatform.android => ProductShotPlatform.android,
@@ -150,9 +167,9 @@ class ProductShotInfo {
 
 /// Providers + app scaffolding shared by every product shot subject.
 ///
-/// [shot] is a [ProductShot] for the marketing variant or a [DeviceShotFrame]
-/// for the device one, which also centers it on a transparent background
-/// instead of stretching it under the marketing canvas.
+/// [shot] is a [ProductShot] for the marketing variant, or a [DeviceShotFrame]
+/// or [LinuxWindowFrame] for the frameless ones, which also centers it on a
+/// transparent background instead of stretching it under the marketing canvas.
 Widget _buildProductShotSubject({
   required List<SingleChildWidget> providers,
   required Widget shot,
@@ -261,55 +278,78 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
 
         final marketingDevice = _marketingDeviceFor(platform);
         final deviceShotDevice = platform.deviceShot(brightness: brightness);
-        final identifier = _marketingShots
+        const useMarketingDevice = _marketingShots || _windowShots;
+        final identifier = useMarketingDevice
             ? _platformSlug(platform)
             : deviceShotDevice.identifier;
-        final name = _marketingShots
+        final name = useMarketingDevice
             ? marketingDevice.name
             : deviceShotDevice.name;
+
+        // The marketing canvas is a store-mandated pixel size. The frameless
+        // shots have no such size, so they take the frame scaled by the
+        // device's own pixel ratio, landing near a real screenshot's
+        // resolution.
+        final Size logicalSize;
+        if (_marketingShots) {
+          logicalSize = _canvasSizeFor(platform);
+        } else if (_windowShots) {
+          logicalSize =
+              LinuxWindowFrame.sizeFor(marketingDevice.screenSize) *
+              marketingDevice.pixelRatio;
+        } else {
+          logicalSize =
+              deviceShotDevice.frameBounds.size * deviceShotDevice.exportScale;
+        }
 
         testProductShot(
           "$groupName ($name$variantSuffix)",
           productShotInfo: productShotInfo,
-          // The marketing canvas is a store-mandated pixel size. A device
-          // shot has no such size, so it takes the device's artwork scaled by
-          // its own pixel ratio, landing near a real screenshot's resolution.
-          logicalSize: _marketingShots
-              ? _canvasSizeFor(platform)
-              : deviceShotDevice.frameBounds.size *
-                    deviceShotDevice.exportScale,
+          logicalSize: logicalSize,
           (tester) async {
             final screen = InterfaceScale(child: spec.buildScreen(platform));
+            final Widget shot;
+            if (_marketingShots) {
+              shot = ProductShot(
+                size: _canvasSizeFor(platform),
+                backgroundColor: palette.backgroundColor,
+                titleColor: palette.titleColor,
+                subtitleColor: palette.subtitleColor,
+                frameColor: palette.frameColor,
+                title: spec.copy.title,
+                subtitle: spec.copy.subtitle,
+                brightness: brightness,
+                device: marketingDevice,
+                child: screen,
+              );
+            } else if (_windowShots) {
+              shot = LinuxWindowFrame(
+                screenSize: marketingDevice.screenSize,
+                devicePixelRatio: marketingDevice.pixelRatio,
+                title: 'Air',
+                scale: marketingDevice.pixelRatio,
+                child: screen,
+              );
+            } else {
+              shot = DeviceShotFrame(
+                device: deviceShotDevice,
+                scale: deviceShotDevice.exportScale,
+                child: screen,
+              );
+            }
             await tester.pumpWidget(
               _buildProductShotSubject(
                 providers: spec.buildProviders(platform),
                 brightness: brightness,
                 frameless: !_marketingShots,
-                shot: _marketingShots
-                    ? ProductShot(
-                        size: _canvasSizeFor(platform),
-                        backgroundColor: palette.backgroundColor,
-                        titleColor: palette.titleColor,
-                        subtitleColor: palette.subtitleColor,
-                        frameColor: palette.frameColor,
-                        title: spec.copy.title,
-                        subtitle: spec.copy.subtitle,
-                        brightness: brightness,
-                        device: marketingDevice,
-                        child: screen,
-                      )
-                    : DeviceShotFrame(
-                        device: deviceShotDevice,
-                        scale: deviceShotDevice.exportScale,
-                        child: screen,
-                      ),
+                shot: shot,
               ),
             );
             await _precacheImages(tester);
             await tester.pumpAndSettle();
 
             await expectLater(
-              find.byType(_marketingShots ? ProductShot : DeviceShotFrame),
+              find.byType(shot.runtimeType),
               matchesGoldenFile(
                 _golden("${spec.goldenPrefix}.$identifier$goldenSuffix.png"),
               ),
