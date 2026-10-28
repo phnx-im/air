@@ -332,6 +332,7 @@ void main() {
             chat: _chatWithDraft(
               UiMessageDraft(
                 message: 'Corrected message text',
+                previewText: 'Corrected message text',
                 editingId: 1.messageId(),
                 updatedAt: DateTime.parse('2023-01-01T00:00:00.000Z'),
                 isCommitted: true,
@@ -363,19 +364,15 @@ void main() {
       // State 6: Quote (reply) — plus on the left, send arrow on the right.
       // A reply bubble is shown inside the input field.
       testWidgets('quote', (tester) async {
-        final replyContent = UiMimiContent(
-          plainBody: 'This is the original message being replied to.',
-          topicId: Uint8List(0),
-          content: simpleMessage(
-            'This is the original message being replied to.',
-          ),
-          attachments: [],
+        final replyContent = textContent(
+          'This is the original message being replied to.',
         );
         when(() => chatDetailsCubit.state).thenReturn(
           ChatDetailsState(
             chat: _chatWithDraft(
               UiMessageDraft(
                 message: 'Replying to the message above',
+                previewText: 'Replying to the message above',
                 inReplyTo: (
                   UiMimiId(field0: U8Array32(Uint8List(32))),
                   UiInReplyToMessage.resolved(

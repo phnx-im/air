@@ -10042,12 +10042,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UiAttachmentType dco_decode_box_autoadd_ui_attachment_type(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_ui_attachment_type(raw);
-  }
-
-  @protected
   UiChatAttributes dco_decode_box_autoadd_ui_chat_attributes(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_ui_chat_attributes(raw);
@@ -11225,12 +11219,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UiAttachmentType? dco_decode_opt_box_autoadd_ui_attachment_type(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw == null ? null : dco_decode_box_autoadd_ui_attachment_type(raw);
-  }
-
-  @protected
   UiChatDetails? dco_decode_opt_box_autoadd_ui_chat_details(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_ui_chat_details(raw);
@@ -11640,12 +11628,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UiAttachmentType dco_decode_ui_attachment_type(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return UiAttachmentType.values[raw as int];
-  }
-
-  @protected
   UiChatAttributes dco_decode_ui_chat_attributes(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -11930,17 +11912,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiMessageDraft dco_decode_ui_message_draft(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return UiMessageDraft(
       message: dco_decode_String(arr[0]),
-      editingId: dco_decode_opt_box_autoadd_message_id(arr[1]),
+      previewText: dco_decode_String(arr[1]),
+      editingId: dco_decode_opt_box_autoadd_message_id(arr[2]),
       inReplyTo:
           dco_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
-            arr[2],
+            arr[3],
           ),
-      updatedAt: dco_decode_Chrono_Utc(arr[3]),
-      isCommitted: dco_decode_bool(arr[4]),
+      updatedAt: dco_decode_Chrono_Utc(arr[4]),
+      isCommitted: dco_decode_bool(arr[5]),
     );
   }
 
@@ -11958,14 +11941,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return UiMimiContent(
       plainBody: dco_decode_opt_String(arr[0]),
-      replaces: dco_decode_opt_list_prim_u_8_strict(arr[1]),
-      topicId: dco_decode_list_prim_u_8_strict(arr[2]),
-      inReplyTo: dco_decode_opt_list_prim_u_8_strict(arr[3]),
-      content: dco_decode_opt_box_autoadd_message_content(arr[4]),
-      attachments: dco_decode_list_ui_attachment(arr[5]),
-      firstAttachmentType: dco_decode_opt_box_autoadd_ui_attachment_type(
-        arr[6],
-      ),
+      previewText: dco_decode_opt_String(arr[1]),
+      replaces: dco_decode_opt_list_prim_u_8_strict(arr[2]),
+      topicId: dco_decode_list_prim_u_8_strict(arr[3]),
+      inReplyTo: dco_decode_opt_list_prim_u_8_strict(arr[4]),
+      content: dco_decode_opt_box_autoadd_message_content(arr[5]),
+      attachments: dco_decode_list_ui_attachment(arr[6]),
     );
   }
 
@@ -13691,14 +13672,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UiAttachmentType sse_decode_box_autoadd_ui_attachment_type(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_ui_attachment_type(deserializer));
-  }
-
-  @protected
   UiChatAttributes sse_decode_box_autoadd_ui_chat_attributes(
     SseDeserializer deserializer,
   ) {
@@ -15326,19 +15299,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UiAttachmentType? sse_decode_opt_box_autoadd_ui_attachment_type(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_ui_attachment_type(deserializer));
-    } else {
-      return null;
-    }
-  }
-
-  @protected
   UiChatDetails? sse_decode_opt_box_autoadd_ui_chat_details(
     SseDeserializer deserializer,
   ) {
@@ -15865,13 +15825,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  UiAttachmentType sse_decode_ui_attachment_type(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var inner = sse_decode_i_32(deserializer);
-    return UiAttachmentType.values[inner];
-  }
-
-  @protected
   UiChatAttributes sse_decode_ui_chat_attributes(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_title = sse_decode_String(deserializer);
@@ -16188,6 +16141,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiMessageDraft sse_decode_ui_message_draft(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_message = sse_decode_String(deserializer);
+    var var_previewText = sse_decode_String(deserializer);
     var var_editingId = sse_decode_opt_box_autoadd_message_id(deserializer);
     var var_inReplyTo =
         sse_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
@@ -16197,6 +16151,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_isCommitted = sse_decode_bool(deserializer);
     return UiMessageDraft(
       message: var_message,
+      previewText: var_previewText,
       editingId: var_editingId,
       inReplyTo: var_inReplyTo,
       updatedAt: var_updatedAt,
@@ -16215,22 +16170,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiMimiContent sse_decode_ui_mimi_content(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_plainBody = sse_decode_opt_String(deserializer);
+    var var_previewText = sse_decode_opt_String(deserializer);
     var var_replaces = sse_decode_opt_list_prim_u_8_strict(deserializer);
     var var_topicId = sse_decode_list_prim_u_8_strict(deserializer);
     var var_inReplyTo = sse_decode_opt_list_prim_u_8_strict(deserializer);
     var var_content = sse_decode_opt_box_autoadd_message_content(deserializer);
     var var_attachments = sse_decode_list_ui_attachment(deserializer);
-    var var_firstAttachmentType = sse_decode_opt_box_autoadd_ui_attachment_type(
-      deserializer,
-    );
     return UiMimiContent(
       plainBody: var_plainBody,
+      previewText: var_previewText,
       replaces: var_replaces,
       topicId: var_topicId,
       inReplyTo: var_inReplyTo,
       content: var_content,
       attachments: var_attachments,
-      firstAttachmentType: var_firstAttachmentType,
     );
   }
 
@@ -18298,15 +18251,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_box_autoadd_ui_attachment_type(
-    UiAttachmentType self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_ui_attachment_type(self, serializer);
-  }
-
-  @protected
   void sse_encode_box_autoadd_ui_chat_attributes(
     UiChatAttributes self,
     SseSerializer serializer,
@@ -19803,19 +19747,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_opt_box_autoadd_ui_attachment_type(
-    UiAttachmentType? self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    sse_encode_bool(self != null, serializer);
-    if (self != null) {
-      sse_encode_box_autoadd_ui_attachment_type(self, serializer);
-    }
-  }
-
-  @protected
   void sse_encode_opt_box_autoadd_ui_chat_details(
     UiChatDetails? self,
     SseSerializer serializer,
@@ -20294,15 +20225,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_ui_attachment_type(
-    UiAttachmentType self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.index, serializer);
-  }
-
-  @protected
   void sse_encode_ui_chat_attributes(
     UiChatAttributes self,
     SseSerializer serializer,
@@ -20564,6 +20486,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.message, serializer);
+    sse_encode_String(self.previewText, serializer);
     sse_encode_opt_box_autoadd_message_id(self.editingId, serializer);
     sse_encode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
       self.inReplyTo,
@@ -20589,15 +20512,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_opt_String(self.plainBody, serializer);
+    sse_encode_opt_String(self.previewText, serializer);
     sse_encode_opt_list_prim_u_8_strict(self.replaces, serializer);
     sse_encode_list_prim_u_8_strict(self.topicId, serializer);
     sse_encode_opt_list_prim_u_8_strict(self.inReplyTo, serializer);
     sse_encode_opt_box_autoadd_message_content(self.content, serializer);
     sse_encode_list_ui_attachment(self.attachments, serializer);
-    sse_encode_opt_box_autoadd_ui_attachment_type(
-      self.firstAttachmentType,
-      serializer,
-    );
   }
 
   @protected

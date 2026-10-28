@@ -27,7 +27,10 @@ use indexmap::IndexMap;
 use mimi_content::MessageStatus;
 use uuid::Uuid;
 
-use crate::api::message_content::{UiMimiContent, UiMimiId, UnresolvedMimiContent};
+use crate::api::{
+    markdown::MessageContent,
+    message_content::{UiMimiContent, UiMimiId, UnresolvedMimiContent},
+};
 
 /// Mode for deleting a message
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -129,6 +132,7 @@ impl UiChatDetails {
 #[frb(dart_metadata = ("freezed"))]
 pub struct UiMessageDraft {
     pub message: String,
+    pub preview_text: String,
     pub editing_id: Option<MessageId>,
     pub in_reply_to: Option<(UiMimiId, UiInReplyToMessage)>,
     pub updated_at: DateTime<Utc>,
@@ -139,11 +143,23 @@ impl UiMessageDraft {
     pub(crate) fn empty() -> Self {
         Self {
             message: String::new(),
+            preview_text: String::new(),
             in_reply_to: None,
             editing_id: None,
             updated_at: Utc::now(),
             is_committed: false,
         }
+    }
+
+    pub(crate) fn set_message(&mut self, message: String) {
+        self.preview_text = Self::preview_text_of(&message);
+        self.message = message;
+    }
+
+    fn preview_text_of(message: &str) -> String {
+        MessageContent::parse_markdown(message)
+            .preview_text(message)
+            .unwrap_or_default()
     }
 
     pub(crate) fn to_draft_without_content(&self) -> MessageDraft {
@@ -172,6 +188,7 @@ impl From<MessageDraft> for UiMessageDraft {
         }: MessageDraft,
     ) -> Self {
         UiMessageDraft {
+            preview_text: Self::preview_text_of(&message),
             message,
             in_reply_to: in_reply_to.map(|(mimi_id, irt)| {
                 (
@@ -907,4 +924,28 @@ struct _AirFeatures {
     pub empty_connection_group_attributes: bool,
     pub pq_groups: bool,
     pub apq_connection_groups: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn set_message_updates_draft_preview() {
+        let mut draft = UiMessageDraft::empty();
+        draft.set_message("**draft** with [a link](https://example.com)".to_owned());
+        assert_eq!(draft.preview_text, "draft with a link");
+
+        draft.set_message(String::new());
+        assert_eq!(draft.preview_text, "");
+    }
+
+    #[test]
+    fn stored_draft_gets_preview() {
+        let draft = UiMessageDraft::from(MessageDraft {
+            message: "_stored_".to_owned(),
+            ..MessageDraft::empty()
+        });
+        assert_eq!(draft.preview_text, "stored");
+    }
 }

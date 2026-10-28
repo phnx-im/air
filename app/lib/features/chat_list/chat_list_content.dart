@@ -523,7 +523,6 @@ class _LastMessage extends HookWidget {
       _ => null,
     };
     final groupChatTitle = useRequestGroupChatTitle(lastSystemMessage);
-    final draftMessage = chat.draft?.message.trim();
     final lastSender = switch (lastMessage?.message) {
       UiMessage_Content(field0: final content) => content.sender,
       _ => null,
@@ -556,13 +555,13 @@ class _LastMessage extends HookWidget {
       return Text(loc.textMessage_deleted, style: italicStyle);
     }
 
-    final showDraft = draftMessage?.isNotEmpty == true;
+    final showDraft = chat.draft?.previewText.isNotEmpty == true;
 
     // === Reactions ===
     final reaction = chat.lastReaction;
     final reactedTo = switch (lastMessage?.message) {
       UiMessage_Content(field0: final content) =>
-        content.content.plaintextPreview(loc),
+        content.content.plaintextPreview,
       _ => null,
     };
     if (!showDraft && reaction != null && reactedTo != null) {
@@ -600,10 +599,10 @@ class _LastMessage extends HookWidget {
           };
 
     final suffix = showDraft
-        ? draftMessage
+        ? chat.draft?.plaintextPreview
         : switch (lastMessage?.message) {
             UiMessage_Content(field0: final content) =>
-              content.content.plaintextPreview(loc),
+              content.content.plaintextPreview,
             UiMessage_Display() when lastSystemMessage != null =>
               buildSystemMessageText(
                 context,

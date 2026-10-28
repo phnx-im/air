@@ -297,8 +297,6 @@
   "chatList_noChats": "Use o botão Escrever para adicionar seu primeiro contato e começar a conversar.",
   "chatList_draft": "Rascunho",
   "chatList_you": "Você",
-  "chatList_imageEmoji": "🖼️",
-  "chatList_fileEmoji": "📎",
   "chatList_blocked": "Bloqueado",
   "chatList_reaction": "{user} reagiu com {emoji} a \"{message}\"",
   "chatList_reactionByYou": "Você reagiu com {emoji} a \"{message}\"",

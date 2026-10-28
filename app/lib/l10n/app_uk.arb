@@ -286,8 +286,6 @@
   "chatList_noChats": "Натисніть кнопку «Написати», щоб додати перший контакт і почати спілкування.",
   "chatList_draft": "Чернетка",
   "chatList_you": "Ви",
-  "chatList_imageEmoji": "🖼️",
-  "chatList_fileEmoji": "📎",
   "chatList_blocked": "Заблоковано",
   "chatList_reaction": "{user} відреагував(-ла) {emoji} на «{message}»",
   "chatList_reactionByYou": "Ви відреагували {emoji} на «{message}»",

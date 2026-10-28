@@ -286,8 +286,6 @@
   "chatList_noChats": "Χρησιμοποιήστε το κουμπί σύνταξης για να προσθέσετε την πρώτη σας επαφή και να ξεκινήσετε να συνομιλείτε.",
   "chatList_draft": "Πρόχειρο",
   "chatList_you": "Εσείς",
-  "chatList_imageEmoji": "🖼️",
-  "chatList_fileEmoji": "📎",
   "chatList_blocked": "Αποκλεισμένη",
   "chatList_reaction": "Ο/Η {user} αντέδρασε με {emoji} στο «{message}»",
   "chatList_reactionByYou": "Αντιδράσατε με {emoji} στο «{message}»",

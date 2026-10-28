@@ -62,20 +62,14 @@ pub(crate) struct UnresolvedMimiContent {
 #[frb(dart_metadata = ("freezed"))]
 pub struct UiMimiContent {
     pub plain_body: Option<String>,
+    /// Plain text that stands in for the message in the chat list and in
+    /// quotes. `None` for a deleted message.
+    pub preview_text: Option<String>,
     pub replaces: Option<Vec<u8>>,
     pub topic_id: Vec<u8>,
     pub in_reply_to: Option<Vec<u8>>,
     pub content: Option<MessageContent>,
     pub attachments: Vec<UiAttachment>,
-    pub first_attachment_type: Option<UiAttachmentType>,
-}
-
-/// Whether an attachment is a picture or some other file.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-#[frb(dart_metadata = ("freezed"))]
-pub enum UiAttachmentType {
-    Image,
-    File,
 }
 
 /// [`UiAttachment`] without local attachment ID
@@ -112,14 +106,7 @@ pub struct UiImageMetadata {
 
 impl UnresolvedMimiContent {
     pub(crate) fn resolve(self, local_attachment_infos: &[AttachmentInfo]) -> UiMimiContent {
-        let first_attachment_type = self.attachments.first().map(|attachment| {
-            if attachment.image_metadata.is_some() {
-                UiAttachmentType::Image
-            } else {
-                UiAttachmentType::File
-            }
-        });
-
+        let preview_text = self.preview_text();
         let attachments: Vec<UiAttachment> = self
             .attachments
             .into_iter()
@@ -139,12 +126,12 @@ impl UnresolvedMimiContent {
 
         UiMimiContent {
             plain_body: self.plain_body,
+            preview_text,
             replaces: self.replaces,
             topic_id: self.topic_id,
             in_reply_to: self.in_reply_to,
             content: self.content,
             attachments,
-            first_attachment_type,
         }
     }
 }
