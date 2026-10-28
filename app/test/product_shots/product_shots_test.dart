@@ -227,6 +227,7 @@ class _ProductShotSpec {
     required this.darkPalette,
     required this.buildProviders,
     required this.buildScreen,
+    this.hasWindowShot = true,
   });
 
   final String goldenPrefix;
@@ -239,6 +240,9 @@ class _ProductShotSpec {
   buildProviders;
 
   final Widget Function(TargetPlatform platform) buildScreen;
+
+  /// Whether to record the Linux window shot.
+  final bool hasWindowShot;
 
   /// Read only for the marketing shots, so a content set recording just the
   /// device shots can leave the copy out.
@@ -259,7 +263,7 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
     for (final productShotInfo in _productShotsMatrix) {
       final platform = productShotInfo.targetPlatform;
       final windowShot = platform == TargetPlatform.linux;
-      if (windowShot && !_marketingShots) continue;
+      if (windowShot && (!_marketingShots || !spec.hasWindowShot)) continue;
 
       for (final brightness in Brightness.values) {
         final palette = spec.paletteFor(brightness);
@@ -353,6 +357,9 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
 
 _ProductShotSpec _chatListSpec() => _ProductShotSpec(
   goldenPrefix: 'chat_list',
+  // The desktop chat list opens a chat, so its window shot would repeat the
+  // private chat one.
+  hasWindowShot: false,
   lightPalette: _ShotPalette(
     backgroundColor: Primitive.neutral(NeutralShade.s100),
     titleColor: Primitive.neutral(NeutralShade.s800),

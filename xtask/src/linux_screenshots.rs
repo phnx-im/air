@@ -54,8 +54,8 @@ enum Command {
 
 #[derive(Args, Debug)]
 struct FixArgs {
-    /// Git ref whose set the new one is numbered after. Without it, the set
-    /// in the working tree is used.
+    /// Git ref whose set the new one is numbered after. If it does not
+    /// exist, the set in the working tree is used.
     #[arg(long, default_value = "origin/main")]
     base: String,
 }
