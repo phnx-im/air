@@ -77,6 +77,11 @@ check-licenses: regenerate-licenses && _check-unstaged-changes
 check-l10n:
     cargo xtask validate-l10n
 
+# Check that the Linux screenshot set matches the screenshots.
+[group('check')]
+check-linux-screenshots:
+    cargo xtask linux-screenshots check
+
 # Build, lint and check formatting of the protobuf files.
 [group('check')]
 [working-directory('protos')]

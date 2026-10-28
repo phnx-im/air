@@ -26,11 +26,21 @@
       <li>No investors and no ads. Air is for its users.</li>
     </ul>
   </description>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Private chat</caption>
+      <image type="source">https://packages.air.ms/screenshots/v1/en-US/1_private_chat.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Group chat</caption>
+      <image type="source">https://packages.air.ms/screenshots/v1/en-US/2_group_chat.png</image>
+    </screenshot>
+  </screenshots>
   <content_rating type="oars-1.1">
     <content_attribute id="social-chat">intense</content_attribute>
   </content_rating>
   <releases>
-    <release version="0.23.0" date="2026-09-22"/>
+    <release version="0.24.0" date="2026-10-28"/>
   </releases>
   <branding>
     <color type="primary" scheme_preference="light">#FCFBF5</color>
