@@ -19,6 +19,7 @@ use crate::{
     auth_service::{
         AuthService,
         connection_package::{StorableConnectionPackage, signed::StorableSignedConnectionPackage},
+        usernames::UsernameRecord,
     },
     errors::{DatabaseError, StorageError},
 };
@@ -61,6 +62,9 @@ impl AuthService {
             .collect::<Result<Vec<VerifiedSignedConnectionPackage>, _>>()?;
 
         let mut txn = self.db_pool.begin().await?;
+        if !UsernameRecord::lock_for_write(txn.as_mut(), hash).await? {
+            return Err(PublishConnectionPackageError::UsernameNotFound);
+        }
         StorableConnectionPackage::store_multiple_for_username(
             txn.as_mut(),
             &connection_packages,
@@ -68,7 +72,7 @@ impl AuthService {
         )
         .await?;
         StorableSignedConnectionPackage::store_multiple_for_username(
-            txn.as_mut(),
+            &mut txn,
             hash,
             signed_connection_packages,
         )
@@ -141,6 +145,7 @@ impl From<PublishConnectionPackageError> for Status {
 
 #[cfg(test)]
 mod tests {
+    use aircommon::crypto::signatures::signable::Verifiable;
     use aircommon::{
         credentials::keys::UsernameSigningKey,
         identifiers::UsernameHash,
@@ -149,7 +154,9 @@ mod tests {
     };
     use airprotos::{
         auth_service::v1::SignedConnectionPackage,
-        client::signed_connection_package::SignedConnectionPackageIn,
+        client::signed_connection_package::{
+            SignedConnectionPackageIn, VerifiedSignedConnectionPackage,
+        },
     };
     use chrono::Duration;
     use sqlx::PgPool;
@@ -160,6 +167,7 @@ mod tests {
         AuthService, connection_package::signed::StorableSignedConnectionPackage,
         usernames::UsernameRecord,
     };
+    use crate::util::wait_for_lock_waiter;
 
     use super::PublishConnectionPackageError;
 
@@ -218,6 +226,137 @@ mod tests {
 
         let loaded = StorableSignedConnectionPackage::load_for_username(&pool, &hash).await?;
         assert!(loaded.is_some());
+
+        Ok(())
+    }
+
+    fn signed_package_in(
+        hash: UsernameHash,
+        signing_key: &UsernameSigningKey,
+        is_last_resort: bool,
+    ) -> anyhow::Result<SignedConnectionPackageIn> {
+        let (_, package, _) = SignedConnectionPackage::generate(hash, signing_key, is_last_resort)?;
+        Ok(SignedConnectionPackageIn::try_from(package)?)
+    }
+
+    async fn stored_packages(pool: &PgPool, hash: &UsernameHash) -> anyhow::Result<Vec<Vec<u8>>> {
+        Ok(sqlx::query_scalar(
+            "SELECT payload FROM username_signed_connection_package WHERE hash = $1 ORDER BY id",
+        )
+        .bind(hash.as_bytes())
+        .fetch_all(pool)
+        .await?)
+    }
+
+    #[sqlx::test]
+    async fn publish_replaces_the_pool(pool: PgPool) -> anyhow::Result<()> {
+        let service = init_service(&pool).await?;
+        let hash = UsernameHash::new([1; 32]);
+        let signing_key = UsernameSigningKey::generate()?;
+        register_handle(&pool, hash, &signing_key).await?;
+
+        service
+            .as_publish_connection_packages_for_handle(
+                &hash,
+                signing_key.verifying_key(),
+                Vec::new(),
+                vec![
+                    signed_package_in(hash, &signing_key, false)?,
+                    signed_package_in(hash, &signing_key, false)?,
+                    signed_package_in(hash, &signing_key, true)?,
+                ],
+            )
+            .await?;
+        assert_eq!(stored_packages(&pool, &hash).await?.len(), 3);
+
+        let regular = signed_package_in(hash, &signing_key, false)?;
+        let last_resort = signed_package_in(hash, &signing_key, true)?;
+        let expected = vec![
+            regular.payload_bytes().to_vec(),
+            last_resort.payload_bytes().to_vec(),
+        ];
+        service
+            .as_publish_connection_packages_for_handle(
+                &hash,
+                signing_key.verifying_key(),
+                Vec::new(),
+                vec![regular, last_resort],
+            )
+            .await?;
+        assert_eq!(stored_packages(&pool, &hash).await?, expected);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn concurrent_publishes_leave_one_pool(pool: PgPool) -> anyhow::Result<()> {
+        let service = init_service(&pool).await?;
+        let hash = UsernameHash::new([1; 32]);
+        let signing_key = UsernameSigningKey::generate()?;
+        register_handle(&pool, hash, &signing_key).await?;
+
+        // The first pool is stored the way the handler does it, but not
+        // committed yet.
+        let first: VerifiedSignedConnectionPackage =
+            signed_package_in(hash, &signing_key, false)?.verify(signing_key.verifying_key())?;
+        let mut txn = pool.begin().await?;
+        assert!(UsernameRecord::lock_for_write(txn.as_mut(), &hash).await?);
+        StorableSignedConnectionPackage::store_multiple_for_username(&mut txn, &hash, vec![first])
+            .await?;
+
+        let second = signed_package_in(hash, &signing_key, false)?;
+        let expected = vec![second.payload_bytes().to_vec()];
+        let verifying_key = signing_key.verifying_key().clone();
+        let publish = tokio::spawn(async move {
+            service
+                .as_publish_connection_packages_for_handle(
+                    &hash,
+                    &verifying_key,
+                    Vec::new(),
+                    vec![second],
+                )
+                .await
+        });
+        wait_for_lock_waiter(&pool).await?;
+        txn.commit().await?;
+        publish.await??;
+
+        assert_eq!(stored_packages(&pool, &hash).await?, expected);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn publish_without_last_resort_keeps_the_stored_one(pool: PgPool) -> anyhow::Result<()> {
+        let service = init_service(&pool).await?;
+        let hash = UsernameHash::new([1; 32]);
+        let signing_key = UsernameSigningKey::generate()?;
+        register_handle(&pool, hash, &signing_key).await?;
+
+        let last_resort = signed_package_in(hash, &signing_key, true)?;
+        let last_resort_payload = last_resort.payload_bytes().to_vec();
+        service
+            .as_publish_connection_packages_for_handle(
+                &hash,
+                signing_key.verifying_key(),
+                Vec::new(),
+                vec![signed_package_in(hash, &signing_key, false)?, last_resort],
+            )
+            .await?;
+
+        let regular = signed_package_in(hash, &signing_key, false)?;
+        let regular_payload = regular.payload_bytes().to_vec();
+        service
+            .as_publish_connection_packages_for_handle(
+                &hash,
+                signing_key.verifying_key(),
+                Vec::new(),
+                vec![regular],
+            )
+            .await?;
+        assert_eq!(
+            stored_packages(&pool, &hash).await?,
+            vec![last_resort_payload, regular_payload]
+        );
 
         Ok(())
     }

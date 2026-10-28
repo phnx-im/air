@@ -26,6 +26,7 @@ use aircommon::{
         },
     },
     identifiers,
+    limits::{MAX_CONNECTION_PACKAGE_BYTES, MAX_CONNECTION_PACKAGES_PER_REQUEST},
     messages::{
         client_as::AsCredentialsParams,
         client_as_out::{
@@ -62,6 +63,22 @@ use super::{
     AuthService,
     usernames::{UsernameQueues, UsernameRecord, UsernameRefresh},
 };
+
+/// Rejects a connection package upload that exceeds the shared limits.
+///
+/// Runs before the username is looked up and before any package is parsed.
+fn check_connection_package_limits(packages: &[SignedConnectionPackage]) -> Result<(), Status> {
+    if packages.len() > MAX_CONNECTION_PACKAGES_PER_REQUEST {
+        return Err(Status::invalid_argument("too many connection packages"));
+    }
+    if packages
+        .iter()
+        .any(|package| package.payload.len() > MAX_CONNECTION_PACKAGE_BYTES)
+    {
+        return Err(Status::invalid_argument("connection package too large"));
+    }
+    Ok(())
+}
 
 pub struct GrpcAs {
     inner: AuthService,
@@ -434,16 +451,17 @@ impl auth_service_server::AuthService for GrpcAs {
     ) -> Result<Response<PublishConnectionPackagesResponse>, Status> {
         let request = request.into_inner();
 
-        let hash = request
+        let payload = request
             .inner()
             .payload
             .as_ref()
-            .ok_or_missing_field("payload")?
+            .ok_or_missing_field("payload")?;
+        check_connection_package_limits(&payload.signed_connection_packages)?;
+        let hash: identifiers::UsernameHash = payload
             .hash
             .clone()
-            .ok_or_missing_field("hash")?;
-
-        let hash: identifiers::UsernameHash = hash.try_into()?;
+            .ok_or_missing_field("hash")?
+            .try_into()?;
         let username_verifying_key = self.load_username_verifying_key(hash).await?;
         let payload = self.verify_request::<_, PublishConnectionPackagesPayload>(
             request,
@@ -970,6 +988,7 @@ mod tests {
         common::private::{PrivateCipherSuite, PublicKey, deserialize_public_key},
         private_tokens::Ristretto255,
     };
+    use prost::bytes::Bytes;
     use sqlx::PgPool;
     use tls_codec::Serialize;
     use tokio_util::sync::CancellationToken;
@@ -1239,6 +1258,61 @@ mod tests {
             .expect_err("missing client metadata should be rejected");
 
         assert_eq!(status.code(), Code::InvalidArgument);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn publish_connection_packages_rejects_oversized_requests_first(
+        pool: PgPool,
+    ) -> anyhow::Result<()> {
+        let (service, _) = setup(&pool).await?;
+        let grpc_as = GrpcAs::new(service);
+        let garbage = |count: usize, size: usize| -> Vec<SignedConnectionPackage> {
+            (0..count)
+                .map(|_| SignedConnectionPackage {
+                    payload: vec![0; size],
+                    signature: None,
+                })
+                .collect()
+        };
+        let request = |packages| {
+            Request::new(SignedRequest::new(
+                PublishConnectionPackagesRequest {
+                    payload: Some(PublishConnectionPackagesPayload {
+                        client_metadata: None,
+                        hash: Some(UsernameHash { bytes: vec![1; 32] }),
+                        connection_packages: Vec::new(),
+                        signed_connection_packages: packages,
+                    }),
+                    signature: None,
+                },
+                Bytes::new(),
+            ))
+        };
+
+        let status = grpc_as
+            .publish_connection_packages(request(garbage(
+                MAX_CONNECTION_PACKAGES_PER_REQUEST + 1,
+                8,
+            )))
+            .await
+            .unwrap_err();
+        assert_eq!(status.code(), Code::InvalidArgument);
+        assert_eq!(status.message(), "too many connection packages");
+
+        let status = grpc_as
+            .publish_connection_packages(request(garbage(1, MAX_CONNECTION_PACKAGE_BYTES + 1)))
+            .await
+            .unwrap_err();
+        assert_eq!(status.code(), Code::InvalidArgument);
+        assert_eq!(status.message(), "connection package too large");
+
+        let status = grpc_as
+            .publish_connection_packages(request(garbage(1, 8)))
+            .await
+            .unwrap_err();
+        assert_eq!(status.code(), Code::NotFound);
 
         Ok(())
     }
