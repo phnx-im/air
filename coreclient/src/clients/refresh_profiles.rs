@@ -251,10 +251,7 @@ impl CoreUser {
                 continue;
             };
             match UserProfileKey::decrypt(group.identity_link_wrapper_key(), eupk, &user_id) {
-                Ok(user_profile_key) => {
-                    fetches.push((credential, user_profile_key));
-                    seen.insert(user_id);
-                }
+                Ok(user_profile_key) => fetches.push((credential, user_profile_key)),
                 Err(error) => {
                     warn!(?user_id, %error, "Failed to decrypt member profile key");
                     stats.skipped += 1;
@@ -262,13 +259,20 @@ impl CoreUser {
             }
         }
 
-        self.db()
-            .with_write_transaction(async |txn| -> anyhow::Result<()> {
+        let fetched_user_ids: Vec<UserId> = fetches
+            .iter()
+            .map(|(credential, _)| credential.user_id().clone())
+            .collect();
+        let (up_to_date, outdated) = self
+            .db()
+            .with_write_transaction(async |txn| -> anyhow::Result<(usize, usize)> {
+                let mut up_to_date = 0;
+                let mut outdated = 0;
                 for (credential, user_profile_key) in fetches {
                     let user_id = credential.user_id();
                     let existing = ExistingUserProfile::load(&mut *txn, user_id).await?;
                     if existing.matches_index(user_profile_key.index()) {
-                        stats.up_to_date += 1;
+                        up_to_date += 1;
                         continue;
                     }
                     info!(?user_id, "Member profile key is outdated, scheduling fetch");
@@ -277,11 +281,16 @@ impl CoreUser {
                         (credential.into(), user_profile_key),
                     )
                     .await?;
-                    stats.outdated += 1;
+                    outdated += 1;
                 }
-                Ok(())
+                Ok((up_to_date, outdated))
             })
-            .await
+            .await?;
+
+        stats.up_to_date += up_to_date;
+        stats.outdated += outdated;
+        seen.extend(fetched_user_ids);
+        Ok(())
     }
 }
 
