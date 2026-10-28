@@ -9,9 +9,12 @@ use mimi_content::MimiContent;
 use mls_assist::openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tls_codec::Serialize as _;
+use tls_codec::{Serialize as _, TlsSerialize, TlsSize};
 
-use crate::identifiers::UserId;
+use crate::{
+    crypto::{Labeled, hash::Hashable},
+    identifiers::UserId,
+};
 
 /// Message Identifier calculated from the Group ID, sender's User ID and Mimi Content.
 ///
@@ -64,7 +67,28 @@ impl MimiId {
     pub fn into_inner(self) -> [u8; 32] {
         self.0
     }
+
+    /// For connection requests we generate a static MIMI ID from the request
+    /// group ID.
+    pub fn for_connection_request(request_group_id: &GroupId) -> Self {
+        Self(
+            ConnectionRequestAnnouncement { request_group_id }
+                .hash()
+                .into_bytes(),
+        )
+    }
 }
+
+#[derive(TlsSize, TlsSerialize)]
+struct ConnectionRequestAnnouncement<'a> {
+    request_group_id: &'a GroupId,
+}
+
+impl Labeled for ConnectionRequestAnnouncement<'_> {
+    const LABEL: &'static str = "ConnectionRequestAnnouncement";
+}
+
+impl Hashable for ConnectionRequestAnnouncement<'_> {}
 
 impl From<[u8; 32]> for MimiId {
     fn from(bytes: [u8; 32]) -> Self {

@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                m.message_id AS \"message_id: _\",\n                m.mimi_id AS \"mimi_id!: _\"\n            FROM message m\n            INNER JOIN chat c\n                ON c.chat_id = m.chat_id\n            LEFT JOIN message_status s\n                ON s.message_id = m.message_id\n                AND s.sender_user_uuid = ?3\n                AND s.sender_user_domain = ?4\n            WHERE m.chat_id = ?1\n                AND m.timestamp > ?2 AND m.timestamp <= ?7\n                AND m.sender_user_uuid IS NULL\n                AND m.mimi_id IS NOT NULL\n                AND m.status != ?8\n                AND (s.status IS NULL OR s.status = ?5 OR s.status = ?6)\n                AND c.is_incoming\n                AND NOT c.is_confirmed_connection\n                AND c.status = ?9",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "message_id"
+          }
+        }
+      },
+      {
+        "name": "mimi_id!: _",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "mimi_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "3616909aba3b0a2af09c4e37bfb0a33a00876380b0495d23cdc5536ff00614f1"
+}

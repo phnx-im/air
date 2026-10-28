@@ -131,11 +131,11 @@ impl From<SqlChatMessage> for ChatMessage {
             in_reply_to_mimi_id,
         }: SqlChatMessage,
     ) -> Self {
-        let message = match (sender_user_uuid, sender_user_domain) {
+        let (message, event_mimi_id) = match (sender_user_uuid, sender_user_domain) {
             // user message
             (Some(sender_user_uuid), Some(sender_user_domain)) => {
                 let sender = UserId::new(sender_user_uuid, sender_user_domain);
-                content
+                let message = content
                     .into_inner()
                     .to_mimi_content()
                     .map(|content| {
@@ -152,13 +152,17 @@ impl From<SqlChatMessage> for ChatMessage {
                         Message::Event(EventMessage::Error(ErrorMessage::new(
                             "Message parsing failed".to_owned(),
                         )))
-                    })
+                    });
+                (message, None)
             }
             // system message
-            _ => Message::Event(content.into_inner().to_event_message().unwrap_or_else(|e| {
-                warn!("Event parsing failed: {e}");
-                EventMessage::Error(ErrorMessage::new("Event parsing failed".to_owned()))
-            })),
+            _ => {
+                let event = content.into_inner().to_event_message().unwrap_or_else(|e| {
+                    warn!("Event parsing failed: {e}");
+                    EventMessage::Error(ErrorMessage::new("Event parsing failed".to_owned()))
+                });
+                (Message::Event(event), mimi_id)
+            }
         };
 
         let timestamped_message = TimestampedMessage { timestamp, message };
@@ -176,6 +180,7 @@ impl From<SqlChatMessage> for ChatMessage {
             in_reply_to: in_reply_to_mimi_id.map(|id| (id, None)),
             timestamped_message,
             status,
+            event_mimi_id,
             // Populated by `augment` after the row is decoded.
             reactions: IndexMap::new(),
         }
@@ -684,15 +689,22 @@ impl ChatMessage {
         Ok(())
     }
 
+    fn stored_mimi_id(&self) -> Option<&MimiId> {
+        match &self.timestamped_message.message {
+            Message::Content(content_message) => content_message.mimi_id(),
+            Message::Event(_) => self.event_mimi_id.as_ref(),
+        }
+    }
+
     pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> anyhow::Result<()> {
-        let (sender_uuid, sender_domain, mimi_id) = match &self.timestamped_message.message {
+        let (sender_uuid, sender_domain) = match &self.timestamped_message.message {
             Message::Content(content_message) => (
                 Some(content_message.sender.uuid()),
                 Some(content_message.sender.domain()),
-                Some(content_message.mimi_id()),
             ),
-            Message::Event(_) => (None, None, None),
+            Message::Event(_) => (None, None),
         };
+        let mimi_id = self.stored_mimi_id();
         let content = match &self.timestamped_message.message {
             Message::Content(content_message) => {
                 VersionedMessage::from_mimi_content(&content_message.content)?
@@ -751,7 +763,7 @@ impl ChatMessage {
     }
 
     pub(crate) async fn update(&self, mut connection: impl WriteConnection) -> anyhow::Result<()> {
-        let mimi_id = self.message().mimi_id();
+        let mimi_id = self.stored_mimi_id();
         let content = match &self.timestamped_message.message {
             Message::Content(content_message) => {
                 VersionedMessage::from_mimi_content(&content_message.content)?
@@ -1237,6 +1249,7 @@ pub(crate) mod tests {
             timestamped_message,
             status: MessageStatus::Unread,
             in_reply_to: None,
+            event_mimi_id: None,
             reactions: IndexMap::new(),
         }
     }
