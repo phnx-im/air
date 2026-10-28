@@ -683,12 +683,7 @@ impl auth_service_server::AuthService for GrpcAs {
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let hash = payload.hash.ok_or_missing_field("hash")?.try_into()?;
-
-        let token = payload
-            .token
-            .map(|bytes| AmortizedToken::<Ristretto255>::tls_deserialize_exact(bytes.as_slice()))
-            .transpose()
-            .map_err(|_| Status::invalid_argument("invalid token"))?;
+        let token = username_token(payload.token)?;
 
         self.inner
             .as_create_username(verifying_key, payload.plaintext, hash, token)
@@ -738,12 +733,7 @@ impl auth_service_server::AuthService for GrpcAs {
             .verify_username_auth::<_, RefreshUsernamePayload, _>(request)
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
-
-        let token = payload
-            .token
-            .map(|bytes| AmortizedToken::<Ristretto255>::tls_deserialize_exact(bytes.as_slice()))
-            .transpose()
-            .map_err(|_| Status::invalid_argument("invalid token"))?;
+        let token = username_token(payload.token)?;
 
         let response = match self.inner.as_refresh_username(hash, token).await? {
             UsernameRefresh::Refreshed { expires_at } => RefreshUsernameResponse {
@@ -845,6 +835,13 @@ impl ListenRequestHandler<ListenUsernameRequest> for UsernameSessionHandler {
         }
         Ok(())
     }
+}
+
+/// The `AddUsername` token a username request pays with.
+fn username_token(token: Option<Vec<u8>>) -> Result<AmortizedToken<Ristretto255>, Status> {
+    let token = token.ok_or_else(|| Status::unauthenticated("missing token"))?;
+    AmortizedToken::<Ristretto255>::tls_deserialize_exact(token.as_slice())
+        .map_err(|_| Status::invalid_argument("invalid token"))
 }
 
 /// Publishes why the registration gate closed for this request. Whether the

@@ -41,21 +41,18 @@ impl AuthService {
         Ok(exists)
     }
 
-    /// Token is optional during gradual rollout: old clients omit it, new
-    /// clients provide one. Once all clients support tokens, make it required.
+    /// Creates the username, redeeming `token` in the same transaction.
     pub(crate) async fn as_create_username(
         &self,
         verifying_key: UsernameVerifyingKey,
         username_plaintext: String,
         hash: UsernameHash,
-        token: Option<AmortizedToken<Ristretto255>>,
+        token: AmortizedToken<Ristretto255>,
     ) -> Result<(), CreateUsernameError> {
         let mut txn = self.db_pool.begin().await?;
 
-        if let Some(token) = token {
-            self.as_redeem_token(&mut txn, token, OperationType::AddUsername)
-                .await?;
-        }
+        self.as_redeem_token(&mut txn, token, OperationType::AddUsername)
+            .await?;
 
         let username = Username::new(username_plaintext)?;
 
@@ -93,9 +90,8 @@ impl AuthService {
         Ok(())
     }
 
-    /// Token refunds are disabled during gradual rollout to prevent token
-    /// farming (create-without-token + delete-with-refund = free tokens).
-    /// Re-enable when token redemption becomes mandatory for all username ops.
+    /// Deletes the username. The token request is ignored: refunds of the
+    /// creation token are not implemented, so no replacement is issued.
     pub(crate) async fn as_delete_username(
         &self,
         hash: UsernameHash,
@@ -108,11 +104,12 @@ impl AuthService {
         Ok(None)
     }
 
-    /// Token is optional during gradual rollout (see `as_create_username`).
+    /// Extends the username's validity if a refresh is due, redeeming `token`
+    /// only then.
     pub(crate) async fn as_refresh_username(
         &self,
         hash: UsernameHash,
-        token: Option<AmortizedToken<Ristretto255>>,
+        token: AmortizedToken<Ristretto255>,
     ) -> Result<UsernameRefresh, RefreshUsernameError> {
         let mut txn = self.db_pool.begin().await?;
 
@@ -133,10 +130,8 @@ impl AuthService {
             });
         }
 
-        if let Some(token) = token {
-            self.as_redeem_token(&mut txn, token, OperationType::AddUsername)
-                .await?;
-        }
+        self.as_redeem_token(&mut txn, token, OperationType::AddUsername)
+            .await?;
 
         let new_expiration_data = ExpirationData::new(USERNAME_VALIDITY_PERIOD);
         let expires_at = new_expiration_data.not_after();
@@ -413,20 +408,10 @@ mod tests {
     #[sqlx::test]
     async fn create_username_success(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
-
-        service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
-            .await?;
-        Ok(())
-    }
-
-    #[sqlx::test]
-    async fn create_username_success_with_token(pool: PgPool) -> anyhow::Result<()> {
-        let service = setup(&pool).await?;
         let token = username_token(&service, &pool).await?;
 
         service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, Some(token))
+            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, token)
             .await?;
         Ok(())
     }
@@ -446,7 +431,7 @@ mod tests {
             .await?;
 
         let result = service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, Some(token))
+            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, token)
             .await;
         assert!(matches!(
             result,
@@ -464,7 +449,7 @@ mod tests {
                 make_verifying_key(),
                 "INVALID_UPPER".to_string(),
                 HASH,
-                None,
+                username_token(&service, &pool).await?,
             )
             .await;
         assert!(matches!(
@@ -480,7 +465,12 @@ mod tests {
         let wrong_hash = UsernameHash::new([0; 32]);
 
         let result = service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), wrong_hash, None)
+            .as_create_username(
+                make_verifying_key(),
+                USERNAME.to_owned(),
+                wrong_hash,
+                username_token(&service, &pool).await?,
+            )
             .await;
         assert!(matches!(result, Err(CreateUsernameError::HashMismatch)));
         Ok(())
@@ -491,11 +481,21 @@ mod tests {
         let service = setup(&pool).await?;
 
         service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
+            .as_create_username(
+                make_verifying_key(),
+                USERNAME.to_owned(),
+                HASH,
+                username_token(&service, &pool).await?,
+            )
             .await?;
 
         let result = service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
+            .as_create_username(
+                make_verifying_key(),
+                USERNAME.to_owned(),
+                HASH,
+                username_token(&service, &pool).await?,
+            )
             .await;
         assert!(matches!(result, Err(CreateUsernameError::UsernameExists)));
         Ok(())
@@ -505,9 +505,21 @@ mod tests {
     async fn create_username_concurrent(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
 
+        let first_token = username_token(&service, &pool).await?;
+        let second_token = username_token(&service, &pool).await?;
         let (r1, r2) = tokio::join!(
-            service.as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None),
-            service.as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None),
+            service.as_create_username(
+                make_verifying_key(),
+                USERNAME.to_owned(),
+                HASH,
+                first_token
+            ),
+            service.as_create_username(
+                make_verifying_key(),
+                USERNAME.to_owned(),
+                HASH,
+                second_token
+            ),
         );
 
         let ok_count = [r1.is_ok(), r2.is_ok()].iter().filter(|&&ok| ok).count();
@@ -537,7 +549,12 @@ mod tests {
         .await?;
 
         service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
+            .as_create_username(
+                make_verifying_key(),
+                USERNAME.to_owned(),
+                HASH,
+                username_token(&service, &pool).await?,
+            )
             .await?;
         Ok(())
     }
@@ -549,7 +566,12 @@ mod tests {
         let service = setup(&pool).await?;
 
         service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
+            .as_create_username(
+                make_verifying_key(),
+                USERNAME.to_owned(),
+                HASH,
+                username_token(&service, &pool).await?,
+            )
             .await?;
 
         let result = service.as_delete_username(HASH, None).await?;
@@ -597,22 +619,12 @@ mod tests {
         let service = setup(&pool).await?;
         store_username_expiring_in(&pool, HASH, Duration::days(30)).await?;
 
-        let refresh = service.as_refresh_username(HASH, None).await?;
+        let token = username_token(&service, &pool).await?;
+        let refresh = service.as_refresh_username(HASH, token).await?;
 
         let expires_at = expires_at(&pool, &HASH).await?;
         assert_eq!(refresh, UsernameRefresh::Refreshed { expires_at });
         assert!(*expires_at > Utc::now() + Duration::days(179));
-        Ok(())
-    }
-
-    #[sqlx::test]
-    async fn refresh_username_success_with_token(pool: PgPool) -> anyhow::Result<()> {
-        let service = setup(&pool).await?;
-        store_username_expiring_in(&pool, HASH, Duration::days(30)).await?;
-
-        let token = username_token(&service, &pool).await?;
-        let refresh = service.as_refresh_username(HASH, Some(token)).await?;
-        assert!(matches!(refresh, UsernameRefresh::Refreshed { .. }));
         Ok(())
     }
 
@@ -632,7 +644,7 @@ mod tests {
             )
             .await?;
 
-        let result = service.as_refresh_username(HASH, Some(token)).await;
+        let result = service.as_refresh_username(HASH, token).await;
         assert!(matches!(
             result,
             Err(RefreshUsernameError::TokenRedemption(_))
@@ -647,14 +659,17 @@ mod tests {
     ) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
         service
-            .as_create_username(make_verifying_key(), USERNAME.to_owned(), HASH, None)
+            .as_create_username(
+                make_verifying_key(),
+                USERNAME.to_owned(),
+                HASH,
+                username_token(&service, &pool).await?,
+            )
             .await?;
         let expires_before = expires_at(&pool, &HASH).await?;
 
         let token = username_token(&service, &pool).await?;
-        let refresh = service
-            .as_refresh_username(HASH, Some(token.clone()))
-            .await?;
+        let refresh = service.as_refresh_username(HASH, token.clone()).await?;
 
         assert_eq!(
             refresh,
@@ -686,9 +701,11 @@ mod tests {
         // Refreshed 82 days ago, by a sibling the requesting device missed.
         store_username_expiring_in(&pool, early, Duration::days(98)).await?;
 
-        let refresh = service.as_refresh_username(HASH, None).await?;
+        let token = username_token(&service, &pool).await?;
+        let refresh = service.as_refresh_username(HASH, token).await?;
         assert!(matches!(refresh, UsernameRefresh::Refreshed { .. }));
-        let refresh = service.as_refresh_username(early, None).await?;
+        let token = username_token(&service, &pool).await?;
+        let refresh = service.as_refresh_username(early, token).await?;
         assert!(matches!(refresh, UsernameRefresh::Skipped { .. }));
         Ok(())
     }
@@ -698,9 +715,11 @@ mod tests {
         let service = setup(&pool).await?;
         store_username_expiring_in(&pool, HASH, Duration::days(30)).await?;
 
+        let first_token = username_token(&service, &pool).await?;
+        let second_token = username_token(&service, &pool).await?;
         let (first, second) = tokio::join!(
-            service.as_refresh_username(HASH, None),
-            service.as_refresh_username(HASH, None),
+            service.as_refresh_username(HASH, first_token),
+            service.as_refresh_username(HASH, second_token),
         );
         let mut refreshes = [first?, second?];
         refreshes.sort_by_key(|refresh| matches!(refresh, UsernameRefresh::Skipped { .. }));
@@ -720,7 +739,8 @@ mod tests {
     async fn refresh_username_not_found(pool: PgPool) -> anyhow::Result<()> {
         let service = setup(&pool).await?;
 
-        let result = service.as_refresh_username(HASH, None).await;
+        let token = username_token(&service, &pool).await?;
+        let result = service.as_refresh_username(HASH, token).await;
         assert!(matches!(
             result,
             Err(RefreshUsernameError::UsernameNotFound)
@@ -740,7 +760,8 @@ mod tests {
         .store(&pool)
         .await?;
 
-        let result = service.as_refresh_username(HASH, None).await;
+        let token = username_token(&service, &pool).await?;
+        let result = service.as_refresh_username(HASH, token).await;
         assert!(matches!(
             result,
             Err(RefreshUsernameError::UsernameAlreadyExpired)
