@@ -570,6 +570,39 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    #[ignore = "a failed journal rename splits the legacy client DB from its WAL"]
+    async fn legacy_client_db_is_not_split_from_its_wal() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let air_db = open_air_db(db_path).await?;
+
+        let user_id = UserId::random("localhost".parse()?);
+        let client_record_id = Uuid::new_v4();
+        store_record(&air_db, &user_id, client_record_id).await?;
+
+        let legacy_name = legacy_db_name(&user_id);
+        fs::write(dir.path().join(&legacy_name), "legacy")?;
+        fs::write(dir.path().join(format!("{legacy_name}-wal")), "legacy-wal")?;
+
+        // A directory in the way makes renaming the WAL fail.
+        fs::create_dir(dir.path().join(format!("{client_record_id}.db-wal")))?;
+
+        let _ = rename_legacy_client_dbs(db_path, &air_db).await;
+
+        assert!(
+            dir.path().join(&legacy_name).exists(),
+            "the DB was moved without its WAL"
+        );
+        assert_eq!(fs::read_to_string(dir.path().join(&legacy_name))?, "legacy");
+        assert_eq!(
+            fs::read_to_string(dir.path().join(format!("{legacy_name}-wal")))?,
+            "legacy-wal"
+        );
+
+        Ok(())
+    }
+
     /// A missing journal sibling of a legacy client DB is not an error.
     #[tokio::test]
     async fn renames_legacy_client_db_without_journal_siblings() -> anyhow::Result<()> {
@@ -770,6 +803,69 @@ mod tests {
             .fetch_one(db.read().await?.as_mut())
             .await?;
         assert_eq!(client_id, Uuid::nil());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore = "concurrent opens of a fresh client DB race on the migrations"]
+    async fn concurrent_opens_of_fresh_client_db_succeed() -> anyhow::Result<()> {
+        for _ in 0..10 {
+            let dir = tempdir()?;
+            let db_path = dir.path().to_str().unwrap();
+            let client_record_id = Uuid::new_v4();
+            let (first, second) = tokio::join!(
+                open_client_db(db_path, client_record_id),
+                open_client_db(db_path, client_record_id),
+            );
+            first?;
+            second?;
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[ignore = "migrating to local attachment ids drops pending attachments"]
+    async fn local_attachment_id_migration_keeps_pending_attachments() -> anyhow::Result<()> {
+        const LOCAL_ATTACHMENT_ID: i64 = 20260608114140;
+
+        let dir = tempdir()?;
+        let db_path = dir.path().to_str().unwrap();
+        let client_record_id = Uuid::new_v4();
+
+        // Migrate up to just before the migration and seed a pending upload.
+        let mut migrator = sqlx::migrate!();
+        migrator.migrations = migrator
+            .migrations
+            .iter()
+            .filter(|migration| migration.version < LOCAL_ATTACHMENT_ID)
+            .cloned()
+            .collect::<Vec<_>>()
+            .into();
+        let opts: SqliteConnectOptions =
+            format!("sqlite://{db_path}/{}", client_db_name(client_record_id)).parse()?;
+        let mut connection =
+            sqlx::SqliteConnection::connect_with(&opts.create_if_missing(true)).await?;
+        migrator.run_direct(None, &mut connection, false).await?;
+        for statement in [
+            "INSERT INTO chat (chat_id, chat_title, group_id, last_read)
+             VALUES (x'01', 'chat', x'02', '2026-01-01T00:00:00Z')",
+            "INSERT INTO message (message_id, chat_id, timestamp, content, sent)
+             VALUES (x'03', x'01', '2026-01-01T00:00:00Z', x'00', FALSE)",
+            "INSERT INTO attachment
+             VALUES (x'04', x'01', x'03', 'image/png', NULL, 1, '2026-01-01T00:00:00Z')",
+            "INSERT INTO pending_attachment
+             VALUES (x'04', 1, 0, x'00', x'00', x'00', 0, x'00')",
+        ] {
+            sqlx::query(statement).execute(&mut connection).await?;
+        }
+        connection.close().await?;
+
+        let db = open_client_db(db_path, client_record_id).await?;
+        let pending: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM pending_attachment")
+            .fetch_one(db.read().await?.as_mut())
+            .await?;
+        assert_eq!(pending, 1);
 
         Ok(())
     }

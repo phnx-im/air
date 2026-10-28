@@ -11,7 +11,7 @@ use airprotos::{
     auth_service::v1::OperationType,
     client::signed_connection_package::{AnyConnectionPackage, AnyConnectionPackageIn},
 };
-use airserver_test_harness::utils::setup::TestBackend;
+use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::Utc;
 
 /// The user's cached contact request tokens, so that a bare client can pay
@@ -177,6 +177,39 @@ async fn upload_task_drops_unknown_username() -> anyhow::Result<()> {
         .expect("task should exist");
     assert!(state.parked);
     assert!(state.pending_usernames.is_empty());
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "a lost publish response drops the keys of the published connection packages"]
+async fn lost_publish_response_keeps_package_keys() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let record = setup.add_username(&bob).await;
+    let client = ApiClient::with_endpoint(&setup.server_url())?;
+
+    // Only the packages of the upload below are handed out afterwards.
+    let mut tokens = tokens_of(&bob).await;
+    drain_connection_packages(&client, record.hash, &mut tokens).await?;
+
+    // The AS stores the packages, but bob never sees the response.
+    setup
+        .listener_control_handle()
+        .set_drop_next_response_to("PublishConnectionPackages");
+    bob.outbound_service()
+        .schedule_signed_connection_package_upload(vec![record.hash], Utc::now())
+        .await?;
+    bob.outbound_service().run_once().await;
+
+    alice
+        .add_contact(record.username.clone(), record.hash, setup.apq_groups)
+        .await?
+        .unwrap();
+    assert!(
+        bob.drain_username_queue(&record).await.is_some(),
+        "the connection offer was dropped"
+    );
 
     Ok(())
 }

@@ -1188,6 +1188,19 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "a NotFound with an unknown detail is taken for a missing group"]
+    fn not_found_with_unknown_detail_is_not_a_missing_group() {
+        let status = StatusDetails {
+            code: 999,
+            detail: None,
+        }
+        .to_status(Code::NotFound, "something else not found");
+        let error = DsRequestError::Tonic(status);
+        assert!(!error.is_not_found());
+        assert_matches!(error.kind(), RequestErrorKind::ServerError);
+    }
+
+    #[test]
     fn unknown_status_with_nested_io_error_is_a_network_error() {
         #[derive(Debug, thiserror::Error)]
         #[error("transport error")]
