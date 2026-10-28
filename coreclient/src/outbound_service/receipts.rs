@@ -21,12 +21,12 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatId, ChatStatus, MessageId,
+    Chat, ChatId, ChatStatus, ChatType, MessageId,
     chats::StatusRecord,
     db::access::WriteDbTransaction,
     groups::{
         Group, handle_group_closed_on_ds, handle_group_not_found_on_ds,
-        openmls_provider::AirOpenMlsProvider,
+        openmls_provider::AirOpenMlsProvider, self_group::SelfGroup,
     },
     job::pending_chat_operation::PendingChatOperation,
     outbound_service::{
@@ -46,7 +46,18 @@ impl OutboundService {
         self.context
             .db
             .with_write_transaction(async |txn| {
-                self.schedule_receipts(txn, chat_id, statuses).await
+                let chat = Chat::load(&mut *txn, &chat_id).await?;
+                let receipts_chat_id = match chat.as_ref().map(Chat::chat_type) {
+                    Some(ChatType::PendingConnection(_)) => {
+                        let Some(self_chat) = SelfGroup::load_chat(&mut *txn).await? else {
+                            return Ok(());
+                        };
+                        self_chat.id()
+                    }
+                    _ => chat_id,
+                };
+                self.schedule_receipts(txn, receipts_chat_id, statuses)
+                    .await
             })
             .await?;
         self.notify_work();

@@ -652,7 +652,7 @@ impl Chat {
         let deleted_status: u8 = MessageStatus::Deleted.into();
         // A deleted message has nothing left to report on, and the report would
         // overwrite the sender's own deleted row.
-        let new_marked_as_read: Vec<(MessageId, MimiId)> = query_as!(
+        let mut new_marked_as_read: Vec<(MessageId, MimiId)> = query_as!(
             Record,
             r#"SELECT
                 m.message_id AS "message_id: _",
@@ -681,6 +681,44 @@ impl Chat {
         .map(|record| record.map(|record| (record.message_id, record.mimi_id)))
         .collect::<sqlx::Result<Vec<_>>>()
         .await?;
+
+        // Separate query for contact requests
+        let read_announcements: Vec<(MessageId, MimiId)> = query_as!(
+            Record,
+            r#"SELECT
+                m.message_id AS "message_id: _",
+                m.mimi_id AS "mimi_id!: _"
+            FROM message m
+            INNER JOIN chat c
+                ON c.chat_id = m.chat_id
+            LEFT JOIN message_status s
+                ON s.message_id = m.message_id
+                AND s.sender_user_uuid = ?3
+                AND s.sender_user_domain = ?4
+            WHERE m.chat_id = ?1
+                AND m.timestamp > ?2 AND m.timestamp <= ?7
+                AND m.sender_user_uuid IS NULL
+                AND m.mimi_id IS NOT NULL
+                AND m.status != ?8
+                AND (s.status IS NULL OR s.status = ?5 OR s.status = ?6)
+                AND c.is_incoming
+                AND NOT c.is_confirmed_connection
+                AND c.status = ?9"#,
+            chat_id,
+            old_timestamp,
+            our_user_uuid,
+            our_user_domain,
+            unread_status,
+            delivered_status,
+            timestamp,
+            deleted_status,
+            SqlChatStatus::Active,
+        )
+        .fetch(txn.as_mut())
+        .map(|record| record.map(|record| (record.message_id, record.mimi_id)))
+        .collect::<sqlx::Result<Vec<_>>>()
+        .await?;
+        new_marked_as_read.extend(read_announcements);
 
         let updated = query!(
             "UPDATE chat SET last_read = ?1
@@ -725,7 +763,7 @@ impl Chat {
         let excluded_status: u8 = MessageStatus::Deleted.into();
         let now = Utc::now();
         let (our_user_uuid, our_user_domain) = own_user.clone().into_parts();
-        query_scalar!(
+        let messages = query_scalar!(
             r#"SELECT
                 COUNT(m.chat_id) AS "count: i64"
             FROM
@@ -747,8 +785,32 @@ impl Chat {
             our_user_domain,
         )
         .fetch_one(connection.as_mut())
-        .await
-        .map(|n: i64| usize::try_from(n).expect("usize overflow"))
+        .await?;
+        // Count the unread contact requests separately
+        let announcements = query_scalar!(
+            r#"SELECT
+                COUNT(*) AS "count: i64"
+            FROM
+                chat c
+            INNER JOIN
+                message m
+            ON
+                c.chat_id = m.chat_id
+                AND m.sender_user_uuid IS NULL
+                AND m.timestamp > c.last_read
+                AND m.status != ?1
+            WHERE
+                c.is_incoming
+                AND NOT c.is_confirmed_connection
+                AND c.status = ?3
+                AND (c.muted_until IS NULL OR c.muted_until <= ?2)"#,
+            excluded_status,
+            now,
+            SqlChatStatus::Active,
+        )
+        .fetch_one(connection.as_mut())
+        .await?;
+        Ok(usize::try_from(messages + announcements).expect("usize overflow"))
     }
 
     /// Returns the earliest time after `now` at which a chat mute runs out.
@@ -849,7 +911,7 @@ impl Chat {
         // ours from the unread count.
         let excluded_status: u8 = MessageStatus::Deleted.into();
         let (our_user_uuid, our_user_domain) = own_user.clone().into_parts();
-        query_scalar!(
+        let messages: Option<u32> = query_scalar!(
             r#"SELECT
                 COUNT(*) AS "count: _"
             FROM
@@ -875,8 +937,33 @@ impl Chat {
             our_user_domain,
         )
         .fetch_one(connection.as_mut())
-        .await
-        .map(|n: Option<u32>| n.unwrap_or(0).try_into().expect("usize overflow"))
+        .await?;
+        // Count the unread contact requests separately
+        let announcements: u32 = query_scalar!(
+            r#"SELECT
+                COUNT(*) AS "count: _"
+            FROM
+                message m
+            INNER JOIN
+                chat c
+            ON
+                c.chat_id = m.chat_id
+            WHERE
+                m.chat_id = ?1
+                AND m.sender_user_uuid IS NULL
+                AND m.status != ?2
+                AND m.timestamp > c.last_read
+                AND c.is_incoming
+                AND NOT c.is_confirmed_connection
+                AND c.status = ?3"#,
+            chat_id,
+            excluded_status,
+            SqlChatStatus::Active,
+        )
+        .fetch_one(connection.as_mut())
+        .await?;
+        let count = messages.unwrap_or(0) + announcements;
+        Ok(count.try_into().expect("usize overflow"))
     }
 
     pub(super) async fn set_chat_type(

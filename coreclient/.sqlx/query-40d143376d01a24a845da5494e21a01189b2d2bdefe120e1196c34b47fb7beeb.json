@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                COUNT(*) AS \"count: _\"\n            FROM\n                message m\n            INNER JOIN\n                chat c\n            ON\n                c.chat_id = m.chat_id\n            WHERE\n                m.chat_id = ?1\n                AND m.sender_user_uuid IS NULL\n                AND m.status != ?2\n                AND m.timestamp > c.last_read\n                AND c.is_incoming\n                AND NOT c.is_confirmed_connection\n                AND c.status = ?3",
+  "describe": {
+    "columns": [
+      {
+        "name": "count: _",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "40d143376d01a24a845da5494e21a01189b2d2bdefe120e1196c34b47fb7beeb"
+}
