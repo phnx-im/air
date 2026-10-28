@@ -5,6 +5,7 @@
 use airapiclient::{ClassifyRequestError, RequestErrorKind, as_api::UsernameRefresh};
 use aircommon::{
     identifiers::{USERNAME_REFRESH_THRESHOLD, USERNAME_VALIDITY_PERIOD, UsernameHash},
+    limits::MAX_KEY_PACKAGES_PER_REQUEST,
     messages::connection_package::ConnectionPackageHash,
     mls_group_config::VC_DERIVATION_EPOCH_RETENTION_WINDOW,
 };
@@ -57,6 +58,10 @@ pub const KEY_PACKAGES: usize = 10; // to go faster
 ///
 /// Currently only a last resort key package is uploaded.
 pub const APQ_KEY_PACKAGES: usize = 0;
+
+/// Packages in one upload: every package plus one last resort of each kind.
+const KEY_PACKAGES_PER_UPLOAD: usize = KEY_PACKAGES + 1 + APQ_KEY_PACKAGES + 1;
+const _: () = assert!(KEY_PACKAGES_PER_UPLOAD <= MAX_KEY_PACKAGES_PER_REQUEST);
 
 /// Interval at which the self-update in a group is executed.
 const SELF_UPDATE_INTERVAL: Duration = Duration::days(1);

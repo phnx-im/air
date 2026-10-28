@@ -59,6 +59,9 @@ impl Qs {
             let is_last_resort = verified_key_package.last_resort();
 
             if is_last_resort {
+                if last_resort_key_package.is_some() {
+                    return Err(QsPublishKeyPackagesError::MultipleLastResortKeyPackages);
+                }
                 last_resort_key_package = Some(verified_key_package);
             } else {
                 verified_key_packages.push(verified_key_package);
@@ -98,6 +101,9 @@ impl Qs {
                 && verified_key_package.pq_key_package().last_resort();
 
             if is_last_resort {
+                if last_resort_key_package.is_some() {
+                    return Err(QsPublishKeyPackagesError::MultipleLastResortKeyPackages);
+                }
                 last_resort_key_package = Some(verified_key_package);
             } else {
                 verified_key_packages.push(verified_key_package);
@@ -259,10 +265,67 @@ mod tests {
     use crate::qs::{
         client_api::tests::qs,
         client_record::persistence::tests::store_random_client_record,
+        staged_key_package::tests::{build_apq_key_package, build_key_package},
         user_record::persistence::tests::{run_during_soft_delete, store_random_user_record},
     };
 
     use super::*;
+
+    fn apq_key_package_in(key_package: ApqKeyPackage) -> ApqKeyPackageIn {
+        ApqKeyPackageIn::new(
+            key_package.t_key_package().clone().into(),
+            key_package.pq_key_package().clone().into(),
+        )
+    }
+
+    #[sqlx::test]
+    async fn publish_rejects_several_last_resort_packages(pool: PgPool) -> anyhow::Result<()> {
+        let qs = qs(&pool).await?;
+        let user = store_random_user_record(&pool).await?;
+        let client = store_random_client_record(&pool, user.user_id).await?;
+
+        let result = qs
+            .qs_publish_key_packages(PublishKeyPackagesParams {
+                sender: client.client_id,
+                key_packages: vec![
+                    build_key_package(true).into(),
+                    build_key_package(true).into(),
+                ],
+            })
+            .await;
+        let error = result.unwrap_err();
+        assert!(
+            matches!(
+                error,
+                QsPublishKeyPackagesError::MultipleLastResortKeyPackages
+            ),
+            "{error:?}"
+        );
+
+        let result = qs
+            .qs_publish_apq_key_packages(
+                client.client_id,
+                vec![
+                    apq_key_package_in(build_apq_key_package(true)),
+                    apq_key_package_in(build_apq_key_package(true)),
+                ],
+            )
+            .await;
+        let error = result.unwrap_err();
+        assert!(
+            matches!(
+                error,
+                QsPublishKeyPackagesError::MultipleLastResortKeyPackages
+            ),
+            "{error:?}"
+        );
+
+        let stored: i64 = sqlx::query_scalar("SELECT count(*) FROM key_package")
+            .fetch_one(&pool)
+            .await?;
+        assert_eq!(stored, 0);
+        Ok(())
+    }
 
     #[sqlx::test]
     async fn publish_waits_for_soft_delete(pool: PgPool) -> anyhow::Result<()> {
