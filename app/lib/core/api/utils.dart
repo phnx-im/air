@@ -34,6 +34,18 @@ Future<void> deleteClientDatabase({
   clientRecordId: clientRecordId,
 );
 
+/// Delete the database of a client that is not loaded.
+///
+/// Unlike `delete_client_database`, this does not close an open database and
+/// the caller must make sure no user is loaded.
+Future<void> deleteUnloadedClientDatabase({
+  required String dbPath,
+  required UuidValue clientRecordId,
+}) => RustLib.instance.api.crateApiUtilsDeleteUnloadedClientDatabase(
+  dbPath: dbPath,
+  clientRecordId: clientRecordId,
+);
+
 /// Returns whether the file at the given path is a recognized image format.
 /// Uses the same detection as `load_attachment_image()`.
 Future<bool> isImageFile({required String path}) =>

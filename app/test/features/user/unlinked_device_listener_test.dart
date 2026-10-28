@@ -16,8 +16,6 @@ import 'package:mocktail/mocktail.dart';
 
 import '../../mocks.dart';
 
-class MockCoreClient extends Mock implements CoreClient {}
-
 void main() {
   testWidgets('tears down when the initial state is already unlinked', (
     tester,
