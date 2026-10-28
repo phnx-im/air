@@ -201,6 +201,8 @@ update-goldens:
     git ls-files -z 'test/**/goldens/*.{{ os() }}*.png' | xargs -0 rm -f
     # Update golden snapshots
     just test-flutter --update-goldens
+    # The Linux screenshot set follows the Linux product shots recorded here.
+    if [ "{{ os() }}" = linux ]; then cargo xtask linux-screenshots fix; fi
 
 # Trigger the "Update Goldens" workflow on the current branch, or a given PR.
 [script]

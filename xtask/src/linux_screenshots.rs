@@ -10,6 +10,9 @@
 //! `SHA256SUMS` pins the current set version to the hashes of its files, so a
 //! PR that changes a shot fails `check` until `fix` moves it to a new set. Two
 //! PRs moving to the same version conflict on the lock file.
+//!
+//! `fix` numbers the new set after the one on the base branch, so running it
+//! again in the same PR keeps the version instead of skipping one.
 
 use std::{collections::BTreeMap, fs};
 
@@ -42,11 +45,19 @@ pub(crate) struct ScreenshotsArgs {
 enum Command {
     /// Check that the lock file and the metainfo match the screenshots.
     Check,
-    /// Move to a new screenshot set if the screenshots changed, and point the
-    /// metainfo at the current one.
-    Fix,
+    /// Move to a new screenshot set if the screenshots changed since the base
+    /// branch, and point the metainfo at the current one.
+    Fix(FixArgs),
     /// Upload the current screenshot set, unless it is already published.
     Publish(PublishArgs),
+}
+
+#[derive(Args, Debug)]
+struct FixArgs {
+    /// Git ref whose set the new one is numbered after. Without it, the set
+    /// in the working tree is used.
+    #[arg(long, default_value = "origin/main")]
+    base: String,
 }
 
 #[derive(Args, Debug)]
@@ -68,7 +79,7 @@ pub(crate) fn run(args: ScreenshotsArgs) -> Result<()> {
     let root = workspace_root();
     match args.command {
         Command::Check => check(&root),
-        Command::Fix => fix(&root),
+        Command::Fix(args) => fix(&root, args),
         Command::Publish(args) => publish(&root, args),
     }
 }
@@ -123,9 +134,9 @@ fn check(root: &Utf8Path) -> Result<()> {
     Ok(())
 }
 
-fn fix(root: &Utf8Path) -> Result<()> {
+fn fix(root: &Utf8Path, args: FixArgs) -> Result<()> {
     let files = hash_screenshots(root)?;
-    let lock = match load_lock(root)? {
+    let lock = match load_base_lock(root, &args.base)? {
         Some(lock) if lock.files == files => lock,
         Some(lock) => Lock {
             version: lock.version + 1,
@@ -250,6 +261,35 @@ fn url_regex() -> Regex {
 
 fn lock_path(root: &Utf8Path) -> Utf8PathBuf {
     root.join(SCREENSHOTS_DIR).join(LOCK_FILE)
+}
+
+/// The lock file at [base], or the one in the working tree if [base] does not
+/// exist (e.g. a checkout without `origin`).
+fn load_base_lock(root: &Utf8Path, base: &str) -> Result<Option<Lock>> {
+    let shell = Shell::new()?;
+    shell.change_dir(root);
+    let commit = format!("{base}^{{commit}}");
+    let base_exists = cmd!(shell, "git rev-parse --verify --quiet {commit}")
+        .quiet()
+        .ignore_stdout()
+        .run()
+        .is_ok();
+    if !base_exists {
+        eprintln!("{base} does not exist, numbering after the set in the working tree");
+        return load_lock(root);
+    }
+    let spec = format!("{base}:{SCREENSHOTS_DIR}/{LOCK_FILE}");
+    // Missing on the base branch, so this is the first set.
+    let Ok(content) = cmd!(shell, "git show {spec}")
+        .quiet()
+        .ignore_stderr()
+        .read()
+    else {
+        return Ok(None);
+    };
+    Lock::parse(&content)
+        .with_context(|| format!("Failed to parse {spec}"))
+        .map(Some)
 }
 
 fn load_lock(root: &Utf8Path) -> Result<Option<Lock>> {
