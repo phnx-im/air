@@ -2,15 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::UserId;
 use airprotos::client::self_group::SelfGroupAppMessage;
 use anyhow::ensure;
 use mimi_content::{
     MimiContent,
     content_container::{NestedPart, PartSemantics},
 };
-use openmls::group::GroupId;
-
 pub trait MimiContentExt {
     fn visit_attachments(
         &self,
@@ -21,8 +18,6 @@ pub trait MimiContentExt {
         &mut self,
         visitor: impl FnMut(&mut NestedPart) -> anyhow::Result<()>,
     ) -> anyhow::Result<()>;
-
-    fn mimi_id(&self, sender: &UserId, group_id: &GroupId) -> anyhow::Result<Vec<u8>>;
 
     /// The self-group application message this content carries, if any.
     fn self_group_message(&self) -> Option<SelfGroupAppMessage>;
@@ -41,10 +36,6 @@ impl MimiContentExt for MimiContent {
         mut visitor: impl FnMut(&mut NestedPart) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
         visit_attachments_mut_impl(&mut self.nested_part, &mut visitor, 0)
-    }
-
-    fn mimi_id(&self, sender: &UserId, group_id: &GroupId) -> anyhow::Result<Vec<u8>> {
-        Ok(self.message_id(sender.to_bytes()?.as_slice(), group_id.as_slice())?)
     }
 
     fn self_group_message(&self) -> Option<SelfGroupAppMessage> {

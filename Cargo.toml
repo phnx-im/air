@@ -83,7 +83,7 @@ metrics = "0.24.2"
 metrics-exporter-prometheus = { version = "0.17.2", default-features = false }
 metrics-util = { version = "0.20.4", default-features = false, features = ["debugging"] }
 mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = "603f3e07372119560ce9d60252e5df2f6cbd1e18" }
-mimi_content = { git = "https://github.com/phnx-im/mimi-content", rev = "1444aa24aa0ccab5d2079624d001fd2aa7ad8ce4", features = ["serde"] }
+mimi_content = { git = "https://github.com/phnx-im/mimi-content", rev = "63789380177d3a5cab076c6b8d4159015fa39621", features = ["serde"] }
 minicbor = { version = "2.2.1", features = ["std"] }
 minicbor-serde = { version = "0.6", features = ["std"] }
 mockall = "0.13.1"
