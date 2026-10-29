@@ -2004,5 +2004,43 @@ void main() {
       expect(paragraph.selections.single.isCollapsed, isFalse);
       expect(find.byType(ReactionBar), findsNothing);
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    group('without messages', () {
+      final emptyLabel = find.text('No messages in this chat');
+
+      testWidgets('says so once the chat loaded', (tester) async {
+        messageListCubit.setState(const [], revision: 1);
+
+        await tester.pumpWidget(buildSubject());
+
+        expect(emptyLabel, findsOneWidget);
+      });
+
+      testWidgets('says nothing before the first load', (tester) async {
+        messageListCubit.setState(const []);
+
+        await tester.pumpWidget(buildSubject());
+
+        expect(emptyLabel, findsNothing);
+      });
+
+      testWidgets('says nothing while older messages are not loaded', (
+        tester,
+      ) async {
+        messageListCubit.setState(const [], revision: 1, hasOlder: true);
+
+        await tester.pumpWidget(buildSubject());
+
+        expect(emptyLabel, findsNothing);
+      });
+
+      testWidgets('says nothing while the chat has messages', (tester) async {
+        messageListCubit.setState(messages, revision: 1);
+
+        await tester.pumpWidget(buildSubject());
+
+        expect(emptyLabel, findsNothing);
+      });
+    });
   });
 }

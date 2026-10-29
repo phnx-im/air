@@ -9,6 +9,7 @@ import 'package:air/features/chat_list/chat_list_content.dart';
 import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/chat_list/chat_list_timestamp.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -537,6 +538,29 @@ void main() {
 
       await tester.pumpWidget(buildSubject(chats: [draftChat]));
     }
+
+    testWidgets('shows no time for a chat without messages', (tester) async {
+      final emptyChat = UiChatDetails(
+        id: 9.chatId(),
+        status: const UiChatStatus.active(),
+        isApq: false,
+        isSelfChat: false,
+        chatType: UiChatType_Connection(userProfiles[3]),
+        unreadMessages: 0,
+        mutedUntil: null,
+        pendingCommitFailed: false,
+        resyncFailed: false,
+      );
+
+      await tester.pumpWidget(buildSubject(chats: [emptyChat, chats[0]]));
+
+      expect(find.text('Charlie'), findsOneWidget);
+      expect(
+        find.byType(ChatListTimestamp),
+        findsOneWidget,
+        reason: 'only the chat with messages has a time',
+      );
+    });
 
     testWidgets('shows the draft of a closed chat', (tester) async {
       await pumpDraftChat(

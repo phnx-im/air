@@ -9847,6 +9847,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DateTime dco_decode_box_autoadd_Chrono_Local(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_Chrono_Local(raw);
+  }
+
+  @protected
   DateTime dco_decode_box_autoadd_Chrono_Utc(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_Chrono_Utc(raw);
@@ -11033,6 +11039,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DateTime? dco_decode_opt_box_autoadd_Chrono_Local(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_Chrono_Local(raw);
+  }
+
+  @protected
   DateTime? dco_decode_opt_box_autoadd_Chrono_Utc(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_Chrono_Utc(raw);
@@ -11667,7 +11679,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       id: dco_decode_chat_id(arr[0]),
       status: dco_decode_ui_chat_status(arr[1]),
       chatType: dco_decode_ui_chat_type(arr[2]),
-      lastUsed: dco_decode_Chrono_Local(arr[3]),
+      lastUsed: dco_decode_opt_box_autoadd_Chrono_Local(arr[3]),
       unreadMessages: dco_decode_CastedPrimitive_usize(arr[4]),
       lastMessage: dco_decode_opt_box_autoadd_ui_chat_message(arr[5]),
       lastReaction: dco_decode_opt_box_autoadd_ui_last_reaction(arr[6]),
@@ -13460,6 +13472,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DateTime sse_decode_box_autoadd_Chrono_Local(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_Chrono_Local(deserializer));
+  }
+
+  @protected
   DateTime sse_decode_box_autoadd_Chrono_Utc(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_Chrono_Utc(deserializer));
@@ -15002,6 +15020,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DateTime? sse_decode_opt_box_autoadd_Chrono_Local(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_Chrono_Local(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   DateTime? sse_decode_opt_box_autoadd_Chrono_Utc(
     SseDeserializer deserializer,
   ) {
@@ -15885,7 +15916,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_id = sse_decode_chat_id(deserializer);
     var var_status = sse_decode_ui_chat_status(deserializer);
     var var_chatType = sse_decode_ui_chat_type(deserializer);
-    var var_lastUsed = sse_decode_Chrono_Local(deserializer);
+    var var_lastUsed = sse_decode_opt_box_autoadd_Chrono_Local(deserializer);
     var var_unreadMessages = sse_decode_CastedPrimitive_usize(deserializer);
     var var_lastMessage = sse_decode_opt_box_autoadd_ui_chat_message(
       deserializer,
@@ -18040,6 +18071,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_Chrono_Local(
+    DateTime self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Chrono_Local(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_Chrono_Utc(
     DateTime self,
     SseSerializer serializer,
@@ -19491,6 +19531,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_Chrono_Local(
+    DateTime? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_Chrono_Local(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_Chrono_Utc(
     DateTime? self,
     SseSerializer serializer,
@@ -20321,7 +20374,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_chat_id(self.id, serializer);
     sse_encode_ui_chat_status(self.status, serializer);
     sse_encode_ui_chat_type(self.chatType, serializer);
-    sse_encode_Chrono_Local(self.lastUsed, serializer);
+    sse_encode_opt_box_autoadd_Chrono_Local(self.lastUsed, serializer);
     sse_encode_CastedPrimitive_usize(self.unreadMessages, serializer);
     sse_encode_opt_box_autoadd_ui_chat_message(self.lastMessage, serializer);
     sse_encode_opt_box_autoadd_ui_last_reaction(self.lastReaction, serializer);

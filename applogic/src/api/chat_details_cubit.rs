@@ -863,8 +863,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         .as_ref()
         .map(|m| m.timestamp())
         .or(chat.last_message_at())
-        .unwrap_or_default() // default is UNIX_EPOCH
-        .with_timezone(&Local);
+        .map(|timestamp| timestamp.with_timezone(&Local));
     let last_reaction = match last_message.as_ref() {
         Some(message) => core_user
             .last_reaction(message)

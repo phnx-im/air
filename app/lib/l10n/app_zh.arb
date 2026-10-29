@@ -457,6 +457,7 @@
   "memberSelectionList_cantBeAddedDescription": "这些人无法添加到群组。可能是因为他们的账号已不可用，或者应用版本过旧。",
   "homeTab_chats": "聊天",
   "homeTab_profile": "我",
+  "messageList_empty": "此聊天中没有消息",
   "messageList_newMessages": "新消息",
   "messageList_reactions_react": "回应",
   "messageList_reactions_remove": "移除",

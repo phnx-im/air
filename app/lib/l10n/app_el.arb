@@ -457,6 +457,7 @@
   "memberSelectionList_cantBeAddedDescription": "Αυτά τα άτομα δεν μπορούν να προστεθούν στην ομάδα. Αυτό μπορεί να συμβαίνει επειδή ο λογαριασμός τους δεν είναι πλέον ενεργός ή επειδή η έκδοση της εφαρμογής τους είναι πολύ παλιά.",
   "homeTab_chats": "Συνομιλίες",
   "homeTab_profile": "Εσείς",
+  "messageList_empty": "Δεν υπάρχουν μηνύματα σε αυτή τη συνομιλία",
   "messageList_newMessages": "Νέα μηνύματα",
   "messageList_reactions_react": "Αντίδραση",
   "messageList_reactions_remove": "Αφαίρεση",

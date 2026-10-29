@@ -1,17 +1,22 @@
 // SPDX-FileCopyrightText: 2024 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import 'dart:async' show unawaited;
+
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chats_repository.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/l10n/app_localizations.dart';
+import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:air/ds/patterns/system_message/system_message.dart';
 import 'package:air/ds/patterns/system_message/system_message_tokens.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/platform/haptics.dart';
 import 'package:air/util/emphasized_text.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/gestures.dart';
@@ -20,29 +25,102 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:air/features/message_list/contact_request_dialog.dart';
+import 'package:air/features/message_list/delete_for_me_dialog.dart';
 import 'package:air/features/message_list/sent_contact_request_card.dart';
 import 'package:air/features/message_list/timestamp.dart';
 import 'package:uuid/uuid_value.dart';
 
 class DisplayMessageTile extends StatelessWidget {
+  final MessageId messageId;
   final UiEventMessage eventMessage;
   final DateTime timestamp;
-  const DisplayMessageTile(this.eventMessage, this.timestamp, {super.key});
+  const DisplayMessageTile(
+    this.eventMessage,
+    this.timestamp, {
+    super.key,
+    required this.messageId,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return switch (eventMessage) {
-      UiEventMessage_System(field0: final message) => _SystemMessageContent(
-        message: message,
-        timestamp: timestamp,
+    return _DeleteMenu(
+      messageId: messageId,
+      eventMessage: eventMessage,
+      child: switch (eventMessage) {
+        UiEventMessage_System(field0: final message) => _SystemMessageContent(
+          message: message,
+          timestamp: timestamp,
+        ),
+        UiEventMessage_Error(field0: final message) => SystemMessage(
+          tokens: SystemMessageTokens.current,
+          tone: SystemMessageTone.danger,
+          label: message.message,
+          timestamp: Timestamp(timestamp),
+        ),
+      },
+    );
+  }
+}
+
+/// Offers to delete the event message in [child].
+class _DeleteMenu extends StatelessWidget {
+  const _DeleteMenu({
+    required this.messageId,
+    required this.eventMessage,
+    required this.child,
+  });
+
+  final MessageId messageId;
+  final UiEventMessage eventMessage;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    // Null until the chat loads, when an open request is not known yet.
+    final openRequest = context.select(
+      (ChatDetailsCubit cubit) => cubit.state.chat?.isOpenRequest,
+    );
+    if (openRequest == null ||
+        !eventMessage.isDeletable(openRequest: openRequest)) {
+      return child;
+    }
+    return GestureDetector(
+      behavior: .opaque,
+      onLongPressStart: DeviceType.isPhone
+          ? (details) {
+              AppHaptics.menuOpen();
+              _openMenu(context, details.globalPosition);
+            }
+          : null,
+      onSecondaryTapUp: DeviceType.isPhone
+          ? null
+          : (details) => _openMenu(context, details.globalPosition),
+      child: child,
+    );
+  }
+
+  void _openMenu(BuildContext context, Offset position) {
+    final loc = AppLocalizations.of(context);
+    unawaited(
+      showOverlayMenu(
+        context: context,
+        // Same placement as the context menu of a content message.
+        anchor: Rect.fromLTWH(position.dx + S.s8, position.dy, 0, 0),
+        items: [
+          MenuItem(
+            label: loc.messageContextMenu_delete,
+            leading: AppIcon.trash(
+              size: S.s16,
+              color: SemanticPalette.of(context).function.danger,
+            ),
+            destructive: true,
+            onPressed: () =>
+                showDeleteForMeDialog(context: context, messageId: messageId),
+          ),
+        ],
+        slideDistance: 0,
       ),
-      UiEventMessage_Error(field0: final message) => SystemMessage(
-        tokens: SystemMessageTokens.current,
-        tone: SystemMessageTone.danger,
-        label: message.message,
-        timestamp: Timestamp(timestamp),
-      ),
-    };
+    );
   }
 }
 
