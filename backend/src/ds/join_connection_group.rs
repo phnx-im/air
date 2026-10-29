@@ -37,9 +37,7 @@ use crate::errors::CborMlsAssistStorage;
 
 use super::{
     apq::ApqExternalCommit,
-    group_state::{
-        DsGroupState, MemberProfile, SelfRemoveCheckError, leaf_credential_matches_flag,
-    },
+    group_state::{DsGroupState, MemberProfile, SelfRemoveCheckError, leaf_credential_is_valid},
 };
 
 /// Reject any proposal an external commit joining a connection group must not
@@ -155,7 +153,7 @@ impl DsGroupState {
             JoinConnectionGroupError::InvalidMessage("update path leaf node not found"),
         )?;
         let joiner_credential = LeafCredential::from_credential(joiner_leaf.credential())?;
-        self.validate_connection_group_join(staged_commit, &joiner_credential, false)?;
+        self.validate_connection_group_join(staged_commit, &joiner_credential, joiner_leaf, false)?;
         if bootstrap_requested {
             validate_virtual_client_leaf(joiner_leaf)?;
         }
@@ -220,7 +218,7 @@ impl DsGroupState {
         // self-remove proposal.
         t.ensure_self_removes_committed(t_staged_commit)?;
         pq.ensure_self_removes_committed(pq_staged_commit)?;
-        t.validate_connection_group_join(t_staged_commit, &joiner_credential, true)?;
+        t.validate_connection_group_join(t_staged_commit, &joiner_credential, t_new_leaf, true)?;
         validate_join_proposals(pq_staged_commit, true)?;
         if bootstrap_requested {
             // The legs share a signature key, but being a virtual client is a
@@ -275,6 +273,7 @@ impl DsGroupState {
         &self,
         staged_commit: &StagedCommit,
         joiner_credential: &LeafCredential,
+        joiner_leaf: &LeafNode,
         apq: bool,
     ) -> Result<(), JoinConnectionGroupError> {
         validate_join_proposals(staged_commit, apq)?;
@@ -283,9 +282,13 @@ impl DsGroupState {
                 "connection group must not be a self-group",
             ));
         }
-        if !leaf_credential_matches_flag(joiner_credential, false) {
+        if !leaf_credential_is_valid(
+            joiner_credential,
+            joiner_leaf.signature_key().as_slice(),
+            false,
+        ) {
             return Err(JoinConnectionGroupError::InvalidMessage(
-                "connection group joiner must carry a user credential",
+                "connection group joiner must carry a user credential binding its leaf key",
             ));
         }
         Ok(())

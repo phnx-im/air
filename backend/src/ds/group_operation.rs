@@ -52,7 +52,7 @@ use crate::{
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload, QsVirtualClientHint},
 };
 
-use super::group_state::{MemberProfile, leaf_credential_matches_flag};
+use super::group_state::{MemberProfile, leaf_credential_is_valid};
 
 use super::group_state::DsGroupState;
 
@@ -148,15 +148,19 @@ impl DsGroupState {
         let is_self_group = self.is_self_group();
 
         // If the commit carries an update path, the sender's new leaf credential must match the
-        // group kind.
+        // group kind and bind the new leaf key.
         if let Some(update_leaf) = staged_commit.update_path_leaf_node() {
             let update_credential = LeafCredential::from_credential(update_leaf.credential())
                 .map_err(|e| {
                     error!(%e, "Update path leaf credential is invalid");
                     GroupOperationError::InvalidMessage
                 })?;
-            if !leaf_credential_matches_flag(&update_credential, is_self_group) {
-                warn!("Update path leaf credential does not match group kind");
+            if !leaf_credential_is_valid(
+                &update_credential,
+                update_leaf.signature_key().as_slice(),
+                is_self_group,
+            ) {
+                warn!("Update path leaf credential is not valid for this group");
                 return Err(GroupOperationError::InvalidMessage);
             }
         }
@@ -234,7 +238,11 @@ impl DsGroupState {
                             error!(%e, "Credential of added user is invalid");
                             GroupOperationError::InvalidMessage
                         })?;
-                if !leaf_credential_matches_flag(&added_credential, is_self_group) {
+                if !leaf_credential_is_valid(
+                    &added_credential,
+                    added_key_package.leaf_node().signature_key().as_slice(),
+                    is_self_group,
+                ) {
                     warn!("Added user credential does not match group kind");
                     return Err(GroupOperationError::InvalidMessage);
                 }

@@ -33,7 +33,7 @@ use crate::{
         GrpcDs, ReservedGroupId,
         attachments::ProvisionObjectError,
         group_state::{
-            DsGroupState, EncryptedDsGroupState, StorableDsGroupData, leaf_credential_matches_flag,
+            DsGroupState, EncryptedDsGroupState, StorableDsGroupData, leaf_credential_is_valid,
         },
         grpc::{GroupBootstrapMaterial, WithGroupStateEarKey, WithQualifiedGroupId},
         process::Provider,
@@ -429,7 +429,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .map_err(|_| Status::invalid_argument("invalid credential"))?;
         let is_self_group =
             GroupAppData::is_self_group_context(group.group_info().group_context().extensions());
-        if !leaf_credential_matches_flag(&leaf_credential, is_self_group) {
+        if !leaf_credential_is_valid(&leaf_credential, &member.signature_key, is_self_group) {
             return Err(Status::invalid_argument(
                 "creator leaf credential does not match group kind",
             ));
