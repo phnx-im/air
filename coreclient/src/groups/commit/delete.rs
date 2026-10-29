@@ -19,7 +19,8 @@ use mls_assist::messages::AssistedMessageOut;
 use openmls::{
     component::ComponentData,
     prelude::{
-        AppDataUpdateProposal, OpenMlsProvider, Proposal, tls_codec::Serialize as TlsSerializeTrait,
+        AppDataUpdateProposal, LeafNodeIndex, OpenMlsProvider, Proposal,
+        tls_codec::Serialize as TlsSerializeTrait,
     },
 };
 use openmls_traits::signatures::Signer;
@@ -42,17 +43,7 @@ impl Group {
     ) -> anyhow::Result<DeleteGroupParamsOut> {
         let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
-        let remove_indices = self
-            .mls_group()
-            .members()
-            .filter_map(|m| {
-                if m.index != self.mls_group().own_leaf_index() {
-                    Some(m.index)
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
+        let remove_indices = self.other_member_indices();
         let component_data = self.deleted_air_component(deleted)?;
 
         // There shouldn't be a welcome
@@ -102,17 +93,7 @@ impl Group {
         let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
-        let removed_indices = self
-            .mls_group()
-            .members()
-            .filter_map(|m| {
-                if m.index != self.mls_group().own_leaf_index() {
-                    Some(m.index)
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
+        let remove_indices = self.other_member_indices();
         let component_data = self.deleted_air_component(deleted)?;
 
         let (t_group, pq_group) = self.apq_mls_groups_mut()?;
@@ -123,7 +104,7 @@ impl Group {
 
         let mut builder = apqmls::commit_builder::CommitBuilder::from_groups(t_group, pq_group)
             .force_self_update(true)
-            .propose_removals(removed_indices)
+            .propose_removals(remove_indices)
             .create_group_info(true);
         if let Some(component_data) = component_data {
             builder = builder.update_t_app_data(component_data);
@@ -139,6 +120,15 @@ impl Group {
         );
 
         Ok(bundle)
+    }
+
+    fn other_member_indices(&self) -> Vec<LeafNodeIndex> {
+        let own_index = self.mls_group.own_leaf_index();
+        self.mls_group
+            .members()
+            .map(|member| member.index)
+            .filter(|index| *index != own_index)
+            .collect()
     }
 
     /// The Air component of the T group context with a tombstone marking the

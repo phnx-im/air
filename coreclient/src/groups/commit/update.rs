@@ -6,7 +6,7 @@ use aircommon::{
     credentials::keys::LeafSigningKey,
     identifiers::QsReference,
     messages::{
-        client_ds::{AadMessage, AadPayload, GroupOperationParamsAad},
+        client_ds::AadMessage,
         client_ds_out::{ApqGroupOperationParamsOut, GroupOperationParamsOut},
     },
     mls_group_config::{
@@ -48,10 +48,7 @@ impl Group {
         own_client_reference: &QsReference,
     ) -> Result<GroupOperationParamsOut> {
         // We don't expect there to be a welcome.
-        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
-            new_encrypted_user_profile_keys: Vec::new(),
-        }))
-        .tls_serialize_detached()?;
+        let aad = AadMessage::empty_group_operation().tls_serialize_detached()?;
 
         let (component_data, extensions) = self.group_data_update(new_group_data)?;
 
@@ -156,10 +153,7 @@ impl Group {
         derivation_epoch: DerivationEpoch,
         own_client_reference: &QsReference,
     ) -> anyhow::Result<ApqGroupOperationParamsOut> {
-        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
-            new_encrypted_user_profile_keys: Vec::new(),
-        }))
-        .tls_serialize_detached()?;
+        let aad = AadMessage::empty_group_operation().tls_serialize_detached()?;
         self.mls_group.set_aad(aad);
 
         let (component_data, group_context_extensions) = self.group_data_update(new_group_data)?;
