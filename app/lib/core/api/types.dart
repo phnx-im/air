@@ -141,8 +141,6 @@ class UiChatDetails {
   final ChatId id;
   final UiChatStatus status;
   final UiChatType chatType;
-
-  /// When the newest message arrived. `None` when the chat has no messages.
   final DateTime? lastUsed;
   final int unreadMessages;
   final UiChatMessage? lastMessage;
