@@ -130,11 +130,8 @@ impl Group {
                 })
                 .transpose()?;
 
-            let leaf_node_extensions = if vc_group_id.is_some() {
-                ClientAppData::current_virtual_client().leaf_node_extensions()
-            } else {
-                ClientAppData::current().leaf_node_extensions()
-            };
+            let leaf_node_extensions =
+                ClientAppData::current_for(vc_group_id.is_some()).leaf_node_extensions();
             let leaf_node_parameters = LeafNodeParameters::builder()
                 .with_capabilities(default_leaf_node_capabilities())
                 .with_extensions(leaf_node_extensions)
@@ -320,11 +317,8 @@ impl Group {
 
         // Build the group
         let mls_group_config = default_mls_group_join_config();
-        let mut leaf_node_extensions = if vc_group_id.is_some() {
-            ClientAppData::current_virtual_client().leaf_node_extensions()
-        } else {
-            ClientAppData::current().leaf_node_extensions()
-        };
+        let mut leaf_node_extensions =
+            ClientAppData::current_for(vc_group_id.is_some()).leaf_node_extensions();
         if let Some(extension) = replaced_client_reference {
             leaf_node_extensions.add(extension)?;
         }
