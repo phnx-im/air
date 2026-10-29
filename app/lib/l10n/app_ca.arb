@@ -455,6 +455,7 @@
   "memberSelectionList_cantBeAddedDescription": "Aquestes persones no es poden afegir al grup. És possible que els seus comptes ja no siguin actius o que tinguin una versió de l'aplicació massa antiga.",
   "homeTab_chats": "Xats",
   "homeTab_profile": "Vós",
+  "messageList_empty": "No hi ha missatges en aquest xat",
   "messageList_newMessages": "Missatges nous",
   "messageList_reactions_react": "Reacciona",
   "messageList_reactions_remove": "Elimina",

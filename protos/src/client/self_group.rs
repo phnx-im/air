@@ -28,7 +28,7 @@ use aircommon::{
         errors::RandomnessError,
         secrets::Secret,
     },
-    identifiers::{MimiId, UsernameHash},
+    identifiers::{EventId, MimiId, UsernameHash},
     messages::{client_as::ConnectionOfferHash, connection_package::ConnectionPackageHash},
 };
 use airmacros::{
@@ -251,25 +251,28 @@ pub struct RedeemedTokens {
     pub token_indices: Vec<u16>,
 }
 
-/// Upper bound of Mimi IDs in one [`DeletedMessages`].
+/// Upper bound of Mimi IDs and event IDs together in one [`DeletedMessages`].
 pub const MAX_DELETED_MESSAGES_PER_MESSAGE: usize = 64;
 
 /// The messages the sender deleted locally, so that siblings delete them too.
 ///
 /// A Mimi ID names one version of a message. The receiver also resolves the
-/// IDs of versions an edit replaced.
+/// IDs of versions an edit replaced. An event ID names a system message.
 ///
 /// ## CDDL Definition
 ///
 /// ```cddl
 /// DeletedMessages = {
-///   1: [* bstr .size 32],  ; mimi_ids, at most 64
+///   1: [* bstr .size 32],  ; mimi_ids
+///   2: [* bstr .size 32],  ; event_ids, at most 64 IDs in both lists
 /// }
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct DeletedMessages {
     #[tag(1)]
     pub mimi_ids: Vec<MimiId>,
+    #[tag(2)]
+    pub event_ids: Vec<EventId>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
@@ -1259,15 +1262,20 @@ mod test {
         insta::assert_snapshot!(diag);
     }
 
-    fn sample_deleted(count: usize) -> DeletedMessages {
+    fn sample_deleted(mimi_count: usize, event_count: usize) -> DeletedMessages {
         DeletedMessages {
-            mimi_ids: (0..count).map(|i| MimiId::from([i as u8; 32])).collect(),
+            mimi_ids: (0..mimi_count)
+                .map(|i| MimiId::from([i as u8; 32]))
+                .collect(),
+            event_ids: (0..event_count)
+                .map(|i| EventId::from([0x80 + i as u8; 32]))
+                .collect(),
         }
     }
 
     #[test]
     fn deleted_messages_roundtrip() {
-        let deleted = sample_deleted(3);
+        let deleted = sample_deleted(3, 2);
         let bytes = PersistenceCodec::to_vec(&deleted).unwrap();
         let decoded: DeletedMessages = PersistenceCodec::from_slice(&bytes).unwrap();
         assert_eq!(deleted, decoded);
@@ -1275,17 +1283,41 @@ mod test {
 
     #[test]
     fn deleted_messages_stability() {
-        let bytes = PersistenceCodec::to_vec(&sample_deleted(2)).unwrap();
+        let bytes = PersistenceCodec::to_vec(&sample_deleted(2, 0)).unwrap();
         let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
         insta::assert_snapshot!(diag);
     }
 
-    /// The Mimi IDs are byte strings, so a full batch stays within the
-    /// extension depth limit.
+    #[test]
+    fn deleted_events_stability() {
+        let bytes = PersistenceCodec::to_vec(&sample_deleted(0, 2)).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    /// A client older than tag 2 still deletes the content messages next to
+    /// the event IDs.
+    #[test]
+    fn deleted_events_are_skipped_by_an_older_client() {
+        #[derive(Debug, PartialEq, DeserializeTaggedMap)]
+        struct DeletedMessagesV1 {
+            #[tag(1)]
+            mimi_ids: Vec<MimiId>,
+        }
+
+        let deleted = sample_deleted(2, 2);
+        let bytes = PersistenceCodec::to_vec(&deleted).unwrap();
+
+        let decoded: DeletedMessagesV1 = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(decoded.mimi_ids, deleted.mimi_ids);
+    }
+
+    /// The IDs are byte strings, so a full batch stays within the extension
+    /// depth limit.
     #[test]
     fn a_full_batch_of_deleted_messages_survives_the_mimi_encoding() {
-        let message =
-            SelfGroupAppMessage::DeletedMessages(sample_deleted(MAX_DELETED_MESSAGES_PER_MESSAGE));
+        let half = MAX_DELETED_MESSAGES_PER_MESSAGE / 2;
+        let message = SelfGroupAppMessage::DeletedMessages(sample_deleted(half, half));
         let bytes = message.to_mimi_content().unwrap().serialize().unwrap();
         let decoded = MimiContent::deserialize(&bytes).unwrap();
         assert_eq!(

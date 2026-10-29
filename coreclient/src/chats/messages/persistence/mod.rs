@@ -8,13 +8,14 @@ use std::fmt;
 
 use aircommon::{
     codec::{BlobDecoded, BlobEncoded, PersistenceCodec},
-    identifiers::{Fqdn, MimiId, UserId},
+    identifiers::{EventId, Fqdn, MimiId, UserId},
     time::TimeStamp,
 };
-use anyhow::bail;
+use anyhow::{Context, bail};
 use chrono::{DateTime, Utc};
 use indexmap::IndexMap;
 use mimi_content::{MessageStatus, MimiContent};
+use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
 use sqlx::{query, query_as, query_scalar};
 use tokio_stream::StreamExt;
@@ -22,7 +23,7 @@ use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
-    ChatId, ChatMessage, ContentMessage, Message,
+    Chat, ChatId, ChatMessage, ContentMessage, Message,
     chats::{messages::InReplyToMessage, reactions::Reaction},
     clients::attachment::AttachmentRecord,
     db::access::{ReadConnection, WriteConnection},
@@ -246,6 +247,31 @@ impl ChatMessage {
         .await?
         .map(ChatMessage::from)
         .with_loaded_in_reply_to(&mut connection)
+        .await
+    }
+
+    pub(crate) async fn load_event_id(
+        mut connection: impl ReadConnection,
+        message_id: MessageId,
+    ) -> sqlx::Result<Option<EventId>> {
+        query_scalar!(
+            r#"SELECT event_id AS "event_id: EventId" FROM message WHERE message_id = ?"#,
+            message_id,
+        )
+        .fetch_optional(connection.as_mut())
+        .await
+        .map(Option::flatten)
+    }
+
+    pub(crate) async fn load_ids_by_event_id(
+        mut connection: impl ReadConnection,
+        event_id: &EventId,
+    ) -> sqlx::Result<Vec<MessageId>> {
+        query_scalar!(
+            r#"SELECT message_id AS "message_id: MessageId" FROM message WHERE event_id = ?"#,
+            event_id,
+        )
+        .fetch_all(connection.as_mut())
         .await
     }
 
@@ -693,6 +719,15 @@ impl ChatMessage {
             ),
             Message::Event(_) => (None, None, None),
         };
+        let event_id = match &self.timestamped_message.message {
+            Message::Event(EventMessage::System(system_message)) => {
+                let group_id = Chat::load_group_id(&mut connection, self.chat_id)
+                    .await?
+                    .with_context(|| format!("No chat for system message in {}", self.chat_id))?;
+                system_message.event_id(&group_id, self.timestamped_message.timestamp)
+            }
+            Message::Event(EventMessage::Error(_)) | Message::Content(_) => None,
+        };
         let content = match &self.timestamped_message.message {
             Message::Content(content_message) => {
                 VersionedMessage::from_mimi_content(&content_message.content)?
@@ -722,6 +757,7 @@ impl ChatMessage {
             "INSERT INTO message (
                 message_id,
                 mimi_id,
+                event_id,
                 chat_id,
                 in_reply_to_mimi_id,
                 timestamp,
@@ -729,9 +765,10 @@ impl ChatMessage {
                 sender_user_domain,
                 content,
                 sent
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             self.message_id,
             mimi_id,
+            event_id.as_ref(),
             self.chat_id,
             in_reply_to_mimi_id,
             self.timestamped_message.timestamp,
@@ -1176,6 +1213,51 @@ impl InReplyToMessage {
     }
 }
 
+/// Derives the event IDs of the system messages stored before messages had
+/// one.
+pub(crate) async fn backfill_event_ids(mut connection: impl WriteConnection) -> anyhow::Result<()> {
+    let rows = query!(
+        r#"SELECT
+            m.message_id AS "message_id: MessageId",
+            m.timestamp AS "timestamp: TimeStamp",
+            m.content,
+            c.group_id
+        FROM message m
+        INNER JOIN chat c ON c.chat_id = m.chat_id
+        WHERE m.sender_user_uuid IS NULL"#
+    )
+    .fetch_all(connection.as_mut())
+    .await?;
+    for row in rows {
+        // Decoding in the query would fail the whole migration on one bad row.
+        let decoded = PersistenceCodec::from_slice::<VersionedMessage>(&row.content)
+            .map_err(anyhow::Error::from)
+            .and_then(|message| message.to_event_message());
+        let event_message = match decoded {
+            Ok(event_message) => event_message,
+            Err(error) => {
+                warn!(%error, message_id = %row.message_id, "Skipping an undecodable system message");
+                continue;
+            }
+        };
+        let EventMessage::System(system_message) = event_message else {
+            continue;
+        };
+        let group_id = GroupId::from_slice(&row.group_id);
+        let Some(event_id) = system_message.event_id(&group_id, row.timestamp) else {
+            continue;
+        };
+        query!(
+            "UPDATE message SET event_id = ? WHERE message_id = ?",
+            &event_id,
+            row.message_id,
+        )
+        .execute(connection.as_mut())
+        .await?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use std::sync::LazyLock;
@@ -1460,6 +1542,103 @@ pub(crate) mod tests {
         assert_eq!(loaded, Some(message));
 
         Ok(())
+    }
+
+    #[sqlx::test]
+    async fn backfill_derives_the_event_id_that_store_writes(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = test_chat();
+        let user = || UserId::random("localhost".parse().unwrap());
+        let add = ChatMessage::new_system_message(
+            chat.id(),
+            TimeStamp::now(),
+            SystemMessage::Add(Some(user()), user()),
+        );
+        let caught_up = ChatMessage::new_system_message(
+            chat.id(),
+            TimeStamp::now(),
+            SystemMessage::Add(None, user()),
+        );
+        let content = test_chat_message(chat.id());
+
+        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            chat.store(&mut *txn).await?;
+            for message in [&add, &caught_up, &content] {
+                message.store(&mut *txn).await?;
+            }
+            let stored = ChatMessage::load_event_id(&mut *txn, add.id()).await?;
+            assert!(stored.is_some());
+
+            sqlx::query("UPDATE message SET event_id = NULL")
+                .execute(txn.as_mut())
+                .await?;
+            backfill_event_ids(&mut *txn).await?;
+
+            assert_eq!(
+                ChatMessage::load_event_id(&mut *txn, add.id()).await?,
+                stored
+            );
+            assert_eq!(
+                ChatMessage::load_event_id(&mut *txn, caught_up.id()).await?,
+                None
+            );
+            assert_eq!(
+                ChatMessage::load_event_id(&mut *txn, content.id()).await?,
+                None
+            );
+            Ok(())
+        })
+        .await
+    }
+
+    #[sqlx::test]
+    async fn backfill_skips_undecodable_messages(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = test_chat();
+        let user = || UserId::random("localhost".parse().unwrap());
+        let add = ChatMessage::new_system_message(
+            chat.id(),
+            TimeStamp::now(),
+            SystemMessage::Add(Some(user()), user()),
+        );
+        let bad_blob = vec![0xff];
+        let bad_message = PersistenceCodec::to_vec(&VersionedMessage {
+            version: CURRENT_MESSAGE_VERSION,
+            content: vec![0xff],
+        })?;
+
+        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            chat.store(&mut *txn).await?;
+            add.store(&mut *txn).await?;
+            let stored = ChatMessage::load_event_id(&mut *txn, add.id()).await?;
+            sqlx::query("UPDATE message SET event_id = NULL")
+                .execute(txn.as_mut())
+                .await?;
+            for content in [&bad_blob, &bad_message] {
+                sqlx::query(
+                    "INSERT INTO message (message_id, chat_id, timestamp, content, sent)
+                    VALUES (?, ?, ?, ?, ?)",
+                )
+                .bind(MessageId::random())
+                .bind(chat.id())
+                .bind(TimeStamp::now())
+                .bind(content)
+                .bind(true)
+                .execute(txn.as_mut())
+                .await?;
+            }
+
+            backfill_event_ids(&mut *txn).await?;
+
+            assert_eq!(
+                ChatMessage::load_event_id(&mut *txn, add.id()).await?,
+                stored
+            );
+            Ok(())
+        })
+        .await
     }
 
     #[test]

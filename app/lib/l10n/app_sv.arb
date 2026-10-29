@@ -470,6 +470,7 @@
   "memberSelectionList_cantBeAddedDescription": "De här personerna kan inte läggas till i gruppen. Det kan bero på att deras konto inte längre är aktivt eller att deras appversion är för gammal.",
   "homeTab_chats": "Chattar",
   "homeTab_profile": "Du",
+  "messageList_empty": "Inga meddelanden i den här chatten",
   "messageList_newMessages": "Nya meddelanden",
   "messageList_reactions_react": "Reagera",
   "messageList_reactions_remove": "Ta bort",

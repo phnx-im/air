@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT event_id AS \"event_id: EventId\" FROM message WHERE message_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "event_id: EventId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "event_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "ea377c05795a82afb3765866f8225c1e23369a63ec5ee6442912a2fb01de823f"
+}

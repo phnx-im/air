@@ -4,15 +4,18 @@
 
 //! Chat, group and message deletions reaching the sibling.
 
+use std::slice;
+
 use aircommon::identifiers::UserId;
 use aircoreclient::{
     ChatId, ChatStatus, SystemMessage,
     clients::{CoreUser, MarkChatAsRead},
 };
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
+use chrono::Duration;
 use mimi_content::MimiContent;
 
-use super::self_chat_id;
+use super::{expire_requests, self_chat_id};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn deleted_chat_is_erased_on_sibling() -> anyhow::Result<()> {
@@ -307,4 +310,148 @@ async fn assert_deletion_announced(device: &CoreUser, chat_id: ChatId, deleter: 
         device.mls_members(chat_id).await.unwrap().is_none(),
         "the MLS group is gone"
     );
+}
+
+/// The device that made a group change, its sibling and the devices of other
+/// members each store their own copy of its system message.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn deleted_group_system_messages_are_erased_on_sibling() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    let alice2 = alice.add_synced_device().await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+    alice2.drain().await;
+    assert_eq!(
+        alice2.system_messages(chat_id).await,
+        alice.system_messages(chat_id).await
+    );
+
+    // The sibling deletes what the other device did.
+    let created = alice2
+        .system_message_id(chat_id, |message| {
+            matches!(message, SystemMessage::CreateGroup(_))
+        })
+        .await;
+    let added = alice2.system_message_id(chat_id,
+        |message| matches!(message, SystemMessage::Add(Some(_), added) if added == bob.user_id()),
+    )
+    .await;
+    alice2.delete_message(created).await?;
+    alice2.delete_message(added).await?;
+    alice2.outbound_service().run_once().await;
+    alice.drain().await;
+    assert_eq!(alice.system_messages(chat_id).await, []);
+
+    // The sibling is offline while Bob renames the group and Alice deletes
+    // the rename.
+    bob.set_chat_title(chat_id, "Renamed".to_owned()).await?;
+    alice.drain().await;
+    let renamed = alice
+        .system_message_id(chat_id, |message| {
+            matches!(message, SystemMessage::ChangeTitle { .. })
+        })
+        .await;
+    alice.delete_message(renamed).await?;
+    alice.outbound_service().run_once().await;
+    alice2.drain().await;
+
+    assert_eq!(alice.system_messages(chat_id).await, []);
+    assert_eq!(alice2.system_messages(chat_id).await, []);
+    bob.drain().await;
+    let bob_messages = bob.system_messages(chat_id).await;
+    assert!(
+        matches!(
+            bob_messages.as_slice(),
+            [SystemMessage::Add(..), SystemMessage::ChangeTitle { .. }]
+        ),
+        "the other member keeps the add and the rename, got {bob_messages:?}"
+    );
+
+    Ok(())
+}
+
+/// A device that missed a group change only knows who joined. Its copy has
+/// no actor, and the deletion of the full copy on a sibling leaves it alone.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn sibling_that_caught_up_keeps_its_copy() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&bob, &charlie).await;
+    let alice2 = alice.add_synced_device().await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+    alice2.drain().await;
+
+    // The sibling fetches and acks Bob's add of Charlie without processing
+    // it.
+    bob.invite_users(chat_id, slice::from_ref(charlie.user_id()))
+        .await?;
+    let qs_messages = alice2.qs_fetch_messages().await?;
+    let [message] = qs_messages.as_slice() else {
+        panic!("the sibling should have one message in the queue, got {qs_messages:?}");
+    };
+    let (mut stream, responder) = alice2.listen_queue().await?;
+    responder.ack(message.sequence_number + 1).await;
+    responder.close(&mut stream).await;
+
+    bob.update_key(chat_id).await?;
+    alice2.drain().await;
+    alice2.outbound_service().run_once().await;
+    let caught_up = |message: &SystemMessage| matches!(message, SystemMessage::Add(None, added) if added == charlie.user_id());
+    alice2.system_message_id(chat_id, caught_up).await;
+
+    alice.drain().await;
+    let added = alice.system_message_id(chat_id, |message| {
+        matches!(message, SystemMessage::Add(Some(_), added) if added == charlie.user_id())
+    })
+    .await;
+    alice.delete_message(added).await?;
+    alice.outbound_service().run_once().await;
+    alice2.drain().await;
+
+    alice2.system_message_id(chat_id, caught_up).await;
+
+    Ok(())
+}
+
+/// Requests expire on each device on its own. A sibling where the request is
+/// still open expires it before it applies the deletion.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn deleted_request_messages_expire_the_request_on_sibling() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let alice2 = alice.add_synced_device().await;
+    let record = setup.add_username(&alice).await;
+    alice.outbound_service().run_once().await;
+    alice2.drain().await;
+    bob.add_contact(record.username.clone(), record.hash, setup.apq_groups)
+        .await?
+        .expect("Bob should send the request");
+    let chat_id = alice.receive_connection_offer(&record).await;
+    alice.outbound_service().run_once().await;
+    alice2.drain().await;
+    assert_eq!(
+        alice2.system_messages(chat_id).await,
+        alice.system_messages(chat_id).await
+    );
+
+    for device in [&alice, &alice2] {
+        device
+            .backdate_contact_request(chat_id, Duration::days(31))
+            .await?;
+    }
+    expire_requests(&alice).await;
+    for message in alice.messages(chat_id, 100).await? {
+        alice.delete_message(message.id()).await?;
+    }
+    alice.outbound_service().run_once().await;
+    alice2.drain().await;
+
+    assert_eq!(alice.system_messages(chat_id).await, []);
+    assert_eq!(alice2.system_messages(chat_id).await, []);
+
+    Ok(())
 }

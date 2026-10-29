@@ -9,12 +9,15 @@ use aircoreclient::{
     UsernameRecord, clients::CoreUser,
 };
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
-use chrono::{Duration, Utc};
+use chrono::Duration;
 use tokio::time::timeout;
 use tokio_stream::StreamExt;
 
 use super::request_expires_at;
-use crate::{contacts::requests::pending_chats_from, multi_device::assert_inactive};
+use crate::{
+    contacts::requests::pending_chats_from,
+    multi_device::{assert_inactive, expire_requests},
+};
 
 /// More than the lifetime of a connection request.
 const PAST_THE_DEADLINE: Duration = Duration::days(31);
@@ -46,16 +49,6 @@ async fn send_mirrored_request(
         "the request should expire at the same time on both devices"
     );
     chat_id
-}
-
-/// Runs the expiry of connection requests on `device` now.
-async fn expire_requests(device: &CoreUser) {
-    device
-        .outbound_service()
-        .schedule_connection_request_expiry(Utc::now())
-        .await
-        .unwrap();
-    device.outbound_service().run_once().await;
 }
 
 /// Asserts that the chat is closed with a single record of its sent request

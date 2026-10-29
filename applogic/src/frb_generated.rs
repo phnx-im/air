@@ -12213,6 +12213,17 @@ impl SseDecode for Option<UsernameHash> {
     }
 }
 
+impl SseDecode for Option<chrono::DateTime<chrono::Local>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<chrono::DateTime<chrono::Local>>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<chrono::DateTime<chrono::Utc>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -13092,7 +13103,7 @@ impl SseDecode for crate::api::types::UiChatDetails {
         let mut var_id = <crate::api::types::ChatId>::sse_decode(deserializer);
         let mut var_status = <crate::api::types::UiChatStatus>::sse_decode(deserializer);
         let mut var_chatType = <crate::api::types::UiChatType>::sse_decode(deserializer);
-        let mut var_lastUsed = <chrono::DateTime<chrono::Local>>::sse_decode(deserializer);
+        let mut var_lastUsed = <Option<chrono::DateTime<chrono::Local>>>::sse_decode(deserializer);
         let mut var_unreadMessages = <usize>::sse_decode(deserializer);
         let mut var_lastMessage =
             <Option<crate::api::types::UiChatMessage>>::sse_decode(deserializer);
@@ -19244,6 +19255,16 @@ impl SseEncode for Option<UsernameHash> {
     }
 }
 
+impl SseEncode for Option<chrono::DateTime<chrono::Local>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <chrono::DateTime<chrono::Local>>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<chrono::DateTime<chrono::Utc>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -19958,7 +19979,7 @@ impl SseEncode for crate::api::types::UiChatDetails {
         <crate::api::types::ChatId>::sse_encode(self.id, serializer);
         <crate::api::types::UiChatStatus>::sse_encode(self.status, serializer);
         <crate::api::types::UiChatType>::sse_encode(self.chat_type, serializer);
-        <chrono::DateTime<chrono::Local>>::sse_encode(self.last_used, serializer);
+        <Option<chrono::DateTime<chrono::Local>>>::sse_encode(self.last_used, serializer);
         <usize>::sse_encode(self.unread_messages, serializer);
         <Option<crate::api::types::UiChatMessage>>::sse_encode(self.last_message, serializer);
         <Option<crate::api::types::UiLastReaction>>::sse_encode(self.last_reaction, serializer);

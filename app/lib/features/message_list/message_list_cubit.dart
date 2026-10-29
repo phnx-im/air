@@ -42,6 +42,11 @@ class MessageListStateWrapper {
   bool? get isConnectionChat => state.isConnectionChat;
   int? get firstUnreadIndex => state.firstUnreadIndex;
 
+  /// Whether the chat has no messages at all. Revision 0 is the state before
+  /// the first load.
+  bool get isEmptyChat =>
+      state.revision > 0 && loadedMessages.isEmpty && !hasOlder && !hasNewer;
+
   UiChatMessage? messageAt(int oldestFirstIndex) {
     final idx = messageData.length - oldestFirstIndex - 1;
     return (idx >= 0 && idx < messageData.length) ? messageData[idx] : null;

@@ -455,6 +455,7 @@
   "memberSelectionList_cantBeAddedDescription": "Этих людей нельзя добавить в группу. Возможно, их аккаунт больше не активен или у них слишком старая версия приложения.",
   "homeTab_chats": "Чаты",
   "homeTab_profile": "Профиль",
+  "messageList_empty": "В этом чате нет сообщений",
   "messageList_newMessages": "Новые сообщения",
   "messageList_reactions_react": "Реакция",
   "messageList_reactions_remove": "Убрать",
