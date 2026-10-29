@@ -820,7 +820,6 @@ mod tests {
         component::ComponentId,
         prelude::{AppDataDictionary, AppDataUpdateProposal},
     };
-    use tls_codec::Serialize as _;
 
     use super::*;
     use crate::extension::{PqtMode, tests::test_apq_info};

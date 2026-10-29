@@ -128,7 +128,6 @@ pub(crate) enum RandomnessError {
 mod tests {
     use std::collections::HashSet;
 
-    use openmls::prelude::*;
     use sqlx::SqlitePool;
 
     use crate::db::access::DbAccess;
