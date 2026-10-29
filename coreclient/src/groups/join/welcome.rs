@@ -2,10 +2,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::collections::HashMap;
+
 use aircommon::{
     credentials::keys::{ClientKeyType, SelfGroupSigningKey, UserSigningKey},
     crypto::{
-        aead::{AeadDecryptable, keys::WelcomeAttributionInfoEarKey},
+        aead::{
+            AeadDecryptable,
+            keys::{EncryptedUserProfileKey, WelcomeAttributionInfoEarKey},
+        },
         hpke::{HpkeDecryptable, JoinerInfoDecryptionKey},
         signatures::{private_keys::SigningKey, signable::Verifiable},
     },
@@ -17,12 +22,11 @@ use aircommon::{
     },
     mls_group_config::default_mls_group_join_config,
 };
-use airprotos::client::app_data::GroupAppData;
 use anyhow::{Context, Result, bail, ensure};
 use apqmls::validation::{validate_apq_session_at_construction, validate_welcome_psk};
 use openmls::{
     group::{JoinBuilder, ProcessedWelcome},
-    prelude::{SignaturePublicKey, tls_codec::Serialize as TlsSerializeTrait},
+    prelude::{LeafNodeIndex, SignaturePublicKey, tls_codec::Serialize as TlsSerializeTrait},
 };
 
 use crate::{
@@ -37,7 +41,7 @@ use crate::{
         client_auth_info::StorableUserCredential,
         credentials::{verify_member_credentials, verify_pq_signature_keys},
         error::GroupOperationError,
-        join::DecryptedProfileInfos,
+        join::{DecryptedProfileInfos, ensure_self_group_flag},
         openmls_provider::AirOpenMlsProvider,
         room_state::ensure_room_state_matches_members,
     },
@@ -171,33 +175,20 @@ impl Group {
             (mls_group, joiner_info, verifiable_attribution_info)
         };
 
+        let sender_user_id = verifiable_attribution_info.sender();
+        if BlockedContact::check_blocked(&mut *txn, &sender_user_id).await? {
+            bail!(BlockedContactError);
+        }
+
         // Self-groups are only ever joined during device linking, which uses the APQ join path.
-        ensure!(
-            !GroupAppData::is_self_group_context(mls_group.extensions()),
-            "refusing to join a group marked as self-group"
-        );
+        ensure_self_group_flag(&mls_group, None, false)?;
 
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &mls_group, false).await?;
         ensure_room_state_matches_members(&room_state, &mls_group)?;
 
-        let sender_user_id = verifiable_attribution_info.sender();
         let sender_user_credential =
-            match StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id).await? {
-                Some(credential) => credential,
-                // A linked device may not know the inviter yet => the inviter is a member, so use
-                // it AS-verified member credentials
-                None => credentials
-                    .iter()
-                    .find(|c| c.user_id() == &sender_user_id)
-                    .cloned()
-                    .context("sender is not a member of the group")?,
-            };
-
-        if BlockedContact::check_blocked(&mut *txn, &sender_user_id).await? {
-            bail!(BlockedContactError);
-        }
-
+            load_sender_credential(&mut *txn, &sender_user_id, &credentials).await?;
         let welcome_attribution_info: WelcomeAttributionInfoPayload =
             verifiable_attribution_info.verify(sender_user_credential.verifying_key())?;
 
@@ -210,28 +201,20 @@ impl Group {
             signer.credential().user_id().clone(),
         );
 
-        // Phase 7: Store the group and user credentials.
-        group.store(&mut *txn).await?;
-        for credential in &credentials {
-            credential.store(&mut *txn).await?;
-        }
-
-        // Phase 8: Decrypt profile keys
-        let encrypted_user_profile_keys_fallback = if indexed_encrypted_user_profile_keys.is_empty()
-        {
-            credentials
-                .iter()
-                .map(|c| c.user_id().clone())
-                .zip(encrypted_user_profile_keys)
-                .collect()
-        } else {
-            Default::default()
-        };
-        let member_profile_info = group.decrypt_member_profile_keys(
-            credentials,
-            indexed_encrypted_user_profile_keys,
-            encrypted_user_profile_keys_fallback,
+        // Phase 6: Store the group and user credentials, and decrypt profile keys.
+        let encrypted_profile_keys_fallback = profile_keys_fallback_by_credentials(
+            &credentials,
+            encrypted_user_profile_keys,
+            &indexed_encrypted_user_profile_keys,
         );
+        let member_profile_info = group
+            .store_after_join(
+                txn,
+                credentials,
+                indexed_encrypted_user_profile_keys,
+                encrypted_profile_keys_fallback,
+            )
+            .await?;
 
         Ok((group, sender_user_id, member_profile_info))
     }
@@ -405,59 +388,74 @@ impl Group {
         // A group flagged as self-group may only be joined during device linking, i.e. when it is
         // recorded as our own self-group. Conversely, our own self-group must carry the flag,
         // since its self-group credentials are only accepted there.
-        ensure!(
-            GroupAppData::is_self_group_context(t_mls_group.extensions()) == is_self_group
-                && GroupAppData::is_self_group_context(pq_mls_group.extensions()) == is_self_group,
-            "self-group flag does not match the recorded self-group"
-        );
+        ensure_self_group_flag(&t_mls_group, Some(&pq_mls_group), is_self_group)?;
         let credentials =
             verify_member_credentials(txn, api_clients, &t_mls_group, is_self_group).await?;
         ensure_room_state_matches_members(&room_state, &t_mls_group)?;
 
         let sender_user_credential =
-            match StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id).await? {
-                Some(credential) => credential,
-                // A linked device may not know the inviter yet => the inviter is a member, so use
-                // it AS-verified member credentials
-                None => credentials
-                    .iter()
-                    .find(|c| c.user_id() == &sender_user_id)
-                    .cloned()
-                    .context("sender is not a member of the group")?,
-            };
+            load_sender_credential(&mut *txn, &sender_user_id, &credentials).await?;
         let welcome_attribution_info: WelcomeAttributionInfoPayload =
             verifiable_attribution_info.verify(sender_user_credential.verifying_key())?;
 
         let group = Self::new(
-            welcome_attribution_info.identity_link_wrapper_key().clone(),
+            welcome_attribution_info.into_identity_link_wrapper_key(),
             joiner_info.group_state_ear_key,
             t_mls_group,
             Some(pq_mls_group),
             room_state,
             signers.client.credential().user_id().clone(),
         );
-        group.store(&mut *txn).await?;
-        for credential in &credentials {
-            credential.store(&mut *txn).await?;
-        }
-
-        // Phase 7: Decrypt profile keys
-        let encrypted_user_profiles_keys_fallback =
-            if indexed_encrypted_user_profile_keys.is_empty() {
-                credentials
-                    .iter()
-                    .map(|c| c.user_id().clone())
-                    .zip(encrypted_user_profile_keys)
-                    .collect()
-            } else {
-                Default::default()
-            };
-        let member_profile_info = group.decrypt_member_profile_keys(
-            credentials,
-            indexed_encrypted_user_profile_keys,
-            encrypted_user_profiles_keys_fallback,
+        let encrypted_profile_keys_fallback = profile_keys_fallback_by_credentials(
+            &credentials,
+            encrypted_user_profile_keys,
+            &indexed_encrypted_user_profile_keys,
         );
+        let member_profile_info = group
+            .store_after_join(
+                txn,
+                credentials,
+                indexed_encrypted_user_profile_keys,
+                encrypted_profile_keys_fallback,
+            )
+            .await?;
 
         Ok((group, sender_user_id, member_profile_info))
     }
+}
+
+/// The stored credential of the welcome's sender.
+///
+/// A linked device may not know the inviter yet. Since the inviter is a member, fall back to its
+/// AS-verified member credential.
+async fn load_sender_credential(
+    txn: &mut WriteDbTransaction<'_>,
+    sender_user_id: &UserId,
+    credentials: &[StorableUserCredential],
+) -> Result<StorableUserCredential> {
+    match StorableUserCredential::load_by_user_id(&mut *txn, sender_user_id).await? {
+        Some(credential) => Ok(credential),
+        None => credentials
+            .iter()
+            .find(|c| c.user_id() == sender_user_id)
+            .cloned()
+            .context("sender is not a member of the group"),
+    }
+}
+
+/// Positional fallback (user id -> encrypted profile key) for servers that don't send indexed
+/// keys yet. The keys are in the order of the member credentials.
+fn profile_keys_fallback_by_credentials(
+    credentials: &[StorableUserCredential],
+    encrypted_user_profile_keys: Vec<EncryptedUserProfileKey>,
+    indexed_encrypted_user_profile_keys: &HashMap<LeafNodeIndex, EncryptedUserProfileKey>,
+) -> HashMap<UserId, EncryptedUserProfileKey> {
+    if !indexed_encrypted_user_profile_keys.is_empty() {
+        return HashMap::new();
+    }
+    credentials
+        .iter()
+        .map(|c| c.user_id().clone())
+        .zip(encrypted_user_profile_keys)
+        .collect()
 }

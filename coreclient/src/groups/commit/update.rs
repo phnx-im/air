@@ -47,7 +47,6 @@ impl Group {
         derivation_epoch: DerivationEpoch,
         own_client_reference: &QsReference,
     ) -> Result<GroupOperationParamsOut> {
-        // We don't expect there to be a welcome.
         let aad = AadMessage::empty_group_operation().tls_serialize_detached()?;
 
         let (component_data, extensions) = self.group_data_update(new_group_data)?;

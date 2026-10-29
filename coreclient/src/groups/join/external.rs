@@ -44,7 +44,9 @@ use crate::{
         connection_psk::store_connection_offer_psk,
         credentials::{verify_member_credentials, verify_pq_signature_keys},
         error::GroupClosed,
-        join::{DecryptedProfileInfos, closer, group_info_signer_credential},
+        join::{
+            DecryptedProfileInfos, closer, ensure_self_group_flag, group_info_signer_credential,
+        },
         openmls_provider::AirOpenMlsProvider,
         room_state::{add_joiner_to_room_state, ensure_room_state_matches_members},
     },
@@ -184,13 +186,9 @@ impl Group {
             )
         };
 
-        // A group flagged as self-group must be recorded as our own self-group and vice versa.
         let is_self_group =
             OwnClientInfo::is_own_self_group(&mut *txn, mls_group.group_id()).await?;
-        ensure!(
-            GroupAppData::is_self_group_context(mls_group.extensions()) == is_self_group,
-            "self-group flag does not match the recorded self-group"
-        );
+        ensure_self_group_flag(&mls_group, None, is_self_group)?;
 
         // Phase 3: Verify the user credentials. Self-group leaves carry a self-group credential,
         // which is only accepted inside our own self group.
@@ -214,9 +212,11 @@ impl Group {
             signer.credential().user_id().clone(),
         );
 
-        // Phase 4: Store the group and client auth info.
+        // Phase 4: Store the group and client auth info, replacing any prior group with the same
+        // id.
+        Group::delete_from_db(txn, group.group_id()).await?;
         let member_profile_info = group
-            .store_after_external_join(
+            .store_after_join(
                 txn,
                 credentials,
                 indexed_encrypted_user_profile_keys,
@@ -381,13 +381,8 @@ impl Group {
         verify_pq_signature_keys(&t_group, &pq_group)
             .context("T and PQ membership is not bound by matching signature keys")?;
 
-        // A group flagged as self-group must be recorded as our own self-group and vice versa.
         let is_self_group = OwnClientInfo::is_own_self_group(&mut *txn, t_group.group_id()).await?;
-        ensure!(
-            GroupAppData::is_self_group_context(t_group.extensions()) == is_self_group
-                && GroupAppData::is_self_group_context(pq_group.extensions()) == is_self_group,
-            "self-group flag does not match the recorded self-group"
-        );
+        ensure_self_group_flag(&t_group, Some(&pq_group), is_self_group)?;
         // The self group must be rejoined with the per-device self-group key, other groups with
         // the user key. A mismatch means the caller resolved the signer for the wrong group.
         ensure!(
@@ -418,8 +413,9 @@ impl Group {
             own_user_id.clone(),
         );
 
+        Group::delete_from_db(txn, group.group_id()).await?;
         let member_profile_info = group
-            .store_after_external_join(
+            .store_after_join(
                 txn,
                 credentials,
                 indexed_encrypted_user_profile_keys,

@@ -13,9 +13,10 @@ use aircommon::{
     crypto::{aead::keys::EncryptedUserProfileKey, indexed_aead::keys::UserProfileKey},
     identifiers::UserId,
 };
-use anyhow::{Context, Result};
+use airprotos::client::app_data::GroupAppData;
+use anyhow::{Context, Result, ensure};
 use openmls::{
-    prelude::{Credential, LeafNodeIndex, group_info::VerifiableGroupInfo},
+    prelude::{Credential, LeafNodeIndex, MlsGroup, group_info::VerifiableGroupInfo},
     treesync::RatchetTreeIn,
 };
 use tracing::warn;
@@ -136,19 +137,16 @@ impl Group {
             .collect()
     }
 
-    /// Persist a freshly joined group after an external commit.
+    /// Persist a freshly joined group.
     ///
-    /// Replace any prior group with the same id, store the user credentials, and decrypt the
-    /// member profile keys.
-    async fn store_after_external_join(
+    /// Store the group and the user credentials, and decrypt the member profile keys.
+    async fn store_after_join(
         &self,
         txn: &mut WriteDbTransaction<'_>,
         credentials: Vec<StorableUserCredential>,
         indexed_encrypted_user_profile_keys: HashMap<LeafNodeIndex, EncryptedUserProfileKey>,
         encrypted_profile_keys_fallback: HashMap<UserId, EncryptedUserProfileKey>,
     ) -> anyhow::Result<DecryptedProfileInfos> {
-        // If the group previously existed, delete it first.
-        Group::delete_from_db(txn, self.group_id()).await?;
         self.store(&mut *txn).await?;
 
         for credential in &credentials {
@@ -161,6 +159,23 @@ impl Group {
             encrypted_profile_keys_fallback,
         ))
     }
+}
+
+/// A group flagged as self-group must be recorded as our own self-group and
+/// vice versa.
+fn ensure_self_group_flag(
+    mls_group: &MlsGroup,
+    pq_mls_group: Option<&MlsGroup>,
+    is_self_group: bool,
+) -> Result<()> {
+    ensure!(
+        GroupAppData::is_self_group_context(mls_group.extensions()) == is_self_group
+            && pq_mls_group.is_none_or(|pq_mls_group| {
+                GroupAppData::is_self_group_context(pq_mls_group.extensions()) == is_self_group
+            }),
+        "self-group flag does not match the recorded self-group"
+    );
+    Ok(())
 }
 
 /// Returns the leaf credential of the member that signed the group info. The
