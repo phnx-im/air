@@ -15,7 +15,6 @@ use aircommon::{
         QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_leaf_node_capabilities,
         default_mls_group_join_config, self_group_leaf_node_capabilities,
     },
-    time::TimeStamp,
 };
 use airprotos::client::app_data::{ClientAppData, GroupAppData};
 use anyhow::{Context, Result, bail, ensure};
@@ -40,7 +39,7 @@ use crate::{
     clients::{api_clients::ApiClients, own_client_info::OwnClientInfo},
     db::access::WriteDbTransaction,
     groups::{
-        Group, PqGroup,
+        Group,
         commit::to_capabilities_mismatch,
         connection_psk::store_connection_offer_psk,
         credentials::{verify_member_credentials, verify_pq_signature_keys},
@@ -206,18 +205,14 @@ impl Group {
         }
         ensure_room_state_matches_members(&room_state, &mls_group)?;
 
-        let group = Self {
-            mls_group,
+        let group = Self::new(
             identity_link_wrapper_key,
             group_state_ear_key,
-            pending_diff: None,
+            mls_group,
+            None,
             room_state,
-            self_updated_at: Some(TimeStamp::now()),
-            pq: None,
-            pending_commit_failed: false,
-            send_message_collision_key: None,
-            own_user_id: signer.credential().user_id().clone(),
-        };
+            signer.credential().user_id().clone(),
+        );
 
         // Phase 4: Store the group and client auth info.
         let member_profile_info = group
@@ -414,22 +409,14 @@ impl Group {
         ensure_room_state_matches_members(&room_state, &t_group)?;
 
         // Store the group, credentials and member profile infos
-        let now = TimeStamp::now();
-        let group = Self {
-            mls_group: t_group,
+        let group = Self::new(
             identity_link_wrapper_key,
             group_state_ear_key,
-            pending_diff: None,
+            t_group,
+            Some(pq_group),
             room_state,
-            self_updated_at: Some(now),
-            pq: Some(PqGroup {
-                mls_group: pq_group,
-                self_updated_at: Some(now),
-            }),
-            pending_commit_failed: false,
-            send_message_collision_key: None,
-            own_user_id: own_user_id.clone(),
-        };
+            own_user_id.clone(),
+        );
 
         let member_profile_info = group
             .store_after_external_join(

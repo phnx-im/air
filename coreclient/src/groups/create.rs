@@ -15,7 +15,6 @@ use aircommon::{
         default_group_required_extensions, default_leaf_node_capabilities,
         default_sender_ratchet_configuration, self_group_leaf_node_capabilities,
     },
-    time::TimeStamp,
 };
 use airprotos::client::{
     app_data::{ClientAppData, GroupAppData},
@@ -38,8 +37,7 @@ use crate::{
     chats::GroupDataExt,
     db::access::WriteConnection,
     groups::{
-        Group, PqGroup, commit::update::client_reference_extension,
-        openmls_provider::AirOpenMlsProvider,
+        Group, commit::update::client_reference_extension, openmls_provider::AirOpenMlsProvider,
     },
 };
 
@@ -193,18 +191,14 @@ impl Group {
             pq: None,
         };
 
-        let group = Self {
+        let group = Self::new(
             identity_link_wrapper_key,
+            group_state_ear_key,
             mls_group,
+            None,
             room_state,
-            group_state_ear_key: group_state_ear_key.clone(),
-            pending_diff: None,
-            self_updated_at: Some(TimeStamp::now()),
-            pq: None,
-            pending_commit_failed: false,
-            send_message_collision_key: None,
-            own_user_id: signer.credential().user_id().clone(),
-        };
+            signer.credential().user_id().clone(),
+        );
 
         Ok((group, params))
     }
@@ -314,22 +308,14 @@ impl Group {
             }),
         };
 
-        let now = TimeStamp::now();
-        let group = Self {
+        let group = Self::new(
             identity_link_wrapper_key,
-            mls_group: t_group,
-            room_state,
             group_state_ear_key,
-            pending_diff: None,
-            self_updated_at: Some(now),
-            pq: Some(PqGroup {
-                mls_group: pq_group,
-                self_updated_at: Some(now),
-            }),
-            pending_commit_failed: false,
-            send_message_collision_key: None,
+            t_group,
+            Some(pq_group),
+            room_state,
             own_user_id,
-        };
+        );
 
         Ok((group, params))
     }

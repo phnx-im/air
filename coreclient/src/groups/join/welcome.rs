@@ -16,7 +16,6 @@ use aircommon::{
         welcome_attribution_info::{WelcomeAttributionInfo, WelcomeAttributionInfoPayload},
     },
     mls_group_config::default_mls_group_join_config,
-    time::TimeStamp,
 };
 use airprotos::client::app_data::GroupAppData;
 use anyhow::{Context, Result, bail, ensure};
@@ -34,7 +33,7 @@ use crate::{
     },
     db::access::WriteDbTransaction,
     groups::{
-        Group, PqGroup,
+        Group,
         client_auth_info::StorableUserCredential,
         credentials::{verify_member_credentials, verify_pq_signature_keys},
         error::GroupOperationError,
@@ -202,18 +201,14 @@ impl Group {
         let welcome_attribution_info: WelcomeAttributionInfoPayload =
             verifiable_attribution_info.verify(sender_user_credential.verifying_key())?;
 
-        let group = Self {
+        let group = Self::new(
+            welcome_attribution_info.into_identity_link_wrapper_key(),
+            joiner_info.group_state_ear_key,
             mls_group,
-            identity_link_wrapper_key: welcome_attribution_info.identity_link_wrapper_key().clone(),
-            group_state_ear_key: joiner_info.group_state_ear_key,
-            pending_diff: None,
+            None,
             room_state,
-            self_updated_at: Some(TimeStamp::now()),
-            pq: None,
-            pending_commit_failed: false,
-            send_message_collision_key: None,
-            own_user_id: signer.credential().user_id().clone(),
-        };
+            signer.credential().user_id().clone(),
+        );
 
         // Phase 7: Store the group and user credentials.
         group.store(&mut *txn).await?;
@@ -433,22 +428,14 @@ impl Group {
         let welcome_attribution_info: WelcomeAttributionInfoPayload =
             verifiable_attribution_info.verify(sender_user_credential.verifying_key())?;
 
-        let self_updated_at = TimeStamp::now();
-        let group = Self {
-            identity_link_wrapper_key: welcome_attribution_info.identity_link_wrapper_key().clone(),
-            group_state_ear_key: joiner_info.group_state_ear_key,
-            mls_group: t_mls_group,
+        let group = Self::new(
+            welcome_attribution_info.identity_link_wrapper_key().clone(),
+            joiner_info.group_state_ear_key,
+            t_mls_group,
+            Some(pq_mls_group),
             room_state,
-            pending_diff: None,
-            self_updated_at: Some(self_updated_at),
-            pq: Some(PqGroup {
-                mls_group: pq_mls_group,
-                self_updated_at: Some(self_updated_at),
-            }),
-            pending_commit_failed: false,
-            send_message_collision_key: None,
-            own_user_id: signers.client.credential().user_id().clone(),
-        };
+            signers.client.credential().user_id().clone(),
+        );
         group.store(&mut *txn).await?;
         for credential in &credentials {
             credential.store(&mut *txn).await?;

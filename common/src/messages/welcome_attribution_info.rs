@@ -36,6 +36,10 @@ impl WelcomeAttributionInfoPayload {
     pub fn identity_link_wrapper_key(&self) -> &IdentityLinkWrapperKey {
         &self.identity_link_wrapper_key
     }
+
+    pub fn into_identity_link_wrapper_key(self) -> IdentityLinkWrapperKey {
+        self.identity_link_wrapper_key
+    }
 }
 
 #[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize)]
