@@ -11,10 +11,13 @@ use aircommon::{
     messages::{
         client_ds::{AadMessage, AadPayload, GroupOperationParamsAad},
         client_ds_out::{AddUsersInfoOut, ApqGroupOperationParamsOut, GroupOperationParamsOut},
-        welcome_attribution_info::{WelcomeAttributionInfoPayload, WelcomeAttributionInfoTbs},
+        welcome_attribution_info::{
+            EncryptedWelcomeAttributionInfo, WelcomeAttributionInfoPayload,
+            WelcomeAttributionInfoTbs,
+        },
     },
 };
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Context, Result, ensure};
 use apqmls::authentication::ApqSigner;
 use mls_assist::messages::AssistedMessageOut;
 use openmls::{
@@ -49,41 +52,12 @@ impl Group {
         invitees: Vec<PreparedInvitee>,
     ) -> anyhow::Result<Result<GroupOperationParamsOut, LeafNodeValidationError>> {
         debug_assert!(!self.is_apq(), "APQ group in non-APQ stage_invite");
-        // Prepare KeyPackages
-
-        let mut key_packages = Vec::with_capacity(invitees.len());
-        let mut wai_keys = Vec::with_capacity(invitees.len());
-        let mut new_encrypted_user_profile_keys = Vec::with_capacity(invitees.len());
-        for PreparedInvitee {
-            add_info,
-            wai_key,
-            user_credential,
-        } in invitees
-        {
-            new_encrypted_user_profile_keys.push(
-                add_info
-                    .user_profile_key
-                    .encrypt(&self.identity_link_wrapper_key, user_credential.user_id())?,
-            );
-            key_packages.push(add_info.key_package);
-            wai_keys.push(wai_key);
-        }
-
-        let aad_message: AadMessage = AadPayload::GroupOperation(GroupOperationParamsAad {
-            new_encrypted_user_profile_keys,
-        })
-        .into();
-
-        // Set Aad to contain the encrypted user credentials.
+        let (key_packages, wai_keys, aad_message) = self.prepare_invitees(invitees)?;
         let key_packages = key_packages
             .into_iter()
-            .map(|kp| match kp {
-                ContactKeyPackage::Traditional(kp) => Ok(*kp),
-                ContactKeyPackage::Apq(_) => {
-                    bail!("APQ key package used for traditional group invite")
-                }
-            })
-            .collect::<Result<Vec<_>>>()?;
+            .map(ContactKeyPackage::into_traditional)
+            .collect::<Option<Vec<_>>>()
+            .context("APQ key package used for traditional group invite")?;
         let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
 
         let (mls_commit, welcome_option, group_info_option) = {
@@ -113,24 +87,11 @@ impl Group {
         );
         let commit = AssistedMessageOut::new(mls_commit, Some(group_info.into()));
 
-        let encrypted_welcome_attribution_infos = wai_keys
-            .iter()
-            .map(|wai_key| {
-                // WAI = WelcomeAttributionInfo
-                let wai_payload = WelcomeAttributionInfoPayload::new(
-                    signer.credential().user_id().clone(),
-                    self.identity_link_wrapper_key.clone(),
-                );
-
-                let wai = WelcomeAttributionInfoTbs {
-                    payload: wai_payload,
-                    group_id: self.group_id().clone(),
-                    welcome: welcome.tls_serialize_detached()?,
-                }
-                .sign(signer)?;
-                Ok(wai.encrypt(wai_key)?)
-            })
-            .collect::<anyhow::Result<Vec<_>>>()?;
+        let encrypted_welcome_attribution_infos = self.encrypt_welcome_attribution_infos(
+            signer,
+            &welcome.tls_serialize_detached()?,
+            &wai_keys,
+        )?;
 
         let add_users_info = AddUsersInfoOut {
             welcome,
@@ -166,40 +127,12 @@ impl Group {
         app_ephemeral: Option<Proposal>,
     ) -> anyhow::Result<Result<ApqGroupOperationParamsOut, LeafNodeValidationError>> {
         debug_assert!(self.is_apq(), "Non-APQ group in APQ stage_invite");
-        // Prepare KeyPackages
-
-        let mut key_packages = Vec::with_capacity(invitees.len());
-        let mut wai_keys = Vec::with_capacity(invitees.len());
-        let mut new_encrypted_user_profile_keys = Vec::with_capacity(invitees.len());
-        for PreparedInvitee {
-            add_info,
-            wai_key,
-            user_credential,
-        } in invitees
-        {
-            new_encrypted_user_profile_keys.push(
-                add_info
-                    .user_profile_key
-                    .encrypt(&self.identity_link_wrapper_key, user_credential.user_id())?,
-            );
-            key_packages.push(add_info.key_package);
-            wai_keys.push(wai_key);
-        }
-
-        let aad_message: AadMessage = AadPayload::GroupOperation(GroupOperationParamsAad {
-            new_encrypted_user_profile_keys,
-        })
-        .into();
-
+        let (key_packages, wai_keys, aad_message) = self.prepare_invitees(invitees)?;
         let key_packages = key_packages
             .into_iter()
-            .map(|kp| match kp {
-                ContactKeyPackage::Traditional(_) => {
-                    bail!("Traditional key package used for APQ group invite")
-                }
-                ContactKeyPackage::Apq(kp) => Ok(*kp),
-            })
-            .collect::<Result<Vec<_>>>()?;
+            .map(ContactKeyPackage::into_apq)
+            .collect::<Option<Vec<_>>>()
+            .context("Traditional key package used for APQ group invite")?;
 
         let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
 
@@ -240,7 +173,62 @@ impl Group {
             .context("No welcome in APQMLS bundle")?
             .tls_serialize_detached()?;
 
-        let encrypted_welcome_attribution_infos = wai_keys
+        let encrypted_welcome_attribution_infos =
+            self.encrypt_welcome_attribution_infos(wai_signer, &serialized_welcome, &wai_keys)?;
+
+        let params = ApqGroupOperationParamsOut {
+            bundle,
+            encrypted_welcome_attribution_infos,
+        };
+
+        Ok(Ok(params))
+    }
+
+    /// Collects the key packages and WAI keys of the invitees, and the AAD
+    /// carrying their encrypted user profile keys.
+    fn prepare_invitees(
+        &self,
+        invitees: Vec<PreparedInvitee>,
+    ) -> Result<(
+        Vec<ContactKeyPackage>,
+        Vec<WelcomeAttributionInfoEarKey>,
+        AadMessage,
+    )> {
+        let mut key_packages = Vec::with_capacity(invitees.len());
+        let mut wai_keys = Vec::with_capacity(invitees.len());
+        let mut new_encrypted_user_profile_keys = Vec::with_capacity(invitees.len());
+        for PreparedInvitee {
+            add_info,
+            wai_key,
+            user_credential,
+        } in invitees
+        {
+            new_encrypted_user_profile_keys.push(
+                add_info
+                    .user_profile_key
+                    .encrypt(&self.identity_link_wrapper_key, user_credential.user_id())?,
+            );
+            key_packages.push(add_info.key_package);
+            wai_keys.push(wai_key);
+        }
+
+        let aad_message = AadPayload::GroupOperation(GroupOperationParamsAad {
+            new_encrypted_user_profile_keys,
+        })
+        .into();
+
+        Ok((key_packages, wai_keys, aad_message))
+    }
+
+    /// Signs one WelcomeAttributionInfo per invitee and encrypts it with the
+    /// invitee's WAI key.
+    fn encrypt_welcome_attribution_infos(
+        &self,
+        wai_signer: &UserSigningKey,
+        serialized_welcome: &[u8],
+        wai_keys: &[WelcomeAttributionInfoEarKey],
+    ) -> Result<Vec<EncryptedWelcomeAttributionInfo>> {
+        wai_keys
             .iter()
             .map(|wai_key| {
                 let wai_payload = WelcomeAttributionInfoPayload::new(
@@ -250,18 +238,11 @@ impl Group {
                 let wai = WelcomeAttributionInfoTbs {
                     payload: wai_payload,
                     group_id: self.group_id().clone(),
-                    welcome: serialized_welcome.clone(),
+                    welcome: serialized_welcome.to_vec(),
                 }
                 .sign(wai_signer)?;
                 Ok(wai.encrypt(wai_key)?)
             })
-            .collect::<anyhow::Result<Vec<_>>>()?;
-
-        let params = ApqGroupOperationParamsOut {
-            bundle,
-            encrypted_welcome_attribution_infos,
-        };
-
-        Ok(Ok(params))
+            .collect()
     }
 }

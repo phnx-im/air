@@ -312,6 +312,16 @@ pub struct AadMessage {
     payload: AadPayload,
 }
 
+impl AadMessage {
+    /// AAD of a group operation that adds no members.
+    pub fn empty_group_operation() -> Self {
+        AadPayload::GroupOperation(GroupOperationParamsAad {
+            new_encrypted_user_profile_keys: Vec::new(),
+        })
+        .into()
+    }
+}
+
 impl From<AadPayload> for AadMessage {
     fn from(payload: AadPayload) -> Self {
         Self {

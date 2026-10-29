@@ -85,6 +85,13 @@ impl ClientAppData {
         }
     }
 
+    pub fn current_for(virtual_client: bool) -> Self {
+        Self {
+            virtual_client,
+            ..Self::current()
+        }
+    }
+
     // Layer 2: the dictionary
 
     /// `None` if the dictionary carries no Air component.

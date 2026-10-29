@@ -108,11 +108,8 @@ impl MemoryUserKeyStore {
         last_resort: bool,
         virtual_client: bool,
     ) -> Result<KeyPackageBuilder> {
-        let mut leaf_node_extensions = if virtual_client {
-            ClientAppData::current_virtual_client().leaf_node_extensions()
-        } else {
-            ClientAppData::current().leaf_node_extensions()
-        };
+        let mut leaf_node_extensions =
+            ClientAppData::current_for(virtual_client).leaf_node_extensions();
 
         let client_reference = self.create_own_client_reference(qs_client_id);
         leaf_node_extensions.add(client_reference_extension(&client_reference)?)?;
@@ -163,11 +160,8 @@ impl MemoryUserKeyStore {
         last_resort: bool,
         virtual_client: bool,
     ) -> Result<ApqKeyPackageBuilder> {
-        let mut leaf_node_extensions = if virtual_client {
-            ClientAppData::current_virtual_client().leaf_node_extensions()
-        } else {
-            ClientAppData::current().leaf_node_extensions()
-        };
+        let mut leaf_node_extensions =
+            ClientAppData::current_for(virtual_client).leaf_node_extensions();
 
         let client_reference = self.create_own_client_reference(qs_client_id);
         leaf_node_extensions.add(client_reference_extension(&client_reference)?)?;
@@ -392,7 +386,6 @@ impl HeterogeneousVcKeyPackageBatch {
 mod tests {
     use openmls::prelude::{Ciphersuite, Extensions};
     use openmls_rust_crypto::OpenMlsRustCrypto;
-    use openmls_traits::OpenMlsProvider as _;
 
     use super::*;
 

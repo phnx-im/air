@@ -121,7 +121,6 @@ impl LeafCredential {
 #[cfg(test)]
 mod test {
     use mls_assist::openmls::prelude::{BasicCredential, SignatureScheme};
-    use tls_codec::Serialize as _;
     use uuid::Uuid;
 
     use crate::{

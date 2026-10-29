@@ -12,7 +12,6 @@ use aircommon::{
     identifiers::UserId,
     messages::{client_as::ConnectionOfferHash, client_ds_out::EpochSnapshotIn},
     mls_group_config::default_mls_group_join_config,
-    time::TimeStamp,
 };
 use airprotos::client::app_data::GroupAppData;
 use anyhow::{Context, Result, bail, ensure};
@@ -32,7 +31,7 @@ use crate::{
     clients::{api_clients::ApiClients, own_client_info::OwnClientInfo},
     db::access::WriteDbTransaction,
     groups::{
-        Group, PqGroup,
+        Group,
         connection_psk::store_connection_offer_psk,
         credentials::{verify_member_credentials, verify_pq_signature_keys},
         group_bootstrap::GroupBootstrapContents,
@@ -245,22 +244,14 @@ impl Group {
             .context("failed to verify the member credentials")?;
         ensure_room_state_users_are_members(&room_state, &mls_group)?;
 
-        let now = TimeStamp::now();
-        let group = Self {
-            identity_link_wrapper_key: contents.identity_link_wrapper_key.clone(),
-            group_state_ear_key: contents.group_state_ear_key.clone(),
+        let group = Self::new(
+            contents.identity_link_wrapper_key.clone(),
+            contents.group_state_ear_key.clone(),
             mls_group,
+            pq_group,
             room_state,
-            pending_diff: None,
-            self_updated_at: Some(now),
-            pq: pq_group.map(|mls_group| PqGroup {
-                mls_group,
-                self_updated_at: Some(now),
-            }),
-            pending_commit_failed: false,
-            send_message_collision_key: None,
-            own_user_id: own_user_id.clone(),
-        };
+            own_user_id.clone(),
+        );
 
         group.store(&mut *txn).await?;
         for credential in &credentials {

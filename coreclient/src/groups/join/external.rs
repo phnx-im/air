@@ -15,7 +15,6 @@ use aircommon::{
         QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_leaf_node_capabilities,
         default_mls_group_join_config, self_group_leaf_node_capabilities,
     },
-    time::TimeStamp,
 };
 use airprotos::client::app_data::{ClientAppData, GroupAppData};
 use anyhow::{Context, Result, bail, ensure};
@@ -40,12 +39,14 @@ use crate::{
     clients::{api_clients::ApiClients, own_client_info::OwnClientInfo},
     db::access::WriteDbTransaction,
     groups::{
-        Group, PqGroup,
+        Group,
         commit::to_capabilities_mismatch,
         connection_psk::store_connection_offer_psk,
         credentials::{verify_member_credentials, verify_pq_signature_keys},
         error::GroupClosed,
-        join::{DecryptedProfileInfos, closer, group_info_signer_credential},
+        join::{
+            DecryptedProfileInfos, closer, ensure_self_group_flag, group_info_signer_credential,
+        },
         openmls_provider::AirOpenMlsProvider,
         room_state::{add_joiner_to_room_state, ensure_room_state_matches_members},
     },
@@ -129,11 +130,8 @@ impl Group {
                 })
                 .transpose()?;
 
-            let leaf_node_extensions = if vc_group_id.is_some() {
-                ClientAppData::current_virtual_client().leaf_node_extensions()
-            } else {
-                ClientAppData::current().leaf_node_extensions()
-            };
+            let leaf_node_extensions =
+                ClientAppData::current_for(vc_group_id.is_some()).leaf_node_extensions();
             let leaf_node_parameters = LeafNodeParameters::builder()
                 .with_capabilities(default_leaf_node_capabilities())
                 .with_extensions(leaf_node_extensions)
@@ -185,13 +183,9 @@ impl Group {
             )
         };
 
-        // A group flagged as self-group must be recorded as our own self-group and vice versa.
         let is_self_group =
             OwnClientInfo::is_own_self_group(&mut *txn, mls_group.group_id()).await?;
-        ensure!(
-            GroupAppData::is_self_group_context(mls_group.extensions()) == is_self_group,
-            "self-group flag does not match the recorded self-group"
-        );
+        ensure_self_group_flag(&mls_group, None, is_self_group)?;
 
         // Phase 3: Verify the user credentials. Self-group leaves carry a self-group credential,
         // which is only accepted inside our own self group.
@@ -206,22 +200,20 @@ impl Group {
         }
         ensure_room_state_matches_members(&room_state, &mls_group)?;
 
-        let group = Self {
-            mls_group,
+        let group = Self::new(
             identity_link_wrapper_key,
             group_state_ear_key,
-            pending_diff: None,
+            mls_group,
+            None,
             room_state,
-            self_updated_at: Some(TimeStamp::now()),
-            pq: None,
-            pending_commit_failed: false,
-            send_message_collision_key: None,
-            own_user_id: signer.credential().user_id().clone(),
-        };
+            signer.credential().user_id().clone(),
+        );
 
-        // Phase 4: Store the group and client auth info.
+        // Phase 4: Store the group and client auth info, replacing any prior group with the same
+        // id.
+        Group::delete_from_db(txn, group.group_id()).await?;
         let member_profile_info = group
-            .store_after_external_join(
+            .store_after_join(
                 txn,
                 credentials,
                 indexed_encrypted_user_profile_keys,
@@ -325,11 +317,8 @@ impl Group {
 
         // Build the group
         let mls_group_config = default_mls_group_join_config();
-        let mut leaf_node_extensions = if vc_group_id.is_some() {
-            ClientAppData::current_virtual_client().leaf_node_extensions()
-        } else {
-            ClientAppData::current().leaf_node_extensions()
-        };
+        let mut leaf_node_extensions =
+            ClientAppData::current_for(vc_group_id.is_some()).leaf_node_extensions();
         if let Some(extension) = replaced_client_reference {
             leaf_node_extensions.add(extension)?;
         }
@@ -386,13 +375,8 @@ impl Group {
         verify_pq_signature_keys(&t_group, &pq_group)
             .context("T and PQ membership is not bound by matching signature keys")?;
 
-        // A group flagged as self-group must be recorded as our own self-group and vice versa.
         let is_self_group = OwnClientInfo::is_own_self_group(&mut *txn, t_group.group_id()).await?;
-        ensure!(
-            GroupAppData::is_self_group_context(t_group.extensions()) == is_self_group
-                && GroupAppData::is_self_group_context(pq_group.extensions()) == is_self_group,
-            "self-group flag does not match the recorded self-group"
-        );
+        ensure_self_group_flag(&t_group, Some(&pq_group), is_self_group)?;
         // The self group must be rejoined with the per-device self-group key, other groups with
         // the user key. A mismatch means the caller resolved the signer for the wrong group.
         ensure!(
@@ -414,25 +398,18 @@ impl Group {
         ensure_room_state_matches_members(&room_state, &t_group)?;
 
         // Store the group, credentials and member profile infos
-        let now = TimeStamp::now();
-        let group = Self {
-            mls_group: t_group,
+        let group = Self::new(
             identity_link_wrapper_key,
             group_state_ear_key,
-            pending_diff: None,
+            t_group,
+            Some(pq_group),
             room_state,
-            self_updated_at: Some(now),
-            pq: Some(PqGroup {
-                mls_group: pq_group,
-                self_updated_at: Some(now),
-            }),
-            pending_commit_failed: false,
-            send_message_collision_key: None,
-            own_user_id: own_user_id.clone(),
-        };
+            own_user_id.clone(),
+        );
 
+        Group::delete_from_db(txn, group.group_id()).await?;
         let member_profile_info = group
-            .store_after_external_join(
+            .store_after_join(
                 txn,
                 credentials,
                 indexed_encrypted_user_profile_keys,

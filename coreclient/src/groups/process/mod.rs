@@ -20,7 +20,7 @@ use apqmls::{
 use openmls::{
     components::vc_derivation_info::VirtualClientsError,
     framing::errors::{MessageDecryptionError, SecretTreeError},
-    group::{ProcessMessageError, StageCommitError, ValidationError},
+    group::{GroupEpoch, ProcessMessageError, StageCommitError, ValidationError},
     prelude::{
         GroupId, LeafNodeIndex, MlsGroup, ProcessedMessage, ProcessedMessageContent, Proposal,
         ProtocolMessage, Sender, StagedCommit,
@@ -87,7 +87,6 @@ impl Group {
         api_clients: &ApiClients,
         message: impl Into<ProtocolMessage>,
     ) -> Result<ProcessMessageResult> {
-        // Phase 1: Process the message.
         let processed_message = {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
             let message = message.into();
@@ -97,56 +96,9 @@ impl Group {
                     // Processes app data updates in the message, if any.
                     resolve_partial_commit(&self.mls_group, &provider, processed_message)?
                 }
-                Err(ProcessMessageError::<sqlx::Error>::ValidationError(
-                    ValidationError::WrongEpoch,
-                )) => {
-                    // If the message epoch is in the past, we can just
-                    // ignore it: our pending commit was already merged via
-                    // the `DsCommitResponse`, so a replayed or stale delivery
-                    // is one epoch behind. Skip quietly rather than logging
-                    // an error.
-                    if self.mls_group.epoch() > message_epoch {
-                        debug!(
-                            ?message_epoch,
-                            current_epoch = ?self.mls_group.epoch(),
-                            "Ignoring past-epoch message"
-                        );
-                        return Ok(ProcessMessageResult::Ignored);
-                    }
-                    // If the message epoch is in the future, we need to re-join
-                    // the group.
-                    return Ok(ProcessMessageResult::ResyncRequired(
-                        ResyncReason::FutureEpoch,
-                    ));
-                }
-                Err(ProcessMessageError::InvalidCommit(StageCommitError::VirtualClientsError(
-                    error @ VirtualClientsError::MissingDerivationEpochState
-                    | error @ VirtualClientsError::MissingOperationTree
-                    | error @ VirtualClientsError::OperationGenerationConsumed
-                    | error @ VirtualClientsError::OperationGenerationTooDistant,
-                ))) => {
-                    // The commit was not built against a virtual client derivation epoch we hold.
-                    // Only a resync can get us back onto the same shared leaf.
-                    error!(
-                        %error,
-                        "Cannot follow a virtual-client commit onto our shared leaf"
-                    );
-                    return Ok(ProcessMessageResult::ResyncRequired(
-                        ResyncReason::VirtualClientDesync,
-                    ));
-                }
-                Err(ProcessMessageError::ValidationError(ValidationError::UnableToDecrypt(
-                    MessageDecryptionError::SecretTreeError(SecretTreeError::SecretReuseError),
-                ))) if self.own_leaf_is_virtual_client() => {
-                    debug!("Ignoring our own echoed application message");
-                    return Ok(ProcessMessageResult::Ignored);
-                }
-                Err(e) => {
-                    bail!("Could not process message: {e:?}");
-                }
+                Err(error) => return self.handle_process_message_error(error, message_epoch),
             }
         };
-
         self.post_process_message(txn, api_clients, processed_message, None)
             .await
     }
@@ -406,7 +358,6 @@ impl Group {
 
         let message: ApqProtocolMessage = message.into();
         let message_t_epoch = message.t_epoch();
-        let current_t_epoch = self.mls_group.epoch();
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
 
         let ApqProcessedMessage {
@@ -417,57 +368,11 @@ impl Group {
             message,
             |_, _| true, // PQ-credential is always empty
         ) {
-            Ok(pm) => pm,
-            Err(ApqProcessMessageError::Processing(ProcessMessageError::ValidationError(
-                ValidationError::WrongEpoch,
-            ))) => {
-                // A past-epoch message is one we already moved past, so we
-                // ignore it: our pending commit was already merged via the
-                // `DsCommitResponse`, so a replayed or stale delivery is one
-                // epoch behind. Skip quietly rather than logging an error.
-                if current_t_epoch > message_t_epoch {
-                    debug!(
-                        %message_t_epoch,
-                        %current_t_epoch,
-                        "Ignoring past-epoch APQ message"
-                    );
-                    return Ok(ProcessMessageResult::Ignored);
-                }
-                // A future-epoch message means we are behind and the caller
-                // must trigger a resync.
-                return Ok(ProcessMessageResult::ResyncRequired(
-                    ResyncReason::FutureEpoch,
-                ));
+            Ok(processed_message) => processed_message,
+            Err(ApqProcessMessageError::Processing(error)) => {
+                return self.handle_process_message_error(error, message_t_epoch);
             }
-            Err(ApqProcessMessageError::Processing(ProcessMessageError::InvalidCommit(
-                StageCommitError::VirtualClientsError(
-                    error @ VirtualClientsError::MissingDerivationEpochState
-                    | error @ VirtualClientsError::MissingOperationTree
-                    | error @ VirtualClientsError::OperationGenerationConsumed
-                    | error @ VirtualClientsError::OperationGenerationTooDistant,
-                ),
-            ))) => {
-                // See the T-only variant: we cannot derive the leaf a sibling
-                // emulator client replaced, so only a resync recovers.
-                error!(
-                    %error,
-                    "Cannot follow a virtual-client APQ commit onto our shared leaf"
-                );
-                return Ok(ProcessMessageResult::ResyncRequired(
-                    ResyncReason::VirtualClientDesync,
-                ));
-            }
-            Err(ApqProcessMessageError::Processing(ProcessMessageError::ValidationError(
-                ValidationError::UnableToDecrypt(MessageDecryptionError::SecretTreeError(
-                    SecretTreeError::SecretReuseError,
-                )),
-            ))) if self.own_leaf_is_virtual_client() => {
-                debug!("Ignoring our own echoed APQ application message");
-                return Ok(ProcessMessageResult::Ignored);
-            }
-            Err(e) => {
-                return Err(e).context("Failed to process APQ message");
-            }
+            Err(error) => return Err(error).context("Failed to process APQ message"),
         };
 
         // The PQ message carries no Air-level semantics, so the only post-processing we need to do
@@ -495,6 +400,59 @@ impl Group {
         }
 
         Ok(res)
+    }
+
+    /// Maps recoverable message processing errors to a result, fails otherwise.
+    fn handle_process_message_error(
+        &self,
+        error: ProcessMessageError<sqlx::Error>,
+        message_epoch: GroupEpoch,
+    ) -> Result<ProcessMessageResult> {
+        match error {
+            ProcessMessageError::ValidationError(ValidationError::WrongEpoch) => {
+                // If the message epoch is in the past, we can just
+                // ignore it: our pending commit was already merged via
+                // the `DsCommitResponse`, so a replayed or stale delivery
+                // is one epoch behind. Skip quietly rather than logging
+                // an error.
+                if self.mls_group.epoch() > message_epoch {
+                    debug!(
+                        ?message_epoch,
+                        current_epoch = ?self.mls_group.epoch(),
+                        "Ignoring past-epoch message"
+                    );
+                    return Ok(ProcessMessageResult::Ignored);
+                }
+                // If the message epoch is in the future, we need to re-join
+                // the group.
+                Ok(ProcessMessageResult::ResyncRequired(
+                    ResyncReason::FutureEpoch,
+                ))
+            }
+            ProcessMessageError::InvalidCommit(StageCommitError::VirtualClientsError(
+                error @ (VirtualClientsError::MissingDerivationEpochState
+                | VirtualClientsError::MissingOperationTree
+                | VirtualClientsError::OperationGenerationConsumed
+                | VirtualClientsError::OperationGenerationTooDistant),
+            )) => {
+                // The commit was not built against a virtual client derivation epoch we hold.
+                // Only a resync can get us back onto the same shared leaf.
+                error!(
+                    %error,
+                    "Cannot follow a virtual-client commit onto our shared leaf"
+                );
+                Ok(ProcessMessageResult::ResyncRequired(
+                    ResyncReason::VirtualClientDesync,
+                ))
+            }
+            ProcessMessageError::ValidationError(ValidationError::UnableToDecrypt(
+                MessageDecryptionError::SecretTreeError(SecretTreeError::SecretReuseError),
+            )) if self.own_leaf_is_virtual_client() => {
+                debug!("Ignoring our own echoed application message");
+                Ok(ProcessMessageResult::Ignored)
+            }
+            error => bail!("Could not process message: {error:?}"),
+        }
     }
 }
 

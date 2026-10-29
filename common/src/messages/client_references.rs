@@ -304,8 +304,6 @@ impl VerifiedStruct<VerifiableClientReferences> for VerifiedClientReferences {
 
 #[cfg(test)]
 mod tests {
-    use tls_codec::Serialize as _;
-
     use crate::{
         crypto::{hpke::HpkeEncryptable, signatures::signable::SignContent},
         identifiers::{ClientConfig, QsClientId, SealedClientReference},

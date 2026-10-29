@@ -15,7 +15,6 @@ use aircommon::{
         default_group_required_extensions, default_leaf_node_capabilities,
         default_sender_ratchet_configuration, self_group_leaf_node_capabilities,
     },
-    time::TimeStamp,
 };
 use airprotos::client::{
     app_data::{ClientAppData, GroupAppData},
@@ -38,8 +37,7 @@ use crate::{
     chats::GroupDataExt,
     db::access::WriteConnection,
     groups::{
-        Group, PqGroup, commit::update::client_reference_extension,
-        openmls_provider::AirOpenMlsProvider,
+        Group, commit::update::client_reference_extension, openmls_provider::AirOpenMlsProvider,
     },
 };
 
@@ -157,11 +155,8 @@ impl Group {
             signature_key: signer.credential().verifying_key().clone().into(),
         };
 
-        let leaf_node_extensions = if vc_group_id.is_some() {
-            ClientAppData::current_virtual_client().leaf_node_extensions()
-        } else {
-            ClientAppData::current().leaf_node_extensions()
-        };
+        let leaf_node_extensions =
+            ClientAppData::current_for(vc_group_id.is_some()).leaf_node_extensions();
         let mut builder = MlsGroup::builder()
             .with_group_id(group_id.clone())
             .with_capabilities(default_leaf_node_capabilities())
@@ -193,18 +188,14 @@ impl Group {
             pq: None,
         };
 
-        let group = Self {
+        let group = Self::new(
             identity_link_wrapper_key,
+            group_state_ear_key,
             mls_group,
+            None,
             room_state,
-            group_state_ear_key: group_state_ear_key.clone(),
-            pending_diff: None,
-            self_updated_at: Some(TimeStamp::now()),
-            pq: None,
-            pending_commit_failed: false,
-            send_message_collision_key: None,
-            own_user_id: signer.credential().user_id().clone(),
-        };
+            signer.credential().user_id().clone(),
+        );
 
         Ok((group, params))
     }
@@ -265,7 +256,9 @@ impl Group {
             LeafSigningKey::SelfGroup(_) => self_group_leaf_node_capabilities(),
         };
 
-        let mut leaf_node_extensions = ClientAppData::current().leaf_node_extensions();
+        // Both leaves carry the virtual-client marker, as they do on the external-commit join path.
+        let mut leaf_node_extensions =
+            ClientAppData::current_for(vc_group_id.is_some()).leaf_node_extensions();
         if let Some(client_reference) = creator_client_reference {
             leaf_node_extensions.add(client_reference_extension(client_reference)?)?;
         }
@@ -286,12 +279,7 @@ impl Group {
             .emulation_group(matches!(signer, LeafSigningKey::SelfGroup(_)))
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY);
         if let Some(vc_group_id) = vc_group_id {
-            // Both leaves carry the virtual-client marker, as they do on the
-            // external-commit join path.
-            let leaf_extensions = ClientAppData::current_virtual_client().leaf_node_extensions();
-            builder = builder
-                .with_leaf_node_extensions(leaf_extensions.clone(), leaf_extensions)?
-                .vc_emulation(vc_group_id);
+            builder = builder.vc_emulation(vc_group_id);
         }
         let (t_group, pq_group) = builder
             .build(&provider, signer, apq_credential_with_key)?
@@ -314,22 +302,14 @@ impl Group {
             }),
         };
 
-        let now = TimeStamp::now();
-        let group = Self {
+        let group = Self::new(
             identity_link_wrapper_key,
-            mls_group: t_group,
-            room_state,
             group_state_ear_key,
-            pending_diff: None,
-            self_updated_at: Some(now),
-            pq: Some(PqGroup {
-                mls_group: pq_group,
-                self_updated_at: Some(now),
-            }),
-            pending_commit_failed: false,
-            send_message_collision_key: None,
+            t_group,
+            Some(pq_group),
+            room_state,
             own_user_id,
-        };
+        );
 
         Ok((group, params))
     }
