@@ -25,7 +25,7 @@ use crate::errors::ResyncClientError;
 use super::{
     apq::ApqExternalCommit,
     client_references::ClientReferencesSnapshot,
-    group_state::{DsGroupState, leaf_credential_matches_flag},
+    group_state::{DsGroupState, leaf_credential_is_valid},
 };
 
 /// Outcome of a resync: the message to distribute, plus the queue of the leaf the
@@ -127,7 +127,11 @@ impl DsGroupState {
                 error!(%error, "Resync leaf credential is invalid");
                 ResyncClientError::InvalidMessage
             })?;
-        if !leaf_credential_matches_flag(&new_credential, self.is_self_group()) {
+        if !leaf_credential_is_valid(
+            &new_credential,
+            new_leaf.signature_key().as_slice(),
+            self.is_self_group(),
+        ) {
             error!("Resync leaf credential does not match group kind");
             return Err(ResyncClientError::InvalidMessage);
         }
@@ -224,7 +228,7 @@ impl DsGroupState {
             t_staged_commit,
             pq_staged_commit,
             aad: _,
-            t_new_leaf: _,
+            t_new_leaf,
             pq_new_leaf: _,
             new_credential: t_new_credential,
             new_sender_index: t_new_sender_index,
@@ -241,7 +245,11 @@ impl DsGroupState {
 
         // The resyncing sender's fresh T leaf must match the group kind. The PQ leaf is bound to it
         // by the shared signature key.
-        if !leaf_credential_matches_flag(&t_new_credential, t_group_state.is_self_group()) {
+        if !leaf_credential_is_valid(
+            &t_new_credential,
+            t_new_leaf.signature_key().as_slice(),
+            t_group_state.is_self_group(),
+        ) {
             error!("Resync leaf credential does not match group kind");
             return Err(ResyncClientError::InvalidMessage);
         }

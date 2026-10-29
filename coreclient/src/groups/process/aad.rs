@@ -172,19 +172,26 @@ impl Group {
         let (new_sender_credential, new_sender_leaf_key) =
             update_path_leaf_node_info(staged_commit)?;
 
-        // TODO: Verify if new_sender_leaf_key is the same as new_sender_credential verifying_key
         if let Some((new_credential, old_credential)) =
             user_credential_transition(new_sender_credential, sender_credential, "update path")?
-            && new_credential != old_credential
         {
-            verify_and_store_credential(
-                txn,
-                api_clients,
-                new_credential,
-                new_sender_leaf_key,
-                Some(&old_credential),
-            )
-            .await?;
+            if new_credential == old_credential {
+                // The credential was verified when the member entered the group, but the update
+                // path can still rotate the leaf signature key.
+                ensure!(
+                    new_credential.verifying_key().as_slice() == new_sender_leaf_key.as_slice(),
+                    "update path rotates the signature key without a new credential"
+                );
+            } else {
+                verify_and_store_credential(
+                    txn,
+                    api_clients,
+                    new_credential,
+                    new_sender_leaf_key,
+                    Some(&old_credential),
+                )
+                .await?;
+            }
         }
 
         // Process a resync if this is one
