@@ -38,6 +38,7 @@ import 'content.dart';
 import 'product_shot.dart';
 import 'product_shot_device.dart';
 import 'device_shot.dart';
+import 'linux_window_frame.dart';
 
 /// Override with `--dart-define=GOLDENS_DIR=path/to/dir`.
 const _goldensDir = String.fromEnvironment(
@@ -59,6 +60,9 @@ const _renderAllPlatforms = bool.fromEnvironment(
 /// both. This repo records the marketing shots; the device shots are recorded
 /// into the private campaign directories, which pass
 /// `--dart-define=SHOT_VARIANT=device`.
+///
+/// Linux is the exception: Flathub takes plain window screenshots, so its
+/// marketing shot is the app in a GNOME window, and it has no device shot.
 const _shotVariant = String.fromEnvironment(
   'SHOT_VARIANT',
   defaultValue: 'marketing',
@@ -81,6 +85,7 @@ const _productShotsMatrix = [
     hostPlatform: 'linux',
     targetPlatform: TargetPlatform.android,
   ),
+  ProductShotInfo(hostPlatform: 'linux', targetPlatform: TargetPlatform.linux),
 ];
 
 /// The marketing canvas size for a framed product shot, distinct from the
@@ -113,7 +118,8 @@ String _platformSlug(TargetPlatform platform) => switch (platform) {
   _ => throw "Unsupported platform",
 };
 
-/// The hand-declared device the tinted marketing bezel is drawn around.
+/// The hand-declared device the tinted marketing bezel or the Linux window is
+/// drawn around.
 ProductShotDevice _marketingDeviceFor(TargetPlatform platform) =>
     ProductShotDevices.forPlatform(switch (platform) {
       TargetPlatform.android => ProductShotPlatform.android,
@@ -150,9 +156,9 @@ class ProductShotInfo {
 
 /// Providers + app scaffolding shared by every product shot subject.
 ///
-/// [shot] is a [ProductShot] for the marketing variant or a [DeviceShotFrame]
-/// for the device one, which also centers it on a transparent background
-/// instead of stretching it under the marketing canvas.
+/// [shot] is a [ProductShot] for the marketing variant, or a [DeviceShotFrame]
+/// or [LinuxWindowFrame] for the frameless shots, which also centers it on a
+/// transparent background instead of stretching it under the marketing canvas.
 Widget _buildProductShotSubject({
   required List<SingleChildWidget> providers,
   required Widget shot,
@@ -221,6 +227,7 @@ class _ProductShotSpec {
     required this.darkPalette,
     required this.buildProviders,
     required this.buildScreen,
+    this.hasWindowShot = true,
   });
 
   final String goldenPrefix;
@@ -233,6 +240,9 @@ class _ProductShotSpec {
   buildProviders;
 
   final Widget Function(TargetPlatform platform) buildScreen;
+
+  /// Whether to record the Linux window shot.
+  final bool hasWindowShot;
 
   /// Read only for the marketing shots, so a content set recording just the
   /// device shots can leave the copy out.
@@ -252,6 +262,8 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
   group(groupName, () {
     for (final productShotInfo in _productShotsMatrix) {
       final platform = productShotInfo.targetPlatform;
+      final windowShot = platform == TargetPlatform.linux;
+      if (windowShot && (!_marketingShots || !spec.hasWindowShot)) continue;
 
       for (final brightness in Brightness.values) {
         final palette = spec.paletteFor(brightness);
@@ -268,48 +280,70 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
             ? marketingDevice.name
             : deviceShotDevice.name;
 
+        // The marketing canvas is a store-mandated pixel size. The frameless
+        // shots have no such size, so they take the frame scaled by the
+        // device's own pixel ratio, landing near a real screenshot's
+        // resolution.
+        final Size logicalSize;
+        if (windowShot) {
+          logicalSize =
+              LinuxWindowFrame.sizeFor(marketingDevice.screenSize) *
+              marketingDevice.pixelRatio;
+        } else if (_marketingShots) {
+          logicalSize = _canvasSizeFor(platform);
+        } else {
+          logicalSize =
+              deviceShotDevice.frameBounds.size * deviceShotDevice.exportScale;
+        }
+
         testProductShot(
           "$groupName ($name$variantSuffix)",
           productShotInfo: productShotInfo,
-          // The marketing canvas is a store-mandated pixel size. A device
-          // shot has no such size, so it takes the device's artwork scaled by
-          // its own pixel ratio, landing near a real screenshot's resolution.
-          logicalSize: _marketingShots
-              ? _canvasSizeFor(platform)
-              : deviceShotDevice.frameBounds.size *
-                    deviceShotDevice.exportScale,
+          logicalSize: logicalSize,
           (tester) async {
             final screen = InterfaceScale(child: spec.buildScreen(platform));
+            final Widget shot;
+            if (windowShot) {
+              shot = LinuxWindowFrame(
+                screenSize: marketingDevice.screenSize,
+                devicePixelRatio: marketingDevice.pixelRatio,
+                title: 'Air',
+                scale: marketingDevice.pixelRatio,
+                child: screen,
+              );
+            } else if (_marketingShots) {
+              shot = ProductShot(
+                size: _canvasSizeFor(platform),
+                backgroundColor: palette.backgroundColor,
+                titleColor: palette.titleColor,
+                subtitleColor: palette.subtitleColor,
+                frameColor: palette.frameColor,
+                title: spec.copy.title,
+                subtitle: spec.copy.subtitle,
+                brightness: brightness,
+                device: marketingDevice,
+                child: screen,
+              );
+            } else {
+              shot = DeviceShotFrame(
+                device: deviceShotDevice,
+                scale: deviceShotDevice.exportScale,
+                child: screen,
+              );
+            }
             await tester.pumpWidget(
               _buildProductShotSubject(
                 providers: spec.buildProviders(platform),
                 brightness: brightness,
-                frameless: !_marketingShots,
-                shot: _marketingShots
-                    ? ProductShot(
-                        size: _canvasSizeFor(platform),
-                        backgroundColor: palette.backgroundColor,
-                        titleColor: palette.titleColor,
-                        subtitleColor: palette.subtitleColor,
-                        frameColor: palette.frameColor,
-                        title: spec.copy.title,
-                        subtitle: spec.copy.subtitle,
-                        brightness: brightness,
-                        device: marketingDevice,
-                        child: screen,
-                      )
-                    : DeviceShotFrame(
-                        device: deviceShotDevice,
-                        scale: deviceShotDevice.exportScale,
-                        child: screen,
-                      ),
+                frameless: windowShot || !_marketingShots,
+                shot: shot,
               ),
             );
             await _precacheImages(tester);
             await tester.pumpAndSettle();
 
             await expectLater(
-              find.byType(_marketingShots ? ProductShot : DeviceShotFrame),
+              find.byType(shot.runtimeType),
               matchesGoldenFile(
                 _golden("${spec.goldenPrefix}.$identifier$goldenSuffix.png"),
               ),
@@ -323,6 +357,9 @@ void _testProductShots(String groupName, _ProductShotSpec spec) {
 
 _ProductShotSpec _chatListSpec() => _ProductShotSpec(
   goldenPrefix: 'chat_list',
+  // The desktop chat list opens a chat, so its window shot would repeat the
+  // private chat one.
+  hasWindowShot: false,
   lightPalette: _ShotPalette(
     backgroundColor: Primitive.neutral(NeutralShade.s100),
     titleColor: Primitive.neutral(NeutralShade.s800),
