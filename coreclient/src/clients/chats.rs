@@ -16,7 +16,13 @@ use tracing::{debug, error};
 use crate::{
     ChatAttributes, ChatStatus, ChatType, MessageDraft, MessageId, UserProfile,
     chats::{
-        Chat, messages::ChatMessage, notification_rebuild::ChatNotificationRebuildSet, persistence,
+        Chat,
+        messages::{
+            ChatMessage,
+            edit::{MessageVersion, load_versions},
+        },
+        notification_rebuild::ChatNotificationRebuildSet,
+        persistence,
     },
     groups::Group,
     job::{
@@ -214,6 +220,22 @@ impl CoreUser {
         ChatMessage::load(self.db().read().await?, message_id)
             .await
             .map_err(Into::into)
+    }
+
+    /// Loads all versions of a message, oldest first, ending with the current
+    /// one.
+    pub async fn message_versions(
+        &self,
+        message_id: MessageId,
+    ) -> anyhow::Result<Vec<MessageVersion>> {
+        self.db()
+            .with_read_transaction(async |txn| {
+                let message = ChatMessage::load(&mut *txn, message_id)
+                    .await?
+                    .with_context(|| format!("message not found: {message_id:?}"))?;
+                load_versions(txn, &message).await
+            })
+            .await
     }
 
     pub async fn first_unread_message(

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE message_edit SET created_at = ? WHERE mimi_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "57d3d431d9c8fa91f873c818b03d1d020260da042d1f08bc938bb388eea435fe"
+}

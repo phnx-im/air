@@ -2178,6 +2178,162 @@ as bool,
 }
 
 /// @nodoc
+mixin _$UiMessageVersion {
+
+ UiMimiContent get content; DateTime get createdAt;
+/// Create a copy of UiMessageVersion
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiMessageVersionCopyWith<UiMessageVersion> get copyWith => _$UiMessageVersionCopyWithImpl<UiMessageVersion>(this as UiMessageVersion, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  final _this = this as UiMessageVersion;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiMessageVersion&&(identical(other.content, _this.content) || other.content == _this.content)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt));
+}
+
+
+@override
+int get hashCode {
+  final _this = this as UiMessageVersion;
+  return Object.hash(runtimeType,_this.content,_this.createdAt);
+}
+
+@override
+String toString() {
+  final _this = this as UiMessageVersion;
+  return 'UiMessageVersion(content: ${_this.content}, createdAt: ${_this.createdAt})';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiMessageVersionCopyWith<$Res>  {
+  factory $UiMessageVersionCopyWith(UiMessageVersion value, $Res Function(UiMessageVersion) _then) = _$UiMessageVersionCopyWithImpl;
+@useResult
+$Res call({
+ UiMimiContent content, DateTime createdAt
+});
+
+
+$UiMimiContentCopyWith<$Res> get content;
+
+}
+/// @nodoc
+class _$UiMessageVersionCopyWithImpl<$Res>
+    implements $UiMessageVersionCopyWith<$Res> {
+  _$UiMessageVersionCopyWithImpl(this._self, this._then);
+
+  final UiMessageVersion _self;
+  final $Res Function(UiMessageVersion) _then;
+
+/// Create a copy of UiMessageVersion
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? content = null,Object? createdAt = null,}) {
+  return _then(UiMessageVersion(
+content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
+as UiMimiContent,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as DateTime,
+  ));
+}
+/// Create a copy of UiMessageVersion
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$UiMimiContentCopyWith<$Res> get content {
+  
+  return $UiMimiContentCopyWith<$Res>(_self.content, (value) {
+    return _then(_self.copyWith(content: value));
+  });
+}
+}
+
+
+
+/// @nodoc
+
+
+class _UiMessageVersion implements UiMessageVersion {
+  const _UiMessageVersion({required this.content, required this.createdAt});
+  
+
+@override final  UiMimiContent content;
+@override final  DateTime createdAt;
+
+/// Create a copy of UiMessageVersion
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$UiMessageVersionCopyWith<_UiMessageVersion> get copyWith => __$UiMessageVersionCopyWithImpl<_UiMessageVersion>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiMessageVersion&&(identical(other.content, content) || other.content == content)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,content,createdAt);
+}
+
+@override
+String toString() {
+    return 'UiMessageVersion(content: $content, createdAt: $createdAt)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$UiMessageVersionCopyWith<$Res> implements $UiMessageVersionCopyWith<$Res> {
+  factory _$UiMessageVersionCopyWith(_UiMessageVersion value, $Res Function(_UiMessageVersion) _then) = __$UiMessageVersionCopyWithImpl;
+@override @useResult
+$Res call({
+ UiMimiContent content, DateTime createdAt
+});
+
+
+@override $UiMimiContentCopyWith<$Res> get content;
+
+}
+/// @nodoc
+class __$UiMessageVersionCopyWithImpl<$Res>
+    implements _$UiMessageVersionCopyWith<$Res> {
+  __$UiMessageVersionCopyWithImpl(this._self, this._then);
+
+  final _UiMessageVersion _self;
+  final $Res Function(_UiMessageVersion) _then;
+
+/// Create a copy of UiMessageVersion
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? content = null,Object? createdAt = null,}) {
+  return _then(_UiMessageVersion(
+content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
+as UiMimiContent,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as DateTime,
+  ));
+}
+
+/// Create a copy of UiMessageVersion
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$UiMimiContentCopyWith<$Res> get content {
+  
+  return $UiMimiContentCopyWith<$Res>(_self.content, (value) {
+    return _then(_self.copyWith(content: value));
+  });
+}
+}
+
+/// @nodoc
 mixin _$UiReaction {
 
  String get emoji; List<UiUserId> get users;

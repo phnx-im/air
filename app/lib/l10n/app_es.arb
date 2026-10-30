@@ -349,6 +349,12 @@
   "messageContextMenu_delete": "Eliminar",
   "messageContextMenu_save": "Guardar",
   "messageContextMenu_share": "Compartir",
+  "messageContextMenu_info": "Información",
+  "messageDetails_title": "Detalles del mensaje",
+  "messageDetails_sent": "Enviado el {date}, {time}",
+  "messageDetails_edited": "Editado el {date}, {time}",
+  "messageDetails_editHistory": "Historial de ediciones",
+  "messageDetails_error": "No se pudieron cargar los detalles del mensaje. Inténtalo de nuevo.",
   "messageContextMenu_saveError": "No se pudo guardar el archivo adjunto",
   "messageContextMenu_saveConfirmation": "Archivo adjunto guardado",
 
