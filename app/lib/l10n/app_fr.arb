@@ -475,6 +475,7 @@
   "memberSelectionList_cantBeAddedDescription": "Ces personnes ne peuvent pas être ajoutées au groupe. Leur compte n'est peut-être plus actif ou leur version de l'application est trop ancienne.",
   "homeTab_chats": "Discussions",
   "homeTab_profile": "Profil",
+  "messageList_empty": "Aucun message dans cette discussion",
   "messageList_newMessages": "Nouveaux messages",
   "messageList_reactions_react": "Réagir",
   "messageList_reactions_remove": "Retirer",

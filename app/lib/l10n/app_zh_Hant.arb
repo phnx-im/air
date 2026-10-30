@@ -459,6 +459,7 @@
   "memberSelectionList_cantBeAddedDescription": "這些人無法新增至群組。可能是因為他們的帳號已無法使用，或是 App 版本過舊。",
   "homeTab_chats": "聊天",
   "homeTab_profile": "我",
+  "messageList_empty": "這個聊天中沒有訊息",
   "messageList_newMessages": "新訊息",
   "messageList_reactions_react": "回應",
   "messageList_reactions_remove": "移除",

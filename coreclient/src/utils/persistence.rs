@@ -25,7 +25,7 @@ use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::{
-    chats::messages::edit::purge_stale_deleted_messages,
+    chats::messages::{edit::purge_stale_deleted_messages, persistence::backfill_event_ids},
     clients::{
         attachment::persistence::move_attachment_content_to_side_table,
         own_client_info::OwnClientInfo, store::ClientRecord,
@@ -347,6 +347,7 @@ enum RustMigration {
     StaleDeletedMessagesPurge = 20260817150100,
     AttachmentContentMove = 20260831123717,
     VcDerivationEpochRetention = 20260902120000,
+    EventIdBackfill = 20261027120000,
 }
 
 impl RustMigration {
@@ -356,6 +357,7 @@ impl RustMigration {
             20260817150100 => Some(Self::StaleDeletedMessagesPurge),
             20260831123717 => Some(Self::AttachmentContentMove),
             20260902120000 => Some(Self::VcDerivationEpochRetention),
+            20261027120000 => Some(Self::EventIdBackfill),
             _ => None,
         }
     }
@@ -371,6 +373,7 @@ impl RustMigration {
             RustMigration::VcDerivationEpochRetention => {
                 migrate_vc_derivation_epoch_retention(write).await?
             }
+            RustMigration::EventIdBackfill => backfill_event_ids(write).await?,
         }
         Ok(())
     }

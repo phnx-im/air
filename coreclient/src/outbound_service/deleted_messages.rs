@@ -5,15 +5,13 @@
 //! Tells sibling clients which messages were deleted locally, using a
 //! [`SelfGroupAppMessage`].
 
-use aircommon::{identifiers::MimiId, time::TimeStamp};
-use airprotos::client::self_group::{
-    DeletedMessages, MAX_DELETED_MESSAGES_PER_MESSAGE, SelfGroupAppMessage,
-};
+use aircommon::time::TimeStamp;
+use airprotos::client::self_group::{MAX_DELETED_MESSAGES_PER_MESSAGE, SelfGroupAppMessage};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    chats::messages::persistence,
+    chats::messages::persistence::{self, DeletedMessageId},
     db::access::WriteDbTransaction,
     outbound_service::{error::OutboundServiceError, retry::RetryPolicy},
 };
@@ -25,9 +23,9 @@ impl OutboundService {
     pub(crate) async fn enqueue_deleted_message_in_transaction(
         &self,
         txn: &mut WriteDbTransaction<'_>,
-        mimi_id: &MimiId,
+        id: DeletedMessageId,
     ) -> anyhow::Result<()> {
-        persistence::store_outgoing_deletion(txn, mimi_id).await?;
+        persistence::store_outgoing_deletion(txn, id).await?;
         self.notify_work();
         Ok(())
     }
@@ -46,7 +44,7 @@ impl OutboundServiceContext {
         if due.is_empty() {
             return Ok(());
         }
-        let staged: Vec<MimiId> = due.iter().map(|(mimi_id, _)| *mimi_id).collect();
+        let staged: Vec<DeletedMessageId> = due.iter().map(|(id, _)| *id).collect();
 
         let chat = match self
             .self_chat_for_app_message()
@@ -72,16 +70,15 @@ impl OutboundServiceContext {
             if run_token.is_cancelled() {
                 return Ok(());
             }
-            let batch: Vec<MimiId> = due_batch.iter().map(|(mimi_id, _)| *mimi_id).collect();
+            let batch: Vec<DeletedMessageId> = due_batch.iter().map(|(id, _)| *id).collect();
             let batch = batch.as_slice();
             let attempts = due_batch
                 .iter()
                 .map(|(_, attempts)| *attempts)
                 .max()
                 .unwrap_or_default();
-            let app_message = SelfGroupAppMessage::DeletedMessages(DeletedMessages {
-                mimi_ids: batch.to_vec(),
-            });
+            let app_message =
+                SelfGroupAppMessage::DeletedMessages(persistence::deleted_messages(batch));
             let result = self.send_self_group_message(&chat, app_message).await;
             match policy.fatal_when_exhausted(result, attempts) {
                 Ok(SendOutcome::Sent) => {
@@ -126,10 +123,10 @@ impl OutboundServiceContext {
         Ok(())
     }
 
-    async fn remove_staged_deletions(&self, mimi_ids: &[MimiId]) -> anyhow::Result<()> {
+    async fn remove_staged_deletions(&self, ids: &[DeletedMessageId]) -> anyhow::Result<()> {
         self.db
             .with_write_transaction(async |txn| {
-                Ok(persistence::remove_staged_deletion(txn, mimi_ids).await?)
+                Ok(persistence::remove_staged_deletion(txn, ids).await?)
             })
             .await
     }

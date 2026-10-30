@@ -645,7 +645,7 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        ChatAttributes, ChatMessage, contacts::UsernameContact, db::access::DbAccess,
+        ChatAttributes, MessageId, contacts::UsernameContact, db::access::DbAccess,
         utils::persistence::open_db_in_memory_before,
     };
 
@@ -718,15 +718,16 @@ mod tests {
                 let sender = UserId::random("example.com".parse()?);
                 let via_username =
                     store_legacy_request(txn, &sender, Some(&username), at(120)).await?;
-                ChatMessage::new_system_message(
-                    via_username,
-                    at(60),
-                    SystemMessage::ReceivedHandleConnectionRequest {
-                        sender: sender.clone(),
-                        user_handle: username.clone(),
-                    },
+                sqlx::query(
+                    "INSERT INTO message (message_id, chat_id, timestamp, content, sent)
+                    VALUES (?, ?, ?, ?, ?)",
                 )
-                .store(&mut *txn)
+                .bind(MessageId::random())
+                .bind(via_username)
+                .bind(at(60))
+                .bind(Vec::<u8>::new())
+                .bind(true)
+                .execute(txn.as_mut())
                 .await?;
                 UsernameContact::new(
                     username.clone(),

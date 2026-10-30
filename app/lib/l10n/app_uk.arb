@@ -459,6 +459,7 @@
   "memberSelectionList_cantBeAddedDescription": "Цих людей не можна додати до групи. Можливо, їхній обліковий запис більше не активний або в них застаріла версія застосунку.",
   "homeTab_chats": "Чати",
   "homeTab_profile": "Профіль",
+  "messageList_empty": "У цьому чаті немає повідомлень",
   "messageList_newMessages": "Нові повідомлення",
   "messageList_reactions_react": "Реакція",
   "messageList_reactions_remove": "Прибрати",

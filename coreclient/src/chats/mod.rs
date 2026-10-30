@@ -210,6 +210,18 @@ impl Chat {
         )
     }
 
+    pub fn is_open_request(&self) -> bool {
+        if self.status.is_inactive() {
+            return false;
+        }
+        match self.chat_type {
+            ChatType::PendingConnection(_)
+            | ChatType::HandleConnection(_)
+            | ChatType::TargetedMessageConnection(_) => true,
+            ChatType::Connection(_) | ChatType::Group(_) => false,
+        }
+    }
+
     pub fn status(&self) -> &ChatStatus {
         &self.status
     }

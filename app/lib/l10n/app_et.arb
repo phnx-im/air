@@ -459,6 +459,7 @@
   "memberSelectionList_cantBeAddedDescription": "Neid inimesi ei saa gruppi lisada. Põhjus võib olla see, et nende konto ei ole enam aktiivne või nende rakenduse versioon on liiga vana.",
   "homeTab_chats": "Vestlused",
   "homeTab_profile": "Sina",
+  "messageList_empty": "Selles vestluses pole sõnumeid",
   "messageList_newMessages": "Uued sõnumid",
   "messageList_reactions_react": "Reageeri",
   "messageList_reactions_remove": "Eemalda",

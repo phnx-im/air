@@ -28,6 +28,7 @@ import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/emoji/emoji_picker.dart';
 import 'package:air/features/emoji/emoji_repository.dart';
 import 'package:air/features/emoji/jumbo_emoji.dart';
+import 'package:air/features/message_list/delete_for_me_dialog.dart';
 import 'package:air/features/message_list/image_viewer.dart';
 import 'package:air/features/message_list/jump_highlight.dart';
 import 'package:air/features/message_list/message_band.dart';
@@ -901,7 +902,7 @@ List<MessageAction> _messageActions(
         if (isSender && isSent && !isDeleted && !isSelfChat) {
           _showDeleteMessageDialog(context: context, messageId: messageId);
         } else {
-          _showDeleteForMeDialog(context: context, messageId: messageId);
+          showDeleteForMeDialog(context: context, messageId: messageId);
         }
       },
     ),
@@ -1224,29 +1225,6 @@ void _showDeleteMessageDialog({
       },
       secondaryType: ButtonType.secondary,
       secondaryTone: ButtonTone.danger,
-    ),
-  );
-}
-
-void _showDeleteForMeDialog({
-  required BuildContext context,
-  required MessageId messageId,
-}) {
-  final loc = AppLocalizations.of(context);
-  final cubit = context.read<ChatDetailsCubit>();
-
-  showAdaptiveModal(
-    context: context,
-    builder: (modalContext) => AdaptiveDialogContent(
-      title: loc.deleteMessageForMeDialog_title,
-      description: loc.deleteMessageForMeDialog_description,
-      primaryActionText: loc.deleteMessageForMeDialog_delete,
-      onPrimaryAction: (_) {
-        AppHaptics.destructive();
-        cubit.deleteMessage(messageId: messageId, deleteMode: DeleteMode.forMe);
-      },
-      primaryType: ButtonType.secondary,
-      primaryTone: ButtonTone.danger,
     ),
   );
 }

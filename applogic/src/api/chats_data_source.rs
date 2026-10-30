@@ -389,7 +389,7 @@ mod tests {
             id: ChatId::random(),
             status: UiChatStatus::Active,
             chat_type,
-            last_used: Local::now(),
+            last_used: Some(Local::now()),
             unread_messages: 0,
             last_message: None,
             last_reaction: None,

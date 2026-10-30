@@ -142,7 +142,7 @@ class UiChatDetails {
   final ChatId id;
   final UiChatStatus status;
   final UiChatType chatType;
-  final DateTime lastUsed;
+  final DateTime? lastUsed;
   final int unreadMessages;
   final UiChatMessage? lastMessage;
   final UiLastReaction? lastReaction;
@@ -161,7 +161,7 @@ class UiChatDetails {
     required this.id,
     required this.status,
     required this.chatType,
-    required this.lastUsed,
+    this.lastUsed,
     required this.unreadMessages,
     this.lastMessage,
     this.lastReaction,

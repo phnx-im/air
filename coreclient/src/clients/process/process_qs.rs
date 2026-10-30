@@ -1109,7 +1109,9 @@ impl CoreUser {
             && let Ok(content) = &content
             && let Some(message) = content.self_group_message()
         {
-            let changed_chats = self.handle_self_group_app_message(txn, message).await?;
+            let changed_chats = self
+                .handle_self_group_app_message(txn, message, ds_timestamp)
+                .await?;
             return Ok(HandledMessages {
                 changed_chats,
                 ..Default::default()
@@ -1253,6 +1255,7 @@ impl CoreUser {
         &self,
         txn: &mut WriteDbTransaction<'_>,
         message: SelfGroupAppMessage,
+        ds_timestamp: TimeStamp,
     ) -> anyhow::Result<Vec<ChatId>> {
         match message {
             SelfGroupAppMessage::RedeemedTokens(redeemed) => {
@@ -1260,6 +1263,17 @@ impl CoreUser {
                 Ok(Vec::new())
             }
             SelfGroupAppMessage::DeletedMessages(deleted) => {
+                // Each device expires requests on its own. The sibling may have
+                // deleted the messages of a request that expired there, before
+                // our own expiry ran.
+                if !deleted.event_ids.is_empty() {
+                    Box::pin(request_expiry::expire_due(
+                        txn,
+                        self.signing_key(),
+                        *ds_timestamp,
+                    ))
+                    .await?;
+                }
                 apply_deleted_messages(txn, &deleted).await
             }
             SelfGroupAppMessage::Unknown => {

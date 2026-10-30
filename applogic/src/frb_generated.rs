@@ -13103,7 +13103,7 @@ impl SseDecode for crate::api::types::UiChatDetails {
         let mut var_id = <crate::api::types::ChatId>::sse_decode(deserializer);
         let mut var_status = <crate::api::types::UiChatStatus>::sse_decode(deserializer);
         let mut var_chatType = <crate::api::types::UiChatType>::sse_decode(deserializer);
-        let mut var_lastUsed = <chrono::DateTime<chrono::Local>>::sse_decode(deserializer);
+        let mut var_lastUsed = <Option<chrono::DateTime<chrono::Local>>>::sse_decode(deserializer);
         let mut var_unreadMessages = <usize>::sse_decode(deserializer);
         let mut var_lastMessage =
             <Option<crate::api::types::UiChatMessage>>::sse_decode(deserializer);
@@ -20040,7 +20040,7 @@ impl SseEncode for crate::api::types::UiChatDetails {
         <crate::api::types::ChatId>::sse_encode(self.id, serializer);
         <crate::api::types::UiChatStatus>::sse_encode(self.status, serializer);
         <crate::api::types::UiChatType>::sse_encode(self.chat_type, serializer);
-        <chrono::DateTime<chrono::Local>>::sse_encode(self.last_used, serializer);
+        <Option<chrono::DateTime<chrono::Local>>>::sse_encode(self.last_used, serializer);
         <usize>::sse_encode(self.unread_messages, serializer);
         <Option<crate::api::types::UiChatMessage>>::sse_encode(self.last_message, serializer);
         <Option<crate::api::types::UiLastReaction>>::sse_encode(self.last_reaction, serializer);

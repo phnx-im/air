@@ -103,6 +103,8 @@ void main() {
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1));
       when(() => usersCubit.state)
           .thenReturn(MockUsersState(profiles: userProfiles));
+      when(() => chatDetailsCubit.state)
+          .thenReturn(const ChatDetailsState(members: []));
       when(
         () => chatDetailsCubit.markAsRead(
           untilMessageId: any(named: 'untilMessageId'),
