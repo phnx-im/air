@@ -351,6 +351,12 @@
   "messageContextMenu_delete": "Löschen",
   "messageContextMenu_save": "Speichern",
   "messageContextMenu_share": "Teilen",
+  "messageContextMenu_info": "Info",
+  "messageDetails_title": "Nachrichtendetails",
+  "messageDetails_sent": "Gesendet am {date} um {time}",
+  "messageDetails_edited": "Bearbeitet am {date} um {time}",
+  "messageDetails_editHistory": "Bearbeitungsverlauf",
+  "messageDetails_error": "Nachrichtendetails konnten nicht geladen werden. Bitte versuche es erneut.",
   "messageContextMenu_saveError": "Anhang konnte nicht gespeichert werden",
   "messageContextMenu_saveConfirmation": "Anhang gespeichert",
 

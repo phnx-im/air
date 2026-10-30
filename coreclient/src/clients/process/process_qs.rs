@@ -45,7 +45,7 @@ use crate::{
     chats::{
         GroupDataExt, StatusRecord,
         messages::{
-            edit::{MessageEdit, handle_message_edit},
+            edit::{MessageEdit, confirm_own_edit, handle_message_edit},
             persistence::apply_deleted_messages,
         },
         outgoing_requests, persistence,
@@ -1327,6 +1327,7 @@ impl CoreUser {
                     .await?;
                 if !is_deletion {
                     existing.set_edited_at(ds_timestamp);
+                    confirm_own_edit(&mut *txn, &existing, ds_timestamp).await?;
                 }
                 existing.update(&mut *txn).await?;
             } else {

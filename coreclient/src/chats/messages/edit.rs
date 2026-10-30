@@ -14,9 +14,63 @@ use crate::{
     ChatMessage, ContentMessage, MessageId,
     chats::{StatusRecord, reactions::Reaction},
     clients::attachment::AttachmentRecord,
-    db::access::{WriteConnection, WriteDbTransaction},
+    db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
     outbound_service::receipt_queue::ReceiptQueue,
 };
+
+/// One version of a message
+#[derive(Debug, Clone, PartialEq)]
+pub struct MessageVersion {
+    pub content: MimiContent,
+    /// When the original was sent, or when the edit was made.
+    pub created_at: TimeStamp,
+}
+
+/// Loads all versions of `message`, oldest first, ending with the current one.
+pub(crate) async fn load_versions(
+    connection: impl ReadConnection,
+    message: &ChatMessage,
+) -> anyhow::Result<Vec<MessageVersion>> {
+    let current = message
+        .message()
+        .mimi_content()
+        .context("Message does not have mimi content")?
+        .clone();
+    let edits = MessageEdit::load_by_message_id(connection, message.id()).await?;
+
+    let mut versions = Vec::with_capacity(edits.len() + 1);
+    let mut created_at = TimeStamp::from(message.timestamp());
+    for (replaced_at, content) in edits {
+        versions.push(MessageVersion {
+            content,
+            created_at,
+        });
+        created_at = replaced_at;
+    }
+    versions.push(MessageVersion {
+        content: current,
+        created_at,
+    });
+    Ok(versions)
+}
+
+/// Stamps an own edit with its DS timestamp, once the DS accepted it.
+pub(crate) async fn confirm_own_edit(
+    connection: impl WriteConnection,
+    message: &ChatMessage,
+    ds_timestamp: TimeStamp,
+) -> anyhow::Result<()> {
+    let Some(replaces) = message
+        .message()
+        .mimi_content()
+        .and_then(|content| content.replaces.as_deref())
+    else {
+        return Ok(());
+    };
+    let replaced_mimi_id = MimiId::from_slice(replaces)?;
+    MessageEdit::set_created_at(connection, &replaced_mimi_id, ds_timestamp).await?;
+    Ok(())
+}
 
 pub(crate) struct MessageEdit<'a> {
     mimi_id: &'a MimiId,
@@ -207,7 +261,7 @@ pub(crate) async fn handle_message_edit(
 }
 
 mod persistence {
-    use aircommon::codec::BlobEncoded;
+    use aircommon::codec::{BlobDecoded, BlobEncoded};
     use sqlx::{query, query_scalar};
 
     use crate::{
@@ -235,6 +289,43 @@ mod persistence {
                 self.message_id,
                 self.created_at,
                 versioned_message,
+            )
+            .execute(connection.as_mut())
+            .await?;
+            Ok(())
+        }
+
+        /// Loads the replaced versions of a message with the times they were
+        /// replaced, oldest first.
+        pub(crate) async fn load_by_message_id(
+            mut connection: impl ReadConnection,
+            message_id: MessageId,
+        ) -> anyhow::Result<Vec<(TimeStamp, MimiContent)>> {
+            let rows = query!(
+                r#"SELECT
+                    created_at AS "created_at: TimeStamp",
+                    content AS "content: BlobDecoded<VersionedMessage>"
+                FROM message_edit
+                WHERE message_id = ?
+                ORDER BY created_at, rowid"#,
+                message_id,
+            )
+            .fetch_all(connection.as_mut())
+            .await?;
+            rows.into_iter()
+                .map(|row| Ok((row.created_at, row.content.into_inner().to_mimi_content()?)))
+                .collect()
+        }
+
+        pub(crate) async fn set_created_at(
+            mut connection: impl WriteConnection,
+            mimi_id: &MimiId,
+            created_at: TimeStamp,
+        ) -> sqlx::Result<()> {
+            query!(
+                "UPDATE message_edit SET created_at = ? WHERE mimi_id = ?",
+                created_at,
+                mimi_id,
             )
             .execute(connection.as_mut())
             .await?;
@@ -271,13 +362,17 @@ mod persistence {
 #[cfg(test)]
 mod tests {
     use aircommon::identifiers::MimiId;
+    use chrono::{TimeDelta, Utc};
     use mimi_content::MimiContent;
     use sqlx::SqlitePool;
     use uuid::Uuid;
 
     use crate::{
-        MessageId,
-        chats::{messages::persistence::tests::test_chat_message, persistence::tests::test_chat},
+        Chat, MessageId,
+        chats::{
+            messages::persistence::tests::{store_test_chat_message, test_chat_message},
+            persistence::tests::test_chat,
+        },
         db::access::{DbAccess, WriteConnection},
     };
 
@@ -1089,6 +1184,115 @@ mod tests {
             .await?
             .unwrap();
         assert_eq!(&bob_message.in_reply_to().unwrap().0, deleted_mimi_id);
+
+        Ok(())
+    }
+
+    async fn receive_edit(
+        pool: &DbAccess,
+        chat: &Chat,
+        message: &ChatMessage,
+        content: MimiContent,
+        ds_timestamp: TimeStamp,
+    ) -> anyhow::Result<ChatMessage> {
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+        let edited = handle_message_edit(
+            &mut txn,
+            chat.group_id(),
+            ds_timestamp,
+            message.message().sender().unwrap(),
+            *message.message().mimi_id().unwrap(),
+            content,
+        )
+        .await?;
+        edited.update(&mut txn).await?;
+        txn.commit().await?;
+        Ok(edited)
+    }
+
+    fn text(text: &str) -> MimiContent {
+        MimiContent::simple_markdown_message(text.to_owned(), [0; 16])
+    }
+
+    fn texts(versions: &[MessageVersion]) -> Vec<String> {
+        versions
+            .iter()
+            .map(|version| version.content.string_rendering().unwrap())
+            .collect()
+    }
+
+    #[sqlx::test]
+    async fn versions_are_listed_oldest_first(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let alice = UserId::random("localhost".parse().unwrap());
+
+        let sent_at = TimeStamp::from(Utc::now() - TimeDelta::hours(1));
+        let first_edit_at = TimeStamp::from(*sent_at + TimeDelta::minutes(10));
+        let second_edit_at = TimeStamp::from(*sent_at + TimeDelta::minutes(20));
+        let message = store_test_chat_message(&pool, &chat, &alice, true, sent_at).await?;
+        let message = receive_edit(&pool, &chat, &message, text("v1"), first_edit_at).await?;
+        receive_edit(&pool, &chat, &message, text("v2"), second_edit_at).await?;
+
+        let loaded = ChatMessage::load(pool.read().await?, message.id())
+            .await?
+            .unwrap();
+        let versions = load_versions(pool.read().await?, &loaded).await?;
+        assert_eq!(texts(&versions), ["v0", "v1", "v2"]);
+        let created_at: Vec<_> = versions.iter().map(|version| version.created_at).collect();
+        assert_eq!(created_at, [sent_at, first_edit_at, second_edit_at]);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn unedited_message_has_one_version(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let alice = UserId::random("localhost".parse().unwrap());
+
+        let sent_at = TimeStamp::now();
+        let message = store_test_chat_message(&pool, &chat, &alice, true, sent_at).await?;
+
+        let versions = load_versions(pool.read().await?, &message).await?;
+        assert_eq!(texts(&versions), ["v0"]);
+        assert_eq!(versions[0].created_at, sent_at);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn confirming_own_edit_stamps_ds_time(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let alice = UserId::random("localhost".parse().unwrap());
+
+        let mut message =
+            store_test_chat_message(&pool, &chat, &alice, true, TimeStamp::now()).await?;
+        let original_content = message.message().mimi_content().unwrap().clone();
+        let original_mimi_id = *message.message().mimi_id().unwrap();
+        let edited_at = TimeStamp::from(Utc::now() - TimeDelta::minutes(5));
+        MessageEdit::new(
+            &original_mimi_id,
+            message.id(),
+            edited_at,
+            &original_content,
+        )
+        .store(pool.write().await?)
+        .await?;
+        let mut edit = text("v1");
+        edit.replaces = Some(original_mimi_id.as_slice().to_vec());
+        message.set_content_message(ContentMessage::new(alice, false, edit, chat.group_id()));
+
+        let ds_timestamp = TimeStamp::now();
+        confirm_own_edit(pool.write().await?, &message, ds_timestamp).await?;
+
+        let edits = MessageEdit::load_by_message_id(pool.read().await?, message.id()).await?;
+        assert_eq!(edits, [(ds_timestamp, original_content)]);
 
         Ok(())
     }

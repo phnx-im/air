@@ -349,6 +349,12 @@
   "messageContextMenu_delete": "Radera",
   "messageContextMenu_save": "Spara",
   "messageContextMenu_share": "Dela",
+  "messageContextMenu_info": "Info",
+  "messageDetails_title": "Meddelandedetaljer",
+  "messageDetails_sent": "Skickat den {date} kl. {time}",
+  "messageDetails_edited": "Redigerat den {date} kl. {time}",
+  "messageDetails_editHistory": "Redigeringshistorik",
+  "messageDetails_error": "Kunde inte läsa in meddelandedetaljerna. Försök igen.",
   "messageContextMenu_saveError": "Kunde inte spara bilagan",
   "messageContextMenu_saveConfirmation": "Bilagan sparad",
 

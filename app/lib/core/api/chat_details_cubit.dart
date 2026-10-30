@@ -62,6 +62,12 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
     required DateTime untilTimestamp,
   });
 
+  /// Loads all versions of a message, oldest first, ending with the current
+  /// one.
+  Future<List<UiMessageVersion>> messageVersions({
+    required MessageId messageId,
+  });
+
   /// Mute notifications for this chat until the given datetime.
   /// Pass `None` to unmute.
   Future<void> muteChat({UiChatMuted? mutedUntil});
