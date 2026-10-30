@@ -1281,7 +1281,7 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_send_message_impl(
             let api_message_text = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::api::chat_details_cubit::UiSendMessageError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -13277,11 +13277,16 @@ impl SseDecode for crate::api::types::UiContentMessage {
         let mut var_content =
             <crate::api::message_content::UiMimiContent>::sse_decode(deserializer);
         let mut var_edited = <bool>::sse_decode(deserializer);
+        let mut var_editableUntil =
+            <Option<chrono::DateTime<chrono::Local>>>::sse_decode(deserializer);
+        let mut var_editsLeft = <u32>::sse_decode(deserializer);
         return crate::api::types::UiContentMessage {
             sender: var_sender,
             sent: var_sent,
             content: var_content,
             edited: var_edited,
+            editable_until: var_editableUntil,
+            edits_left: var_editsLeft,
         };
     }
 }
@@ -13538,6 +13543,30 @@ impl SseDecode for crate::api::types::UiRequestGroupChat {
             1 => {
                 let mut var_field0 = <crate::api::types::ChatId>::sse_decode(deserializer);
                 return crate::api::types::UiRequestGroupChat::Chat(var_field0);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
+impl SseDecode for crate::api::chat_details_cubit::UiSendMessageError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                return crate::api::chat_details_cubit::UiSendMessageError::EditWindowPassed;
+            }
+            1 => {
+                return crate::api::chat_details_cubit::UiSendMessageError::EditLimitReached;
+            }
+            2 => {
+                let mut var_message = <String>::sse_decode(deserializer);
+                return crate::api::chat_details_cubit::UiSendMessageError::Other {
+                    message: var_message,
+                };
             }
             _ => {
                 unimplemented!("");
@@ -16553,6 +16582,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiContentMessage {
             self.sent.into_into_dart().into_dart(),
             self.content.into_into_dart().into_dart(),
             self.edited.into_into_dart().into_dart(),
+            self.editable_until.into_into_dart().into_dart(),
+            self.edits_left.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -16917,6 +16948,36 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiRequestGroupChat>
     for crate::api::types::UiRequestGroupChat
 {
     fn into_into_dart(self) -> crate::api::types::UiRequestGroupChat {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::chat_details_cubit::UiSendMessageError {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            crate::api::chat_details_cubit::UiSendMessageError::EditWindowPassed => {
+                [0.into_dart()].into_dart()
+            }
+            crate::api::chat_details_cubit::UiSendMessageError::EditLimitReached => {
+                [1.into_dart()].into_dart()
+            }
+            crate::api::chat_details_cubit::UiSendMessageError::Other { message } => {
+                [2.into_dart(), message.into_into_dart().into_dart()].into_dart()
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::chat_details_cubit::UiSendMessageError
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::chat_details_cubit::UiSendMessageError>
+    for crate::api::chat_details_cubit::UiSendMessageError
+{
+    fn into_into_dart(self) -> crate::api::chat_details_cubit::UiSendMessageError {
         self
     }
 }
@@ -20112,6 +20173,8 @@ impl SseEncode for crate::api::types::UiContentMessage {
         <bool>::sse_encode(self.sent, serializer);
         <crate::api::message_content::UiMimiContent>::sse_encode(self.content, serializer);
         <bool>::sse_encode(self.edited, serializer);
+        <Option<chrono::DateTime<chrono::Local>>>::sse_encode(self.editable_until, serializer);
+        <u32>::sse_encode(self.edits_left, serializer);
     }
 }
 
@@ -20319,6 +20382,27 @@ impl SseEncode for crate::api::types::UiRequestGroupChat {
             crate::api::types::UiRequestGroupChat::Chat(field0) => {
                 <i32>::sse_encode(1, serializer);
                 <crate::api::types::ChatId>::sse_encode(field0, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
+impl SseEncode for crate::api::chat_details_cubit::UiSendMessageError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::api::chat_details_cubit::UiSendMessageError::EditWindowPassed => {
+                <i32>::sse_encode(0, serializer);
+            }
+            crate::api::chat_details_cubit::UiSendMessageError::EditLimitReached => {
+                <i32>::sse_encode(1, serializer);
+            }
+            crate::api::chat_details_cubit::UiSendMessageError::Other { message } => {
+                <i32>::sse_encode(2, serializer);
+                <String>::sse_encode(message, serializer);
             }
             _ => {
                 unimplemented!("");

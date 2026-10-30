@@ -11,7 +11,7 @@ use crate::{
     chats::{
         StatusRecord,
         messages::{
-            edit::{MessageEdit, purge_deleted_message},
+            edit::{MessageEdit, check_own_edit, purge_deleted_message},
             persistence::{self, DeletedMessageId},
         },
     },
@@ -217,6 +217,8 @@ impl UnsentContent {
             let edit_created_at = TimeStamp::now();
 
             if !is_deletion {
+                check_own_edit(&mut *txn, &replaces, sender, edit_created_at).await?;
+
                 // Store the edit
                 let edit = MessageEdit::new(
                     original_mimi_id,
@@ -274,5 +276,150 @@ impl UnsentContent {
         };
 
         Ok(message)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::identifiers::MimiId;
+    use chrono::{TimeDelta, Utc};
+    use sqlx::SqlitePool;
+
+    use crate::{
+        EDIT_WINDOW, MAX_EDITS, MessageEditError,
+        chats::{
+            messages::persistence::tests::store_test_chat_message, persistence::tests::test_chat,
+        },
+        db::access::{DbAccess, WriteConnection},
+    };
+
+    use super::*;
+
+    async fn replace(
+        pool: &DbAccess,
+        sender: &UserId,
+        original: &ChatMessage,
+        content: MimiContent,
+    ) -> anyhow::Result<ChatMessage> {
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+        let message = UnsentContent {
+            chat_id: original.chat_id(),
+            message_id: MessageId::random(),
+            content,
+        }
+        .store_unsent_message(&mut txn, sender, Some(original.clone()))
+        .await?;
+        txn.commit().await?;
+        Ok(message)
+    }
+
+    fn edit() -> MimiContent {
+        MimiContent::simple_markdown_message("edited".to_owned(), [1; 16])
+    }
+
+    fn edit_error(error: &anyhow::Error) -> Option<MessageEditError> {
+        error.downcast_ref::<MessageEditError>().copied()
+    }
+
+    #[sqlx::test]
+    async fn own_edit_beyond_limit_is_refused(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let alice = UserId::random("localhost".parse().unwrap());
+        let message = store_test_chat_message(&pool, &chat, &alice, true, TimeStamp::now()).await?;
+
+        let content = message.message().mimi_content().unwrap().clone();
+        for edit in 0..MAX_EDITS {
+            let mimi_id = MimiId::from_slice(&[u8::try_from(edit)?; 32])?;
+            MessageEdit::new(&mimi_id, message.id(), TimeStamp::now(), &content)
+                .store(pool.write().await?)
+                .await?;
+        }
+
+        let error = replace(&pool, &alice, &message, edit()).await.unwrap_err();
+        assert_eq!(edit_error(&error), Some(MessageEditError::LimitReached));
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn own_edit_after_window_is_refused(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let alice = UserId::random("localhost".parse().unwrap());
+        let sent_at = TimeStamp::from(Utc::now() - EDIT_WINDOW - TimeDelta::seconds(1));
+        let message = store_test_chat_message(&pool, &chat, &alice, true, sent_at).await?;
+
+        let error = replace(&pool, &alice, &message, edit()).await.unwrap_err();
+        assert_eq!(edit_error(&error), Some(MessageEditError::WindowPassed));
+
+        // Deleting is not bound to the window.
+        let deleted = replace(&pool, &alice, &message, message.null_part_content()?).await?;
+        assert!(deleted.message().is_deleted());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn own_edit_of_unsent_message_is_refused(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let alice = UserId::random("localhost".parse().unwrap());
+        let message =
+            store_test_chat_message(&pool, &chat, &alice, false, TimeStamp::now()).await?;
+
+        assert!(replace(&pool, &alice, &message, edit()).await.is_err());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn edit_of_other_users_message_is_refused(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let alice = UserId::random("localhost".parse().unwrap());
+        let bob = UserId::random("localhost".parse().unwrap());
+        let message = store_test_chat_message(&pool, &chat, &bob, true, TimeStamp::now()).await?;
+
+        assert!(replace(&pool, &alice, &message, edit()).await.is_err());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn own_edit_within_limits_is_stored(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let alice = UserId::random("localhost".parse().unwrap());
+        let sent_at = TimeStamp::from(Utc::now() - EDIT_WINDOW + TimeDelta::minutes(1));
+        let message = store_test_chat_message(&pool, &chat, &alice, true, sent_at).await?;
+
+        replace(&pool, &alice, &message, edit()).await?;
+
+        let loaded = ChatMessage::load(pool.read().await?, message.id())
+            .await?
+            .unwrap();
+        assert_eq!(
+            loaded.message().mimi_content(),
+            Some(&edit_with_replaces(&message))
+        );
+        assert_eq!(loaded.edits_left(), MAX_EDITS - 1);
+
+        Ok(())
+    }
+
+    fn edit_with_replaces(original: &ChatMessage) -> MimiContent {
+        let mut content = edit();
+        content.replaces = original
+            .message()
+            .mimi_id()
+            .map(|mimi_id| mimi_id.as_slice().to_vec());
+        content
     }
 }

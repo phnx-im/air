@@ -4,14 +4,13 @@
 
 //! Editing messages, incl. edits racing receipts and replayed edits.
 
-use std::time::Duration;
-
 use aircommon::identifiers::MimiId;
 use aircoreclient::{
-    ChatId, MessageId,
+    ChatId, EDIT_WINDOW, MAX_EDITS, MessageEditError, MessageId,
     clients::{CoreUser, MarkChatAsRead},
 };
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
+use chrono::Utc;
 use mimi_content::{MessageStatus, MimiContent};
 
 use super::stored_content;
@@ -55,9 +54,10 @@ async fn edit_is_delivered_when_original_receipt_is_still_queued() {
     assert_eq!(status, MessageStatus::Delivered);
 }
 
+/// The other members never received an unsent message, so an edit of it
+/// would replace a version they do not have.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[ignore = "edit of an unsent message is lost"]
-async fn edit_of_unsent_message_is_delivered() {
+async fn edit_of_unsent_message_is_refused() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -65,17 +65,102 @@ async fn edit_of_unsent_message_is_delivered() {
     alice.drain().await;
     bob.drain().await;
 
-    // Alice edits before the outbound service sent the original.
     let content = MimiContent::simple_markdown_message("hello".to_owned(), rand::random());
     let original = alice
         .send_message(chat_id, content, None, MarkChatAsRead::Yes)
         .await
         .unwrap();
     assert!(!original.is_sent());
-    alice.send_edit(&original, "edited").await;
+    let edit = MimiContent::simple_markdown_message("edited".to_owned(), rand::random());
+    let result = alice
+        .send_message(chat_id, edit, Some(original), MarkChatAsRead::Yes)
+        .await;
+    assert!(result.is_err());
 
+    alice.outbound_service().run_once().await;
     bob.drain().await;
-    assert_eq!(bob.text_messages(chat_id).await, ["edited"]);
+    assert_eq!(bob.text_messages(chat_id).await, ["hello"]);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn edit_limit_is_enforced_by_sender_and_receiver() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    alice.drain().await;
+    bob.drain().await;
+
+    let mut message = alice.send_text(chat_id, "v0").await;
+    for edit in 1..=MAX_EDITS {
+        message = alice.send_edit(&message, &format!("v{edit}")).await;
+    }
+    bob.drain().await;
+    let last_version = format!("v{MAX_EDITS}");
+    assert_eq!(
+        bob.text_messages(chat_id).await,
+        std::slice::from_ref(&last_version)
+    );
+
+    // Alice's client refuses another edit.
+    let edit = MimiContent::simple_markdown_message("one too many".to_owned(), rand::random());
+    let error = alice
+        .send_message(
+            chat_id,
+            edit.clone(),
+            Some(message.clone()),
+            MarkChatAsRead::Yes,
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error.downcast_ref::<MessageEditError>(),
+        Some(&MessageEditError::LimitReached)
+    );
+
+    // Bob ignores an edit that bypasses the check.
+    let mut edit = edit;
+    edit.replaces = message
+        .message()
+        .mimi_id()
+        .map(|mimi_id| mimi_id.as_slice().to_vec());
+    alice
+        .send_mimi_content_without_confirmation(chat_id, edit)
+        .await
+        .unwrap();
+    bob.drain().await;
+    assert_eq!(bob.text_messages(chat_id).await, [last_version]);
+}
+
+/// The last own message is what the edit shortcut picks up.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn last_editable_message_respects_edit_limits() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    alice.drain().await;
+    bob.drain().await;
+
+    let mut message = alice.send_text(chat_id, "v0").await;
+    let last_editable_id = async |now| {
+        alice
+            .last_editable_message(chat_id, now)
+            .await
+            .unwrap()
+            .map(|message| message.id())
+    };
+    assert_eq!(last_editable_id(Utc::now()).await, Some(message.id()));
+    let window_end = message.timestamp() + EDIT_WINDOW;
+    assert_eq!(last_editable_id(window_end).await, None);
+
+    for edit in 1..MAX_EDITS {
+        message = alice.send_edit(&message, &format!("v{edit}")).await;
+    }
+    assert_eq!(last_editable_id(Utc::now()).await, Some(message.id()));
+
+    alice.send_edit(&message, &format!("v{MAX_EDITS}")).await;
+    assert_eq!(last_editable_id(Utc::now()).await, None);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -188,39 +273,4 @@ async fn read_chat(user: &CoreUser, chat_id: ChatId) -> Vec<(MessageId, MimiId)>
 
 async fn own_message_status(user: &CoreUser, message_id: MessageId) -> MessageStatus {
     user.expect_message(message_id).await.status()
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-#[ignore = "an edit made while the original is being sent never reaches the peer"]
-async fn edit_during_send_is_delivered() {
-    let mut setup = TestBackend::single().await;
-    let [alice, bob] = setup.add_users().await;
-    let chat_id = setup.connect_users(&alice, &bob).await;
-    alice.drain().await;
-    bob.drain().await;
-
-    let content = MimiContent::simple_markdown_message("hello".to_owned(), rand::random());
-    let original = alice
-        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
-        .await
-        .unwrap();
-
-    // Alice edits while the DS holds the send of the original.
-    setup
-        .listener_control_handle()
-        .set_delay_next_request_to("SendMessage", Duration::from_millis(500));
-    let sender = alice.clone();
-    let send =
-        tokio::spawn(async move { sender.outbound_service().send_queued_messages_once().await });
-    tokio::time::sleep(Duration::from_millis(200)).await;
-    let edit = MimiContent::simple_markdown_message("edited".to_owned(), rand::random());
-    alice
-        .send_message(chat_id, edit, Some(original.clone()), MarkChatAsRead::Yes)
-        .await
-        .unwrap();
-    send.await.unwrap().unwrap();
-
-    alice.outbound_service().run_once().await;
-    bob.drain().await;
-    assert_eq!(bob.text_messages(chat_id).await, ["edited"]);
 }

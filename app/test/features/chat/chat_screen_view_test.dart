@@ -41,7 +41,12 @@ final _navState = NavigationState.home(
 
 /// One message per [id], spaced far enough apart that each row stands on its
 /// own rather than joining its neighbor's group.
-UiChatMessage _msg(int id, String text, {UiUserId? sender}) => UiChatMessage(
+UiChatMessage _msg(
+  int id,
+  String text, {
+  UiUserId? sender,
+  int editsLeft = 0,
+}) => UiChatMessage(
   id: id.messageId(),
   chatId: _chat.id,
   timestamp: DateTime.parse('2023-01-01T00:00:00.000Z')
@@ -57,6 +62,7 @@ UiChatMessage _msg(int id, String text, {UiUserId? sender}) => UiChatMessage(
         content: simpleMessage(text),
         attachments: [],
       ),
+      editsLeft: editsLeft,
     ),
   ),
   status: UiMessageStatus.sent,
@@ -324,9 +330,7 @@ void main() {
         );
       });
 
-      // State 5: Editing — cancel (X) on the left, confirm (check) on the
-      // right. The plus button is replaced by the cancel button.
-      testWidgets('editing', (tester) async {
+      void stageEdit() {
         when(() => chatDetailsCubit.state).thenReturn(
           ChatDetailsState(
             chat: _chatWithDraft(
@@ -341,6 +345,12 @@ void main() {
             members: members,
           ),
         );
+      }
+
+      // State 5: Editing — cancel (X) on the left, confirm (check) on the
+      // right. The plus button is replaced by the cancel button.
+      testWidgets('editing', (tester) async {
+        stageEdit();
         messageListCubit.setState([
           _msg(1, 'The user is editing one of their own messages.'),
           _msg(2, 'Cancel on the left, confirm on the right. No plus button.'),
@@ -359,6 +369,47 @@ void main() {
           find.byType(MaterialApp),
           matchesGoldenFile('goldens/composer_editing.png'),
         );
+      });
+
+      group('edit limits', () {
+        for (final (editsLeft, hint) in [
+          (3, '3 edits left'),
+          (2, '2 edits left'),
+          (1, 'Last edit'),
+        ]) {
+          testWidgets('banner shows $hint', (tester) async {
+            stageEdit();
+            messageListCubit.setState([
+              _msg(1, 'Original', sender: 1.userId(), editsLeft: editsLeft),
+            ]);
+
+            await tester.pumpWidget(buildSubject());
+            await tester.pump();
+
+            expect(
+              find.textContaining('Edit message · $hint', findRichText: true),
+              findsOneWidget,
+            );
+          });
+        }
+
+        testWidgets('banner leaves out the count while many edits are left', (
+          tester,
+        ) async {
+          stageEdit();
+          messageListCubit.setState([
+            _msg(1, 'Original', sender: 1.userId(), editsLeft: 4),
+          ]);
+
+          await tester.pumpWidget(buildSubject());
+          await tester.pump();
+
+          expect(
+            find.textContaining('Edit message', findRichText: true),
+            findsOneWidget,
+          );
+          expect(find.textContaining(' · ', findRichText: true), findsNothing);
+        });
       });
 
       // State 6: Quote (reply) — plus on the left, send arrow on the right.

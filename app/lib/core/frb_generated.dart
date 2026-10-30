@@ -2260,7 +2260,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_ui_send_message_error,
         ),
         constMeta:
             kCrateApiChatDetailsCubitChatDetailsCubitBaseSendMessageConstMeta,
@@ -11787,13 +11787,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiContentMessage dco_decode_ui_content_message(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return UiContentMessage(
       sender: dco_decode_ui_user_id(arr[0]),
       sent: dco_decode_bool(arr[1]),
       content: dco_decode_ui_mimi_content(arr[2]),
       edited: dco_decode_bool(arr[3]),
+      editableUntil: dco_decode_opt_box_autoadd_Chrono_Local(arr[4]),
+      editsLeft: dco_decode_u_32(arr[5]),
     );
   }
 
@@ -11991,6 +11993,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiRequestGroupChat_Title(dco_decode_String(raw[1]));
       case 1:
         return UiRequestGroupChat_Chat(dco_decode_box_autoadd_chat_id(raw[1]));
+      default:
+        throw Exception("unreachable");
+    }
+  }
+
+  @protected
+  UiSendMessageError dco_decode_ui_send_message_error(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return UiSendMessageError_EditWindowPassed();
+      case 1:
+        return UiSendMessageError_EditLimitReached();
+      case 2:
+        return UiSendMessageError_Other(message: dco_decode_String(raw[1]));
       default:
         throw Exception("unreachable");
     }
@@ -16029,11 +16046,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_sent = sse_decode_bool(deserializer);
     var var_content = sse_decode_ui_mimi_content(deserializer);
     var var_edited = sse_decode_bool(deserializer);
+    var var_editableUntil = sse_decode_opt_box_autoadd_Chrono_Local(
+      deserializer,
+    );
+    var var_editsLeft = sse_decode_u_32(deserializer);
     return UiContentMessage(
       sender: var_sender,
       sent: var_sent,
       content: var_content,
       edited: var_edited,
+      editableUntil: var_editableUntil,
+      editsLeft: var_editsLeft,
     );
   }
 
@@ -16247,6 +16270,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 1:
         var var_field0 = sse_decode_box_autoadd_chat_id(deserializer);
         return UiRequestGroupChat_Chat(var_field0);
+      default:
+        throw UnimplementedError('');
+    }
+  }
+
+  @protected
+  UiSendMessageError sse_decode_ui_send_message_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        return UiSendMessageError_EditWindowPassed();
+      case 1:
+        return UiSendMessageError_EditLimitReached();
+      case 2:
+        var var_message = sse_decode_String(deserializer);
+        return UiSendMessageError_Other(message: var_message);
       default:
         throw UnimplementedError('');
     }
@@ -20411,6 +20454,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.sent, serializer);
     sse_encode_ui_mimi_content(self.content, serializer);
     sse_encode_bool(self.edited, serializer);
+    sse_encode_opt_box_autoadd_Chrono_Local(self.editableUntil, serializer);
+    sse_encode_u_32(self.editsLeft, serializer);
   }
 
   @protected
@@ -20599,6 +20644,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case UiRequestGroupChat_Chat(field0: final field0):
         sse_encode_i_32(1, serializer);
         sse_encode_box_autoadd_chat_id(field0, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_ui_send_message_error(
+    UiSendMessageError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case UiSendMessageError_EditWindowPassed():
+        sse_encode_i_32(0, serializer);
+      case UiSendMessageError_EditLimitReached():
+        sse_encode_i_32(1, serializer);
+      case UiSendMessageError_Other(message: final message):
+        sse_encode_i_32(2, serializer);
+        sse_encode_String(message, serializer);
     }
   }
 
@@ -21131,6 +21193,9 @@ class ChatDetailsCubitBaseImpl extends RustOpaque
   ///
   /// The not yet sent message is immediately stored in the local store and then the message is
   /// send to the DS.
+  ///
+  /// When the draft edits a message that cannot be edited anymore, the draft
+  /// becomes a new message with the same text.
   Future<void> sendMessage({required String messageText}) => RustLib
       .instance
       .api

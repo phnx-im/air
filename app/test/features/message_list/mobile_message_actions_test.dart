@@ -151,6 +151,15 @@ final _mobileMessages = [
   ),
 ];
 
+/// The own message 4, which its sender can edit until [editableUntil].
+UiChatMessage _ownMessage({required DateTime? editableUntil}) {
+  final message = _mobileMessages[3];
+  final content = (message.message as UiMessage_Content).field0;
+  return message.copyWith(
+    message: UiMessage_Content(content.copyWith(editableUntil: editableUntil)),
+  );
+}
+
 MessageCubit _createMockMessageCubit({
   required UserCubit userCubit,
   required MessageState initialState,
@@ -242,6 +251,33 @@ void main() {
         matchesGoldenFile('goldens/message_list_mobile_actions.png'),
       );
     });
+
+    for (final (description, editableUntil, offersEdit) in [
+      (
+        'offers Edit within the edit window',
+        DateTime.now().add(const Duration(hours: 1)),
+        true,
+      ),
+      (
+        'hides Edit once the edit window has passed',
+        DateTime.now().subtract(const Duration(minutes: 1)),
+        false,
+      ),
+      ('hides Edit once no edits are left', null, false),
+    ]) {
+      testWidgets(description, (tester) async {
+        tester.view.physicalSize = _testSize;
+        addTearDown(tester.view.resetPhysicalSize);
+        messageListCubit.setState([_ownMessage(editableUntil: editableUntil)]);
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+        await tester.longPress(find.text('How are you doing?'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Edit'), offersEdit ? findsOneWidget : findsNothing);
+      });
+    }
 
     testWidgets('defers a picked reaction until the overlay is dismissed', (
       tester,

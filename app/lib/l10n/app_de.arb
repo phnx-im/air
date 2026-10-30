@@ -321,7 +321,11 @@
 
   "composer_inputHint": "Nachricht an {chatTitle}",
   "composer_editMessage": "Nachricht bearbeiten",
+  "composer_editsLeft": "{count, plural, one {Noch {count} Bearbeitung} other {Noch {count} Bearbeitungen}}",
+  "composer_lastEdit": "Letzte Bearbeitung",
   "composer_error_sendMessage": "Nachricht konnte nicht gesendet werden. Bitte versuche es erneut.",
+  "composer_error_editWindowPassed": "Nachrichten können nur innerhalb von 24 Stunden nach dem Senden bearbeitet werden. Dein Text bleibt als neue Nachricht erhalten.",
+  "composer_error_editLimitReached": "Nachrichten können nur 10-mal bearbeitet werden. Dein Text bleibt als neue Nachricht erhalten.",
   "composer_error_attachment": "Anhang konnte nicht hochgeladen werden. Bitte versuche es erneut.",
   "composer_error_attachment_decoding": "Das Bild konnte nicht dekodiert werden. Es ist möglicherweise beschädigt oder hat ein nicht unterstütztes Format.",
   "composer_error_attachment_too_large": "Der Anhang ist zu groß. Die maximale Größe beträgt {maxSize}, die tatsächliche Größe beträgt {actualSize}.",

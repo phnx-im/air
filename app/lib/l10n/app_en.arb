@@ -1674,9 +1674,30 @@
   "@composer_editMessage": {
     "description": "Header above the composer while an already sent message is being edited."
   },
+  "composer_editsLeft": "{count, plural, one {{count} edit left} other {{count} edits left}}",
+  "@composer_editsLeft": {
+    "description": "Shown after the \"Edit message\" header above the composer when two or three of the at most 10 edits of a message are left. Provide the plural forms your language needs.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "composer_lastEdit": "Last edit",
+  "@composer_lastEdit": {
+    "description": "Shown after the \"Edit message\" header above the composer when the edit being made is the last of the at most 10 edits of a message."
+  },
   "composer_error_sendMessage": "Failed to send message. Try again.",
   "@composer_error_sendMessage": {
     "description": "Error shown when sending a message fails."
+  },
+  "composer_error_editWindowPassed": "Messages can only be edited within 24 hours of sending. Your text is kept as a new message.",
+  "@composer_error_editWindowPassed": {
+    "description": "Error shown when an edit of a message is sent more than 24 hours after the message was sent. The typed text stays in the composer without the edit header, and sending it again sends it as a new message."
+  },
+  "composer_error_editLimitReached": "Messages can only be edited 10 times. Your text is kept as a new message.",
+  "@composer_error_editLimitReached": {
+    "description": "Error shown when an edit of a message is sent after the message was already edited 10 times. The typed text stays in the composer without the edit header, and sending it again sends it as a new message."
   },
   "composer_error_attachment": "Failed to upload attachment. Try again.",
   "@composer_error_attachment": {
