@@ -45,6 +45,7 @@ import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/platform/haptics.dart';
+import 'package:air/util/time/app_clock.dart';
 import 'package:flutter/gestures.dart'
     show EagerGestureRecognizer, kSecondaryMouseButton;
 import 'package:flutter/material.dart';
@@ -441,6 +442,7 @@ class _MessageShell extends StatelessWidget {
       context,
       commands: commands,
       content: contentMessage.content,
+      editableUntil: contentMessage.editableUntil,
       isSender: isSender,
       isDeleted: isDeleted,
       isReplyable: isReplyable,
@@ -851,6 +853,7 @@ List<MessageAction> _messageActions(
   BuildContext context, {
   required _MessageCommands commands,
   required UiMimiContent content,
+  required DateTime? editableUntil,
   required bool isSender,
   required bool isDeleted,
   required bool isReplyable,
@@ -861,6 +864,8 @@ List<MessageAction> _messageActions(
   final plainBody = content.plainBody?.trim();
   final attachments = content.attachments;
   final messageId = commands.messageId;
+  final now = AppClock.maybeOf(context)?.value ?? DateTime.now();
+  final isEditable = editableUntil != null && now.isBefore(editableUntil);
 
   return [
     if (isReplyable)
@@ -875,7 +880,7 @@ List<MessageAction> _messageActions(
         leading: const AppIcon.copy(size: _menuIconSize),
         onSelected: () => Clipboard.setData(ClipboardData(text: plainBody)),
       ),
-    if (isSender && attachments.isEmpty && !isDeleted)
+    if (isSender && attachments.isEmpty && isEditable)
       MessageAction(
         label: loc.messageContextMenu_edit,
         leading: const AppIcon.pencil(size: _menuIconSize),

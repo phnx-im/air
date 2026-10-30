@@ -157,6 +157,169 @@ as List<UiUserId>,
 }
 
 /// @nodoc
+mixin _$UiSendMessageError {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSendMessageError);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'UiSendMessageError()';
+}
+
+
+}
+
+/// @nodoc
+class $UiSendMessageErrorCopyWith<$Res>  {
+$UiSendMessageErrorCopyWith(UiSendMessageError _, $Res Function(UiSendMessageError) __);
+}
+
+
+
+/// @nodoc
+
+
+class UiSendMessageError_EditWindowPassed extends UiSendMessageError {
+  const UiSendMessageError_EditWindowPassed(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSendMessageError_EditWindowPassed);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'UiSendMessageError.editWindowPassed()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class UiSendMessageError_EditLimitReached extends UiSendMessageError {
+  const UiSendMessageError_EditLimitReached(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSendMessageError_EditLimitReached);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'UiSendMessageError.editLimitReached()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class UiSendMessageError_Other extends UiSendMessageError {
+  const UiSendMessageError_Other({required this.message}): super._();
+  
+
+ final  String message;
+
+/// Create a copy of UiSendMessageError
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiSendMessageError_OtherCopyWith<UiSendMessageError_Other> get copyWith => _$UiSendMessageError_OtherCopyWithImpl<UiSendMessageError_Other>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSendMessageError_Other&&(identical(other.message, message) || other.message == message));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,message);
+}
+
+@override
+String toString() {
+    return 'UiSendMessageError.other(message: $message)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiSendMessageError_OtherCopyWith<$Res> implements $UiSendMessageErrorCopyWith<$Res> {
+  factory $UiSendMessageError_OtherCopyWith(UiSendMessageError_Other value, $Res Function(UiSendMessageError_Other) _then) = _$UiSendMessageError_OtherCopyWithImpl;
+@useResult
+$Res call({
+ String message
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiSendMessageError_OtherCopyWithImpl<$Res>
+    implements $UiSendMessageError_OtherCopyWith<$Res> {
+  _$UiSendMessageError_OtherCopyWithImpl(this._self, this._then);
+
+  final UiSendMessageError_Other _self;
+  final $Res Function(UiSendMessageError_Other) _then;
+
+/// Create a copy of UiSendMessageError
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? message = null,}) {
+  return _then(UiSendMessageError_Other(
+message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$UploadAttachmentError {
 
 

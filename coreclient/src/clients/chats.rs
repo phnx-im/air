@@ -240,15 +240,19 @@ impl CoreUser {
         Ok(ChatMessage::last_message(self.db().read().await?, chat_id).await?)
     }
 
-    pub async fn last_message_by_user(
+    /// The own last message in the chat, if it can still be edited at `now`.
+    pub async fn last_editable_message(
         &self,
         chat_id: ChatId,
-        user_id: &UserId,
+        now: DateTime<Utc>,
     ) -> anyhow::Result<Option<ChatMessage>> {
-        Ok(
-            ChatMessage::last_content_message_by_user(self.db().read().await?, chat_id, user_id)
-                .await?,
+        let message = ChatMessage::last_content_message_by_user(
+            self.db().read().await?,
+            chat_id,
+            self.user_id(),
         )
+        .await?;
+        Ok(message.filter(|message| message.editable_until().is_some_and(|until| now < until)))
     }
 
     pub async fn message_draft(&self, chat_id: ChatId) -> anyhow::Result<Option<MessageDraft>> {

@@ -7,6 +7,7 @@ use aircommon::{
     time::TimeStamp,
 };
 use anyhow::{Context, ensure};
+use chrono::{DateTime, TimeDelta, Utc};
 use mimi_content::{MessageStatus, MimiContent};
 use openmls::group::GroupId;
 
@@ -14,9 +15,79 @@ use crate::{
     ChatMessage, ContentMessage, MessageId,
     chats::{StatusRecord, reactions::Reaction},
     clients::attachment::AttachmentRecord,
-    db::access::{WriteConnection, WriteDbTransaction},
+    db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
     outbound_service::receipt_queue::ReceiptQueue,
 };
+
+/// How long after sending a message its sender can edit it.
+pub const EDIT_WINDOW: TimeDelta = TimeDelta::hours(24);
+
+/// How often the sender can edit a message.
+pub const MAX_EDITS: u32 = 10;
+
+/// How much later than [`EDIT_WINDOW`] receivers still accept an edit.
+const EDIT_WINDOW_GRACE: TimeDelta = TimeDelta::hours(1);
+
+/// The reason why a message cannot be edited anymore
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum MessageEditError {
+    #[error("The edit window of the message has passed")]
+    WindowPassed,
+    #[error("The message was edited the maximum number of times")]
+    LimitReached,
+}
+
+fn check_edit_limits(
+    sent_at: DateTime<Utc>,
+    edit_count: u32,
+    edited_at: DateTime<Utc>,
+    window: TimeDelta,
+) -> Result<(), MessageEditError> {
+    if edit_count >= MAX_EDITS {
+        return Err(MessageEditError::LimitReached);
+    }
+    if edited_at >= sent_at + window {
+        return Err(MessageEditError::WindowPassed);
+    }
+    Ok(())
+}
+
+/// Checks that `message` can still take an edit made at `edited_at`, given
+/// the edit window `window`.
+async fn check_edit(
+    connection: impl ReadConnection,
+    message: &ChatMessage,
+    edited_at: TimeStamp,
+    window: TimeDelta,
+) -> anyhow::Result<()> {
+    ensure!(
+        !message.message().is_deleted(),
+        "A deleted message cannot be edited"
+    );
+    let edit_count = MessageEdit::count_by_message_id(connection, message.id()).await?;
+    check_edit_limits(message.timestamp(), edit_count, *edited_at, window)?;
+    Ok(())
+}
+
+/// Checks that `sender` can still edit their own `message` at `now`.
+pub(crate) async fn check_own_edit(
+    connection: impl ReadConnection,
+    message: &ChatMessage,
+    sender: &UserId,
+    now: TimeStamp,
+) -> anyhow::Result<()> {
+    ensure!(
+        message.message().sender() == Some(sender),
+        "Only the sender of a message can edit it"
+    );
+    // Until the DS confirmed the message, an edit would replace a version the
+    // other members never received.
+    ensure!(
+        message.is_sent(),
+        "A message cannot be edited before it is sent"
+    );
+    check_edit(connection, message, now, EDIT_WINDOW).await
+}
 
 pub(crate) struct MessageEdit<'a> {
     mimi_id: &'a MimiId,
@@ -161,6 +232,14 @@ pub(crate) async fn handle_message_edit(
     );
 
     if !is_delete {
+        check_edit(
+            &mut *txn,
+            &message,
+            ds_timestamp,
+            EDIT_WINDOW + EDIT_WINDOW_GRACE,
+        )
+        .await?;
+
         // Store message edit
         MessageEdit::new(
             original_mimi_id,
@@ -241,6 +320,21 @@ mod persistence {
             Ok(())
         }
 
+        pub(crate) async fn count_by_message_id(
+            mut connection: impl ReadConnection,
+            message_id: MessageId,
+        ) -> sqlx::Result<u32> {
+            let count = query_scalar!(
+                "SELECT COUNT(*) FROM message_edit WHERE message_id = ?",
+                message_id,
+            )
+            .fetch_one(connection.as_mut())
+            .await?;
+            // A count is never negative. Saturating keeps the edit limit in
+            // force.
+            Ok(u32::try_from(count).unwrap_or(u32::MAX))
+        }
+
         pub(crate) async fn find_message_id(
             mut connection: impl ReadConnection,
             mimi_id: &MimiId,
@@ -276,8 +370,11 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        MessageId,
-        chats::{messages::persistence::tests::test_chat_message, persistence::tests::test_chat},
+        Chat, MessageId,
+        chats::{
+            messages::persistence::tests::{store_test_chat_message, test_chat_message},
+            persistence::tests::test_chat,
+        },
         db::access::{DbAccess, WriteConnection},
     };
 
@@ -1089,6 +1186,163 @@ mod tests {
             .await?
             .unwrap();
         assert_eq!(&bob_message.in_reply_to().unwrap().0, deleted_mimi_id);
+
+        Ok(())
+    }
+
+    #[test]
+    fn edit_limits() {
+        let sent_at = Utc::now();
+        let last_moment = sent_at + EDIT_WINDOW - TimeDelta::seconds(1);
+        assert_eq!(
+            check_edit_limits(sent_at, MAX_EDITS - 1, last_moment, EDIT_WINDOW),
+            Ok(())
+        );
+        assert_eq!(
+            check_edit_limits(sent_at, MAX_EDITS, sent_at, EDIT_WINDOW),
+            Err(MessageEditError::LimitReached)
+        );
+        assert_eq!(
+            check_edit_limits(sent_at, 0, sent_at + EDIT_WINDOW, EDIT_WINDOW),
+            Err(MessageEditError::WindowPassed)
+        );
+    }
+
+    async fn receive_edit(
+        pool: &DbAccess,
+        chat: &Chat,
+        message: &ChatMessage,
+        content: MimiContent,
+        ds_timestamp: TimeStamp,
+    ) -> anyhow::Result<ChatMessage> {
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+        let edited = handle_message_edit(
+            &mut txn,
+            chat.group_id(),
+            ds_timestamp,
+            message.message().sender().unwrap(),
+            *message.message().mimi_id().unwrap(),
+            content,
+        )
+        .await?;
+        edited.update(&mut txn).await?;
+        txn.commit().await?;
+        Ok(edited)
+    }
+
+    fn text(text: &str) -> MimiContent {
+        MimiContent::simple_markdown_message(text.to_owned(), [0; 16])
+    }
+
+    #[sqlx::test]
+    async fn incoming_edit_beyond_limit_is_rejected(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let alice = UserId::random("localhost".parse().unwrap());
+
+        let mut message =
+            store_test_chat_message(&pool, &chat, &alice, true, TimeStamp::now()).await?;
+        for edit in 1..=MAX_EDITS {
+            let content = text(&format!("v{edit}"));
+            message = receive_edit(&pool, &chat, &message, content, TimeStamp::now()).await?;
+        }
+
+        let error = receive_edit(&pool, &chat, &message, text("v11"), TimeStamp::now())
+            .await
+            .unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<MessageEditError>(),
+            Some(&MessageEditError::LimitReached)
+        );
+
+        let loaded = ChatMessage::load(pool.read().await?, message.id())
+            .await?
+            .unwrap();
+        let rendered = loaded
+            .message()
+            .mimi_content()
+            .unwrap()
+            .string_rendering()?;
+        assert_eq!(rendered, format!("v{MAX_EDITS}"));
+        assert_eq!(loaded.edits_left(), 0);
+        assert_eq!(loaded.editable_until(), None);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn incoming_edit_after_window_is_rejected(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let alice = UserId::random("localhost".parse().unwrap());
+
+        let sent_at = TimeStamp::from(Utc::now() - TimeDelta::days(2));
+        let message = store_test_chat_message(&pool, &chat, &alice, true, sent_at).await?;
+
+        // An edit that reaches the DS shortly after the window still applies.
+        let late = TimeStamp::from(*sent_at + EDIT_WINDOW + EDIT_WINDOW_GRACE / 2);
+        let message = receive_edit(&pool, &chat, &message, text("v1"), late).await?;
+
+        let too_late = TimeStamp::from(*sent_at + EDIT_WINDOW + EDIT_WINDOW_GRACE);
+        let error = receive_edit(&pool, &chat, &message, text("v2"), too_late)
+            .await
+            .unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<MessageEditError>(),
+            Some(&MessageEditError::WindowPassed)
+        );
+
+        // Deleting is not bound to the window.
+        let deletion = message.null_part_content()?;
+        let deleted = receive_edit(&pool, &chat, &message, deletion, TimeStamp::now()).await?;
+        assert!(deleted.message().is_deleted());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn incoming_edit_of_deleted_message_is_rejected(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let alice = UserId::random("localhost".parse().unwrap());
+
+        let message = store_test_chat_message(&pool, &chat, &alice, true, TimeStamp::now()).await?;
+        let deletion = message.null_part_content()?;
+        let deleted = receive_edit(&pool, &chat, &message, deletion, TimeStamp::now()).await?;
+
+        let result = receive_edit(&pool, &chat, &deleted, text("back"), TimeStamp::now()).await;
+        assert!(result.is_err());
+        let loaded = ChatMessage::load(pool.read().await?, message.id())
+            .await?
+            .unwrap();
+        assert!(loaded.message().is_deleted());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn edits_count_against_the_allowance(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let alice = UserId::random("localhost".parse().unwrap());
+
+        let sent_at = TimeStamp::from(Utc::now() - TimeDelta::hours(1));
+        let first_edit_at = TimeStamp::from(*sent_at + TimeDelta::minutes(10));
+        let second_edit_at = TimeStamp::from(*sent_at + TimeDelta::minutes(20));
+        let message = store_test_chat_message(&pool, &chat, &alice, true, sent_at).await?;
+        let message = receive_edit(&pool, &chat, &message, text("v1"), first_edit_at).await?;
+        receive_edit(&pool, &chat, &message, text("v2"), second_edit_at).await?;
+
+        let loaded = ChatMessage::load(pool.read().await?, message.id())
+            .await?
+            .unwrap();
+        assert_eq!(loaded.edits_left(), MAX_EDITS - 2);
+        assert_eq!(loaded.editable_until(), Some(*sent_at + EDIT_WINDOW));
 
         Ok(())
     }

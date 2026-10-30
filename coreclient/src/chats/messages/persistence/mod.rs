@@ -23,7 +23,10 @@ use uuid::Uuid;
 
 use crate::{
     ChatId, ChatMessage, ContentMessage, Message,
-    chats::{messages::InReplyToMessage, reactions::Reaction},
+    chats::{
+        messages::{InReplyToMessage, edit::MessageEdit},
+        reactions::Reaction,
+    },
     clients::attachment::AttachmentRecord,
     db::access::{ReadConnection, WriteConnection},
 };
@@ -178,6 +181,7 @@ impl From<SqlChatMessage> for ChatMessage {
             status,
             // Populated by `augment` after the row is decoded.
             reactions: IndexMap::new(),
+            edit_count: 0,
         }
     }
 }
@@ -666,6 +670,11 @@ impl ChatMessage {
     async fn augment(&mut self, mut connection: impl ReadConnection) -> sqlx::Result<()> {
         if let Some((mimi_id, message)) = self.in_reply_to.as_mut() {
             *message = InReplyToMessage::load(&mut connection, mimi_id).await?;
+        }
+
+        // Only an edited message has an edit history.
+        if self.edited_at().is_some() {
+            self.edit_count = MessageEdit::count_by_message_id(&mut connection, self.id()).await?;
         }
 
         if let Some(mimi_id) = self.message().mimi_id().copied() {
@@ -1190,7 +1199,8 @@ pub(crate) mod tests {
     use sqlx::SqlitePool;
 
     use crate::{
-        ContentMessage, Message, MessageId, SystemMessage, chats::persistence::tests::test_chat,
+        Chat, ContentMessage, Message, MessageId, SystemMessage,
+        chats::persistence::tests::test_chat,
         clients::attachment::persistence::test::test_attachment_record, db::access::DbAccess,
     };
 
@@ -1238,7 +1248,31 @@ pub(crate) mod tests {
             status: MessageStatus::Unread,
             in_reply_to: None,
             reactions: IndexMap::new(),
+            edit_count: 0,
         }
+    }
+
+    /// Stores a content message by `sender` with the text `v0`.
+    pub(crate) async fn store_test_chat_message(
+        pool: &DbAccess,
+        chat: &Chat,
+        sender: &UserId,
+        sent: bool,
+        sent_at: TimeStamp,
+    ) -> anyhow::Result<ChatMessage> {
+        let message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            sent_at,
+            ContentMessage::new(
+                sender.clone(),
+                sent,
+                MimiContent::simple_markdown_message("v0".to_owned(), [0; 16]),
+                chat.group_id(),
+            ),
+        );
+        message.store(pool.write().await?).await?;
+        Ok(message)
     }
 
     #[sqlx::test]

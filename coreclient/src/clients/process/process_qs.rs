@@ -1223,12 +1223,10 @@ impl CoreUser {
             )
             .await
             .inspect_err(|error| {
-                // We don't have the message to edit in our database, so we
-                // can't apply the edit. This can happen if the original message
-                // was deleted or if the original message was sent before we
-                // joined the group and we don't have the original message in
-                // our database. In this case, we just skip the edit.
-                warn!(%error, "Cannot edit message because original message is missing; skipping");
+                // The edit cannot be applied, so we skip it. This happens if
+                // the original message was deleted, if it was sent before we
+                // joined the group, or if the edit exceeds the edit limits.
+                warn!(%error, "Cannot apply message edit; skipping");
             })
             .ok();
             if message.is_some() {

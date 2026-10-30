@@ -17,6 +17,8 @@ use crate::{
 
 use super::*;
 
+use edit::{EDIT_WINDOW, MAX_EDITS};
+
 pub(crate) mod edit;
 pub(crate) mod persistence;
 
@@ -110,6 +112,7 @@ pub struct ChatMessage {
     pub(super) timestamped_message: TimestampedMessage,
     pub(super) status: MessageStatus,
     pub(super) reactions: IndexMap<String, Vec<UserId>>,
+    pub(super) edit_count: u32,
 }
 
 impl ChatMessage {
@@ -127,6 +130,7 @@ impl ChatMessage {
             timestamped_message,
             status: MessageStatus::Unread,
             reactions: IndexMap::new(),
+            edit_count: 0,
         }
     }
 
@@ -158,6 +162,7 @@ impl ChatMessage {
             in_reply_to: None,
             status: MessageStatus::Unread,
             reactions: IndexMap::new(),
+            edit_count: 0,
         }
     }
 
@@ -182,6 +187,7 @@ impl ChatMessage {
             timestamped_message,
             status: MessageStatus::Unread,
             reactions: IndexMap::new(),
+            edit_count: 0,
         }
     }
 
@@ -213,6 +219,7 @@ impl ChatMessage {
             timestamped_message,
             status: MessageStatus::Unread,
             reactions: IndexMap::new(),
+            edit_count: 0,
         }
     }
 
@@ -334,6 +341,23 @@ impl ChatMessage {
 
     pub fn reactions(&self) -> &IndexMap<String, Vec<UserId>> {
         &self.reactions
+    }
+
+    /// Until when the sender can edit this message. Returns `None` once they
+    /// cannot edit it anymore, because it is not sent yet, deleted, or was
+    /// edited [`MAX_EDITS`] times.
+    pub fn editable_until(&self) -> Option<DateTime<Utc>> {
+        let Message::Content(content) = self.message() else {
+            return None;
+        };
+        let editable =
+            content.was_sent() && !self.message().is_deleted() && self.edit_count < MAX_EDITS;
+        editable.then(|| self.timestamp() + EDIT_WINDOW)
+    }
+
+    /// How many more times the sender can edit this message.
+    pub fn edits_left(&self) -> u32 {
+        MAX_EDITS.saturating_sub(self.edit_count)
     }
 }
 

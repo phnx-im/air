@@ -21,9 +21,9 @@ import 'user_cubit.dart';
 import 'user_settings_cubit.dart';
 part 'chat_details_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `clear_draft`, `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `store_draft_from_state`, `update_state_task`, `upload_attachment_impl`
+// These functions are ignored because they are not marked as `pub`: `clear_draft`, `keep_as_new_message`, `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `store_draft_from_state`, `try_send_message`, `update_state_task`, `upload_attachment_impl`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AcceptContactRequestError`, `ChatDetailsContext`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `eq`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `eq`, `eq`, `fmt`, `fmt`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `into_ui_result`
 // These functions are ignored (category: IgnoreBecauseNotAllowedOwner): `into_ui_result`
 
@@ -102,6 +102,9 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   ///
   /// The not yet sent message is immediately stored in the local store and then the message is
   /// send to the DS.
+  ///
+  /// When the draft edits a message that cannot be edited anymore, the draft
+  /// becomes a new message with the same text.
   Future<void> sendMessage({required String messageText});
 
   /// Adds an emoji reaction to a message and sends it to the other members.
@@ -534,6 +537,23 @@ class UiAcceptContactRequestResult {
           runtimeType == other.runtimeType &&
           acceptedChatId == other.acceptedChatId &&
           error == other.error;
+}
+
+@freezed
+sealed class UiSendMessageError
+    with _$UiSendMessageError
+    implements FrbException {
+  const UiSendMessageError._();
+
+  /// The edited message is past its edit window.
+  const factory UiSendMessageError.editWindowPassed() =
+      UiSendMessageError_EditWindowPassed;
+
+  /// The edited message was edited the maximum number of times.
+  const factory UiSendMessageError.editLimitReached() =
+      UiSendMessageError_EditLimitReached;
+  const factory UiSendMessageError.other({required String message}) =
+      UiSendMessageError_Other;
 }
 
 @freezed
