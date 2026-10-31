@@ -1414,6 +1414,28 @@ impl PendingChatOperation {
     /// id carries no proof the promote ran (the DS confirmed some other
     /// commit, or local state forked); the job is abandoned without touching
     /// liveness.
+    /// The new chat picture of the pending update of the group.
+    ///
+    /// `None` if there is no pending update. `Some(None)` if the update removes
+    /// the picture.
+    pub(crate) async fn load_new_chat_picture(
+        txn: &mut WriteDbTransaction<'_>,
+        group_id: &GroupId,
+    ) -> anyhow::Result<Option<Option<Vec<u8>>>> {
+        let Some(job) = Self::load_by_group_id(txn, group_id).await? else {
+            return Ok(None);
+        };
+        Ok(match job.operation {
+            OperationType::Other {
+                new_chat_picture, ..
+            }
+            | OperationType::ApqOther {
+                new_chat_picture, ..
+            } => Some(new_chat_picture),
+            _ => None,
+        })
+    }
+
     pub(crate) async fn complete_own_commit(
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
