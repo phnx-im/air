@@ -479,6 +479,17 @@ impl CoreUser {
         chat_id: ChatId,
         title: String,
     ) -> anyhow::Result<Vec<u8>> {
+        self.stage_group_profile_commit(chat_id, title, None).await
+    }
+
+    /// Like [`Self::stage_group_title_commit`], but also stores `picture` as
+    /// the new chat picture of the pending chat operation.
+    pub async fn stage_group_profile_commit(
+        &self,
+        chat_id: ChatId,
+        title: String,
+        picture: Option<Vec<u8>>,
+    ) -> anyhow::Result<Vec<u8>> {
         let job = self
             .db()
             .with_write_transaction(async |txn| {
@@ -496,7 +507,7 @@ impl CoreUser {
                     self.signing_key(),
                     chat_id,
                     Some(group_data),
-                    None,
+                    picture,
                     DerivationEpoch::Keep,
                     &self.create_own_client_reference(),
                 )
