@@ -436,7 +436,7 @@ async fn sibling_mirrors_targeted_message_connection() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn siblings_accepts_request_at_the_same_time() {
+async fn siblings_accept_request_at_the_same_time() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, charlie] = setup.add_users().await;
     let group_chat_id = setup.connected_group(&bob, &[&alice, &charlie]).await;
