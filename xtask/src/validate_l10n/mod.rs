@@ -24,6 +24,7 @@ use serde_json::{Map, Value};
 
 use crate::util::workspace_root;
 
+mod apple;
 mod icu;
 
 const DEFAULT_PROJECT_ROOT: &str = "app";
@@ -108,6 +109,12 @@ pub(crate) fn run(args: ValidateArgs) -> Result<()> {
         let locale = ArbFile::load(path)?;
         check_locale(&locale, &template, &mut report);
     }
+
+    let arb_names: Vec<&str> = std::iter::once(&template_path)
+        .chain(&locale_paths)
+        .filter_map(|path| path.file_name())
+        .collect();
+    apple::check(&project_root, &arb_names, &mut report);
 
     report.finish(template.messages.len(), locale_paths.len() + 1)
 }
