@@ -455,6 +455,7 @@
   "memberSelectionList_cantBeAddedDescription": "Bu kişiler gruba eklenemez. Bunun nedeni hesaplarının artık etkin olmaması veya uygulama sürümlerinin çok eski olması olabilir.",
   "homeTab_chats": "Sohbetler",
   "homeTab_profile": "Siz",
+  "messageList_empty": "Bu sohbette mesaj yok",
   "messageList_newMessages": "Yeni mesajlar",
   "messageList_reactions_react": "Tepki ver",
   "messageList_reactions_remove": "Kaldır",

@@ -1,0 +1,7 @@
+---
+source: coreclient/src/chats/messages/event_id.rs
+expression: "id(&add, &group(1), at(0))"
+---
+EventId(
+    "2a57f53c6257d79d635e47c37a3d30fb2377dac6e97937f1121f6961f785a319",
+)

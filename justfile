@@ -77,6 +77,11 @@ check-licenses: regenerate-licenses && _check-unstaged-changes
 check-l10n:
     cargo xtask validate-l10n
 
+# Check that the Linux screenshot set matches the screenshots.
+[group('check')]
+check-linux-screenshots:
+    cargo xtask linux-screenshots check
+
 # Build, lint and check formatting of the protobuf files.
 [group('check')]
 [working-directory('protos')]
@@ -191,10 +196,13 @@ start-docker-compose:
 [working-directory: 'app']
 update-goldens:
     # Delete existing goldens, so that the ones whose test is gone do not
-    # linger.
-    git ls-files -z 'test/**/goldens/*.{{ os() }}.png' | xargs -0 rm -f
+    # linger. The trailing wildcard also catches the product shots' `.dark`
+    # variants.
+    git ls-files -z 'test/**/goldens/*.{{ os() }}*.png' | xargs -0 rm -f
     # Update golden snapshots
     just test-flutter --update-goldens
+    # The Linux screenshot set follows the Linux product shots recorded here.
+    if [ "{{ os() }}" = linux ]; then cargo xtask linux-screenshots fix; fi
 
 # Trigger the "Update Goldens" workflow on the current branch, or a given PR.
 [script]

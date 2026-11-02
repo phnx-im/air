@@ -10,6 +10,7 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:flutter/gestures.dart' show kSecondaryButton;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +23,8 @@ import '../chat_list/chat_list_content_test.dart';
 /// The reader, in every test here. Eve is neither of the two people the
 /// sentences name, so a name tapped in them is somebody else's.
 final eve = 3.userId();
+
+final messageId = 7.messageId();
 
 void main() {
   group('DisplayMessageTile', () {
@@ -69,6 +72,7 @@ void main() {
             body: DisplayMessageTile(
               UiEventMessage.system(message),
               DateTime.utc(2026, 1, 1),
+              messageId: messageId,
             ),
           ),
         ),
@@ -565,6 +569,148 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+
+    group('delete', () {
+      final deleteButton = find.text('Delete');
+
+      setUpAll(() {
+        registerFallbackValue(messageId);
+        registerFallbackValue(DeleteMode.forMe);
+      });
+
+      setUp(() {
+        when(
+          () => chatDetailsCubit.deleteMessage(
+            messageId: any(named: 'messageId'),
+            deleteMode: any(named: 'deleteMode'),
+          ),
+        ).thenAnswer((_) async {});
+      });
+
+      void showConnectionChat() =>
+          showChat(requestChat(UiChatType_Connection(userProfiles[0])));
+
+      Future<void> longPressMessage(WidgetTester tester) async {
+        await tester.longPress(find.byType(DisplayMessageTile));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('deletes the message for me after confirming', (
+        tester,
+      ) async {
+        showConnectionChat();
+        await tester.pumpWidget(
+          buildSubject(UiSystemMessage.add(1.userId(), 2.userId())),
+        );
+
+        await longPressMessage(tester);
+        await tester.tap(deleteButton);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Delete message?'), findsOneWidget);
+        expect(
+          find.text('This message will be deleted from all your devices.'),
+          findsOneWidget,
+        );
+        verifyNever(
+          () => chatDetailsCubit.deleteMessage(
+            messageId: any(named: 'messageId'),
+            deleteMode: any(named: 'deleteMode'),
+          ),
+        );
+
+        await tester.tap(deleteButton);
+        await tester.pumpAndSettle();
+
+        verify(
+          () => chatDetailsCubit.deleteMessage(
+            messageId: messageId,
+            deleteMode: DeleteMode.forMe,
+          ),
+        ).called(1);
+      });
+
+      testWidgets('opens the menu with a right-click on a desktop', (
+        tester,
+      ) async {
+        showConnectionChat();
+        await tester.pumpWidget(
+          buildSubject(UiSystemMessage.add(1.userId(), 2.userId())),
+        );
+
+        await tester.tap(
+          find.byType(DisplayMessageTile),
+          buttons: kSecondaryButton,
+        );
+        await tester.pumpAndSettle();
+
+        expect(deleteButton, findsOneWidget);
+      }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+      testWidgets('offers no delete for an add without an actor', (
+        tester,
+      ) async {
+        showConnectionChat();
+        await tester.pumpWidget(
+          buildSubject(UiSystemMessage.add(null, 2.userId())),
+        );
+
+        await longPressMessage(tester);
+
+        expect(deleteButton, findsNothing);
+      });
+
+      testWidgets('offers no delete on the card of an open request', (
+        tester,
+      ) async {
+        showChat(requestChat(UiChatType_PendingConnection(userProfiles[0])));
+        await tester.pumpWidget(
+          buildSubject(
+            UiSystemMessage.receivedHandleConnectionRequest(
+              sender: 1.userId(),
+              username: const UiUsername(plaintext: 'eve_03'),
+            ),
+          ),
+        );
+
+        await longPressMessage(tester);
+
+        expect(deleteButton, findsNothing);
+      });
+
+      testWidgets('offers delete on a request once it is closed', (
+        tester,
+      ) async {
+        showChat(
+          requestChat(
+            UiChatType_PendingConnection(userProfiles[0]),
+            closed: true,
+          ),
+        );
+        await tester.pumpWidget(
+          buildSubject(
+            UiSystemMessage.receivedHandleConnectionRequest(
+              sender: 1.userId(),
+              username: const UiUsername(plaintext: 'eve_03'),
+            ),
+          ),
+        );
+
+        await longPressMessage(tester);
+
+        expect(deleteButton, findsOneWidget);
+      });
+
+      testWidgets('offers no delete before the chat loads', (tester) async {
+        await tester.pumpWidget(
+          buildSubject(UiSystemMessage.add(1.userId(), 2.userId())),
+        );
+
+        await longPressMessage(tester);
+
+        expect(deleteButton, findsNothing);
+      });
     });
   });
 }

@@ -57,6 +57,8 @@ jobs:
             flutter: true
           - name: Localization consistency
             just: check-l10n
+          - name: Linux screenshot set
+            just: check-linux-screenshots
           - name: SPDX License headers
             just: check-reuse
             pypi-packages: reuse~=6.2

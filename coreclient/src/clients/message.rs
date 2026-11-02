@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{identifiers::UserId, time::TimeStamp};
-use anyhow::{Context, bail};
+use anyhow::{Context, bail, ensure};
 use mimi_content::{MessageStatus, MimiContent};
 
 use crate::{
@@ -12,7 +12,7 @@ use crate::{
         StatusRecord,
         messages::{
             edit::{MessageEdit, purge_deleted_message},
-            persistence,
+            persistence::{self, DeletedMessageId},
         },
     },
     clients::block_contact::BlockedContactError,
@@ -61,18 +61,31 @@ impl CoreUser {
     ///
     /// This completely removes the message from the database, including edit
     /// history and status records. The message will no longer appear in the
-    /// chat.
+    /// chat. A system message without an event ID only exists on this device.
+    ///
+    /// Fails for a system message the user can't delete, see
+    /// [`crate::SystemMessage::is_deletable`].
     pub async fn delete_message(&self, message_id: MessageId) -> anyhow::Result<()> {
         self.db()
             .with_write_transaction(async |txn| {
                 let message = ChatMessage::load(&mut *txn, message_id)
                     .await?
                     .with_context(|| format!("Can't find message with id {message_id:?}"))?;
+                ensure!(
+                    message.is_deletable(&mut *txn).await?,
+                    "Message {message_id:?} is a system message that can't be deleted"
+                );
 
+                let deleted_id = match message.message().mimi_id() {
+                    Some(mimi_id) => Some(DeletedMessageId::Content(*mimi_id)),
+                    None => ChatMessage::load_event_id(&mut *txn, message_id)
+                        .await?
+                        .map(DeletedMessageId::Event),
+                };
                 persistence::erase(txn, &message).await?;
-                if let Some(mimi_id) = message.message().mimi_id() {
+                if let Some(deleted_id) = deleted_id {
                     self.outbound_service()
-                        .enqueue_deleted_message_in_transaction(txn, mimi_id)
+                        .enqueue_deleted_message_in_transaction(txn, deleted_id)
                         .await?;
                 }
 

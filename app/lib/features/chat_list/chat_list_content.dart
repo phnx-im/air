@@ -355,6 +355,7 @@ class _ChatRow extends StatelessWidget {
       preview = null;
     }
 
+    final lastUsed = chat.lastUsed;
     return ChatListItem(
       tokens: tokens,
       title: chat.title(loc),
@@ -365,7 +366,9 @@ class _ChatRow extends StatelessWidget {
               color: palette.text.tertiary,
             )
           : null,
-      timestamp: shareMode ? null : _LastUpdated(chat: chat),
+      timestamp: shareMode || lastUsed == null
+          ? null
+          : _LastUpdated(lastUsed: lastUsed),
       preview: preview,
       trailing: isBlocked || ownId == null || shareMode
           ? null
@@ -628,9 +631,9 @@ class _LastMessage extends HookWidget {
 
 /// The "last activity" stamp on a row, kept current by the app clock.
 class _LastUpdated extends StatelessWidget {
-  const _LastUpdated({required this.chat});
+  const _LastUpdated({required this.lastUsed});
 
-  final UiChatDetails chat;
+  final DateTime lastUsed;
 
   @override
   Widget build(BuildContext context) {
@@ -642,12 +645,8 @@ class _LastUpdated extends StatelessWidget {
     final loc = AppLocalizations.of(context);
 
     return LiveTime(
-      format: (context, now) => chatListStampLabel(
-        chat.lastUsed,
-        now: now,
-        formats: formats,
-        loc: loc,
-      ),
+      format: (context, now) =>
+          chatListStampLabel(lastUsed, now: now, formats: formats, loc: loc),
       builder: (context, label) => ChatListTimestamp(label: label),
     );
   }
