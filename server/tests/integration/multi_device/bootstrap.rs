@@ -436,6 +436,82 @@ async fn sibling_mirrors_targeted_message_connection() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn siblings_accepts_request_at_the_same_time() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    let group_chat_id = setup.connected_group(&bob, &[&alice, &charlie]).await;
+
+    let charlie2 = charlie.add_synced_device().await;
+    // alice follows charlie2's onboarding into the shared group.
+    alice.drain().await;
+
+    let chat_id = alice
+        .add_contact_from_group(group_chat_id, charlie.user_id().clone(), setup.apq_groups)
+        .await
+        .unwrap();
+
+    charlie.drain().await;
+    charlie2.drain().await;
+    charlie
+        .accept_contact_request(chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+
+    // The sibling has not processed the join echo yet.
+    let accepted_chat_id = charlie2
+        .accept_contact_request(chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(accepted_chat_id, chat_id);
+
+    // The late join echo finds the group already installed.
+    let processed = charlie2.drain().await;
+    assert!(
+        processed.new_chats.is_empty() && processed.new_connections.is_empty(),
+        "the late join echo must not create a chat"
+    );
+
+    charlie.drain().await;
+    assert_same_epoch_and_leaf(&charlie2, &charlie, chat_id, "after the sibling's accept").await;
+
+    let chat = charlie2.expect_chat(chat_id).await;
+    assert_eq!(
+        chat.chat_type(),
+        &ChatType::Connection(alice.user_id().clone())
+    );
+    assert_eq!(chat.status(), &ChatStatus::Active);
+    assert!(
+        charlie2.contact(alice.user_id()).await.is_some(),
+        "the sibling should have the contact"
+    );
+
+    alice.drain().await;
+    send_and_receive(
+        &charlie2,
+        &[&alice, &charlie],
+        chat_id,
+        "hello alice, from the sibling",
+    )
+    .await;
+    send_and_receive(
+        &charlie,
+        &[&alice, &charlie2],
+        chat_id,
+        "hello alice, from charlie",
+    )
+    .await;
+    send_and_receive(
+        &alice,
+        &[&charlie, &charlie2],
+        chat_id,
+        "hello charlie, from alice",
+    )
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn offline_sibling_catches_up_on_created_group() {
     const TEXT: &str = "sent while the sibling was away";
 
