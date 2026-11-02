@@ -168,6 +168,19 @@ impl ChatId {
 }
 
 impl Chat {
+    pub(crate) async fn load_group_id(
+        mut connection: impl ReadConnection,
+        chat_id: ChatId,
+    ) -> sqlx::Result<Option<GroupId>> {
+        query_scalar!(
+            r#"SELECT group_id AS "group_id: GroupIdWrapper" FROM chat WHERE chat_id = ?"#,
+            chat_id,
+        )
+        .fetch_optional(connection.as_mut())
+        .await
+        .map(|group_id| group_id.map(GroupId::from))
+    }
+
     /// Creates a new chat with the given id.
     ///
     /// On conflict, the chat is **not** removed but updated.

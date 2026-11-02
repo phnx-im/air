@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT group_id AS \"group_id: GroupIdWrapper\" FROM chat WHERE chat_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "group_id: GroupIdWrapper",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "group_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7f29ceb4d9c06bff86bc312670ada19a61b3e55f5730b59e14947ab39e63fb46"
+}

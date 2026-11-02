@@ -13,6 +13,7 @@ use airprotos::{
 
 use aircommon::{
     identifiers,
+    limits::{MAX_KEY_PACKAGE_BYTES, MAX_KEY_PACKAGE_REQUEST_BYTES, MAX_KEY_PACKAGES_PER_REQUEST},
     messages::client_qs::{
         CreateClientRecordParams, CreateUserRecordParams, DeleteClientRecordParams,
         DeleteUserRecordParams, KeyPackageParams, PublishKeyPackagesParams,
@@ -38,11 +39,40 @@ use crate::{
     version::VerifiedClientVersion,
 };
 
-/// Maximum number of key packages per batch to upload in one request.
-const MAX_KEY_PACKAGES_PER_BATCH: usize = 512;
-
 /// Maximum size in bytes of the encrypted client state payload.
 const MAX_ENCRYPTED_CLIENT_STATE_SIZE_BYTES: usize = 256;
+
+/// Maximum size in bytes of a staged batch's epoch id. Clients send a hash.
+const MAX_EPOCH_ID_SIZE_BYTES: usize = 64;
+
+/// Rejects a key package upload that exceeds the shared limits. Runs before
+/// any package is parsed, so a rejected request costs no more than the proto
+/// decoding tonic already did.
+fn check_key_package_limits(
+    key_packages: &[KeyPackage],
+    apq_key_packages: &[ApqKeyPackage],
+) -> Result<(), Status> {
+    if key_packages.len() + apq_key_packages.len() > MAX_KEY_PACKAGES_PER_REQUEST {
+        return Err(Status::invalid_argument("too many key packages"));
+    }
+    let sizes = key_packages
+        .iter()
+        .map(|key_package| key_package.tls.len())
+        .chain(apq_key_packages.iter().map(|key_package| {
+            key_package.t_key_package_tls.len() + key_package.pq_key_package_tls.len()
+        }));
+    let mut total = 0;
+    for size in sizes {
+        if size > MAX_KEY_PACKAGE_BYTES {
+            return Err(Status::invalid_argument("key package too large"));
+        }
+        total += size;
+    }
+    if total > MAX_KEY_PACKAGE_REQUEST_BYTES {
+        return Err(Status::invalid_argument("key packages too large"));
+    }
+    Ok(())
+}
 
 use super::Qs;
 
@@ -325,6 +355,12 @@ impl QueueService for GrpcQs {
                 .and_then(|p| p.client_metadata.as_ref())
                 .or(request.inner().client_metadata.as_ref()),
         )?;
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
+        check_key_package_limits(&payload.key_packages, &[])?;
         let PublishKeyPackagesPayload {
             client_metadata: _,
             client_id,
@@ -354,6 +390,15 @@ impl QueueService for GrpcQs {
                 .as_ref()
                 .and_then(|p| p.client_metadata.as_ref()),
         )?;
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
+        if payload.epoch_id.len() > MAX_EPOCH_ID_SIZE_BYTES {
+            return Err(Status::invalid_argument("epoch id too large"));
+        }
+        check_key_package_limits(&payload.key_packages, &payload.apq_key_packages)?;
         let StageKeyPackagesPayload {
             client_metadata: _,
             client_id,
@@ -363,10 +408,6 @@ impl QueueService for GrpcQs {
             key_packages,
             apq_key_packages,
         } = self.verify_client_auth(request).await?;
-
-        if key_packages.len() + apq_key_packages.len() > MAX_KEY_PACKAGES_PER_BATCH {
-            return Err(Status::invalid_argument("Too many key packages"));
-        }
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
         self.qs
@@ -412,6 +453,12 @@ impl QueueService for GrpcQs {
                 .as_ref()
                 .and_then(|p| p.client_metadata.as_ref()),
         )?;
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
+        check_key_package_limits(&[], &payload.apq_key_packages)?;
         let PublishApqKeyPackagesPayload {
             client_metadata: _,
             client_id,
@@ -604,6 +651,7 @@ mod tests {
         crypto::aead::AEAD_NONCE_SIZE, messages::push_token::MAX_ENCRYPTED_PUSH_TOKEN_SIZE,
     };
     use airprotos::common::v1::{Ciphertext, RatchetEncryptionKey, RatchetSecret};
+    use prost::bytes::Bytes;
     use sqlx::PgPool;
     use tokio_util::sync::CancellationToken;
 
@@ -719,6 +767,163 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(status.code(), tonic::Code::InvalidArgument);
+
+        Ok(())
+    }
+
+    fn garbage_key_packages(count: usize) -> Vec<KeyPackage> {
+        (0..count).map(|_| KeyPackage { tls: vec![0; 8] }).collect()
+    }
+
+    #[test]
+    fn key_package_limits_bound_count_and_bytes() {
+        let full = garbage_key_packages(MAX_KEY_PACKAGES_PER_REQUEST);
+        assert!(check_key_package_limits(&full, &[]).is_ok());
+
+        let too_many = garbage_key_packages(MAX_KEY_PACKAGES_PER_REQUEST + 1);
+        assert_eq!(
+            check_key_package_limits(&too_many, &[])
+                .unwrap_err()
+                .message(),
+            "too many key packages"
+        );
+        let apq = ApqKeyPackage {
+            t_key_package_tls: vec![0; 8],
+            pq_key_package_tls: vec![0; 8],
+        };
+        assert_eq!(
+            check_key_package_limits(&full, std::slice::from_ref(&apq))
+                .unwrap_err()
+                .message(),
+            "too many key packages"
+        );
+
+        let large = KeyPackage {
+            tls: vec![0; MAX_KEY_PACKAGE_BYTES + 1],
+        };
+        assert_eq!(
+            check_key_package_limits(std::slice::from_ref(&large), &[])
+                .unwrap_err()
+                .message(),
+            "key package too large"
+        );
+        // A pair counts as one package.
+        let large_pair = ApqKeyPackage {
+            t_key_package_tls: vec![0; MAX_KEY_PACKAGE_BYTES],
+            pq_key_package_tls: vec![0; 1],
+        };
+        assert_eq!(
+            check_key_package_limits(&[], std::slice::from_ref(&large_pair))
+                .unwrap_err()
+                .message(),
+            "key package too large"
+        );
+
+        let at_limit = KeyPackage {
+            tls: vec![0; MAX_KEY_PACKAGE_BYTES],
+        };
+        let count = MAX_KEY_PACKAGE_REQUEST_BYTES / MAX_KEY_PACKAGE_BYTES;
+        assert!(check_key_package_limits(&vec![at_limit.clone(); count], &[]).is_ok());
+        assert_eq!(
+            check_key_package_limits(&vec![at_limit; count + 1], &[])
+                .unwrap_err()
+                .message(),
+            "key packages too large"
+        );
+    }
+
+    async fn grpc_qs(pool: &PgPool) -> anyhow::Result<GrpcQs> {
+        let qs = Qs::initialize(
+            pool.clone(),
+            "example.com".parse()?,
+            Default::default(),
+            0,
+            CancellationToken::new(),
+        )
+        .await?;
+        Ok(GrpcQs::new(qs))
+    }
+
+    // The packages are garbage, so a limit message proves that the check ran
+    // before parsing.
+    #[sqlx::test]
+    async fn uploads_reject_oversized_batches_before_parsing(pool: PgPool) -> anyhow::Result<()> {
+        let grpc_qs = grpc_qs(&pool).await?;
+        let too_many = garbage_key_packages(MAX_KEY_PACKAGES_PER_REQUEST + 1);
+
+        let status = grpc_qs
+            .publish_key_packages(Request::new(SignedRequest::new(
+                PublishKeyPackagesRequest {
+                    client_metadata: None,
+                    client_id: None,
+                    key_packages: Vec::new(),
+                    payload: Some(PublishKeyPackagesPayload {
+                        client_metadata: None,
+                        client_id: None,
+                        key_packages: too_many.clone(),
+                    }),
+                    signature: None,
+                },
+                Bytes::new(),
+            )))
+            .await
+            .unwrap_err();
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+        assert_eq!(status.message(), "too many key packages");
+
+        let stage_request = |epoch_id: Vec<u8>, key_packages: Vec<KeyPackage>| {
+            Request::new(SignedRequest::new(
+                StageKeyPackagesRequest {
+                    payload: Some(StageKeyPackagesPayload {
+                        client_metadata: None,
+                        client_id: None,
+                        epoch_id,
+                        leaf_index: 0,
+                        generation: 0,
+                        key_packages,
+                        apq_key_packages: Vec::new(),
+                    }),
+                    signature: None,
+                },
+                Bytes::new(),
+            ))
+        };
+        let status = grpc_qs
+            .stage_key_packages(stage_request(vec![0; 32], too_many))
+            .await
+            .unwrap_err();
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+        assert_eq!(status.message(), "too many key packages");
+
+        let status = grpc_qs
+            .stage_key_packages(stage_request(
+                vec![0; MAX_EPOCH_ID_SIZE_BYTES + 1],
+                garbage_key_packages(1),
+            ))
+            .await
+            .unwrap_err();
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+        assert_eq!(status.message(), "epoch id too large");
+
+        let status = grpc_qs
+            .publish_apq_key_packages(Request::new(SignedRequest::new(
+                PublishApqKeyPackagesRequest {
+                    payload: Some(PublishApqKeyPackagesPayload {
+                        client_metadata: None,
+                        client_id: None,
+                        apq_key_packages: vec![ApqKeyPackage {
+                            t_key_package_tls: vec![0; MAX_KEY_PACKAGE_BYTES],
+                            pq_key_package_tls: vec![0; 1],
+                        }],
+                    }),
+                    signature: None,
+                },
+                Bytes::new(),
+            )))
+            .await
+            .unwrap_err();
+        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+        assert_eq!(status.message(), "key package too large");
 
         Ok(())
     }

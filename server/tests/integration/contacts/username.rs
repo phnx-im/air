@@ -15,6 +15,8 @@ use chrono::TimeZone;
 use tokio::task::spawn_blocking;
 use tokio_stream::StreamExt;
 
+use crate::contacts::requests::{add_second_username, pending_chats_from};
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn connect_creates_contacts_and_system_messages() {
     let mut setup = TestBackend::single().await;
@@ -274,5 +276,57 @@ async fn unknown_username_request_is_free() {
             .await
             .unwrap()
             .is_empty()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "one failing username queue stops the drain of the others"]
+async fn failing_username_queue_does_not_block_the_others() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let first = setup.add_username(&bob).await;
+    let second = add_second_username(&bob).await;
+    for record in [&first, &second] {
+        alice
+            .add_contact(record.username.clone(), record.hash, setup.apq_groups)
+            .await
+            .unwrap()
+            .unwrap();
+    }
+
+    setup
+        .listener_control_handle()
+        .set_reject_next_request_to("ListenUsername");
+    let _ = bob.fetch_and_process_username_messages().await;
+
+    assert!(
+        !pending_chats_from(&bob, alice.user_id()).await.is_empty(),
+        "the request in the other username queue was not processed"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "a failed sender profile fetch drops the connection request"]
+async fn request_survives_failed_sender_profile_fetch() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let record = setup.add_username(&bob).await;
+    alice
+        .add_contact(record.username.clone(), record.hash, setup.apq_groups)
+        .await
+        .unwrap()
+        .unwrap();
+
+    // Fetching alice's profile fails like a network error, also on the
+    // fallback through the connection group.
+    setup
+        .listener_control_handle()
+        .set_drop_next_requests_to("GetUserProfile", 2);
+    let _ = bob.fetch_and_process_username_messages().await;
+    let _ = bob.fetch_and_process_username_messages().await;
+
+    assert!(
+        !pending_chats_from(&bob, alice.user_id()).await.is_empty(),
+        "the connection request was dropped"
     );
 }

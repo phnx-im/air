@@ -15,7 +15,9 @@ use mls_assist::{
         errors::{ProcessApqAssistedMessageError, ProcessAssistedMessageError},
     },
     memory_provider::MlsAssistMemoryStorage,
-    openmls::group::{MergeCommitError, PublicProcessMessageError, ValidationError},
+    openmls::group::{
+        MergeCommitError, PublicProcessMessageError, StageCommitError, ValidationError,
+    },
 };
 use prost::Message;
 use thiserror::Error;
@@ -176,15 +178,24 @@ impl From<&ProcessAssistedMessageError> for ProcessErrorKind {
             ProcessAssistedMessageError::InvalidAssistedMessage
             | ProcessAssistedMessageError::GroupInfoValidation(_) => Self::InvalidMessage,
             ProcessAssistedMessageError::LibraryError(_) => Self::ProcessingError,
-            ProcessAssistedMessageError::ProcessMessageError(error) => match error {
-                PublicProcessMessageError::ValidationError(error) => match error {
-                    ValidationError::LibraryError(_) => Self::ProcessingError,
-                    ValidationError::WrongEpoch => Self::WrongEpoch,
-                    _ => Self::InvalidMessage,
-                },
-                _ => Self::ProcessingError,
-            },
+            ProcessAssistedMessageError::ProcessMessageError(error) => error.into(),
             ProcessAssistedMessageError::ApqProcessMessage(error) => error.into(),
+        }
+    }
+}
+
+impl From<&PublicProcessMessageError> for ProcessErrorKind {
+    fn from(error: &PublicProcessMessageError) -> Self {
+        match error {
+            PublicProcessMessageError::LibraryError(_)
+            | PublicProcessMessageError::ValidationError(ValidationError::LibraryError(_))
+            | PublicProcessMessageError::InvalidCommit(StageCommitError::LibraryError(_)) => {
+                Self::ProcessingError
+            }
+            PublicProcessMessageError::ValidationError(ValidationError::WrongEpoch) => {
+                Self::WrongEpoch
+            }
+            _ => Self::InvalidMessage,
         }
     }
 }
@@ -203,15 +214,9 @@ impl From<&ProcessApqAssistedMessageError> for ProcessErrorKind {
 impl From<&ApqProcessPublicMessageError> for ProcessErrorKind {
     fn from(error: &ApqProcessPublicMessageError) -> Self {
         match error {
-            ApqProcessPublicMessageError::Processing(
-                PublicProcessMessageError::ValidationError(ValidationError::WrongEpoch),
-            ) => Self::WrongEpoch,
-            ApqProcessPublicMessageError::Processing(
-                PublicProcessMessageError::ValidationError(ValidationError::LibraryError(_)),
-            )
-            | ApqProcessPublicMessageError::AppDataUpdate(_) => Self::ProcessingError,
-            ApqProcessPublicMessageError::Processing(_)
-            | ApqProcessPublicMessageError::Validation(_)
+            ApqProcessPublicMessageError::Processing(error) => error.into(),
+            ApqProcessPublicMessageError::AppDataUpdate(_) => Self::ProcessingError,
+            ApqProcessPublicMessageError::Validation(_)
             | ApqProcessPublicMessageError::ApqInfoUpdate(_) => Self::InvalidMessage,
         }
     }
@@ -222,18 +227,18 @@ impl From<GroupOperationError> for Status {
         let msg = e.to_string();
         match e {
             GroupOperationError::InvalidMessage => {
-                error!("Invalid message");
-                Status::internal(msg)
+                warn!("Invalid message");
+                Status::invalid_argument(msg)
             }
             GroupOperationError::SerializationError(error) => {
                 error!(%error, "Failed to serialize message");
                 Status::internal("Error serializing message")
             }
             GroupOperationError::ProcessingError(error) => {
-                ProcessErrorKind::from(&error).into_status(&error, Status::internal)
+                ProcessErrorKind::from(&error).into_status(&error, Status::invalid_argument)
             }
             GroupOperationError::ApqProcessingError(error) => {
-                ProcessErrorKind::from(&error).into_status(&error, Status::internal)
+                ProcessErrorKind::from(&error).into_status(&error, Status::invalid_argument)
             }
             GroupOperationError::MissingQueueConfig
             | GroupOperationError::IncompleteWelcome

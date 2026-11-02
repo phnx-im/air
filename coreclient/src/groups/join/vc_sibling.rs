@@ -32,13 +32,13 @@ use crate::{
     clients::{api_clients::ApiClients, own_client_info::OwnClientInfo},
     db::access::WriteDbTransaction,
     groups::{
-        Group, apq_group::PqGroup, group_bootstrap::GroupBootstrapContents,
-        openmls_provider::AirOpenMlsProvider, store_connection_offer_psk,
+        Group, PqGroup,
+        connection_psk::store_connection_offer_psk,
+        credentials::{verify_member_credentials, verify_pq_signature_keys},
+        group_bootstrap::GroupBootstrapContents,
+        openmls_provider::AirOpenMlsProvider,
+        room_state::ensure_room_state_users_are_members,
     },
-};
-
-use super::{
-    ensure_room_state_users_are_members, verify_member_credentials, verify_pq_signature_keys,
 };
 
 impl Group {

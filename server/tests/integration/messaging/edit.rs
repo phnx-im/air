@@ -4,10 +4,15 @@
 
 //! Editing messages, incl. edits racing receipts and replayed edits.
 
+use std::time::Duration;
+
 use aircommon::identifiers::MimiId;
-use aircoreclient::{ChatId, MessageId, clients::CoreUser};
+use aircoreclient::{
+    ChatId, MessageId,
+    clients::{CoreUser, MarkChatAsRead},
+};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
-use mimi_content::MessageStatus;
+use mimi_content::{MessageStatus, MimiContent};
 
 use super::stored_content;
 
@@ -48,6 +53,29 @@ async fn edit_is_delivered_when_original_receipt_is_still_queued() {
     alice.drain().await;
     let status = alice.expect_message(original.id()).await.status();
     assert_eq!(status, MessageStatus::Delivered);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "edit of an unsent message is lost"]
+async fn edit_of_unsent_message_is_delivered() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    alice.drain().await;
+    bob.drain().await;
+
+    // Alice edits before the outbound service sent the original.
+    let content = MimiContent::simple_markdown_message("hello".to_owned(), rand::random());
+    let original = alice
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+    assert!(!original.is_sent());
+    alice.send_edit(&original, "edited").await;
+
+    bob.drain().await;
+    assert_eq!(bob.text_messages(chat_id).await, ["edited"]);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -160,4 +188,39 @@ async fn read_chat(user: &CoreUser, chat_id: ChatId) -> Vec<(MessageId, MimiId)>
 
 async fn own_message_status(user: &CoreUser, message_id: MessageId) -> MessageStatus {
     user.expect_message(message_id).await.status()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "an edit made while the original is being sent never reaches the peer"]
+async fn edit_during_send_is_delivered() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+    alice.drain().await;
+    bob.drain().await;
+
+    let content = MimiContent::simple_markdown_message("hello".to_owned(), rand::random());
+    let original = alice
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+
+    // Alice edits while the DS holds the send of the original.
+    setup
+        .listener_control_handle()
+        .set_delay_next_request_to("SendMessage", Duration::from_millis(500));
+    let sender = alice.clone();
+    let send =
+        tokio::spawn(async move { sender.outbound_service().send_queued_messages_once().await });
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let edit = MimiContent::simple_markdown_message("edited".to_owned(), rand::random());
+    alice
+        .send_message(chat_id, edit, Some(original.clone()), MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+    send.await.unwrap().unwrap();
+
+    alice.outbound_service().run_once().await;
+    bob.drain().await;
+    assert_eq!(bob.text_messages(chat_id).await, ["edited"]);
 }

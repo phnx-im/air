@@ -486,3 +486,53 @@ async fn connection_group_resync_restores_messaging() {
     }
     bob.drain().await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "a message sent during a pending resync is dropped from the queue unsent"]
+async fn message_sent_during_resync_is_delivered_after_it() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+
+    // Bob misses a commit and processes the next one, which schedules a
+    // resync.
+    alice
+        .invite_users(chat_id, slice::from_ref(charlie.user_id()))
+        .await
+        .unwrap();
+    let qs_messages = bob.qs_fetch_messages().await.unwrap();
+    let [message] = qs_messages.as_slice() else {
+        panic!("Bob should have one message in the queue");
+    };
+    let (mut stream, responder) = bob.listen_queue().await.unwrap();
+    responder.ack(message.sequence_number + 1).await;
+    responder.close(&mut stream).await;
+    alice.update_key(chat_id).await.unwrap();
+    bob.drain().await;
+
+    // Bob sends before the resync ran.
+    let content = MimiContent::simple_markdown_message("during resync".to_owned(), [3; 16]);
+    bob.send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+    bob.outbound_service()
+        .send_queued_messages_once()
+        .await
+        .unwrap();
+
+    bob.outbound_service().run_once().await;
+    bob.outbound_service().run_once().await;
+    alice.drain_unchecked().await;
+
+    assert!(
+        alice
+            .text_messages(chat_id)
+            .await
+            .iter()
+            .any(|text| text.contains("during resync")),
+        "alice never received the message"
+    );
+}

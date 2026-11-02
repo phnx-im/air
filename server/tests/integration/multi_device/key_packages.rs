@@ -404,3 +404,42 @@ async fn sibling_joins_welcome_with_derived_key_packages() -> anyhow::Result<()>
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "a lost commit response leaves the key package upload waiting forever"]
+async fn upload_recovers_from_lost_commit_response() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let _alice2 = link_sibling(&alice).await;
+
+    alice
+        .outbound_service()
+        .schedule_key_package_upload(Utc::now())
+        .await?;
+    alice.outbound_service().run_once().await;
+    assert!(alice.self_group_pending_operation_info().await?.is_some());
+
+    // The commit response is acked without being processed.
+    let qs_messages = alice.qs_fetch_messages().await?;
+    let last = qs_messages.last().expect("the commit response is queued");
+    let (mut stream, responder) = alice.listen_queue().await?;
+    responder.ack(last.sequence_number + 1).await;
+    responder.close(&mut stream).await;
+
+    for _ in 0..3 {
+        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+        alice
+            .outbound_service()
+            .schedule_key_package_upload(Utc::now())
+            .await?;
+        alice.outbound_service().run_once().await;
+        alice.drain().await;
+    }
+
+    assert!(
+        alice.self_group_pending_operation_info().await?.is_none(),
+        "the upload job is still waiting for the lost response"
+    );
+
+    Ok(())
+}

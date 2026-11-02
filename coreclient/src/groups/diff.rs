@@ -2,9 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use serde::Deserialize;
-
-use super::*;
+use aircommon::{
+    credentials::keys::UserSigningKey,
+    crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
+};
+use serde::{Deserialize, Serialize};
 
 /// A struct that contains differences in group data when creating a commit.
 /// The diff of a group should be merged when the pending commit of the

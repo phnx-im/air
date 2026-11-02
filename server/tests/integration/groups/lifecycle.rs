@@ -109,8 +109,15 @@ async fn dropped_commit_response_is_confirmed_via_queue() {
     setup.connect_users(&alice, &bob).await;
     let chat_id = setup.create_group(&alice).await;
 
-    // Make server drop connection instead of sending responses
-    setup.listener_control_handle().set_drop_next_response();
+    // Make server drop connection instead of sending the commit response
+    let group_operation = if setup.apq_groups {
+        "ApqGroupOperation"
+    } else {
+        "GroupOperation"
+    };
+    setup
+        .listener_control_handle()
+        .set_drop_next_response_to(group_operation);
 
     let _ = alice
         .invite_users(chat_id, slice::from_ref(bob.user_id()))

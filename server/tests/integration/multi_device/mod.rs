@@ -41,6 +41,7 @@ use aircoreclient::{
 };
 use airprotos::queue_service::v1::{SiblingClientState, sibling_client_state};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
+use chrono::Utc;
 use mimi_content::MimiContent;
 use tempfile::TempDir;
 use tokio_stream::{Stream, StreamExt};
@@ -155,6 +156,16 @@ async fn self_chat_id(user: &CoreUser) -> ChatId {
         .unwrap()
         .expect("device should have a self group");
     ChatId::try_from(self_group.group_id()).unwrap()
+}
+
+/// Runs the expiry of connection requests on `device` now.
+async fn expire_requests(device: &CoreUser) {
+    device
+        .outbound_service()
+        .schedule_connection_request_expiry(Utc::now())
+        .await
+        .unwrap();
+    device.outbound_service().run_once().await;
 }
 
 fn client_db_files(db_path: &std::path::Path) -> Vec<String> {

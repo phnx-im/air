@@ -115,6 +115,7 @@ class MessageRowContainer extends StatelessWidget {
           UiMessage_Display(field0: final display) => DisplayMessageTile(
             display,
             timestamp,
+            messageId: messageId,
           ),
         },
       ),

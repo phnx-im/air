@@ -2361,6 +2361,10 @@
     "description": "Label of the profile tab in the bottom bar and sidebar. Refers to the user themselves."
   },
 
+  "messageList_empty": "No messages in this chat",
+  "@messageList_empty": {
+    "description": "Shown in the middle of the message list, styled like a system message, when the chat has no messages left, for example after the user deleted all of them."
+  },
   "messageList_newMessages": "New messages",
   "@messageList_newMessages": {
     "description": "Divider marking where the user's unread messages begin."

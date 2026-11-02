@@ -198,7 +198,7 @@ async fn main() -> anyhow::Result<()> {
             shutdown,
         },
         #[cfg(any(feature = "test_utils", test))]
-        Ok,
+        |_| Ok(()),
     )
     .await;
 

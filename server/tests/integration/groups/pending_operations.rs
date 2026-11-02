@@ -517,3 +517,89 @@ async fn delete_after_lost_response_finishes_on_retry() {
     let (_setup, alice, bob, chat_id) = delete_chat_with_a_network_error(true).await;
     assert_retried_delete_reaches_the_contact(&alice, &bob, chat_id).await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "a resync drops a pending leave and reactivates the chat"]
+async fn resync_keeps_pending_leave() {
+    let (_setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
+
+    // Alice leaves at a stale epoch, so the leave stays pending.
+    bob.update_key(chat_id).await.unwrap();
+    alice.leave_chat(chat_id).await.unwrap();
+    assert_eq!(
+        alice
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .operation_type,
+        "leave"
+    );
+
+    // Alice misses bob's commit and processes the next one, which makes her
+    // resync.
+    let qs_messages = alice.qs_fetch_messages().await.unwrap();
+    let [message] = qs_messages.as_slice() else {
+        panic!("alice should have one message in the queue");
+    };
+    let (mut stream, responder) = alice.listen_queue().await.unwrap();
+    responder.ack(message.sequence_number + 1).await;
+    responder.close(&mut stream).await;
+    bob.update_key(chat_id).await.unwrap();
+    alice.drain_unchecked().await;
+
+    for _ in 0..2 {
+        sleep(Duration::from_secs(2)).await;
+        alice.outbound_service().run_once().await;
+        alice.drain_unchecked().await;
+        bob.drain_unchecked().await;
+    }
+
+    assert!(
+        !matches!(
+            alice.expect_chat(chat_id).await.status(),
+            ChatStatus::Active
+        ),
+        "the chat alice left is active again"
+    );
+    assert!(
+        !bob.chat_participants(chat_id)
+            .await
+            .unwrap()
+            .contains(alice.user_id()),
+        "alice is still a member"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "a leave exhausting its retries leaves the chat inactive while still a member"]
+async fn leave_out_of_retries_keeps_membership_consistent() {
+    let (_setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
+
+    // Every attempt of alice's leave hits a stale epoch until it runs out of
+    // retries.
+    bob.update_key(chat_id).await.unwrap();
+    alice.leave_chat(chat_id).await.unwrap();
+    for _ in 0..6 {
+        sleep(Duration::from_millis(1100)).await;
+        alice.outbound_service().run_once().await;
+    }
+
+    alice.drain_unchecked().await;
+    alice.outbound_service().run_once().await;
+    bob.drain_unchecked().await;
+
+    let alice_active = matches!(
+        alice.expect_chat(chat_id).await.status(),
+        ChatStatus::Active
+    );
+    let alice_member = bob
+        .chat_participants(chat_id)
+        .await
+        .unwrap()
+        .contains(alice.user_id());
+    assert_eq!(
+        alice_active, alice_member,
+        "alice active: {alice_active}, member for bob: {alice_member}"
+    );
+}
