@@ -78,13 +78,6 @@ impl ClientAppData {
         }
     }
 
-    pub fn current_virtual_client() -> Self {
-        Self {
-            virtual_client: true,
-            ..Self::current()
-        }
-    }
-
     pub fn current_for(virtual_client: bool) -> Self {
         Self {
             virtual_client,
@@ -386,7 +379,7 @@ mod test {
         let _ = ClientAppData::current().to_extension();
         let _ = ClientAppData::current().leaf_node_extensions();
         let _ = ClientAppData::current().key_package_extensions();
-        let _ = ClientAppData::current_virtual_client().leaf_node_extensions();
+        let _ = ClientAppData::current_for(true).leaf_node_extensions();
     }
 
     /// Default extensions can be extended but must be backwards compatible.
@@ -408,7 +401,7 @@ mod test {
 
     #[test]
     fn client_app_data_round_trip() {
-        let data = ClientAppData::current_virtual_client();
+        let data = ClientAppData::current_for(true);
         let dict = data.to_dictionary();
         assert_eq!(ClientAppData::from_dictionary(&dict), Some(data));
 

@@ -313,8 +313,8 @@ pub(crate) enum StageKeyPackageError {
 }
 
 #[cfg(test)]
-mod tests {
-    use aircommon::codec::PersistenceCodec;
+pub(crate) mod tests {
+    use aircommon::{codec::PersistenceCodec, mls_group_config::default_leaf_node_capabilities};
     use apqmls::{
         ApqCiphersuite,
         authentication::{ApqCredentialWithKey, ApqSignatureKeyPair, ApqSignatureScheme},
@@ -337,7 +337,7 @@ mod tests {
 
     use super::*;
 
-    fn build_apq_key_package(last_resort: bool) -> ApqKeyPackage {
+    pub(crate) fn build_apq_key_package(last_resort: bool) -> ApqKeyPackage {
         let provider = OpenMlsRustCrypto::default();
         // The T and PQ ciphersuites have different hash sizes (SHA256 vs
         // SHA384) to exercise the cross-suite KDF path. Both use Ed25519
@@ -350,7 +350,8 @@ mod tests {
         let signer = ApqSignatureKeyPair::new(scheme).unwrap();
 
         let credential = ApqCredentialWithKey::new(b"test-client", &signer);
-        let mut builder = ApqKeyPackage::builder();
+        let mut builder =
+            ApqKeyPackage::builder().leaf_node_capabilities(default_leaf_node_capabilities());
         if last_resort {
             builder = builder.mark_as_last_resort();
         }
@@ -361,7 +362,7 @@ mod tests {
     }
 
     /// A plain key package is just the traditional half of a freshly built APQ key package.
-    fn build_key_package(last_resort: bool) -> KeyPackage {
+    pub(crate) fn build_key_package(last_resort: bool) -> KeyPackage {
         build_apq_key_package(last_resort).t_key_package().clone()
     }
 

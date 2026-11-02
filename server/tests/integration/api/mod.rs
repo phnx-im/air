@@ -2,10 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Server API surface: rate limits, service endpoints, the listen stream and
-//! the harness fault injection.
+//! Server API surface: rate limits, package upload limits, service endpoints,
+//! the listen stream and the harness fault injection.
 
 mod fault_injection;
+mod limits;
 mod listen;
 mod rate_limit;
 mod service;

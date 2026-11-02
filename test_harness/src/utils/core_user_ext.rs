@@ -44,6 +44,12 @@ pub trait CoreUserExt {
 
     async fn text_messages(&self, chat_id: ChatId) -> Vec<String>;
     async fn system_messages(&self, chat_id: ChatId) -> Vec<SystemMessage>;
+    /// The ID of the one system message in the chat that `is_wanted` picks.
+    async fn system_message_id(
+        &self,
+        chat_id: ChatId,
+        is_wanted: impl Fn(&SystemMessage) -> bool,
+    ) -> MessageId;
 
     async fn expect_chat(&self, chat_id: ChatId) -> Chat;
     async fn expect_last_message(&self, chat_id: ChatId) -> ChatMessage;
@@ -124,6 +130,27 @@ impl CoreUserExt for CoreUser {
                 _ => None,
             })
             .collect()
+    }
+
+    async fn system_message_id(
+        &self,
+        chat_id: ChatId,
+        is_wanted: impl Fn(&SystemMessage) -> bool,
+    ) -> MessageId {
+        let ids: Vec<MessageId> = self
+            .messages(chat_id, MAX_MESSAGES)
+            .await
+            .unwrap()
+            .iter()
+            .filter_map(|message| match message.message() {
+                Message::Event(EventMessage::System(system)) if is_wanted(system) => {
+                    Some(message.id())
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(ids.len(), 1, "got {ids:?}");
+        ids[0]
     }
 
     async fn text_messages(&self, chat_id: ChatId) -> Vec<String> {

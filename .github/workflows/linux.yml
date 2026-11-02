@@ -303,6 +303,20 @@ jobs:
           gpg-signing-key: ${{ secrets.GPG_SIGNING_KEY }}
           gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
 
+      # Flathub fetches the screenshots the metainfo links to when it builds
+      # the release, so they go up with every publish, before the repo starts
+      # linking them. A published set is skipped.
+      - name: Fetch screenshots
+        run: git lfs pull --include "app/test/product_shots/goldens/*.linux*.png"
+
+      - name: Publish screenshots
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
+          S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
+        run: cargo xtask linux-screenshots publish
+
       - name: Publish Flatpak
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}

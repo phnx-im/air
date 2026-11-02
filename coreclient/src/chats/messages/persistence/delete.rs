@@ -5,11 +5,18 @@
 //! Synchronizing local message deletions ("delete for me") with the user's
 //! other devices.
 //!
-//! Deleting a message locally erases it and parks its Mimi ID in the outbox.
-//! The outbound service sends the parked IDs as a [`DeletedMessages`] self-group
+//! Deleting a message locally erases it and parks its ID in the outbox, the
+//! Mimi ID of a content message or the event ID of a system message. The
+//! outbound service sends the parked IDs as a [`DeletedMessages`] self-group
 //! application message, and the siblings erase their copy on receipt.
+//!
+//! A sibling keeps the system messages of a contact request that is still open
+//! there.
 
-use aircommon::{identifiers::MimiId, time::TimeStamp};
+use aircommon::{
+    identifiers::{EventId, MimiId},
+    time::TimeStamp,
+};
 use airprotos::client::self_group::DeletedMessages;
 use tracing::debug;
 
@@ -19,6 +26,64 @@ use crate::{
     clients::self_group_outbox::{self, OutboxKind},
     db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
 };
+
+/// A deleted message.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DeletedMessageId {
+    Content(MimiId),
+    Event(EventId),
+}
+
+/// The outbox kinds that park deletions.
+const OUTBOX_KINDS: [OutboxKind; 2] = [OutboxKind::DeletedMessage, OutboxKind::DeletedEvent];
+
+impl DeletedMessageId {
+    fn outbox_key(&self) -> (OutboxKind, &[u8]) {
+        match self {
+            DeletedMessageId::Content(mimi_id) => (OutboxKind::DeletedMessage, mimi_id.as_slice()),
+            DeletedMessageId::Event(event_id) => (OutboxKind::DeletedEvent, event_id.as_slice()),
+        }
+    }
+
+    fn from_outbox_key(kind: OutboxKind, key: &[u8]) -> Option<Self> {
+        match kind {
+            OutboxKind::DeletedMessage => MimiId::from_slice(key).ok().map(Self::Content),
+            OutboxKind::DeletedEvent => EventId::from_slice(key).ok().map(Self::Event),
+            OutboxKind::Settings
+            | OutboxKind::BlockedContact
+            | OutboxKind::DeletedChat
+            | OutboxKind::ConnectionRequest
+            | OutboxKind::Username => None,
+        }
+    }
+}
+
+/// The self-group message that tells the siblings about `ids`.
+pub(crate) fn deleted_messages(ids: &[DeletedMessageId]) -> DeletedMessages {
+    let mut deleted = DeletedMessages::default();
+    for id in ids {
+        match id {
+            DeletedMessageId::Content(mimi_id) => deleted.mimi_ids.push(*mimi_id),
+            DeletedMessageId::Event(event_id) => deleted.event_ids.push(*event_id),
+        }
+    }
+    deleted
+}
+
+/// The IDs in the self-group message, the reverse of [`deleted_messages`].
+fn deleted_message_ids(deleted: &DeletedMessages) -> Vec<DeletedMessageId> {
+    let content = deleted
+        .mimi_ids
+        .iter()
+        .copied()
+        .map(DeletedMessageId::Content);
+    let events = deleted
+        .event_ids
+        .iter()
+        .copied()
+        .map(DeletedMessageId::Event);
+    content.chain(events).collect()
+}
 
 /// Erases the message and what hangs off it. Returns the chat it was in.
 pub(crate) async fn erase(
@@ -45,60 +110,55 @@ pub(crate) async fn erase(
 /// Parks a local deletion for the siblings.
 pub(crate) async fn store_outgoing_deletion(
     connection: impl WriteConnection,
-    mimi_id: &MimiId,
+    id: DeletedMessageId,
 ) -> sqlx::Result<()> {
-    self_group_outbox::stage(
-        connection,
-        OutboxKind::DeletedMessage,
-        mimi_id.as_slice(),
-        &[],
-        None,
-    )
-    .await
+    let (kind, key) = id.outbox_key();
+    self_group_outbox::stage(connection, kind, key, &[], None).await
 }
 
 #[cfg(test)]
-pub(crate) async fn staged_deletions(connection: impl ReadConnection) -> sqlx::Result<Vec<MimiId>> {
-    Ok(
-        self_group_outbox::load_kind(connection, OutboxKind::DeletedMessage)
-            .await?
-            .iter()
-            .filter_map(|entry| MimiId::from_slice(&entry.key).ok())
-            .collect(),
-    )
+pub(crate) async fn staged_deletions(
+    mut connection: impl ReadConnection,
+) -> sqlx::Result<Vec<DeletedMessageId>> {
+    let mut staged = Vec::new();
+    for kind in OUTBOX_KINDS {
+        for entry in self_group_outbox::load_kind(&mut connection, kind).await? {
+            if let Some(id) = DeletedMessageId::from_outbox_key(kind, &entry.key) {
+                staged.push(id);
+            }
+        }
+    }
+    Ok(staged)
 }
 
 /// The parked deletions that are due at `due_at`, with their failed attempts so
 /// far.
 pub(crate) async fn due_deletions(
-    connection: impl ReadConnection,
+    mut connection: impl ReadConnection,
     due_at: TimeStamp,
-) -> sqlx::Result<Vec<(MimiId, u32)>> {
-    Ok(
-        self_group_outbox::load_due(connection, OutboxKind::DeletedMessage, due_at)
-            .await?
-            .into_iter()
-            .filter_map(|entry| Some((MimiId::from_slice(&entry.key).ok()?, entry.attempts)))
-            .collect(),
-    )
+) -> sqlx::Result<Vec<(DeletedMessageId, u32)>> {
+    let mut due = Vec::new();
+    for kind in OUTBOX_KINDS {
+        for entry in self_group_outbox::load_due(&mut connection, kind, due_at).await? {
+            if let Some(id) = DeletedMessageId::from_outbox_key(kind, &entry.key) {
+                due.push((id, entry.attempts));
+            }
+        }
+    }
+    Ok(due)
 }
 
 /// Keeps the parked deletions until `retry_at`.
 pub(crate) async fn defer_deletions(
     mut connection: impl WriteConnection,
-    mimi_ids: &[MimiId],
+    ids: &[DeletedMessageId],
     attempts: u32,
     retry_at: TimeStamp,
 ) -> sqlx::Result<()> {
-    for mimi_id in mimi_ids {
-        self_group_outbox::record_failed_attempt(
-            &mut connection,
-            OutboxKind::DeletedMessage,
-            mimi_id.as_slice(),
-            attempts,
-            retry_at,
-        )
-        .await?;
+    for id in ids {
+        let (kind, key) = id.outbox_key();
+        self_group_outbox::record_failed_attempt(&mut connection, kind, key, attempts, retry_at)
+            .await?;
     }
     Ok(())
 }
@@ -106,15 +166,11 @@ pub(crate) async fn defer_deletions(
 /// Drops the parked deletions.
 pub(crate) async fn remove_staged_deletion(
     mut connection: impl WriteConnection,
-    mimi_ids: &[MimiId],
+    ids: &[DeletedMessageId],
 ) -> sqlx::Result<()> {
-    for mimi_id in mimi_ids {
-        self_group_outbox::remove(
-            &mut connection,
-            OutboxKind::DeletedMessage,
-            mimi_id.as_slice(),
-        )
-        .await?;
+    for id in ids {
+        let (kind, key) = id.outbox_key();
+        self_group_outbox::remove(&mut connection, kind, key).await?;
     }
     Ok(())
 }
@@ -132,12 +188,39 @@ pub(crate) async fn apply_deleted_messages(
             continue;
         };
         let chat_id = erase(txn, &message).await?;
-        if !chat_ids.contains(&chat_id) {
-            chat_ids.push(chat_id);
-        }
+        add_chat(&mut chat_ids, chat_id);
     }
-    remove_staged_deletion(&mut *txn, &deleted.mimi_ids).await?;
+    for event_id in &deleted.event_ids {
+        erase_event(txn, event_id, &mut chat_ids).await?;
+    }
+    remove_staged_deletion(&mut *txn, &deleted_message_ids(deleted)).await?;
     Ok(chat_ids)
+}
+
+/// Erases the copies of a deletable system message.
+async fn erase_event(
+    txn: &mut WriteDbTransaction<'_>,
+    event_id: &EventId,
+    chat_ids: &mut Vec<ChatId>,
+) -> anyhow::Result<()> {
+    for message_id in ChatMessage::load_ids_by_event_id(&mut *txn, event_id).await? {
+        let Some(message) = ChatMessage::load(&mut *txn, message_id).await? else {
+            continue;
+        };
+        if !message.is_deletable(&mut *txn).await? {
+            debug!(?event_id, "Keeping a system message of an open request");
+            continue;
+        }
+        let chat_id = erase(txn, &message).await?;
+        add_chat(chat_ids, chat_id);
+    }
+    Ok(())
+}
+
+fn add_chat(chat_ids: &mut Vec<ChatId>, chat_id: ChatId) {
+    if !chat_ids.contains(&chat_id) {
+        chat_ids.push(chat_id);
+    }
 }
 
 /// Loads the message by its current Mimi ID or one an edit superseded.
@@ -156,14 +239,18 @@ async fn load_any_version(
 
 #[cfg(test)]
 mod tests {
-    use aircommon::{identifiers::UserId, time::TimeStamp};
+    use aircommon::{
+        identifiers::{QualifiedGroupId, UserId, Username},
+        time::TimeStamp,
+    };
     use mimi_content::MimiContent;
     use openmls::group::GroupId;
     use sqlx::SqlitePool;
+    use uuid::Uuid;
 
     use crate::{
-        ContentMessage, Message, MessageId, chats::persistence::tests::test_chat,
-        db::access::DbAccess,
+        Chat, ChatType, ContentMessage, Message, MessageId, SystemMessage,
+        chats::persistence::tests::test_chat, db::access::DbAccess,
     };
 
     use super::*;
@@ -175,17 +262,24 @@ mod tests {
     fn deleted(mimi_ids: impl IntoIterator<Item = MimiId>) -> DeletedMessages {
         DeletedMessages {
             mimi_ids: mimi_ids.into_iter().collect(),
+            ..Default::default()
         }
+    }
+
+    fn deleted_events(event_ids: impl IntoIterator<Item = EventId>) -> DeletedMessages {
+        DeletedMessages {
+            event_ids: event_ids.into_iter().collect(),
+            ..Default::default()
+        }
+    }
+
+    fn user() -> UserId {
+        UserId::random("localhost".parse().unwrap())
     }
 
     fn received_message(chat_id: ChatId) -> ChatMessage {
         let content = MimiContent::simple_markdown_message("Hello".to_string(), [7; 16]);
-        let message = ContentMessage::new(
-            UserId::random("localhost".parse().unwrap()),
-            true,
-            content,
-            &GroupId::from_slice(&[0]),
-        );
+        let message = ContentMessage::new(user(), true, content, &GroupId::from_slice(&[0]));
         ChatMessage::new_for_test(
             chat_id,
             MessageId::random(),
@@ -194,24 +288,67 @@ mod tests {
         )
     }
 
+    /// Stores the system message in the chat and returns it with its event
+    /// ID.
+    async fn store_system_message(
+        txn: &mut WriteDbTransaction<'_>,
+        chat: &Chat,
+        system_message: SystemMessage,
+    ) -> anyhow::Result<(ChatMessage, EventId)> {
+        let timestamp = TimeStamp::now();
+        let event_id = system_message
+            .event_id(chat.group_id(), timestamp)
+            .expect("system message without an event ID");
+        let message = ChatMessage::new_system_message(chat.id(), timestamp, system_message);
+        message.store(&mut *txn).await?;
+        Ok((message, event_id))
+    }
+
+    fn open_request_chat() -> Chat {
+        let group_id = QualifiedGroupId::new(Uuid::new_v4(), "localhost".parse().unwrap());
+        Chat::new_pending_connection_chat(group_id.into(), user())
+    }
+
     #[sqlx::test]
     async fn staged_is_sorted_and_deduplicated(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
+        let content = |n| DeletedMessageId::Content(mimi_id(n));
+        let event = DeletedMessageId::Event(EventId::from([5; 32]));
 
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            store_outgoing_deletion(&mut *txn, &mimi_id(2)).await?;
-            store_outgoing_deletion(&mut *txn, &mimi_id(1)).await?;
-            store_outgoing_deletion(&mut *txn, &mimi_id(2)).await?;
+            store_outgoing_deletion(&mut *txn, content(2)).await?;
+            store_outgoing_deletion(&mut *txn, event).await?;
+            store_outgoing_deletion(&mut *txn, content(1)).await?;
+            store_outgoing_deletion(&mut *txn, content(2)).await?;
             assert_eq!(
                 staged_deletions(&mut *txn).await?,
-                vec![mimi_id(1), mimi_id(2)]
+                vec![content(1), content(2), event]
             );
 
-            remove_staged_deletion(&mut *txn, &[mimi_id(1)]).await?;
-            assert_eq!(staged_deletions(&mut *txn).await?, vec![mimi_id(2)]);
+            remove_staged_deletion(&mut *txn, &[content(1), event]).await?;
+            assert_eq!(staged_deletions(&mut *txn).await?, vec![content(2)]);
             Ok(())
         })
         .await
+    }
+
+    #[test]
+    fn deleted_messages_splits_the_ids_by_kind() {
+        let event_id = EventId::from([5; 32]);
+        let ids = [
+            DeletedMessageId::Content(mimi_id(1)),
+            DeletedMessageId::Event(event_id),
+            DeletedMessageId::Content(mimi_id(2)),
+        ];
+        let deleted = deleted_messages(&ids);
+        assert_eq!(
+            deleted,
+            DeletedMessages {
+                mimi_ids: vec![mimi_id(1), mimi_id(2)],
+                event_ids: vec![event_id],
+            }
+        );
+        assert_eq!(deleted_message_ids(&deleted), [ids[0], ids[2], ids[1]]);
     }
 
     #[sqlx::test]
@@ -228,7 +365,7 @@ mod tests {
                 mimi_id(9),
                 current,
                 chat.id(),
-                UserId::random("localhost".parse().unwrap()),
+                user(),
                 "👍".into(),
                 TimeStamp::now(),
             );
@@ -277,15 +414,62 @@ mod tests {
         pool: SqlitePool,
     ) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
+        let content = |n| DeletedMessageId::Content(mimi_id(n));
 
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
-            store_outgoing_deletion(&mut *txn, &mimi_id(1)).await?;
-            store_outgoing_deletion(&mut *txn, &mimi_id(2)).await?;
+            store_outgoing_deletion(&mut *txn, content(1)).await?;
+            store_outgoing_deletion(&mut *txn, content(2)).await?;
 
             let changed = apply_deleted_messages(txn, &deleted([mimi_id(1)])).await?;
 
             assert!(changed.is_empty());
-            assert_eq!(staged_deletions(&mut *txn).await?, vec![mimi_id(2)]);
+            assert_eq!(staged_deletions(&mut *txn).await?, vec![content(2)]);
+            Ok(())
+        })
+        .await
+    }
+
+    #[sqlx::test]
+    async fn apply_erases_a_system_message_by_its_event_id(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = test_chat();
+
+        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            chat.store(&mut *txn).await?;
+            let add = SystemMessage::Add(Some(user()), user());
+            let (message, event_id) = store_system_message(txn, &chat, add).await?;
+            store_outgoing_deletion(&mut *txn, DeletedMessageId::Event(event_id)).await?;
+
+            let changed = apply_deleted_messages(txn, &deleted_events([event_id])).await?;
+
+            assert_eq!(changed, vec![chat.id()]);
+            assert!(ChatMessage::load(&mut *txn, message.id()).await?.is_none());
+            assert!(staged_deletions(&mut *txn).await?.is_empty());
+            Ok(())
+        })
+        .await
+    }
+
+    #[sqlx::test]
+    async fn apply_keeps_the_messages_of_an_open_request(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = open_request_chat();
+        let ChatType::PendingConnection(sender) = chat.chat_type().clone() else {
+            unreachable!()
+        };
+
+        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            chat.store(&mut *txn).await?;
+            let announcement = SystemMessage::ReceivedHandleConnectionRequest {
+                sender,
+                user_handle: Username::new("ellie-03".to_owned())?,
+            };
+            let (message, event_id) = store_system_message(txn, &chat, announcement).await?;
+
+            let changed = apply_deleted_messages(txn, &deleted_events([event_id])).await?;
+
+            assert!(changed.is_empty());
+            assert!(ChatMessage::load(&mut *txn, message.id()).await?.is_some());
             Ok(())
         })
         .await

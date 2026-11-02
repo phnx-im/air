@@ -399,8 +399,8 @@ impl ProductionPushNotificationProvider {
         let body = json!({
             "aps": {
                 "alert": {
-                    "title": "Empty notification",
-                    "body": "This artefact should disappear once the app is in public beta."
+                    "title": "Air",
+                    "body": "..."
                 },
                 "mutable-content": 1
             },

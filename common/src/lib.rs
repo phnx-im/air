@@ -22,6 +22,7 @@ pub mod credentials;
 pub mod crypto;
 pub mod endpoint_paths;
 pub mod identifiers;
+pub mod limits;
 pub mod messages;
 pub mod mls_group_config;
 pub mod padme;
