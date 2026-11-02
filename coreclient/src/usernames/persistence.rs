@@ -11,7 +11,7 @@ use chrono::{DateTime, Utc};
 use sqlx::{query, query_as, query_scalar};
 
 use crate::db::{
-    access::{ReadConnection, WriteConnection},
+    access::{ReadConnection, WriteConnection, WriteDbTransaction},
     notification::DbEntityId,
 };
 
@@ -166,6 +166,27 @@ impl UsernameRecord {
         }))
     }
 
+    /// Loads the usernames with unpublished connection packages.
+    pub(crate) async fn load_unpublished(
+        mut connection: impl ReadConnection,
+    ) -> sqlx::Result<Vec<Self>> {
+        let records = query_as!(
+            SqlUsernameRecord,
+            r#"
+                SELECT
+                    u.handle AS "username: _",
+                    u.hash AS "hash: _",
+                    u.signing_key AS "signing_key: _"
+                FROM user_handle AS u
+                INNER JOIN pending_username AS p ON p.handle = u.handle
+                ORDER BY u.created_at ASC
+            "#,
+        )
+        .fetch_all(connection.as_mut())
+        .await?;
+        Ok(records.into_iter().map(From::from).collect())
+    }
+
     /// Load usernames where `refreshed_at` is older than the given threshold.
     pub(crate) async fn load_needing_refresh(
         mut connection: impl ReadConnection,
@@ -228,6 +249,8 @@ impl UsernameRecord {
         Ok(())
     }
 
+    /// Deletes the username together with its connection packages and its
+    /// pending key.
     pub(crate) async fn delete(
         mut connection: impl WriteConnection,
         username: &Username,
@@ -241,6 +264,7 @@ impl UsernameRecord {
         )
         .execute(connection.as_mut())
         .await?;
+        PendingKey::delete(&mut connection, username).await?;
         connection
             .notifier()
             .remove(DbEntityId::Username(username.clone()));
@@ -248,8 +272,86 @@ impl UsernameRecord {
     }
 }
 
+/// The signing key of a username registration that is still inprogress.
+#[derive(Debug)]
+pub(crate) struct PendingKey {
+    pub(super) signing_key: UsernameSigningKey,
+    pub(super) origin: PendingKeyOrigin,
+}
+
+#[derive(Debug)]
+pub(crate) enum PendingKeyOrigin {
+    /// The key is new and the AS has not seen it.
+    New,
+    /// An earlier attempt stored the key and may have registered the username
+    /// with it.
+    Resumed,
+}
+
+impl PendingKey {
+    /// Loads the pending key of `username`, or stores a new one.
+    pub(super) async fn load_or_create(
+        txn: &mut WriteDbTransaction<'_>,
+        username: &Username,
+    ) -> anyhow::Result<Self> {
+        let stored = query_scalar!(
+            r#"
+                SELECT signing_key AS "signing_key: BlobDecoded<UsernameSigningKey>"
+                FROM pending_username
+                WHERE handle = ?
+            "#,
+            username,
+        )
+        .fetch_optional(txn.as_mut())
+        .await?;
+        if let Some(signing_key) = stored {
+            return Ok(Self {
+                signing_key: signing_key.into_inner(),
+                origin: PendingKeyOrigin::Resumed,
+            });
+        }
+
+        let signing_key = UsernameSigningKey::generate()?;
+        let encoded = BlobEncoded(&signing_key);
+        query!(
+            r#"
+                INSERT INTO pending_username (
+                    handle,
+                    signing_key
+                ) VALUES (?, ?)
+            "#,
+            username,
+            encoded,
+        )
+        .execute(txn.as_mut())
+        .await?;
+        Ok(Self {
+            signing_key,
+            origin: PendingKeyOrigin::New,
+        })
+    }
+
+    pub(super) async fn delete(
+        mut connection: impl WriteConnection,
+        username: &Username,
+    ) -> sqlx::Result<()> {
+        query!(
+            r#"
+                DELETE FROM pending_username
+                WHERE handle = ?
+            "#,
+            username,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod test {
+    use std::assert_matches;
+
     use sqlx::SqlitePool;
 
     use crate::db::access::DbAccess;
@@ -374,6 +476,88 @@ mod test {
         UsernameRecord::delete(pool.write().await?, &username).await?;
         let loaded_record = UsernameRecord::load(pool.read().await?, &username).await?;
         assert!(loaded_record.is_none());
+        Ok(())
+    }
+
+    async fn load_or_create_pending_key(
+        pool: &DbAccess,
+        username: &Username,
+    ) -> anyhow::Result<PendingKey> {
+        pool.with_write_transaction(async |txn| PendingKey::load_or_create(txn, username).await)
+            .await
+    }
+
+    #[sqlx::test]
+    async fn pending_key_is_resumed_until_deleted(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let username = Username::new("ellie-03".to_owned())?;
+
+        let first = load_or_create_pending_key(&pool, &username).await?;
+        assert_matches!(first.origin, PendingKeyOrigin::New);
+        let resumed = load_or_create_pending_key(&pool, &username).await?;
+        assert_matches!(resumed.origin, PendingKeyOrigin::Resumed);
+        assert_eq!(
+            resumed.signing_key.verifying_key(),
+            first.signing_key.verifying_key()
+        );
+
+        PendingKey::delete(pool.write().await?, &username).await?;
+        let fresh = load_or_create_pending_key(&pool, &username).await?;
+        assert_matches!(fresh.origin, PendingKeyOrigin::New);
+        assert_ne!(
+            fresh.signing_key.verifying_key(),
+            first.signing_key.verifying_key()
+        );
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn a_deleted_username_takes_its_pending_key_along(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let username = Username::new("ellie-03".to_owned())?;
+        let signing_key = load_or_create_pending_key(&pool, &username)
+            .await?
+            .signing_key;
+        UsernameRecord::new(username.clone(), username.calculate_hash()?, signing_key)
+            .store(pool.write().await?)
+            .await?;
+
+        UsernameRecord::delete(pool.write().await?, &username).await?;
+        let fresh = load_or_create_pending_key(&pool, &username).await?;
+        assert_matches!(fresh.origin, PendingKeyOrigin::New);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn unpublished_usernames_have_a_record_and_a_pending_key(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let published = Username::new("ellie-03".to_owned())?;
+        let signing_key = UsernameSigningKey::generate()?;
+        UsernameRecord::new(published.clone(), published.calculate_hash()?, signing_key)
+            .store(pool.write().await?)
+            .await?;
+
+        let unregistered = Username::new("joel-03".to_owned())?;
+        load_or_create_pending_key(&pool, &unregistered).await?;
+
+        let unpublished = Username::new("tommy-03".to_owned())?;
+        let signing_key = load_or_create_pending_key(&pool, &unpublished)
+            .await?
+            .signing_key;
+        let record = UsernameRecord::new(
+            unpublished.clone(),
+            unpublished.calculate_hash()?,
+            signing_key,
+        );
+        record.store(pool.write().await?).await?;
+
+        let loaded = UsernameRecord::load_unpublished(pool.read().await?).await?;
+        assert_eq!(loaded, [record]);
         Ok(())
     }
 }

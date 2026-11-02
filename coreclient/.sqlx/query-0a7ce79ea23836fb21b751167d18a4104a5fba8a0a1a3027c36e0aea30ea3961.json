@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT signing_key AS \"signing_key: BlobDecoded<UsernameSigningKey>\"\n                FROM pending_username\n                WHERE handle = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "signing_key: BlobDecoded<UsernameSigningKey>",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_username",
+            "name": "signing_key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0a7ce79ea23836fb21b751167d18a4104a5fba8a0a1a3027c36e0aea30ea3961"
+}

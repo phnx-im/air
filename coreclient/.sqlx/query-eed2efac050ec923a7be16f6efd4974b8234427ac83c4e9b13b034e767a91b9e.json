@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT\n                    u.handle AS \"username: _\",\n                    u.hash AS \"hash: _\",\n                    u.signing_key AS \"signing_key: _\"\n                FROM user_handle AS u\n                INNER JOIN pending_username AS p ON p.handle = u.handle\n                ORDER BY u.created_at ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "username: _",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "user_handle",
+            "name": "handle"
+          }
+        }
+      },
+      {
+        "name": "hash: _",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "user_handle",
+            "name": "hash"
+          }
+        }
+      },
+      {
+        "name": "signing_key: _",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "user_handle",
+            "name": "signing_key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "eed2efac050ec923a7be16f6efd4974b8234427ac83c4e9b13b034e767a91b9e"
+}
