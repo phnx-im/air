@@ -215,6 +215,9 @@ async fn sibling_holding_request_from_a_virtual_client_follows_accept() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let alice2 = alice.add_synced_device().await;
+    // With a second device, bob is a virtual client, so creating the
+    // connection group also stores an epoch 0 snapshot for bob2. Alice's join
+    // stores a snapshot for alice2 too, and it must not land on bob's.
     let bob2 = bob.add_synced_device().await;
     let record = setup.add_username(&alice).await;
     alice.outbound_service().run_once().await;
