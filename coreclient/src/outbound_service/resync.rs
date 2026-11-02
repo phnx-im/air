@@ -234,7 +234,7 @@ impl Resync {
     ) -> Self {
         Self {
             chat_id: Some(chat_id),
-            group_id: group_id.clone(),
+            group_id,
             pq_group_id,
             group_state_ear_key,
             identity_link_wrapper_key,
