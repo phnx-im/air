@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::LeafSigningKey,
+    credentials::{LeafCredential, keys::LeafSigningKey},
     crypto::{aead::AeadEncryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{QualifiedGroupId, UserId, Username},
     messages::{
@@ -427,9 +427,27 @@ impl CoreUser {
             "Request already accepted by a sibling device, joining by resync"
         );
 
-        let resync = Resync::for_silbling_accept(
+        // Checked on the unverified tree: the join verifies it against the signed group info before
+        // the commit is sent.
+        let members: Vec<_> = eci
+            .ratchet_tree_in
+            .full_leaves()
+            .filter_map(|(_, leaf)| LeafCredential::from_credential(leaf.credential()).ok())
+            .map(|credential| credential.user_id(self.user_id()).clone())
+            .collect();
+        ensure!(
+            members.len() == 2
+                && members.contains(self.user_id())
+                && members.contains(&sender_user_id),
+            "Connection group has unexpected members: {:?}",
+            members
+        );
+
+        // Not queued: on failure the user accepts again, and the next resync replaces the local
+        // group left behind by this one.
+        let resync = Resync::for_sibling_accept(
             chat_id,
-            group_id.clone(),
+            group_id,
             pq_group_id,
             connection_info.connection_group_ear_key,
             connection_info.connection_group_identity_link_wrapper_key,
@@ -464,18 +482,6 @@ impl CoreUser {
 
         self.db()
             .with_write_transaction(async move |txn| -> anyhow::Result<_> {
-                let group = Group::load(&mut *txn, &group_id)
-                    .await?
-                    .context("No group after resync")?;
-                let members: Vec<_> = group.members().collect();
-                ensure!(
-                    members.len() == 2
-                        && members.contains(self.user_id())
-                        && members.contains(&sender_user_id),
-                    "Connection group has unexpected members: {:?}",
-                    members
-                );
-
                 for profile_info in profile_infos.members {
                     Self::schedule_fetch_user_profile(&mut *txn, profile_info).await?;
                 }

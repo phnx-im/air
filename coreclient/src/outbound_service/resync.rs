@@ -224,7 +224,7 @@ impl Resync {
         }
     }
 
-    pub(crate) fn for_silbling_accept(
+    pub(crate) fn for_sibling_accept(
         chat_id: ChatId,
         group_id: GroupId,
         pq_group_id: Option<GroupId>,
