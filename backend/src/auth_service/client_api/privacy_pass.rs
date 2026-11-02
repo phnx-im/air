@@ -90,9 +90,7 @@ impl AuthService {
             token_allowance.valid_until = operation_type.valid_until_starting_at(now);
         }
 
-        if let OperationType::AddUsername = operation_type {
-            // Token allowance is not yet enforced for AddUsername
-        } else if token_allowance.remaining < tokens_requested {
+        if token_allowance.remaining < tokens_requested {
             let (retry_after_secs, tokens_available) = if token_allowance.remaining > 0 {
                 (0, token_allowance.remaining)
             } else {
@@ -246,7 +244,7 @@ impl AuthService {
     }
 
     /// Issues a single replacement token (used during handle deletion).
-    /// Currently unused: refunds are disabled during gradual rollout.
+    /// Currently unused: refunds are not implemented.
     #[allow(dead_code)]
     pub(crate) async fn as_issue_single_token(
         &self,
@@ -746,9 +744,8 @@ mod tests {
         Ok(())
     }
 
-    /// Token allowance is not yet enforced for `AddUsername`
     #[sqlx::test]
-    async fn add_username_bypasses_allowance(pool: PgPool) -> anyhow::Result<()> {
+    async fn add_username_enforces_allowance(pool: PgPool) -> anyhow::Result<()> {
         let (service, public_keys) = setup_with_keypair(&pool).await?;
         let public_key = *public_keys.get(&OperationType::AddUsername).unwrap();
 
@@ -758,21 +755,22 @@ mod tests {
 
         let challenge = build_challenge();
         let requested = OperationType::AddUsername.max_tokens_allowance() + 1;
-        let (token_request, token_state) =
+        let (token_request, _token_state) =
             AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, requested)?;
 
-        // Exceeds the allowance, but AddUsername skips the check for now.
-        let token_response = service
+        let err = service
             .as_issue_tokens(
                 user_record.user_id(),
                 OperationType::AddUsername,
                 token_request,
                 Utc::now(),
             )
-            .await?;
-
-        let tokens = token_response.issue_tokens(&token_state)?;
-        assert_eq!(tokens.len(), requested as usize);
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            IssueTokensError::TooManyTokensRequested { .. }
+        ));
 
         Ok(())
     }

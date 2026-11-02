@@ -81,6 +81,11 @@ extension UiChatDetailsExtension on UiChatDetails {
     };
   }
 
+  bool get isOpenRequest => switch (requestState) {
+    ContactRequestState.incoming || ContactRequestState.outgoing => true,
+    ContactRequestState.closed || null => false,
+  };
+
   bool get isMuted => mutedUntil.isMuted;
 
   /// Whether the chat takes shared content, i.e. the user can send into it.
@@ -207,29 +212,57 @@ extension UiChatMessageExtension on UiChatMessage {
   };
 }
 
+extension UiEventMessageExtension on UiEventMessage {
+  /// Specifies whether the event message is deletable.
+  bool isDeletable({required bool openRequest}) => switch (this) {
+    UiEventMessage_System(field0: final message) => switch (message) {
+      UiSystemMessage_Add(field0: final actor) ||
+      UiSystemMessage_Remove(field0: final actor) => actor != null,
+      UiSystemMessage_DeviceLinked() ||
+      UiSystemMessage_DeviceUnlinked() ||
+      UiSystemMessage_SelfChatCreated() => false,
+      UiSystemMessage_ReceivedHandleConnectionRequest() ||
+      UiSystemMessage_ReceivedDirectConnectionRequest() ||
+      UiSystemMessage_ReceivedAdditionalUsernameConnectionRequest() ||
+      UiSystemMessage_ReceivedAdditionalDirectConnectionRequest() ||
+      UiSystemMessage_NewHandleConnectionChat() ||
+      UiSystemMessage_NewDirectConnectionChat() ||
+      UiSystemMessage_SentDirectConnectionRequest() => !openRequest,
+      UiSystemMessage_ChangeTitle() ||
+      UiSystemMessage_ChangePicture() ||
+      UiSystemMessage_AcceptedConnectionRequest() ||
+      UiSystemMessage_ReceivedConnectionConfirmation() ||
+      UiSystemMessage_CreateGroup() ||
+      UiSystemMessage_DeleteGroup() ||
+      UiSystemMessage_Onboarded() ||
+      UiSystemMessage_ConnectionRequestUnavailable() ||
+      UiSystemMessage_ConnectionRequestExpired() ||
+      UiSystemMessage_SentConnectionRequestExpired() => true,
+    },
+    UiEventMessage_Error() => true,
+  };
+}
+
 extension UiAttachmentExtension on UiAttachment {
   bool get isImage => imageMetadata != null;
 }
 
 extension UiMimiContentExtension on UiMimiContent {
-  String? plaintextPreview(AppLocalizations loc) {
-    if (isDeleted) {
-      return null;
-    }
-
-    if (plainBody?.isNotEmpty == true) {
-      return plainBody!.replaceAll(RegExp(r'\n+'), ' ');
-    }
-
-    return switch (firstAttachmentType) {
-      UiAttachmentType.image => loc.chatList_imageEmoji,
-      UiAttachmentType.file => loc.chatList_fileEmoji,
-      null => null,
-    };
-  }
+  String? get plaintextPreview => switch (previewText) {
+    final text? => _singleLine(text),
+    null => null,
+  };
 
   bool get isDeleted => replaces != null && content == null;
 }
+
+extension UiMessageDraftExtension on UiMessageDraft {
+  String get plaintextPreview => _singleLine(previewText);
+}
+
+/// Previews put each block on its own line. The chat list and quotes show
+/// them as running text.
+String _singleLine(String text) => text.replaceAll(RegExp(r'\n+'), ' ');
 
 extension AirFeaturesExtension on AirFeatures {
   bool isSupported({required bool isApq}) {

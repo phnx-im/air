@@ -608,9 +608,16 @@ async fn rejected_connection_creation_has_no_echo() {
     let chats_before_a = alice.ordered_chat_ids().await.unwrap();
     let chats_before_b = alice2.ordered_chat_ids().await.unwrap();
 
-    // `add_contact` asks the DS for a group id first, so the rejection has to
-    // skip that request to land on the create itself.
-    setup.listener_control_handle().set_reject_request_after(1);
+    // `add_contact` fetches a connection package and a group id first, so the
+    // rejection is aimed at the create itself.
+    let create_group = if setup.apq_groups {
+        "CreateApqGroup"
+    } else {
+        "CreateGroup"
+    };
+    setup
+        .listener_control_handle()
+        .set_reject_next_request_to(create_group);
     let error = alice
         .add_contact(
             record.username.clone(),

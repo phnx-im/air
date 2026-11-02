@@ -61,6 +61,22 @@ impl<T, const TAG: u32> SignedRequest<T, TAG> {
     }
 }
 
+impl<T> SignedRequest<T> {
+    /// Wraps a request that arrived nested in another message, such as a
+    /// stream step. Prost does not keep the wire bytes of nested messages, so
+    /// the payload is verified against its re-encoding. A payload field the
+    /// receiver does not know is dropped and breaks the signature.
+    ///
+    /// Returns `None` when the request has no payload.
+    pub fn from_nested<P: Message>(
+        request: T,
+        payload: impl FnOnce(&T) -> Option<&P>,
+    ) -> Option<Self> {
+        let payload_bytes = payload(&request)?.encode_to_vec();
+        Some(Self::new(request, payload_bytes.into()))
+    }
+}
+
 impl<T, const TAG: u32> Message for SignedRequest<T, TAG>
 where
     T: Message,
@@ -441,6 +457,22 @@ mod tests {
         let request_bytes = TestRequest { payload: None }.encode_to_vec();
         let signed = <SignedRequest<TestRequest>>::decode(request_bytes.as_slice()).unwrap();
         assert!(signed.unsigned_payload().is_err());
+    }
+
+    #[test]
+    fn from_nested_captures_re_encoded_payload() {
+        let request = TestRequest {
+            payload: Some(payload()),
+        };
+        let signed =
+            SignedRequest::from_nested(request, |request| request.payload.as_ref()).unwrap();
+        assert_eq!(
+            signed.unsigned_payload().unwrap(),
+            payload().encode_to_vec()
+        );
+
+        let request = TestRequest { payload: None };
+        assert!(SignedRequest::from_nested(request, |request| request.payload.as_ref()).is_none());
     }
 
     #[test]

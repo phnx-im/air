@@ -47,7 +47,7 @@ jobs:
           git fetch origin $BRANCH_NAME
           git checkout $BRANCH_NAME
 
-          git add app/test
+          git add app/test app/stores/linux/screenshots app/linux/ms.air.Air.metainfo.xml
           git commit -m "Update golden files" || echo "No changes to commit."
           git status
           git restore .

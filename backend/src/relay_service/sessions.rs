@@ -270,6 +270,7 @@ mod tests {
             RelaySettings {
                 sessionttl: ttl,
                 idquarantine: quarantine,
+                ..RelaySettings::default()
             },
         )
     }

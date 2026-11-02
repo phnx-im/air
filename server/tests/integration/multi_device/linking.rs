@@ -930,3 +930,67 @@ async fn unanswered_code_is_replaced() {
     .unwrap();
     let _new_device = new_device_task.await.unwrap().unwrap();
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn link_attempts_are_rate_limited_per_user() {
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        relay: RelaySettings {
+            peruser: 1,
+            ..RelaySettings::default()
+        },
+        ..Default::default()
+    })
+    .await;
+    let alice = setup.add_user().await;
+
+    // Every attempt with a valid signature counts, whether or not its session
+    // exists, so a code for a session that was never opened is enough.
+    let code = LinkingCode::generate("999").unwrap().to_digits();
+    let first = in_foreground(
+        &alice,
+        alice.multi_device_link_client(code.clone(), ignore_connected(), auto_confirm()),
+    )
+    .await;
+    assert!(matches!(
+        first,
+        Ok(Err(MultiDeviceLinkClientError::SessionNotFound))
+    ));
+
+    let error = in_foreground(
+        &alice,
+        alice.multi_device_link_client(code, ignore_connected(), auto_confirm()),
+    )
+    .await
+    .expect_err("the second attempt must be rate limited");
+    let error = format!("{error:#}");
+    assert!(
+        error.contains("Too many requests"),
+        "expected a rate-limit error, got {error}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn provisioning_is_rate_limited_per_address() {
+    let setup = TestBackend::single_with_params(TestBackendParams {
+        relay: RelaySettings {
+            perip: 1,
+            ..RelaySettings::default()
+        },
+        ..Default::default()
+    })
+    .await;
+
+    let (_code, first_task, _session_rx) = provision_device(&setup).await;
+
+    let (session_tx, _session_rx) = tokio::sync::mpsc::channel(1);
+    let error =
+        CoreUser::new_linked_ephemeral(setup.domain().clone(), setup.server_url(), session_tx)
+            .await
+            .expect_err("the second session from the same address must be rate limited");
+    let error = format!("{error:#}");
+    assert!(
+        error.contains("Too many requests"),
+        "expected a rate-limit error, got {error}"
+    );
+    first_task.abort();
+}

@@ -56,7 +56,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -248449760;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -78017340;
 
 // Section: executor
 
@@ -8804,6 +8804,47 @@ fn wire__crate__api__utils__delete_databases_impl(
         },
     )
 }
+fn wire__crate__api__utils__delete_unloaded_client_database_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "delete_unloaded_client_database",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_db_path = <String>::sse_decode(&mut deserializer);
+            let api_client_record_id = <uuid::Uuid>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::utils::delete_unloaded_client_database(
+                            api_db_path,
+                            api_client_record_id,
+                        )
+                        .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__registration__get_registration_info_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -12213,6 +12254,17 @@ impl SseDecode for Option<UsernameHash> {
     }
 }
 
+impl SseDecode for Option<chrono::DateTime<chrono::Local>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<chrono::DateTime<chrono::Local>>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<chrono::DateTime<chrono::Utc>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -12521,19 +12573,6 @@ impl SseDecode for Option<crate::api::chat_details_cubit::UiAcceptContactRequest
                     deserializer,
                 ),
             );
-        } else {
-            return None;
-        }
-    }
-}
-
-impl SseDecode for Option<crate::api::message_content::UiAttachmentType> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        if (<bool>::sse_decode(deserializer)) {
-            return Some(<crate::api::message_content::UiAttachmentType>::sse_decode(
-                deserializer,
-            ));
         } else {
             return None;
         }
@@ -13087,18 +13126,6 @@ impl SseDecode for crate::api::attachments_repository::UiAttachmentStatus {
     }
 }
 
-impl SseDecode for crate::api::message_content::UiAttachmentType {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <i32>::sse_decode(deserializer);
-        return match inner {
-            0 => crate::api::message_content::UiAttachmentType::Image,
-            1 => crate::api::message_content::UiAttachmentType::File,
-            _ => unreachable!("Invalid variant for UiAttachmentType: {}", inner),
-        };
-    }
-}
-
 impl SseDecode for crate::api::types::UiChatAttributes {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -13117,7 +13144,7 @@ impl SseDecode for crate::api::types::UiChatDetails {
         let mut var_id = <crate::api::types::ChatId>::sse_decode(deserializer);
         let mut var_status = <crate::api::types::UiChatStatus>::sse_decode(deserializer);
         let mut var_chatType = <crate::api::types::UiChatType>::sse_decode(deserializer);
-        let mut var_lastUsed = <chrono::DateTime<chrono::Local>>::sse_decode(deserializer);
+        let mut var_lastUsed = <Option<chrono::DateTime<chrono::Local>>>::sse_decode(deserializer);
         let mut var_unreadMessages = <usize>::sse_decode(deserializer);
         let mut var_lastMessage =
             <Option<crate::api::types::UiChatMessage>>::sse_decode(deserializer);
@@ -13460,6 +13487,7 @@ impl SseDecode for crate::api::types::UiMessageDraft {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_message = <String>::sse_decode(deserializer);
+        let mut var_previewText = <String>::sse_decode(deserializer);
         let mut var_editingId = <Option<crate::api::types::MessageId>>::sse_decode(deserializer);
         let mut var_inReplyTo = <Option<(
             crate::api::message_content::UiMimiId,
@@ -13469,6 +13497,7 @@ impl SseDecode for crate::api::types::UiMessageDraft {
         let mut var_isCommitted = <bool>::sse_decode(deserializer);
         return crate::api::types::UiMessageDraft {
             message: var_message,
+            preview_text: var_previewText,
             editing_id: var_editingId,
             in_reply_to: var_inReplyTo,
             updated_at: var_updatedAt,
@@ -13498,6 +13527,7 @@ impl SseDecode for crate::api::message_content::UiMimiContent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_plainBody = <Option<String>>::sse_decode(deserializer);
+        let mut var_previewText = <Option<String>>::sse_decode(deserializer);
         let mut var_replaces = <Option<Vec<u8>>>::sse_decode(deserializer);
         let mut var_topicId = <Vec<u8>>::sse_decode(deserializer);
         let mut var_inReplyTo = <Option<Vec<u8>>>::sse_decode(deserializer);
@@ -13505,16 +13535,14 @@ impl SseDecode for crate::api::message_content::UiMimiContent {
             <Option<crate::api::markdown::MessageContent>>::sse_decode(deserializer);
         let mut var_attachments =
             <Vec<crate::api::message_content::UiAttachment>>::sse_decode(deserializer);
-        let mut var_firstAttachmentType =
-            <Option<crate::api::message_content::UiAttachmentType>>::sse_decode(deserializer);
         return crate::api::message_content::UiMimiContent {
             plain_body: var_plainBody,
+            preview_text: var_previewText,
             replaces: var_replaces,
             topic_id: var_topicId,
             in_reply_to: var_inReplyTo,
             content: var_content,
             attachments: var_attachments,
-            first_attachment_type: var_firstAttachmentType,
         };
     }
 }
@@ -14070,25 +14098,26 @@ fn pde_ffi_dispatcher_primary_impl(
 174 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
 175 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
 176 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
-177 => wire__crate__api__registration__get_registration_info_impl(port, ptr, rust_vec_len, data_len),
-180 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
-181 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
-182 => wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(port, ptr, rust_vec_len, data_len),
-183 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
-184 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
-185 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
-186 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
-188 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
-189 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
-190 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
-191 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
-192 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
-193 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
-194 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
-195 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
-196 => wire__crate__api__share_cubit__share_state_default_impl(port, ptr, rust_vec_len, data_len),
-197 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
-198 => wire__crate__api__share_cubit__ui_share_send_status_default_impl(port, ptr, rust_vec_len, data_len),
+177 => wire__crate__api__utils__delete_unloaded_client_database_impl(port, ptr, rust_vec_len, data_len),
+178 => wire__crate__api__registration__get_registration_info_impl(port, ptr, rust_vec_len, data_len),
+181 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
+182 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
+183 => wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(port, ptr, rust_vec_len, data_len),
+184 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
+185 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
+186 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
+187 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
+189 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
+190 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
+191 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
+192 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
+193 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
+194 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
+195 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
+196 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
+197 => wire__crate__api__share_cubit__share_state_default_impl(port, ptr, rust_vec_len, data_len),
+198 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
+199 => wire__crate__api__share_cubit__ui_share_send_status_default_impl(port, ptr, rust_vec_len, data_len),
                         _ => unreachable!(),
                     }
 }
@@ -14324,17 +14353,17 @@ fn pde_ffi_dispatcher_sync_impl(
             data_len,
         ),
         168 => wire__crate__api__utils__app_version_impl(ptr, rust_vec_len, data_len),
-        178 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
-        179 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
-        187 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
+        179 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
+        180 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
+        188 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        199 => {
+        200 => {
             wire__crate__api__types__ui_username_validation_error_impl(ptr, rust_vec_len, data_len)
         }
-        200 => wire__crate__api__username_suggestions__username_from_display_impl(
+        201 => wire__crate__api__username_suggestions__username_from_display_impl(
             ptr,
             rust_vec_len,
             data_len,
@@ -16351,27 +16380,6 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::attachments_repository::UiAtt
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::message_content::UiAttachmentType {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        match self {
-            Self::Image => 0.into_dart(),
-            Self::File => 1.into_dart(),
-            _ => unreachable!(),
-        }
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::message_content::UiAttachmentType
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<crate::api::message_content::UiAttachmentType>
-    for crate::api::message_content::UiAttachmentType
-{
-    fn into_into_dart(self) -> crate::api::message_content::UiAttachmentType {
-        self
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::types::UiChatAttributes {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -16820,6 +16828,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiMessageDraft {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.message.into_into_dart().into_dart(),
+            self.preview_text.into_into_dart().into_dart(),
             self.editing_id.into_into_dart().into_dart(),
             self.in_reply_to.into_into_dart().into_dart(),
             self.updated_at.into_into_dart().into_dart(),
@@ -16870,12 +16879,12 @@ impl flutter_rust_bridge::IntoDart for crate::api::message_content::UiMimiConten
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.plain_body.into_into_dart().into_dart(),
+            self.preview_text.into_into_dart().into_dart(),
             self.replaces.into_into_dart().into_dart(),
             self.topic_id.into_into_dart().into_dart(),
             self.in_reply_to.into_into_dart().into_dart(),
             self.content.into_into_dart().into_dart(),
             self.attachments.into_into_dart().into_dart(),
-            self.first_attachment_type.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -19288,6 +19297,16 @@ impl SseEncode for Option<UsernameHash> {
     }
 }
 
+impl SseEncode for Option<chrono::DateTime<chrono::Local>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <chrono::DateTime<chrono::Local>>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<chrono::DateTime<chrono::Utc>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -19542,16 +19561,6 @@ impl SseEncode for Option<crate::api::chat_details_cubit::UiAcceptContactRequest
             <crate::api::chat_details_cubit::UiAcceptContactRequestError>::sse_encode(
                 value, serializer,
             );
-        }
-    }
-}
-
-impl SseEncode for Option<crate::api::message_content::UiAttachmentType> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <bool>::sse_encode(self.is_some(), serializer);
-        if let Some(value) = self {
-            <crate::api::message_content::UiAttachmentType>::sse_encode(value, serializer);
         }
     }
 }
@@ -19998,22 +20007,6 @@ impl SseEncode for crate::api::attachments_repository::UiAttachmentStatus {
     }
 }
 
-impl SseEncode for crate::api::message_content::UiAttachmentType {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(
-            match self {
-                crate::api::message_content::UiAttachmentType::Image => 0,
-                crate::api::message_content::UiAttachmentType::File => 1,
-                _ => {
-                    unimplemented!("");
-                }
-            },
-            serializer,
-        );
-    }
-}
-
 impl SseEncode for crate::api::types::UiChatAttributes {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -20028,7 +20021,7 @@ impl SseEncode for crate::api::types::UiChatDetails {
         <crate::api::types::ChatId>::sse_encode(self.id, serializer);
         <crate::api::types::UiChatStatus>::sse_encode(self.status, serializer);
         <crate::api::types::UiChatType>::sse_encode(self.chat_type, serializer);
-        <chrono::DateTime<chrono::Local>>::sse_encode(self.last_used, serializer);
+        <Option<chrono::DateTime<chrono::Local>>>::sse_encode(self.last_used, serializer);
         <usize>::sse_encode(self.unread_messages, serializer);
         <Option<crate::api::types::UiChatMessage>>::sse_encode(self.last_message, serializer);
         <Option<crate::api::types::UiLastReaction>>::sse_encode(self.last_reaction, serializer);
@@ -20297,6 +20290,7 @@ impl SseEncode for crate::api::types::UiMessageDraft {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.message, serializer);
+        <String>::sse_encode(self.preview_text, serializer);
         <Option<crate::api::types::MessageId>>::sse_encode(self.editing_id, serializer);
         <Option<(
             crate::api::message_content::UiMimiId,
@@ -20332,15 +20326,12 @@ impl SseEncode for crate::api::message_content::UiMimiContent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Option<String>>::sse_encode(self.plain_body, serializer);
+        <Option<String>>::sse_encode(self.preview_text, serializer);
         <Option<Vec<u8>>>::sse_encode(self.replaces, serializer);
         <Vec<u8>>::sse_encode(self.topic_id, serializer);
         <Option<Vec<u8>>>::sse_encode(self.in_reply_to, serializer);
         <Option<crate::api::markdown::MessageContent>>::sse_encode(self.content, serializer);
         <Vec<crate::api::message_content::UiAttachment>>::sse_encode(self.attachments, serializer);
-        <Option<crate::api::message_content::UiAttachmentType>>::sse_encode(
-            self.first_attachment_type,
-            serializer,
-        );
     }
 }
 

@@ -17,7 +17,7 @@ use airbackend::{
         grpc::GrpcQs,
         network_provider::NetworkProvider,
     },
-    relay_service::{Rs, grpc::GrpcRs},
+    relay_service::{RelayLimits, Rs, grpc::GrpcRs},
     settings::RateLimitsSettings,
 };
 use airprotos::{
@@ -39,12 +39,14 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 #[cfg(any(feature = "test_utils", test))]
-use tonic::{Request, Status};
+use tonic::Status;
 use tonic::{
     service::InterceptorLayer,
     transport::server::{Connected, TcpIncoming},
 };
 use tonic_health::pb::health_server::{Health, HealthServer};
+#[cfg(not(any(feature = "test_utils", test)))]
+use tower::layer::util::Identity;
 use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
 use tower_http::trace::{DefaultOnRequest, DefaultOnResponse, MakeSpan, TraceLayer};
 use tracing::{Level, Span, enabled, error, field, info, info_span};
@@ -57,6 +59,8 @@ pub mod as_connector;
 pub mod code_command;
 pub mod configurations;
 mod connect_info;
+#[cfg(any(feature = "test_utils", test))]
+mod fault_injection;
 mod grpc_method_alias;
 mod grpc_metrics;
 pub mod logging;
@@ -74,6 +78,7 @@ pub struct ServerRunParams<Qc, Ac, Listener> {
     pub qs: Qs,
     pub qs_connector: Qc,
     pub rs: Rs,
+    pub relay_limits: RelayLimits,
     pub rate_limits: RateLimitsSettings,
     pub shutdown: CancellationToken,
 }
@@ -122,13 +127,12 @@ pub async fn run<
         qs,
         qs_connector,
         rs,
+        relay_limits,
         as_connector,
         rate_limits,
         shutdown,
     }: ServerRunParams<Qc, Ac, L>,
-    #[cfg(any(feature = "test_utils", test))] interceptor: impl Fn(
-        Request<()>,
-    ) -> Result<Request<()>, Status>
+    #[cfg(any(feature = "test_utils", test))] fault_hook: impl Fn(&str) -> Result<(), Status>
     + Clone
     + Send
     + Sync
@@ -187,7 +191,7 @@ pub async fn run<
     let grpc_as = GrpcAs::new(auth_service);
     let grpc_ds = GrpcDs::new(ds, qs_connector.clone(), as_connector);
     let grpc_qs = GrpcQs::new(qs);
-    let grpc_rs = GrpcRs::new(rs, qs_connector);
+    let grpc_rs = GrpcRs::new(rs, relay_limits, qs_connector);
 
     info!(?rate_limits, "Applying rate limits");
     let RateLimitsSettings { period, burst } = rate_limits;
@@ -211,13 +215,18 @@ pub async fn run<
     let health_service = configure_health_service::<Qc, Ac, Np>().await;
 
     #[cfg(any(feature = "test_utils", test))]
-    let dss = DeliveryServiceServer::with_interceptor(grpc_ds, interceptor);
+    let (rpc_path_layer, fault_layer) = (
+        fault_injection::rpc_path_layer(),
+        InterceptorLayer::new(fault_injection::interceptor(fault_hook)),
+    );
     #[cfg(not(any(feature = "test_utils", test)))]
-    let dss = DeliveryServiceServer::new(grpc_ds);
+    let (rpc_path_layer, fault_layer) = (Identity::new(), Identity::new());
 
     tonic::transport::Server::builder()
         .http2_keepalive_interval(Some(Duration::from_secs(30)))
         .layer(grpc_method_alias::layer())
+        .layer(rpc_path_layer)
+        .layer(fault_layer)
         .layer(InterceptorLayer::new(ConnectInfoInterceptor))
         .layer(GrpcMetricsLayer::new())
         .layer(
@@ -246,7 +255,7 @@ pub async fn run<
         .layer(GovernorLayer::new(governor_config))
         .add_service(health_service)
         .add_service(AuthServiceServer::new(grpc_as))
-        .add_service(dss)
+        .add_service(DeliveryServiceServer::new(grpc_ds))
         .add_service(QueueServiceServer::new(grpc_qs))
         .add_service(RelayServiceServer::new(grpc_rs))
         .serve_with_incoming_shutdown(listener.into_stream(), shutdown.cancelled_owned())

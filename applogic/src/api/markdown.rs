@@ -10,6 +10,9 @@ use regex::Regex;
 
 const MAX_DEPTH: usize = 50;
 
+pub(crate) const IMAGE_PREVIEW: &str = "🖼️";
+pub(crate) const FILE_PREVIEW: &str = "📎";
+
 pub(crate) static URL_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r#"(?i)(?:mailto:|https?://)[^\p{Cc}\p{Cf}\s<>""{}\^⟨⟩`\\]*[^\p{Cc}\p{Cf}\s<>""{}\^⟨⟩`\\\.,;:!\?\)\]]"#
@@ -170,6 +173,97 @@ impl MessageContent {
         }
 
         Ok(Self { elements: result })
+    }
+
+    /// Flattened markdown text.
+    pub(crate) fn plain_text(&self) -> String {
+        let mut text = String::new();
+        push_block_text(&self.elements, "\n", &mut text);
+        text
+    }
+
+    /// Flattened markdown text with a fallback to the raw markdown if the text
+    /// is empty.
+    pub(crate) fn preview_text(&self, markdown: &str) -> Option<String> {
+        let text = self.plain_text();
+        let text = text.trim();
+        if !text.is_empty() {
+            return Some(text.to_owned());
+        }
+        let markdown = markdown.trim();
+        (!markdown.is_empty()).then(|| markdown.to_owned())
+    }
+}
+
+/// Append the text of block elements as lines joined by `separator`.
+fn push_block_text(blocks: &[RangedBlockElement], separator: &str, text: &mut String) {
+    for block in blocks {
+        match &block.element {
+            BlockElement::Paragraph(inlines) | BlockElement::Heading(inlines) => {
+                push_line(text, &inline_text(inlines), separator);
+            }
+            BlockElement::Quote(blocks) => push_block_text(blocks, separator, text),
+            BlockElement::UnorderedList(items) | BlockElement::OrderedList(_, items) => {
+                for item in items {
+                    push_block_text(item, separator, text);
+                }
+            }
+            BlockElement::Table { head, rows } => {
+                push_line(text, &table_row_text(head), separator);
+                for row in rows {
+                    push_line(text, &table_row_text(row), separator);
+                }
+            }
+            BlockElement::HorizontalRule => (),
+            BlockElement::CodeBlock(code_lines) => {
+                for code_line in code_lines {
+                    push_line(text, &code_line.value, separator);
+                }
+            }
+            BlockElement::Error(message) => push_line(text, message, separator),
+        }
+    }
+}
+
+fn table_row_text(cells: &[Vec<RangedBlockElement>]) -> String {
+    let mut text = String::new();
+    for cell in cells {
+        push_block_text(cell, " ", &mut text);
+    }
+    text
+}
+
+fn push_line(text: &mut String, line: &str, separator: &str) {
+    if line.trim().is_empty() {
+        return;
+    }
+    if !text.is_empty() {
+        text.push_str(separator);
+    }
+    text.push_str(line);
+}
+
+fn inline_text(inlines: &[RangedInlineElement]) -> String {
+    let mut text = String::new();
+    push_inline_text(inlines, &mut text);
+    text
+}
+
+fn push_inline_text(inlines: &[RangedInlineElement], text: &mut String) {
+    for inline in inlines {
+        match &inline.element {
+            InlineElement::Text(value) | InlineElement::Code(value) => text.push_str(value),
+            InlineElement::Link {
+                dest_url: _,
+                children,
+            }
+            | InlineElement::Bold(children)
+            | InlineElement::Italic(children)
+            | InlineElement::Strikethrough(children)
+            | InlineElement::Spoiler(children) => push_inline_text(children, text),
+            InlineElement::Image(_) => text.push_str(IMAGE_PREVIEW),
+            InlineElement::TaskListMarker(_) => (),
+        }
     }
 }
 
@@ -1044,5 +1138,93 @@ But it ends after the paragraph"#,
             }
             _ => panic!("Expected a Paragraph block element"),
         }
+    }
+
+    fn plain_text(markdown: &str) -> String {
+        MessageContent::try_parse_markdown(markdown)
+            .unwrap()
+            .plain_text()
+    }
+
+    #[test]
+    fn plain_text_keeps_link_text_only() {
+        assert_eq!(
+            plain_text("I've written up an [introduction to MLS](https://ratchet.ing/mls-intro)"),
+            "I've written up an introduction to MLS",
+        );
+    }
+
+    #[test]
+    fn plain_text_keeps_bare_urls() {
+        assert_eq!(
+            plain_text("see https://example.com/a_b"),
+            "see https://example.com/a_b"
+        );
+    }
+
+    #[test]
+    fn plain_text_drops_inline_markers() {
+        assert_eq!(
+            plain_text("**bold** _italic_ ~~struck~~ `code` <b>"),
+            "bold italic struck code <b>",
+        );
+    }
+
+    #[test]
+    fn plain_text_puts_blocks_on_lines() {
+        let markdown =
+            "# Title\n\n> quoted\n\n- one\n- [x] two\n  - nested\n\n3. three\n\n---\n\nend";
+        assert_eq!(
+            plain_text(markdown),
+            "Title\nquoted\none\ntwo\nnested\nthree\nend"
+        );
+    }
+
+    #[test]
+    fn plain_text_keeps_soft_breaks() {
+        assert_eq!(plain_text("first\nsecond"), "first\nsecond");
+    }
+
+    #[test]
+    fn plain_text_of_code_blocks() {
+        assert_eq!(
+            plain_text("```rust\nlet a = 1;\nlet b = 2;\n```"),
+            "let a = 1;\nlet b = 2;"
+        );
+        assert_eq!(plain_text("    indented"), "indented");
+    }
+
+    #[test]
+    fn plain_text_of_tables() {
+        assert_eq!(
+            plain_text("| a | b |\n|---|---|\n| 1 |   |\n| **2** | 3 |\n|   | 4 |"),
+            "a b\n1\n2 3\n4",
+        );
+    }
+
+    #[test]
+    fn plain_text_replaces_images() {
+        assert_eq!(
+            plain_text("look ![a *cat*](https://example.com/cat.png) here"),
+            "look 🖼️ here"
+        );
+    }
+
+    #[test]
+    fn plain_text_skips_empty_blocks() {
+        assert_eq!(plain_text("start\n\n#\n\nend"), "start\nend");
+    }
+
+    #[test]
+    fn plain_text_of_rule_only_is_empty() {
+        assert_eq!(plain_text("---"), "");
+    }
+
+    #[test]
+    fn plain_text_of_error() {
+        assert_eq!(
+            MessageContent::error("Invalid message".to_owned()).plain_text(),
+            "Invalid message"
+        );
     }
 }

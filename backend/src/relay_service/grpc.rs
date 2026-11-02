@@ -27,8 +27,9 @@ use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use crate::{
+    client_ip::{ClientIp, IpBucket},
     qs::QsConnector,
-    relay_service::{Rs, sessions::Outbound},
+    relay_service::{RelayLimits, Rs, sessions::Outbound},
 };
 
 /// Frames a peer may fall behind by before its sender blocks. The protocol
@@ -37,13 +38,34 @@ const CHANNEL_CAPACITY: usize = 8;
 
 pub struct GrpcRs<Qep: QsConnector> {
     rs: Rs,
+    limits: RelayLimits,
     qs_connector: Qep,
 }
 
 impl<Qep: QsConnector> GrpcRs<Qep> {
-    pub fn new(rs: Rs, qs_connector: Qep) -> Self {
-        Self { rs, qs_connector }
+    pub fn new(rs: Rs, limits: RelayLimits, qs_connector: Qep) -> Self {
+        Self {
+            rs,
+            limits,
+            qs_connector,
+        }
     }
+}
+
+/// The address bucket a request counts under.
+fn ip_bucket<T>(request: &Request<T>) -> Result<IpBucket, Status> {
+    request
+        .extensions()
+        .get::<ClientIp>()
+        .map(ClientIp::bucket)
+        .ok_or_else(|| {
+            error!("no client address on a relay request");
+            Status::internal("failed to resolve the client address")
+        })
+}
+
+fn too_many_requests() -> Status {
+    Status::resource_exhausted("Too many requests, please try again later")
 }
 
 /// Pipes one peer's inbound frames to the other peer.
@@ -110,6 +132,9 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
         &self,
         request: Request<Streaming<RelayFrame>>,
     ) -> Result<Response<Self::MultiDeviceProvisionClientStream>, Status> {
+        if !self.limits.allow_provision(ip_bucket(&request)?).await {
+            return Err(too_many_requests());
+        }
         let mut inbound = request.into_inner();
 
         let frame = inbound.message().await?.ok_or_else(|| {
@@ -168,6 +193,9 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
         &self,
         request: Request<Streaming<RelayFrame>>,
     ) -> Result<Response<Self::MultiDeviceLinkClientStream>, Status> {
+        if !self.limits.allow_link_from(ip_bucket(&request)?).await {
+            return Err(too_many_requests());
+        }
         let mut inbound = request.into_inner();
 
         // The first frame is the signed request, so only a registered user
@@ -193,10 +221,11 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             .value
             .ok_or_missing_field("uuid value")?
             .into();
+        let qs_user_id = aircommon::identifiers::QsUserId::from(qs_user_id);
 
         let qs_user_signature_key: QsUserVerifyingKey = self
             .qs_connector
-            .user_verifying_key(aircommon::identifiers::QsUserId::from(qs_user_id))
+            .user_verifying_key(qs_user_id)
             .await
             .map_err(|error| {
                 error!(%error, "failed to load QS user signing key");
@@ -207,6 +236,12 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
         let payload: LinkClientRequestPayload = request
             .verify(&qs_user_signature_key)
             .map_err(|_| Status::invalid_argument("invalid signature"))?;
+
+        // Charged only now that the sender proved it owns the account, and
+        // before the lookup, so attempts at sessions that do not exist count.
+        if !self.limits.allow_link_by(qs_user_id).await {
+            return Err(too_many_requests());
+        }
 
         let rendezvous_id = payload.rendezvous_id.ok_or_missing_field("rendezvous_id")?;
         let Ok(id) = RendezVousId::new(rendezvous_id.value) else {

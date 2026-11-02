@@ -326,6 +326,7 @@ class _Content {
         edited: false,
         content: UiMimiContent(
           plainBody: body,
+          previewText: body,
           topicId: Uint8List(0),
           content: _simpleMessage(body),
           attachments: [],
@@ -398,7 +399,7 @@ class _Content {
               ),
             ),
           ],
-          firstAttachmentType: UiAttachmentType.image,
+          previewText: '🖼️',
         ),
       ),
     ),

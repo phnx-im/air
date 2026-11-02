@@ -220,3 +220,40 @@ async fn apq_self_update_advances_both_timestamps() {
     assert!(now < after_t, "T self_updated_at was not updated");
     assert!(now < after_pq, "PQ self_updated_at was not updated");
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "a T-only self-update advances the PQ self-update timestamp"]
+async fn t_only_self_update_keeps_pq_timestamp() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let chat_id = setup.create_apq_group(&alice).await;
+
+    // T is due, PQ is not.
+    let pq_self_updated_at = Utc::now() - Duration::days(3);
+    alice
+        .set_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    alice
+        .set_pq_self_updated_at(chat_id, pq_self_updated_at)
+        .await
+        .unwrap();
+
+    alice
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    alice.outbound_service().run_once().await;
+
+    let after_t = alice.self_updated_at(chat_id).await.unwrap().unwrap();
+    let after_pq = alice.pq_self_updated_at(chat_id).await.unwrap().unwrap();
+    assert!(
+        after_t > pq_self_updated_at,
+        "T self_updated_at was not updated"
+    );
+    assert!(
+        after_pq < Utc::now() - Duration::days(2),
+        "PQ self_updated_at was advanced by a T-only update"
+    );
+}

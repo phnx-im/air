@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n            m.message_id AS \"message_id: MessageId\",\n            m.timestamp AS \"timestamp: TimeStamp\",\n            m.content,\n            c.group_id\n        FROM message m\n        INNER JOIN chat c ON c.chat_id = m.chat_id\n        WHERE m.sender_user_uuid IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id: MessageId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "message_id"
+          }
+        }
+      },
+      {
+        "name": "timestamp: TimeStamp",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "timestamp"
+          }
+        }
+      },
+      {
+        "name": "content",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "content"
+          }
+        }
+      },
+      {
+        "name": "group_id",
+        "ordinal": 3,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "group_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "36e701bddcad19468898774dac44e0245a1c7014252650a37447ed73bd31e441"
+}

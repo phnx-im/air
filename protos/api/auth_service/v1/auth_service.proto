@@ -582,16 +582,12 @@ message RefreshUsernameResponse {
 // connect
 
 message ConnectUsernameRequest {
+  // 1 was the legacy fetch step without a token.
+  reserved 1;
   oneof step {
-    FetchConnectionPackageStep fetch = 1; // legacy clients
     EnqueueConnectionOfferStep enqueue = 2;
-    FetchSignedConnectionPackageStep fetch_signed = 3; // new clients, unconditionally
+    FetchSignedConnectionPackageStep fetch_signed = 3;
   }
-}
-
-message FetchConnectionPackageStep {
-  common.v1.ClientMetadata client_metadata = 2;
-  UsernameHash hash = 1;
 }
 
 message FetchConnectionPackageResponse {
@@ -601,6 +597,7 @@ message FetchConnectionPackageResponse {
 message FetchSignedConnectionPackageStep {
   common.v1.ClientMetadata client_metadata = 1;
   UsernameHash hash = 2;
+  // Required. Pays for the connection package.
   optional bytes token = 3;
 }
 

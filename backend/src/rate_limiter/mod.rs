@@ -20,18 +20,25 @@ pub(crate) struct RlConfig {
 pub(crate) enum RlOperation {
     /// Creating a group, which claims a reserved group id.
     ReserveGroupId,
+    /// Opening a linking session on the relay.
+    RelayProvision,
+    /// Attaching to a linking session on the relay.
+    RelayLink,
 }
 
 impl RlOperation {
     fn service_name(self) -> &'static [u8] {
         match self {
             RlOperation::ReserveGroupId => b"ds",
+            RlOperation::RelayProvision | RlOperation::RelayLink => b"rs",
         }
     }
 
     fn rpc_name(self) -> &'static [u8] {
         match self {
             RlOperation::ReserveGroupId => b"reserve_group_id",
+            RlOperation::RelayProvision => b"multi_device_provision_client",
+            RlOperation::RelayLink => b"multi_device_link_client",
         }
     }
 }

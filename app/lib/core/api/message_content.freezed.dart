@@ -333,7 +333,7 @@ as bool?,
 /// @nodoc
 mixin _$UiMimiContent {
 
- String? get plainBody; Uint8List? get replaces; Uint8List get topicId; Uint8List? get inReplyTo; MessageContent? get content; List<UiAttachment> get attachments; UiAttachmentType? get firstAttachmentType;
+ String? get plainBody; String? get previewText; Uint8List? get replaces; Uint8List get topicId; Uint8List? get inReplyTo; MessageContent? get content; List<UiAttachment> get attachments;
 /// Create a copy of UiMimiContent
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -345,20 +345,20 @@ $UiMimiContentCopyWith<UiMimiContent> get copyWith => _$UiMimiContentCopyWithImp
 @override
 bool operator ==(Object other) {
   final _this = this as UiMimiContent;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiMimiContent&&(identical(other.plainBody, _this.plainBody) || other.plainBody == _this.plainBody)&&const DeepCollectionEquality().equals(other.replaces, _this.replaces)&&const DeepCollectionEquality().equals(other.topicId, _this.topicId)&&const DeepCollectionEquality().equals(other.inReplyTo, _this.inReplyTo)&&(identical(other.content, _this.content) || other.content == _this.content)&&const DeepCollectionEquality().equals(other.attachments, _this.attachments)&&(identical(other.firstAttachmentType, _this.firstAttachmentType) || other.firstAttachmentType == _this.firstAttachmentType));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiMimiContent&&(identical(other.plainBody, _this.plainBody) || other.plainBody == _this.plainBody)&&(identical(other.previewText, _this.previewText) || other.previewText == _this.previewText)&&const DeepCollectionEquality().equals(other.replaces, _this.replaces)&&const DeepCollectionEquality().equals(other.topicId, _this.topicId)&&const DeepCollectionEquality().equals(other.inReplyTo, _this.inReplyTo)&&(identical(other.content, _this.content) || other.content == _this.content)&&const DeepCollectionEquality().equals(other.attachments, _this.attachments));
 }
 
 
 @override
 int get hashCode {
   final _this = this as UiMimiContent;
-  return Object.hash(runtimeType,_this.plainBody,const DeepCollectionEquality().hash(_this.replaces),const DeepCollectionEquality().hash(_this.topicId),const DeepCollectionEquality().hash(_this.inReplyTo),_this.content,const DeepCollectionEquality().hash(_this.attachments),_this.firstAttachmentType);
+  return Object.hash(runtimeType,_this.plainBody,_this.previewText,const DeepCollectionEquality().hash(_this.replaces),const DeepCollectionEquality().hash(_this.topicId),const DeepCollectionEquality().hash(_this.inReplyTo),_this.content,const DeepCollectionEquality().hash(_this.attachments));
 }
 
 @override
 String toString() {
   final _this = this as UiMimiContent;
-  return 'UiMimiContent(plainBody: ${_this.plainBody}, replaces: ${_this.replaces}, topicId: ${_this.topicId}, inReplyTo: ${_this.inReplyTo}, content: ${_this.content}, attachments: ${_this.attachments}, firstAttachmentType: ${_this.firstAttachmentType})';
+  return 'UiMimiContent(plainBody: ${_this.plainBody}, previewText: ${_this.previewText}, replaces: ${_this.replaces}, topicId: ${_this.topicId}, inReplyTo: ${_this.inReplyTo}, content: ${_this.content}, attachments: ${_this.attachments})';
 }
 
 
@@ -369,7 +369,7 @@ abstract mixin class $UiMimiContentCopyWith<$Res>  {
   factory $UiMimiContentCopyWith(UiMimiContent value, $Res Function(UiMimiContent) _then) = _$UiMimiContentCopyWithImpl;
 @useResult
 $Res call({
- String? plainBody, Uint8List? replaces, Uint8List topicId, Uint8List? inReplyTo, MessageContent? content, List<UiAttachment> attachments, UiAttachmentType? firstAttachmentType
+ String? plainBody, String? previewText, Uint8List? replaces, Uint8List topicId, Uint8List? inReplyTo, MessageContent? content, List<UiAttachment> attachments
 });
 
 
@@ -386,16 +386,16 @@ class _$UiMimiContentCopyWithImpl<$Res>
 
 /// Create a copy of UiMimiContent
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? plainBody = freezed,Object? replaces = freezed,Object? topicId = null,Object? inReplyTo = freezed,Object? content = freezed,Object? attachments = null,Object? firstAttachmentType = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? plainBody = freezed,Object? previewText = freezed,Object? replaces = freezed,Object? topicId = null,Object? inReplyTo = freezed,Object? content = freezed,Object? attachments = null,}) {
   return _then(UiMimiContent(
 plainBody: freezed == plainBody ? _self.plainBody : plainBody // ignore: cast_nullable_to_non_nullable
+as String?,previewText: freezed == previewText ? _self.previewText : previewText // ignore: cast_nullable_to_non_nullable
 as String?,replaces: freezed == replaces ? _self.replaces : replaces // ignore: cast_nullable_to_non_nullable
 as Uint8List?,topicId: null == topicId ? _self.topicId : topicId // ignore: cast_nullable_to_non_nullable
 as Uint8List,inReplyTo: freezed == inReplyTo ? _self.inReplyTo : inReplyTo // ignore: cast_nullable_to_non_nullable
 as Uint8List?,content: freezed == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
 as MessageContent?,attachments: null == attachments ? _self.attachments : attachments // ignore: cast_nullable_to_non_nullable
-as List<UiAttachment>,firstAttachmentType: freezed == firstAttachmentType ? _self.firstAttachmentType : firstAttachmentType // ignore: cast_nullable_to_non_nullable
-as UiAttachmentType?,
+as List<UiAttachment>,
   ));
 }
 /// Create a copy of UiMimiContent
@@ -419,10 +419,11 @@ $MessageContentCopyWith<$Res>? get content {
 
 
 class _UiMimiContent implements UiMimiContent {
-  const _UiMimiContent({this.plainBody, this.replaces, required this.topicId, this.inReplyTo, this.content, required  List<UiAttachment> attachments, this.firstAttachmentType}): _attachments = attachments;
+  const _UiMimiContent({this.plainBody, this.previewText, this.replaces, required this.topicId, this.inReplyTo, this.content, required  List<UiAttachment> attachments}): _attachments = attachments;
   
 
 @override final  String? plainBody;
+@override final  String? previewText;
 @override final  Uint8List? replaces;
 @override final  Uint8List topicId;
 @override final  Uint8List? inReplyTo;
@@ -434,7 +435,6 @@ class _UiMimiContent implements UiMimiContent {
   return EqualUnmodifiableListView(_attachments);
 }
 
-@override final  UiAttachmentType? firstAttachmentType;
 
 /// Create a copy of UiMimiContent
 /// with the given fields replaced by the non-null parameter values.
@@ -446,18 +446,18 @@ _$UiMimiContentCopyWith<_UiMimiContent> get copyWith => __$UiMimiContentCopyWith
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiMimiContent&&(identical(other.plainBody, plainBody) || other.plainBody == plainBody)&&const DeepCollectionEquality().equals(other.replaces, replaces)&&const DeepCollectionEquality().equals(other.topicId, topicId)&&const DeepCollectionEquality().equals(other.inReplyTo, inReplyTo)&&(identical(other.content, content) || other.content == content)&&const DeepCollectionEquality().equals(other.attachments, _attachments)&&(identical(other.firstAttachmentType, firstAttachmentType) || other.firstAttachmentType == firstAttachmentType));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiMimiContent&&(identical(other.plainBody, plainBody) || other.plainBody == plainBody)&&(identical(other.previewText, previewText) || other.previewText == previewText)&&const DeepCollectionEquality().equals(other.replaces, replaces)&&const DeepCollectionEquality().equals(other.topicId, topicId)&&const DeepCollectionEquality().equals(other.inReplyTo, inReplyTo)&&(identical(other.content, content) || other.content == content)&&const DeepCollectionEquality().equals(other.attachments, _attachments));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,plainBody,const DeepCollectionEquality().hash(replaces),const DeepCollectionEquality().hash(topicId),const DeepCollectionEquality().hash(inReplyTo),content,const DeepCollectionEquality().hash(_attachments),firstAttachmentType);
+    return Object.hash(runtimeType,plainBody,previewText,const DeepCollectionEquality().hash(replaces),const DeepCollectionEquality().hash(topicId),const DeepCollectionEquality().hash(inReplyTo),content,const DeepCollectionEquality().hash(_attachments));
 }
 
 @override
 String toString() {
-    return 'UiMimiContent(plainBody: $plainBody, replaces: $replaces, topicId: $topicId, inReplyTo: $inReplyTo, content: $content, attachments: $attachments, firstAttachmentType: $firstAttachmentType)';
+    return 'UiMimiContent(plainBody: $plainBody, previewText: $previewText, replaces: $replaces, topicId: $topicId, inReplyTo: $inReplyTo, content: $content, attachments: $attachments)';
 }
 
 
@@ -468,7 +468,7 @@ abstract mixin class _$UiMimiContentCopyWith<$Res> implements $UiMimiContentCopy
   factory _$UiMimiContentCopyWith(_UiMimiContent value, $Res Function(_UiMimiContent) _then) = __$UiMimiContentCopyWithImpl;
 @override @useResult
 $Res call({
- String? plainBody, Uint8List? replaces, Uint8List topicId, Uint8List? inReplyTo, MessageContent? content, List<UiAttachment> attachments, UiAttachmentType? firstAttachmentType
+ String? plainBody, String? previewText, Uint8List? replaces, Uint8List topicId, Uint8List? inReplyTo, MessageContent? content, List<UiAttachment> attachments
 });
 
 
@@ -485,16 +485,16 @@ class __$UiMimiContentCopyWithImpl<$Res>
 
 /// Create a copy of UiMimiContent
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? plainBody = freezed,Object? replaces = freezed,Object? topicId = null,Object? inReplyTo = freezed,Object? content = freezed,Object? attachments = null,Object? firstAttachmentType = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? plainBody = freezed,Object? previewText = freezed,Object? replaces = freezed,Object? topicId = null,Object? inReplyTo = freezed,Object? content = freezed,Object? attachments = null,}) {
   return _then(_UiMimiContent(
 plainBody: freezed == plainBody ? _self.plainBody : plainBody // ignore: cast_nullable_to_non_nullable
+as String?,previewText: freezed == previewText ? _self.previewText : previewText // ignore: cast_nullable_to_non_nullable
 as String?,replaces: freezed == replaces ? _self.replaces : replaces // ignore: cast_nullable_to_non_nullable
 as Uint8List?,topicId: null == topicId ? _self.topicId : topicId // ignore: cast_nullable_to_non_nullable
 as Uint8List,inReplyTo: freezed == inReplyTo ? _self.inReplyTo : inReplyTo // ignore: cast_nullable_to_non_nullable
 as Uint8List?,content: freezed == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
 as MessageContent?,attachments: null == attachments ? _self._attachments : attachments // ignore: cast_nullable_to_non_nullable
-as List<UiAttachment>,firstAttachmentType: freezed == firstAttachmentType ? _self.firstAttachmentType : firstAttachmentType // ignore: cast_nullable_to_non_nullable
-as UiAttachmentType?,
+as List<UiAttachment>,
   ));
 }
 

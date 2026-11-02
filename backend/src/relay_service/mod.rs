@@ -12,6 +12,8 @@
 //! one retry.
 
 pub mod grpc;
+mod rate_limits;
 pub(crate) mod sessions;
 
+pub use rate_limits::RelayLimits;
 pub use sessions::Rs;

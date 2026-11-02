@@ -38,6 +38,7 @@ class DeveloperRowButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onPressed,
+    this.iconColor,
   });
 
   final AppIconType icon;
@@ -45,6 +46,8 @@ class DeveloperRowButton extends StatelessWidget {
 
   /// Null disables the button.
   final VoidCallback? onPressed;
+
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +62,7 @@ class DeveloperRowButton extends StatelessWidget {
             variant: ButtonIconVariant.plain,
             size: ButtonIconSize.s32,
             iconSize: developerRowIconSize,
+            iconColor: iconColor,
             hitTargetSize: _rowButtonHitSize,
             icon: icon,
             onPressed: onPressed,

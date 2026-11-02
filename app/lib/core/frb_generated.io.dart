@@ -708,6 +708,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DateTime dco_decode_box_autoadd_Chrono_Local(dynamic raw);
+
+  @protected
   DateTime dco_decode_box_autoadd_Chrono_Utc(dynamic raw);
 
   @protected
@@ -811,9 +814,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   UiAcceptContactRequestError
   dco_decode_box_autoadd_ui_accept_contact_request_error(dynamic raw);
-
-  @protected
-  UiAttachmentType dco_decode_box_autoadd_ui_attachment_type(dynamic raw);
 
   @protected
   UiChatAttributes dco_decode_box_autoadd_ui_chat_attributes(dynamic raw);
@@ -1155,6 +1155,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DateTime? dco_decode_opt_box_autoadd_Chrono_Local(dynamic raw);
+
+  @protected
   DateTime? dco_decode_opt_box_autoadd_Chrono_Utc(dynamic raw);
 
   @protected
@@ -1245,9 +1248,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   UiAcceptContactRequestError?
   dco_decode_opt_box_autoadd_ui_accept_contact_request_error(dynamic raw);
-
-  @protected
-  UiAttachmentType? dco_decode_opt_box_autoadd_ui_attachment_type(dynamic raw);
 
   @protected
   UiChatDetails? dco_decode_opt_box_autoadd_ui_chat_details(dynamic raw);
@@ -1388,9 +1388,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiAttachmentStatus dco_decode_ui_attachment_status(dynamic raw);
-
-  @protected
-  UiAttachmentType dco_decode_ui_attachment_type(dynamic raw);
 
   @protected
   UiChatAttributes dco_decode_ui_chat_attributes(dynamic raw);
@@ -2082,6 +2079,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DateTime sse_decode_box_autoadd_Chrono_Local(SseDeserializer deserializer);
+
+  @protected
   DateTime sse_decode_box_autoadd_Chrono_Utc(SseDeserializer deserializer);
 
   @protected
@@ -2217,11 +2217,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   UiAcceptContactRequestError
   sse_decode_box_autoadd_ui_accept_contact_request_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiAttachmentType sse_decode_box_autoadd_ui_attachment_type(
     SseDeserializer deserializer,
   );
 
@@ -2667,6 +2662,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DateTime? sse_decode_opt_box_autoadd_Chrono_Local(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   DateTime? sse_decode_opt_box_autoadd_Chrono_Utc(SseDeserializer deserializer);
 
   @protected
@@ -2783,11 +2783,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   UiAcceptContactRequestError?
   sse_decode_opt_box_autoadd_ui_accept_contact_request_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiAttachmentType? sse_decode_opt_box_autoadd_ui_attachment_type(
     SseDeserializer deserializer,
   );
 
@@ -2966,9 +2961,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiAttachmentStatus sse_decode_ui_attachment_status(
     SseDeserializer deserializer,
   );
-
-  @protected
-  UiAttachmentType sse_decode_ui_attachment_type(SseDeserializer deserializer);
 
   @protected
   UiChatAttributes sse_decode_ui_chat_attributes(SseDeserializer deserializer);
@@ -3791,6 +3783,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_Chrono_Local(
+    DateTime self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_Chrono_Utc(
     DateTime self,
     SseSerializer serializer,
@@ -3955,12 +3953,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_ui_accept_contact_request_error(
     UiAcceptContactRequestError self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_ui_attachment_type(
-    UiAttachmentType self,
     SseSerializer serializer,
   );
 
@@ -4526,6 +4518,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_Chrono_Local(
+    DateTime? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_Chrono_Utc(
     DateTime? self,
     SseSerializer serializer,
@@ -4660,12 +4658,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_ui_accept_contact_request_error(
     UiAcceptContactRequestError? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_ui_attachment_type(
-    UiAttachmentType? self,
     SseSerializer serializer,
   );
 
@@ -4888,12 +4880,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ui_attachment_status(
     UiAttachmentStatus self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_attachment_type(
-    UiAttachmentType self,
     SseSerializer serializer,
   );
 

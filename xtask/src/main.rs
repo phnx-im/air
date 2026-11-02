@@ -7,6 +7,7 @@ mod cut_release;
 mod flatpak_sources;
 mod generate_emoji;
 mod generate_licenses;
+mod linux_screenshots;
 mod prune_unused_l10n;
 mod publish_flatpak;
 mod publish_linux_packages;
@@ -61,6 +62,9 @@ enum Commands {
     /// Collect the licenses of the Rust dependencies shipped in the app into a JSON asset.
     #[command(name = "generate-licenses")]
     GenerateLicenses(generate_licenses::GenerateLicensesArgs),
+    /// Check, version and publish the screenshots the Linux metainfo links to.
+    #[command(name = "linux-screenshots")]
+    LinuxScreenshots(linux_screenshots::ScreenshotsArgs),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -76,5 +80,6 @@ fn main() -> anyhow::Result<()> {
         Commands::PublishFlatpak(args) => publish_flatpak::run(args),
         Commands::GenerateEmoji(args) => generate_emoji::run(args),
         Commands::GenerateLicenses(args) => generate_licenses::run(args),
+        Commands::LinuxScreenshots(args) => linux_screenshots::run(args),
     }
 }

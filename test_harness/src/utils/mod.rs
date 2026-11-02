@@ -20,7 +20,7 @@ use airbackend::{
     },
     ds::{Ds, storage::Storage},
     qs::Qs,
-    relay_service::Rs,
+    relay_service::{RelayLimits, Rs},
     settings::{DatabaseSettings, RateLimitsSettings, RegistrationPolicy},
 };
 use aircommon::{
@@ -174,26 +174,31 @@ pub(crate) async fn spawn_app(
 
     let interceptor_control_handle = control_handle.clone();
 
-    let interceptor = move |request| {
+    let fault_hook = move |path: &str| {
         match interceptor_control_handle.mode() {
-            Mode::DropNextResponse if interceptor_control_handle.take_armed() => {
+            Mode::DropNextResponse if interceptor_control_handle.take_armed(path) => {
                 interceptor_control_handle.set_drop_connection_on_write()
             }
-            Mode::DropNextRequest if interceptor_control_handle.take_armed() => {
-                interceptor_control_handle.set_normal();
+            Mode::DropNextRequest if interceptor_control_handle.take_armed(path) => {
+                interceptor_control_handle.fired();
                 return Err(Status::unavailable("cancelled for interop test"));
             }
-            Mode::RejectNextRequest if interceptor_control_handle.take_armed() => {
-                interceptor_control_handle.set_normal();
+            Mode::RejectNextRequest if interceptor_control_handle.take_armed(path) => {
+                interceptor_control_handle.fired();
                 return Err(Status::invalid_argument("rejected for interop test"));
             }
-            Mode::FailNextRequest if interceptor_control_handle.take_armed() => {
-                interceptor_control_handle.set_normal();
+            Mode::DelayNextRequest if interceptor_control_handle.take_armed(path) => {
+                let delay = interceptor_control_handle.delay();
+                interceptor_control_handle.fired();
+                std::thread::sleep(delay);
+            }
+            Mode::FailNextRequest if interceptor_control_handle.take_armed(path) => {
+                interceptor_control_handle.fired();
                 return Err(Status::internal("failed for interop test"));
             }
             _ => {}
         }
-        Ok(request)
+        Ok(())
     };
 
     let address = listener.local_addr().unwrap();
@@ -288,6 +293,9 @@ pub(crate) async fn spawn_app(
         network: network_provider.clone(),
     };
 
+    let relay_limits = RelayLimits::new(&qs, &relay, stop.clone())
+        .await
+        .expect("Failed to set up the relay's rate limits.");
     let rs = Rs::new(stop.clone(), relay);
 
     // Start the server
@@ -301,10 +309,11 @@ pub(crate) async fn spawn_app(
             qs,
             qs_connector,
             rs,
+            relay_limits,
             rate_limits: rate_limits.unwrap_or(TEST_RATE_LIMITS),
             shutdown: stop.clone(),
         },
-        interceptor,
+        fault_hook,
     )
     .await;
 

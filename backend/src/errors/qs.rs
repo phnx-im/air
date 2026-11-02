@@ -94,6 +94,9 @@ pub(crate) enum QsPublishKeyPackagesError {
     /// Invalid KeyPackage
     #[error("Invalid KeyPackage")]
     InvalidKeyPackage,
+    /// More than one last resort key package in one request
+    #[error("Multiple last resort key packages")]
+    MultipleLastResortKeyPackages,
 }
 
 impl From<StorageError> for QsPublishKeyPackagesError {
@@ -115,7 +118,10 @@ impl From<QsPublishKeyPackagesError> for Status {
         let msg = e.to_string();
         match e {
             QsPublishKeyPackagesError::StorageError => Status::internal(msg),
-            QsPublishKeyPackagesError::InvalidKeyPackage => Status::invalid_argument(msg),
+            QsPublishKeyPackagesError::InvalidKeyPackage
+            | QsPublishKeyPackagesError::MultipleLastResortKeyPackages => {
+                Status::invalid_argument(msg)
+            }
             QsPublishKeyPackagesError::UnknownUser => Status::not_found(msg),
         }
     }

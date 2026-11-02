@@ -129,7 +129,7 @@ void main() {
             size: 1024,
           ),
         ],
-        firstAttachmentType: UiAttachmentType.file,
+        previewText: '📎',
         content: MessageContent(
           elements: [
             RangedBlockElement(

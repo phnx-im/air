@@ -17,7 +17,7 @@ part 'message_content.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `resolve`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `UnresolvedAttachment`, `UnresolvedMimiContent`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `hash`, `hash`, `hash`
 
 /// Mirror of the [`AttachmentId`] type
 class AttachmentId {
@@ -51,9 +51,6 @@ sealed class UiAttachment with _$UiAttachment {
   }) = _UiAttachment;
 }
 
-/// Whether an attachment is a picture or some other file.
-enum UiAttachmentType { image, file }
-
 @freezed
 sealed class UiImageMetadata with _$UiImageMetadata {
   const factory UiImageMetadata({
@@ -69,12 +66,12 @@ sealed class UiImageMetadata with _$UiImageMetadata {
 sealed class UiMimiContent with _$UiMimiContent {
   const factory UiMimiContent({
     String? plainBody,
+    String? previewText,
     Uint8List? replaces,
     required Uint8List topicId,
     Uint8List? inReplyTo,
     MessageContent? content,
     required List<UiAttachment> attachments,
-    UiAttachmentType? firstAttachmentType,
   }) = _UiMimiContent;
 }
 

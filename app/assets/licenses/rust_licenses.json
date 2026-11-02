@@ -2188,7 +2188,7 @@
       "used_by": [
         {
           "name": "clipboard-win",
-          "version": "5.4.1",
+          "version": "5.4.3",
           "repository": "https://github.com/DoumanAsh/clipboard-win"
         }
       ]
@@ -3295,7 +3295,7 @@
         },
         {
           "name": "pulldown-cmark",
-          "version": "0.13.4",
+          "version": "0.13.5",
           "repository": "https://github.com/raphlinus/pulldown-cmark"
         }
       ]

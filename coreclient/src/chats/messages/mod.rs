@@ -3,21 +3,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{OpenMlsRand, RustCrypto, identifiers::MimiId, time::TimeStamp};
+use anyhow::Context;
 use indexmap::IndexMap;
 use mimi_content::{
     MessageStatus, MimiContent,
-    content_container::{Disposition, NestedPart, PartSemantics},
+    content_container::{Disposition, NestedPart},
 };
 use tracing::{error, warn};
 
 use crate::{
     clients::{CoreUser, attachment::AttachmentId},
+    db::access::ReadTransaction,
     groups::Group,
 };
 
 use super::*;
 
 pub(crate) mod edit;
+mod event_id;
 pub(crate) mod persistence;
 
 #[derive(PartialEq, Debug, Clone)]
@@ -140,6 +143,18 @@ impl ChatMessage {
             MessageId::random(),
             TimestampedMessage::system_message(system_message, ds_timestamp),
         )
+    }
+
+    /// Returns true if the message is a deletable system message or another
+    /// kind of message.
+    pub(crate) async fn is_deletable(&self, txn: impl ReadTransaction) -> anyhow::Result<bool> {
+        let Message::Event(EventMessage::System(system_message)) = self.message() else {
+            return Ok(true);
+        };
+        let chat = Chat::load(txn, &self.chat_id)
+            .await?
+            .with_context(|| format!("Can't find chat with id {}", self.chat_id))?;
+        Ok(system_message.is_deletable(chat.is_open_request()))
     }
 
     pub fn new_for_test(
@@ -371,59 +386,6 @@ impl Message {
         Self::Content(Box::new(content))
     }
 
-    /// Returns a string representation of the message for use in UI
-    /// notifications.
-    pub async fn string_representation(
-        &self,
-        core_user: &CoreUser,
-        chat_type: &ChatType,
-        with_sender_name: bool,
-    ) -> Option<String> {
-        match self {
-            Message::Content(content_message) => {
-                let content = match content_message.content.string_rendering() {
-                    Ok(content) => content,
-                    Err(mimi_content::Error::UnsupportedContentType) => {
-                        match self.attachment_type() {
-                            Some(AttachmentType::Image) => "🖼️".to_owned(),
-                            Some(AttachmentType::File) => "📎".to_owned(),
-                            None => {
-                                error!("Unsupported content type");
-                                return None;
-                            }
-                        }
-                    }
-                    Err(error) => {
-                        error!(%error, "Failed to render message content");
-                        return None;
-                    }
-                };
-                let repr = match chat_type {
-                    ChatType::TargetedMessageConnection(_) | ChatType::Group(_) => {
-                        if with_sender_name {
-                            let display_name = core_user
-                                .user_profile(&content_message.sender)
-                                .await
-                                .display_name;
-                            format!("{display_name}: {content}")
-                        } else {
-                            content
-                        }
-                    }
-                    ChatType::HandleConnection(username) => {
-                        format!("{username}: {content}", username = username.plaintext())
-                    }
-                    ChatType::Connection(_) | ChatType::PendingConnection(_) => content,
-                };
-                Some(repr)
-            }
-            Message::Event(event_message) => match &event_message {
-                EventMessage::System(system) => Some(system.string_representation(core_user).await),
-                EventMessage::Error(error) => Some(error.message().to_string()),
-            },
-        }
-    }
-
     pub fn mimi_id(&self) -> Option<&MimiId> {
         match self {
             Message::Content(content_message) => content_message.mimi_id(),
@@ -461,45 +423,6 @@ impl Message {
         }
     }
 
-    /// Returns `Some(AttachmentType)` if the message contains an attachment.
-    ///
-    /// Otherwise, returns `None`.
-    fn attachment_type(&self) -> Option<AttachmentType> {
-        let Self::Content(content_message) = self else {
-            return None;
-        };
-
-        match &content_message.content().nested_part {
-            // Attachment
-            NestedPart::MultiPart {
-                part_semantics: PartSemantics::ProcessAll,
-                parts,
-                ..
-            } if parts
-                .iter()
-                .any(|part| part.disposition() == Disposition::Attachment) =>
-            {
-                // Blurhash preview indicates an image
-                let is_image = parts.iter().any(|part| {
-                    matches!(
-                        &part,
-                        NestedPart::SinglePart {
-                            content_type,
-                            disposition: Disposition::Preview,
-                            ..
-                        } if content_type == "text/blurhash"
-                    )
-                });
-                Some(if is_image {
-                    AttachmentType::Image
-                } else {
-                    AttachmentType::File
-                })
-            }
-            _ => None,
-        }
-    }
-
     pub fn is_deleted(&self) -> bool {
         self.mimi_content().is_some_and(|c| {
             matches!(
@@ -518,11 +441,6 @@ impl Message {
         self.mimi_content()
             .is_some_and(|content| content.replaces.is_some())
     }
-}
-
-enum AttachmentType {
-    Image,
-    File,
 }
 
 // WARNING: If this type is changed, a new `VersionedMessage` variant must be
@@ -697,6 +615,15 @@ impl EventMessage {
             EventMessage::Error(_) => None,
         }
     }
+
+    /// Returns a string representation of the event for use in UI
+    /// notifications.
+    pub async fn string_representation(&self, core_user: &CoreUser) -> String {
+        match self {
+            EventMessage::System(system) => system.string_representation(core_user).await,
+            EventMessage::Error(error) => error.message().to_string(),
+        }
+    }
 }
 
 impl SystemMessage {
@@ -764,6 +691,35 @@ impl SystemMessage {
             | SystemMessage::ConnectionRequestUnavailable
             | SystemMessage::ConnectionRequestExpired
             | SystemMessage::SentConnectionRequestExpired => None,
+        }
+    }
+
+    /// Specifies whether a system message is deletable.
+    pub fn is_deletable(&self, open_request: bool) -> bool {
+        match self {
+            SystemMessage::Add(actor, _) | SystemMessage::Remove(actor, _) => actor.is_some(),
+            SystemMessage::DeviceLinked(_)
+            | SystemMessage::DeviceUnlinked(_)
+            | SystemMessage::SelfChatCreated => false,
+            SystemMessage::ReceivedDirectConnectionRequest { .. }
+            | SystemMessage::ReceivedHandleConnectionRequest { .. }
+            | SystemMessage::ReceivedGroupConnectionRequest { .. }
+            | SystemMessage::ReceivedAdditionalUsernameConnectionRequest { .. }
+            | SystemMessage::ReceivedAdditionalDirectConnectionRequest { .. }
+            | SystemMessage::ReceivedAdditionalGroupConnectionRequest { .. }
+            | SystemMessage::NewHandleConnectionChat(_)
+            | SystemMessage::NewDirectConnectionChat(_)
+            | SystemMessage::SentGroupConnectionRequest { .. } => !open_request,
+            SystemMessage::ChangeTitle { .. }
+            | SystemMessage::ChangePicture(_)
+            | SystemMessage::AcceptedConnectionRequest { .. }
+            | SystemMessage::ReceivedConnectionConfirmation { .. }
+            | SystemMessage::CreateGroup(_)
+            | SystemMessage::DeleteGroup(_)
+            | SystemMessage::Onboarded
+            | SystemMessage::ConnectionRequestUnavailable
+            | SystemMessage::ConnectionRequestExpired
+            | SystemMessage::SentConnectionRequestExpired => true,
         }
     }
 
@@ -955,5 +911,64 @@ impl ErrorMessage {
 impl From<ErrorMessage> for String {
     fn from(ErrorMessage { message }: ErrorMessage) -> String {
         message
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn user() -> UserId {
+        UserId::random("localhost".parse().unwrap())
+    }
+
+    #[test]
+    fn device_self_chat_and_actorless_messages_are_never_deletable() {
+        for message in [
+            SystemMessage::DeviceLinked(Uuid::new_v4()),
+            SystemMessage::DeviceUnlinked(Uuid::new_v4()),
+            SystemMessage::SelfChatCreated,
+            SystemMessage::Add(None, user()),
+            SystemMessage::Remove(None, user()),
+        ] {
+            for open_request in [false, true] {
+                assert!(!message.is_deletable(open_request), "{message:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn request_messages_are_deletable_once_the_request_is_closed() {
+        let username = Username::new("alice".to_owned()).unwrap();
+        for message in [
+            SystemMessage::received_username_connection_request(user(), username.clone(), false),
+            SystemMessage::received_username_connection_request(user(), username.clone(), true),
+            SystemMessage::received_group_connection_request(user(), ChatId::random(), false),
+            SystemMessage::received_group_connection_request(user(), ChatId::random(), true),
+            SystemMessage::NewHandleConnectionChat(username),
+            SystemMessage::SentGroupConnectionRequest {
+                recipient: user(),
+                origin_chat_id: ChatId::random(),
+            },
+        ] {
+            assert!(!message.is_deletable(true), "{message:?}");
+            assert!(message.is_deletable(false), "{message:?}");
+        }
+    }
+
+    #[test]
+    fn other_system_messages_are_deletable() {
+        for message in [
+            SystemMessage::Add(Some(user()), user()),
+            SystemMessage::Remove(Some(user()), user()),
+            SystemMessage::AcceptedConnectionRequest {
+                contact: user(),
+                user_handle: None,
+            },
+            SystemMessage::ConnectionRequestExpired,
+            SystemMessage::Onboarded,
+        ] {
+            assert!(message.is_deletable(false), "{message:?}");
+        }
     }
 }

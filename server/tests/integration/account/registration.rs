@@ -384,3 +384,41 @@ fn adaptive_registration(per_ip: u64, total: u64) -> RegistrationSettings {
         ..Default::default()
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[ignore = "a registration resumed after the QS step leaves the client without its own client info"]
+async fn registration_resumed_after_qs_failure_is_usable() {
+    let setup = TestBackend::single().await;
+    let db_path = setup.temp_dir().to_str().unwrap().to_owned();
+    let user_id = setup.random_user_id();
+
+    // The AS registers the user, the QS step fails.
+    setup
+        .listener_control_handle()
+        .set_reject_next_request_to("/queue_service.v1.QueueService/CreateUser");
+    CoreUser::with_server_url(
+        user_id.clone(),
+        Some(setup.server_url()),
+        &db_path,
+        None,
+        Some(RegistrationChallenge::InvitationCode("DUMMY007".to_owned())),
+    )
+    .await
+    .unwrap_err();
+
+    let client_record_id = ClientRecord::load_all_from_air_db(&db_path)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|record| record.user_id == user_id)
+        .unwrap()
+        .client_record_id;
+    let user = CoreUser::load_with_server_url(&db_path, client_record_id, Some(setup.server_url()))
+        .await
+        .unwrap();
+
+    user.ensure_self_group().await.unwrap();
+    user.create_chat("Group".to_owned(), None, setup.apq_groups)
+        .await
+        .unwrap();
+}

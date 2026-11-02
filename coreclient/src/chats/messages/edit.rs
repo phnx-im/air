@@ -427,6 +427,55 @@ mod tests {
         Ok(())
     }
 
+    #[sqlx::test]
+    #[ignore = "an edit from another chat is applied to the message"]
+    async fn test_handle_message_edit_rejects_edit_from_other_chat(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+
+        let alice = UserId::random("localhost".parse().unwrap());
+        let original_content =
+            MimiContent::simple_markdown_message("Hello from Alice!".to_string(), [0; 16]);
+        let alice_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            ContentMessage::new(
+                alice.clone(),
+                false,
+                original_content.clone(),
+                chat.group_id(),
+            ),
+        );
+        alice_message.store(pool.write().await?).await?;
+
+        // Alice sends the edit in another group she shares with the receiver.
+        let other_group_id = GroupId::from_slice(&[1; 32]);
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+        let result = handle_message_edit(
+            &mut txn,
+            &other_group_id,
+            TimeStamp::now(),
+            &alice,
+            *alice_message.message().mimi_id().unwrap(),
+            MimiContent::simple_markdown_message("Edited elsewhere".to_string(), [0; 16]),
+        )
+        .await;
+        assert!(result.is_err());
+
+        let loaded = ChatMessage::load(&mut txn, alice_message.id())
+            .await?
+            .unwrap();
+        assert_eq!(loaded.message().mimi_content(), Some(&original_content));
+
+        Ok(())
+    }
+
     /// Deleting a message with no replies should succeed without any side effects.
     #[sqlx::test]
     async fn test_handle_message_delete_without_replies(pool: SqlitePool) -> anyhow::Result<()> {
