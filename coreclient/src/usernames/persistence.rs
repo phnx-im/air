@@ -7,12 +7,17 @@ use aircommon::{
     credentials::keys::UsernameSigningKey,
     identifiers::{Username, UsernameHash},
 };
+use anyhow::bail;
 use chrono::{DateTime, Utc};
 use sqlx::{query, query_as, query_scalar};
 
-use crate::db::{
-    access::{ReadConnection, WriteConnection, WriteDbTransaction},
-    notification::DbEntityId,
+use crate::{
+    db::{
+        access::{ReadConnection, WriteConnection, WriteDbTransaction},
+        notification::DbEntityId,
+    },
+    job::operation::{Operation, OperationData},
+    outbound_service::timed_tasks::{PARKED_AT, TimedTask, TimedTaskKind},
 };
 
 /// A username record stored in the client database.
@@ -60,7 +65,7 @@ impl UsernameRecord {
         }
     }
 
-    pub(super) async fn load(
+    pub(crate) async fn load(
         connection: impl ReadConnection,
         username: &Username,
     ) -> sqlx::Result<Option<Self>> {
@@ -166,27 +171,6 @@ impl UsernameRecord {
         }))
     }
 
-    /// Loads the usernames with unpublished connection packages.
-    pub(crate) async fn load_unpublished(
-        mut connection: impl ReadConnection,
-    ) -> sqlx::Result<Vec<Self>> {
-        let records = query_as!(
-            SqlUsernameRecord,
-            r#"
-                SELECT
-                    u.handle AS "username: _",
-                    u.hash AS "hash: _",
-                    u.signing_key AS "signing_key: _"
-                FROM user_handle AS u
-                INNER JOIN pending_username AS p ON p.handle = u.handle
-                ORDER BY u.created_at ASC
-            "#,
-        )
-        .fetch_all(connection.as_mut())
-        .await?;
-        Ok(records.into_iter().map(From::from).collect())
-    }
-
     /// Load usernames where `refreshed_at` is older than the given threshold.
     pub(crate) async fn load_needing_refresh(
         mut connection: impl ReadConnection,
@@ -272,7 +256,7 @@ impl UsernameRecord {
     }
 }
 
-/// The signing key of a username registration that is still inprogress.
+/// The signing key of a username registration that is still in progress.
 #[derive(Debug)]
 pub(crate) struct PendingKey {
     pub(super) signing_key: UsernameSigningKey,
@@ -294,36 +278,25 @@ impl PendingKey {
         txn: &mut WriteDbTransaction<'_>,
         username: &Username,
     ) -> anyhow::Result<Self> {
-        let stored = query_scalar!(
-            r#"
-                SELECT signing_key AS "signing_key: BlobDecoded<UsernameSigningKey>"
-                FROM pending_username
-                WHERE handle = ?
-            "#,
-            username,
-        )
-        .fetch_optional(txn.as_mut())
-        .await?;
-        if let Some(signing_key) = stored {
+        let task_id = TimedTask::pending_username_id(username);
+        if let Some(task) = Operation::<TimedTask>::load(&mut *txn, &task_id).await? {
+            let TimedTaskKind::PendingUsername { signing_key, .. } = task.data.kind else {
+                bail!("unexpected pending username task: {:?}", task.data.kind);
+            };
             return Ok(Self {
-                signing_key: signing_key.into_inner(),
+                signing_key,
                 origin: PendingKeyOrigin::Resumed,
             });
         }
 
         let signing_key = UsernameSigningKey::generate()?;
-        let encoded = BlobEncoded(&signing_key);
-        query!(
-            r#"
-                INSERT INTO pending_username (
-                    handle,
-                    signing_key
-                ) VALUES (?, ?)
-            "#,
-            username,
-            encoded,
-        )
-        .execute(txn.as_mut())
+        TimedTask::new(TimedTaskKind::PendingUsername {
+            username: username.clone(),
+            signing_key: signing_key.clone(),
+        })
+        .into_operation()
+        .schedule_at(PARKED_AT)
+        .enqueue(txn)
         .await?;
         Ok(Self {
             signing_key,
@@ -332,19 +305,11 @@ impl PendingKey {
     }
 
     pub(super) async fn delete(
-        mut connection: impl WriteConnection,
+        connection: impl WriteConnection,
         username: &Username,
     ) -> sqlx::Result<()> {
-        query!(
-            r#"
-                DELETE FROM pending_username
-                WHERE handle = ?
-            "#,
-            username,
-        )
-        .execute(connection.as_mut())
-        .await?;
-        Ok(())
+        let task_id = TimedTask::pending_username_id(username);
+        Operation::<TimedTask>::delete_by_id(connection, &task_id).await
     }
 }
 
@@ -353,6 +318,7 @@ mod test {
     use std::assert_matches;
 
     use sqlx::SqlitePool;
+    use uuid::Uuid;
 
     use crate::db::access::DbAccess;
 
@@ -530,34 +496,30 @@ mod test {
         Ok(())
     }
 
-    #[sqlx::test]
-    async fn unpublished_usernames_have_a_record_and_a_pending_key(
-        pool: SqlitePool,
-    ) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-
-        let published = Username::new("ellie-03".to_owned())?;
-        let signing_key = UsernameSigningKey::generate()?;
-        UsernameRecord::new(published.clone(), published.calculate_hash()?, signing_key)
-            .store(pool.write().await?)
+    async fn dequeue_timed_task(pool: &DbAccess) -> anyhow::Result<Option<TimedTaskKind>> {
+        let task = pool
+            .with_write_transaction(async |txn| {
+                Operation::<TimedTask>::dequeue(txn, Uuid::new_v4(), Utc::now()).await
+            })
             .await?;
+        Ok(task.map(|task| task.data.kind))
+    }
 
-        let unregistered = Username::new("joel-03".to_owned())?;
-        load_or_create_pending_key(&pool, &unregistered).await?;
-
-        let unpublished = Username::new("tommy-03".to_owned())?;
-        let signing_key = load_or_create_pending_key(&pool, &unpublished)
+    #[sqlx::test]
+    async fn pending_key_is_due_only_once_scheduled(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let username = Username::new("ellie-03".to_owned())?;
+        let signing_key = load_or_create_pending_key(&pool, &username)
             .await?
             .signing_key;
-        let record = UsernameRecord::new(
-            unpublished.clone(),
-            unpublished.calculate_hash()?,
-            signing_key,
-        );
-        record.store(pool.write().await?).await?;
+        assert_eq!(dequeue_timed_task(&pool).await?, None);
 
-        let loaded = UsernameRecord::load_unpublished(pool.read().await?).await?;
-        assert_eq!(loaded, [record]);
+        let kind = TimedTaskKind::PendingUsername {
+            username,
+            signing_key,
+        };
+        TimedTask::schedule_now(pool.write().await?, kind.clone()).await?;
+        assert_eq!(dequeue_timed_task(&pool).await?, Some(kind));
         Ok(())
     }
 }

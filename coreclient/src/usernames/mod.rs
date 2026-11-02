@@ -192,7 +192,11 @@ impl CoreUser {
                 self.db()
                     .with_write_transaction(async |txn| -> sqlx::Result<()> {
                         discard_unpublished_package_keys(txn, &hashes, &error).await?;
-                        TimedTask::schedule_now(txn, TimedTaskKind::PendingUsernameUpload).await
+                        let task = TimedTaskKind::PendingUsername {
+                            username: record.username.clone(),
+                            signing_key: record.signing_key.clone(),
+                        };
+                        TimedTask::schedule_now(txn, task).await
                     })
                     .await?;
                 self.outbound_service().notify_pending_usernames();
@@ -316,7 +320,7 @@ impl CoreUser {
     }
 }
 
-/// FInal step of the username registration: removes the pending key and
+/// Final step of the username registration: removes the pending key and
 /// schedules a self-group message to be sent to the siblings.
 pub(crate) async fn finish_registration(
     txn: &mut WriteDbTransaction<'_>,
