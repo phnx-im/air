@@ -161,8 +161,7 @@ impl Group {
     }
 }
 
-/// A group flagged as self-group must be recorded as our own self-group and
-/// vice versa.
+/// Ensures the self-group flag on both legs equals `is_self_group`.
 fn ensure_self_group_flag(
     mls_group: &MlsGroup,
     pq_mls_group: Option<&MlsGroup>,
@@ -173,7 +172,7 @@ fn ensure_self_group_flag(
             && pq_mls_group.is_none_or(|pq_mls_group| {
                 GroupAppData::is_self_group_context(pq_mls_group.extensions()) == is_self_group
             }),
-        "self-group flag does not match the recorded self-group"
+        "self-group flag mismatch, expected {is_self_group}",
     );
     Ok(())
 }
