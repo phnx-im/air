@@ -6,11 +6,20 @@
 
 use std::{assert_matches, io::Cursor};
 
-use aircoreclient::{AttachmentProgressEvent, AttachmentStatus, ProvisionAttachmentError};
-use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams};
+use aircoreclient::{
+    AttachmentProgressEvent, AttachmentStatus, MimiContentExt, ProvisionAttachmentError,
+    VisitedPart, clients::MarkChatAsRead,
+};
+use airserver_test_harness::utils::{
+    core_user_ext::CoreUserExt,
+    setup::{TestBackend, TestBackendParams},
+};
 use base64::{Engine, prelude::BASE64_STANDARD};
 use image::{ImageBuffer, Rgba};
-use mimi_content::content_container::NestedPart;
+use mimi_content::{
+    Disposition, MimiContent,
+    content_container::{NestedPart, PartSemantics},
+};
 use png::Encoder;
 use sha2::{Digest, Sha256};
 use tokio_stream::StreamExt;
@@ -142,6 +151,170 @@ async fn interrupted_attachment_download_is_resumed() {
         .unwrap()
         .into_bytes();
     assert_eq!(content, Some(attachment));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn nested_attachments_are_paired_by_part_index() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, carol] = setup.add_users().await;
+    let upload_chat_id = setup.connect_users(&alice, &carol).await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    // Uploaded in a chat without Bob, since a client stores each remote
+    // attachment id only once.
+    let first = b"first attachment";
+    let second = b"second attachment";
+    let (_, first_part) = setup
+        .send_attachment(upload_chat_id, &alice, &[&carol], first, "first.bin")
+        .await
+        .unwrap();
+    let (_, second_part) = setup
+        .send_attachment(upload_chat_id, &alice, &[&carol], second, "second.bin")
+        .await
+        .unwrap();
+
+    let multi_part = |parts| NestedPart::MultiPart {
+        disposition: Disposition::Render,
+        language: String::new(),
+        part_semantics: PartSemantics::ProcessAll,
+        parts,
+    };
+    let text = NestedPart::SinglePart {
+        disposition: Disposition::Render,
+        language: String::new(),
+        content_type: "text/markdown".to_owned(),
+        content: b"two files".to_vec(),
+    };
+    // Visit order: second (depth 2), then first (depth 1)
+    let content = MimiContent {
+        salt: uuid::Uuid::new_v4().as_bytes().to_vec(),
+        nested_part: multi_part(vec![
+            text,
+            multi_part(vec![multi_part(vec![second_part])]),
+            first_part,
+        ]),
+        ..Default::default()
+    };
+
+    alice.drain().await;
+    alice
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+    alice.outbound_service().run_once().await;
+
+    let messages = bob.drain().await;
+    let [message] = &messages.new_messages[..] else {
+        panic!("expected exactly one new message");
+    };
+
+    let infos = bob.attachment_infos_for_message(message.id()).await;
+    let [info_0, info_1] = &infos[..] else {
+        panic!("expected exactly two attachments, got {infos:?}");
+    };
+    assert_eq!(info_0.part_index, 0);
+    assert_eq!(info_1.part_index, 1);
+
+    for (info, expected) in [(info_0, &second[..]), (info_1, &first[..])] {
+        let (_progress, download_task) = bob.download_attachment(info.attachment_id);
+        download_task.await.unwrap();
+        let content = bob
+            .load_attachment(info.attachment_id)
+            .await
+            .unwrap()
+            .into_bytes();
+        assert_eq!(content.as_deref(), Some(expected));
+    }
+
+    // Bob's stored copy has no secrets left
+    let stored = bob.message(message.id()).await.unwrap().unwrap();
+    let mut external_parts = 0;
+    stored
+        .message()
+        .mimi_content()
+        .unwrap()
+        .visit_parts(|part| {
+            let VisitedPart::Attachment { part, .. } = part else {
+                return Ok(());
+            };
+            let NestedPart::ExternalPart {
+                key,
+                nonce,
+                aad,
+                content_hash,
+                ..
+            } = part
+            else {
+                panic!("unexpected attachment type");
+            };
+            assert!(key.is_empty());
+            assert!(nonce.is_empty());
+            assert!(aad.is_empty());
+            assert!(content_hash.is_empty());
+            external_parts += 1;
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(external_parts, 2);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn reused_remote_attachment_is_skipped() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let (_, external_part) = setup
+        .send_attachment(chat_id, &alice, &[&bob], b"attachment", "file.bin")
+        .await
+        .unwrap();
+    let messages = bob.drain().await;
+    let [first] = &messages.new_messages[..] else {
+        panic!("expected exactly one new message");
+    };
+    assert_eq!(bob.attachment_infos_for_message(first.id()).await.len(), 1);
+
+    // Same remote attachment id again
+    let content = MimiContent {
+        salt: uuid::Uuid::new_v4().as_bytes().to_vec(),
+        nested_part: NestedPart::MultiPart {
+            disposition: Disposition::Render,
+            language: String::new(),
+            part_semantics: PartSemantics::ProcessAll,
+            parts: vec![
+                NestedPart::SinglePart {
+                    disposition: Disposition::Render,
+                    language: String::new(),
+                    content_type: "text/markdown".to_owned(),
+                    content: b"again".to_vec(),
+                },
+                external_part,
+            ],
+        },
+        ..Default::default()
+    };
+    alice.drain().await;
+    alice
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+    alice.outbound_service().run_once().await;
+
+    let messages = bob.drain().await;
+    let [second] = &messages.new_messages[..] else {
+        panic!("expected exactly one new message");
+    };
+    assert_ne!(second.id(), first.id());
+    let stored = bob.message(second.id()).await.unwrap().unwrap();
+    let text = stored
+        .message()
+        .mimi_content()
+        .unwrap()
+        .string_rendering()
+        .unwrap();
+    assert!(text.contains("again"), "unexpected text: {text}");
+    assert!(bob.attachment_infos_for_message(second.id()).await.is_empty());
+    assert_eq!(bob.attachment_infos_for_message(first.id()).await.len(), 1);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

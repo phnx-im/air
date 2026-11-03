@@ -652,6 +652,21 @@ impl AttachmentRecord {
         .await
     }
 
+    /// Returns whether an attachment with the given remote id is stored.
+    pub(crate) async fn exists_by_remote_id(
+        mut connection: impl ReadConnection,
+        remote_attachment_id: RemoteAttachmentId,
+    ) -> sqlx::Result<bool> {
+        query_scalar!(
+            r#"SELECT EXISTS(
+                SELECT 1 FROM attachment WHERE remote_attachment_id = ?
+            ) AS "exists: _""#,
+            remote_attachment_id,
+        )
+        .fetch_one(connection.as_mut())
+        .await
+    }
+
     /// Load all attachment infos for a given message.
     ///
     /// Infos are ordered by the position in the mimi content.
@@ -950,6 +965,29 @@ pub(crate) mod test {
         let loaded_record =
             AttachmentRecord::load(pool.read().await?, record.attachment_id).await?;
         assert_eq!(loaded_record.as_ref(), Some(&record));
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn exists_by_remote_id_reflects_stored_records(
+        pool: Pool<Sqlite>,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let message = test_chat_message(chat.id());
+        message.store(pool.write().await?).await?;
+        let record = test_attachment_record(chat.id(), message.id());
+        let remote_id = record.remote_attachment_id.unwrap();
+
+        let exists = AttachmentRecord::exists_by_remote_id(pool.read().await?, remote_id).await?;
+        assert!(!exists);
+
+        record.store(pool.write().await?, None).await?;
+
+        let exists = AttachmentRecord::exists_by_remote_id(pool.read().await?, remote_id).await?;
+        assert!(exists);
 
         Ok(())
     }
