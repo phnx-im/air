@@ -337,7 +337,7 @@
   "messageContextMenu_delete": "Видалити",
   "messageContextMenu_save": "Зберегти",
   "messageContextMenu_share": "Поділитися",
-  "messageContextMenu_info": "Відомості",
+  "messageContextMenu_info": "Інформація",
   "messageDetails_title": "Про повідомлення",
   "messageDetails_sent": "Надіслано {date} о {time}",
   "messageDetails_edited": "Змінено {date} о {time}",

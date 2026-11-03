@@ -337,7 +337,7 @@
   "messageContextMenu_delete": "Удалить",
   "messageContextMenu_save": "Сохранить",
   "messageContextMenu_share": "Поделиться",
-  "messageContextMenu_info": "Сведения",
+  "messageContextMenu_info": "Информация",
   "messageDetails_title": "О сообщении",
   "messageDetails_sent": "Отправлено {date} в {time}",
   "messageDetails_edited": "Изменено {date} в {time}",
