@@ -5,10 +5,7 @@
 use std::{io::Cursor, mem};
 
 use aircoreclient::{AttachmentUrl, MimiContentExt as _, TextFormat, VisitedPart};
-use mimi_content::{
-    MimiContent,
-    content_container::{Disposition, NestedPart, PartSemantics},
-};
+use mimi_content::{MimiContent, content_container::NestedPart};
 use tracing::warn;
 
 use crate::api::{
