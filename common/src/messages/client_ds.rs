@@ -175,7 +175,7 @@ pub struct GroupBootstrapEcho {
     /// Group id of the PQ leg, present iff the group is an APQ group.
     pub pq_group_id: Option<GroupId>,
     /// Epoch of the snapshot the sibling fetches from the DS: 0 at creation,
-    /// the pre-commit epoch at an external join.
+    /// the epoch an external join leads to.
     pub epoch: GroupEpoch,
     pub timestamp: TimeStamp,
     /// A `GroupBootstrapBlob` (CBOR, defined in `airprotos`), encrypted for the
