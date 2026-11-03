@@ -17,6 +17,7 @@ use uuid::Uuid;
 use crate::{
     air_service::{BackendService, MaxDevices, ServiceCreationError},
     ds::{
+        create_group_stream::CreateGroupStreams,
         group_id_reservations::{
             GroupIdReservations, GroupIdReservationsFull, sweep_expired_group_id_reservations,
         },
@@ -24,6 +25,7 @@ use crate::{
     },
     pseudonym::Pseudonymizer,
     rate_limiter::provider::{ALLOWANCE_SWEEP_INTERVAL, sweep_expired_allowances},
+    settings::DsSettings,
     version::VersionPolicy,
 };
 pub use grpc::GrpcDs;
@@ -33,6 +35,7 @@ mod attachments;
 pub(crate) mod client_references;
 mod collision_tags;
 mod create_group;
+mod create_group_stream;
 mod delete_group;
 mod epoch_snapshot;
 mod group_id_reservations;
@@ -67,6 +70,9 @@ pub struct Ds {
     version_policy: VersionPolicy,
     max_devices: MaxDevices,
     pseudonymizer: Pseudonymizer,
+    settings: DsSettings,
+    create_group_streams: CreateGroupStreams,
+    stop: CancellationToken,
 }
 
 #[derive(Debug)]
@@ -87,6 +93,7 @@ impl BackendService for Ds {
                     group_id_reservations.clone(),
                 )),
         );
+        let streams_stop = stop.clone();
         tokio::spawn(stop.run_until_cancelled_owned(sweep_expired_allowances(
             db_pool.clone(),
             ALLOWANCE_SWEEP_INTERVAL,
@@ -100,6 +107,9 @@ impl BackendService for Ds {
             version_policy,
             max_devices: MaxDevices::new(max_devices),
             pseudonymizer: Pseudonymizer::random(),
+            settings: DsSettings::default(),
+            create_group_streams: CreateGroupStreams::default(),
+            stop: streams_stop,
         };
 
         Ok(ds)
@@ -107,6 +117,7 @@ impl BackendService for Ds {
 
     fn describe_metrics() {
         GroupIdReservations::describe_metrics();
+        create_group_stream::describe_metrics();
     }
 }
 
@@ -118,6 +129,10 @@ impl Ds {
 
     pub fn set_storage(&mut self, storage: Storage) {
         self.storage = Some(storage);
+    }
+
+    pub fn set_settings(&mut self, settings: DsSettings) {
+        self.settings = settings;
     }
 
     /// Reserves a fresh group id, and a second one for the PQ leg of an APQ
