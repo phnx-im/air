@@ -3295,7 +3295,7 @@
         },
         {
           "name": "pulldown-cmark",
-          "version": "0.13.5",
+          "version": "0.13.6",
           "repository": "https://github.com/raphlinus/pulldown-cmark"
         }
       ]

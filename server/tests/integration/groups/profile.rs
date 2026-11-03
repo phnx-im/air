@@ -139,6 +139,58 @@ async fn own_commit_echo_applies_group_data() {
     );
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn own_commit_echo_applies_group_picture() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+
+    // The title changes as well, so that the commit carries group data.
+    let title = "Raced Title".to_string();
+    let picture = test_picture_bytes();
+    let echo = alice
+        .stage_group_profile_commit(chat_id, title.clone(), Some(picture.clone()))
+        .await
+        .unwrap();
+    assert_eq!(
+        alice
+            .expect_chat(chat_id)
+            .await
+            .attributes()
+            .unwrap()
+            .picture(),
+        None,
+    );
+
+    alice.process_incoming_mls_message(&echo).await.unwrap();
+
+    let attributes = alice
+        .expect_chat(chat_id)
+        .await
+        .attributes()
+        .unwrap()
+        .clone();
+    assert_eq!(attributes.title, title);
+    assert_eq!(attributes.picture(), Some(picture.as_slice()));
+
+    let messages = alice.system_messages(chat_id).await;
+    assert!(
+        messages.iter().any(|message| matches!(
+            message,
+            SystemMessage::ChangePicture(user_id) if user_id == alice.user_id()
+        )),
+        "missing picture change system message: {messages:#?}"
+    );
+    assert!(
+        alice
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+}
+
 /// Tests that after being invited to a group, the invitee fetches the encrypted group profile from
 /// object storage via the outbound service and sees the correct group attributes (title and
 /// picture).

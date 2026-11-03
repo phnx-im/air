@@ -11,6 +11,7 @@ use sqlx::{
     PgExecutor, query, query_scalar,
     types::chrono::{DateTime, Utc},
 };
+use tracing::error;
 use uuid::Uuid;
 
 use crate::errors::StorageError;
@@ -26,7 +27,7 @@ impl DsEpochSnapshot {
         ciphertext: &EncryptedEpochSnapshot,
         created_at: TimeStamp,
     ) -> Result<(), StorageError> {
-        query!(
+        let res = query!(
             "INSERT INTO
                 ds_epoch_snapshot
                 (group_id, epoch, ciphertext, created_at)
@@ -40,6 +41,12 @@ impl DsEpochSnapshot {
         )
         .execute(connection)
         .await?;
+        if res.rows_affected() == 0 {
+            error!(
+                epoch = epoch.as_u64(),
+                "Epoch snapshot already stored, dropping the new one"
+            );
+        }
         Ok(())
     }
 
