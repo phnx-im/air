@@ -301,34 +301,26 @@ async fn run_protocol_impl(
     mut incoming: impl Stream<Item = Result<CreateGroupV2Request, Status>> + Unpin,
     outgoing: &mpsc::Sender<Result<CreateGroupV2Response, Status>>,
 ) -> Result<Outcome, StreamError> {
-    let settings = backend.settings();
-    let deadline = settings.create_deadline.to_std().unwrap_or_default();
-
-    // As on the listen streams, the wait for the first step has no deadline.
-    // The stream holds no slot and no allowance until Prepare is authenticated.
-    let Some(step) = next_step(&mut incoming, None, stop).await? else {
-        return Ok(Outcome::Closed);
+    // A stopping server ends the stream at any step before the creation. The
+    // creation itself runs to completion, so that a shutdown cannot interrupt
+    // it between its commit and the echo dispatch.
+    let prepared = tokio::select! {
+        _ = stop.cancelled() => {
+            return Err(StreamError::Rejected(
+                RejectCause::Shutdown,
+                Status::unavailable("server stopped"),
+            ));
+        }
+        prepared = prepare_creation(backend, streams, &mut incoming, outgoing) => prepared?,
     };
-    let create_group_v2_request::Step::Prepare(prepare) = step else {
-        return Err(StreamError::protocol("expected prepare step"));
-    };
-    // Create must arrive within the deadline of Prepare, however long the
-    // server's checks take.
-    let create_deadline = Instant::now() + deadline;
-    let (_slot, creator, reservation, reserved) =
-        timeout_at(create_deadline, admit(backend, streams, prepare))
-            .await
-            .map_err(|_elapsed| StreamError::TimedOut(WaitingFor::Admission))??;
-    counter!(METRIC_PREPARED).increment(1);
-    if !send_step(outgoing, create_group_v2_response::Step::Reserved(reserved)).await {
+    let Some(PreparedCreation {
+        _slot,
+        creator,
+        reservation,
+        payload,
+    }) = prepared
+    else {
         return Ok(Outcome::Closed);
-    }
-
-    let Some(step) = next_step(&mut incoming, Some(create_deadline), stop).await? else {
-        return Ok(Outcome::Closed);
-    };
-    let create_group_v2_request::Step::Create(payload) = step else {
-        return Err(StreamError::protocol("expected create step"));
     };
     backend
         .create_apq_group(&creator, &reservation, payload)
@@ -342,6 +334,59 @@ async fn run_protocol_impl(
     )
     .await;
     Ok(Outcome::Created)
+}
+
+/// A stream that received its create step.
+struct PreparedCreation {
+    _slot: StreamSlot,
+    creator: StreamCreator,
+    reservation: StreamReservation,
+    payload: CreateApqGroupPayload,
+}
+
+/// Runs the stream up to its create step. Returns `None` when the client goes
+/// away before.
+async fn prepare_creation(
+    backend: &impl CreateGroupStreamBackend,
+    streams: &CreateGroupStreams,
+    incoming: &mut (impl Stream<Item = Result<CreateGroupV2Request, Status>> + Unpin),
+    outgoing: &mpsc::Sender<Result<CreateGroupV2Response, Status>>,
+) -> Result<Option<PreparedCreation>, StreamError> {
+    let settings = backend.settings();
+    let deadline = settings.create_deadline.to_std().unwrap_or_default();
+
+    // As on the listen streams, the wait for the first step has no deadline.
+    // The stream holds no slot and no allowance until Prepare is authenticated.
+    let Some(step) = next_step(incoming, None).await? else {
+        return Ok(None);
+    };
+    let create_group_v2_request::Step::Prepare(prepare) = step else {
+        return Err(StreamError::protocol("expected prepare step"));
+    };
+    // Create must arrive within the deadline of Prepare, however long the
+    // server's checks take.
+    let create_deadline = Instant::now() + deadline;
+    let (slot, creator, reservation, reserved) =
+        timeout_at(create_deadline, admit(backend, streams, prepare))
+            .await
+            .map_err(|_elapsed| StreamError::TimedOut(WaitingFor::Admission))??;
+    counter!(METRIC_PREPARED).increment(1);
+    if !send_step(outgoing, create_group_v2_response::Step::Reserved(reserved)).await {
+        return Ok(None);
+    }
+
+    let Some(step) = next_step(incoming, Some(create_deadline)).await? else {
+        return Ok(None);
+    };
+    let create_group_v2_request::Step::Create(payload) = step else {
+        return Err(StreamError::protocol("expected create step"));
+    };
+    Ok(Some(PreparedCreation {
+        _slot: slot,
+        creator,
+        reservation,
+        payload,
+    }))
 }
 
 /// Authenticates the prepare step, counts the stream against the user and the
@@ -429,29 +474,16 @@ async fn authenticate(
     Ok((creator, payload))
 }
 
-/// Waits for the next step until the create `deadline`, if any, or until the
-/// server stops.
+/// Waits for the next step until the create `deadline`, if any.
 async fn next_step(
     incoming: &mut (impl Stream<Item = Result<CreateGroupV2Request, Status>> + Unpin),
     deadline: Option<Instant>,
-    stop: &CancellationToken,
 ) -> Result<Option<create_group_v2_request::Step>, StreamError> {
-    let next = async {
-        match deadline {
-            Some(deadline) => timeout_at(deadline, incoming.next())
-                .await
-                .map_err(|_elapsed| StreamError::TimedOut(WaitingFor::Create)),
-            None => Ok(incoming.next().await),
-        }
-    };
-    let next = tokio::select! {
-        _ = stop.cancelled() => {
-            return Err(StreamError::Rejected(
-                RejectCause::Shutdown,
-                Status::unavailable("server stopped"),
-            ));
-        }
-        next = next => next?,
+    let next = match deadline {
+        Some(deadline) => timeout_at(deadline, incoming.next())
+            .await
+            .map_err(|_elapsed| StreamError::TimedOut(WaitingFor::Create))?,
+        None => incoming.next().await,
     };
     match next {
         None => Ok(None),
@@ -500,6 +532,7 @@ mod tests {
         lookup_fails: bool,
         lookup_delay: Duration,
         allowance_delay: Duration,
+        create_delay: Duration,
         keys: HashMap<UserId, ClientVerifyingKey>,
         allowance: AtomicUsize,
         consumed: AtomicUsize,
@@ -517,6 +550,7 @@ mod tests {
                 lookup_fails: false,
                 lookup_delay: Duration::ZERO,
                 allowance_delay: Duration::ZERO,
+                create_delay: Duration::ZERO,
                 keys: HashMap::new(),
                 allowance: AtomicUsize::new(100),
                 consumed: AtomicUsize::new(0),
@@ -603,6 +637,7 @@ mod tests {
             reservation: &StreamReservation,
             _payload: CreateApqGroupPayload,
         ) -> Result<(), Status> {
+            tokio::time::sleep(self.create_delay).await;
             self.record_create(creator, reservation.clone());
             self.create_status.clone().map_or(Ok(()), Err)
         }
@@ -933,6 +968,59 @@ mod tests {
 
         assert!(run.reserved().is_some());
         assert_eq!(run.error_code(), Some(Code::Unavailable));
+        assert_eq!(streams.counts(&user_id), (0, 0));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn stop_ends_a_stream_during_admission() {
+        let mut backend = FakeBackend::new();
+        let (user_id, signing_key) = backend.register();
+        backend.lookup_delay = Duration::from_secs(60);
+        let streams = CreateGroupStreams::default();
+
+        let stop = async {
+            tokio::time::sleep(Duration::from_secs(30)).await;
+            backend.stop.cancel();
+        };
+        let (run, ()) = tokio::join!(
+            run_stream(
+                &backend,
+                &streams,
+                vec![prepare(&user_id, &signing_key)],
+                true,
+            ),
+            stop
+        );
+
+        assert!(run.reserved().is_none());
+        assert_eq!(run.error_code(), Some(Code::Unavailable));
+        assert_eq!(backend.consumed(), 0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn stop_lets_a_running_creation_finish() {
+        let mut backend = FakeBackend::new();
+        let (user_id, signing_key) = backend.register();
+        backend.create_delay = Duration::from_secs(60);
+        let streams = CreateGroupStreams::default();
+
+        let stop = async {
+            tokio::time::sleep(Duration::from_secs(30)).await;
+            backend.stop.cancel();
+        };
+        let (run, ()) = tokio::join!(
+            run_stream(
+                &backend,
+                &streams,
+                vec![prepare(&user_id, &signing_key), create()],
+                true,
+            ),
+            stop
+        );
+
+        assert!(run.created());
+        assert_eq!(run.error_code(), None);
+        assert_eq!(backend.creates().len(), 1);
         assert_eq!(streams.counts(&user_id), (0, 0));
     }
 
