@@ -21,7 +21,7 @@
 use aircommon::{
     codec::PersistenceCodec,
     credentials::UserCredential,
-    identifiers::{UserId, Username},
+    identifiers::{MimiId, UserId, Username},
     messages::{client_as::ConnectionOfferHash, connection_package::ConnectionPackageHash},
     time::TimeStamp,
 };
@@ -162,8 +162,14 @@ impl IncomingRequest {
             ),
         };
         request.store(&mut *txn).await?;
-        let announcement = TimestampedMessage::system_message(announcement, received_at);
-        CoreUser::store_new_messages(txn, chat_id, vec![announcement]).await?;
+        // Every device announces the request under the same ID, so opening
+        // the chat on one of them reads the announcement on all of them.
+        ChatMessage {
+            event_mimi_id: Some(MimiId::for_connection_request(request.group_id())),
+            ..ChatMessage::new_system_message(chat_id, received_at, announcement)
+        }
+        .store(&mut *txn)
+        .await?;
 
         let host = rehost(txn, chat_id).await?.unwrap_or(chat_id);
         Ok(StoredRequest {
@@ -193,7 +199,10 @@ async fn rehost(
     let ChatType::PendingConnection(sender) = old.chat_type() else {
         anyhow::bail!("chat {chat_id} with pending requests is not an incoming request");
     };
-    let chat = Chat::new_pending_connection_chat(newest.group_id().clone(), sender.clone());
+    let chat = Chat {
+        last_read: old.last_read(),
+        ..Chat::new_pending_connection_chat(newest.group_id().clone(), sender.clone())
+    };
     chat.store(&mut *txn).await?;
     ChatMessage::move_to_chat(&mut *txn, chat_id, chat.id()).await?;
     PendingConnectionRequest::move_to_chat(&mut *txn, chat_id, chat.id()).await?;
@@ -922,13 +931,17 @@ mod tests {
         messages::{FriendshipToken, connection_package::ConnectionPackage},
     };
     use chrono::{DateTime, Utc};
+    use mimi_content::{MessageStatus, MessageStatusReport, PerMessageStatus};
     use uuid::Uuid;
 
     use airprotos::client::self_group::BlockedContactEntry;
 
     use crate::{
-        ChatAttributes, UsernameRecord,
-        chats::messages::{EventMessage, Message},
+        ChatAttributes, MessageId, UsernameRecord,
+        chats::{
+            StatusRecord,
+            messages::{EventMessage, Message},
+        },
         clients::{
             block_contact::{pending::BlockedState, persistence::apply_blocked_contacts_update},
             connection_offer::FriendshipPackage,
@@ -1021,6 +1034,33 @@ mod tests {
             .into_iter()
             .map(|request| request.request_id)
             .collect())
+    }
+
+    fn own_user() -> UserId {
+        UserId::new(Uuid::from_u128(1), "localhost".parse().unwrap())
+    }
+
+    /// The unread count of the chat and the one of the app badge.
+    async fn unread_chat_and_badge(
+        txn: &mut WriteDbTransaction<'_>,
+        chat_id: ChatId,
+    ) -> anyhow::Result<(usize, usize)> {
+        let own_user = own_user();
+        Ok((
+            Chat::unread_messages_count(&mut *txn, chat_id, &own_user).await?,
+            Chat::global_unread_message_count(&mut *txn, &own_user).await?,
+        ))
+    }
+
+    /// Marks the chat as read up to its newest message, as opening it does.
+    async fn open(
+        txn: &mut WriteDbTransaction<'_>,
+        chat_id: ChatId,
+    ) -> anyhow::Result<(bool, Vec<(MessageId, MimiId)>)> {
+        let newest = ChatMessage::last_message(&mut *txn, chat_id)
+            .await?
+            .context("no message in the chat")?;
+        Ok(Chat::mark_as_read_until_message_id(txn, chat_id, newest.id(), &own_user()).await?)
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1149,6 +1189,152 @@ mod tests {
 
             assert!(request_ids(txn, newest.chat_id).await?.is_empty());
             assert!(Chat::load(&mut *txn, &newest.chat_id).await?.is_some());
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_request_is_unread_until_its_chat_is_opened() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let sender = sender()?;
+            let first = receive_request_from(txn, &sender, "ellie-03", at(0)).await?;
+            assert_eq!(unread_chat_and_badge(txn, first.chat_id).await?, (1, 1));
+
+            open(txn, first.chat_id).await?;
+            assert_eq!(unread_chat_and_badge(txn, first.chat_id).await?, (0, 0));
+
+            // The newer request moves the chat, and only its announcement is
+            // new.
+            let second = receive_request_from(txn, &sender, "ellie-04", at(60)).await?;
+            assert_eq!(second.moved_from, Some(first.chat_id));
+            assert_eq!(unread_chat_and_badge(txn, second.chat_id).await?, (1, 1));
+
+            open(txn, second.chat_id).await?;
+            assert_eq!(unread_chat_and_badge(txn, second.chat_id).await?, (0, 0));
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn every_unopened_request_of_a_sender_is_unread() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let sender = sender()?;
+            receive_request_from(txn, &sender, "ellie-03", at(0)).await?;
+            let newest = receive_request_from(txn, &sender, "ellie-04", at(60)).await?;
+
+            assert_eq!(unread_chat_and_badge(txn, newest.chat_id).await?, (2, 2));
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_accepted_request_is_no_longer_unread() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let sender = sender()?;
+            let stored = receive_request_from(txn, &sender, "ellie-03", at(0)).await?;
+            let chat = Chat::load(&mut *txn, &stored.chat_id).await?.unwrap();
+
+            chat.set_chat_type(&mut *txn, &ChatType::Connection(sender))
+                .await?;
+            settle_accepted(txn, stored.chat_id).await?;
+
+            assert_eq!(unread_chat_and_badge(txn, stored.chat_id).await?, (0, 0));
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_ended_request_is_no_longer_unread() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let stored = receive_request_from(txn, &sender()?, "ellie-03", at(0)).await?;
+
+            remove_unavailable(txn, stored.chat_id).await?;
+
+            assert_eq!(unread_chat_and_badge(txn, stored.chat_id).await?, (0, 0));
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn opening_a_request_reports_its_announcement() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let stored = receive_request_from(txn, &sender()?, "ellie-03", at(0)).await?;
+            let request = PendingConnectionRequest::load(&mut *txn, stored.chat_id)
+                .await?
+                .context("no request")?;
+            let announcement = ChatMessage::last_message(&mut *txn, stored.chat_id)
+                .await?
+                .context("no announcement")?;
+
+            let (marked, reported) = open(txn, stored.chat_id).await?;
+
+            assert!(marked);
+            assert_eq!(
+                reported,
+                vec![(
+                    announcement.id(),
+                    MimiId::for_connection_request(request.group_id())
+                )]
+            );
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn opening_an_accepted_request_reports_nothing() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let sender = sender()?;
+            let stored = receive_request_from(txn, &sender, "ellie-03", at(0)).await?;
+            let chat = Chat::load(&mut *txn, &stored.chat_id).await?.unwrap();
+            chat.set_chat_type(&mut *txn, &ChatType::Connection(sender))
+                .await?;
+            settle_accepted(txn, stored.chat_id).await?;
+
+            let (marked, reported) = open(txn, stored.chat_id).await?;
+
+            assert!(marked);
+            assert_eq!(reported, vec![]);
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_siblings_report_opens_the_request() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let own_user = own_user();
+            let stored = receive_request_from(txn, &sender()?, "ellie-03", at(0)).await?;
+            let request = PendingConnectionRequest::load(&mut *txn, stored.chat_id)
+                .await?
+                .context("no request")?;
+            let report = MessageStatusReport {
+                statuses: vec![PerMessageStatus {
+                    mimi_id: MimiId::for_connection_request(request.group_id())
+                        .as_slice()
+                        .to_vec(),
+                    status: MessageStatus::Read,
+                }],
+            };
+            let record = StatusRecord::borrowed(&own_user, report, at(5));
+            record.store_report(txn).await?;
+
+            let opened = record.advance_read_markers(txn, &own_user).await?;
+
+            assert_eq!(opened, vec![stored.chat_id]);
+            assert_eq!(unread_chat_and_badge(txn, stored.chat_id).await?, (0, 0));
             Ok(())
         })
         .await
