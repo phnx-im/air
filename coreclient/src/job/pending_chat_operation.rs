@@ -1402,18 +1402,6 @@ impl PendingChatOperation {
         Ok(())
     }
 
-    /// Completes the pending job after the queue proved that our own commit
-    /// on `group_id` was accepted by the DS.
-    ///
-    /// `key_package_batch` is the batch id carried by the `DsCommitResponse`,
-    /// which the DS extracted from the confirmed commit's SafeAAD. For
-    /// regular operations this just deletes the job. For a self-group key
-    /// package upload it decides the fate of the batch: the QS promote ran
-    /// atomically with the enqueue of the response, so a batch id matching
-    /// the job proves the job's batch is live. A missing or mismatched batch
-    /// id carries no proof the promote ran (the DS confirmed some other
-    /// commit, or local state forked); the job is abandoned without touching
-    /// liveness.
     /// The new chat picture of the pending update of the group.
     ///
     /// `None` if there is no pending update. `Some(None)` if the update removes
@@ -1436,6 +1424,18 @@ impl PendingChatOperation {
         })
     }
 
+    /// Completes the pending job after the queue proved that our own commit
+    /// on `group_id` was accepted by the DS.
+    ///
+    /// `key_package_batch` is the batch id carried by the `DsCommitResponse`,
+    /// which the DS extracted from the confirmed commit's SafeAAD. For
+    /// regular operations this just deletes the job. For a self-group key
+    /// package upload it decides the fate of the batch: the QS promote ran
+    /// atomically with the enqueue of the response, so a batch id matching
+    /// the job proves the job's batch is live. A missing or mismatched batch
+    /// id carries no proof the promote ran (the DS confirmed some other
+    /// commit, or local state forked); the job is abandoned without touching
+    /// liveness.
     pub(crate) async fn complete_own_commit(
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
