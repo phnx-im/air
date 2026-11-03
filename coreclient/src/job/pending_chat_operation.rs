@@ -1711,6 +1711,7 @@ mod persistence {
         /// Loads pending chat operation by group id including the full group state.
         ///
         /// Use [`Self::load_operation_by_group_id`] if only the operation is needed.
+        #[cfg(any(test, feature = "test_utils"))]
         pub(crate) async fn load_by_group_id(
             mut connection: impl ReadConnection,
             group_id: &GroupId,
