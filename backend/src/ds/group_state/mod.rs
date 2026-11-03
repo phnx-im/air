@@ -717,15 +717,22 @@ fn decode_room_state(bytes: &VLBytes) -> Option<RoomState> {
         .ok()
 }
 
-/// Check that a leaf credential matches the group kind.
+/// Check that a leaf credential matches the group kind and binds the leaf's signature key.
 ///
 /// A self-group leaf must carry a [`LeafCredential::SelfGroup`], a regular-group leaf a
-/// [`LeafCredential::User`]. Returns `true` if `credential` is consistent with `is_self_group`.
-pub(super) fn leaf_credential_matches_flag(
+/// [`LeafCredential::User`]. A user credential must certify the leaf's signature key, which MLS
+/// carries separately from the credential. Self-group credentials carry no key.
+pub(super) fn leaf_credential_is_valid(
     credential: &LeafCredential,
+    signature_key: &[u8],
     is_self_group: bool,
 ) -> bool {
-    matches!(credential, LeafCredential::SelfGroup(_)) == is_self_group
+    match credential {
+        LeafCredential::User(credential) => {
+            !is_self_group && credential.verifying_key().as_slice() == signature_key
+        }
+        LeafCredential::SelfGroup(_) => is_self_group,
+    }
 }
 
 /// Give the regular role to every group member the room state does not list.
@@ -1027,16 +1034,29 @@ mod test {
         LeafCredential::SelfGroup(SelfGroupCredential::new(Uuid::new_v4()))
     }
 
+    fn user_leaf_key(credential: &LeafCredential) -> Vec<u8> {
+        let LeafCredential::User(credential) = credential else {
+            panic!("expected a user credential");
+        };
+        credential.verifying_key().as_slice().to_vec()
+    }
+
     #[test]
-    fn leaf_credential_flag_consistency_matrix() {
-        // A regular-group leaf must carry a user credential.
-        assert!(leaf_credential_matches_flag(&user_leaf(), false));
+    fn leaf_credential_validity_matrix() {
+        let user = user_leaf();
+        let user_key = user_leaf_key(&user);
+        let other_key = user_leaf_key(&user_leaf());
+        let self_group = self_group_leaf();
+
+        // A regular-group leaf must carry a user credential that binds the leaf key.
+        assert!(leaf_credential_is_valid(&user, &user_key, false));
+        assert!(!leaf_credential_is_valid(&user, &other_key, false));
         // A self-group leaf must carry a self-group credential.
-        assert!(leaf_credential_matches_flag(&self_group_leaf(), true));
+        assert!(leaf_credential_is_valid(&self_group, &other_key, true));
         // A user credential in a self-group is rejected.
-        assert!(!leaf_credential_matches_flag(&user_leaf(), true));
+        assert!(!leaf_credential_is_valid(&user, &user_key, true));
         // A self-group credential in a regular group is rejected.
-        assert!(!leaf_credential_matches_flag(&self_group_leaf(), false));
+        assert!(!leaf_credential_is_valid(&self_group, &other_key, false));
     }
 
     fn user_identity() -> Vec<u8> {

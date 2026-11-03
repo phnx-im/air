@@ -322,7 +322,7 @@ mod test {
     use aircommon::{
         credentials::{
             LeafCredential, UserCredentialCsr, UserCredentialPayload, VerifiableUserCredential,
-            keys::AsIntermediateSignature,
+            keys::{AsIntermediateSignature, ClientVerifyingKey},
         },
         crypto::{aead::keys::EncryptedUserProfileKey, hash::Hash},
         identifiers::{QsReference, SealedClientReference, UserId},
@@ -401,7 +401,7 @@ mod test {
         fn of(user_id: UserId) -> Self {
             let signer =
                 ApqSignatureKeyPair::new(ApqSignatureScheme::from(apq_ciphersuite())).unwrap();
-            let credential = ApqCredentialWithKey::new(&user_identity(&user_id), &signer);
+            let credential = ApqCredentialWithKey::new(&user_identity(&user_id, &signer), &signer);
             Self {
                 provider: OpenMlsRustCrypto::default(),
                 signer,
@@ -411,9 +411,12 @@ mod test {
         }
     }
 
-    fn user_identity(user_id: &UserId) -> Vec<u8> {
-        let (csr, _prelim_key) =
+    /// The credential certifies the T leg key, as the DS checks it against the
+    /// leaf signature key.
+    fn user_identity(user_id: &UserId, signer: &ApqSignatureKeyPair) -> Vec<u8> {
+        let (mut csr, _prelim_key) =
             UserCredentialCsr::new(user_id.clone(), SignatureScheme::ED25519).unwrap();
+        csr.verifying_key = ClientVerifyingKey::from_bytes(signer.t_signer().public().to_vec());
         let payload = UserCredentialPayload::new(csr, None, Hash::from_bytes([0; 32]));
         // Unsigned, since the DS only parses the credential.
         VerifiableUserCredential::new(payload, AsIntermediateSignature::empty())
@@ -868,8 +871,11 @@ mod test {
         let mut state = ds_group_state(&creator, &group, creator.signer.t_signer());
 
         let other_user = UserId::random("example.com".parse().unwrap());
-        let credential =
-            ApqCredentialWithKey::new(&user_identity(&other_user), &creator.signer).t_credential;
+        let credential = ApqCredentialWithKey::new(
+            &user_identity(&other_user, &creator.signer),
+            &creator.signer,
+        )
+        .t_credential;
         let (commit, _welcome, group_info) = group
             .commit_builder()
             .force_self_update(true)
