@@ -1410,10 +1410,10 @@ impl PendingChatOperation {
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
     ) -> anyhow::Result<Option<Option<Vec<u8>>>> {
-        let Some(job) = Self::load_by_group_id(txn, group_id).await? else {
+        let Some(operation) = Self::load_operation_by_group_id(txn, group_id).await? else {
             return Ok(None);
         };
-        Ok(match job.operation {
+        Ok(match operation {
             OperationType::Other {
                 new_chat_picture, ..
             }
@@ -1607,7 +1607,7 @@ mod persistence {
     }
 
     impl SqlPendingChatOperation {
-        async fn into_pending_chat_operation(
+        async fn with_loaded_group(
             self,
             connection: impl ReadConnection,
         ) -> sqlx::Result<PendingChatOperation> {
@@ -1689,6 +1689,24 @@ mod persistence {
             Ok(())
         }
 
+        /// Loads only the operation data without the group data.
+        pub(super) async fn load_operation_by_group_id(
+            mut connection: impl ReadConnection,
+            group_id: &GroupId,
+        ) -> sqlx::Result<Option<OperationType>> {
+            let group_id = group_id.as_slice();
+            query_scalar!(
+                r#"SELECT
+                    operation_data AS "operation_data: BlobDecoded<OperationType>"
+                FROM pending_chat_operation
+                WHERE group_id = ?"#,
+                group_id
+            )
+            .fetch_optional(connection.as_mut())
+            .await
+            .map(|op| op.map(|op| op.0))
+        }
+
         pub(crate) async fn load_by_group_id(
             mut connection: impl ReadConnection,
             group_id: &GroupId,
@@ -1714,7 +1732,7 @@ mod persistence {
             };
 
             sql_pending_operation
-                .into_pending_chat_operation(connection)
+                .with_loaded_group(connection)
                 .await
                 .map(Some)
         }
@@ -1745,7 +1763,7 @@ mod persistence {
             };
 
             sql_pending_operation
-                .into_pending_chat_operation(connection)
+                .with_loaded_group(connection)
                 .await
                 .map(Some)
         }
@@ -1830,9 +1848,7 @@ mod persistence {
                 return Ok(None);
             };
 
-            let pending_operation = sql_pending_operation
-                .into_pending_chat_operation(txn)
-                .await?;
+            let pending_operation = sql_pending_operation.with_loaded_group(txn).await?;
 
             Ok(Some(pending_operation))
         }
