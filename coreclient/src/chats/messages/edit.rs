@@ -391,7 +391,7 @@ mod tests {
         bob_mimi_content.in_reply_to = alice_message
             .message()
             .mimi_id()
-            .map(|mimi_id| mimi_id.as_slice().to_vec());
+            .map(|mimi_id| (*mimi_id).into());
         let bob_message = ChatMessage::new_for_test(
             chat.id(),
             MessageId::random(),
@@ -559,7 +559,7 @@ mod tests {
         alice_content.in_reply_to = bob_message
             .message()
             .mimi_id()
-            .map(|mimi_id| mimi_id.as_slice().to_vec());
+            .map(|mimi_id| (*mimi_id).into());
         let alice_message = ChatMessage::new_for_test(
             chat.id(),
             MessageId::random(),
@@ -734,7 +734,7 @@ mod tests {
         alice_content.in_reply_to = bob_message
             .message()
             .mimi_id()
-            .map(|mimi_id| mimi_id.as_slice().to_vec());
+            .map(|mimi_id| (*mimi_id).into());
         let mut alice_message = ChatMessage::new_for_test(
             chat.id(),
             MessageId::random(),
@@ -952,7 +952,7 @@ mod tests {
         bob_mimi_content.in_reply_to = alice_message
             .message()
             .mimi_id()
-            .map(|mimi_id| mimi_id.as_slice().to_vec());
+            .map(|mimi_id| (*mimi_id).into());
         let bob_message = ChatMessage::new_for_test(
             chat.id(),
             MessageId::random(),
@@ -967,7 +967,7 @@ mod tests {
         carol_mimi_content.in_reply_to = alice_message
             .message()
             .mimi_id()
-            .map(|mimi_id| mimi_id.as_slice().to_vec());
+            .map(|mimi_id| (*mimi_id).into());
         let carol_message = ChatMessage::new_for_test(
             chat.id(),
             MessageId::random(),
@@ -1057,7 +1057,7 @@ mod tests {
         let edited_alice_mimi_id = *alice_message.message().mimi_id().unwrap();
         let mut bob_mimi_content =
             MimiContent::simple_markdown_message("Reply to edited message!".to_string(), [1; 16]);
-        bob_mimi_content.in_reply_to = Some(edited_alice_mimi_id.as_slice().to_vec());
+        bob_mimi_content.in_reply_to = Some(edited_alice_mimi_id.into());
         let bob_message = ChatMessage::new_for_test(
             chat.id(),
             MessageId::random(),

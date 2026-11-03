@@ -440,7 +440,7 @@ impl UnsentReceipt {
             statuses: statuses
                 .into_iter()
                 .map(|(id, status)| PerMessageStatus {
-                    mimi_id: id.as_ref().to_vec(),
+                    mimi_id: (*id).into(),
                     status,
                 })
                 .collect(),
@@ -476,7 +476,7 @@ mod tests {
 
     fn status(mimi_id: u8, status: MessageStatus) -> PerMessageStatus {
         PerMessageStatus {
-            mimi_id: vec![mimi_id],
+            mimi_id: mimi_content::MimiId([mimi_id; 32]),
             status,
         }
     }

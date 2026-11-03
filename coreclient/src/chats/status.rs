@@ -49,10 +49,10 @@ mod persistence {
 
             // Store the message status for each mimi id
             // Note: A user could send multiple status updates for the same message. The last one is the final status.
-            let mut already_handled: HashSet<&[u8]> = HashSet::new();
+            let mut already_handled: HashSet<&mimi_content::MimiId> = HashSet::new();
 
             for PerMessageStatus { mimi_id, status } in self.report.statuses.iter().rev() {
-                if already_handled.contains(mimi_id.as_slice()) {
+                if already_handled.contains(mimi_id) {
                     continue;
                 }
                 already_handled.insert(mimi_id);
@@ -235,7 +235,7 @@ mod persistence {
                 statuses: mimi_ids
                     .into_iter()
                     .map(|mimi_id| PerMessageStatus {
-                        mimi_id: mimi_id.as_ref().to_vec(),
+                        mimi_id: mimi_id.into(),
                         status: MessageStatus::Read,
                     })
                     .collect(),
@@ -264,15 +264,15 @@ mod persistence {
             };
 
             report.statuses.push(PerMessageStatus {
-                mimi_id: mimi_id_a.as_ref().to_vec(),
+                mimi_id: (*mimi_id_a).into(),
                 status: MessageStatus::Delivered,
             });
             report.statuses.push(PerMessageStatus {
-                mimi_id: mimi_id_a.as_ref().to_vec(),
+                mimi_id: (*mimi_id_a).into(),
                 status: MessageStatus::Read,
             });
             report.statuses.push(PerMessageStatus {
-                mimi_id: mimi_id_b.as_ref().to_vec(),
+                mimi_id: (*mimi_id_b).into(),
                 status: MessageStatus::Deleted,
             });
 
@@ -320,7 +320,7 @@ mod persistence {
 
             let report = MessageStatusReport {
                 statuses: vec![PerMessageStatus {
-                    mimi_id: mimi_id.as_ref().to_vec(),
+                    mimi_id: (*mimi_id).into(),
                     status: MessageStatus::Read,
                 }],
             };
@@ -367,13 +367,13 @@ mod persistence {
             // Create status records from multiple users
             let report_alice = MessageStatusReport {
                 statuses: vec![PerMessageStatus {
-                    mimi_id: mimi_id.as_ref().to_vec(),
+                    mimi_id: (*mimi_id).into(),
                     status: MessageStatus::Delivered,
                 }],
             };
             let report_bob = MessageStatusReport {
                 statuses: vec![PerMessageStatus {
-                    mimi_id: mimi_id.as_ref().to_vec(),
+                    mimi_id: (*mimi_id).into(),
                     status: MessageStatus::Read,
                 }],
             };
@@ -431,7 +431,7 @@ mod persistence {
 
             let delivered = MessageStatusReport {
                 statuses: vec![PerMessageStatus {
-                    mimi_id: mimi_id.as_ref().to_vec(),
+                    mimi_id: mimi_id.into(),
                     status: MessageStatus::Delivered,
                 }],
             };

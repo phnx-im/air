@@ -53,7 +53,7 @@ impl MimiId {
         let user_id_bytes = sender
             .tls_serialize_detached()
             .map_err(|_| MimiIdCalculationError::UserIdSerializationFailed)?;
-        let bytes = match content.extensions.get(&MIMI_ID_SCHEME_EXTENSION) {
+        let id = match content.extensions.get(&MIMI_ID_SCHEME_EXTENSION) {
             None => content
                 .message_id_draft07(user_id_bytes.as_slice(), group_id.as_slice())
                 .map_err(|_| MimiIdCalculationError::ContentSerializationFailed)?,
@@ -62,10 +62,7 @@ impl MimiId {
                 .map_err(|_| MimiIdCalculationError::ContentSerializationFailed)?,
             Some(_) => return Err(MimiIdCalculationError::UnknownScheme),
         };
-        bytes
-            .try_into()
-            .map(Self)
-            .map_err(|_| MimiIdCalculationError::InvalidIdLength)
+        Ok(id.into())
     }
 
     pub fn from_slice(bytes: &[u8]) -> Result<Self, MimiIdCalculationError> {
@@ -87,6 +84,18 @@ impl MimiId {
 impl From<[u8; 32]> for MimiId {
     fn from(bytes: [u8; 32]) -> Self {
         Self(bytes)
+    }
+}
+
+impl From<mimi_content::MimiId> for MimiId {
+    fn from(id: mimi_content::MimiId) -> Self {
+        Self(id.0)
+    }
+}
+
+impl From<MimiId> for mimi_content::MimiId {
+    fn from(id: MimiId) -> Self {
+        Self(id.0)
     }
 }
 
@@ -232,7 +241,7 @@ mod tests {
             let content = MimiContent::deserialize(&bytes).unwrap();
             assert_eq!(content.serialize().unwrap(), bytes, "{name}");
             let id = content.message_id_draft07(SENDER, ROOM).unwrap();
-            assert_eq!(hex::encode(id), expected_id, "{name}");
+            assert_eq!(hex::encode(id.as_slice()), expected_id, "{name}");
         }
     }
 
@@ -248,7 +257,7 @@ mod tests {
             )
             .unwrap();
         let id = MimiId::calculate(&group_id(), &sender, &content).unwrap();
-        assert_eq!(id.as_slice(), expected);
+        assert_eq!(id, MimiId::from(expected));
 
         let unmarked =
             MimiId::calculate(&group_id(), &sender, &sample_content(vec![7; 16])).unwrap();

@@ -4393,7 +4393,7 @@ dependencies = [
 [[package]]
 name = "mimi_content"
 version = "0.1.0"
-source = "git+https://github.com/phnx-im/mimi-content?rev=63789380177d3a5cab076c6b8d4159015fa39621#63789380177d3a5cab076c6b8d4159015fa39621"
+source = "git+https://github.com/phnx-im/mimi-content?rev=9690d8f28a5470695b9fb715e284d7ea59d97fc0#9690d8f28a5470695b9fb715e284d7ea59d97fc0"
 dependencies = [
  "minicbor",
  "serde",
