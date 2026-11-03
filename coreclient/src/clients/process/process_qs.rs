@@ -58,7 +58,7 @@ use crate::{
         own_client_info::{OwnClientInfo, UnlinkReason},
         process::process_as::{ConnectionInfoSource, TargetedMessageSource},
         targeted_message::TargetedMessageContent,
-        update_key::update_chat_title,
+        update_key::{update_chat_attributes, update_chat_title},
         user_settings::ReadReceiptsSetting,
     },
     db::access::{WriteConnection, WriteDbTransaction},
@@ -383,7 +383,7 @@ impl CoreUser {
     }
 
     /// Applies the side effects of merging one of our own commits: any group
-    /// data change carried by the commit (currently the chat title) is applied
+    /// data change carried by the commit (chat title and picture) is applied
     /// to `chat`, appending the corresponding system messages to
     /// `group_messages`, and the pending chat operation is deleted.
     ///
@@ -403,20 +403,37 @@ impl CoreUser {
         key_package_batch: Option<KeyPackageBatchId>,
         ds_timestamp: TimeStamp,
     ) -> anyhow::Result<()> {
-        // Update group data in chat attributes if present
+        // Update group data in chat attributes if present. The picture is not
+        // part of the commit, it is stored with the pending update.
         if let Some(group_data) = group_data
             && let (title, _profile) = group_data.into_parts(group.identity_link_wrapper_key())
             && let Some(title) = title
         {
-            update_chat_title(
-                &mut *txn,
-                chat,
-                self.user_id(),
-                title,
-                ds_timestamp,
-                group_messages,
-            )
-            .await?;
+            match PendingChatOperation::load_new_chat_picture(&mut *txn, group.group_id()).await? {
+                Some(picture) => {
+                    let attributes = ChatAttributes::new(title, picture);
+                    update_chat_attributes(
+                        txn,
+                        chat,
+                        self.user_id(),
+                        attributes,
+                        ds_timestamp,
+                        group_messages,
+                    )
+                    .await?;
+                }
+                None => {
+                    update_chat_title(
+                        &mut *txn,
+                        chat,
+                        self.user_id(),
+                        title,
+                        ds_timestamp,
+                        group_messages,
+                    )
+                    .await?;
+                }
+            }
         }
 
         // Our self-group commit was accepted: complete the pending intent it

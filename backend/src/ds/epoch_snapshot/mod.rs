@@ -7,7 +7,7 @@
 //! One row per (group, epoch), each holding a padded-AEAD blob under the
 //! group's [`GroupStateEarKey`], like [`super::welcome_info`]. The DS writes a
 //! row when a virtual client creates a group (epoch 0) or joins one by external
-//! commit (the pre-commit epoch).
+//! commit (the epoch the commit leads to).
 
 use aircommon::{
     crypto::{
@@ -54,7 +54,7 @@ pub(super) struct DsEpochSnapshot {
     pub(super) pq_group_info: Option<GroupInfo>,
     #[tag(5)]
     pub(super) pq_ratchet_tree: Option<RatchetTree>,
-    /// The external commit accepted at this epoch, present iff the snapshot was written at an
+    /// The external commit that leads to this epoch, present iff the snapshot was written at an
     /// external join.
     ///
     /// For an APQ join this is the T leg's commit.
@@ -105,14 +105,14 @@ impl DsEpochSnapshot {
         self
     }
 
-    /// Add the external commit the DS accepted at this epoch.
+    /// Add the external commit that leads to this epoch.
     pub(super) fn with_join_commit(mut self, commit: &SerializedMlsMessage) -> Self {
         self.join_commit = Some(commit.0.clone());
         self
     }
 
-    /// Add the two external commits of an APQ join the DS accepted at this
-    /// epoch. A sibling applies each of them to its own leg.
+    /// Add the two external commits of an APQ join that lead to this epoch. A sibling applies each
+    /// of them to its own leg.
     pub(super) fn with_apq_join_commits(
         mut self,
         t_commit: &SerializedMlsMessage,

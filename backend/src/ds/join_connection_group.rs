@@ -112,7 +112,7 @@ impl DsGroupState {
     ///
     /// With `bootstrap_requested`, the joiner's sibling emulator clients get an
     /// echo of the operation, so the joining leaf must be a virtual-client leaf
-    /// and the pre-commit state is staged as an epoch snapshot for them.
+    /// and the pre-commit state is stored at the epoch after the join.
     pub(super) fn join_connection_group(
         &mut self,
         external_commit: AssistedMessageIn,
@@ -163,8 +163,7 @@ impl DsGroupState {
 
         // The siblings apply the commit on top of the state the joiner used, so
         // capture it before the commit is accepted.
-        let staged_snapshot =
-            bootstrap_requested.then(|| (self.group().epoch(), self.epoch_snapshot()));
+        let staged_snapshot = bootstrap_requested.then(|| self.epoch_snapshot());
 
         let retained_welcome_info = self.group.accept_processed_message(
             self.provider.storage(),
@@ -175,7 +174,8 @@ impl DsGroupState {
         self.stage_welcome_info(retained_welcome_info);
 
         let message = processed_assisted_message_plus.serialized_mls_message;
-        let snapshot_epoch = staged_snapshot.map(|(epoch, snapshot)| {
+        let snapshot_epoch = staged_snapshot.map(|snapshot| {
+            let epoch = self.group().epoch();
             self.stage_epoch_snapshot(epoch, snapshot.with_join_commit(&message));
             epoch
         });
@@ -231,11 +231,10 @@ impl DsGroupState {
         // The siblings apply both commits on top of the state the joiner used,
         // so capture it before the commits are accepted.
         let staged_snapshot = bootstrap_requested.then(|| {
-            let snapshot = t.epoch_snapshot().with_pq_leg(
+            t.epoch_snapshot().with_pq_leg(
                 pq.group().group_info().clone(),
                 pq.group().export_ratchet_tree(),
-            );
-            (t.group().epoch(), snapshot)
+            )
         });
 
         let ApqRetainedWelcomeInfo {
@@ -254,7 +253,8 @@ impl DsGroupState {
 
         let t_serialized_message = processed_assisted_message_plus.t_serialized_message;
         let pq_serialized_message = processed_assisted_message_plus.pq_serialized_message;
-        let snapshot_epoch = staged_snapshot.map(|(epoch, snapshot)| {
+        let snapshot_epoch = staged_snapshot.map(|snapshot| {
+            let epoch = t.group().epoch();
             t.stage_epoch_snapshot(
                 epoch,
                 snapshot.with_apq_join_commits(&t_serialized_message, &pq_serialized_message),
