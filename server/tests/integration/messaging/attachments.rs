@@ -268,10 +268,15 @@ async fn reused_remote_attachment_is_skipped() {
         .send_attachment(chat_id, &alice, &[&bob], b"attachment", "file.bin")
         .await
         .unwrap();
-    let messages = bob.drain().await;
-    let [first] = &messages.new_messages[..] else {
-        panic!("expected exactly one new message");
-    };
+    // send_attachment already drained bob, so find his copy among the stored
+    // messages
+    let mut first = None;
+    for message in bob.messages(chat_id, 10).await.unwrap() {
+        if !bob.attachment_infos_for_message(message.id()).await.is_empty() {
+            assert!(first.replace(message).is_none(), "expected one attachment message");
+        }
+    }
+    let first = first.expect("bob has no attachment message");
     assert_eq!(bob.attachment_infos_for_message(first.id()).await.len(), 1);
 
     // Same remote attachment id again
