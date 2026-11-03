@@ -294,7 +294,7 @@ impl Default for RelaySettings {
 /// them (`AIR_DS_CREATEDEADLINE`).
 #[derive(Debug, Deserialize, Clone)]
 pub struct DsSettings {
-    /// How long a group creation stream may take from its begin step to its
+    /// How long a group creation stream may take from its prepare step to its
     /// create step.
     #[serde(default = "default_5min", with = "duration_seconds")]
     pub createdeadline: Duration,

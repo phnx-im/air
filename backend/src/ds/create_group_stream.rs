@@ -16,10 +16,10 @@ use airprotos::{
     common::v1::ClientMetadata,
     convert::RefInto,
     delivery_service::v1::{
-        CreateApqGroupPayload, CreateGroupStreamBegin, CreateGroupStreamBeginPayload,
-        CreateGroupStreamCreated, CreateGroupStreamRequest, CreateGroupStreamReserved,
-        CreateGroupStreamResponse, ProvisionAttachmentResponse, create_group_stream_request,
-        create_group_stream_response,
+        CreateApqGroupPayload, CreateGroupV2Created, CreateGroupV2Prepare,
+        CreateGroupV2PreparePayload, CreateGroupV2Request, CreateGroupV2Reserved,
+        CreateGroupV2Response, ProvisionAttachmentResponse, create_group_v2_request,
+        create_group_v2_response,
     },
     signed::SignedRequest,
 };
@@ -36,14 +36,14 @@ use tracing::debug;
 
 use crate::settings::DsSettings;
 
-const METRIC_BEGUN: &str = "air_ds_create_group_streams_begun_total";
+const METRIC_PREPARED: &str = "air_ds_create_group_streams_prepared_total";
 const METRIC_CREATED: &str = "air_ds_create_group_streams_created_total";
 const METRIC_TIMED_OUT: &str = "air_ds_create_group_streams_timed_out_total";
 const METRIC_REJECTED: &str = "air_ds_create_group_streams_rejected_total";
 
 pub(super) fn describe_metrics() {
     describe_counter!(
-        METRIC_BEGUN,
+        METRIC_PREPARED,
         "Group creation streams that handed out group ids"
     );
     describe_counter!(
@@ -60,7 +60,7 @@ pub(super) fn describe_metrics() {
     );
 }
 
-/// The user a stream authenticated in its begin step.
+/// The user a stream authenticated in its prepare step.
 #[derive(Debug, Clone)]
 pub(super) struct StreamCreator {
     pub(super) user_id: UserId,
@@ -215,7 +215,7 @@ impl RejectCause {
 
 #[derive(Debug, Clone, Copy)]
 enum WaitingFor {
-    /// The server's own checks between the begin step and the reserved ids.
+    /// The server's own checks between the prepare step and the reserved ids.
     Admission,
     Create,
 }
@@ -272,8 +272,8 @@ pub(super) async fn run_protocol(
     backend: &impl CreateGroupStreamBackend,
     streams: &CreateGroupStreams,
     stop: &CancellationToken,
-    incoming: impl Stream<Item = Result<CreateGroupStreamRequest, Status>> + Unpin,
-    outgoing: mpsc::Sender<Result<CreateGroupStreamResponse, Status>>,
+    incoming: impl Stream<Item = Result<CreateGroupV2Request, Status>> + Unpin,
+    outgoing: mpsc::Sender<Result<CreateGroupV2Response, Status>>,
 ) {
     match run_protocol_impl(backend, streams, stop, incoming, &outgoing).await {
         Ok(Outcome::Created) => counter!(METRIC_CREATED).increment(1),
@@ -298,41 +298,36 @@ async fn run_protocol_impl(
     backend: &impl CreateGroupStreamBackend,
     streams: &CreateGroupStreams,
     stop: &CancellationToken,
-    mut incoming: impl Stream<Item = Result<CreateGroupStreamRequest, Status>> + Unpin,
-    outgoing: &mpsc::Sender<Result<CreateGroupStreamResponse, Status>>,
+    mut incoming: impl Stream<Item = Result<CreateGroupV2Request, Status>> + Unpin,
+    outgoing: &mpsc::Sender<Result<CreateGroupV2Response, Status>>,
 ) -> Result<Outcome, StreamError> {
     let settings = backend.settings();
     let deadline = settings.createdeadline.to_std().unwrap_or_default();
 
     // As on the listen streams, the wait for the first step has no deadline.
-    // The stream holds no slot and no allowance until Begin is authenticated.
+    // The stream holds no slot and no allowance until Prepare is authenticated.
     let Some(step) = next_step(&mut incoming, None, stop).await? else {
         return Ok(Outcome::Closed);
     };
-    let create_group_stream_request::Step::Begin(begin) = step else {
-        return Err(StreamError::protocol("expected begin step"));
+    let create_group_v2_request::Step::Prepare(prepare) = step else {
+        return Err(StreamError::protocol("expected prepare step"));
     };
-    // Create must arrive within the deadline of Begin, however long the
+    // Create must arrive within the deadline of Prepare, however long the
     // server's checks take.
     let create_deadline = Instant::now() + deadline;
     let (_slot, creator, reservation, reserved) =
-        timeout_at(create_deadline, admit(backend, streams, begin))
+        timeout_at(create_deadline, admit(backend, streams, prepare))
             .await
             .map_err(|_elapsed| StreamError::TimedOut(WaitingFor::Admission))??;
-    counter!(METRIC_BEGUN).increment(1);
-    if !send_step(
-        outgoing,
-        create_group_stream_response::Step::Reserved(reserved),
-    )
-    .await
-    {
+    counter!(METRIC_PREPARED).increment(1);
+    if !send_step(outgoing, create_group_v2_response::Step::Reserved(reserved)).await {
         return Ok(Outcome::Closed);
     }
 
     let Some(step) = next_step(&mut incoming, Some(create_deadline), stop).await? else {
         return Ok(Outcome::Closed);
     };
-    let create_group_stream_request::Step::Create(payload) = step else {
+    let create_group_v2_request::Step::Create(payload) = step else {
         return Err(StreamError::protocol("expected create step"));
     };
     backend
@@ -343,29 +338,29 @@ async fn run_protocol_impl(
     // The group exists from here on, even if the client does not learn it.
     send_step(
         outgoing,
-        create_group_stream_response::Step::Created(CreateGroupStreamCreated {}),
+        create_group_v2_response::Step::Created(CreateGroupV2Created {}),
     )
     .await;
     Ok(Outcome::Created)
 }
 
-/// Authenticates the begin step, counts the stream against the user and the
+/// Authenticates the prepare step, counts the stream against the user and the
 /// creation allowance, and reserves fresh ids and the profile upload.
 async fn admit(
     backend: &impl CreateGroupStreamBackend,
     streams: &CreateGroupStreams,
-    begin: CreateGroupStreamBegin,
+    prepare: CreateGroupV2Prepare,
 ) -> Result<
     (
         StreamSlot,
         StreamCreator,
         StreamReservation,
-        CreateGroupStreamReserved,
+        CreateGroupV2Reserved,
     ),
     StreamError,
 > {
     let settings = backend.settings();
-    let (creator, begin) = authenticate(backend, begin).await?;
+    let (creator, prepare) = authenticate(backend, prepare).await?;
 
     let slot = streams.acquire(
         &creator.user_id,
@@ -384,7 +379,7 @@ async fn admit(
         t_group_id: backend.fresh_group_id(),
         pq_group_id: backend.fresh_group_id(),
     };
-    let group_profile_provisioning = match begin.group_profile_size {
+    let group_profile_provisioning = match prepare.group_profile_size {
         Some(size) => backend
             .provision_group_profile(size)
             .await
@@ -392,7 +387,7 @@ async fn admit(
         None => None,
     };
 
-    let reserved = CreateGroupStreamReserved {
+    let reserved = CreateGroupV2Reserved {
         group_id: Some(reservation.t_group_id.ref_into()),
         pq_group_id: Some(reservation.pq_group_id.ref_into()),
         group_profile_provisioning,
@@ -400,14 +395,14 @@ async fn admit(
     Ok((slot, creator, reservation, reserved))
 }
 
-/// Checks the version and the signature of the begin step against the key the
+/// Checks the version and the signature of the prepare step against the key the
 /// AS stores for the claimed user.
 async fn authenticate(
     backend: &impl CreateGroupStreamBackend,
-    begin: CreateGroupStreamBegin,
-) -> Result<(StreamCreator, CreateGroupStreamBeginPayload), StreamError> {
-    let request = SignedRequest::from_nested(begin, |begin| begin.payload.as_ref())
-        .ok_or_else(|| StreamError::protocol("missing begin payload"))?;
+    prepare: CreateGroupV2Prepare,
+) -> Result<(StreamCreator, CreateGroupV2PreparePayload), StreamError> {
+    let request = SignedRequest::from_nested(prepare, |prepare| prepare.payload.as_ref())
+        .ok_or_else(|| StreamError::protocol("missing prepare payload"))?;
     let unverified = request.inner().payload.as_ref();
     backend
         .verify_client_version(unverified.and_then(|payload| payload.client_metadata.as_ref()))
@@ -423,7 +418,7 @@ async fn authenticate(
         .await
         .map_err(StreamError::internal)?
         .ok_or_else(StreamError::unauthenticated)?;
-    let payload: CreateGroupStreamBeginPayload = request
+    let payload: CreateGroupV2PreparePayload = request
         .verify(&verifying_key)
         .map_err(|_| StreamError::unauthenticated())?;
 
@@ -437,10 +432,10 @@ async fn authenticate(
 /// Waits for the next step until the create `deadline`, if any, or until the
 /// server stops.
 async fn next_step(
-    incoming: &mut (impl Stream<Item = Result<CreateGroupStreamRequest, Status>> + Unpin),
+    incoming: &mut (impl Stream<Item = Result<CreateGroupV2Request, Status>> + Unpin),
     deadline: Option<Instant>,
     stop: &CancellationToken,
-) -> Result<Option<create_group_stream_request::Step>, StreamError> {
+) -> Result<Option<create_group_v2_request::Step>, StreamError> {
     let next = async {
         match deadline {
             Some(deadline) => timeout_at(deadline, incoming.next())
@@ -464,20 +459,18 @@ async fn next_step(
             debug!(%status, "group creation stream closed by the client");
             Ok(None)
         }
-        Some(Ok(CreateGroupStreamRequest { step: None })) => {
-            Err(StreamError::protocol("missing step"))
-        }
-        Some(Ok(CreateGroupStreamRequest { step: Some(step) })) => Ok(Some(step)),
+        Some(Ok(CreateGroupV2Request { step: None })) => Err(StreamError::protocol("missing step")),
+        Some(Ok(CreateGroupV2Request { step: Some(step) })) => Ok(Some(step)),
     }
 }
 
 /// Returns false when the client is gone.
 async fn send_step(
-    outgoing: &mpsc::Sender<Result<CreateGroupStreamResponse, Status>>,
-    step: create_group_stream_response::Step,
+    outgoing: &mpsc::Sender<Result<CreateGroupV2Response, Status>>,
+    step: create_group_v2_response::Step,
 ) -> bool {
     outgoing
-        .send(Ok(CreateGroupStreamResponse { step: Some(step) }))
+        .send(Ok(CreateGroupV2Response { step: Some(step) }))
         .await
         .is_ok()
 }
@@ -615,38 +608,35 @@ mod tests {
         }
     }
 
-    fn begin(
-        user_id: &UserId,
-        signing_key: &SigningKey<ClientKeyType>,
-    ) -> CreateGroupStreamRequest {
-        let payload = CreateGroupStreamBeginPayload {
+    fn prepare(user_id: &UserId, signing_key: &SigningKey<ClientKeyType>) -> CreateGroupV2Request {
+        let payload = CreateGroupV2PreparePayload {
             client_metadata: None,
             user_id: Some(user_id.clone().into()),
             group_profile_size: Some(1024),
         };
-        let begin = payload.sign(signing_key).unwrap();
-        CreateGroupStreamRequest {
-            step: Some(create_group_stream_request::Step::Begin(begin)),
+        let prepare = payload.sign(signing_key).unwrap();
+        CreateGroupV2Request {
+            step: Some(create_group_v2_request::Step::Prepare(prepare)),
         }
     }
 
-    fn create() -> CreateGroupStreamRequest {
-        CreateGroupStreamRequest {
-            step: Some(create_group_stream_request::Step::Create(
+    fn create() -> CreateGroupV2Request {
+        CreateGroupV2Request {
+            step: Some(create_group_v2_request::Step::Create(
                 CreateApqGroupPayload::default(),
             )),
         }
     }
 
     struct Run {
-        responses: Vec<Result<CreateGroupStreamResponse, Status>>,
+        responses: Vec<Result<CreateGroupV2Response, Status>>,
     }
 
     impl Run {
-        fn reserved(&self) -> Option<&CreateGroupStreamReserved> {
+        fn reserved(&self) -> Option<&CreateGroupV2Reserved> {
             self.responses.iter().find_map(|response| match response {
-                Ok(CreateGroupStreamResponse {
-                    step: Some(create_group_stream_response::Step::Reserved(reserved)),
+                Ok(CreateGroupV2Response {
+                    step: Some(create_group_v2_response::Step::Reserved(reserved)),
                 }) => Some(reserved),
                 _ => None,
             })
@@ -656,8 +646,8 @@ mod tests {
             self.responses.iter().any(|response| {
                 matches!(
                     response,
-                    Ok(CreateGroupStreamResponse {
-                        step: Some(create_group_stream_response::Step::Created(_)),
+                    Ok(CreateGroupV2Response {
+                        step: Some(create_group_v2_response::Step::Created(_)),
                     })
                 )
             })
@@ -675,7 +665,7 @@ mod tests {
     async fn run_stream(
         backend: &FakeBackend,
         streams: &CreateGroupStreams,
-        requests: Vec<CreateGroupStreamRequest>,
+        requests: Vec<CreateGroupV2Request>,
         keep_open: bool,
     ) -> Run {
         let (requests_tx, requests_rx) = mpsc::channel(requests.len().max(1));
@@ -708,7 +698,7 @@ mod tests {
         let run = run_stream(
             &backend,
             &streams,
-            vec![begin(&user_id, &signing_key), create()],
+            vec![prepare(&user_id, &signing_key), create()],
             false,
         )
         .await;
@@ -745,7 +735,7 @@ mod tests {
         let run = run_stream(
             &backend,
             &streams,
-            vec![begin(&user_id, &signing_key)],
+            vec![prepare(&user_id, &signing_key)],
             false,
         )
         .await;
@@ -756,13 +746,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn forged_begin_is_unauthenticated_and_consumes_nothing() {
+    async fn forged_prepare_is_unauthenticated_and_consumes_nothing() {
         let mut backend = FakeBackend::new();
         let (victim, _victim_key) = backend.register();
         let forger_key = SigningKey::generate().unwrap();
         let streams = CreateGroupStreams::default();
 
-        let run = run_stream(&backend, &streams, vec![begin(&victim, &forger_key)], false).await;
+        let run = run_stream(
+            &backend,
+            &streams,
+            vec![prepare(&victim, &forger_key)],
+            false,
+        )
+        .await;
 
         assert_eq!(run.error_code(), Some(Code::Unauthenticated));
         assert!(run.reserved().is_none());
@@ -779,7 +775,7 @@ mod tests {
         let run = run_stream(
             &backend,
             &streams,
-            vec![begin(&user_id, &signing_key)],
+            vec![prepare(&user_id, &signing_key)],
             false,
         )
         .await;
@@ -799,7 +795,7 @@ mod tests {
         let run = run_stream(
             &backend,
             &streams,
-            vec![begin(&user_id, &signing_key)],
+            vec![prepare(&user_id, &signing_key)],
             false,
         )
         .await;
@@ -818,7 +814,7 @@ mod tests {
         let run = run_stream(
             &backend,
             &streams,
-            vec![begin(&user_id, &signing_key)],
+            vec![prepare(&user_id, &signing_key)],
             false,
         )
         .await;
@@ -828,7 +824,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn begin_without_create_still_consumes_allowance() {
+    async fn prepare_without_create_still_consumes_allowance() {
         let mut backend = FakeBackend::new();
         let (user_id, signing_key) = backend.register();
         let streams = CreateGroupStreams::default();
@@ -836,7 +832,7 @@ mod tests {
         let run = run_stream(
             &backend,
             &streams,
-            vec![begin(&user_id, &signing_key)],
+            vec![prepare(&user_id, &signing_key)],
             false,
         )
         .await;
@@ -857,7 +853,7 @@ mod tests {
         let run = run_stream(
             &backend,
             &streams,
-            vec![begin(&user_id, &signing_key), create()],
+            vec![prepare(&user_id, &signing_key), create()],
             false,
         )
         .await;
@@ -868,7 +864,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_before_begin_is_rejected() {
+    async fn create_before_prepare_is_rejected() {
         let backend = FakeBackend::new();
         let streams = CreateGroupStreams::default();
 
@@ -880,7 +876,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn second_begin_is_rejected() {
+    async fn second_prepare_is_rejected() {
         let mut backend = FakeBackend::new();
         let (user_id, signing_key) = backend.register();
         let streams = CreateGroupStreams::default();
@@ -888,7 +884,10 @@ mod tests {
         let run = run_stream(
             &backend,
             &streams,
-            vec![begin(&user_id, &signing_key), begin(&user_id, &signing_key)],
+            vec![
+                prepare(&user_id, &signing_key),
+                prepare(&user_id, &signing_key),
+            ],
             false,
         )
         .await;
@@ -899,7 +898,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn stop_ends_a_stream_waiting_for_begin() {
+    async fn stop_ends_a_stream_waiting_for_prepare() {
         let backend = FakeBackend::new();
         let streams = CreateGroupStreams::default();
 
@@ -926,7 +925,7 @@ mod tests {
             run_stream(
                 &backend,
                 &streams,
-                vec![begin(&user_id, &signing_key)],
+                vec![prepare(&user_id, &signing_key)],
                 true,
             ),
             stop
@@ -947,7 +946,7 @@ mod tests {
         let run = run_stream(
             &backend,
             &streams,
-            vec![begin(&user_id, &signing_key)],
+            vec![prepare(&user_id, &signing_key)],
             true,
         )
         .await;
@@ -971,7 +970,7 @@ mod tests {
         let run = run_stream(
             &backend,
             &streams,
-            vec![begin(&user_id, &signing_key)],
+            vec![prepare(&user_id, &signing_key)],
             true,
         )
         .await;
@@ -983,7 +982,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn create_deadline_counts_from_begin() {
+    async fn create_deadline_counts_from_prepare() {
         let mut backend = FakeBackend::new();
         let (user_id, signing_key) = backend.register();
         backend.lookup_delay = Duration::from_secs(3 * 60);
@@ -993,7 +992,7 @@ mod tests {
         let run = run_stream(
             &backend,
             &streams,
-            vec![begin(&user_id, &signing_key)],
+            vec![prepare(&user_id, &signing_key)],
             true,
         )
         .await;
@@ -1020,7 +1019,7 @@ mod tests {
         let run = run_stream(
             &backend,
             &streams,
-            vec![begin(&user_id, &signing_key)],
+            vec![prepare(&user_id, &signing_key)],
             false,
         )
         .await;
@@ -1033,7 +1032,7 @@ mod tests {
         let run = run_stream(
             &backend,
             &streams,
-            vec![begin(&user_id, &signing_key)],
+            vec![prepare(&user_id, &signing_key)],
             false,
         )
         .await;
@@ -1041,7 +1040,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn begin_at_the_process_limit_is_rejected_after_authentication() {
+    async fn prepare_at_the_process_limit_is_rejected_after_authentication() {
         let mut backend = FakeBackend::new();
         backend.settings.createstreams = 1;
         let (user_id, signing_key) = backend.register();
@@ -1053,7 +1052,7 @@ mod tests {
         let run = run_stream(
             &backend,
             &streams,
-            vec![begin(&user_id, &forger_key)],
+            vec![prepare(&user_id, &forger_key)],
             false,
         )
         .await;
@@ -1062,7 +1061,7 @@ mod tests {
         let run = run_stream(
             &backend,
             &streams,
-            vec![begin(&user_id, &signing_key)],
+            vec![prepare(&user_id, &signing_key)],
             false,
         )
         .await;
@@ -1121,7 +1120,7 @@ mod tests {
         for _ in 0..max_per_user + 3 {
             let (requests_tx, requests_rx) = mpsc::channel(1);
             requests_tx
-                .send(Ok(begin(&user_id, &signing_key)))
+                .send(Ok(prepare(&user_id, &signing_key)))
                 .await
                 .unwrap();
             let (outgoing_tx, outgoing_rx) = mpsc::channel(4);

@@ -1092,12 +1092,12 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
         Ok(Response::new(CreateApqGroupResponse {}))
     }
 
-    type CreateGroupStreamStream = BoxStream<'static, Result<CreateGroupStreamResponse, Status>>;
+    type CreateGroupV2Stream = BoxStream<'static, Result<CreateGroupV2Response, Status>>;
 
-    async fn create_group_stream(
+    async fn create_group_v2(
         &self,
-        request: Request<Streaming<CreateGroupStreamRequest>>,
-    ) -> Result<Response<Self::CreateGroupStreamStream>, Status> {
+        request: Request<Streaming<CreateGroupV2Request>>,
+    ) -> Result<Response<Self::CreateGroupV2Stream>, Status> {
         let incoming = request.into_inner();
         // The stream sends at most two messages, so no send blocks
         let (outgoing_tx, outgoing_rx) = mpsc::channel(2);
