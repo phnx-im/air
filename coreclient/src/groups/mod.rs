@@ -102,6 +102,34 @@ pub(crate) struct Group {
 }
 
 impl Group {
+    /// Creates a new group with self updated at set to now.
+    pub(super) fn new(
+        identity_link_wrapper_key: IdentityLinkWrapperKey,
+        group_state_ear_key: GroupStateEarKey,
+        mls_group: MlsGroup,
+        pq_mls_group: Option<MlsGroup>,
+        room_state: VerifiedRoomState,
+        own_user_id: UserId,
+    ) -> Self {
+        let now = TimeStamp::now();
+        let pq = pq_mls_group.map(|mls_group| PqGroup {
+            mls_group,
+            self_updated_at: Some(now),
+        });
+        Self {
+            identity_link_wrapper_key,
+            group_state_ear_key,
+            mls_group,
+            room_state,
+            pending_diff: None,
+            self_updated_at: Some(now),
+            pq,
+            pending_commit_failed: false,
+            send_message_collision_key: None,
+            own_user_id,
+        }
+    }
+
     pub(crate) fn is_apq(&self) -> bool {
         self.pq.is_some()
     }

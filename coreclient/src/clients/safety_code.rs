@@ -57,7 +57,8 @@ impl SafetyCode {
         let mut out = [0u64; 6];
 
         // Operate on chunks of 5 bytes (40 bits) to produce 6 values in [0, 100_000)
-        for (dst, chunk) in out.iter_mut().zip(self.0.chunks_exact(5)) {
+        let (chunks, _remainder) = self.0.as_chunks::<5>();
+        for (dst, chunk) in out.iter_mut().zip(chunks) {
             let mut value = 0u64;
             for &b in chunk {
                 value = (value << 8) | b as u64;
