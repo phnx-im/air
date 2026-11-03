@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                a.message_id AS \"message_id: _\",\n                a.attachment_id AS \"attachment_id: _\",\n                a.part_index AS \"part_index: u32\",\n                a.is_animated\n            FROM attachment a\n            JOIN message m USING (message_id)\n            WHERE m.chat_id = ?\n                AND (m.timestamp, m.message_id) >= (?, ?)\n                AND (m.timestamp, m.message_id) <= (?, ?)\n            ORDER BY a.message_id, a.part_index\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "message_id"
+          }
+        }
+      },
+      {
+        "name": "attachment_id: _",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "attachment_id"
+          }
+        }
+      },
+      {
+        "name": "part_index: u32",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "part_index"
+          }
+        }
+      },
+      {
+        "name": "is_animated",
+        "ordinal": 3,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "is_animated"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "fb2ec32c657f6d29dc0214d791bf5f078fd1b011c60e9fb5bab809d4edcb22b6"
+}

@@ -1116,7 +1116,7 @@ impl From<SqlInReplyToMessage> for Option<InReplyToMessage> {
             message_id,
             sender: UserId::new(sender_user_uuid?, sender_user_domain?),
             mimi_content: content.and_then(|BlobDecoded(c)| c.to_mimi_content().ok()),
-            attachment_ids: Vec::new(),
+            attachment_infos: Vec::new(),
         })
     }
 }
@@ -1217,8 +1217,8 @@ impl InReplyToMessage {
             return Ok(None);
         };
 
-        in_reply_to_message.attachment_ids =
-            AttachmentRecord::load_ids_by_message_id(connection, in_reply_to_message.message_id)
+        in_reply_to_message.attachment_infos =
+            AttachmentRecord::load_infos_by_message_id(connection, in_reply_to_message.message_id)
                 .await?;
 
         Ok(Some(in_reply_to_message))
@@ -1357,7 +1357,7 @@ pub(crate) mod tests {
     }
 
     #[sqlx::test]
-    async fn in_reply_to_carries_attachment_ids(pool: SqlitePool) -> anyhow::Result<()> {
+    async fn in_reply_to_carries_attachment_infos(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
 
         let chat = test_chat();
@@ -1376,7 +1376,11 @@ pub(crate) mod tests {
             .unwrap();
 
         assert_eq!(in_reply_to.message_id, original.id());
-        assert_eq!(in_reply_to.attachment_ids, [record.attachment_id]);
+        let [info] = in_reply_to.attachment_infos.as_slice() else {
+            panic!("expected one attachment info");
+        };
+        assert_eq!(info.attachment_id, record.attachment_id);
+        assert_eq!(info.part_index, 0);
 
         Ok(())
     }

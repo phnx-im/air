@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                attachment_id AS \"attachment_id: _\",\n                part_index AS \"part_index: u32\",\n                is_animated\n            FROM attachment\n            WHERE message_id = ?\n            ORDER BY part_index",
+  "describe": {
+    "columns": [
+      {
+        "name": "attachment_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "attachment_id"
+          }
+        }
+      },
+      {
+        "name": "part_index: u32",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "part_index"
+          }
+        }
+      },
+      {
+        "name": "is_animated",
+        "ordinal": 2,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "is_animated"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "8f84088f896077df8869bb734f4aa7cfa1524a8842c48a3affdaa786abb3336f"
+}

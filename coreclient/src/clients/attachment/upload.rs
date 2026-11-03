@@ -199,6 +199,7 @@ impl CoreUser {
                     remote_attachment_id: None,
                     chat_id,
                     message_id,
+                    part_index: 0,
                     content_type: probed.content_type.clone(),
                     status: AttachmentStatus::Uploading,
                     is_animated,

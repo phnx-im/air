@@ -76,6 +76,8 @@ pub struct UiMimiContent {
 #[derive(Debug)]
 #[frb(ignore)]
 pub(crate) struct UnresolvedAttachment {
+    /// Depth-first index of the attachment in the message's part tree.
+    pub index: usize,
     pub filename: String,
     pub content_type: String,
     pub description: Option<String>,
@@ -110,7 +112,12 @@ impl UnresolvedMimiContent {
         let attachments: Vec<UiAttachment> = self
             .attachments
             .into_iter()
-            .zip(local_attachment_infos.iter())
+            .filter_map(|attachment| {
+                let info = local_attachment_infos
+                    .iter()
+                    .find(|info| info.part_index as usize == attachment.index)?;
+                Some((attachment, info))
+            })
             .map(|(attachment, info)| UiAttachment {
                 attachment_id: info.attachment_id,
                 filename: attachment.filename,

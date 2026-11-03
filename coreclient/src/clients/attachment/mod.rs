@@ -135,20 +135,13 @@ impl CoreUser {
 
 /// Local attachment ID together with locally derived facts about the
 /// attachment.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AttachmentInfo {
     pub attachment_id: AttachmentId,
+    /// Depth-first index of the attachment in the message's part tree.
+    pub part_index: u32,
     /// Whether the attachment is an animated image, if already classified
     pub is_animated: Option<bool>,
-}
-
-impl From<AttachmentId> for AttachmentInfo {
-    fn from(attachment_id: AttachmentId) -> Self {
-        Self {
-            attachment_id,
-            is_animated: None,
-        }
-    }
 }
 
 /// An attachment ID

@@ -16,10 +16,9 @@ pub(crate) use airprotos::client::component::AirFeatures;
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
-    Asset, AttachmentId, AttachmentInfo, ChatAttributes, ChatMessage, ChatMuted, ChatStatus,
-    ChatType, Contact, ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat,
-    LastReaction, Message, MessageDraft, SystemMessage, TargetedMessageContact, UserProfile,
-    clients::CoreUser,
+    Asset, AttachmentInfo, ChatAttributes, ChatMessage, ChatMuted, ChatStatus, ChatType, Contact,
+    ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat, LastReaction, Message,
+    MessageDraft, SystemMessage, TargetedMessageContact, UserProfile, clients::CoreUser,
 };
 use chrono::{DateTime, Local, Utc};
 use flutter_rust_bridge::frb;
@@ -200,7 +199,7 @@ impl From<MessageDraft> for UiMessageDraft {
                             mimi_content: UnresolvedMimiContent::from(
                                 in_reply_to.mimi_content.unwrap_or_default(),
                             )
-                            .resolve(&attachment_infos(&in_reply_to.attachment_ids)),
+                            .resolve(&in_reply_to.attachment_infos),
                         },
                         None => UiInReplyToMessage::NotFound,
                     },
@@ -439,15 +438,6 @@ pub enum UiMessageStatus {
     Deleted,
 }
 
-/// Infos for attachments whose local classification the caller does not need.
-fn attachment_infos(attachment_ids: &[AttachmentId]) -> Vec<AttachmentInfo> {
-    attachment_ids
-        .iter()
-        .copied()
-        .map(AttachmentInfo::from)
-        .collect()
-}
-
 impl UiChatMessage {
     pub(crate) fn from_message(
         mut chat_message: ChatMessage,
@@ -475,7 +465,7 @@ impl UiChatMessage {
                 mimi_content: UnresolvedMimiContent::from(
                     in_reply_to.mimi_content.unwrap_or_default(),
                 )
-                .resolve(&attachment_infos(&in_reply_to.attachment_ids)),
+                .resolve(&in_reply_to.attachment_infos),
             },
             // this means we have a reference but couldn't load the contents
             // (i.e. deleted for me, or in past history after joining).
