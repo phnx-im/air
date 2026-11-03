@@ -3,12 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::LeafSigningKey,
+    credentials::{LeafCredential, keys::LeafSigningKey},
     crypto::{aead::AeadEncryptable, indexed_aead::keys::UserProfileKey},
-    identifiers::{QualifiedGroupId, Username},
+    identifiers::{QualifiedGroupId, UserId, Username},
     messages::{
         client_as::ConnectionOfferHash,
         client_ds::{AadMessage, AadPayload, JoinConnectionGroupParamsAad},
+        client_ds_out::ExternalCommitInfoIn,
         connection_package::ConnectionPackageHash,
     },
     time::TimeStamp,
@@ -16,9 +17,13 @@ use aircommon::{
 use airprotos::client::group_bootstrap::{AcceptContext, ConnectionContext, GroupBootstrapCarrier};
 use anyhow::{Context, bail, ensure};
 use apqmls::commit_builder::ApqCommitMessageBundle;
-use openmls::{group::GroupId, prelude::MlsMessageOut, treesync::errors::LeafNodeValidationError};
+use openmls::{
+    group::GroupId,
+    prelude::{LeafNodeIndex, MlsMessageOut},
+    treesync::errors::LeafNodeValidationError,
+};
 use tls_codec::DeserializeBytes;
-use tracing::{instrument, warn};
+use tracing::{info, instrument, warn};
 
 use crate::{
     Chat, ChatId, ChatType, Contact, SystemMessage,
@@ -30,9 +35,13 @@ use crate::{
         CoreUser,
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
     },
-    db::access::WriteConnection,
+    db::access::{WriteConnection, WriteDbTransaction},
     groups::{ConnectionGroupJoin, Group, self_group::SelfGroup},
     key_stores::indexed_keys::StorableIndexedKey,
+    outbound_service::{
+        error::{OutboundServiceError, is_ds_not_found_error},
+        resync::Resync,
+    },
     utils::persistence::GroupIdWrapper,
 };
 
@@ -88,7 +97,7 @@ impl CoreUser {
         let mut chat_id = chat_id;
         // Every round that does not end the loop removes one request.
         loop {
-            match self.accept_newest_request(chat_id).await? {
+            match Box::pin(self.accept_newest_request(chat_id)).await? {
                 AcceptOutcome::Accepted => return Ok(Ok(chat_id)),
                 AcceptOutcome::Failed(error) => return Ok(Err(error)),
                 AcceptOutcome::Unavailable { next: Some(next) } => chat_id = next,
@@ -120,6 +129,34 @@ impl CoreUser {
             })
             .await?;
 
+        // Prepare group
+        let (aad, qgid) = self.prepare_group(&request.connection_info, &own_user_profile_key)?;
+
+        // Fetch external commit info
+        let eci = match self
+            .api_clients()
+            .get(qgid.owning_domain())?
+            .ds_connection_group_info(
+                request.connection_info.connection_group_id.clone(),
+                &request.connection_info.connection_group_ear_key,
+            )
+            .await
+        {
+            Ok(eci) => eci,
+            // The sender retracted the request.
+            Err(error) if error.is_not_found() => {
+                let next = self.record_unavailable_request(request.request_id).await?;
+                return Ok(AcceptOutcome::Unavailable { next });
+            }
+            Err(error) => return Err(error.into()),
+        };
+        let is_apq = eci.is_apq()?;
+
+        // There is already a leaf for us => fallback to accepting by resync
+        if let Some(leaf) = self.sibling_joined_leaf(&eci).await? {
+            return Box::pin(self.accept_by_resync(chat, sender_user_id, request, eci, leaf)).await;
+        }
+
         let PendingConnectionRequest {
             request_id,
             chat_id: _,
@@ -131,29 +168,6 @@ impl CoreUser {
             connection_package_hash,
             origin_group_id: _,
         } = request;
-
-        // Prepare group
-        let (aad, qgid) = self.prepare_group(&connection_info, &own_user_profile_key)?;
-
-        // Fetch external commit info
-        let eci = match self
-            .api_clients()
-            .get(qgid.owning_domain())?
-            .ds_connection_group_info(
-                connection_info.connection_group_id.clone(),
-                &connection_info.connection_group_ear_key,
-            )
-            .await
-        {
-            Ok(eci) => eci,
-            // The sender retracted the request.
-            Err(error) if error.is_not_found() => {
-                let next = self.record_unavailable_request(request_id).await?;
-                return Ok(AcceptOutcome::Unavailable { next });
-            }
-            Err(error) => return Err(error.into()),
-        };
-        let is_apq = eci.is_apq()?;
 
         // Create a new group by joining it (if group already exists, it will be replaced)
         let result = Box::pin(self.db().with_write_transaction(
@@ -331,36 +345,17 @@ impl CoreUser {
             Err(error) => return Err(error.into()),
         }
 
-        // The chat becomes the connection with the sender, and the sender's
-        // requests are settled.
         self.db()
-            .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                chat.set_chat_type(&mut *txn, &ChatType::Connection(sender_user_id.clone()))
-                    .await?;
-
-                let accepted_message = TimestampedMessage::system_message(
-                    SystemMessage::AcceptedConnectionRequest {
-                        contact: sender_user_id.clone(),
-                        user_handle: username,
-                    },
-                    TimeStamp::now(),
-                );
-                Self::store_new_messages(&mut *txn, chat_id, vec![accepted_message]).await?;
-
-                let friendship_package = connection_info.friendship_package;
-                Contact {
-                    user_id: sender_user_id,
-                    wai_ear_key: friendship_package.wai_ear_key,
-                    friendship_token: friendship_package.friendship_token,
-                    chat_id,
-                    supported_features: None,
-                }
-                .upsert(&mut *txn)
-                .await?;
-                if let Some(hash) = connection_offer_hash {
-                    Group::delete_connection_offer_psk(&mut *txn, hash)?;
-                }
-                connection_requests::settle_accepted(txn, chat_id).await
+            .with_write_transaction(async |txn| {
+                Self::settle_accepted_request(
+                    txn,
+                    &chat,
+                    sender_user_id,
+                    username,
+                    connection_info.friendship_package,
+                    connection_offer_hash,
+                )
+                .await
             })
             .await?;
 
@@ -398,6 +393,172 @@ impl CoreUser {
         )?;
 
         Ok((aad, qgid))
+    }
+
+    /// Accept a request a sibling device already accepted.
+    async fn accept_by_resync(
+        &self,
+        chat: Chat,
+        sender_user_id: UserId,
+        request: PendingConnectionRequest,
+        eci: ExternalCommitInfoIn,
+        original_leaf_index: LeafNodeIndex,
+    ) -> anyhow::Result<AcceptOutcome> {
+        let PendingConnectionRequest {
+            request_id,
+            chat_id,
+            created_at: _,
+            received_at: _,
+            connection_info,
+            username,
+            connection_offer_hash,
+            connection_package_hash,
+            origin_group_id: _,
+        } = request;
+
+        let group_id = connection_info.connection_group_id;
+        let pq_group_id = eci.pq.as_ref().map(|pq| pq.group_info.group_id().clone());
+
+        info!(
+            %chat_id,
+            ?group_id,
+            ?pq_group_id,
+            %original_leaf_index,
+            "Request already accepted by a sibling device, joining by resync"
+        );
+
+        // Checked on the unverified tree: the join verifies it against the signed group info before
+        // the commit is sent.
+        let members: Vec<_> = eci
+            .ratchet_tree_in
+            .full_leaves()
+            .filter_map(|(_, leaf)| LeafCredential::from_credential(leaf.credential()).ok())
+            .map(|credential| credential.user_id(self.user_id()).clone())
+            .collect();
+        ensure!(
+            members.len() == 2
+                && members.contains(self.user_id())
+                && members.contains(&sender_user_id),
+            "Connection group has unexpected members: {:?}",
+            members
+        );
+
+        // Not queued: on failure the user accepts again, and the next resync replaces the local
+        // group left behind by this one.
+        let resync = Resync::for_sibling_accept(
+            chat_id,
+            group_id,
+            pq_group_id,
+            connection_info.connection_group_ear_key,
+            connection_info.connection_group_identity_link_wrapper_key,
+            original_leaf_index,
+        );
+
+        let signer = LeafSigningKey::User(self.signing_key().clone());
+        let result = resync
+            .create_and_send_commit_with_info(
+                self.db().write().await?,
+                self.api_clients(),
+                &signer,
+                self.user_id(),
+                eci,
+            )
+            .await;
+        let profile_infos = match result {
+            Ok(Some((_, profile_infos))) => profile_infos,
+            Ok(None) => bail!("Not a member of the connection group"),
+            Err(OutboundServiceError::Fatal(error)) if is_ds_not_found_error(&error) => {
+                let next = self.record_unavailable_request(request_id).await?;
+                return Ok(AcceptOutcome::Unavailable { next });
+            }
+            Err(OutboundServiceError::Fatal(error)) => {
+                return match error.downcast::<LeafNodeValidationError>() {
+                    Ok(error) => Ok(AcceptOutcome::Failed(error.into())),
+                    Err(error) => Err(error),
+                };
+            }
+            Err(error) => return Err(error.into()),
+        };
+
+        self.db()
+            .with_write_transaction(async move |txn| -> anyhow::Result<_> {
+                for profile_info in profile_infos.members {
+                    Self::schedule_fetch_user_profile(&mut *txn, profile_info).await?;
+                }
+
+                if let Some(hash) = connection_package_hash {
+                    delete_consumed_package_key(txn, &hash)
+                        .await
+                        .context("Failed to delete connection package")?;
+                }
+
+                Self::settle_accepted_request(
+                    txn,
+                    &chat,
+                    sender_user_id,
+                    username,
+                    connection_info.friendship_package,
+                    connection_offer_hash,
+                )
+                .await?;
+
+                Ok(())
+            })
+            .await?;
+
+        Ok(AcceptOutcome::Accepted)
+    }
+
+    /// Returns the leaf index of our virtual client in the connection group, if a sibling device
+    /// already joined it.
+    async fn sibling_joined_leaf(
+        &self,
+        eci: &ExternalCommitInfoIn,
+    ) -> anyhow::Result<Option<LeafNodeIndex>> {
+        let signer = LeafSigningKey::User(self.signing_key().clone());
+        let Some(leaf_index) = Resync::find_own_leaf(eci, &signer) else {
+            return Ok(None);
+        };
+        let has_linked_devices = SelfGroup::load(self.db().read().await?)
+            .await?
+            .is_some_and(|self_group| self_group.has_linked_devices());
+        Ok(has_linked_devices.then_some(leaf_index))
+    }
+
+    /// The chat becomes the connection with the sender, and the sender's requests are settled.
+    async fn settle_accepted_request(
+        txn: &mut WriteDbTransaction<'_>,
+        chat: &Chat,
+        sender_user_id: UserId,
+        username: Option<Username>,
+        friendship_package: FriendshipPackage,
+        connection_offer_hash: Option<ConnectionOfferHash>,
+    ) -> anyhow::Result<()> {
+        chat.set_chat_type(&mut *txn, &ChatType::Connection(sender_user_id.clone()))
+            .await?;
+
+        let accepted_message = TimestampedMessage::system_message(
+            SystemMessage::AcceptedConnectionRequest {
+                contact: sender_user_id.clone(),
+                user_handle: username,
+            },
+            TimeStamp::now(),
+        );
+        Self::store_new_messages(&mut *txn, chat.id, vec![accepted_message]).await?;
+
+        Contact {
+            user_id: sender_user_id,
+            wai_ear_key: friendship_package.wai_ear_key,
+            friendship_token: friendship_package.friendship_token,
+            chat_id: chat.id,
+            supported_features: None,
+        }
+        .upsert(&mut *txn)
+        .await?;
+        if let Some(hash) = connection_offer_hash {
+            Group::delete_connection_offer_psk(&mut *txn, hash)?;
+        }
+        connection_requests::settle_accepted(txn, chat.id).await
     }
 }
 
