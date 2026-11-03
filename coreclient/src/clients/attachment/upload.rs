@@ -780,7 +780,7 @@ impl ProcessedAttachment {
             .image_data
             .as_ref()
             .map(|data| (data.width, data.height));
-        content.visit_attachments_mut(|part| {
+        content.visit_external_parts_mut(|part| {
             if let NestedPart::ExternalPart {
                 content_type,
                 url,
@@ -818,7 +818,7 @@ fn patch_provisioned_parts(
     content: &mut MimiContent,
     metadata: &AttachmentMetadata,
 ) -> anyhow::Result<()> {
-    content.visit_attachments_mut(|part| {
+    content.visit_external_parts_mut(|part| {
         if let NestedPart::ExternalPart {
             url, key, nonce, ..
         } = part

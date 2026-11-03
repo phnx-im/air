@@ -21,7 +21,7 @@ use crate::{ChatId, MessageId, clients::CoreUser, image_is_animated};
 mod aead;
 mod download;
 pub(crate) mod persistence;
-mod process;
+pub(crate) mod process;
 pub(crate) mod progress;
 mod thumbnail;
 pub(crate) mod upload;

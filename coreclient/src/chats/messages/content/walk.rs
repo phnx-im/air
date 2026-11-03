@@ -11,7 +11,10 @@ use crate::AttachmentUrl;
 
 use super::{TextFormat, VisitedPart};
 
-pub(super) fn walk<'a>(part: &'a NestedPart, visitor: &mut impl FnMut(VisitedPart<'a>)) {
+pub(super) fn walk<'a>(
+    part: &'a NestedPart,
+    visitor: &mut impl FnMut(VisitedPart<'a>) -> anyhow::Result<()>,
+) -> anyhow::Result<()> {
     Ctx {
         depth: 0,
         in_preview: false,
@@ -58,14 +61,14 @@ impl Ctx {
         part: &'a NestedPart,
         blurhash: Option<&'a str>,
         next_index: &mut usize,
-        visitor: &mut impl FnMut(VisitedPart<'a>),
-    ) {
+        visitor: &mut impl FnMut(VisitedPart<'a>) -> anyhow::Result<()>,
+    ) -> anyhow::Result<()> {
         if MAX_DEPTH <= self.depth {
-            visitor(VisitedPart::Unknown(part));
-            return;
+            visitor(VisitedPart::Unknown(part))?;
+            return Ok(());
         }
         if is_skipped(part.disposition()) {
-            return;
+            return Ok(());
         }
         let ctx = self.enter(part);
         match part {
@@ -73,7 +76,9 @@ impl Ctx {
             // leaf
             NestedPart::SinglePart { .. } | NestedPart::ExternalPart { .. } => {
                 match ctx.classify_leaf(part) {
-                    Leaf::Text(content, format) => visitor(VisitedPart::Text { content, format }),
+                    Leaf::Text(content, format) => {
+                        visitor(VisitedPart::Text { content, format })?;
+                    }
                     Leaf::Attachment => {
                         let index = *next_index;
                         *next_index += 1;
@@ -82,11 +87,13 @@ impl Ctx {
                             index,
                             preview: ctx.in_preview,
                             blurhash,
-                        })
+                        })?;
                     }
                     Leaf::Blurhash(_) => {}
                     Leaf::Ignored => {}
-                    Leaf::Unknown => visitor(VisitedPart::Unknown(part)),
+                    Leaf::Unknown => {
+                        visitor(VisitedPart::Unknown(part))?;
+                    }
                 }
             }
             // nested
@@ -102,24 +109,25 @@ impl Ctx {
                 match part_semantics {
                     PartSemantics::ChooseOne => {
                         if let Some((chosen, _coverage)) = child_ctx.best_alternative(parts) {
-                            child_ctx.walk(chosen, None, next_index, visitor);
+                            child_ctx.walk(chosen, None, next_index, visitor)?;
                         } else if child_ctx.children_coverage(parts).missing {
-                            visitor(VisitedPart::Unknown(part));
+                            visitor(VisitedPart::Unknown(part))?;
                         }
                     }
                     PartSemantics::SingleUnit => {
                         if child_ctx.children_coverage(parts).is_full() {
-                            child_ctx.walk_children(parts, next_index, visitor);
+                            child_ctx.walk_children(parts, next_index, visitor)?;
                         } else {
-                            visitor(VisitedPart::Unknown(part));
+                            visitor(VisitedPart::Unknown(part))?;
                         }
                     }
                     PartSemantics::ProcessAll | PartSemantics::Custom(_) => {
-                        child_ctx.walk_children(parts, next_index, visitor);
+                        child_ctx.walk_children(parts, next_index, visitor)?;
                     }
                 }
             }
         }
+        Ok(())
     }
 
     fn sibling_blurhash(self, parts: &[NestedPart]) -> Option<(usize, &str)> {
@@ -151,16 +159,17 @@ impl Ctx {
         self,
         parts: &'a [NestedPart],
         next_index: &mut usize,
-        visitor: &mut impl FnMut(VisitedPart<'a>),
-    ) {
+        visitor: &mut impl FnMut(VisitedPart<'a>) -> anyhow::Result<()>,
+    ) -> anyhow::Result<()> {
         let blurhash = self.sibling_blurhash(parts);
         for (index, child) in parts.iter().enumerate() {
             let child_blurhash = match blurhash {
                 Some((attachment, blurhash)) if attachment == index => Some(blurhash),
                 _ => None,
             };
-            self.walk(child, child_blurhash, next_index, visitor);
+            self.walk(child, child_blurhash, next_index, visitor)?;
         }
+        Ok(())
     }
 
     fn coverage(self, part: &NestedPart) -> Coverage {
@@ -334,12 +343,16 @@ impl Coverage {
 
 #[cfg(test)]
 mod tests {
-    use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
+    use mimi_content::{
+        MimiContent,
+        content_container::{EncryptionAlgorithm, HashAlgorithm},
+    };
     use uuid::Uuid;
 
     use aircommon::identifiers::RemoteAttachmentId;
 
     use super::*;
+    use crate::MimiContentExt;
 
     #[derive(Debug, PartialEq, Eq)]
     enum Seen {
@@ -366,22 +379,25 @@ mod tests {
 
     fn visit(content: &MimiContent) -> Vec<Seen> {
         let mut seen = Vec::new();
-        content.visit_parts(|part| {
-            seen.push(match part {
-                VisitedPart::Text { content, format } => Seen::Text(content.to_owned(), format),
-                VisitedPart::Attachment {
-                    index,
-                    preview,
-                    blurhash,
-                    ..
-                } => Seen::Att {
-                    index,
-                    preview,
-                    blurhash: blurhash.map(str::to_owned),
-                },
-                VisitedPart::Unknown(_) => Seen::Unknown,
+        content
+            .visit_parts(|part| {
+                seen.push(match part {
+                    VisitedPart::Text { content, format } => Seen::Text(content.to_owned(), format),
+                    VisitedPart::Attachment {
+                        index,
+                        preview,
+                        blurhash,
+                        ..
+                    } => Seen::Att {
+                        index,
+                        preview,
+                        blurhash: blurhash.map(str::to_owned),
+                    },
+                    VisitedPart::Unknown(_) => Seen::Unknown,
+                });
+                Ok(())
             })
-        });
+            .unwrap();
         seen
     }
 

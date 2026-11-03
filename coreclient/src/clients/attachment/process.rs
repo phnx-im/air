@@ -4,21 +4,24 @@
 
 //! Process incoming attachments.
 
-use std::mem;
-
 use aircommon::identifiers::RemoteAttachmentId;
-use mimi_content::{Disposition, content_container::NestedPart};
-use tracing::error;
+use anyhow::bail;
+use mimi_content::content_container::NestedPart;
 
 use super::persistence::PendingAttachmentRecord;
 
 use crate::{
-    AttachmentId, ChatMessage, MimiContentExt,
+    AttachmentId, ChatMessage, MimiContentExt, VisitedPart,
     clients::{
         CoreUser,
         attachment::{AttachmentRecord, persistence::AttachmentStatus},
     },
 };
+
+pub(crate) enum ExtractedAttachment {
+    External(AttachmentRecord, PendingAttachmentRecord),
+    Inline(AttachmentRecord, Vec<u8>),
+}
 
 impl CoreUser {
     /// Extract attachments from message's mimi content and store them as pending.
@@ -28,79 +31,103 @@ impl CoreUser {
     /// But this function also modifies the message's mimi content.
     pub(crate) fn extract_attachments(
         message: &mut ChatMessage,
-    ) -> Vec<(AttachmentRecord, PendingAttachmentRecord)> {
-        let mut records = Vec::new();
-
+    ) -> anyhow::Result<Vec<ExtractedAttachment>> {
         let chat_id = message.chat_id();
         let message_id = message.id();
         let created_at = message.timestamp();
 
         let Some(mimi_content) = message.message_mut().mimi_content_mut() else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
 
-        let visit_res = mimi_content.visit_attachments_mut(|part| {
-            let NestedPart::ExternalPart {
-                url,
-                content_type,
-                size,
-                enc_alg,
-                key,
-                nonce,
-                aad,
-                hash_alg,
-                content_hash,
-                ..
-            } = part
-            else {
-                error!("logic error: part is not an ExternalPart while visiting attachments");
+        let mut records: Vec<ExtractedAttachment> = Vec::new();
+        mimi_content.visit_parts(|part| {
+            let VisitedPart::Attachment { part, .. } = part else {
                 return Ok(());
             };
-
-            let remote_attachment_id: RemoteAttachmentId = match url.parse() {
-                Ok(id) => id,
-                Err(error) => {
-                    error!(%url, %error, "invalid attachment url; dropping attachment");
-                    let _ = mem::replace(
-                        part,
-                        NestedPart::NullPart {
-                            disposition: Disposition::Unspecified,
-                            language: Default::default(),
-                        },
-                    );
-                    return Ok(());
+            match part {
+                NestedPart::SinglePart {
+                    content_type,
+                    content,
+                    ..
+                } => {
+                    let record = AttachmentRecord {
+                        attachment_id: AttachmentId::random(),
+                        remote_attachment_id: None,
+                        chat_id,
+                        message_id,
+                        content_type: content_type.clone(),
+                        status: AttachmentStatus::Ready,
+                        is_animated: None,
+                        created_at,
+                    };
+                    records.push(ExtractedAttachment::Inline(record, content.clone()));
                 }
-            };
-
-            // Note: the encryption data and the hash are moved from the mimi content into
-            // pending attachment record.
-            let record = AttachmentRecord {
-                attachment_id: AttachmentId::random(),
-                remote_attachment_id: Some(remote_attachment_id),
-                chat_id,
-                message_id,
-                content_type: content_type.clone(),
-                status: AttachmentStatus::Pending,
-                is_animated: None,
-                created_at,
-            };
-            let pending_record = PendingAttachmentRecord {
-                remote_attachment_id,
-                size: *size,
-                enc_alg: *enc_alg,
-                enc_key: mem::take(key),
-                nonce: mem::take(nonce),
-                aad: mem::take(aad),
-                hash_alg: *hash_alg,
-                hash: mem::take(content_hash),
-            };
-            records.push((record, pending_record));
-
+                NestedPart::ExternalPart {
+                    content_type,
+                    url,
+                    size,
+                    enc_alg,
+                    key,
+                    nonce,
+                    aad,
+                    hash_alg,
+                    content_hash,
+                    ..
+                } => {
+                    let remote_attachment_id: RemoteAttachmentId = match url.parse() {
+                        Ok(id) => id,
+                        Err(error) => {
+                            bail!("invalid attachment url {url}: {error}");
+                        }
+                    };
+                    let record = AttachmentRecord {
+                        attachment_id: AttachmentId::random(),
+                        remote_attachment_id: Some(remote_attachment_id),
+                        chat_id,
+                        message_id,
+                        content_type: content_type.clone(),
+                        status: AttachmentStatus::Pending,
+                        is_animated: None,
+                        created_at,
+                    };
+                    let pending_record = PendingAttachmentRecord {
+                        remote_attachment_id,
+                        size: *size,
+                        enc_alg: *enc_alg,
+                        enc_key: key.clone(),
+                        nonce: nonce.clone(),
+                        aad: aad.clone(),
+                        hash_alg: *hash_alg,
+                        hash: content_hash.clone(),
+                    };
+                    records.push(ExtractedAttachment::External(record, pending_record));
+                }
+                _ => {
+                    bail!("unexpected part visited as attachment");
+                }
+            }
             Ok(())
-        });
-        if let Err(error) = visit_res {
-            error!(%error, "Failed to visit attachment; continue");
-        }
-        records
+        })?;
+
+        // Strip key/nonce/hash/aad from the message
+        mimi_content.visit_external_parts_mut(|part| {
+            if let NestedPart::ExternalPart {
+                key,
+                nonce,
+                content_hash,
+                aad,
+                ..
+            } = part
+            {
+                key.clear();
+                nonce.clear();
+                content_hash.clear();
+                aad.clear();
+            }
+            Ok(())
+        })?;
+
+        Ok(records)
     }
 }

@@ -5,7 +5,7 @@
 //! Deleting messages for everyone: replies, receipts, edits, attachments and
 //! groups.
 
-use aircoreclient::{ChatMessage, MimiContentExt, clients::MarkChatAsRead};
+use aircoreclient::{ChatMessage, MimiContentExt, VisitedPart, clients::MarkChatAsRead};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use mimi_content::{MessageStatus, MimiContent};
 
@@ -489,8 +489,10 @@ async fn deleted_message_drops_attachment_records() {
                 m.message()
                     .mimi_content()
                     .unwrap()
-                    .visit_attachments(|_| {
-                        has_attachment = true;
+                    .visit_parts(|part| {
+                        if let VisitedPart::Attachment { .. } = part {
+                            has_attachment = true;
+                        }
                         Ok(())
                     })
                     .unwrap();
@@ -521,8 +523,10 @@ async fn deleted_message_drops_attachment_records() {
                 m.message()
                     .mimi_content()
                     .unwrap()
-                    .visit_attachments(|_| {
-                        has_attachment = true;
+                    .visit_parts(|part| {
+                        if let VisitedPart::Attachment { .. } = part {
+                            has_attachment = true;
+                        }
                         Ok(())
                     })
                     .unwrap();

@@ -4,11 +4,7 @@
 
 use aircommon::identifiers::UserId;
 use airprotos::client::self_group::SelfGroupAppMessage;
-use anyhow::ensure;
-use mimi_content::{
-    MimiContent,
-    content_container::{NestedPart, PartSemantics},
-};
+use mimi_content::{MimiContent, content_container::NestedPart};
 use openmls::group::GroupId;
 
 mod walk;
@@ -16,16 +12,26 @@ mod walk;
 pub trait MimiContentExt {
     fn mimi_id(&self, sender: &UserId, group_id: &GroupId) -> anyhow::Result<Vec<u8>>;
 
-    fn visit_parts<'a>(&'a self, visitor: impl FnMut(VisitedPart<'a>));
-
-    fn visit_attachments(
-        &self,
-        visitor: impl FnMut(&NestedPart) -> anyhow::Result<()>,
+    /// Visits the parts of the body a client acts on, depth-first.
+    ///
+    /// Containers follow their part semantics: `processAll` visits all children, `chooseOne` only
+    /// the alternative that can be shown best, and `singleUnit` all children or, if any of them
+    /// can't be shown, a single `Unknown` for the whole unit. Parts with disposition `reaction`,
+    /// `icon` or `profile` are not visited.
+    ///
+    /// Attachment indices count the visited attachments, starting at 0 in visit order.
+    ///
+    /// Stops at the first error of `visitor` and returns it.
+    fn visit_parts<'a>(
+        &'a self,
+        visitor: impl FnMut(VisitedPart<'a>) -> anyhow::Result<()>,
     ) -> anyhow::Result<()>;
 
-    fn visit_attachments_mut(
+    /// Calls `f` on every `ExternalPart` in the tree, regardless of semantics
+    /// and selection.
+    fn visit_external_parts_mut(
         &mut self,
-        visitor: impl FnMut(&mut NestedPart) -> anyhow::Result<()>,
+        f: impl FnMut(&mut NestedPart) -> anyhow::Result<()>,
     ) -> anyhow::Result<()>;
 
     /// The self-group application message this content carries, if any.
@@ -64,22 +70,18 @@ impl MimiContentExt for MimiContent {
         Ok(self.message_id(sender.to_bytes()?.as_slice(), group_id.as_slice())?)
     }
 
-    fn visit_parts<'a>(&'a self, mut visitor: impl FnMut(VisitedPart<'a>)) {
-        walk::walk(&self.nested_part, &mut visitor);
-    }
-
-    fn visit_attachments(
-        &self,
-        mut visitor: impl FnMut(&NestedPart) -> anyhow::Result<()>,
+    fn visit_parts<'a>(
+        &'a self,
+        mut visitor: impl FnMut(VisitedPart<'a>) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
-        visit_attachments_impl(&self.nested_part, &mut visitor, 0)
+        walk::walk(&self.nested_part, &mut visitor)
     }
 
-    fn visit_attachments_mut(
+    fn visit_external_parts_mut(
         &mut self,
-        mut visitor: impl FnMut(&mut NestedPart) -> anyhow::Result<()>,
+        mut f: impl FnMut(&mut NestedPart) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
-        visit_attachments_mut_impl(&mut self.nested_part, &mut visitor, 0)
+        visit_external_parts_mut_impl(&mut self.nested_part, &mut f)
     }
 
     fn self_group_message(&self) -> Option<SelfGroupAppMessage> {
@@ -87,62 +89,18 @@ impl MimiContentExt for MimiContent {
     }
 }
 
-const MAX_RECURSION_DEPTH: usize = 3;
-
-fn visit_attachments_impl(
-    part: &NestedPart,
-    visitor: &mut impl FnMut(&NestedPart) -> anyhow::Result<()>,
-    recursion_depth: usize,
-) -> anyhow::Result<()> {
-    ensure!(
-        recursion_depth < MAX_RECURSION_DEPTH,
-        "Failed to handle attachment due to maximum recursion depth reached"
-    );
-
-    match &part {
-        external_part @ NestedPart::ExternalPart { .. } => {
-            visitor(external_part)?;
-        }
-        NestedPart::MultiPart {
-            part_semantics: PartSemantics::ProcessAll,
-            parts,
-            ..
-        } => {
-            for part in parts {
-                visit_attachments_impl(part, visitor, recursion_depth + 1)?;
-            }
-        }
-        _ => (),
-    }
-
-    Ok(())
-}
-
-fn visit_attachments_mut_impl(
+fn visit_external_parts_mut_impl(
     part: &mut NestedPart,
-    visitor: &mut impl FnMut(&mut NestedPart) -> anyhow::Result<()>,
-    recursion_depth: usize,
+    f: &mut impl FnMut(&mut NestedPart) -> anyhow::Result<()>,
 ) -> anyhow::Result<()> {
-    ensure!(
-        recursion_depth < MAX_RECURSION_DEPTH,
-        "Failed to handle attachment due to maximum recursion depth reached"
-    );
-
     match part {
-        external_part @ NestedPart::ExternalPart { .. } => {
-            visitor(external_part)?;
-        }
-        NestedPart::MultiPart {
-            part_semantics: PartSemantics::ProcessAll,
-            parts,
-            ..
-        } => {
+        NestedPart::NullPart { .. } | NestedPart::SinglePart { .. } => Ok(()),
+        NestedPart::ExternalPart { .. } => f(part),
+        NestedPart::MultiPart { parts, .. } => {
             for part in parts {
-                visit_attachments_mut_impl(part, visitor, recursion_depth + 1)?;
+                visit_external_parts_mut_impl(part, f)?;
             }
+            Ok(())
         }
-        _ => (),
     }
-
-    Ok(())
 }
