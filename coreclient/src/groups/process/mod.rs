@@ -369,8 +369,8 @@ impl Group {
         // Processing a commit in this group proves the group is in sync, so
         // this also clears a `failed` entry
         Resync::remove(&mut *txn, group_id).await?;
-        if let Some(pending_chat_operation) =
-            PendingChatOperation::load_by_group_id(&mut *txn, group_id).await?
+        if let Some(operation) =
+            PendingChatOperation::load_operation_by_group_id(&mut *txn, group_id).await?
         {
             let commit_contains_our_self_remove = staged_commit.queued_proposals().any(|p| {
                 let Sender::Member(proposal_sender_index) = p.sender() else {
@@ -379,8 +379,8 @@ impl Group {
                 matches!(p.proposal(), Proposal::SelfRemove)
                     && proposal_sender_index == &self.mls_group().own_leaf_index()
             });
-            if !pending_chat_operation.is_leave() || commit_contains_our_self_remove {
-                pending_chat_operation.discard(txn).await?;
+            if !operation.is_leave() || commit_contains_our_self_remove {
+                PendingChatOperation::discard(txn, group_id, &operation).await?;
             }
         }
         Ok(())
