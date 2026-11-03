@@ -178,7 +178,7 @@ impl Chat {
         Self {
             id: ChatId::try_from(&group_id).unwrap(),
             group_id,
-            last_read: Utc::now(),
+            last_read: DateTime::UNIX_EPOCH,
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::PendingConnection(user_id),
