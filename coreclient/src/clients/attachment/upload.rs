@@ -45,18 +45,17 @@ use url::Url;
 use crate::{
     AttachmentContent, AttachmentId, AttachmentProgressEvent, AttachmentStatus,
     AttachmentThumbnail, AttachmentUrl, Chat, ChatId, ChatMessage, ContentMessage, MessageId,
+    MimiContentExt,
     clients::{
         CoreUser, MarkChatAsRead,
         attachment::{
             AttachmentBytes, AttachmentRecord,
             aead::{AIR_ATTACHMENT_ENCRYPTION_ALG, AIR_ATTACHMENT_HASH_ALG},
-            content::MimiContentExt,
             progress::{AttachmentProgress, AttachmentProgressSender},
             thumbnail::store_thumbnail,
         },
     },
-    groups::Group,
-    groups::persistence::GroupRef,
+    groups::{Group, persistence::GroupRef},
     utils::image::{
         ImageProcessingCancellation, ReencodedAttachmentImage, encode_source_thumbnail,
         probe_attachment_image, reencode_attachment_image,

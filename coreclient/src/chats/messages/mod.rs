@@ -19,6 +19,7 @@ use crate::{
 
 use super::*;
 
+pub(crate) mod content;
 pub(crate) mod edit;
 mod event_id;
 pub(crate) mod persistence;

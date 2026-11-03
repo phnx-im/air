@@ -41,7 +41,7 @@ use tls_codec::DeserializeBytes;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    ChatAttributes, ChatMessage, ChatStatus, Message, StoredRequest, SystemMessage,
+    ChatAttributes, ChatMessage, ChatStatus, Message, MimiContentExt, StoredRequest, SystemMessage,
     chats::{
         GroupDataExt, StatusRecord,
         messages::{
@@ -53,7 +53,6 @@ use crate::{
         request_expiry,
     },
     clients::{
-        attachment::MimiContentExt,
         block_contact::{BlockedContact, BlockedContactError},
         own_client_info::{OwnClientInfo, UnlinkReason},
         process::process_as::{ConnectionInfoSource, TargetedMessageSource},

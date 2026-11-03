@@ -6,7 +6,6 @@ use std::{collections::HashMap, fmt, str::FromStr};
 
 use aircommon::identifiers::{RemoteAttachmentId, RemoteAttachmentIdParseError};
 use chrono::{DateTime, Utc};
-pub use content::MimiContentExt;
 pub(crate) use persistence::AttachmentRecord;
 pub use persistence::{AttachmentContent, AttachmentStatus};
 use thiserror::Error;
@@ -20,7 +19,6 @@ use uuid::Uuid;
 use crate::{ChatId, MessageId, clients::CoreUser, image_is_animated};
 
 mod aead;
-mod content;
 mod download;
 pub(crate) mod persistence;
 mod process;

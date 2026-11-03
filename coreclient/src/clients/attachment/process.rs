@@ -10,10 +10,10 @@ use aircommon::identifiers::RemoteAttachmentId;
 use mimi_content::{Disposition, content_container::NestedPart};
 use tracing::error;
 
-use super::{content::MimiContentExt, persistence::PendingAttachmentRecord};
+use super::persistence::PendingAttachmentRecord;
 
 use crate::{
-    AttachmentId, ChatMessage,
+    AttachmentId, ChatMessage, MimiContentExt,
     clients::{
         CoreUser,
         attachment::{AttachmentRecord, persistence::AttachmentStatus},

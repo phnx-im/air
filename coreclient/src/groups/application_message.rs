@@ -23,7 +23,8 @@ use openmls_traits::signatures::Signer;
 use sha2::Sha256;
 
 use crate::{
-    clients::{attachment::MimiContentExt, targeted_message::TargetedMessageContent},
+    MimiContentExt,
+    clients::targeted_message::TargetedMessageContent,
     groups::{
         Group,
         error::{GroupOperationError, TargetedMessageError},
