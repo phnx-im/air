@@ -18,6 +18,9 @@ import 'package:air/util/frame.dart';
 import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/components/scroll/edge_fade.dart';
+import 'package:air/ds/patterns/system_message/system_message.dart';
+import 'package:air/ds/patterns/system_message/system_message_tokens.dart';
+import 'package:air/l10n/l10n.dart';
 
 import 'package:air/features/message_list/message_list_fade_tokens.dart';
 import 'package:air/features/message_list/message_row_container.dart';
@@ -444,6 +447,19 @@ class _MessageListViewState extends State<MessageListView>
         ),
       );
 
+      if (state.isEmptyChat) {
+        list = Stack(
+          children: [
+            list,
+            Positioned.fill(
+              top: topInset,
+              bottom: bottomPadding,
+              child: const Center(child: _EmptyChat()),
+            ),
+          ],
+        );
+      }
+
       // On mobile, we want to dismiss the keyboard by tapping anywhere in the
       // list, except when tapping interactive elements like e.g. links.
       if (DeviceType.isPhone) {
@@ -741,6 +757,22 @@ final Duration _animationWindow = Effect.duration(MotionPreset.long);
 /// Delay between scroll settling and the floating date header fading out,
 /// so the label remains briefly readable after the user stops scrolling.
 final Duration _floatingHeaderHideDelay = Effect.duration(MotionPreset.long);
+
+/// Placeholder for empty chats.
+class _EmptyChat extends StatelessWidget {
+  const _EmptyChat();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: S.s16),
+      child: SystemMessage(
+        tokens: SystemMessageTokens.current,
+        label: AppLocalizations.of(context).messageList_empty,
+      ),
+    );
+  }
+}
 
 /// Owns a [MessageCubit] for a single message tile.
 ///

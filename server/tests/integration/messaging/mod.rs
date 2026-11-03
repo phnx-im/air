@@ -13,6 +13,7 @@ mod processing;
 mod reactions;
 mod receipts;
 mod send;
+mod system_messages;
 
 use aircoreclient::{MessageId, clients::CoreUser};
 use airserver_test_harness::utils::core_user_ext::CoreUserExt;

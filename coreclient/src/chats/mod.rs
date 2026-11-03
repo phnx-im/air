@@ -178,7 +178,7 @@ impl Chat {
         Self {
             id: ChatId::try_from(&group_id).unwrap(),
             group_id,
-            last_read: Utc::now(),
+            last_read: DateTime::UNIX_EPOCH,
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::PendingConnection(user_id),
@@ -208,6 +208,18 @@ impl Chat {
             self.chat_type,
             ChatType::HandleConnection(_) | ChatType::TargetedMessageConnection(_)
         )
+    }
+
+    pub fn is_open_request(&self) -> bool {
+        if self.status.is_inactive() {
+            return false;
+        }
+        match self.chat_type {
+            ChatType::PendingConnection(_)
+            | ChatType::HandleConnection(_)
+            | ChatType::TargetedMessageConnection(_) => true,
+            ChatType::Connection(_) | ChatType::Group(_) => false,
+        }
     }
 
     pub fn status(&self) -> &ChatStatus {

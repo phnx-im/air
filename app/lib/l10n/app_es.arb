@@ -470,6 +470,7 @@
   "memberSelectionList_cantBeAddedDescription": "No se puede añadir a estas personas al grupo. Puede que su cuenta ya no esté activa o que su versión de la app sea demasiado antigua.",
   "homeTab_chats": "Chats",
   "homeTab_profile": "Tú",
+  "messageList_empty": "No hay mensajes en este chat",
   "messageList_newMessages": "Mensajes nuevos",
   "messageList_reactions_react": "Reaccionar",
   "messageList_reactions_remove": "Quitar",

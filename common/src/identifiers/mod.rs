@@ -18,6 +18,7 @@ use crate::crypto::{
 };
 
 pub use attachment::{RemoteAttachmentId, RemoteAttachmentIdParseError};
+pub use event_id::EventId;
 pub use mimi_id::{MimiId, MimiIdCalculationError};
 pub use tls_codec_impls::{TlsStr, TlsString};
 pub use username::{
@@ -28,6 +29,7 @@ pub use username::{
 use super::*;
 
 mod attachment;
+mod event_id;
 mod mimi_id;
 mod tls_codec_impls;
 mod username;
