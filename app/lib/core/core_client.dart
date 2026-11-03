@@ -76,6 +76,20 @@ class CoreClient {
     _user = null;
   }
 
+  /// Deletes the database of an account other than the loaded one.
+  Future<void> deleteUnloadedDatabase(UuidValue clientRecordId) async {
+    if (clientRecordId == _user?.clientRecordId) {
+      throw StateError(
+        'Refusing to delete the database of the loaded user $clientRecordId, '
+        'use deleteCurrentDatabase instead',
+      );
+    }
+    await deleteUnloadedClientDatabase(
+      dbPath: await dbPath(),
+      clientRecordId: clientRecordId,
+    );
+  }
+
   // used in app initialization
   Future<void> loadDefaultUser() async {
     user = await User.loadDefault(path: await dbPath())

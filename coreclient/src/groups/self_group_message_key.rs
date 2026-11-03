@@ -31,10 +31,7 @@ use aircommon::{
         },
         kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
     },
-    messages::{
-        client_ds::{AadMessage, AadPayload, GroupOperationParamsAad},
-        client_ds_out::ApqGroupOperationParamsOut,
-    },
+    messages::{client_ds::AadMessage, client_ds_out::ApqGroupOperationParamsOut},
 };
 use airprotos::client::{
     app_data::GroupAppData,
@@ -223,10 +220,7 @@ impl Group {
         proposal: Proposal,
     ) -> Result<ApqGroupOperationParamsOut> {
         // Set the AAD for a group operation without any added users.
-        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
-            new_encrypted_user_profile_keys: Vec::new(),
-        }))
-        .tls_serialize_detached()?;
+        let aad = AadMessage::empty_group_operation().tls_serialize_detached()?;
         self.mls_group.set_aad(aad);
 
         let provider = AirOpenMlsProvider::new(txn.as_mut());

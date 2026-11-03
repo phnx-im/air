@@ -3295,7 +3295,7 @@
         },
         {
           "name": "pulldown-cmark",
-          "version": "0.13.5",
+          "version": "0.13.6",
           "repository": "https://github.com/raphlinus/pulldown-cmark"
         }
       ]
@@ -3358,7 +3358,7 @@
       "used_by": [
         {
           "name": "combine",
-          "version": "4.6.7",
+          "version": "4.6.9",
           "repository": "https://github.com/Marwes/combine"
         }
       ]

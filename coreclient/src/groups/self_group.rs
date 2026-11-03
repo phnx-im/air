@@ -10,10 +10,7 @@ use aircommon::{
         keys::{LeafSigningKey, SelfGroupSigningKey},
     },
     crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
-    messages::{
-        client_ds::{AadMessage, AadPayload, GroupOperationParamsAad},
-        client_ds_out::ApqGroupOperationParamsOut,
-    },
+    messages::{client_ds::AadMessage, client_ds_out::ApqGroupOperationParamsOut},
     time::TimeStamp,
 };
 use airprotos::client::{
@@ -169,10 +166,7 @@ impl SelfGroup {
         t_mls_group.set_safe_aad(vec![commit_data.to_safe_aad_item()?])?;
 
         // Regular AAD tail (required by DS commit validation)
-        let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
-            new_encrypted_user_profile_keys: Vec::new(),
-        });
-        let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
+        let aad = AadMessage::empty_group_operation().tls_serialize_detached()?;
         t_mls_group.set_aad(aad);
 
         let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
@@ -228,10 +222,7 @@ impl SelfGroup {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
         let (t_mls_group, pq_mls_group) = self.group.apq_mls_groups_mut()?;
 
-        let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
-            new_encrypted_user_profile_keys: Vec::new(),
-        });
-        let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
+        let aad = AadMessage::empty_group_operation().tls_serialize_detached()?;
         t_mls_group.set_aad(aad);
 
         let mut builder =

@@ -196,13 +196,7 @@ pub(super) fn ensure_room_state_users_are_members(
     room_state: &VerifiedRoomState,
     mls_group: &MlsGroup,
 ) -> anyhow::Result<()> {
-    let mut members = HashSet::new();
-    for member in mls_group.members() {
-        let identity = LeafCredential::from_credential(&member.credential)?
-            .room_policy_identity()
-            .to_bytes()?;
-        members.insert(identity);
-    }
+    let members = member_identities(mls_group)?;
     let users = room_state.users();
     ensure!(
         users.keys().all(|identity| members.contains(identity)),
@@ -243,14 +237,7 @@ pub(super) fn ensure_room_state_matches_members(
     room_state: &VerifiedRoomState,
     mls_group: &MlsGroup,
 ) -> anyhow::Result<()> {
-    let mut members = HashSet::new();
-    for member in mls_group.members() {
-        let identity = LeafCredential::from_credential(&member.credential)?
-            .room_policy_identity()
-            .to_bytes()?;
-        members.insert(identity);
-    }
-
+    let members = member_identities(mls_group)?;
     let users: HashSet<_> = room_state.users().keys().cloned().collect();
     ensure!(
         users.is_subset(&members),
@@ -261,4 +248,15 @@ pub(super) fn ensure_room_state_matches_members(
         "room state is missing group members"
     );
     Ok(())
+}
+
+fn member_identities(mls_group: &MlsGroup) -> anyhow::Result<HashSet<Vec<u8>>> {
+    let mut members = HashSet::new();
+    for member in mls_group.members() {
+        let identity = LeafCredential::from_credential(&member.credential)?
+            .room_policy_identity()
+            .to_bytes()?;
+        members.insert(identity);
+    }
+    Ok(members)
 }

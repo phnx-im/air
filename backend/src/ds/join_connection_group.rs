@@ -37,9 +37,7 @@ use crate::errors::CborMlsAssistStorage;
 
 use super::{
     apq::ApqExternalCommit,
-    group_state::{
-        DsGroupState, MemberProfile, SelfRemoveCheckError, leaf_credential_matches_flag,
-    },
+    group_state::{DsGroupState, MemberProfile, SelfRemoveCheckError, leaf_credential_is_valid},
 };
 
 /// Reject any proposal an external commit joining a connection group must not
@@ -114,7 +112,7 @@ impl DsGroupState {
     ///
     /// With `bootstrap_requested`, the joiner's sibling emulator clients get an
     /// echo of the operation, so the joining leaf must be a virtual-client leaf
-    /// and the pre-commit state is staged as an epoch snapshot for them.
+    /// and the pre-commit state is stored at the epoch after the join.
     pub(super) fn join_connection_group(
         &mut self,
         external_commit: AssistedMessageIn,
@@ -155,7 +153,7 @@ impl DsGroupState {
             JoinConnectionGroupError::InvalidMessage("update path leaf node not found"),
         )?;
         let joiner_credential = LeafCredential::from_credential(joiner_leaf.credential())?;
-        self.validate_connection_group_join(staged_commit, &joiner_credential, false)?;
+        self.validate_connection_group_join(staged_commit, &joiner_credential, joiner_leaf, false)?;
         if bootstrap_requested {
             validate_virtual_client_leaf(joiner_leaf)?;
         }
@@ -165,8 +163,7 @@ impl DsGroupState {
 
         // The siblings apply the commit on top of the state the joiner used, so
         // capture it before the commit is accepted.
-        let staged_snapshot =
-            bootstrap_requested.then(|| (self.group().epoch(), self.epoch_snapshot()));
+        let staged_snapshot = bootstrap_requested.then(|| self.epoch_snapshot());
 
         let retained_welcome_info = self.group.accept_processed_message(
             self.provider.storage(),
@@ -177,7 +174,8 @@ impl DsGroupState {
         self.stage_welcome_info(retained_welcome_info);
 
         let message = processed_assisted_message_plus.serialized_mls_message;
-        let snapshot_epoch = staged_snapshot.map(|(epoch, snapshot)| {
+        let snapshot_epoch = staged_snapshot.map(|snapshot| {
+            let epoch = self.group().epoch();
             self.stage_epoch_snapshot(epoch, snapshot.with_join_commit(&message));
             epoch
         });
@@ -220,7 +218,7 @@ impl DsGroupState {
         // self-remove proposal.
         t.ensure_self_removes_committed(t_staged_commit)?;
         pq.ensure_self_removes_committed(pq_staged_commit)?;
-        t.validate_connection_group_join(t_staged_commit, &joiner_credential, true)?;
+        t.validate_connection_group_join(t_staged_commit, &joiner_credential, t_new_leaf, true)?;
         validate_join_proposals(pq_staged_commit, true)?;
         if bootstrap_requested {
             // The legs share a signature key, but being a virtual client is a
@@ -233,11 +231,10 @@ impl DsGroupState {
         // The siblings apply both commits on top of the state the joiner used,
         // so capture it before the commits are accepted.
         let staged_snapshot = bootstrap_requested.then(|| {
-            let snapshot = t.epoch_snapshot().with_pq_leg(
+            t.epoch_snapshot().with_pq_leg(
                 pq.group().group_info().clone(),
                 pq.group().export_ratchet_tree(),
-            );
-            (t.group().epoch(), snapshot)
+            )
         });
 
         let ApqRetainedWelcomeInfo {
@@ -256,7 +253,8 @@ impl DsGroupState {
 
         let t_serialized_message = processed_assisted_message_plus.t_serialized_message;
         let pq_serialized_message = processed_assisted_message_plus.pq_serialized_message;
-        let snapshot_epoch = staged_snapshot.map(|(epoch, snapshot)| {
+        let snapshot_epoch = staged_snapshot.map(|snapshot| {
+            let epoch = t.group().epoch();
             t.stage_epoch_snapshot(
                 epoch,
                 snapshot.with_apq_join_commits(&t_serialized_message, &pq_serialized_message),
@@ -275,6 +273,7 @@ impl DsGroupState {
         &self,
         staged_commit: &StagedCommit,
         joiner_credential: &LeafCredential,
+        joiner_leaf: &LeafNode,
         apq: bool,
     ) -> Result<(), JoinConnectionGroupError> {
         validate_join_proposals(staged_commit, apq)?;
@@ -283,9 +282,13 @@ impl DsGroupState {
                 "connection group must not be a self-group",
             ));
         }
-        if !leaf_credential_matches_flag(joiner_credential, false) {
+        if !leaf_credential_is_valid(
+            joiner_credential,
+            joiner_leaf.signature_key().as_slice(),
+            false,
+        ) {
             return Err(JoinConnectionGroupError::InvalidMessage(
-                "connection group joiner must carry a user credential",
+                "connection group joiner must carry a user credential binding its leaf key",
             ));
         }
         Ok(())
