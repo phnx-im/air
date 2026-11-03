@@ -72,9 +72,9 @@ pub struct EpochSnapshotIn {
     pub room_state: VerifiedRoomState,
     /// Present iff the snapshot is of an APQ group.
     pub pq: Option<PqEpochSnapshotIn>,
-    /// The external commit accepted at this epoch, present iff the snapshot
-    /// was written at an external join. A sibling of the joiner applies it on
-    /// top of the snapshot state. For an APQ join this is the T leg's commit.
+    /// The external commit that leads to the snapshot's epoch, present iff the snapshot was written
+    /// at an external join. A sibling of the joiner applies it on top of the snapshot state. For an
+    /// APQ join this is the T leg's commit.
     pub join_commit: Option<MlsMessageIn>,
 }
 
