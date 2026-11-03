@@ -302,7 +302,7 @@ async fn run_protocol_impl(
     outgoing: &mpsc::Sender<Result<CreateGroupV2Response, Status>>,
 ) -> Result<Outcome, StreamError> {
     let settings = backend.settings();
-    let deadline = settings.createdeadline.to_std().unwrap_or_default();
+    let deadline = settings.create_deadline.to_std().unwrap_or_default();
 
     // As on the listen streams, the wait for the first step has no deadline.
     // The stream holds no slot and no allowance until Prepare is authenticated.
@@ -364,8 +364,8 @@ async fn admit(
 
     let slot = streams.acquire(
         &creator.user_id,
-        settings.createstreams,
-        settings.createstreamsperuser,
+        settings.create_streams,
+        settings.create_streams_per_user,
     )?;
 
     // Counts even if the stream fails later, so that failing at the create
@@ -1007,11 +1007,11 @@ mod tests {
         let mut backend = FakeBackend::new();
         let (user_id, signing_key) = backend.register();
         let streams = CreateGroupStreams::default();
-        let max_per_user = backend.settings.createstreamsperuser;
+        let max_per_user = backend.settings.create_streams_per_user;
         let mut held = Vec::new();
         for _ in 0..max_per_user {
             let slot = streams
-                .acquire(&user_id, backend.settings.createstreams, max_per_user)
+                .acquire(&user_id, backend.settings.create_streams, max_per_user)
                 .unwrap();
             held.push(slot);
         }
@@ -1042,7 +1042,7 @@ mod tests {
     #[tokio::test]
     async fn prepare_at_the_process_limit_is_rejected_after_authentication() {
         let mut backend = FakeBackend::new();
-        backend.settings.createstreams = 1;
+        backend.settings.create_streams = 1;
         let (user_id, signing_key) = backend.register();
         let (other_user_id, _) = backend.register();
         let streams = CreateGroupStreams::default();
@@ -1111,7 +1111,7 @@ mod tests {
         let mut backend = FakeBackend::new();
         let (user_id, signing_key) = backend.register();
         let streams = CreateGroupStreams::default();
-        let max_per_user = backend.settings.createstreamsperuser;
+        let max_per_user = backend.settings.create_streams_per_user;
 
         // Every stream reserves and then waits for its create step until the
         // client side is dropped.

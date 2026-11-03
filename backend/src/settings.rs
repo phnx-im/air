@@ -290,28 +290,28 @@ impl Default for RelaySettings {
 
 /// Bounds of the delivery service.
 ///
-/// Field names carry no underscores, because environment overrides split on
-/// them (`AIR_DS_CREATEDEADLINE`).
+/// Environment variables cannot override these fields, because environment
+/// overrides split on the underscores in their names.
 #[derive(Debug, Deserialize, Clone)]
 pub struct DsSettings {
     /// How long a group creation stream may take from its prepare step to its
     /// create step.
     #[serde(default = "default_5min", with = "duration_seconds")]
-    pub createdeadline: Duration,
+    pub create_deadline: Duration,
     /// Open group creation streams one user may have at a time.
     #[serde(default = "default_create_streams_per_user")]
-    pub createstreamsperuser: usize,
+    pub create_streams_per_user: usize,
     /// Authenticated group creation streams this process accepts at a time.
     #[serde(default = "default_create_streams")]
-    pub createstreams: usize,
+    pub create_streams: usize,
 }
 
 impl Default for DsSettings {
     fn default() -> Self {
         Self {
-            createdeadline: default_5min(),
-            createstreamsperuser: default_create_streams_per_user(),
-            createstreams: default_create_streams(),
+            create_deadline: default_5min(),
+            create_streams_per_user: default_create_streams_per_user(),
+            create_streams: default_create_streams(),
         }
     }
 }
