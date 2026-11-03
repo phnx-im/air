@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                    created_at AS \"created_at: TimeStamp\",\n                    content AS \"content: BlobDecoded<VersionedMessage>\"\n                FROM message_edit\n                WHERE message_id = ?\n                ORDER BY created_at, rowid",
+  "describe": {
+    "columns": [
+      {
+        "name": "created_at: TimeStamp",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "message_edit",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "content: BlobDecoded<VersionedMessage>",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message_edit",
+            "name": "content"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "a1728c5e88cbd40fbdad694b7c3e2d66c20e40676cb468c094ff805fc79a511b"
+}

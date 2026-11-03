@@ -1284,7 +1284,8 @@ pub(crate) mod tests {
     use sqlx::SqlitePool;
 
     use crate::{
-        ContentMessage, Message, MessageId, SystemMessage, chats::persistence::tests::test_chat,
+        Chat, ContentMessage, Message, MessageId, SystemMessage,
+        chats::persistence::tests::test_chat,
         clients::attachment::persistence::test::test_attachment_record, db::access::DbAccess,
     };
 
@@ -1334,6 +1335,29 @@ pub(crate) mod tests {
             event_mimi_id: None,
             reactions: IndexMap::new(),
         }
+    }
+
+    /// Stores a content message by `sender` with the text `v0`.
+    pub(crate) async fn store_test_chat_message(
+        pool: &DbAccess,
+        chat: &Chat,
+        sender: &UserId,
+        sent: bool,
+        sent_at: TimeStamp,
+    ) -> anyhow::Result<ChatMessage> {
+        let message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            sent_at,
+            ContentMessage::new(
+                sender.clone(),
+                sent,
+                MimiContent::simple_markdown_message("v0".to_owned(), [0; 16]),
+                chat.group_id(),
+            ),
+        );
+        message.store(pool.write().await?).await?;
+        Ok(message)
     }
 
     #[sqlx::test]

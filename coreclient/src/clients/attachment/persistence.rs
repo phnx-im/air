@@ -970,9 +970,7 @@ pub(crate) mod test {
     }
 
     #[sqlx::test]
-    async fn exists_by_remote_id_reflects_stored_records(
-        pool: Pool<Sqlite>,
-    ) -> anyhow::Result<()> {
+    async fn exists_by_remote_id_reflects_stored_records(pool: Pool<Sqlite>) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
         let chat = test_chat();
         chat.store(pool.write().await?).await?;

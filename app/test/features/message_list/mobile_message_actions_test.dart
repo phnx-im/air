@@ -11,6 +11,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/features/message_list/message_details.dart';
 import 'package:air/features/message_list/message_list_view.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/message_list/message_cubit.dart';
@@ -242,6 +243,40 @@ void main() {
         matchesGoldenFile('goldens/message_list_mobile_actions.png'),
       );
     });
+
+    testWidgets(
+      'Info opens the details with the message as the chat shows it',
+      (tester) async {
+        tester.view.physicalSize = _testSize;
+        addTearDown(tester.view.resetPhysicalSize);
+        final message = _mobileMessages[3];
+        final content = (message.message as UiMessage_Content).field0.content;
+        when(
+          () => chatDetailsCubit.messageVersions(messageId: message.id),
+        ).thenAnswer(
+          (_) async => [
+            UiMessageVersion(content: content, createdAt: message.timestamp),
+          ],
+        );
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+        await tester.longPress(find.text('How are you doing?'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Info'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Message details'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(MessageDetailsView),
+            matching: find.text('How are you doing?'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Edit history'), findsNothing);
+      },
+    );
 
     testWidgets('defers a picked reaction until the overlay is dismissed', (
       tester,

@@ -79,6 +79,33 @@ async fn edit_of_unsent_message_is_delivered() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn edit_history_is_the_same_for_sender_and_receiver() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    alice.drain().await;
+    bob.drain().await;
+
+    let message = alice.send_text(chat_id, "v0").await;
+    let message = alice.send_edit(&message, "v1").await;
+    alice.send_edit(&message, "v2").await;
+    bob.drain().await;
+
+    let alice_versions = alice.message_versions(message.id()).await.unwrap();
+    let bob_message = bob.expect_last_message(chat_id).await;
+    let bob_versions = bob.message_versions(bob_message.id()).await.unwrap();
+
+    let texts: Vec<_> = alice_versions
+        .iter()
+        .map(|version| version.content.string_rendering().unwrap())
+        .collect();
+    assert_eq!(texts, ["v0", "v1", "v2"]);
+    // Both sides stamp each version with its DS timestamp.
+    assert_eq!(alice_versions, bob_versions);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn stale_read_receipt_does_not_apply_to_edited_message() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;

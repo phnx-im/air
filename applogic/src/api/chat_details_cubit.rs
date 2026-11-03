@@ -29,7 +29,7 @@ use crate::{
     StreamSink,
     api::{
         message_content::{UiMimiId, UnresolvedMimiContent},
-        types::{UiChatMessage, UiInReplyToMessage},
+        types::{UiChatMessage, UiInReplyToMessage, UiMessageVersion},
     },
     mark_as_read::MarkAsReadState,
 };
@@ -586,6 +586,16 @@ impl ChatDetailsCubitBase {
         }
 
         Ok(())
+    }
+
+    /// Loads all versions of a message, oldest first, ending with the current
+    /// one.
+    pub async fn message_versions(
+        &self,
+        message_id: MessageId,
+    ) -> anyhow::Result<Vec<UiMessageVersion>> {
+        let versions = self.context.core_user.message_versions(message_id).await?;
+        Ok(versions.into_iter().map(From::from).collect())
     }
 
     pub async fn reply_to_message(&self, message_id: MessageId) -> anyhow::Result<()> {

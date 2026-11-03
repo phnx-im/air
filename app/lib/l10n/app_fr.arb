@@ -350,6 +350,12 @@
   "messageContextMenu_delete": "Supprimer",
   "messageContextMenu_save": "Enregistrer",
   "messageContextMenu_share": "Partager",
+  "messageContextMenu_info": "Infos",
+  "messageDetails_title": "Détails du message",
+  "messageDetails_sent": "Envoyé le {date} à {time}",
+  "messageDetails_edited": "Modifié le {date} à {time}",
+  "messageDetails_editHistory": "Historique des modifications",
+  "messageDetails_error": "Échec du chargement des détails du message. Veuillez réessayer.",
   "messageContextMenu_saveError": "Échec de l'enregistrement de la pièce jointe",
   "messageContextMenu_saveConfirmation": "Pièce jointe enregistrée",
 
