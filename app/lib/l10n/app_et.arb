@@ -3,6 +3,7 @@
   "languageName": "Eesti",
   "userSettingsScreen_title": "Profiil ja seaded",
   "userSettingsScreen_profileDescription": "Su kuvanimi ja profiilipilt on nähtavad su Airi kontaktidele ja nende gruppide liikmetele, kuhu sa kuulud.",
+  "userSettingsScreen_error_updateProfile": "Profiili uuendamine ebaõnnestus",
   "userSettingsScreen_userNamesDescription": "Jaga kasutajanimesid kõigiga, kellega soovid ühendust võtta. Kasutajanimed ei ole teistele nähtavad, isegi mitte su Airi kontaktidele. Sul võib olla kuni 5 kasutajanime.",
   "userSettingsScreen_help": "Abi",
   "userSettingsScreen_deleteAccount": "Kustuta Airi konto",

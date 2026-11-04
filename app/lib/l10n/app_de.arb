@@ -3,6 +3,7 @@
   "languageName": "Deutsch",
   "userSettingsScreen_title": "Profil und Einstellungen",
   "userSettingsScreen_profileDescription": "Dein Anzeigename und dein Profilbild sind für deine Air-Kontakte und Mitglieder deiner Gruppen sichtbar.",
+  "userSettingsScreen_error_updateProfile": "Profil konnte nicht aktualisiert werden",
   "userSettingsScreen_userNamesDescription": "Teile Benutzernamen mit allen, mit denen du dich verbinden möchtest. Benutzernamen sind für andere nicht sichtbar, auch nicht für deine Air-Kontakte. Du kannst bis zu 5 Benutzernamen haben.",
   "userSettingsScreen_help": "Hilfe",
   "userSettingsScreen_deleteAccount": "Air-Konto löschen",

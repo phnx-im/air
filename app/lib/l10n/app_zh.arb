@@ -3,6 +3,7 @@
   "languageName": "简体中文",
   "userSettingsScreen_title": "个人资料与设置",
   "userSettingsScreen_profileDescription": "你的显示名称和头像对你的 Air 联系人以及你所在群组的成员可见。",
+  "userSettingsScreen_error_updateProfile": "更新个人资料失败",
   "userSettingsScreen_userNamesDescription": "把用户名分享给你想联系的任何人。用户名对他人不可见，即使是你的 Air 联系人也看不到。你最多可以拥有 5 个用户名。",
   "userSettingsScreen_help": "帮助",
   "userSettingsScreen_deleteAccount": "删除 Air 账号",

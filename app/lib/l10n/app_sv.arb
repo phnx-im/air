@@ -3,6 +3,7 @@
   "languageName": "Svenska",
   "userSettingsScreen_title": "Profil och inställningar",
   "userSettingsScreen_profileDescription": "Ditt visningsnamn och din profilbild är synliga för dina Air-kontakter och medlemmar i grupper du är med i.",
+  "userSettingsScreen_error_updateProfile": "Kunde inte uppdatera profilen",
   "userSettingsScreen_userNamesDescription": "Dela användarnamn med personer du vill ansluta till. Användarnamn är inte synliga för andra, inte ens dina Air-kontakter. Du kan ha upp till 5 användarnamn.",
   "userSettingsScreen_help": "Hjälp",
   "userSettingsScreen_deleteAccount": "Radera Air-konto",
