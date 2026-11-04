@@ -251,6 +251,12 @@ impl<C: OutboundServiceWork> OutboundService<C> {
         self.notify_work()
     }
 
+    /// Wakes the outbound service to publish the connection packages of a
+    /// username whose registration did not finish.
+    pub(crate) fn notify_pending_usernames(&self) -> WaitForDoneFuture {
+        self.notify_work()
+    }
+
     /// Wakes the outbound service to continue a started account deletion.
     pub(crate) fn notify_account_deletion(&self) -> WaitForDoneFuture {
         self.notify_work()

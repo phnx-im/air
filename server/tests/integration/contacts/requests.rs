@@ -23,8 +23,10 @@ pub(crate) async fn pending_chats_from(device: &CoreUser, sender: &UserId) -> Ve
     chats
 }
 
-/// A username of `user` besides the one the harness registers.
-pub(crate) async fn add_second_username(user: &CoreUser) -> UsernameRecord {
+/// A username unique to `user` that differs from the one the harness
+/// registers, with the tokens to register it.
+pub(crate) async fn prepare_username(user: &CoreUser) -> Username {
+    // Fills the token cache
     user.outbound_service().run_once().await;
     let suffix: String = user
         .user_id()
@@ -34,7 +36,12 @@ pub(crate) async fn add_second_username(user: &CoreUser) -> UsernameRecord {
         .chars()
         .take(16)
         .collect();
-    let username = Username::new(format!("extra-{suffix}")).unwrap();
+    Username::new(format!("extra-{suffix}")).unwrap()
+}
+
+/// A username of `user` besides the one the harness registers.
+pub(crate) async fn add_second_username(user: &CoreUser) -> UsernameRecord {
+    let username = prepare_username(user).await;
     user.add_username(username).await.unwrap().unwrap()
 }
 
