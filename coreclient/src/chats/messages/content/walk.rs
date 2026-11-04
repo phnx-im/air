@@ -69,13 +69,13 @@ impl Ctx {
         next_part_index: &mut usize,
         visitor: &mut impl FnMut(VisitedPart<'a>) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
+        if is_skipped(part.disposition()) {
+            *next_part_index += leaf_count(part);
+            return Ok(());
+        }
         if MAX_DEPTH <= self.depth {
             *next_part_index += leaf_count(part);
             visitor(VisitedPart::Unknown(part))?;
-            return Ok(());
-        }
-        if is_skipped(part.disposition()) {
-            *next_part_index += leaf_count(part);
             return Ok(());
         }
         let ctx = self.enter(part);
@@ -188,11 +188,11 @@ impl Ctx {
     }
 
     fn coverage(self, part: &NestedPart) -> Coverage {
-        if MAX_DEPTH <= self.depth {
-            return Coverage::MISSING;
-        }
         if is_skipped(part.disposition()) {
             return Coverage::default();
+        }
+        if MAX_DEPTH <= self.depth {
+            return Coverage::MISSING;
         }
         let ctx = self.enter(part);
         match part {
@@ -753,6 +753,15 @@ mod tests {
         // leaf at depth 7 is visited, leaf at depth 8 is not
         assert_eq!(visit_part(nest(7)), [md("deep")]);
         assert_eq!(visit_part(nest(8)), [Seen::Unknown]);
+    }
+
+    #[test]
+    fn depth_cap_after_skipped_disposition() {
+        let mut part = text_with(Disposition::Reaction);
+        for _ in 0..8 {
+            part = all(vec![part]);
+        }
+        assert_eq!(visit_part(part), []);
     }
 
     #[test]
