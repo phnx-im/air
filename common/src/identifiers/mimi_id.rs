@@ -21,7 +21,7 @@ use crate::identifiers::UserId;
 /// message. The extension is therefore only sent once every client understands it.
 pub const MIMI_ID_SCHEME_EXTENSION: ExtensionName = ExtensionName::Number(-2);
 
-/// Scheme 1: the derivation of draft-ietf-mimi-content-09 over the TLS-serialized user ID and
+/// Scheme 1: the derivation of draft-ietf-mimi-content-10 over the TLS-serialized user ID and
 /// the raw group ID, with 16-bit length prefixes.
 pub const MIMI_ID_SCHEME_LENGTH_PREFIXED: i64 = 1;
 
@@ -30,7 +30,7 @@ pub const MIMI_ID_SCHEME_LENGTH_PREFIXED: i64 = 1;
 /// The identifier is stable between different devices and is used to identify distributed
 /// messages.
 ///
-/// See <https://www.ietf.org/archive/id/draft-ietf-mimi-content-09.html#section-3.3>
+/// See <https://www.ietf.org/archive/id/draft-ietf-mimi-content-10.html#section-3.3>
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct MimiId(#[serde(with = "serde_bytes")] [u8; 32]);
 
