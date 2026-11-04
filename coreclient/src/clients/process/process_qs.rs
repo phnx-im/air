@@ -439,14 +439,10 @@ impl CoreUser {
 
         // Our self-group commit was accepted: complete the pending intent it
         // asserted before the operation is deleted. Only self-group commits
-        // carry settings or token seeds. Boxed because the loaded operation
-        // carries the full group state.
+        // carry settings or token seeds.
         if group.is_self_group() {
-            Box::pin(PendingChatOperation::complete_self_group_intent_of_group(
-                &mut *txn,
-                group.group_id(),
-            ))
-            .await?;
+            PendingChatOperation::complete_self_group_intent_of_group(&mut *txn, group.group_id())
+                .await?;
         }
 
         // Complete the pending chat operation
