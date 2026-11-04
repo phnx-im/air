@@ -349,6 +349,12 @@
   "messageContextMenu_delete": "Excluir",
   "messageContextMenu_save": "Salvar",
   "messageContextMenu_share": "Compartilhar",
+  "messageContextMenu_info": "Informações",
+  "messageDetails_title": "Detalhes da mensagem",
+  "messageDetails_sent": "Enviada em {date}, {time}",
+  "messageDetails_edited": "Editada em {date}, {time}",
+  "messageDetails_editHistory": "Histórico de edições",
+  "messageDetails_error": "Não foi possível carregar os detalhes da mensagem. Tente de novo.",
   "messageContextMenu_saveError": "Não foi possível salvar o anexo",
   "messageContextMenu_saveConfirmation": "Anexo salvo",
 

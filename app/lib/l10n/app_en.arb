@@ -809,7 +809,7 @@
   },
   "linkedDevicesScreen_linkedOn": "Linked on {date} at {time}",
   "@linkedDevicesScreen_linkedOn": {
-    "description": "Subtitle of a device entry giving the date and time it was linked. Both placeholders are already formatted, the date with the month spelled out and the time as a clock time. Change the word joining them, or reorder them, as your language needs.",
+    "description": "Subtitle of a device entry giving the date and time it was linked. Both placeholders are already formatted, the date with an abbreviated month and the time as a clock time. Change the word joining them, or reorder them, as your language needs.",
     "placeholders": {
       "date": {
         "type": "String"
@@ -1816,6 +1816,46 @@
   "messageContextMenu_share": "Share",
   "@messageContextMenu_share": {
     "description": "Message context menu item that shares an attachment through the system share sheet."
+  },
+  "messageContextMenu_info": "Info",
+  "@messageContextMenu_info": {
+    "description": "Message context menu item that opens the message details, which show the message and, once it was edited, every version of it with the time it was sent or edited. Keep it as short as the source."
+  },
+  "messageDetails_title": "Message details",
+  "@messageDetails_title": {
+    "description": "Title of the modal that shows a message and, once it was edited, every version of it. Opened from the Info item of the message context menu."
+  },
+  "messageDetails_sent": "Sent on {date} at {time}",
+  "@messageDetails_sent": {
+    "description": "Caption under the original version of a message in the message details, giving when it was sent. Both placeholders are already formatted, the date with an abbreviated month and the time as a clock time. Change the word joining them, or reorder them, as your language needs.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "messageDetails_edited": "Edited on {date} at {time}",
+  "@messageDetails_edited": {
+    "description": "Caption under an edited version of a message in the message details, giving when the edit was made. Both placeholders are already formatted, the date with an abbreviated month and the time as a clock time. Change the word joining them, or reorder them, as your language needs.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "messageDetails_editHistory": "Edit history",
+  "@messageDetails_editHistory": {
+    "description": "Heading above every version of an edited message in the message details, newest first."
+  },
+  "messageDetails_error": "Failed to load message details. Try again.",
+  "@messageDetails_error": {
+    "description": "Shown in the message details when the edit history of the message could not be loaded."
   },
 
   "messageContextMenu_saveError": "Failed to save attachment",

@@ -112,6 +112,7 @@ pub struct ChatMessage {
     pub(super) in_reply_to: Option<(MimiId, Option<InReplyToMessage>)>,
     pub(super) timestamped_message: TimestampedMessage,
     pub(super) status: MessageStatus,
+    pub(super) event_mimi_id: Option<MimiId>,
     pub(super) reactions: IndexMap<String, Vec<UserId>>,
 }
 
@@ -129,6 +130,7 @@ impl ChatMessage {
             in_reply_to: None,
             timestamped_message,
             status: MessageStatus::Unread,
+            event_mimi_id: None,
             reactions: IndexMap::new(),
         }
     }
@@ -172,6 +174,7 @@ impl ChatMessage {
             },
             in_reply_to: None,
             status: MessageStatus::Unread,
+            event_mimi_id: None,
             reactions: IndexMap::new(),
         }
     }
@@ -196,6 +199,7 @@ impl ChatMessage {
             in_reply_to: None,
             timestamped_message,
             status: MessageStatus::Unread,
+            event_mimi_id: None,
             reactions: IndexMap::new(),
         }
     }
@@ -227,6 +231,7 @@ impl ChatMessage {
             in_reply_to: None,
             timestamped_message,
             status: MessageStatus::Unread,
+            event_mimi_id: None,
             reactions: IndexMap::new(),
         }
     }

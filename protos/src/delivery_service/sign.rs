@@ -39,6 +39,14 @@ impl_signed_payload!(
 );
 
 impl_signed_payload!(
+    request = super::v1::CreateGroupV2Prepare,
+    payload = super::v1::CreateGroupV2PreparePayload,
+    key_type = ClientKeyType,
+    label = "CreateGroupV2PreparePayload",
+    seal = private_mod::Seal,
+);
+
+impl_signed_payload!(
     request = super::v1::GroupOperationRequest,
     payload = super::v1::GroupOperationPayload,
     key_type = ClientKeyType,

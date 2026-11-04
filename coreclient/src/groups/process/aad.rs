@@ -5,7 +5,7 @@
 use std::iter;
 
 use aircommon::{
-    credentials::{LeafCredential, UserCredential},
+    credentials::{LeafCredential, UserCredential, VerifiableUserCredential},
     crypto::aead::keys::EncryptedUserProfileKey,
     messages::client_ds::{
         AadMessage, AadPayload, GroupOperationParamsAad, JoinConnectionGroupParamsAad,
@@ -20,7 +20,7 @@ use crate::{
     db::access::WriteDbTransaction,
     groups::{
         Group,
-        client_auth_info::VerifiableUserCredentialExt,
+        client_auth_info::{StorableUserCredential, VerifiableUserCredentialExt},
         process::{
             PostProcessAadResult, expect_staged_commit,
             validation::{user_credential_transition, verify_pq_added_signature_keys},
@@ -175,19 +175,22 @@ impl Group {
         if let Some((new_credential, old_credential)) =
             user_credential_transition(new_sender_credential, sender_credential, "update path")?
         {
-            let as_credentials = AsCredentials::fetch_for_verification(
-                &mut *txn,
-                api_clients,
-                iter::once(&new_credential),
-            )
-            .await?;
-            if new_credential != old_credential {
-                let credential = new_credential.verify_and_validate(
+            if new_credential == old_credential {
+                // The credential was verified when the member entered the group, but the update
+                // path can still rotate the leaf signature key.
+                ensure!(
+                    new_credential.verifying_key().as_slice() == new_sender_leaf_key.as_slice(),
+                    "update path rotates the signature key without a new credential"
+                );
+            } else {
+                verify_and_store_credential(
+                    txn,
+                    api_clients,
+                    new_credential,
                     new_sender_leaf_key,
                     Some(&old_credential),
-                    &as_credentials,
-                )?;
-                credential.store(txn).await?;
+                )
+                .await?;
             }
         }
 
@@ -219,31 +222,23 @@ impl Group {
             self.mls_group.members().count(),
         )?;
 
-        // JoinConnectionGroup Phase 1: Decrypt and verify the
-        // user credential of the joiner
         let (sender_credential, sender_leaf_key) = update_path_leaf_node_info(staged_commit)?;
         let sender_credential = sender_credential
             .into_user()
             .context("expected a user credential joining a connection group")?;
 
-        let as_credentials = AsCredentials::fetch_for_verification(
-            &mut *txn,
+        let sender_credential = verify_and_store_credential(
+            txn,
             api_clients,
-            iter::once(&sender_credential),
-        )
-        .await?;
-
-        let sender_credential = sender_credential.verify_and_validate(
+            sender_credential,
             sender_leaf_key,
             None, // Since the join is an external commit, we don't have an old credential.
-            &as_credentials,
-        )?;
+        )
+        .await?;
 
         // TODO: (More) validation:
         // * Check that the user id is unique.
 
-        // JoinConnectionGroup Phase 2: Persist the user credential
-        sender_credential.store(txn).await?;
         Ok((
             sender_credential.into(),
             join_connection_group_payload.encrypted_user_profile_key,
@@ -285,18 +280,14 @@ impl Group {
         if let Some((sender_credential, old_credential)) =
             user_credential_transition(sender_credential, old_credential, "resync")?
         {
-            let as_credentials = AsCredentials::fetch_for_verification(
-                &mut *txn,
+            verify_and_store_credential(
+                txn,
                 api_clients,
-                iter::once(&sender_credential),
-            )
-            .await?;
-            let sender_credential = sender_credential.verify_and_validate(
+                sender_credential,
                 sender_leaf_key,
                 Some(&old_credential),
-                &as_credentials,
-            )?;
-            sender_credential.store(txn).await?;
+            )
+            .await?;
         }
         Ok(())
     }
@@ -343,6 +334,22 @@ fn validate_join_connection_group_commit(
         "JoinConnectionGroup operation must target a connection group"
     );
     Ok(())
+}
+
+/// Verifies `credential` against its AS credential and stores it.
+async fn verify_and_store_credential(
+    txn: &mut WriteDbTransaction<'_>,
+    api_clients: &ApiClients,
+    credential: VerifiableUserCredential,
+    leaf_key: &SignaturePublicKey,
+    old_credential: Option<&VerifiableUserCredential>,
+) -> Result<StorableUserCredential> {
+    let as_credentials =
+        AsCredentials::fetch_for_verification(&mut *txn, api_clients, iter::once(&credential))
+            .await?;
+    let credential = credential.verify_and_validate(leaf_key, old_credential, &as_credentials)?;
+    credential.store(txn).await?;
+    Ok(credential)
 }
 
 #[cfg(test)]

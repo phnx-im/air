@@ -40,7 +40,6 @@ futures-util.workspace = true
 hex.workspace = true
 image.workspace = true
 indexmap.workspace = true
-jni.workspace = true
 memmap2.workspace = true
 mimi-room-policy.workspace = true
 mimi_content.workspace = true
@@ -78,10 +77,13 @@ arboard = { workspace = true }
 arboard = { workspace = true, features = ["wayland-data-control"] }
 zbus = "6"
 
+[target.'cfg(target_os = "android")'.dependencies]
+jni.workspace = true
+
 [dev-dependencies]
 airserver_test_harness.workspace = true
 mockall.workspace = true
-openmls.workspace = true           # Required for GroupId
+openmls.workspace = true                # Required for GroupId
 quickcheck.workspace = true
 quickcheck_macros.workspace = true
 tempfile.workspace = true

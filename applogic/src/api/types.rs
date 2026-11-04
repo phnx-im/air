@@ -18,8 +18,8 @@ use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, AttachmentId, AttachmentInfo, ChatAttributes, ChatMessage, ChatMuted, ChatStatus,
     ChatType, Contact, ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat,
-    LastReaction, Message, MessageDraft, SystemMessage, TargetedMessageContact, UserProfile,
-    clients::CoreUser,
+    LastReaction, Message, MessageDraft, MessageVersion, SystemMessage, TargetedMessageContact,
+    UserProfile, clients::CoreUser,
 };
 use chrono::{DateTime, Local, Utc};
 use flutter_rust_bridge::frb;
@@ -555,6 +555,29 @@ impl UiContentMessage {
             sent,
             edited,
             content: UnresolvedMimiContent::from(content).resolve(local_attachment_infos),
+        }
+    }
+}
+
+/// One version of a message, see [`MessageVersion`]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[frb(dart_metadata = ("freezed"))]
+pub struct UiMessageVersion {
+    pub content: UiMimiContent,
+    /// When the original was sent, or when the edit was made.
+    pub created_at: DateTime<Local>,
+}
+
+impl From<MessageVersion> for UiMessageVersion {
+    fn from(
+        MessageVersion {
+            content,
+            created_at,
+        }: MessageVersion,
+    ) -> Self {
+        Self {
+            content: UnresolvedMimiContent::from(content).resolve(&[]),
+            created_at: created_at.with_timezone(&Local),
         }
     }
 }

@@ -99,6 +99,10 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
   Future<void> editMessage({MessageId? messageId}) =>
       _impl.editMessage(messageId: messageId);
 
+  Future<List<UiMessageVersion>> messageVersions({
+    required MessageId messageId,
+  }) => _impl.messageVersions(messageId: messageId);
+
   Future<void> replyToMessage({required MessageId messageId}) =>
       _impl.replyToMessage(messageId: messageId);
 
