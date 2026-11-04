@@ -120,10 +120,7 @@ async fn edit_limit_is_enforced_by_sender_and_receiver() {
 
     // Bob ignores an edit that bypasses the check.
     let mut edit = edit;
-    edit.replaces = message
-        .message()
-        .mimi_id()
-        .map(|mimi_id| mimi_id.as_slice().to_vec());
+    edit.replaces = message.message().mimi_id().map(|id| (*id).into());
     alice
         .send_mimi_content_without_confirmation(chat_id, edit)
         .await

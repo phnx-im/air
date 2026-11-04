@@ -416,10 +416,7 @@ mod tests {
 
     fn edit_with_replaces(original: &ChatMessage) -> MimiContent {
         let mut content = edit();
-        content.replaces = original
-            .message()
-            .mimi_id()
-            .map(|mimi_id| mimi_id.as_slice().to_vec());
+        content.replaces = original.message().mimi_id().map(|id| (*id).into());
         content
     }
 }
