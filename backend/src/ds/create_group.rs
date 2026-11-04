@@ -329,7 +329,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         );
         let config = RlConfig {
             max_requests: 100,
-            time_window: TimeDelta::hours(1),
+            time_window: TimeDelta::days(1),
         };
         let rl_storage = RlPostgresStorage::new(self.ds.db_pool.clone());
         let rl = RateLimiter::new(config, rl_storage);

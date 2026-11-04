@@ -213,7 +213,7 @@ impl UnsentContent {
                 .message()
                 .mimi_id()
                 .context("Replaced message does not have mimi id")?;
-            content.replaces = Some(original_mimi_id.as_slice().to_vec());
+            content.replaces = Some((*original_mimi_id).into());
             let edit_created_at = TimeStamp::now();
 
             if !is_deletion {
