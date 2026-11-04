@@ -251,15 +251,15 @@ mod tests {
         assert_eq!(vcard.status, AttachmentStatus::Ready);
         assert_eq!(
             png.attachment_id,
-            AttachmentId::derive(message_id, PartIndex(1))
-        );
-        assert_eq!(
-            vcard.attachment_id,
             AttachmentId::derive(message_id, PartIndex(2))
         );
         assert_eq!(
-            webp.attachment_id,
+            vcard.attachment_id,
             AttachmentId::derive(message_id, PartIndex(3))
+        );
+        assert_eq!(
+            webp.attachment_id,
+            AttachmentId::derive(message_id, PartIndex(4))
         );
         assert_eq!(vcard.remote_attachment_id, None);
         assert_eq!(vcard.content_type, "text/vcard");

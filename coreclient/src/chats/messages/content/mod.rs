@@ -36,14 +36,15 @@ pub trait MimiContentExt {
     fn self_group_message(&self) -> Option<SelfGroupAppMessage>;
 }
 
-/// Depth-first index among the non-container parts of a MIMI body.
+/// Zero-indexed depth-first index of a part in a MIMI body.
+///
+/// Defined in
+/// <https://www.ietf.org/archive/id/draft-ietf-mimi-content-10.html#name-message-bodies>.
+///
+/// See also for an example showing that containers count too:
+/// <https://www.ietf.org/archive/id/draft-ietf-mimi-content-10.html#name-complicated-nested-example>
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PartIndex(pub(crate) u32);
-
-impl PartIndex {
-    /// Index of the first part of a body.
-    pub(crate) const FIRST: PartIndex = PartIndex(0);
-}
 
 #[derive(Debug)]
 pub enum VisitedPart<'a> {

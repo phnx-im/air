@@ -70,11 +70,11 @@ impl Ctx {
         visitor: &mut impl FnMut(VisitedPart<'a>) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
         if is_skipped(part.disposition()) {
-            *next_part_index += leaf_count(part);
+            *next_part_index += part_count(part);
             return Ok(());
         }
         if MAX_DEPTH <= self.depth {
-            *next_part_index += leaf_count(part);
+            *next_part_index += part_count(part);
             visitor(VisitedPart::Unknown(part))?;
             return Ok(());
         }
@@ -114,6 +114,7 @@ impl Ctx {
                     depth: ctx.depth + 1,
                     ..ctx
                 };
+                *next_part_index += 1;
                 match part_semantics {
                     PartSemantics::ChooseOne => {
                         let chosen = child_ctx.best_alternative(parts).map(|(i, _)| i);
@@ -124,7 +125,7 @@ impl Ctx {
                             if Some(i) == chosen {
                                 child_ctx.walk(child, None, next_part_index, visitor)?;
                             } else {
-                                *next_part_index += leaf_count(child);
+                                *next_part_index += part_count(child);
                             }
                         }
                     }
@@ -132,7 +133,7 @@ impl Ctx {
                         if child_ctx.children_coverage(parts).is_full() {
                             child_ctx.walk_children(parts, next_part_index, visitor)?;
                         } else {
-                            *next_part_index += parts.iter().map(leaf_count).sum::<usize>();
+                            *next_part_index += parts.iter().map(part_count).sum::<usize>();
                             visitor(VisitedPart::Unknown(part))?;
                         }
                     }
@@ -316,14 +317,14 @@ impl Ctx {
     }
 }
 
-/// Number of leaves in the subtree, independent of `MAX_DEPTH`.
-fn leaf_count(part: &NestedPart) -> usize {
+/// Number of parts in the subtree, containers included, independent of `MAX_DEPTH`.
+fn part_count(part: &NestedPart) -> usize {
     // We assume that mimi_content already enforced a recursion bound.
     match part {
         NestedPart::NullPart { .. }
         | NestedPart::SinglePart { .. }
         | NestedPart::ExternalPart { .. } => 1,
-        NestedPart::MultiPart { parts, .. } => parts.iter().map(leaf_count).sum(),
+        NestedPart::MultiPart { parts, .. } => 1 + parts.iter().map(part_count).sum::<usize>(),
     }
 }
 
@@ -542,7 +543,7 @@ mod tests {
             PartSemantics::ProcessAll,
             vec![external(Disposition::Attachment, "image/png"), blurhash()],
         ));
-        assert_eq!(seen, [att(0, false, Some("LEHV6nWB2yk8"))]);
+        assert_eq!(seen, [att(1, false, Some("LEHV6nWB2yk8"))]);
     }
 
     #[test]
@@ -556,11 +557,12 @@ mod tests {
             ),
             external(Disposition::Preview, "image/webp"),
         ]));
-        assert_eq!(seen, [md("see"), att(1, true, None), att(2, true, None)]);
+        // root 0, text 1, card 2, image 3 as in the link preview spec
+        assert_eq!(seen, [md("see"), att(2, true, None), att(3, true, None)]);
     }
 
     #[test]
-    fn consecutive_indices_across_nesting() {
+    fn containers_take_indices() {
         let seen = visit_part(all(vec![
             file(),
             all(vec![file(), all(vec![file()])]),
@@ -569,10 +571,10 @@ mod tests {
         assert_eq!(
             seen,
             [
-                att(0, false, None),
                 att(1, false, None),
-                att(2, false, None),
-                att(3, false, None)
+                att(3, false, None),
+                att(5, false, None),
+                att(6, false, None)
             ]
         );
     }
@@ -580,7 +582,7 @@ mod tests {
     #[test]
     fn blurhash_dropped_with_two_attachments() {
         let seen = visit_part(all(vec![file(), file(), blurhash()]));
-        assert_eq!(seen, [att(0, false, None), att(1, false, None)]);
+        assert_eq!(seen, [att(1, false, None), att(2, false, None)]);
     }
 
     #[test]
@@ -589,7 +591,7 @@ mod tests {
             single(Disposition::Attachment, "text/plain", b"x"),
             text("text/html", "<b>"),
         ]));
-        assert_eq!(seen, [att(0, false, None), att(1, false, None)]);
+        assert_eq!(seen, [att(1, false, None), att(2, false, None)]);
     }
 
     #[test]
@@ -610,7 +612,7 @@ mod tests {
             assert_eq!(visit_part(text_with(disposition)), []);
             let skipped = multi(disposition, PartSemantics::ProcessAll, vec![file()]);
             let seen = visit_part(all(vec![skipped, file()]));
-            assert_eq!(seen, [att(1, false, None)]);
+            assert_eq!(seen, [att(3, false, None)]);
         }
     }
 
@@ -628,7 +630,7 @@ mod tests {
                 external(Disposition::Render, "image/png"),
             ],
         ));
-        assert_eq!(seen, [att(0, true, None), att(1, true, None)]);
+        assert_eq!(seen, [att(1, true, None), att(2, true, None)]);
     }
 
     #[test]
@@ -654,7 +656,7 @@ mod tests {
             choose(vec![text("text/markdown", "a"), file()]),
             file(),
         ]));
-        assert_eq!(seen, [md("a"), att(2, false, None)]);
+        assert_eq!(seen, [md("a"), att(4, false, None)]);
     }
 
     #[test]
@@ -681,7 +683,7 @@ mod tests {
     #[test]
     fn choose_one_preview_only_is_visited() {
         let seen = visit_part(choose(vec![external(Disposition::Preview, "image/webp")]));
-        assert_eq!(seen, [att(0, true, None)]);
+        assert_eq!(seen, [att(1, true, None)]);
     }
 
     #[test]
@@ -694,7 +696,7 @@ mod tests {
                 external(Disposition::Render, "image/jpeg"),
             ])],
         ));
-        assert_eq!(seen, [att(0, true, None)]);
+        assert_eq!(seen, [att(2, true, None)]);
     }
 
     #[test]
@@ -707,7 +709,7 @@ mod tests {
                 text("text/markdown", "caption"),
             ])],
         ));
-        assert_eq!(seen, [att(0, true, None)]);
+        assert_eq!(seen, [att(2, true, None)]);
     }
 
     #[test]
@@ -722,13 +724,13 @@ mod tests {
     #[test]
     fn single_unit_full() {
         let seen = visit_part(unit(vec![text("text/markdown", "a"), file()]));
-        assert_eq!(seen, [md("a"), att(1, false, None)]);
+        assert_eq!(seen, [md("a"), att(2, false, None)]);
     }
 
     #[test]
     fn single_unit_with_unknown() {
         let seen = visit_part(all(vec![unit(vec![file(), invalid_utf8()]), file()]));
-        assert_eq!(seen, [Seen::Unknown, att(2, false, None)]);
+        assert_eq!(seen, [Seen::Unknown, att(4, false, None)]);
     }
 
     #[test]
@@ -738,7 +740,7 @@ mod tests {
             PartSemantics::Custom(42),
             vec![text("text/markdown", "a"), invalid_utf8(), file()],
         ));
-        assert_eq!(seen, [md("a"), Seen::Unknown, att(2, false, None)]);
+        assert_eq!(seen, [md("a"), Seen::Unknown, att(3, false, None)]);
     }
 
     #[test]
@@ -768,38 +770,66 @@ mod tests {
     fn index_is_independent_of_classification() {
         for (media_type, body) in [("text/html", "<b>"), ("text/markdown", "a")] {
             let seen = visit_part(all(vec![text(media_type, body), file()]));
-            assert_eq!(seen.last(), Some(&att(1, false, None)));
+            assert_eq!(seen.last(), Some(&att(2, false, None)));
         }
     }
 
     #[test]
-    fn skipped_and_unknown_subtrees_consume_their_leaves() {
-        // nulls count as leaves, empty multiparts as none
+    fn skipped_and_unknown_subtrees_consume_their_indices() {
+        // nulls and empty multiparts take an index
         let seen = visit_part(all(vec![null(), all(vec![]), file()]));
-        assert_eq!(seen, [att(1, false, None)]);
+        assert_eq!(seen, [att(3, false, None)]);
         // chooseOne without a usable alternative
         let seen = visit_part(all(vec![choose(vec![invalid_utf8(), null()]), file()]));
-        assert_eq!(seen, [Seen::Unknown, att(2, false, None)]);
+        assert_eq!(seen, [Seen::Unknown, att(4, false, None)]);
         // depth cap
         let mut deep = all(vec![file(), file()]);
         for _ in 0..(MAX_DEPTH - 1) {
             deep = all(vec![deep]);
         }
         let seen = visit_part(all(vec![deep, file()]));
-        assert_eq!(seen, [Seen::Unknown, att(2, false, None)]);
+        // root, MAX_DEPTH containers and two files come first
+        assert_eq!(seen, [Seen::Unknown, att(MAX_DEPTH + 3, false, None)]);
     }
 
     #[test]
-    fn leaf_count_ignores_depth_cap() {
+    fn part_count_ignores_depth_cap() {
         let mut deep = file();
         for _ in 0..(MAX_DEPTH * 4) {
             deep = all(vec![deep, null()]);
         }
-        assert_eq!(leaf_count(&deep), MAX_DEPTH * 4 + 1);
+        assert_eq!(part_count(&deep), MAX_DEPTH * 4 * 2 + 1);
     }
 
     #[test]
     fn null_root() {
         assert_eq!(visit_part(null()), []);
+    }
+
+    /// Body of the complicated nested example in draft-ietf-mimi-content-10,
+    /// Appendix B.3, with the given GIF part.
+    fn mimi_b3(gif: NestedPart) -> NestedPart {
+        let html = |s: &str| text("text/html;charset=utf-8", s);
+        let image = |content_type: &str| single(Disposition::Inline, content_type, b"x");
+        choose(vec![
+            all(vec![choose(vec![html("en"), html("fr")]), gif]),
+            all(vec![
+                choose(vec![html("en"), html("fr")]),
+                image("image/png"),
+            ]),
+        ])
+    }
+
+    #[test]
+    fn mimi_b3_indices() {
+        let gif = single(Disposition::Inline, "image/gif", b"x");
+        let seen = visit_part(mimi_b3(gif));
+        assert_eq!(seen, [att(3, false, None), att(5, false, None)]);
+
+        // An unusable GIF selects the PNG alternative
+        let url = "https://example.com/x.gif".to_owned();
+        let gif = external_url(Disposition::Inline, "image/gif", url);
+        let seen = visit_part(mimi_b3(gif));
+        assert_eq!(seen, [att(8, false, None), att(10, false, None)]);
     }
 }

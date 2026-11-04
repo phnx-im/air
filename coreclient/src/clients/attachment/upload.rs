@@ -69,6 +69,9 @@ use crate::{
 /// by the server.
 const MAX_IMAGE_SOURCE_SIZE: u64 = 100 * 1024 * 1024;
 
+/// Part index of the external part in [`attachment_content`], after the root.
+const ATTACHMENT_PART_INDEX: PartIndex = PartIndex(1);
+
 impl CoreUser {
     /// Uploads an attachment tied to the user (signed with their signing key)
     pub async fn upload_user_attachment(
@@ -177,8 +180,7 @@ impl CoreUser {
         debug!(?is_animated, "made source thumbnail");
 
         let message_id = MessageId::random();
-        // The external part is the first part of the provisional message.
-        let attachment_id = AttachmentId::derive(message_id, PartIndex::FIRST);
+        let attachment_id = AttachmentId::derive(message_id, ATTACHMENT_PART_INDEX);
         let content = attachment_content(probed.provisional_nested_parts(attachment_id))?;
 
         // Note: Acquire a transaction here to ensure that the attachment will be deleted from the
@@ -1047,7 +1049,8 @@ mod tests {
     use aircommon::DEFAULT_MAX_ATTACHMENT_SIZE;
     use tempfile::tempdir;
 
-    use super::ProbedAttachment;
+    use super::{ATTACHMENT_PART_INDEX, ProbedAttachment, attachment_content};
+    use crate::{AttachmentId, MessageId, MimiContentExt, VisitedPart};
 
     #[test]
     fn ordinary_file_can_exceed_the_default_server_limit() -> anyhow::Result<()> {
@@ -1057,6 +1060,28 @@ mod tests {
         file.set_len(DEFAULT_MAX_ATTACHMENT_SIZE + 1)?;
 
         assert!(ProbedAttachment::from_path(path)?.is_ok());
+        Ok(())
+    }
+
+    #[test]
+    fn attachment_part_index_matches_layout() -> anyhow::Result<()> {
+        let probed = ProbedAttachment {
+            filename: "a.png".to_owned(),
+            content_type: "image/png".to_owned(),
+            size: 1,
+            image_dimensions: Some((1, 1)),
+        };
+        let attachment_id = AttachmentId::derive(MessageId::random(), ATTACHMENT_PART_INDEX);
+        let content = attachment_content(probed.provisional_nested_parts(attachment_id))?;
+
+        let mut indices = Vec::new();
+        content.visit_parts(|part| {
+            if let VisitedPart::Attachment { index, .. } = part {
+                indices.push(index);
+            }
+            Ok(())
+        })?;
+        assert_eq!(indices, [ATTACHMENT_PART_INDEX]);
         Ok(())
     }
 }
