@@ -60,14 +60,14 @@ pub(crate) async fn confirm_own_edit(
     message: &ChatMessage,
     ds_timestamp: TimeStamp,
 ) -> anyhow::Result<()> {
-    let Some(replaces) = message
+    let Some(replaced_mimi_id) = message
         .message()
         .mimi_content()
-        .and_then(|content| content.replaces.as_deref())
+        .and_then(|content| content.replaces)
+        .map(MimiId::from)
     else {
         return Ok(());
     };
-    let replaced_mimi_id = MimiId::from_slice(replaces)?;
     MessageEdit::set_created_at(connection, &replaced_mimi_id, ds_timestamp).await?;
     Ok(())
 }
@@ -1285,7 +1285,7 @@ mod tests {
         .store(pool.write().await?)
         .await?;
         let mut edit = text("v1");
-        edit.replaces = Some(original_mimi_id.as_slice().to_vec());
+        edit.replaces = Some(original_mimi_id.into());
         message.set_content_message(ContentMessage::new(alice, false, edit, chat.group_id()));
 
         let ds_timestamp = TimeStamp::now();
