@@ -15,6 +15,7 @@ use tracing::warn;
 use tracing::{debug, error, info};
 use uuid::Uuid;
 
+use crate::chats::messages::edit::confirm_own_edit;
 use crate::db::access::WriteDbTransaction;
 use crate::groups::{Group, handle_group_closed_on_ds, handle_group_not_found_on_ds};
 use crate::job::JobError;
@@ -422,6 +423,7 @@ impl OutboundServiceContext {
                         .await?;
                     if !is_deletion {
                         message.mark_as_edited(&mut *txn, ds_timestamp).await?;
+                        confirm_own_edit(&mut *txn, &message, ds_timestamp).await?;
                     }
                 } else {
                     message.mark_as_sent(&mut *txn, ds_timestamp).await?;

@@ -1058,6 +1058,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<UiLinkedDevice> dco_decode_list_ui_linked_device(dynamic raw);
 
   @protected
+  List<UiMessageVersion> dco_decode_list_ui_message_version(dynamic raw);
+
+  @protected
   List<UiReaction> dco_decode_list_ui_reaction(dynamic raw);
 
   @protected
@@ -1448,6 +1451,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiMessageStatus dco_decode_ui_message_status(dynamic raw);
+
+  @protected
+  UiMessageVersion dco_decode_ui_message_version(dynamic raw);
 
   @protected
   UiMimiContent dco_decode_ui_mimi_content(dynamic raw);
@@ -2548,6 +2554,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<UiMessageVersion> sse_decode_list_ui_message_version(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<UiReaction> sse_decode_list_ui_reaction(SseDeserializer deserializer);
 
   @protected
@@ -3026,6 +3037,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiMessageStatus sse_decode_ui_message_status(SseDeserializer deserializer);
+
+  @protected
+  UiMessageVersion sse_decode_ui_message_version(SseDeserializer deserializer);
 
   @protected
   UiMimiContent sse_decode_ui_mimi_content(SseDeserializer deserializer);
@@ -4373,6 +4387,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_ui_message_version(
+    List<UiMessageVersion> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_ui_reaction(
     List<UiReaction> self,
     SseSerializer serializer,
@@ -4987,6 +5007,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ui_message_status(
     UiMessageStatus self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ui_message_version(
+    UiMessageVersion self,
     SseSerializer serializer,
   );
 

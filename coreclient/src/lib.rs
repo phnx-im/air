@@ -26,7 +26,7 @@ pub use crate::{
         messages::{
             ChatMessage, ContentMessage, ErrorMessage, EventMessage, InReplyToMessage, Message,
             MessageId, SystemMessage,
-            edit::{EDIT_WINDOW, MAX_EDITS, MessageEditError},
+            edit::{EDIT_WINDOW, MAX_EDITS, MessageEditError, MessageVersion},
         },
         notification_rebuild::ChatNotificationEntry,
         pending::AcceptContactRequestError,

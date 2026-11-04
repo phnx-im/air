@@ -6,6 +6,7 @@ import 'dart:math' as math;
 
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
+import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/components/scroll/edge_fade.dart';
 import 'package:air/ds/components/scroll/scroll_edges.dart';
@@ -27,6 +28,9 @@ class ModalShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final surface = ModalShellTokens.surface(context);
+    // Content that composites onto its surface has to see the card rather than
+    // the base background behind the route.
+    final content = PanelSurface(color: surface, child: child);
 
     // The same signal that picked the token set, so the presentation and its
     // geometry can't disagree.
@@ -44,7 +48,7 @@ class ModalShell extends StatelessWidget {
             padding: EdgeInsets.only(
               top: MediaQuery.viewPaddingOf(context).top,
             ),
-            child: child,
+            child: content,
           ),
         ),
       );
@@ -68,7 +72,7 @@ class ModalShell extends StatelessWidget {
             borderRadius: BorderRadius.circular(tokens.cardRadius),
           ),
           clipBehavior: .antiAlias,
-          child: child,
+          child: content,
         ),
       ),
     );
