@@ -23,7 +23,7 @@ use aircommon::{
             AsCredentialsResponseIn, EncryptedUserProfile, GetUserProfileResponse,
             RegisterUserResponseIn, UsernameDeleteResponse,
         },
-        connection_package::{ConnectionPackage, VersionedConnectionPackageIn},
+        connection_package::VersionedConnectionPackageIn,
         push_token::{PushToken, PushTokenOperator},
     },
     registration::{ChallengeKind, NewAdmissionSession, RegistrationChallenge, RegistrationInfo},
@@ -375,14 +375,13 @@ impl ApiClient {
     pub async fn as_publish_connection_packages_for_username(
         &self,
         hash: UsernameHash,
-        connection_packages: Vec<ConnectionPackage>,
         signed_connection_packages: Vec<SignedConnectionPackage>,
         signing_key: &UsernameSigningKey,
     ) -> Result<(), AsRequestError> {
         let payload = PublishConnectionPackagesPayload {
             client_metadata: Some(self.metadata().clone()),
             hash: Some(hash.into()),
-            connection_packages: connection_packages.into_iter().map(From::from).collect(),
+            connection_packages: Vec::new(),
             signed_connection_packages,
         };
         let request = payload.sign(signing_key)?;
