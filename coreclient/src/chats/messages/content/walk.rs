@@ -189,10 +189,7 @@ impl Ctx {
 
     fn coverage(self, part: &NestedPart) -> Coverage {
         if MAX_DEPTH <= self.depth {
-            return Coverage {
-                shown: false,
-                missing: true,
-            };
+            return Coverage::MISSING;
         }
         if is_skipped(part.disposition()) {
             return Coverage::default();
@@ -203,18 +200,16 @@ impl Ctx {
             NestedPart::SinglePart { .. } | NestedPart::ExternalPart { .. } => {
                 match ctx.classify_leaf(part) {
                     Leaf::Text(..) => Coverage {
-                        shown: true,
-                        missing: false,
+                        content: true,
+                        ..Coverage::default()
                     },
                     Leaf::Attachment => Coverage {
-                        shown: !ctx.in_preview,
-                        missing: false,
+                        content: !ctx.in_preview,
+                        preview: ctx.in_preview,
+                        ..Coverage::default()
                     },
                     Leaf::Blurhash(_) | Leaf::Ignored => Coverage::default(),
-                    Leaf::Unknown => Coverage {
-                        shown: false,
-                        missing: true,
-                    },
+                    Leaf::Unknown => Coverage::MISSING,
                 }
             }
             NestedPart::MultiPart {
@@ -236,10 +231,7 @@ impl Ctx {
                         if coverage.is_full() {
                             coverage
                         } else {
-                            Coverage {
-                                shown: false,
-                                missing: true,
-                            }
+                            Coverage::MISSING
                         }
                     }
                     PartSemantics::ProcessAll | PartSemantics::Custom(_) => {
@@ -337,28 +329,40 @@ fn leaf_count(part: &NestedPart) -> usize {
 
 #[derive(Default, Clone, Copy)]
 struct Coverage {
-    shown: bool,
+    /// Something outside a preview is shown
+    content: bool,
+    /// A preview attachment is visited
+    preview: bool,
     missing: bool,
 }
 
 impl Coverage {
+    const MISSING: Self = Self {
+        content: false,
+        preview: false,
+        missing: true,
+    };
+
     fn merge(self, other: Self) -> Self {
         Self {
-            shown: self.shown || other.shown,
+            content: self.content || other.content,
+            preview: self.preview || other.preview,
             missing: self.missing || other.missing,
         }
     }
 
     fn is_full(self) -> bool {
-        self.shown && !self.missing
+        (self.content || self.preview) && !self.missing
     }
 
-    /// 2 full, 1 partial, 0 nothing shown
+    /// Content beats preview, complete beats partial, anything beats nothing
     fn rank(self) -> u8 {
-        match (self.shown, self.missing) {
-            (true, false) => 2,
-            (true, true) => 1,
-            (false, _) => 0,
+        match (self.content, self.missing, self.preview) {
+            (true, false, _) => 4,
+            (true, true, _) => 3,
+            (false, false, true) => 2,
+            (false, true, true) => 1,
+            (false, _, false) => 0,
         }
     }
 }
@@ -675,9 +679,44 @@ mod tests {
     }
 
     #[test]
-    fn choose_one_preview_only_is_not_shown() {
+    fn choose_one_preview_only_is_visited() {
         let seen = visit_part(choose(vec![external(Disposition::Preview, "image/webp")]));
-        assert_eq!(seen, []);
+        assert_eq!(seen, [att(0, true, None)]);
+    }
+
+    #[test]
+    fn choose_one_in_preview_container() {
+        let seen = visit_part(multi(
+            Disposition::Preview,
+            PartSemantics::ProcessAll,
+            vec![choose(vec![
+                external(Disposition::Render, "image/avif"),
+                external(Disposition::Render, "image/jpeg"),
+            ])],
+        ));
+        assert_eq!(seen, [att(0, true, None)]);
+    }
+
+    #[test]
+    fn single_unit_in_preview_container() {
+        let seen = visit_part(multi(
+            Disposition::Preview,
+            PartSemantics::ProcessAll,
+            vec![unit(vec![
+                external(Disposition::Render, "image/png"),
+                text("text/markdown", "caption"),
+            ])],
+        ));
+        assert_eq!(seen, [att(0, true, None)]);
+    }
+
+    #[test]
+    fn choose_one_prefers_content_over_preview() {
+        let seen = visit_part(choose(vec![
+            external(Disposition::Preview, "image/webp"),
+            text("text/markdown", "a"),
+        ]));
+        assert_eq!(seen, [md("a")]);
     }
 
     #[test]
