@@ -5,8 +5,8 @@
 //! Process incoming attachments.
 
 use aircommon::identifiers::RemoteAttachmentId;
-use anyhow::bail;
 use mimi_content::content_container::NestedPart;
+use tracing::error;
 
 use super::persistence::PendingAttachmentRecord;
 
@@ -78,7 +78,8 @@ impl CoreUser {
                     let remote_attachment_id: RemoteAttachmentId = match url.parse() {
                         Ok(id) => id,
                         Err(error) => {
-                            bail!("invalid attachment url {url}: {error}");
+                            error!(%url, %error, "Invalid attachment url, dropping attachment");
+                            return Ok(());
                         }
                     };
                     let record = AttachmentRecord {
@@ -104,7 +105,7 @@ impl CoreUser {
                     records.push(ExtractedAttachment::External(record, pending_record));
                 }
                 _ => {
-                    bail!("unexpected part visited as attachment");
+                    error!("Unexpected part visited as attachment, dropping attachment");
                 }
             }
             Ok(())
