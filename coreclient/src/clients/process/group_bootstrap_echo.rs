@@ -55,6 +55,16 @@ impl CoreUser {
             debug!(chat_id = %chat.id(), "Group bootstrap for a group we left");
             return Ok(QsMessageOutcome::empty());
         }
+        // A bare receipt is only an echo to the client that created the group
+        // to confirm that the creation was successful.
+        if echo.group_bootstrap.is_empty() {
+            ensure!(
+                matches!(carrier, GroupBootstrapCarrier::CreationEcho),
+                "join echo without a group bootstrap"
+            );
+            debug!(group_id = ?echo.group_id, "Creation receipt for a group we don't have");
+            return Ok(QsMessageOutcome::empty());
+        }
 
         let self_group = SelfGroup::load(&mut *txn)
             .await?

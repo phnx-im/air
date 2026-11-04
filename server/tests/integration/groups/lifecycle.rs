@@ -7,7 +7,7 @@
 
 use std::slice;
 
-use airserver_test_harness::utils::setup::TestBackend;
+use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use tracing::info;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -145,4 +145,65 @@ async fn dropped_commit_response_is_confirmed_via_queue() {
         .update_key(chat_id)
         .await
         .expect("No error despite server dropping messages");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn creation_without_siblings_is_echoed_as_a_receipt() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    // The receipt of the self group
+    alice.drain().await;
+
+    let chat_id = setup.create_group(&alice).await;
+    let messages_before = alice.messages(chat_id, 100).await.unwrap();
+
+    let queued = alice.qs_fetch_messages().await.unwrap();
+    assert_eq!(queued.len(), 1, "the DS should echo the creation");
+    let processed = alice.fully_process_qs_messages(queued).await;
+    assert!(
+        processed.errors.is_empty(),
+        "the receipt of a known group must be dropped silently: {:?}",
+        processed.errors
+    );
+    assert!(processed.new_chats.is_empty());
+    assert_eq!(
+        alice.messages(chat_id, 100).await.unwrap(),
+        messages_before,
+        "the receipt must not add messages"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn lost_creation_answer_leaves_a_receipt() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    alice.drain().await;
+    let chats_before = alice.ordered_chat_ids().await.unwrap();
+
+    let create_group = if setup.apq_groups {
+        "CreateApqGroup"
+    } else {
+        "CreateGroup"
+    };
+    setup
+        .listener_control_handle()
+        .set_drop_next_response_to(create_group);
+    alice
+        .create_chat("answer lost".to_owned(), None, setup.apq_groups)
+        .await
+        .expect_err("the lost answer should surface as an error");
+    setup.listener_control_handle().set_normal();
+
+    // The DS created the group, so its receipt is queued. The client already
+    // discarded the group and has nothing to confirm.
+    let queued = alice.qs_fetch_messages().await.unwrap();
+    assert_eq!(queued.len(), 1, "the DS should echo the creation");
+    let processed = alice.fully_process_qs_messages(queued).await;
+    assert!(
+        processed.errors.is_empty(),
+        "the receipt of an unknown group must be dropped silently: {:?}",
+        processed.errors
+    );
+    assert!(processed.new_chats.is_empty());
+    assert_eq!(alice.ordered_chat_ids().await.unwrap(), chats_before);
 }

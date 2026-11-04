@@ -24,6 +24,8 @@ use super::skip_version_status;
 async fn version_status_is_sent_first() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
+    // The self group's creation receipt
+    alice.drain().await;
 
     let (mut stream, _responder) = alice.listen_queue().await.unwrap();
 
@@ -58,6 +60,8 @@ async fn version_status_carries_expiry() {
     .await;
 
     let alice = setup.add_user().await;
+    // The self group's creation receipt
+    alice.drain().await;
 
     let (mut stream, _responder) = alice.listen_queue().await.unwrap();
 
@@ -83,6 +87,8 @@ async fn streams_beyond_device_limit_evict_oldest() {
     })
     .await;
     let alice = setup.add_user().await;
+    // The self group's creation receipt
+    alice.drain().await;
 
     let username_record = setup.add_username(&alice).await;
 
