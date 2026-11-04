@@ -10,6 +10,9 @@ use uuid::Uuid;
 
 use crate::api::markdown::MessageContent;
 
+/// Shown for a message whose attachments have no stored record.
+const ATTACHMENT_UNAVAILABLE: &str = "Attachment unavailable";
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[doc(hidden)]
 #[frb(dart_metadata = ("freezed"))]
@@ -109,14 +112,21 @@ pub struct UiImageMetadata {
 }
 
 impl UnresolvedMimiContent {
-    pub(crate) fn resolve(self, attachments: Option<&MessageAttachments>) -> UiMimiContent {
+    /// Pairs the attachments with their stored records.
+    ///
+    /// `None` means the records were not loaded. Attachments are dropped then,
+    /// but the content is otherwise unchanged. With records loaded, a message
+    /// that has neither text nor a stored attachment shows an error instead
+    /// of an empty bubble.
+    pub(crate) fn resolve(self, records: Option<&MessageAttachments>) -> UiMimiContent {
         let preview_text = self.preview_text();
+        let had_attachments = !self.attachments.is_empty();
         let attachments: Vec<UiAttachment> = self
             .attachments
             .into_iter()
             .filter_map(|attachment| {
-                let info = attachments.and_then(|attachments| {
-                    attachments.find(attachment.index, attachment.remote_attachment_id)
+                let info = records.and_then(|records| {
+                    records.find(attachment.index, attachment.remote_attachment_id)
                 })?;
                 Some((attachment, info))
             })
@@ -133,13 +143,20 @@ impl UnresolvedMimiContent {
             })
             .collect();
 
+        let content = match self.content {
+            None if records.is_some() && had_attachments && attachments.is_empty() => {
+                Some(MessageContent::error(ATTACHMENT_UNAVAILABLE.to_owned()))
+            }
+            content => content,
+        };
+
         UiMimiContent {
             plain_body: self.plain_body,
             preview_text,
             replaces: self.replaces,
             topic_id: self.topic_id,
             in_reply_to: self.in_reply_to,
-            content: self.content,
+            content,
             attachments,
         }
     }

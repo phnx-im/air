@@ -442,7 +442,7 @@ pub enum UiMessageStatus {
 impl UiChatMessage {
     pub(crate) fn from_message(
         mut chat_message: ChatMessage,
-        attachments: &MessageAttachments,
+        attachments: Option<&MessageAttachments>,
     ) -> Self {
         // A deleted message has nothing to report but the deletion. The
         // deletion is derived from the content rather than the stored status,
@@ -494,10 +494,9 @@ impl UiChatMessage {
     /// local attachment ids it therefore has no reason to load.
     ///
     /// The attachments themselves do not survive this, but
-    /// [`UiMimiContent::attachment_type`] does.
+    /// [`UiMimiContent::preview_text`] does.
     pub(crate) fn from_message_without_attachments(message: ChatMessage) -> Self {
-        let attachments = MessageAttachments::new(message.id(), Vec::new());
-        Self::from_message(message, &attachments)
+        Self::from_message(message, None)
     }
 }
 
@@ -512,7 +511,7 @@ pub enum UiMessage {
 }
 
 impl UiMessage {
-    fn from_message(message: Message, attachments: &MessageAttachments) -> Self {
+    fn from_message(message: Message, attachments: Option<&MessageAttachments>) -> Self {
         match message {
             Message::Content(content_message) => UiMessage::Content(Box::new(
                 UiContentMessage::from_message(*content_message, attachments),
@@ -535,7 +534,10 @@ pub struct UiContentMessage {
 }
 
 impl UiContentMessage {
-    fn from_message(content_message: ContentMessage, attachments: &MessageAttachments) -> Self {
+    fn from_message(
+        content_message: ContentMessage,
+        attachments: Option<&MessageAttachments>,
+    ) -> Self {
         let sent = content_message.was_sent();
         let edited = content_message.edited_at().is_some();
         let (sender, content) = content_message.into_sender_and_content();
@@ -543,7 +545,7 @@ impl UiContentMessage {
             sender: sender.into(),
             sent,
             edited,
-            content: UnresolvedMimiContent::from(content).resolve(Some(attachments)),
+            content: UnresolvedMimiContent::from(content).resolve(attachments),
         }
     }
 }

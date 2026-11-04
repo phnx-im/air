@@ -252,7 +252,7 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
-    use crate::api::markdown::BlockElement;
+    use crate::api::markdown::{BlockElement, RangedBlockElement};
 
     fn markdown_message(markdown: &str) -> MimiContent {
         MimiContent::simple_markdown_message(markdown.to_owned(), [0; 16])
@@ -513,6 +513,36 @@ mod tests {
         let resolved = UnresolvedMimiContent::from(content).resolve(Some(&infos));
         assert_eq!(resolved.attachments.len(), 1);
         assert_eq!(resolved.attachments[0].attachment_id, stored);
+    }
+
+    #[test]
+    fn attachment_without_record_shows_an_error() {
+        let content = render_container(vec![external_part(
+            Disposition::Attachment,
+            "application/pdf",
+            2,
+            "doc.pdf",
+        )]);
+        let message_id = MessageId::new(Uuid::from_u128(0x1234));
+        let infos = MessageAttachments::new(message_id, Vec::new());
+
+        let resolved = UnresolvedMimiContent::from(content.clone()).resolve(Some(&infos));
+        assert!(resolved.attachments.is_empty());
+        let elements = resolved.content.unwrap().elements;
+        let [
+            RangedBlockElement {
+                element: BlockElement::Error(_),
+                ..
+            },
+        ] = &elements[..]
+        else {
+            panic!("expected an error, got {elements:?}");
+        };
+        assert_eq!(resolved.preview_text.as_deref(), Some(FILE_PREVIEW));
+
+        // Records not loaded
+        let resolved = UnresolvedMimiContent::from(content).resolve(None);
+        assert!(resolved.content.is_none());
     }
 
     #[test]

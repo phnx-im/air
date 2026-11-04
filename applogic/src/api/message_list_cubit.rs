@@ -180,7 +180,7 @@ impl MessageListData {
                         let attachments = local_attachment_infos
                             .remove(&m.id())
                             .unwrap_or_else(|| MessageAttachments::new(m.id(), Vec::new()));
-                        UiChatMessage::from_message(m, &attachments)
+                        UiChatMessage::from_message(m, Some(&attachments))
                     })
                     .collect();
 
@@ -206,7 +206,7 @@ impl MessageListData {
                         let attachments = local_attachment_infos
                             .remove(&m.id())
                             .unwrap_or_else(|| MessageAttachments::new(m.id(), Vec::new()));
-                        UiChatMessage::from_message(m, &attachments)
+                        UiChatMessage::from_message(m, Some(&attachments))
                     })
                     .collect();
                 let prepend_count = prepended.len();
@@ -249,7 +249,7 @@ impl MessageListData {
                         let attachments = local_attachment_infos
                             .remove(&m.id())
                             .unwrap_or_else(|| MessageAttachments::new(m.id(), Vec::new()));
-                        UiChatMessage::from_message(m, &attachments)
+                        UiChatMessage::from_message(m, Some(&attachments))
                     })
                     .collect();
                 let old_count = self.messages.len();
@@ -324,7 +324,7 @@ impl MessageListData {
         local_attachment_infos: &MessageAttachments,
     ) -> Option<MessageListTransition> {
         let idx = self.message_ids_index.get(&message.id()).copied()?;
-        let updated = UiChatMessage::from_message(message, local_attachment_infos);
+        let updated = UiChatMessage::from_message(message, Some(local_attachment_infos));
         if self.messages[idx] == updated {
             return None;
         }

@@ -123,7 +123,7 @@ impl MessageContext {
         debug!(?message, "load_and_emit_state");
         match message {
             Ok(Some(message)) => {
-                let message = UiChatMessage::from_message(message, &attachments);
+                let message = UiChatMessage::from_message(message, Some(&attachments));
                 self.state_tx.send_modify(|state| state.message = message);
             }
             Ok(None) => {}
