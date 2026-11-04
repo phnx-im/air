@@ -85,15 +85,19 @@ impl From<MimiContent> for UnresolvedMimiContent {
             return res;
         }
 
-        let mut markdown = Vec::new();
+        // Parsed per part, so that syntax does not cross part boundaries
+        let mut elements = Vec::new();
         let mut raw = Vec::new();
         let _infallible = mimi_content.visit_parts(|part| {
             match part {
                 VisitedPart::Text { content, format } => {
-                    markdown.push(match format {
-                        TextFormat::Markdown => content.to_owned(),
-                        TextFormat::Plain => escape_markdown(content),
-                    });
+                    let parsed = match format {
+                        TextFormat::Markdown => MessageContent::parse_markdown(content),
+                        TextFormat::Plain => {
+                            MessageContent::parse_markdown(&escape_markdown(content))
+                        }
+                    };
+                    elements.extend(parsed.elements);
                     raw.push(content);
                 }
                 VisitedPart::Attachment { preview: true, .. } => {}
@@ -111,12 +115,11 @@ impl From<MimiContent> for UnresolvedMimiContent {
             Ok(())
         });
 
-        if markdown.is_empty() && res.attachments.is_empty() {
+        if raw.is_empty() && res.attachments.is_empty() {
             return res.error_message("Unsupported message");
         }
-        if !markdown.is_empty() {
-            let source = markdown.join("\n\n");
-            res.content = Some(MessageContent::parse_markdown(&source));
+        if !raw.is_empty() {
+            res.content = Some(MessageContent { elements });
             res.plain_body = Some(raw.join("\n\n"));
         }
         res
@@ -599,6 +602,23 @@ mod tests {
         let preview = unresolved.preview_text().unwrap();
         assert!(preview.contains("*star*"), "{preview:?}");
         assert!(preview.contains("indented"), "{preview:?}");
+    }
+
+    #[test]
+    fn markdown_does_not_cross_part_boundaries() {
+        let content = render_container(vec![
+            single_part(Disposition::Render, "text/markdown", b"```\ncode"),
+            single_part(Disposition::Render, "text/plain", b"*literal*"),
+        ]);
+        let unresolved = UnresolvedMimiContent::from(content);
+        let elements = &unresolved.content.as_ref().unwrap().elements;
+        assert_eq!(elements.len(), 2, "{elements:?}");
+        assert!(
+            matches!(elements[0].element, BlockElement::CodeBlock(_)),
+            "{elements:?}"
+        );
+        let preview = unresolved.preview_text().unwrap();
+        assert!(preview.ends_with("*literal*"), "{preview:?}");
     }
 
     #[quickcheck]
