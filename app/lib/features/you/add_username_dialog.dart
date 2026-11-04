@@ -154,6 +154,7 @@ class AddUsernameDialog extends HookWidget {
         (loc) => loc.usernameOnboarding_error,
         tone: .danger,
       );
+      setSubmitting(false);
       return;
     }
     if (!added) {

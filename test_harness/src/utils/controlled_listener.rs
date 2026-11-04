@@ -8,10 +8,9 @@ use std::{
     pin::Pin,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicU8, AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicU8, AtomicUsize, Ordering},
     },
     task::{Context, Poll},
-    time::Duration,
 };
 
 use airserver::{Addressed, IntoStream};
@@ -30,8 +29,7 @@ pub enum Mode {
     DropNextRequest = 3,
     DropConnectionOnWrite = 4,
     RejectNextRequest = 5,
-    DelayNextRequest = 6,
-    FailNextRequest = 7,
+    FailNextRequest = 6,
 }
 
 impl Mode {
@@ -42,8 +40,7 @@ impl Mode {
             3 => Mode::DropNextRequest,
             4 => Mode::DropConnectionOnWrite,
             5 => Mode::RejectNextRequest,
-            6 => Mode::DelayNextRequest,
-            7 => Mode::FailNextRequest,
+            6 => Mode::FailNextRequest,
             _ => Mode::Normal,
         }
     }
@@ -60,8 +57,6 @@ pub struct ControlHandle {
     target: Arc<Mutex<Option<String>>>,
     /// How many requests the armed request mode fails before it disarms.
     shots: Arc<AtomicUsize>,
-    /// How long [`Mode::DelayNextRequest`] holds the request, in milliseconds.
-    delay_millis: Arc<AtomicU64>,
 }
 
 impl Default for ControlHandle {
@@ -77,7 +72,6 @@ impl ControlHandle {
             skip: Arc::new(AtomicUsize::new(0)),
             target: Arc::new(Mutex::new(None)),
             shots: Arc::new(AtomicUsize::new(1)),
-            delay_millis: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -150,22 +144,6 @@ impl ControlHandle {
     /// `method`. See [`Self::set_drop_next_response_to`].
     pub fn set_reject_next_request_to(&self, method: &str) {
         self.arm_for(Mode::RejectNextRequest, method, 1);
-    }
-
-    /// Holds the next call of `method` for `delay` before the server handles
-    /// it, so a test can act while the request is in flight. See
-    /// [`Self::set_drop_next_response_to`].
-    ///
-    /// The request is held by blocking a runtime worker, so the test needs a
-    /// multi-threaded runtime with spare workers.
-    pub fn set_delay_next_request_to(&self, method: &str, delay: Duration) {
-        self.delay_millis
-            .store(delay.as_millis() as u64, Ordering::Relaxed);
-        self.arm_for(Mode::DelayNextRequest, method, 1);
-    }
-
-    pub(super) fn delay(&self) -> Duration {
-        Duration::from_millis(self.delay_millis.load(Ordering::Relaxed))
     }
 
     /// Fails the next request with an internal server error.

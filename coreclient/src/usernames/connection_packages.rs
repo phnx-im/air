@@ -35,6 +35,25 @@ impl From<ConnectionPackageMetadata> for ConnectionPackageRecord {
 }
 
 impl ConnectionPackageRecord {
+    /// Stores the decryption keys of freshly generated connection packages of
+    /// `username`, before the packages are published.
+    ///
+    /// Returns the hashes of the packages.
+    pub(crate) async fn store_all_for_username(
+        mut connection: impl WriteConnection,
+        username: &Username,
+        decryption_keys: Vec<(ConnectionDecryptionKey, ConnectionPackageMetadata)>,
+    ) -> Result<Vec<ConnectionPackageHash>> {
+        let mut hashes = Vec::with_capacity(decryption_keys.len());
+        for (decryption_key, metadata) in decryption_keys {
+            hashes.push(metadata.hash);
+            Self::from(metadata)
+                .store_for_username(&mut connection, username, &decryption_key)
+                .await?;
+        }
+        Ok(hashes)
+    }
+
     /// Store the connection package in the database, unless it is stored
     /// already.
     ///

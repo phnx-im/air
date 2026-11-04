@@ -187,11 +187,6 @@ pub(crate) async fn spawn_app(
                 interceptor_control_handle.fired();
                 return Err(Status::invalid_argument("rejected for interop test"));
             }
-            Mode::DelayNextRequest if interceptor_control_handle.take_armed(path) => {
-                let delay = interceptor_control_handle.delay();
-                interceptor_control_handle.fired();
-                std::thread::sleep(delay);
-            }
             Mode::FailNextRequest if interceptor_control_handle.take_armed(path) => {
                 interceptor_control_handle.fired();
                 return Err(Status::internal("failed for interop test"));

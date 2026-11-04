@@ -78,7 +78,6 @@ impl<T: OperationData> Operation<T> {
         }
     }
 
-    #[cfg(any(feature = "test_utils", test))]
     pub(crate) fn schedule_at(mut self, due_at: DateTime<Utc>) -> Self {
         self.scheduled_at = due_at;
         self
@@ -363,10 +362,18 @@ mod persistence {
         }
 
         /// Delete an operation
-        pub(crate) async fn delete(self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
+        pub(crate) async fn delete(self, connection: impl WriteConnection) -> sqlx::Result<()> {
+            Self::delete_by_id(connection, &self.operation_id).await
+        }
+
+        /// Delete the operation with the given id
+        pub(crate) async fn delete_by_id(
+            mut connection: impl WriteConnection,
+            operation_id: &OperationId,
+        ) -> sqlx::Result<()> {
             query!(
                 "DELETE FROM operation WHERE operation_id = ?",
-                self.operation_id.0,
+                operation_id.0,
             )
             .execute(connection.as_mut())
             .await?;

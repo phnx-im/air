@@ -11,3 +11,4 @@ pub(crate) mod requests;
 mod safety_codes;
 mod targeted;
 mod username;
+mod username_registration;
