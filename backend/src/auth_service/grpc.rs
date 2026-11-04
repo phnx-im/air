@@ -71,11 +71,14 @@ fn check_connection_package_limits(packages: &[SignedConnectionPackage]) -> Resu
     if packages.len() > MAX_CONNECTION_PACKAGES_PER_REQUEST {
         return Err(Status::invalid_argument("too many connection packages"));
     }
-    if packages
-        .iter()
-        .any(|package| package.payload.len() > MAX_CONNECTION_PACKAGE_BYTES)
-    {
-        return Err(Status::invalid_argument("connection package too large"));
+    for package in packages {
+        let signature_len = package
+            .signature
+            .as_ref()
+            .map_or(0, |signature| signature.value.len());
+        if package.payload.len() + signature_len > MAX_CONNECTION_PACKAGE_BYTES {
+            return Err(Status::invalid_argument("connection package too large"));
+        }
     }
     Ok(())
 }
@@ -975,7 +978,7 @@ mod tests {
             GetInvitationCodesRequest, OperationType,
             auth_service_server::AuthService as AuthServiceRpc,
         },
-        common::v1::{StatusDetails, StatusDetailsCode},
+        common::v1::{Signature, StatusDetails, StatusDetailsCode},
     };
     use chrono::Utc;
     use privacypass::{
@@ -1303,8 +1306,21 @@ mod tests {
         assert_eq!(status.code(), Code::InvalidArgument);
         assert_eq!(status.message(), "connection package too large");
 
+        let signed = |signature_len: usize| SignedConnectionPackage {
+            payload: vec![0; MAX_CONNECTION_PACKAGE_BYTES - 64],
+            signature: Some(Signature {
+                value: vec![0; signature_len],
+            }),
+        };
         let status = grpc_as
-            .publish_connection_packages(request(garbage(1, 8)))
+            .publish_connection_packages(request(vec![signed(65)]))
+            .await
+            .unwrap_err();
+        assert_eq!(status.code(), Code::InvalidArgument);
+        assert_eq!(status.message(), "connection package too large");
+
+        let status = grpc_as
+            .publish_connection_packages(request(vec![signed(64)]))
             .await
             .unwrap_err();
         assert_eq!(status.code(), Code::NotFound);
