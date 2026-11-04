@@ -1227,8 +1227,7 @@ impl CoreUser {
 
         // Message edit
         if let Ok(content) = &mut content
-            && let Some(replaces) = content.replaces.as_ref()
-            && let Ok(mimi_id) = MimiId::from_slice(replaces)
+            && let Some(mimi_id) = content.replaces.map(MimiId::from)
         {
             // Don't fail here, otherwise message processing of other messages will fail.
             let mut savepoint_txn = txn.begin().await?;
@@ -1381,8 +1380,7 @@ impl CoreUser {
         ds_timestamp: TimeStamp,
     ) -> anyhow::Result<(Option<ReactionNotification>, Option<ChatId>)> {
         // Retraction: `replaces` the previously sent reaction with an empty body.
-        if let Some(replaces) = content.replaces.as_ref() {
-            let replaced_mimi_id = MimiId::from_slice(replaces)?;
+        if let Some(replaced_mimi_id) = content.replaces.map(MimiId::from) {
             let mut changed_chat = None;
             if let Some(target_mimi_id) =
                 Reaction::delete_by_mimi_id(&mut *txn, &replaced_mimi_id).await?
@@ -1398,11 +1396,10 @@ impl CoreUser {
         }
 
         // Add: `in_reply_to` references the reacted-to message.
-        let Some(in_reply_to) = content.in_reply_to.as_ref() else {
+        let Some(target_mimi_id) = content.in_reply_to.map(MimiId::from) else {
             warn!("Received reaction without in_reply_to, ignoring");
             return Ok((None, None));
         };
-        let target_mimi_id = MimiId::from_slice(in_reply_to)?;
 
         let Some(target) = ChatMessage::load_by_mimi_id(&mut *txn, &target_mimi_id).await? else {
             warn!("Received reaction for unknown message, ignoring");

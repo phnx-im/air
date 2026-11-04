@@ -1322,9 +1322,7 @@ mod tests {
                 .context("no request")?;
             let report = MessageStatusReport {
                 statuses: vec![PerMessageStatus {
-                    mimi_id: MimiId::for_connection_request(request.group_id())
-                        .as_slice()
-                        .to_vec(),
+                    mimi_id: MimiId::for_connection_request(request.group_id()).into(),
                     status: MessageStatus::Read,
                 }],
             };
