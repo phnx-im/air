@@ -7,8 +7,7 @@ use aircommon::{
     crypto::ConnectionDecryptionKey,
     identifiers::{Username, UsernameHash},
     messages::{
-        client_as_out::UsernameDeleteResponse,
-        connection_package::{ConnectionPackage, ConnectionPackageMetadata},
+        client_as_out::UsernameDeleteResponse, connection_package::ConnectionPackageMetadata,
     },
 };
 use airprotos::auth_service::v1::{OperationType, SignedConnectionPackage};
@@ -137,11 +136,13 @@ impl CoreUser {
         }
 
         // Publish connection packages
-        let connection_package_bundles =
-            generate_connection_packages(&record.signing_key, record.hash)?;
+        let SignedConnectionPackages {
+            packages,
+            decryption_keys,
+        } = generate_signed_connection_packages(&record.signing_key, record.hash)?;
 
         // Store connection packages in the database
-        for (decryption_key, metadata) in connection_package_bundles.decryption_keys {
+        for (decryption_key, metadata) in decryption_keys {
             ConnectionPackageRecord::from(metadata)
                 .store_for_username(&mut txn, &username, &decryption_key)
                 .await?;
@@ -149,12 +150,7 @@ impl CoreUser {
         txn.commit().await?;
 
         if let Err(error) = api_client
-            .as_publish_connection_packages_for_username(
-                hash,
-                connection_package_bundles.legacy,
-                connection_package_bundles.signed,
-                &record.signing_key,
-            )
+            .as_publish_connection_packages_for_username(hash, packages, &record.signing_key)
             .await
         {
             error!(%error, "failed to publish connection packages; rollback");
@@ -289,34 +285,6 @@ impl CoreUser {
         )
         .await
     }
-}
-
-struct GeneratedConnectionPackages {
-    legacy: Vec<ConnectionPackage>,
-    signed: Vec<SignedConnectionPackage>,
-    decryption_keys: Vec<(ConnectionDecryptionKey, ConnectionPackageMetadata)>,
-}
-
-fn generate_connection_packages(
-    signing_key: &UsernameSigningKey,
-    hash: UsernameHash,
-) -> anyhow::Result<GeneratedConnectionPackages> {
-    // A single last resort legacy package is enough to keep old clients connecting until the legacy
-    // fetch is retired.
-    let (key, package, metadata) = ConnectionPackage::generate(hash, signing_key, true)?;
-    let legacy = vec![package];
-
-    let SignedConnectionPackages {
-        packages: signed,
-        mut decryption_keys,
-    } = generate_signed_connection_packages(signing_key, hash)?;
-    decryption_keys.push((key, metadata));
-
-    Ok(GeneratedConnectionPackages {
-        legacy,
-        signed,
-        decryption_keys,
-    })
 }
 
 pub(crate) struct SignedConnectionPackages {
