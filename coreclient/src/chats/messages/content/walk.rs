@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::RemoteAttachmentId;
+use airprotos::client::link_preview::LinkPreviewCard;
 use mimi_content::{
     Disposition,
     content_container::{NestedPart, PartSemantics},
@@ -288,6 +289,9 @@ impl Ctx {
                         str::from_utf8(content)
                             .map(Leaf::Blurhash)
                             .unwrap_or(Leaf::Ignored)
+                    } else if media_type == LinkPreviewCard::CONTENT_TYPE {
+                        // not rendered yet, and never an attachment record
+                        Leaf::Ignored
                     } else if media_type.has_type("text") {
                         Leaf::Ignored
                     } else {
@@ -550,15 +554,11 @@ mod tests {
     fn link_preview_layout() {
         let seen = visit_part(all(vec![
             text("text/markdown", "see"),
-            single(
-                Disposition::Preview,
-                "application/vnd.air.link-preview+cbor",
-                b"\x00",
-            ),
+            single(Disposition::Preview, LinkPreviewCard::CONTENT_TYPE, b"\x00"),
             external(Disposition::Preview, "image/webp"),
         ]));
         // root 0, text 1, card 2, image 3 as in the link preview spec
-        assert_eq!(seen, [md("see"), att(2, true, None), att(3, true, None)]);
+        assert_eq!(seen, [md("see"), att(3, true, None)]);
     }
 
     #[test]

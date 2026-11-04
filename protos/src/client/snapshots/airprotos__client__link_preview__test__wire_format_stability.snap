@@ -1,0 +1,38 @@
+---
+source: protos/src/client/link_preview.rs
+expression: diag
+---
+a5                                                      # map(5)
+   01                                                   #   unsigned(1)
+   78 2c                                                #   text(44)
+      68747470733a2f2f6769746875622e63                  #     "https://github.c"
+      6f6d2f6f70656e6d6c732f6f70656e6d                  #     "om/openmls/openm"
+      6c732f70756c6c2f32303436                          #     "ls/pull/2046"
+   02                                                   #   unsigned(2)
+   78 3c                                                #   text(60)
+      666561743a20502d3338342c204d4c2d                  #     "feat: P-384, ML-"
+      44534120c2b72050756c6c2052657175                  #     "DSA · Pull Requ"
+      65737420233230343620c2b7206f7065                  #     "est #2046 · ope"
+      6e6d6c732f6f70656e6d6c73                          #     "nmls/openmls"
+   03                                                   #   unsigned(3)
+   78 2e                                                #   text(46)
+      41646420706f73742d7175616e74756d                  #     "Add post-quantum"
+      20616e6420502d333834206369706865                  #     " and P-384 ciphe"
+      72737569746520737570706f7274                      #     "rsuite support"
+   04                                                   #   unsigned(4)
+   01                                                   #   unsigned(1)
+   05                                                   #   unsigned(5)
+   a5                                                   #   map(5)
+      01                                                #     unsigned(1)
+      03                                                #     unsigned(3)
+      02                                                #     unsigned(2)
+      19 0400                                           #     unsigned(1,024)
+      03                                                #     unsigned(3)
+      19 0200                                           #     unsigned(512)
+      04                                                #     unsigned(4)
+      78 1c                                             #     text(28)
+         4c4b4f323f55253254773d775d7e5242               #       "LKO2?U%2Tw=w]~RB"
+         565a52697d3b525078757748                       #       "VZRi};RPxuwH"
+      05                                                #     unsigned(5)
+      77                                                #     text(23)
+         6f70656e6d6c73207265706f7369746f72792063617264 #       "openmls repository card"
