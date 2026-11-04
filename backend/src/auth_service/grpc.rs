@@ -468,11 +468,8 @@ impl auth_service_server::AuthService for GrpcAs {
             &username_verifying_key,
         )?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
-        let connection_packages = payload
-            .connection_packages
-            .into_iter()
-            .map(|package| package.try_into())
-            .collect::<Result<Vec<_>, _>>()?;
+        // Legacy packages are dropped. Clients publish them only together with
+        // a signed last resort package, which a fetch always serves first.
         let signed_connection_packages = payload
             .signed_connection_packages
             .into_iter()
@@ -482,7 +479,6 @@ impl auth_service_server::AuthService for GrpcAs {
             .as_publish_connection_packages_for_handle(
                 &hash,
                 &username_verifying_key,
-                connection_packages,
                 signed_connection_packages,
             )
             .await?;
