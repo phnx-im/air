@@ -24,7 +24,10 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatId, ChatMessage, ContentMessage, Message,
-    chats::{messages::InReplyToMessage, reactions::Reaction},
+    chats::{
+        messages::{InReplyToMessage, edit::MessageEdit},
+        reactions::Reaction,
+    },
     clients::attachment::AttachmentRecord,
     db::access::{ReadConnection, WriteConnection},
 };
@@ -184,6 +187,7 @@ impl From<SqlChatMessage> for ChatMessage {
             event_mimi_id,
             // Populated by `augment` after the row is decoded.
             reactions: IndexMap::new(),
+            edit_count: 0,
         }
     }
 }
@@ -697,6 +701,11 @@ impl ChatMessage {
     async fn augment(&mut self, mut connection: impl ReadConnection) -> sqlx::Result<()> {
         if let Some((mimi_id, message)) = self.in_reply_to.as_mut() {
             *message = InReplyToMessage::load(&mut connection, mimi_id).await?;
+        }
+
+        // Only an edited message has an edit history.
+        if self.edited_at().is_some() {
+            self.edit_count = MessageEdit::count_by_message_id(&mut connection, self.id()).await?;
         }
 
         if let Some(mimi_id) = self.message().mimi_id().copied() {
@@ -1328,6 +1337,7 @@ pub(crate) mod tests {
             in_reply_to: None,
             event_mimi_id: None,
             reactions: IndexMap::new(),
+            edit_count: 0,
         }
     }
 

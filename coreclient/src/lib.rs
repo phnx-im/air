@@ -25,7 +25,8 @@ pub use crate::{
         connection_requests::StoredRequest,
         messages::{
             ChatMessage, ContentMessage, ErrorMessage, EventMessage, InReplyToMessage, Message,
-            MessageId, SystemMessage, edit::MessageVersion,
+            MessageId, SystemMessage,
+            edit::{EDIT_WINDOW, MAX_EDITS, MessageEditError, MessageVersion},
         },
         notification_rebuild::ChatNotificationEntry,
         pending::AcceptContactRequestError,

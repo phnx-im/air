@@ -1071,7 +1071,7 @@ as UiUserProfile,
 /// @nodoc
 mixin _$UiContentMessage {
 
- UiUserId get sender; bool get sent; UiMimiContent get content; bool get edited;
+ UiUserId get sender; bool get sent; UiMimiContent get content; bool get edited; DateTime? get editableUntil; int get editsLeft;
 /// Create a copy of UiContentMessage
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1083,20 +1083,20 @@ $UiContentMessageCopyWith<UiContentMessage> get copyWith => _$UiContentMessageCo
 @override
 bool operator ==(Object other) {
   final _this = this as UiContentMessage;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiContentMessage&&(identical(other.sender, _this.sender) || other.sender == _this.sender)&&(identical(other.sent, _this.sent) || other.sent == _this.sent)&&(identical(other.content, _this.content) || other.content == _this.content)&&(identical(other.edited, _this.edited) || other.edited == _this.edited));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiContentMessage&&(identical(other.sender, _this.sender) || other.sender == _this.sender)&&(identical(other.sent, _this.sent) || other.sent == _this.sent)&&(identical(other.content, _this.content) || other.content == _this.content)&&(identical(other.edited, _this.edited) || other.edited == _this.edited)&&(identical(other.editableUntil, _this.editableUntil) || other.editableUntil == _this.editableUntil)&&(identical(other.editsLeft, _this.editsLeft) || other.editsLeft == _this.editsLeft));
 }
 
 
 @override
 int get hashCode {
   final _this = this as UiContentMessage;
-  return Object.hash(runtimeType,_this.sender,_this.sent,_this.content,_this.edited);
+  return Object.hash(runtimeType,_this.sender,_this.sent,_this.content,_this.edited,_this.editableUntil,_this.editsLeft);
 }
 
 @override
 String toString() {
   final _this = this as UiContentMessage;
-  return 'UiContentMessage(sender: ${_this.sender}, sent: ${_this.sent}, content: ${_this.content}, edited: ${_this.edited})';
+  return 'UiContentMessage(sender: ${_this.sender}, sent: ${_this.sent}, content: ${_this.content}, edited: ${_this.edited}, editableUntil: ${_this.editableUntil}, editsLeft: ${_this.editsLeft})';
 }
 
 
@@ -1107,7 +1107,7 @@ abstract mixin class $UiContentMessageCopyWith<$Res>  {
   factory $UiContentMessageCopyWith(UiContentMessage value, $Res Function(UiContentMessage) _then) = _$UiContentMessageCopyWithImpl;
 @useResult
 $Res call({
- UiUserId sender, bool sent, UiMimiContent content, bool edited
+ UiUserId sender, bool sent, UiMimiContent content, bool edited, DateTime? editableUntil, int editsLeft
 });
 
 
@@ -1124,13 +1124,15 @@ class _$UiContentMessageCopyWithImpl<$Res>
 
 /// Create a copy of UiContentMessage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? sender = null,Object? sent = null,Object? content = null,Object? edited = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? sender = null,Object? sent = null,Object? content = null,Object? edited = null,Object? editableUntil = freezed,Object? editsLeft = null,}) {
   return _then(UiContentMessage(
 sender: null == sender ? _self.sender : sender // ignore: cast_nullable_to_non_nullable
 as UiUserId,sent: null == sent ? _self.sent : sent // ignore: cast_nullable_to_non_nullable
 as bool,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
 as UiMimiContent,edited: null == edited ? _self.edited : edited // ignore: cast_nullable_to_non_nullable
-as bool,
+as bool,editableUntil: freezed == editableUntil ? _self.editableUntil : editableUntil // ignore: cast_nullable_to_non_nullable
+as DateTime?,editsLeft: null == editsLeft ? _self.editsLeft : editsLeft // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 /// Create a copy of UiContentMessage
@@ -1151,13 +1153,15 @@ $UiMimiContentCopyWith<$Res> get content {
 
 
 class _UiContentMessage implements UiContentMessage {
-  const _UiContentMessage({required this.sender, required this.sent, required this.content, required this.edited});
+  const _UiContentMessage({required this.sender, required this.sent, required this.content, required this.edited, this.editableUntil = null, this.editsLeft = 0});
   
 
 @override final  UiUserId sender;
 @override final  bool sent;
 @override final  UiMimiContent content;
 @override final  bool edited;
+@override@JsonKey() final  DateTime? editableUntil;
+@override@JsonKey() final  int editsLeft;
 
 /// Create a copy of UiContentMessage
 /// with the given fields replaced by the non-null parameter values.
@@ -1169,18 +1173,18 @@ _$UiContentMessageCopyWith<_UiContentMessage> get copyWith => __$UiContentMessag
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiContentMessage&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.sent, sent) || other.sent == sent)&&(identical(other.content, content) || other.content == content)&&(identical(other.edited, edited) || other.edited == edited));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiContentMessage&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.sent, sent) || other.sent == sent)&&(identical(other.content, content) || other.content == content)&&(identical(other.edited, edited) || other.edited == edited)&&(identical(other.editableUntil, editableUntil) || other.editableUntil == editableUntil)&&(identical(other.editsLeft, editsLeft) || other.editsLeft == editsLeft));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,sender,sent,content,edited);
+    return Object.hash(runtimeType,sender,sent,content,edited,editableUntil,editsLeft);
 }
 
 @override
 String toString() {
-    return 'UiContentMessage(sender: $sender, sent: $sent, content: $content, edited: $edited)';
+    return 'UiContentMessage(sender: $sender, sent: $sent, content: $content, edited: $edited, editableUntil: $editableUntil, editsLeft: $editsLeft)';
 }
 
 
@@ -1191,7 +1195,7 @@ abstract mixin class _$UiContentMessageCopyWith<$Res> implements $UiContentMessa
   factory _$UiContentMessageCopyWith(_UiContentMessage value, $Res Function(_UiContentMessage) _then) = __$UiContentMessageCopyWithImpl;
 @override @useResult
 $Res call({
- UiUserId sender, bool sent, UiMimiContent content, bool edited
+ UiUserId sender, bool sent, UiMimiContent content, bool edited, DateTime? editableUntil, int editsLeft
 });
 
 
@@ -1208,13 +1212,15 @@ class __$UiContentMessageCopyWithImpl<$Res>
 
 /// Create a copy of UiContentMessage
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? sender = null,Object? sent = null,Object? content = null,Object? edited = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? sender = null,Object? sent = null,Object? content = null,Object? edited = null,Object? editableUntil = freezed,Object? editsLeft = null,}) {
   return _then(_UiContentMessage(
 sender: null == sender ? _self.sender : sender // ignore: cast_nullable_to_non_nullable
 as UiUserId,sent: null == sent ? _self.sent : sent // ignore: cast_nullable_to_non_nullable
 as bool,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
 as UiMimiContent,edited: null == edited ? _self.edited : edited // ignore: cast_nullable_to_non_nullable
-as bool,
+as bool,editableUntil: freezed == editableUntil ? _self.editableUntil : editableUntil // ignore: cast_nullable_to_non_nullable
+as DateTime?,editsLeft: null == editsLeft ? _self.editsLeft : editsLeft // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 

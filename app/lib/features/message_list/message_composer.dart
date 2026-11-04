@@ -31,6 +31,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/core/core.dart';
+import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
 import 'package:air/share/pending_share.dart';
 import 'package:provider/provider.dart';
@@ -322,7 +323,7 @@ class _MessageComposerState extends State<MessageComposer>
           scrollBackUnread: hasUnread,
           onScrollBack: () => controller?.scrollToBottom(),
           aboveField: [
-            if (isEditing) const _EditBanner(),
+            if (editingId != null) _EditBanner(editingId: editingId),
             if (inReplyToId != null) const _ReplyPreview(),
           ],
           field: _ComposerField(
@@ -457,8 +458,15 @@ class _MessageComposerState extends State<MessageComposer>
       }
     } catch (e, stackTrace) {
       _log.severe("Failed to send message", e, stackTrace);
+      // A refused edit leaves edit mode and keeps the text as a new message.
       showSnackBarStandalone(
-        (loc) => loc.composer_error_sendMessage,
+        (loc) => switch (e) {
+          UiSendMessageError_EditWindowPassed() =>
+            loc.composer_error_editWindowPassed,
+          UiSendMessageError_EditLimitReached() =>
+            loc.composer_error_editLimitReached,
+          _ => loc.composer_error_sendMessage,
+        },
         tone: .danger,
       );
       // Restore the text unless the user has started typing a new message.
@@ -712,14 +720,34 @@ class _MessageComposerState extends State<MessageComposer>
   }
 }
 
+/// Edits left from which the banner counts them down.
+const _editsLeftHintThreshold = 3;
+
 /// The "Edit message" banner, shown above the field while an edit is staged.
+/// Near the edit limit of the message, it tells how many edits are left.
 class _EditBanner extends StatelessWidget {
-  const _EditBanner();
+  const _EditBanner({required this.editingId});
+
+  final MessageId editingId;
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final palette = SemanticPalette.of(context);
+    // The count is only known while the message is in the loaded window.
+    final editsLeft = context.select((MessageListCubit cubit) {
+      final message = cubit.state.messageById(editingId)?.message;
+      return switch (message) {
+        UiMessage_Content(:final field0) => field0.editsLeft,
+        _ => null,
+      };
+    });
+    final editsLeftHint = switch (editsLeft) {
+      1 => loc.composer_lastEdit,
+      final count? when count > 1 && count <= _editsLeftHintThreshold =>
+        loc.composer_editsLeft(count),
+      _ => null,
+    };
     return Padding(
       padding: const EdgeInsets.only(
         top: S.s8,
@@ -737,6 +765,7 @@ class _EditBanner extends StatelessWidget {
             ),
             const WidgetSpan(child: SizedBox(width: S.s8)),
             TextSpan(text: loc.composer_editMessage),
+            if (editsLeftHint != null) TextSpan(text: ' · $editsLeftHint'),
           ],
           style: typeScale.body.s.style(color: palette.text.tertiary),
         ),
