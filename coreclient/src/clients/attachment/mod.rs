@@ -209,7 +209,8 @@ impl MessageAttachments {
         if let Some(info) = self.infos.iter().find(|info| info.attachment_id == derived) {
             return Some(info);
         }
-        // Rows stored before attachment ids were derived
+        // Rows stored before attachment ids were derived. They stay in local
+        // databases, so this fallback is permanent.
         let remote_attachment_id = remote_attachment_id?;
         self.infos.iter().find(|info| {
             info.remote_attachment_id == Some(remote_attachment_id)
