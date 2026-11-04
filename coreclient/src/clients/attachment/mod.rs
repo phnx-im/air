@@ -357,6 +357,15 @@ mod test {
     }
 
     #[test]
+    fn attachment_url_is_canonical() {
+        let id = RemoteAttachmentId::new(uuid!("b6a42a7a-62fa-4c10-acfb-6124d80aae09"));
+        for dimensions in [None, Some((1920, 1080))] {
+            let url = AttachmentUrl::new(id, dimensions).to_string();
+            assert!(RemoteAttachmentId::is_canonical(&url), "{url}");
+        }
+    }
+
+    #[test]
     fn attachment_url_with_dimensions() {
         let id = uuid!("b6a42a7a-62fa-4c10-acfb-6124d80aae09");
         let url = "air:///attachment/b6a42a7a-62fa-4c10-acfb-6124d80aae09?width=1920&height=1080"

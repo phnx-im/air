@@ -2,13 +2,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::identifiers::RemoteAttachmentId;
 use mimi_content::{
     Disposition,
     content_container::{NestedPart, PartSemantics},
 };
 
 use crate::{
-    AttachmentUrl, MediaType,
+    MediaType,
     media_type::{TEXT_BLURHASH, TEXT_MARKDOWN, TEXT_PLAIN},
 };
 
@@ -310,10 +311,14 @@ impl Ctx {
                     }
                 }
             }
-            NestedPart::ExternalPart { url, .. } => match url.parse::<AttachmentUrl>() {
-                Ok(_) => Leaf::Attachment,
-                Err(_) => Leaf::Unknown, // Non-Air URL => For now unknown
-            },
+            // Non-Air URLs are unknown for now
+            NestedPart::ExternalPart { url, .. } => {
+                if RemoteAttachmentId::is_canonical(url) {
+                    Leaf::Attachment
+                } else {
+                    Leaf::Unknown
+                }
+            }
             NestedPart::NullPart { .. } | NestedPart::MultiPart { .. } => Leaf::Ignored,
         }
     }
@@ -321,17 +326,13 @@ impl Ctx {
 
 /// Number of leaves in the subtree, independent of `MAX_DEPTH`.
 fn leaf_count(part: &NestedPart) -> usize {
-    let mut count = 0;
-    let mut stack = vec![part];
-    while let Some(part) = stack.pop() {
-        match part {
-            NestedPart::MultiPart { parts, .. } => stack.extend(parts),
-            NestedPart::NullPart { .. }
-            | NestedPart::SinglePart { .. }
-            | NestedPart::ExternalPart { .. } => count += 1,
-        }
+    // We assume that mimi_content already enforced a recursion bound.
+    match part {
+        NestedPart::NullPart { .. }
+        | NestedPart::SinglePart { .. }
+        | NestedPart::ExternalPart { .. } => 1,
+        NestedPart::MultiPart { parts, .. } => parts.iter().map(leaf_count).sum(),
     }
-    count
 }
 
 #[derive(Default, Clone, Copy)]
@@ -370,10 +371,8 @@ mod tests {
     };
     use uuid::Uuid;
 
-    use aircommon::identifiers::RemoteAttachmentId;
-
     use super::*;
-    use crate::MimiContentExt;
+    use crate::{AttachmentUrl, MimiContentExt};
 
     #[derive(Debug, PartialEq, Eq)]
     enum Seen {
