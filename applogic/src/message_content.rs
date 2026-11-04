@@ -617,8 +617,14 @@ mod tests {
             matches!(elements[0].element, BlockElement::CodeBlock(_)),
             "{elements:?}"
         );
-        let preview = unresolved.preview_text().unwrap();
-        assert!(preview.ends_with("*literal*"), "{preview:?}");
+        assert!(
+            matches!(elements[1].element, BlockElement::Paragraph(_)),
+            "{elements:?}"
+        );
+        let paragraph = MessageContent {
+            elements: vec![elements[1].clone()],
+        };
+        assert_eq!(paragraph.plain_text(), "*literal*");
     }
 
     #[quickcheck]
