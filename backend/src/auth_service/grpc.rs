@@ -459,6 +459,7 @@ impl auth_service_server::AuthService for GrpcAs {
             .payload
             .as_ref()
             .ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
         check_connection_package_limits(&payload.signed_connection_packages)?;
         let hash: identifiers::UsernameHash = payload
             .hash
@@ -470,7 +471,6 @@ impl auth_service_server::AuthService for GrpcAs {
             request,
             &username_verifying_key,
         )?;
-        self.verify_client_version(payload.client_metadata.as_ref())?;
         // Legacy packages are dropped. Clients publish them only together with
         // a signed last resort package, which a fetch always serves first.
         let signed_connection_packages = payload
@@ -988,6 +988,7 @@ mod tests {
         private_tokens::Ristretto255,
     };
     use prost::bytes::Bytes;
+    use semver::Version;
     use sqlx::PgPool;
     use tls_codec::Serialize;
     use tokio_util::sync::CancellationToken;
@@ -1000,7 +1001,9 @@ mod tests {
             privacy_pass::load_batched_token_keys,
             user_record::persistence::tests::store_random_user_record,
         },
+        settings::VersionExpiration,
         settings::{RegistrationPolicy, RegistrationSettings},
+        version::VersionPolicy,
     };
 
     use super::*;
@@ -1324,6 +1327,50 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(status.code(), Code::NotFound);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn publish_connection_packages_checks_the_client_version_before_the_limits(
+        pool: PgPool,
+    ) -> anyhow::Result<()> {
+        let version_policy = VersionPolicy::new(vec![VersionExpiration {
+            older_than: Version::new(1, 0, 0),
+            expires_on: Utc::now() - chrono::Duration::days(1),
+        }]);
+        let service = AuthService::initialize(
+            pool.clone(),
+            "example.com".parse()?,
+            version_policy,
+            0,
+            CancellationToken::new(),
+        )
+        .await?;
+        let grpc_as = GrpcAs::new(service);
+        let request = Request::new(SignedRequest::new(
+            PublishConnectionPackagesRequest {
+                payload: Some(PublishConnectionPackagesPayload {
+                    client_metadata: None,
+                    hash: Some(UsernameHash { bytes: vec![1; 32] }),
+                    signed_connection_packages: vec![
+                        SignedConnectionPackage {
+                            payload: vec![0; 8],
+                            signature: None,
+                        };
+                        MAX_CONNECTION_PACKAGES_PER_REQUEST + 1
+                    ],
+                }),
+                signature: None,
+            },
+            Bytes::new(),
+        ));
+
+        let status = grpc_as
+            .publish_connection_packages(request)
+            .await
+            .unwrap_err();
+        assert_eq!(status.code(), Code::FailedPrecondition, "{status:?}");
 
         Ok(())
     }
