@@ -86,12 +86,14 @@ impl GenerateCollisionTag for PerMessageStatus {
     fn collision_tag(&self, key: &SendMessageCollisionKey) -> SendMessageCollisionTag {
         match self.status {
             MessageStatus::Delivered => SendMessageCollisionTag::DeliveryReceipt(
-                key.derive_collision_tag("delivered", &self.mimi_id),
+                key.derive_collision_tag("delivered", self.mimi_id.as_slice()),
             ),
             MessageStatus::Read => SendMessageCollisionTag::ReadReceipt(
-                key.derive_collision_tag("read", &self.mimi_id),
+                key.derive_collision_tag("read", self.mimi_id.as_slice()),
             ),
-            _ => SendMessageCollisionTag::Other(key.derive_collision_tag("aux", &self.mimi_id)),
+            _ => SendMessageCollisionTag::Other(
+                key.derive_collision_tag("aux", self.mimi_id.as_slice()),
+            ),
         }
     }
 }

@@ -13,6 +13,12 @@ use tracing::error;
 /// How long to keep a batch of staged key packages around
 const STAGED_KEY_PACKAGES_BATCH_TTL: chrono::Duration = chrono::Duration::minutes(5);
 
+/// Unexpired batches one user may have staged at once.
+///
+/// A device stages one batch per upload and a new one for each retry, so a
+/// user needs a few per device.
+pub(in crate::qs) const MAX_STAGED_BATCHES_PER_USER: i64 = 32;
+
 /// A batch of key packages to be staged.
 pub(super) struct StagedKeyPackages {
     pub user_id: QsUserId,
@@ -24,16 +30,38 @@ pub(super) struct StagedKeyPackages {
 }
 
 impl StagedKeyPackages {
-    /// Stages key packages for the given `(user, epoch, leaf_index, generation)` tuple.
+    /// Stages a key package batch for `(user, epoch, leaf_index, generation)`.
     ///
-    /// This function is idempotent in the following sense: if the batch already exists for the
-    /// given tuple, it is checked that the key packages are exactly the same (the order of the key
-    /// packages is *important*). If the key packages are different, an error is returned.
+    /// This function is idempotent in the following sense: if the batch
+    /// already exists for the given tuple, it is checked that the key packages
+    /// are exactly the same (the order of the key packages is *important*). If
+    /// the key packages are different, an error is returned.
+    ///
+    /// A new batch is rejected when the user already has
+    /// `MAX_STAGED_BATCHES_PER_USER` unexpired batches.
     pub(super) async fn stage(
         &self,
         txn: &mut PgTransaction<'_>,
     ) -> Result<(), StageKeyPackageError> {
         let epoch_id = self.batch_id.epoch_id.as_bytes();
+        let cutoff = Utc::now() - STAGED_KEY_PACKAGES_BATCH_TTL;
+        let other_batches = query_scalar!(
+            r#"SELECT count(*) AS "count!"
+            FROM qs_staged_key_package_batch
+            WHERE user_id = $1 AND created_at >= $2
+                AND NOT (epoch_id = $3 AND leaf_index = $4 AND generation = $5)"#,
+            self.user_id as _,
+            cutoff,
+            epoch_id,
+            self.batch_id.leaf_index.u32() as i64,
+            self.batch_id.generation as i64,
+        )
+        .fetch_one(txn.as_mut())
+        .await?;
+        if other_batches >= MAX_STAGED_BATCHES_PER_USER {
+            return Err(StageKeyPackageError::TooManyBatches);
+        }
+
         let batch_id = query_scalar!(
             "INSERT INTO qs_staged_key_package_batch (user_id, epoch_id, leaf_index, generation)
             VALUES ($1, $2, $3, $4)
@@ -310,6 +338,8 @@ pub(crate) enum StageKeyPackageError {
     MissingKeyPackage,
     #[error("key package mismatch")]
     KeyPackageMismatch,
+    #[error("too many staged key package batches")]
+    TooManyBatches,
 }
 
 #[cfg(test)]
@@ -502,6 +532,66 @@ pub(crate) mod tests {
             result,
             Err(StageKeyPackageError::MissingKeyPackage)
         ));
+        Ok(())
+    }
+
+    async fn stage_in_own_transaction(
+        pool: &PgPool,
+        batch: &StagedKeyPackages,
+    ) -> Result<(), StageKeyPackageError> {
+        let mut txn = pool.begin().await?;
+        batch.stage(&mut txn).await?;
+        txn.commit().await?;
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn stage_caps_unexpired_batches_per_user(pool: PgPool) -> anyhow::Result<()> {
+        let user = store_random_user_record(&pool).await?;
+        store_random_client_record(&pool, user.user_id).await?;
+        let cap = usize::try_from(MAX_STAGED_BATCHES_PER_USER)?;
+        let batches: Vec<_> = (0..=cap + 1)
+            .map(|generation| {
+                staged(
+                    user.user_id,
+                    generation as u32,
+                    vec![build_key_package(false)],
+                    vec![],
+                )
+            })
+            .collect();
+
+        for batch in &batches[..cap] {
+            stage_in_own_transaction(&pool, batch).await?;
+        }
+        let result = stage_in_own_transaction(&pool, &batches[cap]).await;
+        assert!(matches!(result, Err(StageKeyPackageError::TooManyBatches)));
+        // Re-staging an existing batch is not a new batch.
+        stage_in_own_transaction(&pool, &batches[0]).await?;
+        // Another user is not affected.
+        let other = store_random_user_record(&pool).await?;
+        let other_batch = staged(other.user_id, 0, vec![build_key_package(false)], vec![]);
+        stage_in_own_transaction(&pool, &other_batch).await?;
+
+        // An expired batch frees its slot before it is deleted.
+        sqlx::query!(
+            "UPDATE qs_staged_key_package_batch SET created_at = $1
+            WHERE user_id = $2 AND generation = 0",
+            Utc::now() - Duration::hours(1),
+            user.user_id as _,
+        )
+        .execute(&pool)
+        .await?;
+        stage_in_own_transaction(&pool, &batches[cap]).await?;
+        let result = stage_in_own_transaction(&pool, &batches[cap + 1]).await;
+        assert!(matches!(result, Err(StageKeyPackageError::TooManyBatches)));
+
+        // A promoted batch frees its slot.
+        let mut txn = pool.begin().await?;
+        StagedKeyPackages::promote(&mut txn, &user.user_id, &batches[1].batch_id).await?;
+        txn.commit().await?;
+        stage_in_own_transaction(&pool, &batches[cap + 1]).await?;
+
         Ok(())
     }
 

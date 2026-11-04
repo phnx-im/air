@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT u.user_id AS \"user_id: QsUserId\"\n                FROM qs_user_record u\n                WHERE u.user_id = (\n                        SELECT c.user_id FROM qs_client_record c\n                        WHERE c.client_id = $1 AND c.deleted_at IS NULL\n                    )\n                    AND u.deleted_at IS NULL\n                FOR NO KEY UPDATE OF u",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id: QsUserId",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "qs_user_record",
+            "name": "user_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "36b39adf5469eadda0e6adcd4bc7689bd02c9ba55f4492bd22a470e3f9398adc"
+}

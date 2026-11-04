@@ -726,7 +726,7 @@ impl TestBackend {
             .collect();
         let salt: [u8; 16] = RustCrypto::default().random_array().unwrap();
         let mut orig_message = MimiContent::simple_markdown_message(message, salt);
-        orig_message.in_reply_to = in_reply_to.map(|id| id.as_slice().to_vec());
+        orig_message.in_reply_to = in_reply_to.map(|id| (*id).into());
         let sender = self.user(sender_id);
 
         // Before sending a message, the sender must first fetch and process its QS messages.
@@ -808,14 +808,7 @@ impl TestBackend {
 
         let salt: [u8; 16] = RustCrypto::default().random_array().unwrap();
         let mut orig_message = MimiContent::simple_markdown_message("edited".to_owned(), salt);
-        orig_message.replaces = Some(
-            last_message
-                .message()
-                .mimi_id()
-                .unwrap()
-                .as_slice()
-                .to_vec(),
-        );
+        orig_message.replaces = Some((*last_message.message().mimi_id().unwrap()).into());
 
         // Before sending a message, the sender must first fetch and process its QS messages.
 

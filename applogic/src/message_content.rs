@@ -73,9 +73,15 @@ impl From<MimiContent> for UnresolvedMimiContent {
     fn from(mut mimi_content: MimiContent) -> Self {
         let mut res = Self {
             plain_body: None,
-            replaces: mem::take(&mut mimi_content.replaces),
+            replaces: mimi_content
+                .replaces
+                .take()
+                .map(|id| id.as_slice().to_vec()),
             topic_id: mem::take(&mut mimi_content.topic_id),
-            in_reply_to: mem::take(&mut mimi_content.in_reply_to),
+            in_reply_to: mimi_content
+                .in_reply_to
+                .take()
+                .map(|id| id.as_slice().to_vec()),
             content: None,
             attachments: Vec::new(),
         };

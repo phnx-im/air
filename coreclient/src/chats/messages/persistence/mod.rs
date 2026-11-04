@@ -755,14 +755,8 @@ impl ChatMessage {
             .timestamped_message
             .message
             .mimi_content()
-            .and_then(|content| content.in_reply_to.as_ref())
-            .and_then(|bytes| {
-                MimiId::from_slice(bytes)
-                    .inspect_err(|error| {
-                        error!(%error, "failed to decode in_reply_to MimiId");
-                    })
-                    .ok()
-            });
+            .and_then(|content| content.in_reply_to)
+            .map(MimiId::from);
         let in_reply_to_mimi_id = in_reply_to_mimi_id.as_ref();
 
         query!(
@@ -1775,7 +1769,7 @@ pub(crate) mod tests {
         let sender = UserId::random("localhost".parse().unwrap());
         let report = MessageStatusReport {
             statuses: vec![PerMessageStatus {
-                mimi_id: mimi_id.as_ref().to_vec(),
+                mimi_id: (*mimi_id).into(),
                 status: mimi_content::MessageStatus::Delivered,
             }],
         };

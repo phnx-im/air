@@ -32,7 +32,7 @@ fn random_salt() -> anyhow::Result<Vec<u8>> {
 pub(crate) fn reaction_content(target: &MimiId, emoji: &str) -> anyhow::Result<MimiContent> {
     Ok(MimiContent {
         salt: random_salt()?,
-        in_reply_to: Some(target.as_slice().to_vec()),
+        in_reply_to: Some((*target).into()),
         nested_part: NestedPart::SinglePart {
             disposition: Disposition::Reaction,
             language: String::new(),
@@ -52,8 +52,8 @@ pub(crate) fn reaction_tombstone_content(
 ) -> anyhow::Result<MimiContent> {
     Ok(MimiContent {
         salt: random_salt()?,
-        in_reply_to: Some(target.as_slice().to_vec()),
-        replaces: Some(reaction_mimi_id.as_slice().to_vec()),
+        in_reply_to: Some((*target).into()),
+        replaces: Some((*reaction_mimi_id).into()),
         nested_part: NestedPart::SinglePart {
             disposition: Disposition::Reaction,
             language: String::new(),

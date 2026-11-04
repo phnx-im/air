@@ -30,9 +30,9 @@ impl From<UiMimiId> for MimiId {
     }
 }
 
-impl From<UiMimiId> for Vec<u8> {
+impl From<UiMimiId> for mimi_content::MimiId {
     fn from(id: UiMimiId) -> Self {
-        Vec::from(id.0)
+        Self(id.0)
     }
 }
 

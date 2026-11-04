@@ -31,3 +31,25 @@ impl StatusExt for Status {
                 .is_some_and(|io_error| io_error.kind() == std::io::ErrorKind::BrokenPipe)
     }
 }
+
+/// Waits until a statement on the test database waits for a lock.
+#[cfg(test)]
+pub(crate) async fn wait_for_lock_waiter(pool: &sqlx::PgPool) -> anyhow::Result<()> {
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        loop {
+            let is_waiting: bool = sqlx::query_scalar(
+                "SELECT EXISTS (
+                    SELECT 1 FROM pg_stat_activity
+                    WHERE datname = current_database() AND wait_event_type = 'Lock'
+                )",
+            )
+            .fetch_one(pool)
+            .await?;
+            if is_waiting {
+                return Ok(());
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await?
+}

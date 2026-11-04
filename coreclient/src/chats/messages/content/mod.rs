@@ -2,17 +2,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::UserId;
 use airprotos::client::self_group::SelfGroupAppMessage;
 use mimi_content::{MimiContent, content_container::NestedPart};
-use openmls::group::GroupId;
 
 pub mod media_type;
 mod walk;
 
 pub trait MimiContentExt {
-    fn mimi_id(&self, sender: &UserId, group_id: &GroupId) -> anyhow::Result<Vec<u8>>;
-
     /// Visits the parts of the body a client acts on, depth-first.
     ///
     /// Containers follow their part semantics: `processAll` visits all children, `chooseOne` only
@@ -78,10 +74,6 @@ pub enum TextFormat {
 }
 
 impl MimiContentExt for MimiContent {
-    fn mimi_id(&self, sender: &UserId, group_id: &GroupId) -> anyhow::Result<Vec<u8>> {
-        Ok(self.message_id(sender.to_bytes()?.as_slice(), group_id.as_slice())?)
-    }
-
     fn visit_parts<'a>(
         &'a self,
         mut visitor: impl FnMut(VisitedPart<'a>) -> anyhow::Result<()>,
