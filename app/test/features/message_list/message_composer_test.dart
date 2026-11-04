@@ -152,6 +152,32 @@ void main() {
       expect(inputController.text, 'Hello there');
     });
 
+    for (final (error, label) in [
+      (
+        const UiSendMessageError.editWindowPassed(),
+        (AppLocalizations loc) => loc.composer_error_editWindowPassed,
+      ),
+      (
+        const UiSendMessageError.editLimitReached(),
+        (AppLocalizations loc) => loc.composer_error_editLimitReached,
+      ),
+    ]) {
+      // Only an edit is refused with these errors. The text stays for sending
+      // it as a new message.
+      testWidgets('explains a refused edit: $error', (tester) async {
+        when(() => chatDetailsCubit.sendMessage(any()))
+            .thenAnswer((_) async => throw error);
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+
+        await typeAndSend(tester, 'Corrected text');
+
+        expect(find.text(label(loc)), findsOneWidget);
+        expect(inputController.text, 'Corrected text');
+      });
+    }
+
     testWidgets('keeps text typed while the send was in flight', (
       tester,
     ) async {

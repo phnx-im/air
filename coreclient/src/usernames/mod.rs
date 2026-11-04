@@ -8,20 +8,22 @@ use aircommon::{
     identifiers::{Username, UsernameHash},
     messages::{
         client_as_out::UsernameDeleteResponse,
-        connection_package::{ConnectionPackage, ConnectionPackageMetadata},
+        connection_package::{ConnectionPackage, ConnectionPackageHash, ConnectionPackageMetadata},
     },
 };
 use airprotos::auth_service::v1::{OperationType, SignedConnectionPackage};
 use anyhow::Context;
 pub use persistence::UsernameRecord;
+use persistence::{PendingKey, PendingKeyOrigin};
 use tokio::task::spawn_blocking;
-use tracing::{error, warn};
+use tracing::warn;
 
-use airapiclient::ApiClient;
+use airapiclient::{ApiClient, ClassifyRequestError, RequestErrorKind, as_api::AsRequestError};
 
 use crate::{
     clients::{CONNECTION_PACKAGES, CoreUser},
-    db::access::{WriteConnection, WriteDbConnection},
+    db::access::WriteDbTransaction,
+    outbound_service::timed_tasks::{TimedTask, TimedTaskKind},
     privacy_pass::{self, ConsumedToken, TokenShortage},
     usernames::connection_packages::ConnectionPackageRecord,
 };
@@ -56,7 +58,13 @@ impl CoreUser {
     ///
     /// Returns a username record on success, or `None` if the username was already present.
     pub async fn add_username(&self, username: Username) -> anyhow::Result<Option<UsernameRecord>> {
-        let signing_key = UsernameSigningKey::generate()?;
+        if UsernameRecord::load(self.db().read().await?, &username)
+            .await?
+            .is_some()
+        {
+            return Ok(None);
+        }
+
         let username_inner = username.clone();
         let hash = spawn_blocking(move || username_inner.calculate_hash()).await??;
 
@@ -69,8 +77,18 @@ impl CoreUser {
                 warn!(%error, "no privacy pass token available for username creation");
             })?;
 
+        let pending_key = self
+            .db()
+            .with_write_transaction(async |txn| PendingKey::load_or_create(txn, &username).await)
+            .await?;
+
         let result = api_client
-            .as_create_username(&username, hash, &signing_key, consumed.token.clone())
+            .as_create_username(
+                &username,
+                hash,
+                &pending_key.signing_key,
+                consumed.token.clone(),
+            )
             .await;
 
         // If the server says our token key is stale, purge and replenish
@@ -85,95 +103,106 @@ impl CoreUser {
             }
             other => other?,
         };
-        if !created {
+        if created {
+            // Privacy Pass tokens are only redeemed when the username is successfully created.
+            if let Some(position) = consumed.position
+                && let Err(error) =
+                    privacy_pass::mark_redeemed(self.db().write().await?, &position).await
+            {
+                warn!(%error, "failed to record a redeemed privacy pass token");
+            }
+        } else {
             // The AS rolls the redemption back when the username is taken.
             privacy_pass::restore_unredeemed_token(self.db(), OperationType::AddUsername, consumed)
                 .await;
-            return Ok(None);
-        }
-
-        // Privacy Pass tokens are only redeemed when the username is successfully created.
-        if let Some(position) = consumed.position
-            && let Err(error) =
-                privacy_pass::mark_redeemed(self.db().write().await?, &position).await
-        {
-            warn!(%error, "failed to record a redeemed privacy pass token");
-        }
-
-        let record = UsernameRecord::new(username.clone(), hash, signing_key);
-
-        let rollback = async |mut connection: WriteDbConnection, delete_locally: bool| {
-            let domain = self.user_id().domain();
-            if let Ok(Some((token_req, _))) =
-                privacy_pass::prepare_delete_token_request(&mut connection, domain).await
-            {
-                api_client
-                    .as_delete_username(record.hash, &record.signing_key, token_req)
-                    .await
-                    .inspect_err(|error| {
-                        error!(%error, "failed to delete username on the server in rollback");
-                    })
-                    .ok();
-            } else {
-                error!("failed to prepare token request for rollback delete");
+            match pending_key.origin {
+                PendingKeyOrigin::New => {
+                    // The AS has not seen the new key. The username belongs to
+                    // someone else.
+                    PendingKey::delete(self.db().write().await?, &username).await?;
+                    return Ok(None);
+                }
+                // Publishing the packages below tells whether an earlier
+                // attempt registered the username with this key.
+                PendingKeyOrigin::Resumed => (),
             }
-            if delete_locally {
-                UsernameRecord::delete(&mut connection, &record.username)
-                    .await
-                    .inspect_err(|error| {
-                        error!(%error, "failed to delete username locally in rollback");
-                    })
-                    .ok();
-            }
-        };
-
-        let mut write = self.db().write().await?;
-        let mut txn = write.begin().await?;
-        if let Err(error) = record.store(&mut txn).await {
-            error!(%error, "failed to store username; rollback");
-            drop(txn);
-            rollback(write, false).await;
-            return Err(error.into());
         }
 
-        // Publish connection packages
-        let connection_package_bundles =
-            generate_connection_packages(&record.signing_key, record.hash)?;
+        let record = UsernameRecord::new(username, hash, pending_key.signing_key);
+        self.publish_new_username(&api_client, record).await
+    }
 
-        // Store connection packages in the database
-        for (decryption_key, metadata) in connection_package_bundles.decryption_keys {
-            ConnectionPackageRecord::from(metadata)
-                .store_for_username(&mut txn, &username, &decryption_key)
-                .await?;
-        }
-        txn.commit().await?;
+    /// Stores a username with fresh connection packages and publishes them.
+    async fn publish_new_username(
+        &self,
+        api_client: &ApiClient,
+        record: UsernameRecord,
+    ) -> anyhow::Result<Option<UsernameRecord>> {
+        let GeneratedConnectionPackages {
+            legacy,
+            signed,
+            decryption_keys,
+        } = generate_connection_packages(&record.signing_key, record.hash)?;
+        let hashes = self
+            .db()
+            .with_write_transaction(async |txn| {
+                record.store(&mut *txn).await?;
+                ConnectionPackageRecord::store_all_for_username(
+                    txn,
+                    &record.username,
+                    decryption_keys,
+                )
+                .await
+            })
+            .await?;
 
-        if let Err(error) = api_client
+        let published = api_client
             .as_publish_connection_packages_for_username(
-                hash,
-                connection_package_bundles.legacy,
-                connection_package_bundles.signed,
+                record.hash,
+                legacy,
+                signed,
                 &record.signing_key,
             )
-            .await
-        {
-            error!(%error, "failed to publish connection packages; rollback");
-            rollback(write, true).await;
-            return Err(error.into());
+            .await;
+        match published {
+            Ok(()) => {
+                let parked = self
+                    .db()
+                    .with_write_transaction(async |txn| {
+                        finish_registration(txn, &record.username).await
+                    })
+                    .await?;
+                if parked {
+                    self.outbound_service().notify_pending_chat_operations();
+                }
+                Ok(Some(record))
+            }
+            Err(error) if error.is_unauthenticated() => {
+                // The username is registered under another key. The AS refused
+                // the packages, and their keys go with the username.
+                self.db()
+                    .with_write_transaction(async |txn| {
+                        UsernameRecord::delete(txn, &record.username).await
+                    })
+                    .await?;
+                Ok(None)
+            }
+            Err(error) => {
+                warn!(%error, "failed to publish connection packages, retrying later");
+                self.db()
+                    .with_write_transaction(async |txn| -> sqlx::Result<()> {
+                        discard_unpublished_package_keys(txn, &hashes, &error).await?;
+                        let task = TimedTaskKind::PendingUsername {
+                            username: record.username.clone(),
+                            signing_key: record.signing_key.clone(),
+                        };
+                        TimedTask::schedule_now(txn, task).await
+                    })
+                    .await?;
+                self.outbound_service().notify_pending_usernames();
+                Ok(Some(record))
+            }
         }
-        drop(write);
-
-        // We hand only a fully published username to the siblings. A rollback
-        // then never has to reach them.
-        let parked = self
-            .db()
-            .with_write_transaction(async |txn| sync::park_claimed(txn, &username).await)
-            .await?;
-        if parked {
-            self.outbound_service().notify_pending_chat_operations();
-        }
-
-        Ok(Some(record))
     }
 
     /// Deletes the username on the server and removes it locally.
@@ -289,6 +318,36 @@ impl CoreUser {
         )
         .await
     }
+}
+
+/// Final step of the username registration: removes the pending key and
+/// schedules a self-group message to be sent to the siblings.
+pub(crate) async fn finish_registration(
+    txn: &mut WriteDbTransaction<'_>,
+    username: &Username,
+) -> sqlx::Result<bool> {
+    PendingKey::delete(&mut *txn, username).await?;
+    sync::park_claimed(txn, username).await
+}
+
+/// Deletes the keys of the connection packages whose publication failed with
+/// `error`.
+pub(crate) async fn discard_unpublished_package_keys(
+    txn: &mut WriteDbTransaction<'_>,
+    hashes: &[ConnectionPackageHash],
+    error: &AsRequestError,
+) -> sqlx::Result<()> {
+    match error.kind() {
+        RequestErrorKind::Network | RequestErrorKind::ServerError => return Ok(()),
+        RequestErrorKind::RateLimited { .. }
+        | RequestErrorKind::NotFound
+        | RequestErrorKind::GroupClosed
+        | RequestErrorKind::Rejected => (),
+    }
+    for hash in hashes {
+        ConnectionPackageRecord::delete(&mut *txn, hash).await?;
+    }
+    Ok(())
 }
 
 struct GeneratedConnectionPackages {

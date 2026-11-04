@@ -14,7 +14,7 @@ pub use aircoreclient::{
 };
 use aircoreclient::{
     AttachmentId, AttachmentProgress, AttachmentStatus, Chat, ChatId, ChatMessage, MarkChatAsRead,
-    MessageId, ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
+    MessageEditError, MessageId, ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
 };
 use airprotos::client::component::AirFeatures;
 use anyhow::{Context as _, bail};
@@ -51,6 +51,28 @@ use crate::{
 pub(crate) use crate::api::types::UiChatMuted;
 
 use super::{types::UiChatDetails, user_cubit::UserCubitBase};
+
+/// Why a message was not sent
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[frb(dart_metadata = ("freezed"))]
+pub enum UiSendMessageError {
+    /// The edited message is past its edit window.
+    EditWindowPassed,
+    /// The edited message was edited the maximum number of times.
+    EditLimitReached,
+    Other {
+        message: String,
+    },
+}
+
+impl From<MessageEditError> for UiSendMessageError {
+    fn from(error: MessageEditError) -> Self {
+        match error {
+            MessageEditError::WindowPassed => Self::EditWindowPassed,
+            MessageEditError::LimitReached => Self::EditLimitReached,
+        }
+    }
+}
 
 /// The state of a single chat
 ///
@@ -233,7 +255,42 @@ impl ChatDetailsCubitBase {
     ///
     /// The not yet sent message is immediately stored in the local store and then the message is
     /// send to the DS.
-    pub async fn send_message(&self, message_text: String) -> anyhow::Result<()> {
+    ///
+    /// When the draft edits a message that cannot be edited anymore, the draft
+    /// becomes a new message with the same text.
+    pub async fn send_message(&self, message_text: String) -> Result<(), UiSendMessageError> {
+        let Err(error) = self.try_send_message(message_text.clone()).await else {
+            return Ok(());
+        };
+        let Some(edit_error) = error.downcast_ref::<MessageEditError>().copied() else {
+            return Err(UiSendMessageError::Other {
+                message: error.to_string(),
+            });
+        };
+        if let Err(error) = self.keep_as_new_message(message_text).await {
+            error!(%error, "Failed to turn the refused edit into a new message draft");
+        }
+        Err(edit_error.into())
+    }
+
+    /// Turns a draft that edits a message into a draft of a new message.
+    async fn keep_as_new_message(&self, message_text: String) -> anyhow::Result<()> {
+        let changed = self.core.state_tx().send_if_modified(|state| {
+            let Some(draft) = state.chat.as_mut().and_then(|chat| chat.draft.as_mut()) else {
+                return false;
+            };
+            draft.editing_id = None;
+            draft.set_message(message_text);
+            draft.updated_at = Utc::now();
+            true
+        });
+        if changed {
+            self.store_draft_from_state().await?;
+        }
+        Ok(())
+    }
+
+    async fn try_send_message(&self, message_text: String) -> anyhow::Result<()> {
         // The draft is only cleared once the message is stored, so that its
         // text and reply/edit context survive a failed send.
         let draft = {
@@ -540,7 +597,7 @@ impl ChatDetailsCubitBase {
             None => {
                 self.context
                     .core_user
-                    .last_message_by_user(self.context.chat_id, self.context.core_user.user_id())
+                    .last_editable_message(self.context.chat_id, Utc::now())
                     .await?
             }
         };

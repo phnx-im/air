@@ -90,6 +90,14 @@ impl AsRequestError {
         }
     }
 
+    /// Returns whether the server refused to authenticate the request.
+    pub fn is_unauthenticated(&self) -> bool {
+        match self {
+            AsRequestError::Tonic(status) => status.code() == Code::Unauthenticated,
+            AsRequestError::LibraryError | AsRequestError::UnexpectedResponse => false,
+        }
+    }
+
     /// Returns whether the error is a gRPC failed precondition error with a version unsupported
     /// code.
     pub fn is_unsupported_version(&self) -> bool {

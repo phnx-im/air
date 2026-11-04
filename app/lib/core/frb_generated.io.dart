@@ -1468,6 +1468,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiRequestGroupChat dco_decode_ui_request_group_chat(dynamic raw);
 
   @protected
+  UiSendMessageError dco_decode_ui_send_message_error(dynamic raw);
+
+  @protected
   UiShareSendError dco_decode_ui_share_send_error(dynamic raw);
 
   @protected
@@ -3049,6 +3052,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiRequestGroupChat sse_decode_ui_request_group_chat(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiSendMessageError sse_decode_ui_send_message_error(
     SseDeserializer deserializer,
   );
 
@@ -5020,6 +5028,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ui_request_group_chat(
     UiRequestGroupChat self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ui_send_message_error(
+    UiSendMessageError self,
     SseSerializer serializer,
   );
 

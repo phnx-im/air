@@ -30,7 +30,7 @@ pub use crate::{
                 MimiContentExt, PartIndex, TextFormat, VisitedPart,
                 media_type::{self, MediaType},
             },
-            edit::MessageVersion,
+            edit::{EDIT_WINDOW, MAX_EDITS, MessageEditError, MessageVersion},
         },
         notification_rebuild::ChatNotificationEntry,
         pending::AcceptContactRequestError,
