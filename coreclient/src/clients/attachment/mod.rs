@@ -8,6 +8,7 @@ use aircommon::identifiers::{RemoteAttachmentId, RemoteAttachmentIdParseError};
 use chrono::{DateTime, Utc};
 pub(crate) use persistence::AttachmentRecord;
 pub use persistence::{AttachmentContent, AttachmentStatus};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 pub use thumbnail::AttachmentThumbnail;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
@@ -16,7 +17,7 @@ pub use upload::{ProvisionAttachmentError, UploadTaskError};
 use url::Url;
 use uuid::Uuid;
 
-use crate::{ChatId, MessageId, clients::CoreUser, image_is_animated};
+use crate::{ChatId, MessageId, PartIndex, clients::CoreUser, image_is_animated};
 
 mod aead;
 mod download;
@@ -104,13 +105,14 @@ impl CoreUser {
     /// Returns the attachment infos for the given message ID.
     ///
     /// Infos are ordered by the position in the mimi content.
-    pub async fn attachment_infos_for_message(&self, message_id: MessageId) -> Vec<AttachmentInfo> {
+    pub async fn attachment_infos_for_message(&self, message_id: MessageId) -> MessageAttachments {
+        let empty = || MessageAttachments::new(message_id, Vec::new());
         let Ok(read) = self.db().read().await else {
-            return Default::default();
+            return empty();
         };
         AttachmentRecord::load_infos_by_message_id(read, message_id)
             .await
-            .unwrap_or_default()
+            .unwrap_or_else(|_| empty())
     }
 
     /// Returns the attachment infos for the given contiguous range of messages.
@@ -123,7 +125,7 @@ impl CoreUser {
         chat_id: ChatId,
         from: (DateTime<Utc>, MessageId),
         to: (DateTime<Utc>, MessageId),
-    ) -> HashMap<MessageId, Vec<AttachmentInfo>> {
+    ) -> HashMap<MessageId, MessageAttachments> {
         let Ok(read) = self.db().read().await else {
             return Default::default();
         };
@@ -138,8 +140,7 @@ impl CoreUser {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AttachmentInfo {
     pub attachment_id: AttachmentId,
-    /// Depth-first index of the attachment in the message's part tree.
-    pub part_index: u32,
+    pub remote_attachment_id: Option<RemoteAttachmentId>,
     /// Whether the attachment is an animated image, if already classified
     pub is_animated: Option<bool>,
 }
@@ -160,10 +161,72 @@ impl AttachmentId {
         Self { uuid }
     }
 
+    #[cfg(test)]
     pub(crate) fn random() -> Self {
         Self {
             uuid: Uuid::new_v4(),
         }
+    }
+
+    /// Derives the id of the attachment at the given part of the message.
+    pub fn derive(message_id: MessageId, index: PartIndex) -> Self {
+        let digest = Sha256::new()
+            .chain_update(b"air attachment id")
+            .chain_update(message_id.uuid.as_bytes())
+            .chain_update(index.0.to_be_bytes())
+            .finalize();
+        let mut bytes = [0; 16];
+        bytes.copy_from_slice(&digest[..16]);
+        Self {
+            uuid: uuid::Builder::from_custom_bytes(bytes).into_uuid(),
+        }
+    }
+}
+
+/// Attachment records stored for one message.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MessageAttachments {
+    message_id: MessageId,
+    infos: Vec<AttachmentInfo>,
+}
+
+impl MessageAttachments {
+    /// Bundles the attachment infos with the message they belong to.
+    pub fn new(message_id: MessageId, infos: Vec<AttachmentInfo>) -> Self {
+        Self { message_id, infos }
+    }
+
+    /// Finds the info of the attachment stored for the given part.
+    ///
+    /// Matches the derived id first, then falls back to the remote attachment
+    /// id of the part, if it has one.
+    pub fn find(
+        &self,
+        index: PartIndex,
+        remote_attachment_id: Option<RemoteAttachmentId>,
+    ) -> Option<&AttachmentInfo> {
+        let derived = AttachmentId::derive(self.message_id, index);
+        if let Some(info) = self.infos.iter().find(|info| info.attachment_id == derived) {
+            return Some(info);
+        }
+        // Rows stored before attachment ids were derived
+        let remote_attachment_id = remote_attachment_id?;
+        self.infos.iter().find(|info| {
+            info.remote_attachment_id == Some(remote_attachment_id)
+                || info.attachment_id.uuid == remote_attachment_id.uuid()
+        })
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &AttachmentInfo> {
+        self.infos.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.infos.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.infos.is_empty()
     }
 }
 
@@ -260,6 +323,25 @@ mod test {
     use super::*;
 
     use uuid::uuid;
+
+    #[test]
+    fn derived_attachment_ids_are_deterministic_and_distinct() {
+        let message_a = MessageId::new(uuid!("b6a42a7a-62fa-4c10-acfb-6124d80aae09"));
+        let message_b = MessageId::new(uuid!("b6a42a7a-62fa-4c10-acfb-6124d80aae0a"));
+
+        assert_eq!(
+            AttachmentId::derive(message_a, PartIndex(1)),
+            AttachmentId::derive(message_a, PartIndex(1))
+        );
+        assert_ne!(
+            AttachmentId::derive(message_a, PartIndex(0)),
+            AttachmentId::derive(message_a, PartIndex(1))
+        );
+        assert_ne!(
+            AttachmentId::derive(message_a, PartIndex(1)),
+            AttachmentId::derive(message_b, PartIndex(1))
+        );
+    }
 
     #[test]
     fn attachment_url() {

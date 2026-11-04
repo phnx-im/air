@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use crate::{
     AttachmentId, ChatId, MessageId,
-    clients::attachment::AttachmentInfo,
+    clients::attachment::{AttachmentInfo, MessageAttachments},
     db::access::{ReadConnection, WriteConnection},
 };
 
@@ -37,16 +37,13 @@ pub(crate) struct UnqueuedAttachmentMessage {
 pub(crate) struct AttachmentRecord {
     /// Uniquely identifies the attachment on this local client.
     ///
-    /// For incoming attachments, this is the same as the attachment ID on the server.
+    /// Derived from the message id and the part index of the part, see
+    /// [`AttachmentId::derive`]. Rows stored earlier have random ids.
     pub(crate) attachment_id: AttachmentId,
     /// Uniquely identifies the attachment on the server.
     pub(crate) remote_attachment_id: Option<RemoteAttachmentId>,
     pub(super) chat_id: ChatId,
     pub(super) message_id: MessageId,
-    /// Depth-first index of the attachment in the message's part tree.
-    ///
-    /// Also see [`crate::MimiContentExt::visit_parts`].
-    pub(super) part_index: u32,
     pub(super) content_type: String,
     pub(super) status: AttachmentStatus,
     pub(super) is_animated: Option<bool>,
@@ -238,17 +235,15 @@ impl AttachmentRecord {
                 remote_attachment_id,
                 chat_id,
                 message_id,
-                part_index,
                 content_type,
                 status,
                 created_at,
                 is_animated
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             self.attachment_id,
             self.remote_attachment_id,
             self.chat_id,
             self.message_id,
-            self.part_index,
             self.content_type,
             self.status,
             self.created_at,
@@ -317,7 +312,6 @@ impl AttachmentRecord {
                     remote_attachment_id AS "remote_attachment_id: _",
                     chat_id AS "chat_id: _",
                     message_id AS "message_id: _",
-                    part_index AS "part_index: u32",
                     content_type AS "content_type: _",
                     status AS "status: _",
                     created_at AS "created_at: _",
@@ -673,33 +667,34 @@ impl AttachmentRecord {
     pub(crate) async fn load_infos_by_message_id(
         mut connection: impl ReadConnection,
         message_id: MessageId,
-    ) -> sqlx::Result<Vec<AttachmentInfo>> {
+    ) -> sqlx::Result<MessageAttachments> {
         struct Row {
             attachment_id: AttachmentId,
-            part_index: u32,
+            remote_attachment_id: Option<RemoteAttachmentId>,
             is_animated: Option<bool>,
         }
         let rows = query_as!(
             Row,
             r#"SELECT
                 attachment_id AS "attachment_id: _",
-                part_index AS "part_index: u32",
+                remote_attachment_id AS "remote_attachment_id: _",
                 is_animated
             FROM attachment
             WHERE message_id = ?
-            ORDER BY part_index"#,
+            ORDER BY rowid"#,
             message_id
         )
         .fetch_all(connection.as_mut())
         .await?;
-        Ok(rows
+        let infos = rows
             .into_iter()
             .map(|row| AttachmentInfo {
                 attachment_id: row.attachment_id,
-                part_index: row.part_index,
+                remote_attachment_id: row.remote_attachment_id,
                 is_animated: row.is_animated,
             })
-            .collect())
+            .collect();
+        Ok(MessageAttachments::new(message_id, infos))
     }
 
     pub(crate) async fn load_infos_in_range_inclusive(
@@ -707,11 +702,11 @@ impl AttachmentRecord {
         chat_id: ChatId,
         mut from: (DateTime<Utc>, MessageId),
         mut to: (DateTime<Utc>, MessageId),
-    ) -> sqlx::Result<HashMap<MessageId, Vec<AttachmentInfo>>> {
+    ) -> sqlx::Result<HashMap<MessageId, MessageAttachments>> {
         struct Row {
             message_id: MessageId,
             attachment_id: AttachmentId,
-            part_index: u32,
+            remote_attachment_id: Option<RemoteAttachmentId>,
             is_animated: Option<bool>,
         }
 
@@ -726,14 +721,14 @@ impl AttachmentRecord {
             SELECT
                 a.message_id AS "message_id: _",
                 a.attachment_id AS "attachment_id: _",
-                a.part_index AS "part_index: u32",
+                a.remote_attachment_id AS "remote_attachment_id: _",
                 a.is_animated
             FROM attachment a
             JOIN message m USING (message_id)
             WHERE m.chat_id = ?
                 AND (m.timestamp, m.message_id) >= (?, ?)
                 AND (m.timestamp, m.message_id) <= (?, ?)
-            ORDER BY a.message_id, a.part_index
+            ORDER BY a.message_id, a.rowid
             "#,
             chat_id,
             from.0,
@@ -748,7 +743,7 @@ impl AttachmentRecord {
         for Row {
             message_id,
             attachment_id,
-            part_index,
+            remote_attachment_id,
             is_animated,
         } in rows
         {
@@ -757,12 +752,15 @@ impl AttachmentRecord {
                 .or_default()
                 .push(AttachmentInfo {
                     attachment_id,
-                    part_index,
+                    remote_attachment_id,
                     is_animated,
                 });
         }
 
-        Ok(attachment_infos)
+        Ok(attachment_infos
+            .into_iter()
+            .map(|(message_id, infos)| (message_id, MessageAttachments::new(message_id, infos)))
+            .collect())
     }
 }
 
@@ -913,7 +911,6 @@ pub(crate) mod test {
             remote_attachment_id: Some(RemoteAttachmentId::new(Uuid::new_v4())),
             chat_id,
             message_id,
-            part_index: 0,
             content_type: "image/png".to_string(),
             status: AttachmentStatus::Pending,
             is_animated: Some(false),
@@ -1197,13 +1194,11 @@ pub(crate) mod test {
 
         let downloading_record = AttachmentRecord {
             status: AttachmentStatus::Downloading,
-            part_index: 1,
             ..test_attachment_record(chat.id(), message.id())
         };
         downloading_record.store(pool.write().await?, None).await?;
 
         let mut pending_record_2 = test_attachment_record(chat.id(), message.id());
-        pending_record_2.part_index = 2;
         pending_record_2.created_at = created_at
             .checked_add_signed(chrono::Duration::milliseconds(10))
             .unwrap();
@@ -1242,11 +1237,8 @@ pub(crate) mod test {
             AttachmentStatus::Ready,
         ];
         let mut records = Vec::new();
-        for (part_index, status) in (0..).zip(statuses) {
-            let record = AttachmentRecord {
-                part_index,
-                ..test_attachment_record_with(chat.id(), message.id(), status, Utc::now())
-            };
+        for status in statuses {
+            let record = test_attachment_record_with(chat.id(), message.id(), status, Utc::now());
             record.store(pool.write().await?, None).await?;
             records.push(record);
         }
@@ -1395,7 +1387,6 @@ pub(crate) mod test {
             remote_attachment_id: Some(remote_attachment_id),
             chat_id: chat.id(),
             message_id: message.id(),
-            part_index: 0,
             content_type: "image/png".to_string(),
             status: AttachmentStatus::Pending,
             is_animated: Some(false),
@@ -1487,10 +1478,7 @@ pub(crate) mod test {
 
         // Create two attachments for the same message
         let record1 = test_attachment_record(chat.id(), message.id());
-        let record2 = AttachmentRecord {
-            part_index: 1,
-            ..test_attachment_record(chat.id(), message.id())
-        };
+        let record2 = test_attachment_record(chat.id(), message.id());
 
         record1.store(pool.write().await?, None).await?;
         record2.store(pool.write().await?, None).await?;
@@ -1505,7 +1493,7 @@ pub(crate) mod test {
         let ids: Vec<_> =
             AttachmentRecord::load_infos_by_message_id(pool.read().await?, message.id())
                 .await?
-                .into_iter()
+                .iter()
                 .map(|info| info.attachment_id)
                 .collect();
         assert_eq!(ids.len(), 2);

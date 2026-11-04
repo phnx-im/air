@@ -4,7 +4,9 @@
 
 use std::{io::Cursor, mem};
 
-use aircoreclient::{AttachmentUrl, MimiContentExt as _, TextFormat, VisitedPart};
+use aircoreclient::{
+    AttachmentUrl, MediaType, MimiContentExt as _, PartIndex, TextFormat, VisitedPart, media_type,
+};
 use mimi_content::{MimiContent, content_container::NestedPart};
 use tracing::warn;
 
@@ -31,7 +33,9 @@ impl MimiContentExt for MimiContent {
                 content,
                 content_type,
                 ..
-            } if content_type == "text/markdown" => str::from_utf8(content).ok(),
+            } if MediaType::of(content_type) == media_type::TEXT_MARKDOWN => {
+                str::from_utf8(content).ok()
+            }
             _ => None,
         }
     }
@@ -144,7 +148,7 @@ fn escape_markdown(text: &str) -> String {
 
 fn convert_attachment(
     part: &NestedPart,
-    index: usize,
+    index: PartIndex,
     blurhash: Option<&str>,
 ) -> Option<UnresolvedAttachment> {
     let image_metadata = |dimensions: Option<(u32, u32)>| {
@@ -166,15 +170,16 @@ fn convert_attachment(
             size,
             ..
         } => {
-            let dimensions = match url.parse::<AttachmentUrl>() {
-                Ok(url) => url.dimensions(),
+            let (remote_attachment_id, dimensions) = match url.parse::<AttachmentUrl>() {
+                Ok(url) => (Some(url.remote_attachment_id()), url.dimensions()),
                 Err(error) => {
                     warn!(%error, url, "Visited attachment with invalid url");
-                    None
+                    (None, None)
                 }
             };
             Some(UnresolvedAttachment {
                 index,
+                remote_attachment_id,
                 filename: filename.clone(),
                 content_type: content_type.clone(),
                 description: Some(description.clone()).filter(|d| !d.is_empty()),
@@ -187,8 +192,8 @@ fn convert_attachment(
             content,
             ..
         } => {
-            let media_type = media_type(content_type);
-            let dimensions = if media_type.starts_with("image/") {
+            let media_type = MediaType::of(content_type);
+            let dimensions = if media_type.has_type("image") {
                 image::ImageReader::new(Cursor::new(content))
                     .with_guessed_format()
                     .ok()
@@ -198,7 +203,8 @@ fn convert_attachment(
             };
             Some(UnresolvedAttachment {
                 index,
-                filename: inline_filename(&media_type),
+                remote_attachment_id: None,
+                filename: inline_filename(media_type),
                 content_type: content_type.clone(),
                 description: None,
                 size: content.len() as u64,
@@ -212,40 +218,36 @@ fn convert_attachment(
     }
 }
 
-/// Lowercased type and subtype, parameters dropped.
-fn media_type(content_type: &str) -> String {
-    let essence = match content_type.split_once(';') {
-        Some((essence, _)) => essence,
-        None => content_type,
-    };
-    essence.trim().to_ascii_lowercase()
-}
-
 /// File name for an inline attachment, which carries none.
-fn inline_filename(media_type: &str) -> String {
-    let extension = match media_type {
-        "text/vcard" => "vcf",
-        "text/calendar" => "ics",
-        "text/html" => "html",
-        "text/csv" => "csv",
-        "text/plain" => "txt",
-        "text/markdown" => "md",
-        "application/pdf" => "pdf",
-        "application/json" => "json",
-        "image/png" => "png",
-        "image/jpeg" => "jpg",
-        "image/gif" => "gif",
-        "image/webp" => "webp",
-        _ => return "attachment".to_owned(),
-    };
-    format!("attachment.{extension}")
+fn inline_filename(media_type: MediaType) -> String {
+    const EXTENSIONS: &[(&str, &str)] = &[
+        ("text/vcard", "vcf"),
+        ("text/calendar", "ics"),
+        ("text/html", "html"),
+        ("text/csv", "csv"),
+        ("text/plain", "txt"),
+        ("text/markdown", "md"),
+        ("application/pdf", "pdf"),
+        ("application/json", "json"),
+        ("image/png", "png"),
+        ("image/jpeg", "jpg"),
+        ("image/gif", "gif"),
+        ("image/webp", "webp"),
+    ];
+    match EXTENSIONS.iter().find(|(known, _)| media_type == *known) {
+        Some((_, extension)) => format!("attachment.{extension}"),
+        None => "attachment".to_owned(),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use aircommon::identifiers::RemoteAttachmentId;
-    use aircoreclient::{AttachmentId, AttachmentInfo};
-    use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
+    use aircoreclient::{AttachmentId, AttachmentInfo, MessageAttachments, MessageId};
+    use mimi_content::{
+        Disposition,
+        content_container::{EncryptionAlgorithm, HashAlgorithm, PartSemantics},
+    };
     use quickcheck_macros::quickcheck;
     use uuid::Uuid;
 
@@ -407,12 +409,10 @@ mod tests {
         }
     }
 
-    fn attachment_info(id: u128, part_index: u32) -> AttachmentInfo {
+    fn attachment_info(attachment_id: AttachmentId) -> AttachmentInfo {
         AttachmentInfo {
-            attachment_id: AttachmentId {
-                uuid: Uuid::from_u128(id),
-            },
-            part_index,
+            attachment_id,
+            remote_attachment_id: None,
             is_animated: None,
         }
     }
@@ -444,25 +444,75 @@ mod tests {
         );
     }
 
+    fn attachment_indices(content: &MimiContent) -> Vec<PartIndex> {
+        let mut indices = Vec::new();
+        content
+            .visit_parts(|part| {
+                if let VisitedPart::Attachment { index, .. } = part {
+                    indices.push(index);
+                }
+                Ok(())
+            })
+            .unwrap();
+        indices
+    }
+
     #[test]
-    fn attachments_are_paired_with_infos_by_part_index() {
+    fn attachments_are_paired_with_infos_by_derived_id() {
         let content = render_container(vec![
             external_part(Disposition::Preview, "image/webp", 1, "preview.webp"),
             external_part(Disposition::Attachment, "application/pdf", 2, "doc.pdf"),
         ]);
-        let expected = attachment_info(0xb, 1).attachment_id;
+        let message_id = MessageId::new(Uuid::from_u128(0x1234));
+        let indices = attachment_indices(&content);
+        let expected = AttachmentId::derive(message_id, indices[1]);
 
-        let infos = [attachment_info(0xa, 0), attachment_info(0xb, 1)];
-        let resolved = UnresolvedMimiContent::from(content.clone()).resolve(&infos);
+        let infos = MessageAttachments::new(
+            message_id,
+            vec![
+                attachment_info(AttachmentId::derive(message_id, indices[0])),
+                attachment_info(expected),
+            ],
+        );
+        let resolved = UnresolvedMimiContent::from(content.clone()).resolve(Some(&infos));
         assert_eq!(resolved.attachments.len(), 1);
         assert_eq!(resolved.attachments[0].filename, "doc.pdf");
         assert_eq!(resolved.attachments[0].attachment_id, expected);
 
-        let infos = [attachment_info(0xb, 1), attachment_info(0xa, 0)];
-        let resolved = UnresolvedMimiContent::from(content).resolve(&infos);
+        let infos = MessageAttachments::new(
+            message_id,
+            vec![
+                attachment_info(expected),
+                attachment_info(AttachmentId::derive(message_id, indices[0])),
+            ],
+        );
+        let resolved = UnresolvedMimiContent::from(content).resolve(Some(&infos));
         assert_eq!(resolved.attachments.len(), 1);
         assert_eq!(resolved.attachments[0].filename, "doc.pdf");
         assert_eq!(resolved.attachments[0].attachment_id, expected);
+    }
+
+    #[test]
+    fn attachments_fall_back_to_the_remote_id() {
+        let content = render_container(vec![
+            external_part(Disposition::Preview, "image/webp", 1, "preview.webp"),
+            external_part(Disposition::Attachment, "application/pdf", 2, "doc.pdf"),
+        ]);
+        let message_id = MessageId::new(Uuid::from_u128(0x1234));
+        // Not derived, like rows stored before ids were derived
+        let stored = AttachmentId {
+            uuid: Uuid::from_u128(0xb),
+        };
+        let infos = MessageAttachments::new(
+            message_id,
+            vec![AttachmentInfo {
+                remote_attachment_id: Some(RemoteAttachmentId::new(Uuid::from_u128(2))),
+                ..attachment_info(stored)
+            }],
+        );
+        let resolved = UnresolvedMimiContent::from(content).resolve(Some(&infos));
+        assert_eq!(resolved.attachments.len(), 1);
+        assert_eq!(resolved.attachments[0].attachment_id, stored);
     }
 
     #[test]
@@ -472,10 +522,11 @@ mod tests {
             "text/vcard",
             b"BEGIN:VCARD",
         )]);
+        let indices = attachment_indices(&content);
         let unresolved = UnresolvedMimiContent::from(content);
         assert_eq!(unresolved.attachments.len(), 1);
         let attachment = &unresolved.attachments[0];
-        assert_eq!(attachment.index, 0);
+        assert_eq!(attachment.index, indices[0]);
         assert_eq!(attachment.filename, "attachment.vcf");
         assert_eq!(attachment.size, 11);
         assert_eq!(attachment.content_type, "text/vcard");

@@ -26,7 +26,10 @@ pub use crate::{
         messages::{
             ChatMessage, ContentMessage, ErrorMessage, EventMessage, InReplyToMessage, Message,
             MessageId, SystemMessage,
-            content::{MimiContentExt, TextFormat, VisitedPart},
+            content::{
+                MimiContentExt, PartIndex, TextFormat, VisitedPart,
+                media_type::{self, MediaType},
+            },
             edit::MessageVersion,
         },
         notification_rebuild::ChatNotificationEntry,
@@ -38,7 +41,8 @@ pub use crate::{
         add_contact::AddUsernameContactError,
         attachment::{
             AttachmentContent, AttachmentId, AttachmentInfo, AttachmentStatus, AttachmentThumbnail,
-            AttachmentUrl, AttachmentUrlParseError, ProvisionAttachmentError, UploadTaskError,
+            AttachmentUrl, AttachmentUrlParseError, MessageAttachments, ProvisionAttachmentError,
+            UploadTaskError,
             progress::{AttachmentProgress, AttachmentProgressEvent},
         },
         block_contact::BlockedContactError,

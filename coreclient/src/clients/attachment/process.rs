@@ -52,11 +52,10 @@ impl CoreUser {
                     ..
                 } => {
                     let record = AttachmentRecord {
-                        attachment_id: AttachmentId::random(),
+                        attachment_id: AttachmentId::derive(message_id, index),
                         remote_attachment_id: None,
                         chat_id,
                         message_id,
-                        part_index: u32::try_from(index)?,
                         content_type: content_type.clone(),
                         status: AttachmentStatus::Ready,
                         is_animated: None,
@@ -83,11 +82,10 @@ impl CoreUser {
                         }
                     };
                     let record = AttachmentRecord {
-                        attachment_id: AttachmentId::random(),
+                        attachment_id: AttachmentId::derive(message_id, index),
                         remote_attachment_id: Some(remote_attachment_id),
                         chat_id,
                         message_id,
-                        part_index: u32::try_from(index)?,
                         content_type: content_type.clone(),
                         status: AttachmentStatus::Pending,
                         is_animated: None,
@@ -144,7 +142,7 @@ mod tests {
     use openmls::group::GroupId;
     use uuid::Uuid;
 
-    use crate::{AttachmentUrl, ChatId, MessageId, chats::messages::ContentMessage};
+    use crate::{AttachmentUrl, ChatId, MessageId, PartIndex, chats::messages::ContentMessage};
 
     use super::*;
 
@@ -250,6 +248,18 @@ mod tests {
         }
 
         assert_eq!(vcard.status, AttachmentStatus::Ready);
+        assert_eq!(
+            png.attachment_id,
+            AttachmentId::derive(message_id, PartIndex(1))
+        );
+        assert_eq!(
+            vcard.attachment_id,
+            AttachmentId::derive(message_id, PartIndex(2))
+        );
+        assert_eq!(
+            webp.attachment_id,
+            AttachmentId::derive(message_id, PartIndex(3))
+        );
         assert_eq!(vcard.remote_attachment_id, None);
         assert_eq!(vcard.content_type, "text/vcard");
         assert_eq!(vcard.chat_id, chat_id);

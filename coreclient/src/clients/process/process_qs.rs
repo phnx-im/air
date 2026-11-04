@@ -41,7 +41,8 @@ use tls_codec::DeserializeBytes;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    ChatAttributes, ChatMessage, ChatStatus, Message, MimiContentExt, StoredRequest, SystemMessage,
+    ChatAttributes, ChatMessage, ChatStatus, MediaType, Message, MimiContentExt, StoredRequest,
+    SystemMessage,
     chats::{
         GroupDataExt, StatusRecord,
         messages::{
@@ -68,6 +69,7 @@ use crate::{
     },
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
+    media_type,
     outbound_service::{
         account_deletion::AccountDeletion,
         chat_message_queue::ChatMessageQueue,
@@ -1141,7 +1143,7 @@ impl CoreUser {
                 content: report_content,
                 ..
             } = &content.nested_part
-            && content_type == "application/mimi-message-status"
+            && MediaType::of(content_type) == media_type::MESSAGE_STATUS
         {
             let mut report = MessageStatusReport::deserialize(report_content)?;
 

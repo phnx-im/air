@@ -537,7 +537,7 @@ async fn deleted_message_drops_attachment_records() {
         let bob_attachment_infos = bob.attachment_infos_for_message(attachment_msg.id()).await;
 
         // Download each attachment
-        for remote_attachment_info in &bob_attachment_infos {
+        for remote_attachment_info in bob_attachment_infos.iter() {
             let (_, download_future) =
                 bob.download_attachment(remote_attachment_info.attachment_id);
             download_future.await.unwrap();

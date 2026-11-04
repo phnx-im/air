@@ -7,7 +7,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use aircoreclient::{
-    AttachmentInfo, ChatId, ChatMessage, ChatType, MessageId,
+    ChatId, ChatMessage, ChatType, MessageAttachments, MessageId,
     clients::CoreUser,
     db::notification::{DbEntityId, DbNotification, DbOperation},
 };
@@ -158,7 +158,7 @@ impl MessageListData {
         &mut self,
         state: &mut MessageListState,
         new_messages: Vec<ChatMessage>,
-        local_attachment_infos: HashMap<MessageId, Vec<AttachmentInfo>>,
+        mut local_attachment_infos: HashMap<MessageId, MessageAttachments>,
         is_connection_chat: Option<bool>,
         direction: LoadDirection,
     ) -> MessageListTransition {
@@ -177,11 +177,10 @@ impl MessageListData {
                 let messages: Vec<UiChatMessage> = new_messages
                     .into_iter()
                     .map(|m| {
-                        let ids = local_attachment_infos
-                            .get(&m.id())
-                            .map(|ids| ids.as_slice())
-                            .unwrap_or_default();
-                        UiChatMessage::from_message(m, ids)
+                        let attachments = local_attachment_infos
+                            .remove(&m.id())
+                            .unwrap_or_else(|| MessageAttachments::new(m.id(), Vec::new()));
+                        UiChatMessage::from_message(m, &attachments)
                     })
                     .collect();
 
@@ -204,11 +203,10 @@ impl MessageListData {
                 let prepended: Vec<UiChatMessage> = new_messages
                     .into_iter()
                     .map(|m| {
-                        let ids = local_attachment_infos
-                            .get(&m.id())
-                            .map(|ids| ids.as_slice())
-                            .unwrap_or_default();
-                        UiChatMessage::from_message(m, ids)
+                        let attachments = local_attachment_infos
+                            .remove(&m.id())
+                            .unwrap_or_else(|| MessageAttachments::new(m.id(), Vec::new()));
+                        UiChatMessage::from_message(m, &attachments)
                     })
                     .collect();
                 let prepend_count = prepended.len();
@@ -248,11 +246,10 @@ impl MessageListData {
                 let appended: Vec<UiChatMessage> = new_messages
                     .into_iter()
                     .map(|m| {
-                        let ids = local_attachment_infos
-                            .get(&m.id())
-                            .map(|ids| ids.as_slice())
-                            .unwrap_or_default();
-                        UiChatMessage::from_message(m, ids)
+                        let attachments = local_attachment_infos
+                            .remove(&m.id())
+                            .unwrap_or_else(|| MessageAttachments::new(m.id(), Vec::new()));
+                        UiChatMessage::from_message(m, &attachments)
                     })
                     .collect();
                 let old_count = self.messages.len();
@@ -324,7 +321,7 @@ impl MessageListData {
         &mut self,
         state: &mut MessageListState,
         message: ChatMessage,
-        local_attachment_infos: &[AttachmentInfo],
+        local_attachment_infos: &MessageAttachments,
     ) -> Option<MessageListTransition> {
         let idx = self.message_ids_index.get(&message.id()).copied()?;
         let updated = UiChatMessage::from_message(message, local_attachment_infos);
@@ -960,7 +957,7 @@ impl MessageListContext {
                     .core_user
                     .attachment_infos_for_message(message.id())
                     .await;
-                self.update_message_in_place(message, local_attachment_infos.as_slice());
+                self.update_message_in_place(message, &local_attachment_infos);
             }
         }
 
@@ -985,7 +982,7 @@ impl MessageListContext {
     fn update_message_in_place(
         &mut self,
         message: ChatMessage,
-        local_attachment_infos: &[AttachmentInfo],
+        local_attachment_infos: &MessageAttachments,
     ) {
         let mut state = self.state_tx.borrow().clone();
         if let Some(transition) =
@@ -1304,7 +1301,11 @@ mod tests {
         replace_with(&mut data, &mut state, vec![first, second, third]);
 
         let transition = data
-            .update_message_in_place(&mut state, edited.clone(), &[])
+            .update_message_in_place(
+                &mut state,
+                edited.clone(),
+                &MessageAttachments::new(edited.id(), Vec::new()),
+            )
             .expect("message should exist");
 
         assert_eq!(transition.kind, MessageListTransitionKind::MessageUpdated);

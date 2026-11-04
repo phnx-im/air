@@ -45,7 +45,7 @@ use url::Url;
 use crate::{
     AttachmentContent, AttachmentId, AttachmentProgressEvent, AttachmentStatus,
     AttachmentThumbnail, AttachmentUrl, Chat, ChatId, ChatMessage, ContentMessage, MessageId,
-    MimiContentExt,
+    MimiContentExt, PartIndex,
     clients::{
         CoreUser, MarkChatAsRead,
         attachment::{
@@ -56,6 +56,7 @@ use crate::{
         },
     },
     groups::{Group, persistence::GroupRef},
+    media_type,
     utils::image::{
         ImageProcessingCancellation, ReencodedAttachmentImage, encode_source_thumbnail,
         probe_attachment_image, reencode_attachment_image,
@@ -174,8 +175,9 @@ impl CoreUser {
         });
         debug!(?is_animated, "made source thumbnail");
 
-        let attachment_id = AttachmentId::random();
         let message_id = MessageId::random();
+        // The external part is the first part of the provisional message.
+        let attachment_id = AttachmentId::derive(message_id, PartIndex::FIRST);
         let content = attachment_content(probed.provisional_nested_parts(attachment_id));
 
         // Note: Acquire a transaction here to ensure that the attachment will be deleted from the
@@ -199,7 +201,6 @@ impl CoreUser {
                     remote_attachment_id: None,
                     chat_id,
                     message_id,
-                    part_index: 0,
                     content_type: probed.content_type.clone(),
                     status: AttachmentStatus::Uploading,
                     is_animated,
@@ -806,7 +807,7 @@ impl ProcessedAttachment {
             parts.push(NestedPart::SinglePart {
                 disposition: Disposition::Preview,
                 language: String::new(),
-                content_type: "text/blurhash".to_owned(),
+                content_type: media_type::TEXT_BLURHASH.to_owned(),
                 content: image_data.blurhash.clone().into_bytes(),
             });
         }

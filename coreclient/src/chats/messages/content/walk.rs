@@ -7,9 +7,12 @@ use mimi_content::{
     content_container::{NestedPart, PartSemantics},
 };
 
-use crate::AttachmentUrl;
+use crate::{
+    AttachmentUrl, MediaType,
+    media_type::{TEXT_BLURHASH, TEXT_MARKDOWN, TEXT_PLAIN},
+};
 
-use super::{TextFormat, VisitedPart};
+use super::{PartIndex, TextFormat, VisitedPart};
 
 pub(super) fn walk<'a>(
     part: &'a NestedPart,
@@ -23,11 +26,13 @@ pub(super) fn walk<'a>(
 }
 
 impl TextFormat {
-    fn from_media_type(media_type: &str) -> Option<Self> {
-        match media_type {
-            "text/markdown" => Some(Self::Markdown),
-            "text/plain" => Some(Self::Plain),
-            _ => None,
+    fn from_media_type(media_type: MediaType<'_>) -> Option<Self> {
+        if media_type == TEXT_MARKDOWN {
+            Some(Self::Markdown)
+        } else if media_type == TEXT_PLAIN {
+            Some(Self::Plain)
+        } else {
+            None
         }
     }
 }
@@ -60,31 +65,33 @@ impl Ctx {
         self,
         part: &'a NestedPart,
         blurhash: Option<&'a str>,
-        next_index: &mut usize,
+        next_part_index: &mut usize,
         visitor: &mut impl FnMut(VisitedPart<'a>) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
         if MAX_DEPTH <= self.depth {
+            *next_part_index += leaf_count(part);
             visitor(VisitedPart::Unknown(part))?;
             return Ok(());
         }
         if is_skipped(part.disposition()) {
+            *next_part_index += leaf_count(part);
             return Ok(());
         }
         let ctx = self.enter(part);
         match part {
-            NestedPart::NullPart { .. } => {}
+            NestedPart::NullPart { .. } => *next_part_index += 1,
             // leaf
             NestedPart::SinglePart { .. } | NestedPart::ExternalPart { .. } => {
+                let part_index = *next_part_index;
+                *next_part_index += 1;
                 match ctx.classify_leaf(part) {
                     Leaf::Text(content, format) => {
                         visitor(VisitedPart::Text { content, format })?;
                     }
                     Leaf::Attachment => {
-                        let index = *next_index;
-                        *next_index += 1;
                         visitor(VisitedPart::Attachment {
                             part,
-                            index,
+                            index: PartIndex(u32::try_from(part_index)?),
                             preview: ctx.in_preview,
                             blurhash,
                         })?;
@@ -108,21 +115,28 @@ impl Ctx {
                 };
                 match part_semantics {
                     PartSemantics::ChooseOne => {
-                        if let Some((chosen, _coverage)) = child_ctx.best_alternative(parts) {
-                            child_ctx.walk(chosen, None, next_index, visitor)?;
-                        } else if child_ctx.children_coverage(parts).missing {
+                        let chosen = child_ctx.best_alternative(parts).map(|(i, _)| i);
+                        if chosen.is_none() && child_ctx.children_coverage(parts).missing {
                             visitor(VisitedPart::Unknown(part))?;
+                        }
+                        for (i, child) in parts.iter().enumerate() {
+                            if Some(i) == chosen {
+                                child_ctx.walk(child, None, next_part_index, visitor)?;
+                            } else {
+                                *next_part_index += leaf_count(child);
+                            }
                         }
                     }
                     PartSemantics::SingleUnit => {
                         if child_ctx.children_coverage(parts).is_full() {
-                            child_ctx.walk_children(parts, next_index, visitor)?;
+                            child_ctx.walk_children(parts, next_part_index, visitor)?;
                         } else {
+                            *next_part_index += parts.iter().map(leaf_count).sum::<usize>();
                             visitor(VisitedPart::Unknown(part))?;
                         }
                     }
                     PartSemantics::ProcessAll | PartSemantics::Custom(_) => {
-                        child_ctx.walk_children(parts, next_index, visitor)?;
+                        child_ctx.walk_children(parts, next_part_index, visitor)?;
                     }
                 }
             }
@@ -158,7 +172,7 @@ impl Ctx {
     fn walk_children<'a>(
         self,
         parts: &'a [NestedPart],
-        next_index: &mut usize,
+        next_part_index: &mut usize,
         visitor: &mut impl FnMut(VisitedPart<'a>) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
         let blurhash = self.sibling_blurhash(parts);
@@ -167,7 +181,7 @@ impl Ctx {
                 Some((attachment, blurhash)) if attachment == index => Some(blurhash),
                 _ => None,
             };
-            self.walk(child, child_blurhash, next_index, visitor)?;
+            self.walk(child, child_blurhash, next_part_index, visitor)?;
         }
         Ok(())
     }
@@ -250,9 +264,9 @@ impl Ctx {
         }
     }
 
-    fn best_alternative(self, parts: &[NestedPart]) -> Option<(&NestedPart, Coverage)> {
-        let mut best: Option<(&NestedPart, Coverage, u8)> = None;
-        for part in parts {
+    fn best_alternative(self, parts: &[NestedPart]) -> Option<(usize, Coverage)> {
+        let mut best: Option<(usize, Coverage, u8)> = None;
+        for (index, part) in parts.iter().enumerate() {
             let coverage = self.coverage(part);
             let rank = coverage.rank();
             let better = match best {
@@ -260,10 +274,10 @@ impl Ctx {
                 None => 0 < rank,
             };
             if better {
-                best = Some((part, coverage, rank));
+                best = Some((index, coverage, rank));
             }
         }
-        best.map(|(part, coverage, _)| (part, coverage))
+        best.map(|(index, coverage, _)| (index, coverage))
     }
 
     fn classify_leaf(self, part: &NestedPart) -> Leaf<'_> {
@@ -274,19 +288,19 @@ impl Ctx {
                 content,
                 ..
             } => {
-                let media_type = media_type(content_type);
+                let media_type = MediaType::of(content_type);
                 if self.in_preview {
-                    if media_type == "text/blurhash" {
+                    if media_type == TEXT_BLURHASH {
                         str::from_utf8(content)
                             .map(Leaf::Blurhash)
                             .unwrap_or(Leaf::Ignored)
-                    } else if media_type.starts_with("text/") {
+                    } else if media_type.has_type("text") {
                         Leaf::Ignored
                     } else {
                         Leaf::Attachment
                     }
                 } else {
-                    match TextFormat::from_media_type(&media_type) {
+                    match TextFormat::from_media_type(media_type) {
                         Some(format) if *disposition != Disposition::Attachment => {
                             str::from_utf8(content)
                                 .map(|text| Leaf::Text(text, format))
@@ -305,12 +319,19 @@ impl Ctx {
     }
 }
 
-fn media_type(content_type: &str) -> String {
-    let essence = match content_type.split_once(';') {
-        Some((essence, _)) => essence,
-        None => content_type,
-    };
-    essence.trim().to_ascii_lowercase()
+/// Number of leaves in the subtree, independent of `MAX_DEPTH`.
+fn leaf_count(part: &NestedPart) -> usize {
+    let mut count = 0;
+    let mut stack = vec![part];
+    while let Some(part) = stack.pop() {
+        match part {
+            NestedPart::MultiPart { parts, .. } => stack.extend(parts),
+            NestedPart::NullPart { .. }
+            | NestedPart::SinglePart { .. }
+            | NestedPart::ExternalPart { .. } => count += 1,
+        }
+    }
+    count
 }
 
 #[derive(Default, Clone, Copy)]
@@ -389,7 +410,7 @@ mod tests {
                         blurhash,
                         ..
                     } => Seen::Att {
-                        index,
+                        index: index.0 as usize,
                         preview,
                         blurhash: blurhash.map(str::to_owned),
                     },
@@ -532,7 +553,7 @@ mod tests {
             ),
             external(Disposition::Preview, "image/webp"),
         ]));
-        assert_eq!(seen, [md("see"), att(0, true, None), att(1, true, None)]);
+        assert_eq!(seen, [md("see"), att(1, true, None), att(2, true, None)]);
     }
 
     #[test]
@@ -586,7 +607,7 @@ mod tests {
             assert_eq!(visit_part(text_with(disposition)), []);
             let skipped = multi(disposition, PartSemantics::ProcessAll, vec![file()]);
             let seen = visit_part(all(vec![skipped, file()]));
-            assert_eq!(seen, [att(0, false, None)]);
+            assert_eq!(seen, [att(1, false, None)]);
         }
     }
 
@@ -625,12 +646,12 @@ mod tests {
     }
 
     #[test]
-    fn choose_one_unselected_attachment_consumes_no_index() {
+    fn choose_one_unselected_alternative_keeps_its_index() {
         let seen = visit_part(all(vec![
             choose(vec![text("text/markdown", "a"), file()]),
             file(),
         ]));
-        assert_eq!(seen, [md("a"), att(0, false, None)]);
+        assert_eq!(seen, [md("a"), att(2, false, None)]);
     }
 
     #[test]
@@ -663,13 +684,13 @@ mod tests {
     #[test]
     fn single_unit_full() {
         let seen = visit_part(unit(vec![text("text/markdown", "a"), file()]));
-        assert_eq!(seen, [md("a"), att(0, false, None)]);
+        assert_eq!(seen, [md("a"), att(1, false, None)]);
     }
 
     #[test]
     fn single_unit_with_unknown() {
         let seen = visit_part(all(vec![unit(vec![file(), invalid_utf8()]), file()]));
-        assert_eq!(seen, [Seen::Unknown, att(0, false, None)]);
+        assert_eq!(seen, [Seen::Unknown, att(2, false, None)]);
     }
 
     #[test]
@@ -679,7 +700,7 @@ mod tests {
             PartSemantics::Custom(42),
             vec![text("text/markdown", "a"), invalid_utf8(), file()],
         ));
-        assert_eq!(seen, [md("a"), Seen::Unknown, att(0, false, None)]);
+        assert_eq!(seen, [md("a"), Seen::Unknown, att(2, false, None)]);
     }
 
     #[test]
@@ -694,6 +715,40 @@ mod tests {
         // leaf at depth 7 is visited, leaf at depth 8 is not
         assert_eq!(visit_part(nest(7)), [md("deep")]);
         assert_eq!(visit_part(nest(8)), [Seen::Unknown]);
+    }
+
+    #[test]
+    fn index_is_independent_of_classification() {
+        for (media_type, body) in [("text/html", "<b>"), ("text/markdown", "a")] {
+            let seen = visit_part(all(vec![text(media_type, body), file()]));
+            assert_eq!(seen.last(), Some(&att(1, false, None)));
+        }
+    }
+
+    #[test]
+    fn skipped_and_unknown_subtrees_consume_their_leaves() {
+        // nulls count as leaves, empty multiparts as none
+        let seen = visit_part(all(vec![null(), all(vec![]), file()]));
+        assert_eq!(seen, [att(1, false, None)]);
+        // chooseOne without a usable alternative
+        let seen = visit_part(all(vec![choose(vec![invalid_utf8(), null()]), file()]));
+        assert_eq!(seen, [Seen::Unknown, att(2, false, None)]);
+        // depth cap
+        let mut deep = all(vec![file(), file()]);
+        for _ in 0..(MAX_DEPTH - 1) {
+            deep = all(vec![deep]);
+        }
+        let seen = visit_part(all(vec![deep, file()]));
+        assert_eq!(seen, [Seen::Unknown, att(2, false, None)]);
+    }
+
+    #[test]
+    fn leaf_count_ignores_depth_cap() {
+        let mut deep = file();
+        for _ in 0..(MAX_DEPTH * 4) {
+            deep = all(vec![deep, null()]);
+        }
+        assert_eq!(leaf_count(&deep), MAX_DEPTH * 4 + 1);
     }
 
     #[test]

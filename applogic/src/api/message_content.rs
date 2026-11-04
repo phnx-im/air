@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::MimiId;
+use aircommon::identifiers::{MimiId, RemoteAttachmentId};
 pub(crate) use aircoreclient::AttachmentId;
-use aircoreclient::AttachmentInfo;
+use aircoreclient::{MessageAttachments, PartIndex};
 use flutter_rust_bridge::frb;
 use uuid::Uuid;
 
@@ -76,8 +76,10 @@ pub struct UiMimiContent {
 #[derive(Debug)]
 #[frb(ignore)]
 pub(crate) struct UnresolvedAttachment {
-    /// Depth-first index of the attachment in the message's part tree.
-    pub index: usize,
+    /// Depth-first index of the part among the message's non-container parts.
+    pub index: PartIndex,
+    /// Remote id from the url of an external part.
+    pub remote_attachment_id: Option<RemoteAttachmentId>,
     pub filename: String,
     pub content_type: String,
     pub description: Option<String>,
@@ -107,15 +109,15 @@ pub struct UiImageMetadata {
 }
 
 impl UnresolvedMimiContent {
-    pub(crate) fn resolve(self, local_attachment_infos: &[AttachmentInfo]) -> UiMimiContent {
+    pub(crate) fn resolve(self, attachments: Option<&MessageAttachments>) -> UiMimiContent {
         let preview_text = self.preview_text();
         let attachments: Vec<UiAttachment> = self
             .attachments
             .into_iter()
             .filter_map(|attachment| {
-                let info = local_attachment_infos
-                    .iter()
-                    .find(|info| info.part_index as usize == attachment.index)?;
+                let info = attachments.and_then(|attachments| {
+                    attachments.find(attachment.index, attachment.remote_attachment_id)
+                })?;
                 Some((attachment, info))
             })
             .map(|(attachment, info)| UiAttachment {

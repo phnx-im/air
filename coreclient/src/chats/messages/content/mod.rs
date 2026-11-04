@@ -7,6 +7,7 @@ use airprotos::client::self_group::SelfGroupAppMessage;
 use mimi_content::{MimiContent, content_container::NestedPart};
 use openmls::group::GroupId;
 
+pub mod media_type;
 mod walk;
 
 pub trait MimiContentExt {
@@ -19,7 +20,8 @@ pub trait MimiContentExt {
     /// can't be shown, a single `Unknown` for the whole unit. Parts with disposition `reaction`,
     /// `icon` or `profile` are not visited.
     ///
-    /// Attachment indices count the visited attachments, starting at 0 in visit order.
+    /// Part indices count the non-container parts depth-first. Every such part
+    /// counts, whether visited or not.
     ///
     /// Stops at the first error of `visitor` and returns it.
     fn visit_parts<'a>(
@@ -38,6 +40,15 @@ pub trait MimiContentExt {
     fn self_group_message(&self) -> Option<SelfGroupAppMessage>;
 }
 
+/// Depth-first index among the non-container parts of a MIMI body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PartIndex(pub(crate) u32);
+
+impl PartIndex {
+    /// Index of the first part of a body.
+    pub(crate) const FIRST: PartIndex = PartIndex(0);
+}
+
 #[derive(Debug)]
 pub enum VisitedPart<'a> {
     /// `text/markdown` or `text/plain`, not as an attachment.
@@ -49,7 +60,8 @@ pub enum VisitedPart<'a> {
     Attachment {
         /// ExternalPart or non-text SinglePart
         part: &'a NestedPart,
-        index: usize,
+        /// Used to derive the AttachmentId from message id and this index
+        index: PartIndex,
         /// disposition preview, or inside a preview container
         preview: bool,
         /// text/blurhash preview sibling

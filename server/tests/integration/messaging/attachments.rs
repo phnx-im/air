@@ -7,8 +7,8 @@
 use std::{assert_matches, io::Cursor};
 
 use aircoreclient::{
-    AttachmentProgressEvent, AttachmentStatus, MimiContentExt, ProvisionAttachmentError,
-    VisitedPart, clients::MarkChatAsRead,
+    AttachmentId, AttachmentProgressEvent, AttachmentStatus, MimiContentExt,
+    ProvisionAttachmentError, VisitedPart, clients::MarkChatAsRead,
 };
 use airserver_test_harness::utils::{
     core_user_ext::CoreUserExt,
@@ -154,7 +154,7 @@ async fn interrupted_attachment_download_is_resumed() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn nested_attachments_are_paired_by_part_index() {
+async fn nested_attachments_have_derived_ids() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, carol] = setup.add_users().await;
     let upload_chat_id = setup.connect_users(&alice, &carol).await;
@@ -185,7 +185,7 @@ async fn nested_attachments_are_paired_by_part_index() {
         content_type: "text/markdown".to_owned(),
         content: b"two files".to_vec(),
     };
-    // Visit order: second (depth 2), then first (depth 1)
+    // Part order: text 0, second 1 (depth 2), first 2 (depth 1)
     let content = MimiContent {
         salt: uuid::Uuid::new_v4().as_bytes().to_vec(),
         nested_part: multi_part(vec![
@@ -208,12 +208,34 @@ async fn nested_attachments_are_paired_by_part_index() {
         panic!("expected exactly one new message");
     };
 
+    let mut indices = Vec::new();
+    message
+        .message()
+        .mimi_content()
+        .unwrap()
+        .visit_parts(|part| {
+            if let VisitedPart::Attachment { index, .. } = part {
+                indices.push(index);
+            }
+            Ok(())
+        })
+        .unwrap();
+    let [index_0, index_1] = indices[..] else {
+        panic!("expected exactly two attachment parts, got {indices:?}");
+    };
+
     let infos = bob.attachment_infos_for_message(message.id()).await;
-    let [info_0, info_1] = &infos[..] else {
+    let [info_0, info_1] = infos.iter().collect::<Vec<_>>()[..] else {
         panic!("expected exactly two attachments, got {infos:?}");
     };
-    assert_eq!(info_0.part_index, 0);
-    assert_eq!(info_1.part_index, 1);
+    assert_eq!(
+        info_0.attachment_id,
+        AttachmentId::derive(message.id(), index_0)
+    );
+    assert_eq!(
+        info_1.attachment_id,
+        AttachmentId::derive(message.id(), index_1)
+    );
 
     for (info, expected) in [(info_0, &second[..]), (info_1, &first[..])] {
         let (_progress, download_task) = bob.download_attachment(info.attachment_id);
@@ -272,8 +294,15 @@ async fn reused_remote_attachment_is_skipped() {
     // messages
     let mut first = None;
     for message in bob.messages(chat_id, 10).await.unwrap() {
-        if !bob.attachment_infos_for_message(message.id()).await.is_empty() {
-            assert!(first.replace(message).is_none(), "expected one attachment message");
+        if !bob
+            .attachment_infos_for_message(message.id())
+            .await
+            .is_empty()
+        {
+            assert!(
+                first.replace(message).is_none(),
+                "expected one attachment message"
+            );
         }
     }
     let first = first.expect("bob has no attachment message");
@@ -311,14 +340,24 @@ async fn reused_remote_attachment_is_skipped() {
     };
     assert_ne!(second.id(), first.id());
     let stored = bob.message(second.id()).await.unwrap().unwrap();
-    let text = stored
+    let mut texts = Vec::new();
+    stored
         .message()
         .mimi_content()
         .unwrap()
-        .string_rendering()
+        .visit_parts(|part| {
+            if let VisitedPart::Text { content, .. } = part {
+                texts.push(content.to_owned());
+            }
+            Ok(())
+        })
         .unwrap();
-    assert!(text.contains("again"), "unexpected text: {text}");
-    assert!(bob.attachment_infos_for_message(second.id()).await.is_empty());
+    assert_eq!(texts, ["again"]);
+    assert!(
+        bob.attachment_infos_for_message(second.id())
+            .await
+            .is_empty()
+    );
     assert_eq!(bob.attachment_infos_for_message(first.id()).await.len(), 1);
 }
 

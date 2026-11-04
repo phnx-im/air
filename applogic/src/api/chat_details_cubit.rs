@@ -622,7 +622,7 @@ impl ChatDetailsCubitBase {
             return Ok(());
         };
 
-        let attachment_infos = self
+        let attachments = self
             .context
             .core_user
             .attachment_infos_for_message(message_id)
@@ -654,7 +654,7 @@ impl ChatDetailsCubitBase {
                     message_id,
                     sender: sender.into(),
                     mimi_content: UnresolvedMimiContent::from(mimi_content)
-                        .resolve(&attachment_infos),
+                        .resolve(Some(&attachments)),
                 },
             ));
             draft.is_committed = false;

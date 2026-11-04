@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                attachment_id AS \"attachment_id: _\",\n                part_index AS \"part_index: u32\",\n                is_animated\n            FROM attachment\n            WHERE message_id = ?\n            ORDER BY part_index",
+  "query": "SELECT\n                attachment_id AS \"attachment_id: _\",\n                remote_attachment_id AS \"remote_attachment_id: _\",\n                is_animated\n            FROM attachment\n            WHERE message_id = ?\n            ORDER BY rowid",
   "describe": {
     "columns": [
       {
@@ -15,13 +15,13 @@
         }
       },
       {
-        "name": "part_index: u32",
+        "name": "remote_attachment_id: _",
         "ordinal": 1,
-        "type_info": "Integer",
+        "type_info": "Blob",
         "origin": {
           "Table": {
             "table": "attachment",
-            "name": "part_index"
+            "name": "remote_attachment_id"
           }
         }
       },
@@ -42,9 +42,9 @@
     },
     "nullable": [
       false,
-      false,
+      true,
       true
     ]
   },
-  "hash": "8f84088f896077df8869bb734f4aa7cfa1524a8842c48a3affdaa786abb3336f"
+  "hash": "e54bc59acb2f704cfc9aa16342b22f147a6493da1c2462311619c2b481d8d2e4"
 }
