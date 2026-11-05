@@ -36,9 +36,6 @@ async fn oversized_key_package_uploads_are_rejected() {
 
     let status = qs
         .publish_key_packages(PublishKeyPackagesRequest {
-            client_metadata: None,
-            client_id: None,
-            key_packages: Vec::new(),
             payload: Some(PublishKeyPackagesPayload {
                 client_metadata: None,
                 client_id: None,

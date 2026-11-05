@@ -183,8 +183,7 @@ impl QueueService for GrpcQs {
                 .inner()
                 .payload
                 .as_ref()
-                .and_then(|p| p.client_metadata.as_ref())
-                .or(request.inner().client_metadata.as_ref()),
+                .and_then(|p| p.client_metadata.as_ref()),
         )?;
 
         let UpdateUserPayload {
@@ -224,8 +223,7 @@ impl QueueService for GrpcQs {
                 .inner()
                 .payload
                 .as_ref()
-                .and_then(|p| p.client_metadata.as_ref())
-                .or(request.inner().client_metadata.as_ref()),
+                .and_then(|p| p.client_metadata.as_ref()),
         )?;
 
         let DeleteUserPayload {
@@ -291,8 +289,7 @@ impl QueueService for GrpcQs {
                 .inner()
                 .payload
                 .as_ref()
-                .and_then(|p| p.client_metadata.as_ref())
-                .or(request.inner().client_metadata.as_ref()),
+                .and_then(|p| p.client_metadata.as_ref()),
         )?;
         let UpdateClientPayload {
             client_metadata: _,
@@ -327,8 +324,7 @@ impl QueueService for GrpcQs {
                 .inner()
                 .payload
                 .as_ref()
-                .and_then(|p| p.client_metadata.as_ref())
-                .or(request.inner().client_metadata.as_ref()),
+                .and_then(|p| p.client_metadata.as_ref()),
         )?;
         let DeleteClientPayload {
             client_metadata: _,
@@ -352,8 +348,7 @@ impl QueueService for GrpcQs {
                 .inner()
                 .payload
                 .as_ref()
-                .and_then(|p| p.client_metadata.as_ref())
-                .or(request.inner().client_metadata.as_ref()),
+                .and_then(|p| p.client_metadata.as_ref()),
         )?;
         let payload = request
             .inner()
@@ -522,8 +517,7 @@ impl QueueService for GrpcQs {
             init_request
                 .payload
                 .as_ref()
-                .and_then(|p| p.client_metadata.as_ref())
-                .or(init_request.client_metadata.as_ref()),
+                .and_then(|p| p.client_metadata.as_ref()),
         )?;
         let version_status = ListenResponse {
             event: Some(listen_response::Event::VersionStatus(VersionStatus {
@@ -854,9 +848,6 @@ mod tests {
         let status = grpc_qs
             .publish_key_packages(Request::new(SignedRequest::new(
                 PublishKeyPackagesRequest {
-                    client_metadata: None,
-                    client_id: None,
-                    key_packages: Vec::new(),
                     payload: Some(PublishKeyPackagesPayload {
                         client_metadata: None,
                         client_id: None,
