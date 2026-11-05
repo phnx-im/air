@@ -8,7 +8,7 @@ use airprotos::{
     auth_service::v1::{auth_service_server, *},
     client::signed_connection_package::SignedConnectionPackageIn,
     common::v1::{ClientMetadata, UserId},
-    signed::{SignedRequest, VerifiableRequest},
+    signed::{SignedNestedRequest, SignedRequest, VerifiableRequest},
     validation::MissingFieldExt,
 };
 use chrono::Utc;
@@ -772,21 +772,21 @@ impl auth_service_server::AuthService for GrpcAs {
 
     async fn listen_username(
         &self,
-        request: Request<Streaming<ListenUsernameRequest>>,
+        request: Request<Streaming<SignedNestedRequest<ListenUsernameRequest, 1, 1>>>,
     ) -> Result<Response<Self::ListenUsernameStream>, Status> {
         let mut requests = request.into_inner();
 
-        let request = requests
+        let (request, payload_bytes) = requests
             .next()
             .await
-            .ok_or(ListenHandleProtocolViolation::MissingInitRequest)??;
+            .ok_or(ListenHandleProtocolViolation::MissingInitRequest)??
+            .into_parts();
         let Some(listen_username_request::Request::Init(init_request)) = request.request else {
             return Err(ListenHandleProtocolViolation::MissingInitRequest.into());
         };
 
         let signed_request: SignedRequest<InitListenUsernameRequest> =
-            SignedRequest::from_nested(init_request, |request| request.payload.as_ref())
-                .ok_or_missing_field("payload")?;
+            SignedRequest::new(init_request, payload_bytes.ok_or_missing_field("payload")?);
         let client_metadata = signed_request
             .inner()
             .payload
@@ -803,6 +803,7 @@ impl auth_service_server::AuthService for GrpcAs {
         let handler = UsernameSessionHandler {
             queues: self.inner.username_queues.clone(),
         };
+        let requests = requests.map(|request| request.map(SignedNestedRequest::into_inner));
         let responses = spawn_listen_session(
             requests,
             messages,

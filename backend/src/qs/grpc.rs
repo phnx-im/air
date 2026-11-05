@@ -7,7 +7,7 @@ use std::pin::Pin;
 use airprotos::{
     common::v1::ClientMetadata,
     queue_service::v1::{queue_service_server::QueueService, *},
-    signed::SignedRequest,
+    signed::{SignedNestedRequest, SignedRequest},
     validation::{InvalidTlsExt, MissingFieldExt},
 };
 
@@ -506,14 +506,15 @@ impl QueueService for GrpcQs {
 
     async fn listen(
         &self,
-        request: Request<Streaming<ListenRequest>>,
+        request: Request<Streaming<SignedNestedRequest<ListenRequest, 1, 4>>>,
     ) -> Result<Response<Self::ListenStream>, Status> {
         let mut requests = request.into_inner();
 
-        let request = requests
+        let (request, payload_bytes) = requests
             .next()
             .await
-            .ok_or(ListenQueueProtocolViolation::MissingInitRequest)??;
+            .ok_or(ListenQueueProtocolViolation::MissingInitRequest)??
+            .into_parts();
         let Some(listen_request::Request::Init(init_request)) = request.request else {
             return Err(ListenQueueProtocolViolation::MissingInitRequest.into());
         };
@@ -534,9 +535,8 @@ impl QueueService for GrpcQs {
             })),
         };
 
-        let init_request =
-            SignedRequest::from_nested(init_request, |request| request.payload.as_ref())
-                .ok_or_missing_field("payload")?;
+        let init_request: SignedRequest<InitListenRequest> =
+            SignedRequest::new(init_request, payload_bytes.ok_or_missing_field("payload")?);
         let (
             InitListenPayload {
                 client_metadata: _,
@@ -585,6 +585,7 @@ impl QueueService for GrpcQs {
         };
         let qs_client = self.qs.pseudonymizer.client(&client_id);
         let responses = info_span!("qs_listen", %qs_client).in_scope(|| {
+            let requests = requests.map(|request| request.map(SignedNestedRequest::into_inner));
             spawn_listen_session(requests, events, self.qs.stop.clone(), handler, "qs")
         });
         Ok(Response::new(responses))

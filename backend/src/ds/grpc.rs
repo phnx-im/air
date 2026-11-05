@@ -1096,7 +1096,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
 
     async fn create_group_v2(
         &self,
-        request: Request<Streaming<CreateGroupV2Request>>,
+        request: Request<Streaming<create_group_stream::SignedCreateGroupV2Request>>,
     ) -> Result<Response<Self::CreateGroupV2Stream>, Status> {
         let incoming = request.into_inner();
         // The stream sends at most two messages, so no send blocks
