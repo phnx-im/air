@@ -11,7 +11,7 @@ use mls_assist::{
         ApqProcessedAssistedMessagePlus, ProcessedAssistedMessage,
         apq::{ApqGroupRef, ApqRetainedWelcomeInfo},
     },
-    messages::{AssistedMessageIn, AssistedWelcome, SerializedMlsMessage},
+    messages::{ApqAssistedMessageIn, AssistedWelcome, SerializedMlsMessage},
     openmls::{
         group::StagedCommit,
         messages::proposals::Proposal,
@@ -446,8 +446,7 @@ impl DsGroupState {
     pub(super) fn process_apq_group_operation(
         t_group_state: &mut DsGroupState,
         pq_group_state: &mut DsGroupState,
-        t_message: AssistedMessageIn,
-        pq_message: AssistedMessageIn,
+        commit: ApqAssistedMessageIn,
         t_add_users_info: Option<AddUsersInfo>,
         pq_add_users_info: Option<AddUsersInfo>,
         max_devices: u32,
@@ -458,7 +457,7 @@ impl DsGroupState {
             t_serialized_message,
             pq_serialized_message,
         } = ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
-            .process_apq_assisted_message(crypto, t_message, pq_message, |_, _| true)?;
+            .process_apq_assisted_message(crypto, commit, |_, _| true)?;
 
         // PQ-side validation: sender type, self-remove check, welcome
         let (pq_staged_commit, pq_welcome) = {

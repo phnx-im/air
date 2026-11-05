@@ -15,7 +15,7 @@ use mls_assist::{
         ApqProcessedAssistedMessagePlus, ProcessedAssistedMessage,
         apq::{ApqGroupRef, ApqRetainedWelcomeInfo},
     },
-    messages::{AssistedMessageIn, SerializedMlsMessage},
+    messages::{ApqAssistedMessageIn, AssistedMessageIn, SerializedMlsMessage},
     openmls::{
         group::GroupContext,
         prelude::{
@@ -95,8 +95,7 @@ impl DsGroupState {
     pub(crate) fn delete_apq_group(
         t_group_state: &mut Self,
         pq_group_state: &mut Self,
-        t_message: AssistedMessageIn,
-        pq_message: AssistedMessageIn,
+        commit: ApqAssistedMessageIn,
     ) -> Result<SerializedMlsMessage, GroupDeletionError> {
         // Process both legs as a unit (but don't apply them). This performs the
         // mls-assist- and APQ-level validations.
@@ -105,12 +104,7 @@ impl DsGroupState {
             t_serialized_message,
             pq_serialized_message,
         } = ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
-            .process_apq_assisted_message(
-                t_group_state.provider.crypto(),
-                t_message,
-                pq_message,
-                |_, _| true,
-            )?;
+            .process_apq_assisted_message(t_group_state.provider.crypto(), commit, |_, _| true)?;
 
         // Perform DS-level validation on each leg against its own source of
         // truth for the group's membership.
@@ -774,12 +768,11 @@ mod test {
         let (t_commit, pq_commit) = bundle.commit.split();
         let (t_group_info, pq_group_info) =
             ApqMlsMessageOut::from(bundle.group_info.unwrap()).split();
-        DsGroupState::delete_apq_group(
-            &mut t_state,
-            &mut pq_state,
-            assisted(t_commit, t_group_info),
-            assisted(pq_commit, pq_group_info),
-        )?;
+        let commit = ApqAssistedMessageIn {
+            t_message: assisted(t_commit, t_group_info),
+            pq_message: assisted(pq_commit, pq_group_info),
+        };
+        DsGroupState::delete_apq_group(&mut t_state, &mut pq_state, commit)?;
         Ok((t_state, pq_state))
     }
 

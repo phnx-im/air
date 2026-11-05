@@ -91,6 +91,13 @@ pub struct AssistedMessageIn {
     pub(crate) group_info_option: Option<AssistedGroupInfoIn>,
 }
 
+/// The T and the PQ message of an APQ assisted message.
+#[derive(Debug)]
+pub struct ApqAssistedMessageIn {
+    pub t_message: AssistedMessageIn,
+    pub pq_message: AssistedMessageIn,
+}
+
 #[derive(Debug)]
 pub struct SerializedMlsMessage(pub Vec<u8>);
 
