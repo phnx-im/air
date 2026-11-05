@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "UPDATE resync_queue\n                    SET locked_by = ?2\n                    WHERE group_id = ?1\n                RETURNING\n                    chat_id AS \"chat_id: _\",\n                    group_id AS \"group_id: _\",\n                    pq_group_id AS \"pq_group_id: _\",\n                    group_state_ear_key AS \"group_state_ear_key: _\",\n                    identity_link_wrapper_key AS \"identity_link_wrapper_key: _\",\n                    original_leaf_index AS \"original_leaf_index: _\",\n                    shares_vc_leaf AS \"shares_vc_leaf: _\",\n                    connection_contact AS \"connection_contact: _\",\n                    outgoing_request AS \"outgoing_request: _\",\n                    accepted_friendship_package AS \"accepted_friendship_package: _\",\n                    reason AS \"reason: _\",\n                    attempts\n                ",
+  "query": "UPDATE resync_queue\n                    SET locked_by = ?2\n                    WHERE group_id = ?1\n                RETURNING\n                    chat_id AS \"chat_id: _\",\n                    group_id AS \"group_id: _\",\n                    pq_group_id AS \"pq_group_id: _\",\n                    group_state_ear_key AS \"group_state_ear_key: _\",\n                    identity_link_wrapper_key AS \"identity_link_wrapper_key: _\",\n                    original_leaf_index AS \"original_leaf_index: _\",\n                    shares_vc_leaf AS \"shares_vc_leaf: _\",\n                    connection_contact AS \"connection_contact: _\",\n                    outgoing_request AS \"outgoing_request: _\",\n                    accepted_friendship_package AS \"accepted_friendship_package: _\",\n                    reason AS \"reason: _\",\n                    attempts,\n                    baseline_t_epoch,\n                    baseline_pq_epoch\n                ",
   "describe": {
     "columns": [
       {
@@ -134,6 +134,28 @@
             "name": "attempts"
           }
         }
+      },
+      {
+        "name": "baseline_t_epoch",
+        "ordinal": 12,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "baseline_t_epoch"
+          }
+        }
+      },
+      {
+        "name": "baseline_pq_epoch",
+        "ordinal": 13,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "baseline_pq_epoch"
+          }
+        }
       }
     ],
     "parameters": {
@@ -151,8 +173,10 @@
       true,
       true,
       false,
-      false
+      false,
+      true,
+      true
     ]
   },
-  "hash": "56922221a129df56827e864a8ea7e607d0efeadebb56a32d56bf3c749e97b763"
+  "hash": "28e18fe2abaf54e674039f360a1578e6e4f42b13f94ecb75f774374203d90751"
 }

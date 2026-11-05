@@ -62,6 +62,9 @@ pub(crate) struct ConnectionGroupJoin<'a> {
 
 impl Group {
     /// Join a group using an external commit.
+    ///
+    /// A [`GroupClosed`] or [`RoomStateMismatch`](crate::groups::RoomStateMismatch) error means that
+    /// the group info and the member credentials verified.
     #[expect(clippy::too_many_arguments)]
     pub(crate) async fn join_group_externally(
         txn: &mut WriteDbTransaction<'_>,
@@ -225,6 +228,9 @@ impl Group {
     }
 
     /// Join an APQ group using an external commit.
+    ///
+    /// A [`GroupClosed`] or [`RoomStateMismatch`](crate::groups::RoomStateMismatch) error means that
+    /// the group info and the member credentials verified.
     #[expect(clippy::too_many_arguments)]
     pub(crate) async fn join_apq_group_externally(
         txn: &mut WriteDbTransaction<'_>,

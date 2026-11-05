@@ -432,6 +432,7 @@ impl CoreUser {
             accepted_friendship_package: None,
             reason: ResyncReason::Manual,
             attempts: 0,
+            baseline: None,
         };
         resync.enqueue(self.db().write().await?).await?;
         Ok(())

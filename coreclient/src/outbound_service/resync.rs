@@ -19,7 +19,7 @@ use apqmls::commit_builder::ApqCommitMessageBundle;
 use chrono::{DateTime, Utc};
 use openmls::{
     group::GroupId,
-    prelude::{LeafNodeIndex, MlsMessageOut},
+    prelude::{GroupEpoch, LeafNodeIndex, MlsMessageOut},
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, debug, error, info, info_span, warn};
@@ -36,8 +36,8 @@ use crate::{
     },
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
-        DecryptedProfileInfos, Group, GroupClosed, ProfileInfo, handle_group_not_found_on_ds,
-        self_group::SelfGroup,
+        DecryptedProfileInfos, Group, GroupClosed, ProfileInfo, RoomStateMismatch,
+        handle_group_not_found_on_ds, self_group::SelfGroup,
     },
     job::{operation::OperationData, profile::FetchUserProfileOperation, recoverable::Recoverable},
     outbound_service::{
@@ -103,6 +103,99 @@ impl ResyncReason {
             Self::Onboarding => "onboarding",
             Self::SiblingAccepted => "sibling_accepted",
         }
+    }
+
+    /// How the epoch of the served group state has to relate to the local one, or `None` if this
+    /// resync joins a group without a local state the DS accepted.
+    fn epoch_requirement(self) -> Option<EpochRequirement> {
+        match self {
+            // A message from a later epoch, or a commit the DS accepted and we could not follow,
+            // means that the group moved past our epoch.
+            Self::FutureEpoch | Self::VirtualClientDesync => Some(EpochRequirement::Newer),
+            Self::Manual | Self::MissingPqGroupState => Some(EpochRequirement::NotOlder),
+            Self::Onboarding | Self::SiblingAccepted => None,
+        }
+    }
+}
+
+/// How the epoch of the served group state has to relate to the local one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EpochRequirement {
+    Newer,
+    NotOlder,
+}
+
+/// The T epoch of a group state and, for an APQ group, its PQ epoch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct GroupEpochs {
+    t: GroupEpoch,
+    pq: Option<GroupEpoch>,
+}
+
+impl GroupEpochs {
+    fn of_group(group: &Group) -> Self {
+        Self {
+            t: group.mls_group().epoch(),
+            pq: group.pq().map(|pq| pq.mls_group.epoch()),
+        }
+    }
+
+    /// The epochs of the served group info. They are not verified yet, but a join verifies the
+    /// signature over them.
+    fn of_external_commit_info(info: &ExternalCommitInfoIn) -> Self {
+        Self {
+            t: info.verifiable_group_info.epoch(),
+            pq: info.pq.as_ref().map(|pq| pq.group_info.epoch()),
+        }
+    }
+
+    /// Whether these served epochs meet `requirement` against the `local` ones.
+    ///
+    /// The PQ epoch must never go back, and an APQ group must stay one.
+    fn meet(self, requirement: EpochRequirement, local: GroupEpochs) -> bool {
+        let t = match requirement {
+            EpochRequirement::Newer => self.t > local.t,
+            EpochRequirement::NotOlder => self.t >= local.t,
+        };
+        let pq = match (local.pq, self.pq) {
+            (None, _) => true,
+            (Some(_), None) => false,
+            (Some(local), Some(served)) => served >= local,
+        };
+        t && pq
+    }
+}
+
+/// The DS served a group state that would take this client back behind the state it holds.
+#[derive(Debug, thiserror::Error)]
+#[error(
+    "refusing {reason} resync into a stale group state: local epochs {local:?}, served epochs {served:?}"
+)]
+pub(crate) struct StaleGroupSnapshot {
+    reason: ResyncReason,
+    local: GroupEpochs,
+    served: GroupEpochs,
+}
+
+/// Fails if a resync for `reason` must not join the `served` state, given the `local` one.
+///
+/// `local` is `None` when there is no local state the DS accepted.
+fn ensure_not_stale(
+    reason: ResyncReason,
+    local: Option<GroupEpochs>,
+    served: GroupEpochs,
+) -> Result<(), StaleGroupSnapshot> {
+    let (Some(requirement), Some(local)) = (reason.epoch_requirement(), local) else {
+        return Ok(());
+    };
+    if served.meet(requirement, local) {
+        Ok(())
+    } else {
+        Err(StaleGroupSnapshot {
+            reason,
+            local,
+            served,
+        })
     }
 }
 
@@ -204,6 +297,10 @@ pub(crate) struct Resync {
     pub(crate) reason: ResyncReason,
     /// How many server errors this entry has collected so far.
     pub(crate) attempts: u32,
+    /// The epochs of the last group state the DS accepted, recorded by the first attempt. A
+    /// failed attempt can leave a local state behind that the DS never accepted, so the served
+    /// state is checked against these instead.
+    pub(crate) baseline: Option<GroupEpochs>,
 }
 
 impl Resync {
@@ -221,6 +318,7 @@ impl Resync {
             accepted_friendship_package: None,
             reason,
             attempts: 0,
+            baseline: None,
         }
     }
 
@@ -245,6 +343,7 @@ impl Resync {
             accepted_friendship_package: None,
             reason: ResyncReason::SiblingAccepted,
             attempts: 0,
+            baseline: None,
         }
     }
 }
@@ -302,6 +401,7 @@ impl CoreUser {
                 accepted_friendship_package: None,
                 reason: ResyncReason::Onboarding,
                 attempts: 0,
+                baseline: None,
             };
 
             resync.enqueue(&mut *txn).await?;
@@ -518,30 +618,51 @@ impl Resync {
         let shares_vc_leaf = self.shares_vc_leaf;
         let existing_chat_id = self.chat_id;
         let group_id = self.group_id.clone();
+        let reason = self.reason;
         let original_leaf_index = self.resolve_original_leaf_index(&external_commit_info, signer);
+        let served_epochs = GroupEpochs::of_external_commit_info(&external_commit_info);
         let connection_contact = self.connection_contact.take();
         let outgoing_request = self.outgoing_request.take();
         let accepted_friendship_package = self.accepted_friendship_package.take();
         let ds_timestamp = TimeStamp::now();
 
         let mut txn = connection.begin().await?;
+        let local_group = Group::load(&mut txn, &group_id).await?;
+        let baseline = self
+            .resolve_baseline(&mut txn, local_group.as_ref())
+            .await
+            .map_err(OutboundServiceError::fatal)?;
+        ensure_not_stale(reason, baseline, served_epochs).map_err(OutboundServiceError::fatal)?;
+        let members_before = local_group.map(|group| group.members().collect());
+
         let joined = Box::pin(self.create_commit(
             &mut txn,
             api_clients,
             signer,
             own_user_id,
             external_commit_info,
+            members_before,
         ))
         .await;
 
         let Some(original_leaf_index) = original_leaf_index else {
-            // If we don't have a leaf in that group anymore, either the group was closed, or we
-            // were removed. As soon as OpenMLS allows us to verify the group info prior to actually
-            // joining, we can check for the tombstone before actually trying to join.
+            // The served state has no leaf of ours. That only shows that we were removed if a
+            // member signed it, i.e. it verified, and if it is newer than our state, which has our
+            // leaf. A room state without us fails the join after the verification. A closed group
+            // is reported as such.
             if let Err(error) = joined
-                && error.is::<GroupClosed>()
+                && !error.is::<RoomStateMismatch>()
             {
                 return Err(OutboundServiceError::fatal(error));
+            }
+            if let Some(local) = baseline
+                && served_epochs.t <= local.t
+            {
+                return Err(OutboundServiceError::fatal(StaleGroupSnapshot {
+                    reason,
+                    local,
+                    served: served_epochs,
+                }));
             }
             warn!(
                 ?group_id,
@@ -702,6 +823,29 @@ impl Resync {
             .map(|(index, _)| index)
     }
 
+    /// The epochs to check the served group state against, or `None` if this resync needs no
+    /// check.
+    ///
+    /// The first attempt takes them from the local group and records them with the queue entry.
+    /// Fails if a check is needed but there is neither a recorded baseline nor a local group.
+    async fn resolve_baseline(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        local_group: Option<&Group>,
+    ) -> Result<Option<GroupEpochs>> {
+        if self.reason.epoch_requirement().is_none() {
+            return Ok(None);
+        }
+        if let Some(baseline) = self.baseline {
+            return Ok(Some(baseline));
+        }
+        let local_group =
+            local_group.context("no local group state to check the served group state against")?;
+        let baseline = GroupEpochs::of_group(local_group);
+        Self::record_baseline(&mut *txn, &self.group_id, baseline).await?;
+        Ok(Some(baseline))
+    }
+
     fn resolve_original_leaf_index(
         &self,
         external_commit_info: &ExternalCommitInfoIn,
@@ -749,14 +893,10 @@ impl Resync {
         signer: &LeafSigningKey,
         own_user_id: &UserId,
         external_commit_info: ExternalCommitInfoIn,
+        members_before: Option<HashSet<UserId>>,
     ) -> Result<(Group, ResyncCommit, DecryptedProfileInfos, MembersDiff)> {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
         // reflect that in the UI.
-
-        // Collect members of the group before we delete it.
-        let members_before: Option<HashSet<UserId>> = Group::load(&mut *txn, &self.group_id)
-            .await?
-            .map(|group| group.members().collect());
 
         // Delete any old group states if they exist
         Group::delete_from_db(txn, &self.group_id).await?;
@@ -1138,6 +1278,8 @@ mod persistence {
                 accepted_friendship_package: Option<BlobDecoded<EncryptedFriendshipPackage>>,
                 reason: ResyncReason,
                 attempts: i64,
+                baseline_t_epoch: Option<i64>,
+                baseline_pq_epoch: Option<i64>,
             }
 
             let Some(group_id) = query_scalar!(
@@ -1176,7 +1318,9 @@ mod persistence {
                     outgoing_request AS "outgoing_request: _",
                     accepted_friendship_package AS "accepted_friendship_package: _",
                     reason AS "reason: _",
-                    attempts
+                    attempts,
+                    baseline_t_epoch,
+                    baseline_pq_epoch
                 "#,
                 group_id,
                 task_id,
@@ -1198,6 +1342,12 @@ mod persistence {
                     .map(BlobDecoded::into_inner),
                 reason: record.reason,
                 attempts: record.attempts as u32,
+                baseline: record.baseline_t_epoch.map(|t_epoch| GroupEpochs {
+                    t: GroupEpoch::from(t_epoch as u64),
+                    pq: record
+                        .baseline_pq_epoch
+                        .map(|pq_epoch| GroupEpoch::from(pq_epoch as u64)),
+                }),
             });
 
             Ok(resync)
@@ -1252,6 +1402,28 @@ mod persistence {
                 WHERE group_id = ?1",
                 group_id,
                 friendship_package,
+            )
+            .execute(connection.as_mut())
+            .await?;
+            Ok(())
+        }
+
+        /// Records the baseline of the queue entry of the given group, unless it already has one.
+        pub(crate) async fn record_baseline(
+            mut connection: impl WriteConnection,
+            group_id: &GroupId,
+            baseline: GroupEpochs,
+        ) -> sqlx::Result<()> {
+            let group_id = group_id.as_slice();
+            let t_epoch = baseline.t.as_u64() as i64;
+            let pq_epoch = baseline.pq.map(|pq| pq.as_u64() as i64);
+            query!(
+                "UPDATE resync_queue
+                SET baseline_t_epoch = ?2, baseline_pq_epoch = ?3
+                WHERE group_id = ?1 AND baseline_t_epoch IS NULL",
+                group_id,
+                t_epoch,
+                pq_epoch,
             )
             .execute(connection.as_mut())
             .await?;
@@ -1374,6 +1546,7 @@ mod tests {
             accepted_friendship_package: None,
             reason,
             attempts: 0,
+            baseline: None,
         };
 
         Ok((pool, resync))
@@ -1751,6 +1924,96 @@ mod tests {
             .await?
             .expect("entry should be due");
         assert_eq!(dequeued.attempts, 1);
+
+        Ok(())
+    }
+
+    fn epochs(t: u64, pq: Option<u64>) -> GroupEpochs {
+        GroupEpochs {
+            t: GroupEpoch::from(t),
+            pq: pq.map(GroupEpoch::from),
+        }
+    }
+
+    #[test]
+    fn out_of_sync_resyncs_need_a_newer_epoch() {
+        for reason in [ResyncReason::FutureEpoch, ResyncReason::VirtualClientDesync] {
+            let local = Some(epochs(3, None));
+            assert!(ensure_not_stale(reason, local, epochs(4, None)).is_ok());
+            assert!(ensure_not_stale(reason, local, epochs(3, None)).is_err());
+            assert!(ensure_not_stale(reason, local, epochs(2, None)).is_err());
+        }
+    }
+
+    #[test]
+    fn other_resyncs_accept_the_current_epoch_but_not_an_older_one() {
+        for reason in [ResyncReason::Manual, ResyncReason::MissingPqGroupState] {
+            let local = Some(epochs(3, None));
+            assert!(ensure_not_stale(reason, local, epochs(4, None)).is_ok());
+            assert!(ensure_not_stale(reason, local, epochs(3, None)).is_ok());
+            assert!(ensure_not_stale(reason, local, epochs(2, None)).is_err());
+        }
+    }
+
+    #[test]
+    fn joins_without_accepted_state_are_not_checked() {
+        for reason in [ResyncReason::Onboarding, ResyncReason::SiblingAccepted] {
+            assert!(ensure_not_stale(reason, Some(epochs(5, Some(5))), epochs(1, None)).is_ok());
+            assert!(ensure_not_stale(reason, None, epochs(1, None)).is_ok());
+        }
+    }
+
+    #[test]
+    fn checked_resyncs_without_baseline_are_not_refused_here() {
+        assert!(ensure_not_stale(ResyncReason::FutureEpoch, None, epochs(1, None)).is_ok());
+    }
+
+    #[test]
+    fn pq_epoch_must_not_go_back() {
+        let reason = ResyncReason::Manual;
+        let local = Some(epochs(3, Some(2)));
+        assert!(ensure_not_stale(reason, local, epochs(3, Some(2))).is_ok());
+        assert!(ensure_not_stale(reason, local, epochs(4, Some(3))).is_ok());
+        assert!(ensure_not_stale(reason, local, epochs(4, Some(1))).is_err());
+        assert!(ensure_not_stale(reason, local, epochs(4, None)).is_err());
+        // A group whose local PQ leg is gone may get it back at any PQ epoch.
+        assert!(ensure_not_stale(reason, Some(epochs(3, None)), epochs(3, Some(0))).is_ok());
+    }
+
+    #[test]
+    fn stale_snapshot_error_names_both_epochs() {
+        let error = ensure_not_stale(
+            ResyncReason::FutureEpoch,
+            Some(epochs(3, None)),
+            epochs(2, None),
+        )
+        .expect_err("an older epoch is stale");
+        let message = error.to_string();
+        assert!(message.contains("future_epoch"), "{message}");
+        assert!(message.contains("GroupEpoch(3)"), "{message}");
+        assert!(message.contains("GroupEpoch(2)"), "{message}");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn baseline_is_recorded_once_and_survives_a_reset() -> anyhow::Result<()> {
+        let (pool, resync) = setup(ResyncReason::FutureEpoch).await?;
+        let group_id = resync.group_id.clone();
+        let mut connection = pool.write().await?;
+        resync.enqueue(&mut connection).await?;
+
+        let first = epochs(3, Some(1));
+        Resync::record_baseline(&mut connection, &group_id, first).await?;
+        Resync::record_baseline(&mut connection, &group_id, epochs(4, Some(2))).await?;
+
+        let mut manual = resync;
+        manual.reason = ResyncReason::Manual;
+        manual.enqueue_or_reset(&mut connection).await?;
+
+        let dequeued = connection
+            .with_transaction(async |txn| Resync::dequeue(txn, Uuid::new_v4(), Utc::now()).await)
+            .await?
+            .expect("entry should be due");
+        assert_eq!(dequeued.baseline, Some(first));
 
         Ok(())
     }
