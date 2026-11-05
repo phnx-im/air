@@ -140,6 +140,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         //    return Err(LoadGroupStateError::Expired);
         //}
         let group_state = DsGroupState::decrypt(&group_data.encrypted_group_state, ear_key)?;
+        group_state.warn_about_unprofiled_leaves(self.ds.pseudonymizer.group(&qgid.group_uuid()));
 
         Ok((group_data, group_state))
     }

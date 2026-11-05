@@ -191,6 +191,11 @@ impl DsGroupState {
             self.provider.storage(),
             processed_assisted_message_plus.processed_assisted_message,
         )?;
+        self.warn_about_resurrected_leaves(
+            "resync",
+            removed_indices.iter().copied().chain([sender_index]),
+            new_sender_index,
+        );
 
         self.remove_profiles(removed_indices);
 
@@ -300,6 +305,12 @@ impl DsGroupState {
                 pq_group_state.provider.storage(),
                 processed_assisted_message_plus.processed_assisted_message,
             )?;
+
+        t_group_state.warn_about_resurrected_leaves(
+            "resync_apq",
+            t_removed_indices.iter().copied().chain([t_sender_index]),
+            t_new_sender_index,
+        );
 
         client_references_before
             .compare(t_group_state)
