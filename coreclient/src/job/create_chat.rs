@@ -15,13 +15,18 @@ use airprotos::client::{
     group_bootstrap::GroupBootstrapCarrier,
 };
 use anyhow::Context;
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
-    Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
+    Chat, ChatAttributes, ChatId,
     db::access::WriteConnection,
-    groups::{Group, NewGroupContext, self_group::SelfGroup},
-    job::{Job, JobContext, JobError},
+    groups::{
+        Group, NewGroupContext, pending_creation::PendingGroupCreation, self_group::SelfGroup,
+    },
+    job::{
+        Job, JobContext, JobError,
+        recoverable::{Recoverable, RecoverableCause},
+    },
     key_stores::indexed_keys::StorableIndexedKey,
 };
 
@@ -148,9 +153,9 @@ impl CreateChat {
 
         let own_user_id = key_store.signing_key.credential().user_id();
 
-        // Create the group. If the query to the DS fails later on, we just
-        // clean up the group, so this is repeatable.
-        let (group, chat, partial_params, encrypted_user_profile_key, group_bootstrap) = db
+        // Create the group, pending until the DS confirms it. The chat only
+        // appears on confirmation.
+        let (group, partial_params, encrypted_user_profile_key, group_bootstrap) = db
             .write()
             .await?
             .with_transaction(async |txn| -> anyhow::Result<_> {
@@ -187,9 +192,9 @@ impl CreateChat {
                     user_profile_key.encrypt(group.identity_link_wrapper_key(), own_user_id)?;
 
                 group.store(&mut *txn).await?;
-
-                let chat = Chat::new_group_chat(partial_params.group_id.clone(), chat_attributes);
-                chat.store(&mut *txn).await?;
+                PendingGroupCreation::new(partial_params.group_id.clone(), chat_attributes)
+                    .store(&mut *txn)
+                    .await?;
 
                 // Group chats carry no connection context. The sibling takes
                 // the chat attributes from the group data extension.
@@ -206,7 +211,6 @@ impl CreateChat {
 
                 Ok((
                     group,
-                    chat,
                     partial_params,
                     encrypted_user_profile_key,
                     group_bootstrap,
@@ -216,31 +220,57 @@ impl CreateChat {
 
         let mut params = partial_params.into_params(client_reference, encrypted_user_profile_key);
         params.group_bootstrap = group_bootstrap;
-        if let Err(e) = api_client
+        let group_id = group.group_id();
+        if let Err(error) = api_client
             .ds_create_group(params, &key_store.signing_key, group.group_state_ear_key())
             .await
         {
-            db.write()
-                .await?
-                .with_transaction(async |txn| -> Result<_, JobError<_>> {
-                    Group::delete_from_db(&mut *txn, group.group_id()).await?;
-                    Chat::delete(txn, chat.id()).await?;
-                    Ok(())
-                })
-                .await?;
-
-            return Err(e.into());
+            let error = JobError::from(error);
+            if outcome_is_uncertain(&error) {
+                // The DS may have created the group. Its echo confirms it, or
+                // a later queue drain without the echo discards it.
+                info!(?group_id, %error, "Keeping the group creation pending");
+            } else {
+                db.write()
+                    .await?
+                    .with_transaction(async |txn| {
+                        PendingGroupCreation::discard(txn, group_id).await
+                    })
+                    .await?;
+            }
+            return Err(error);
         }
 
-        // FIXME: Use the DS timestamp here <https://github.com/phnx-im/air/issues/853>
-        ChatMessage::new_system_message(
-            chat.id(),
-            TimeStamp::now(),
-            SystemMessage::CreateGroup(own_user_id.clone()),
-        )
-        .store(db.write().await?)
-        .await?;
+        // The echo may have confirmed the creation already
+        db.write()
+            .await?
+            .with_transaction(async |txn| -> Result<_, JobError<_>> {
+                // FIXME: Use the DS timestamp here <https://github.com/phnx-im/air/issues/853>
+                if PendingGroupCreation::confirm(txn, group_id, own_user_id, TimeStamp::now())
+                    .await?
+                    .is_none()
+                    && Chat::load_by_group_id(&mut *txn, group_id).await?.is_none()
+                {
+                    return Err(JobError::fatal(anyhow::anyhow!(
+                        "the group was discarded before the DS confirmed its creation"
+                    )));
+                }
+                Ok(())
+            })
+            .await?;
 
-        Ok(chat.id())
+        Ok(ChatId::try_from(group_id)?)
     }
+}
+
+/// Whether the DS may have created the group despite the error.
+fn outcome_is_uncertain<E>(error: &JobError<E>) -> bool {
+    matches!(
+        error,
+        JobError::NetworkError
+            | JobError::Recoverable(Recoverable {
+                cause: RecoverableCause::Server,
+                ..
+            })
+    )
 }

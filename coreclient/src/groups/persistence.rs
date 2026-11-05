@@ -520,9 +520,11 @@ impl Group {
         struct SqlGroupId {
             group_id: GroupIdWrapper,
         }
+        // Nothing goes into a group the DS has not confirmed yet
         let group_ids = query_as!(
             SqlGroupId,
-            r#"SELECT group_id AS "group_id: _" FROM "group""#,
+            r#"SELECT group_id AS "group_id: _" FROM "group"
+            WHERE group_id NOT IN (SELECT group_id FROM pending_group_creation)"#,
         )
         .fetch_all(connection.as_mut())
         .await?;
@@ -537,8 +539,10 @@ impl Group {
             .collect())
     }
 
-    /// Loads the key material of every group (except the self-group) in a single query
-    /// without reconstructing the MLS state that [`Self::load`] deserializes.
+    /// Loads the key material of every group in a single query.
+    ///
+    /// Skips the self-group and pending creations. Unlike [`Self::load`], it
+    /// doesn't reconstruct the MLS state.
     pub(crate) async fn load_all_key_material(
         mut connection: impl ReadConnection,
     ) -> sqlx::Result<Vec<GroupKeyMaterial>> {
@@ -562,6 +566,7 @@ impl Group {
             FROM "group" g
             LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id
             WHERE g.group_id IS NOT ?
+                AND g.group_id NOT IN (SELECT group_id FROM pending_group_creation)
             "#,
             self_group_id,
         )
