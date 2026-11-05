@@ -17,7 +17,7 @@ use mls_assist::{
         apq::{ApqGroupRef, ApqRetainedWelcomeInfo},
         errors::{ProcessApqAssistedMessageError, ProcessAssistedMessageError},
     },
-    messages::{AssistedMessageIn, SerializedMlsMessage},
+    messages::{ApqAssistedMessageIn, AssistedMessageIn, SerializedMlsMessage},
     openmls::{
         error::LibraryError,
         group::MergeCommitError,
@@ -191,15 +191,12 @@ impl DsGroupState {
     pub(super) fn apq_join_connection_group(
         t: &mut Self,
         pq: &mut Self,
-        t_message: AssistedMessageIn,
-        pq_message: AssistedMessageIn,
+        external_commit: ApqAssistedMessageIn,
         qs_client_reference: QsReference,
         bootstrap_requested: bool,
     ) -> Result<JoinConnectionGroupOutcome, JoinConnectionGroupError> {
         let processed_assisted_message_plus = ApqGroupRef::from_groups(&mut t.group, &mut pq.group)
-            .process_apq_assisted_message(t.provider.crypto(), t_message, pq_message, |_, _| {
-                true
-            })?;
+            .process_apq_assisted_message(t.provider.crypto(), external_commit, |_, _| true)?;
 
         let ApqExternalCommit {
             t_staged_commit,

@@ -15,7 +15,7 @@ use mls_assist::{
     provider_traits::MlsAssistProvider,
 };
 use mls_assist::{
-    messages::AssistedMessageIn,
+    messages::{ApqAssistedMessageIn, AssistedMessageIn},
     openmls::prelude::{LeafNodeIndex, ProcessedMessageContent},
 };
 use tracing::error;
@@ -210,8 +210,7 @@ impl DsGroupState {
     pub(crate) fn apq_resync_client(
         t_group_state: &mut Self,
         pq_group_state: &mut Self,
-        t_message: AssistedMessageIn,
-        pq_message: AssistedMessageIn,
+        external_commit: ApqAssistedMessageIn,
         t_sender_index: LeafNodeIndex,
     ) -> Result<ResyncOutcome, ResyncClientError> {
         let client_references_before = ClientReferencesSnapshot::of(t_group_state);
@@ -219,8 +218,7 @@ impl DsGroupState {
             ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
                 .process_apq_assisted_message(
                     t_group_state.provider.crypto(),
-                    t_message,
-                    pq_message,
+                    external_commit,
                     |_, _| true,
                 )?;
 

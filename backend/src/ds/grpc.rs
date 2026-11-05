@@ -34,7 +34,7 @@ use airprotos::{
 use chrono::Utc;
 use futures_util::stream::BoxStream;
 use mls_assist::{
-    messages::{AssistedMessageIn, SerializedMlsMessage},
+    messages::{ApqAssistedMessageIn, AssistedMessageIn, SerializedMlsMessage},
     openmls::prelude::{GroupEpoch, GroupId, LeafNodeIndex, Sender, SignaturePublicKey},
 };
 use semver::Version;
@@ -512,10 +512,10 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         P: VerifiedStruct<SignedRequest<R, TAG>>,
     {
         let ear_key = request.inner().ear_key()?;
-        let (t_message, pq_message) = request.inner().apq_message()?;
+        let message = request.inner().apq_message()?;
 
-        let t_qgid = t_message.validated_qgid(self.ds.own_domain())?;
-        let pq_qgid = pq_message.validated_qgid(self.ds.own_domain())?;
+        let t_qgid = message.t_message.validated_qgid(self.ds.own_domain())?;
+        let pq_qgid = message.pq_message.validated_qgid(self.ds.own_domain())?;
         self.record_group(&t_qgid);
 
         let txn = self.ds.db_pool.begin().await.map_err(|error| {
@@ -529,16 +529,16 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         let (mut txn, mut pq_group_state, pq_group_data) = self
             .load_for_update_or_not_found(txn, &pq_qgid, &ear_key)
             .await?;
-        check_apq_info(&t_group_state, &pq_group_state, &t_message, &pq_message)?;
+        check_apq_info(&t_group_state, &pq_group_state, &message)?;
 
         let (payload, t_sender_index) =
-            resolve_and_verify(request, &t_message, &t_group_state, sender_index)?;
+            resolve_and_verify(request, &message.t_message, &t_group_state, sender_index)?;
         Span::current().record("sender", t_sender_index.u32());
 
         // Check that the T/PQ indices and signature keys match
         let pq_sender_index = match sender_index {
             Some(index) => index,
-            None => match pq_message.sender().ok_or_missing_field("sender")? {
+            None => match message.pq_message.sender().ok_or_missing_field("sender")? {
                 Sender::Member(index) => *index,
                 _ => {
                     return Err(Status::invalid_argument(
@@ -576,8 +576,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             payload,
             t_group_state: &mut t_group_state,
             pq_group_state: &mut pq_group_state,
-            t_message,
-            pq_message,
+            message,
             t_sender_index,
             ear_key: &ear_key,
         })
@@ -628,17 +627,15 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     async fn update_apq_group_state_without_verification<T: Send>(
         &self,
         ear_key: &GroupStateEarKey,
-        t_message: AssistedMessageIn,
-        pq_message: AssistedMessageIn,
+        message: ApqAssistedMessageIn,
         f: impl AsyncFnOnce(
             &mut DsGroupState,
             &mut DsGroupState,
-            AssistedMessageIn,
-            AssistedMessageIn,
+            ApqAssistedMessageIn,
         ) -> Result<T, Status>,
     ) -> Result<T, Status> {
-        let t_qgid = t_message.validated_qgid(self.ds.own_domain())?;
-        let pq_qgid = pq_message.validated_qgid(self.ds.own_domain())?;
+        let t_qgid = message.t_message.validated_qgid(self.ds.own_domain())?;
+        let pq_qgid = message.pq_message.validated_qgid(self.ds.own_domain())?;
         self.record_group(&t_qgid);
 
         let txn = self.ds.db_pool.begin().await.map_err(|error| {
@@ -651,15 +648,9 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         let (mut txn, mut pq_group_state, pq_group_data) = self
             .load_for_update_or_not_found(txn, &pq_qgid, ear_key)
             .await?;
-        check_apq_info(&t_group_state, &pq_group_state, &t_message, &pq_message)?;
+        check_apq_info(&t_group_state, &pq_group_state, &message)?;
 
-        let value = f(
-            &mut t_group_state,
-            &mut pq_group_state,
-            t_message,
-            pq_message,
-        )
-        .await?;
+        let value = f(&mut t_group_state, &mut pq_group_state, message).await?;
 
         let t_new_epoch = t_group_state.group().epoch().as_u64();
         self.encrypt_and_persist(&mut txn, t_group_data, t_group_state, ear_key)
@@ -741,8 +732,7 @@ fn apq_pq_qgid(group_state: &DsGroupState) -> Result<Option<QualifiedGroupId>, S
 fn check_apq_info(
     t_group_state: &DsGroupState,
     pq_group_state: &DsGroupState,
-    t_message: &AssistedMessageIn,
-    pq_message: &AssistedMessageIn,
+    message: &ApqAssistedMessageIn,
 ) -> Result<(), Status> {
     let t_apq_info = t_group_state
         .apq_info()
@@ -756,12 +746,12 @@ fn check_apq_info(
             "T and PQ group IDs do not match",
         ));
     }
-    if t_message.group_id() != &t_apq_info.t_session_group_id {
+    if message.t_message.group_id() != &t_apq_info.t_session_group_id {
         return Err(Status::failed_precondition(
             "T message group ID does not match T APQ group ID",
         ));
     }
-    if pq_message.group_id() != &pq_apq_info.pq_session_group_id {
+    if message.pq_message.group_id() != &pq_apq_info.pq_session_group_id {
         return Err(Status::failed_precondition(
             "PQ message group ID does not match PQ APQ group ID",
         ));
@@ -844,8 +834,7 @@ struct ApqVerificationData<'a, P> {
     payload: P,
     t_group_state: &'a mut DsGroupState,
     pq_group_state: &'a mut DsGroupState,
-    t_message: AssistedMessageIn,
-    pq_message: AssistedMessageIn,
+    message: ApqAssistedMessageIn,
     t_sender_index: LeafNodeIndex,
     ear_key: &'a GroupStateEarKey,
 }
@@ -1516,7 +1505,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
 
         self.verify_client_version(request.client_metadata.as_ref())?;
 
-        let (t_message, pq_message) = request.apq_message()?;
+        let external_commit = request.apq_message()?;
         let ear_key: GroupStateEarKey = request
             .group_state_ear_key
             .ok_or_missing_field("group_state_ear_key")?
@@ -1526,21 +1515,23 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
             .ok_or_missing_field("qs_client_reference")?
             .try_into()?;
         let group_bootstrap = request.group_bootstrap;
-        let t_qgid = t_message.validated_qgid(self.ds.own_domain())?;
-        let pq_qgid = pq_message.validated_qgid(self.ds.own_domain())?;
+        let t_qgid = external_commit
+            .t_message
+            .validated_qgid(self.ds.own_domain())?;
+        let pq_qgid = external_commit
+            .pq_message
+            .validated_qgid(self.ds.own_domain())?;
 
         let (timestamp, echo) = self
             .update_apq_group_state_without_verification(
                 &ear_key,
-                t_message,
-                pq_message,
-                async |t_group_state, pq_group_state, t_message, pq_message| {
+                external_commit,
+                async |t_group_state, pq_group_state, external_commit| {
                     let destination_clients: Vec<_> = t_group_state.destination_clients().collect();
                     let outcome = DsGroupState::apq_join_connection_group(
                         t_group_state,
                         pq_group_state,
-                        t_message,
-                        pq_message,
+                        external_commit,
                         qs_client_reference.clone(),
                         group_bootstrap.is_some(),
                     )?;
@@ -1666,8 +1657,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                            payload: _,
                            t_group_state,
                            pq_group_state,
-                           t_message: t_external_commit,
-                           pq_message: pq_external_commit,
+                           message: external_commit,
                            t_sender_index,
                            ear_key: _,
                        }: ApqVerificationData<'_, ApqResyncPayload>| {
@@ -1679,8 +1669,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                     let outcome = DsGroupState::apq_resync_client(
                         t_group_state,
                         pq_group_state,
-                        t_external_commit,
-                        pq_external_commit,
+                        external_commit,
                         t_sender_index,
                     )?;
 
@@ -1794,8 +1783,11 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                            payload: _,
                            t_group_state,
                            pq_group_state,
-                           t_message,
-                           pq_message,
+                           message:
+                               ApqAssistedMessageIn {
+                                   t_message,
+                                   pq_message,
+                               },
                            t_sender_index,
                            ear_key: _,
                        }: ApqVerificationData<'_, ApqSelfRemovePayload>| {
@@ -1977,8 +1969,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                     payload: _,
                     t_group_state,
                     pq_group_state,
-                    t_message,
-                    pq_message,
+                    message: commit,
                     t_sender_index,
                     ear_key: _,
                 } = verification_data;
@@ -1986,12 +1977,8 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                     .other_destination_clients(t_sender_index)
                     .collect();
 
-                let serialized_apq_message = DsGroupState::delete_apq_group(
-                    t_group_state,
-                    pq_group_state,
-                    t_message,
-                    pq_message,
-                )?;
+                let serialized_apq_message =
+                    DsGroupState::delete_apq_group(t_group_state, pq_group_state, commit)?;
 
                 let timestamp = TimeStamp::now();
                 let apq_payload =
@@ -2169,8 +2156,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                            payload,
                            t_group_state,
                            pq_group_state,
-                           t_message,
-                           pq_message,
+                           message: commit,
                            t_sender_index,
                            ear_key,
                        }: ApqVerificationData<ApqGroupOperationPayload>| {
@@ -2221,8 +2207,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                     } = DsGroupState::process_apq_group_operation(
                         t_group_state,
                         pq_group_state,
-                        t_message,
-                        pq_message,
+                        commit,
                         t_add_users_info,
                         pq_add_users_info,
                         self.ds.max_devices.get(),
@@ -2892,105 +2877,62 @@ impl WithMessage for ResyncRequest {
 
 /// Request containing an APQ MLS message
 trait WithApqMessage {
-    /// Returns the T and PQ message pair for the request.
-    fn apq_message(&self) -> Result<(AssistedMessageIn, AssistedMessageIn), Status>;
+    /// Returns the T and PQ message of the request.
+    fn apq_message(&self) -> Result<ApqAssistedMessageIn, Status>;
 }
 
 impl WithApqMessage for ApqSelfRemoveRequest {
-    fn apq_message(&self) -> Result<(AssistedMessageIn, AssistedMessageIn), Status> {
+    fn apq_message(&self) -> Result<ApqAssistedMessageIn, Status> {
         let payload = self.payload.as_ref().ok_or_missing_field("payload")?;
-        let proposal = payload
-            .remove_proposal
-            .as_ref()
-            .ok_or_missing_field("remove_proposal")?;
-        let t_message = proposal
-            .t_message
-            .as_ref()
-            .ok_or_missing_field("t_message")?;
-        let pq_message = proposal
-            .pq_message
-            .as_ref()
-            .ok_or_missing_field("pq_message")?;
-        Ok((
-            t_message.try_ref_into().invalid_tls("t_message")?,
-            pq_message.try_ref_into().invalid_tls("pq_message")?,
-        ))
+        apq_assisted_message(payload.remove_proposal.as_ref(), "remove_proposal")
     }
 }
 
 impl WithApqMessage for ApqGroupOperationRequest {
-    fn apq_message(&self) -> Result<(AssistedMessageIn, AssistedMessageIn), Status> {
+    fn apq_message(&self) -> Result<ApqAssistedMessageIn, Status> {
         let payload = self.payload.as_ref().ok_or_missing_field("payload")?;
-        let commit = payload.commit.as_ref().ok_or_missing_field("commit")?;
-        let t_message = commit.t_message.as_ref().ok_or_missing_field("t_message")?;
-        let pq_message = commit
-            .pq_message
-            .as_ref()
-            .ok_or_missing_field("pq_message")?;
-        Ok((
-            t_message.try_ref_into().invalid_tls("t_message")?,
-            pq_message.try_ref_into().invalid_tls("pq_message")?,
-        ))
+        apq_assisted_message(payload.commit.as_ref(), "commit")
     }
 }
 
 impl WithApqMessage for ApqDeleteGroupRequest {
-    fn apq_message(&self) -> Result<(AssistedMessageIn, AssistedMessageIn), Status> {
+    fn apq_message(&self) -> Result<ApqAssistedMessageIn, Status> {
         let payload = self.payload.as_ref().ok_or_missing_field("payload")?;
-        let commit = payload.commit.as_ref().ok_or_missing_field("commit")?;
-        let t_message = commit.t_message.as_ref().ok_or_missing_field("t_message")?;
-        let pq_message = commit
-            .pq_message
-            .as_ref()
-            .ok_or_missing_field("pq_message")?;
-        Ok((
-            t_message.try_ref_into().invalid_tls("t_message")?,
-            pq_message.try_ref_into().invalid_tls("pq_message")?,
-        ))
+        apq_assisted_message(payload.commit.as_ref(), "commit")
     }
 }
 
 impl WithApqMessage for ApqResyncRequest {
-    fn apq_message(&self) -> Result<(AssistedMessageIn, AssistedMessageIn), Status> {
+    fn apq_message(&self) -> Result<ApqAssistedMessageIn, Status> {
         let payload = self.payload.as_ref().ok_or_missing_field("payload")?;
-        let external_commit = payload
-            .external_commit
-            .as_ref()
-            .ok_or_missing_field("external_commit")?;
-        let t_message = external_commit
-            .t_message
-            .as_ref()
-            .ok_or_missing_field("t_message")?;
-        let pq_message = external_commit
-            .pq_message
-            .as_ref()
-            .ok_or_missing_field("pq_message")?;
-        Ok((
-            t_message.try_ref_into().invalid_tls("t_message")?,
-            pq_message.try_ref_into().invalid_tls("pq_message")?,
-        ))
+        apq_assisted_message(payload.external_commit.as_ref(), "external_commit")
     }
 }
 
 impl WithApqMessage for ApqJoinConnectionGroupRequest {
-    fn apq_message(&self) -> Result<(AssistedMessageIn, AssistedMessageIn), Status> {
-        let external_commit = self
-            .external_commit
-            .as_ref()
-            .ok_or_missing_field("external_commit")?;
-        let t_message = external_commit
-            .t_message
-            .as_ref()
-            .ok_or_missing_field("t_message")?;
-        let pq_message = external_commit
-            .pq_message
-            .as_ref()
-            .ok_or_missing_field("pq_message")?;
-        Ok((
-            t_message.try_ref_into().invalid_tls("t_message")?,
-            pq_message.try_ref_into().invalid_tls("pq_message")?,
-        ))
+    fn apq_message(&self) -> Result<ApqAssistedMessageIn, Status> {
+        apq_assisted_message(self.external_commit.as_ref(), "external_commit")
     }
+}
+
+/// The T and PQ message of the APQ message `field`.
+fn apq_assisted_message(
+    message: Option<&ApqAssistedMlsMessage>,
+    field: &'static str,
+) -> Result<ApqAssistedMessageIn, Status> {
+    let message = message.ok_or_missing_field(field)?;
+    let t_message = message
+        .t_message
+        .as_ref()
+        .ok_or_missing_field("t_message")?;
+    let pq_message = message
+        .pq_message
+        .as_ref()
+        .ok_or_missing_field("pq_message")?;
+    Ok(ApqAssistedMessageIn {
+        t_message: t_message.try_ref_into().invalid_tls("t_message")?,
+        pq_message: pq_message.try_ref_into().invalid_tls("pq_message")?,
+    })
 }
 
 struct NoWelcomeInfoFound;

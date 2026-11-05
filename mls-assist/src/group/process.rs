@@ -9,7 +9,10 @@ use apqmls::{
 };
 use openmls::prelude::{ContentType, Credential, OpenMlsCrypto, ProtocolMessage, Verifiable};
 
-use crate::group::{apq::ApqGroupRef, errors::ProcessApqAssistedMessageError};
+use crate::{
+    group::{apq::ApqGroupRef, errors::ProcessApqAssistedMessageError},
+    messages::ApqAssistedMessageIn,
+};
 
 use super::{errors::LibraryError, *};
 
@@ -106,10 +109,13 @@ impl ApqGroupRef<'_> {
     pub fn process_apq_assisted_message<CryptoProvider: OpenMlsCrypto>(
         &mut self,
         crypto: &CryptoProvider,
-        t_assisted_message: AssistedMessageIn,
-        pq_assisted_message: AssistedMessageIn,
+        assisted_message: ApqAssistedMessageIn,
         sender_equivalence: impl Fn(&Credential, &Credential) -> bool,
     ) -> Result<ApqProcessedAssistedMessagePlus, ProcessApqAssistedMessageError> {
+        let ApqAssistedMessageIn {
+            t_message,
+            pq_message,
+        } = assisted_message;
         // APQ only supports public commits
         let extract_public_commit =
             |AssistedMessageIn {
@@ -129,13 +135,12 @@ impl ApqGroupRef<'_> {
             };
 
         let Some((pq_commit, pq_serialized_message, pq_group_info)) =
-            extract_public_commit(pq_assisted_message)
+            extract_public_commit(pq_message)
         else {
             return Err(ProcessApqAssistedMessageError::InvalidAssistedMessage);
         };
 
-        let Some((t_commit, t_serialized_message, t_group_info)) =
-            extract_public_commit(t_assisted_message)
+        let Some((t_commit, t_serialized_message, t_group_info)) = extract_public_commit(t_message)
         else {
             return Err(ProcessApqAssistedMessageError::InvalidAssistedMessage);
         };
