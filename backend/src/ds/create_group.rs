@@ -352,7 +352,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .map_err(|_| Status::invalid_argument("invalid group profile size"))?;
         match self
             .ds
-            .provision_object(StorageObjectType::GroupProfile, Some(content_length), false)
+            .provision_object(StorageObjectType::GroupProfile, content_length, false)
             .await
         {
             Ok(response) => Ok(Some(response)),
