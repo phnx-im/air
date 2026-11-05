@@ -320,7 +320,7 @@ fn serve_metrics(metrics_listener: Option<TcpListener>) {
             );
             describe_gauge!("air_server_memory_mmap_bytes", "Bytes allocated via mmap");
             loop {
-                tokio::time::sleep(Duration::from_secs(10)).await;
+                tokio::time::sleep(Duration::from_secs(1)).await;
                 // Safety: mallinfo2 is always safe to call because it does not
                 // modify any memory.
                 let info = unsafe { libc::mallinfo2() };

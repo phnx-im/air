@@ -24,6 +24,7 @@ use aircommon::{
 use aircoreclient::{ChatId, ChatStatus, clients::CoreUser, *};
 use airserver::network_provider::MockNetworkProvider;
 use anyhow::Context;
+use futures_util::{StreamExt, stream};
 use mimi_content::{
     MessageStatus, MimiContent, NestedPart,
     content_container::{EncryptionAlgorithm, HashAlgorithm},
@@ -457,6 +458,28 @@ impl TestBackend {
             user_ids.push(self.add_user().await);
         }
         user_ids.try_into().unwrap()
+    }
+
+    /// Registers `n` users with at most `concurrency` registrations in flight.
+    pub async fn add_users_concurrent(&mut self, n: usize, concurrency: usize) -> Vec<CoreUser> {
+        let ids: Vec<UserId> = (0..n).map(|_| self.random_user_id()).collect();
+        let server_url = self.server_url();
+        // Spawned so client CPU work uses all worker threads, `buffered` keeps the order
+        let new_users: Vec<TestUser> = stream::iter(ids.iter().cloned())
+            .map(|id| {
+                let server_url = server_url.clone();
+                tokio::spawn(async move { TestUser::new(&id, server_url).await })
+            })
+            .buffered(concurrency.max(1))
+            .map(|joined| joined.unwrap())
+            .collect()
+            .await;
+        let mut core_users = Vec::with_capacity(n);
+        for (id, user) in ids.into_iter().zip(new_users) {
+            core_users.push(user.user.clone());
+            self.users.insert(id, user);
+        }
+        core_users
     }
 
     pub async fn add_user(&mut self) -> CoreUser {

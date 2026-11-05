@@ -72,6 +72,7 @@ airserver_test_harness.workspace = true
 base64.workspace = true
 chrono.workspace = true
 criterion.workspace = true
+futures-util.workspace = true
 hex.workspace = true
 image.workspace = true
 metrics-util.workspace = true

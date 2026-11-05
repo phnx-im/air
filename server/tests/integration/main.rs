@@ -9,6 +9,7 @@ mod account;
 mod api;
 mod contacts;
 mod groups;
+mod load;
 mod messaging;
 mod multi_device;
 

@@ -17,6 +17,7 @@ airserver = { workspace = true, features = ["test_utils"] }
 anyhow.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
+futures-util.workspace = true
 mimi_content.workspace = true
 parking_lot.workspace = true
 rand.workspace = true
