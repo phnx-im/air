@@ -93,10 +93,8 @@ message CreateUserResponse {
 // update user
 
 message UpdateUserRequest {
-  common.v1.ClientMetadata client_metadata = 4;
-  QsUserId sender = 1;
-  QsUserVerifyingKey user_record_auth_key = 2;
-  FriendshipToken friendship_token = 3;
+  reserved 1, 2, 3, 4;
+  reserved "sender", "user_record_auth_key", "friendship_token", "client_metadata";
 
   UpdateUserPayload payload = 5;
   common.v1.Signature signature = 6;
@@ -114,9 +112,8 @@ message UpdateUserResponse {}
 // delete user
 
 message DeleteUserRequest {
-  common.v1.ClientMetadata client_metadata = 2;
-  QsUserId sender = 1;
-  // TODO: don't we need user_record_auth_key here?
+  reserved 1, 2;
+  reserved "sender", "client_metadata";
 
   DeleteUserPayload payload = 3;
   common.v1.Signature signature = 4;
@@ -132,12 +129,8 @@ message DeleteUserResponse {}
 // create client
 
 message CreateClientRequest {
-  common.v1.ClientMetadata client_metadata = 6;
-  QsUserId sender = 1;
-  QsClientVerifyingKey client_record_auth_key = 2;
-  common.v1.RatchetEncryptionKey queue_encryption_key = 3;
-  optional EncryptedPushToken encrypted_push_token = 4;
-  common.v1.RatchetSecret initial_ratched_secret = 5;
+  reserved 1, 2, 3, 4, 5, 6;
+  reserved "sender", "client_record_auth_key", "queue_encryption_key", "encrypted_push_token", "initial_ratched_secret", "client_metadata";
 
   CreateClientPayload payload = 7;
   common.v1.Signature signature = 8;
@@ -159,11 +152,8 @@ message CreateClientResponse {
 // update client
 
 message UpdateClientRequest {
-  common.v1.ClientMetadata client_metadata = 5;
-  QsClientId sender = 1;
-  QsClientVerifyingKey client_record_auth_key = 2;
-  common.v1.RatchetEncryptionKey queue_encryption_key = 3;
-  optional EncryptedPushToken encrypted_push_token = 4;
+  reserved 1, 2, 3, 4, 5;
+  reserved "sender", "client_record_auth_key", "queue_encryption_key", "encrypted_push_token", "client_metadata";
 
   UpdateClientPayload payload = 6;
   common.v1.Signature signature = 7;
@@ -182,8 +172,8 @@ message UpdateClientResponse {}
 // delete client
 
 message DeleteClientRequest {
-  common.v1.ClientMetadata client_metadata = 2;
-  QsClientId sender = 1;
+  reserved 1, 2;
+  reserved "sender", "client_metadata";
 
   DeleteClientPayload payload = 3;
   common.v1.Signature signature = 4;
@@ -199,9 +189,8 @@ message DeleteClientResponse {}
 // publish key packages
 
 message PublishKeyPackagesRequest {
-  common.v1.ClientMetadata client_metadata = 3;
-  QsClientId client_id = 1;
-  repeated KeyPackage key_packages = 2;
+  reserved 1, 2, 3;
+  reserved "client_id", "key_packages", "client_metadata";
 
   PublishKeyPackagesPayload payload = 4;
   common.v1.Signature signature = 5;
@@ -309,10 +298,8 @@ message ListenRequest {
 }
 
 message InitListenRequest {
-  common.v1.ClientMetadata client_metadata = 3;
-  QsClientId client_id = 1;
-  // Sequence number to start listening from (inclusive)
-  uint64 sequence_number_start = 2;
+  reserved 1, 2, 3;
+  reserved "client_id", "sequence_number_start", "client_metadata";
 
   InitListenPayload payload = 4;
   common.v1.Signature signature = 5;
