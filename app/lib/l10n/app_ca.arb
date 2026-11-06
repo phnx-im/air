@@ -3,6 +3,7 @@
   "languageName": "Català",
   "userSettingsScreen_title": "Perfil i paràmetres",
   "userSettingsScreen_profileDescription": "Els vostres contactes de l'Air i els membres dels grups on sou poden veure el nom a mostrar i la imatge de perfil.",
+  "userSettingsScreen_error_updateProfile": "No s'ha pogut actualitzar el perfil",
   "userSettingsScreen_userNamesDescription": "Compartiu els noms d'usuari amb qui us vulgueu posar en contacte. Els altres no poden veure els noms d'usuari, ni tan sols els vostres contactes de l'Air. Podeu tenir fins a 5 noms d'usuari.",
   "userSettingsScreen_help": "Ajuda",
   "userSettingsScreen_deleteAccount": "Suprimeix el compte de l'Air",

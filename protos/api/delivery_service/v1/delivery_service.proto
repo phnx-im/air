@@ -160,8 +160,9 @@ message CreateGroupPayload {
   // credential is taken from the creator's leaf.
   optional UserCredential creator_user_credential = 10;
   // Opaque blob, encrypted for the creator's sibling clients. Set when a
-  // virtual client creates the group, in which case the DS echoes it unread to
-  // all of the creating user's client queues.
+  // virtual client creates the group. The DS echoes every creation to all of
+  // the creating user's client queues, with this blob unread or, without it,
+  // as a bare receipt.
   optional bytes group_bootstrap = 11;
 }
 
@@ -203,10 +204,6 @@ message CreateGroupV2Prepare {
   common.v1.Signature signature = 2;
 }
 
-// WARNING: The signature of the `prepare` step is verified against the server's
-// prost *re-encoding* of this payload, not the wire bytes. A field the server
-// does not know is dropped and breaks the signature, and the encoding must stay
-// stable: never reorder, renumber, or remove fields.
 message CreateGroupV2PreparePayload {
   common.v1.ClientMetadata client_metadata = 1;
   common.v1.UserId user_id = 2;
@@ -259,8 +256,9 @@ message CreateApqGroupPayload {
   // credential is taken from the creator's leaf.
   optional UserCredential creator_user_credential = 8;
   // Opaque blob, encrypted for the creator's sibling clients. Set when a
-  // virtual client creates the group, in which case the DS echoes it unread to
-  // all of the creating user's client queues.
+  // virtual client creates the group. The DS echoes every creation to all of
+  // the creating user's client queues, with this blob unread or, without it,
+  // as a bare receipt.
   optional bytes group_bootstrap = 9;
 }
 

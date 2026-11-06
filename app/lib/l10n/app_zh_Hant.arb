@@ -3,6 +3,7 @@
   "languageName": "繁體中文",
   "userSettingsScreen_title": "個人資料與設定",
   "userSettingsScreen_profileDescription": "你的顯示名稱和個人資料照片會顯示給你的 Air 聯絡人以及你所在群組的成員。",
+  "userSettingsScreen_error_updateProfile": "更新個人資料失敗",
   "userSettingsScreen_userNamesDescription": "把使用者名稱分享給任何你想聯繫的人。使用者名稱不會顯示給其他人，就連你的 Air 聯絡人也看不到。你最多可以擁有 5 個使用者名稱。",
   "userSettingsScreen_help": "說明",
   "userSettingsScreen_deleteAccount": "刪除 Air 帳號",

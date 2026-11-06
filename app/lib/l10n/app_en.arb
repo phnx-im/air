@@ -16,6 +16,10 @@
   "@userSettingsScreen_profileDescription": {
     "description": "Explains who can see the display name and profile picture. Sits under the profile section in profile and settings."
   },
+  "userSettingsScreen_error_updateProfile": "Failed to update profile",
+  "@userSettingsScreen_error_updateProfile": {
+    "description": "Error snackbar shown when changing the display name or the profile picture fails."
+  },
   "userSettingsScreen_userNamesDescription": "Share usernames with anyone you want to connect with. Usernames aren’t visible to others, even your Air contacts. You can have up to 5 usernames.",
   "@userSettingsScreen_userNamesDescription": {
     "description": "Explains what usernames are for and that they stay private even from contacts. Sits under the Usernames section."

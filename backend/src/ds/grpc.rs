@@ -142,6 +142,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         //    return Err(LoadGroupStateError::Expired);
         //}
         let group_state = DsGroupState::decrypt(&group_data.encrypted_group_state, ear_key)?;
+        group_state.warn_about_unprofiled_leaves(self.ds.pseudonymizer.group(&qgid.group_uuid()));
 
         Ok((group_data, group_state))
     }
@@ -421,8 +422,8 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .ok();
     }
 
-    /// Enqueue the echo of an accepted bootstrap-carrying request to every
-    /// client queue of the acting user.
+    /// Enqueue the echo of an accepted creation or bootstrap-carrying join to
+    /// every client queue of the acting user.
     pub(super) async fn dispatch_group_bootstrap_echo(
         &self,
         echo: QsQueueMessagePayload,
@@ -847,44 +848,27 @@ struct ApqFanOut<T> {
     value: T,
 }
 
-/// The snapshot they join the group at and the echo.
-pub(super) struct GroupBootstrapMaterial {
+/// The echo of a new group to all of the creator's clients.
+pub(super) struct CreationEcho {
     epoch: GroupEpoch,
-    snapshot: DsEpochSnapshot,
+    snapshot: Option<DsEpochSnapshot>,
     pub(super) echo: QsQueueMessagePayload,
 }
 
-impl GroupBootstrapMaterial {
-    /// The material for a group a virtual client just created.
-    pub(super) fn for_creation(
+impl CreationEcho {
+    pub(super) fn new(
         group_state: &DsGroupState,
         group_id: GroupId,
         pq: Option<(GroupId, &DsGroupState)>,
-        group_bootstrap: Vec<u8>,
+        group_bootstrap: Option<Vec<u8>>,
     ) -> Result<Self, Status> {
-        // Only a virtual client has siblings to echo to.
-        if !group_state.leaf_is_virtual_client(LeafNodeIndex::new(0)) {
-            return Err(Status::invalid_argument(
-                "group bootstrap requires a virtual-client creator leaf",
-            ));
-        }
-
         let (pq_group_id, pq_group_state) = pq.unzip();
-        // The legs share a signature key, but being a virtual client is a leaf
-        // extension, so the check above says nothing about the PQ leaf.
-        if pq_group_state.is_some_and(|pq| !pq.leaf_is_virtual_client(LeafNodeIndex::new(0))) {
-            return Err(Status::invalid_argument(
-                "group bootstrap requires a virtual-client PQ creator leaf",
-            ));
-        }
-
-        let snapshot = match pq_group_state {
-            Some(pq_group_state) => group_state.epoch_snapshot().with_pq_leg(
-                pq_group_state.group().group_info().clone(),
-                pq_group_state.group().export_ratchet_tree(),
-            ),
-            None => group_state.epoch_snapshot(),
-        };
+        let snapshot = group_bootstrap
+            .as_ref()
+            .map(|group_bootstrap| {
+                Self::bootstrap_snapshot(group_state, pq_group_state, group_bootstrap)
+            })
+            .transpose()?;
 
         let epoch = group_state.group().epoch();
         let echo = QsQueueMessagePayload::group_creation_echo(GroupBootstrapEcho {
@@ -892,7 +876,7 @@ impl GroupBootstrapMaterial {
             pq_group_id,
             epoch,
             timestamp: TimeStamp::now(),
-            group_bootstrap,
+            group_bootstrap: group_bootstrap.unwrap_or_default(),
         })
         .tls_failed("group creation echo")?;
 
@@ -903,15 +887,51 @@ impl GroupBootstrapMaterial {
         })
     }
 
+    /// The snapshot for the creator's siblings.
+    fn bootstrap_snapshot(
+        group_state: &DsGroupState,
+        pq_group_state: Option<&DsGroupState>,
+        group_bootstrap: &[u8],
+    ) -> Result<DsEpochSnapshot, Status> {
+        // An empty bootstrap would read as a bare receipt.
+        if group_bootstrap.is_empty() {
+            return Err(Status::invalid_argument("empty group bootstrap"));
+        }
+        // Only a virtual client has siblings to echo to.
+        if !group_state.leaf_is_virtual_client(LeafNodeIndex::new(0)) {
+            return Err(Status::invalid_argument(
+                "group bootstrap requires a virtual-client creator leaf",
+            ));
+        }
+        // The legs share a signature key, but being a virtual client is a leaf
+        // extension, so the check above says nothing about the PQ leaf.
+        if pq_group_state.is_some_and(|pq| !pq.leaf_is_virtual_client(LeafNodeIndex::new(0))) {
+            return Err(Status::invalid_argument(
+                "group bootstrap requires a virtual-client PQ creator leaf",
+            ));
+        }
+
+        Ok(match pq_group_state {
+            Some(pq_group_state) => group_state.epoch_snapshot().with_pq_leg(
+                pq_group_state.group().group_info().clone(),
+                pq_group_state.group().export_ratchet_tree(),
+            ),
+            None => group_state.epoch_snapshot(),
+        })
+    }
+
+    /// Stores the bootstrap snapshot, if there is one.
     pub(super) async fn store(
         &self,
         txn: &mut PgTransaction<'_>,
         group_id: uuid::Uuid,
         ear_key: &GroupStateEarKey,
     ) -> Result<(), Status> {
-        self.snapshot
-            .encrypt_and_store(txn, group_id, self.epoch, ear_key)
-            .await?;
+        if let Some(snapshot) = &self.snapshot {
+            snapshot
+                .encrypt_and_store(txn, group_id, self.epoch, ear_key)
+                .await?;
+        }
         Ok(())
     }
 }
@@ -1013,7 +1033,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
         let NewGroupState {
             group_state,
             creator_client_reference,
-            bootstrap,
+            echo,
         } = Self::new_group_state(provider, group, &qgid, payload)?;
         let encrypted_group_state = group_state.encrypt(&ear_key)?;
 
@@ -1023,7 +1043,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                 encrypted_group_state,
                 label: "group state",
             }],
-            bootstrap,
+            echo,
             &qgid,
             &ear_key,
             creator_client_reference,
@@ -1076,7 +1096,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
         self.consume_creation_allowance(t_user_credential.user_id())
             .await?;
 
-        let (pq_qgid, pq_group_state, bootstrap) =
+        let (pq_qgid, pq_group_state, echo) =
             self.new_pq_leg(payload, &chat, &t_qgid, &t_group_state)?;
 
         // Encrypt and store group state
@@ -1104,7 +1124,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                     label: "pq group state",
                 },
             ],
-            bootstrap,
+            echo,
             &t_qgid,
             &ear_key,
             chat.creator_client_reference,
@@ -1119,7 +1139,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
 
     async fn create_group_v2(
         &self,
-        request: Request<Streaming<CreateGroupV2Request>>,
+        request: Request<Streaming<create_group_stream::SignedCreateGroupV2Request>>,
     ) -> Result<Response<Self::CreateGroupV2Stream>, Status> {
         let incoming = request.into_inner();
         // The stream sends at most two messages, so no send blocks
@@ -2556,7 +2576,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
             .ds
             .provision_object(
                 payload.object_type.try_into().unwrap_or_default(),
-                Some(content_length),
+                content_length,
                 payload.use_post_policy,
             )
             .await?;

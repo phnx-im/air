@@ -7,7 +7,7 @@ use std::pin::pin;
 use futures_util::{Stream, stream::BoxStream};
 use tokio_stream::{StreamExt, wrappers::ReceiverStream};
 use tokio_util::sync::CancellationToken;
-use tonic::{Status, Streaming};
+use tonic::Status;
 use tracing::{Instrument, error};
 
 use crate::util::StatusExt;
@@ -48,7 +48,7 @@ enum Event<Req, Resp> {
 ///
 /// `name` identifies the session in logs. `handler` is dropped when the session ends.
 pub(crate) fn spawn_listen_session<Req, Resp>(
-    mut requests: Streaming<Req>,
+    requests: impl Stream<Item = Result<Req, Status>> + Send + 'static,
     responses: impl Stream<Item = Resp> + Send + 'static,
     stop: CancellationToken,
     mut handler: impl ListenRequestHandler<Req>,
@@ -62,6 +62,7 @@ where
     let (out_tx, out_rx) = tokio::sync::mpsc::channel(OUT_CHANNEL_BUFFER_SIZE);
 
     let session = async move {
+        let mut requests = pin!(requests);
         let mut responses = pin!(responses);
 
         // Process incoming requests and responses to deliver sequentially

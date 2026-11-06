@@ -3,6 +3,7 @@
   "languageName": "Português (Brasil)",
   "userSettingsScreen_title": "Perfil e configurações",
   "userSettingsScreen_profileDescription": "Seu nome de exibição e sua foto de perfil ficam visíveis para seus contatos do Air e para os membros dos grupos de que você participa.",
+  "userSettingsScreen_error_updateProfile": "Não foi possível atualizar o perfil",
   "userSettingsScreen_userNamesDescription": "Compartilhe seus nomes de usuário com quem você quiser se conectar. Os nomes de usuário não ficam visíveis para os outros, nem para seus contatos do Air. Você pode ter até 5 nomes de usuário.",
   "userSettingsScreen_help": "Ajuda",
   "userSettingsScreen_deleteAccount": "Excluir conta do Air",

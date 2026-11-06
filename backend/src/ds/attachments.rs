@@ -38,21 +38,20 @@ impl Ds {
     pub(super) async fn provision_object(
         &self,
         object_type: StorageObjectType,
-        content_length: Option<u64>,
+        content_length: u64,
         use_post_policy: bool,
     ) -> Result<ProvisionAttachmentResponse, ProvisionObjectError> {
         let Some(storage) = self.storage.as_ref() else {
             return Err(ProvisionObjectError::NoStorageConfigured);
         };
+        check_content_length(storage.settings(), content_length)?;
 
         let object_id = Uuid::new_v4();
         let expiration = ExpirationData::now(storage.settings().upload_expiration);
 
         let response = if storage.settings().use_post_policy && use_post_policy {
-            create_signed_post(storage, object_id, expiration, object_type)
+            create_signed_post(storage, object_id, expiration, content_length, object_type)
         } else {
-            // We still allow content length 0 for legacy clients.
-            let content_length = content_length.filter(|content_length| *content_length > 0);
             create_signed_put(storage, object_id, expiration, content_length, object_type).await?
         };
         Ok(response)
@@ -110,11 +109,30 @@ impl Ds {
     }
 }
 
+/// Fails unless `content_length` is positive and at most the maximum attachment
+/// size.
+fn check_content_length(
+    settings: &StorageSettings,
+    content_length: u64,
+) -> Result<(), ProvisionObjectError> {
+    if content_length == 0 {
+        return Err(ProvisionObjectError::ContentLengthRequired);
+    }
+    if content_length > settings.max_attachment_size {
+        return Err(ProvisionObjectError::DataTooLarge {
+            max_size: settings.max_attachment_size,
+            actual_size: content_length,
+        });
+    }
+    Ok(())
+}
+
+/// Presigns a PUT whose signature covers `content_length`.
 async fn create_signed_put(
     storage: &Storage,
     object_id: Uuid,
     expiration: ExpirationData,
-    content_length: Option<u64>,
+    content_length: u64,
     object_type: StorageObjectType,
 ) -> Result<ProvisionAttachmentResponse, ProvisionObjectError> {
     let not_before: DateTime<Utc> = expiration.not_before().into();
@@ -128,25 +146,17 @@ async fn create_signed_put(
 
     let bucket = select_bucket(storage.settings(), object_type);
     let key = storage_key(&storage.settings().storage_paths, object_id, object_type);
-    let request = storage.client().put_object().bucket(bucket).key(key);
-
-    let settings = storage.settings();
-
-    let request = if let Some(content_length) = content_length {
-        if settings.max_attachment_size < content_length {
-            return Err(ProvisionObjectError::DataTooLarge {
-                max_size: settings.max_attachment_size,
-                actual_size: content_length,
-            });
-        }
-        request.set_content_length(Some(content_length as i64))
-    } else if settings.require_content_length {
-        return Err(ProvisionObjectError::ContentLengthRequired);
-    } else {
-        request
-    };
-
-    let request = request
+    let content_length =
+        i64::try_from(content_length).map_err(|_| ProvisionObjectError::DataTooLarge {
+            max_size: storage.settings().max_attachment_size,
+            actual_size: content_length,
+        })?;
+    let request = storage
+        .client()
+        .put_object()
+        .bucket(bucket)
+        .key(key)
+        .content_length(content_length)
         .presigned(presigning_config)
         .await
         .map_err(Box::new)?;
@@ -175,10 +185,12 @@ struct Policy {
     conditions: [serde_json::Value; 6],
 }
 
+/// Signs a POST policy that admits objects of at most `content_length` bytes.
 fn create_signed_post(
     storage: &Storage,
     object_id: Uuid,
     expiration: ExpirationData,
+    content_length: u64,
     object_type: StorageObjectType,
 ) -> ProvisionAttachmentResponse {
     let not_before: DateTime<Utc> = expiration.not_before().into();
@@ -200,7 +212,7 @@ fn create_signed_post(
         conditions: [
             json!({"bucket": bucket}),
             json!({"key": key}),
-            json!(["content-length-range", 0, settings.max_attachment_size]),
+            json!(["content-length-range", 0, content_length]),
             json!({"x-amz-credential": x_amz_credential}),
             json!({"x-amz-algorithm": "AWS4-HMAC-SHA256"}),
             json!({"x-amz-date": not_before.format("%Y%m%dT%H%M%SZ").to_string()}),
@@ -402,7 +414,6 @@ mod test {
             download_debug_logs_expiration: Duration::seconds(60),
             max_attachment_size: aircommon::DEFAULT_MAX_ATTACHMENT_SIZE,
             use_post_policy: false,
-            require_content_length: true,
             storage_paths: Default::default(),
         };
         Storage::new(settings)
@@ -421,22 +432,31 @@ mod test {
         let response = create_signed_put(
             &storage,
             object_id,
-            expiration.clone(),
-            None,
-            StorageObjectType::Unspecified,
-        )
-        .await;
-        assert!(response.is_err());
-
-        let response = create_signed_put(
-            &storage,
-            object_id,
             expiration,
-            Some(42),
+            42,
             StorageObjectType::Unspecified,
         )
         .await;
         insta::assert_debug_snapshot!(response);
+    }
+
+    #[test]
+    fn content_length_must_be_positive_and_within_max_size() {
+        let storage = storage();
+        let settings = storage.settings();
+        let max_size = settings.max_attachment_size;
+
+        assert!(matches!(
+            check_content_length(settings, 0),
+            Err(ProvisionObjectError::ContentLengthRequired)
+        ));
+        assert!(check_content_length(settings, 1).is_ok());
+        assert!(check_content_length(settings, max_size).is_ok());
+        assert!(matches!(
+            check_content_length(settings, max_size + 1),
+            Err(ProvisionObjectError::DataTooLarge { max_size: max, actual_size })
+                if max == max_size && actual_size == max_size + 1
+        ));
     }
 
     #[test]
@@ -452,6 +472,7 @@ mod test {
             &storage,
             object_id,
             expiration,
+            42,
             StorageObjectType::Unspecified,
         );
 

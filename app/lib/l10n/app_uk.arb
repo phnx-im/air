@@ -3,6 +3,7 @@
   "languageName": "Українська",
   "userSettingsScreen_title": "Профіль і налаштування",
   "userSettingsScreen_profileDescription": "Ваше відображуване ім’я та фото профілю бачать ваші контакти Air і учасники ваших груп.",
+  "userSettingsScreen_error_updateProfile": "Не вдалося оновити профіль",
   "userSettingsScreen_userNamesDescription": "Діліться іменами користувача з тими, з ким хочете зв’язатися. Імена користувача не бачать інші, навіть ваші контакти Air. У вас може бути до 5 імен користувача.",
   "userSettingsScreen_help": "Довідка",
   "userSettingsScreen_deleteAccount": "Видалити обліковий запис Air",
