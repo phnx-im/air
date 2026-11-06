@@ -1,27 +1,27 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT\n                a.message_id AS \"message_id: _\",\n                a.attachment_id AS \"attachment_id: _\",\n                a.is_animated\n            FROM attachment a\n            JOIN message m USING (message_id)\n            WHERE m.chat_id = ?\n                AND (m.timestamp, m.message_id) >= (?, ?)\n                AND (m.timestamp, m.message_id) <= (?, ?)\n            ORDER BY a.message_id, a.rowid\n            ",
+  "query": "SELECT\n                attachment_id AS \"attachment_id: _\",\n                remote_attachment_id AS \"remote_attachment_id: _\",\n                is_animated\n            FROM attachment\n            WHERE message_id = ?\n            ORDER BY rowid",
   "describe": {
     "columns": [
       {
-        "name": "message_id: _",
+        "name": "attachment_id: _",
         "ordinal": 0,
         "type_info": "Blob",
         "origin": {
           "Table": {
             "table": "attachment",
-            "name": "message_id"
+            "name": "attachment_id"
           }
         }
       },
       {
-        "name": "attachment_id: _",
+        "name": "remote_attachment_id: _",
         "ordinal": 1,
         "type_info": "Blob",
         "origin": {
           "Table": {
             "table": "attachment",
-            "name": "attachment_id"
+            "name": "remote_attachment_id"
           }
         }
       },
@@ -38,13 +38,13 @@
       }
     ],
     "parameters": {
-      "Right": 5
+      "Right": 1
     },
     "nullable": [
       false,
-      false,
+      true,
       true
     ]
   },
-  "hash": "f7f50d579b30689119e0a53ecdc8681ddd9853a3d9b63c4473c5c36670652d68"
+  "hash": "e54bc59acb2f704cfc9aa16342b22f147a6493da1c2462311619c2b481d8d2e4"
 }

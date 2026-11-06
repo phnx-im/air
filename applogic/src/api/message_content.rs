@@ -2,13 +2,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::MimiId;
+use aircommon::identifiers::{MimiId, RemoteAttachmentId};
 pub(crate) use aircoreclient::AttachmentId;
-use aircoreclient::AttachmentInfo;
+use aircoreclient::{MessageAttachments, PartIndex};
 use flutter_rust_bridge::frb;
 use uuid::Uuid;
 
 use crate::api::markdown::MessageContent;
+
+/// Shown for a message whose attachments have no stored record.
+const ATTACHMENT_UNAVAILABLE: &str = "Attachment unavailable";
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[doc(hidden)]
@@ -76,6 +79,10 @@ pub struct UiMimiContent {
 #[derive(Debug)]
 #[frb(ignore)]
 pub(crate) struct UnresolvedAttachment {
+    /// Depth-first index of the part among the message's non-container parts.
+    pub index: PartIndex,
+    /// Remote id from the url of an external part.
+    pub remote_attachment_id: Option<RemoteAttachmentId>,
     pub filename: String,
     pub content_type: String,
     pub description: Option<String>,
@@ -105,12 +112,24 @@ pub struct UiImageMetadata {
 }
 
 impl UnresolvedMimiContent {
-    pub(crate) fn resolve(self, local_attachment_infos: &[AttachmentInfo]) -> UiMimiContent {
+    /// Pairs the attachments with their stored records.
+    ///
+    /// `None` means the records were not loaded. Attachments are dropped then,
+    /// but the content is otherwise unchanged. With records loaded, a message
+    /// that has neither text nor a stored attachment shows an error instead
+    /// of an empty bubble.
+    pub(crate) fn resolve(self, records: Option<&MessageAttachments>) -> UiMimiContent {
         let preview_text = self.preview_text();
+        let had_attachments = !self.attachments.is_empty();
         let attachments: Vec<UiAttachment> = self
             .attachments
             .into_iter()
-            .zip(local_attachment_infos.iter())
+            .filter_map(|attachment| {
+                let info = records.and_then(|records| {
+                    records.find(attachment.index, attachment.remote_attachment_id)
+                })?;
+                Some((attachment, info))
+            })
             .map(|(attachment, info)| UiAttachment {
                 attachment_id: info.attachment_id,
                 filename: attachment.filename,
@@ -124,13 +143,20 @@ impl UnresolvedMimiContent {
             })
             .collect();
 
+        let content = match self.content {
+            None if records.is_some() && had_attachments && attachments.is_empty() => {
+                Some(MessageContent::error(ATTACHMENT_UNAVAILABLE.to_owned()))
+            }
+            content => content,
+        };
+
         UiMimiContent {
             plain_body: self.plain_body,
             preview_text,
             replaces: self.replaces,
             topic_id: self.topic_id,
             in_reply_to: self.in_reply_to,
-            content: self.content,
+            content,
             attachments,
         }
     }

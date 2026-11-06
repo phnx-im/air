@@ -46,18 +46,18 @@ use url::Url;
 use crate::{
     AttachmentContent, AttachmentId, AttachmentProgressEvent, AttachmentStatus,
     AttachmentThumbnail, AttachmentUrl, Chat, ChatId, ChatMessage, ContentMessage, MessageId,
+    MimiContentExt, PartIndex,
     clients::{
         CoreUser, MarkChatAsRead,
         attachment::{
             AttachmentBytes, AttachmentRecord,
             aead::{AIR_ATTACHMENT_ENCRYPTION_ALG, AIR_ATTACHMENT_HASH_ALG},
-            content::MimiContentExt,
             progress::{AttachmentProgress, AttachmentProgressSender},
             thumbnail::store_thumbnail,
         },
     },
-    groups::Group,
-    groups::persistence::GroupRef,
+    groups::{Group, persistence::GroupRef},
+    media_type,
     utils::image::{
         ImageProcessingCancellation, ReencodedAttachmentImage, encode_source_thumbnail,
         probe_attachment_image, reencode_attachment_image,
@@ -68,6 +68,9 @@ use crate::{
 /// a local denial of service: the real limit is enforced at provisioning time
 /// by the server.
 const MAX_IMAGE_SOURCE_SIZE: u64 = 100 * 1024 * 1024;
+
+/// Part index of the external part in [`attachment_content`], after the root.
+const ATTACHMENT_PART_INDEX: PartIndex = PartIndex(1);
 
 impl CoreUser {
     /// Uploads an attachment tied to the user (signed with their signing key)
@@ -176,8 +179,8 @@ impl CoreUser {
         });
         debug!(?is_animated, "made source thumbnail");
 
-        let attachment_id = AttachmentId::random();
         let message_id = MessageId::random();
+        let attachment_id = AttachmentId::derive(message_id, ATTACHMENT_PART_INDEX);
         let content = attachment_content(probed.provisional_nested_parts(attachment_id))?;
 
         // Note: Acquire a transaction here to ensure that the attachment will be deleted from the
@@ -783,7 +786,7 @@ impl ProcessedAttachment {
             .image_data
             .as_ref()
             .map(|data| (data.width, data.height));
-        content.visit_attachments_mut(|part| {
+        content.visit_external_parts_mut(|part| {
             if let NestedPart::ExternalPart {
                 content_type,
                 url,
@@ -808,7 +811,7 @@ impl ProcessedAttachment {
             parts.push(NestedPart::SinglePart {
                 disposition: Disposition::Preview,
                 language: String::new(),
-                content_type: "text/blurhash".to_owned(),
+                content_type: media_type::TEXT_BLURHASH.to_owned(),
                 content: image_data.blurhash.clone().into_bytes(),
             });
         }
@@ -821,7 +824,7 @@ fn patch_provisioned_parts(
     content: &mut MimiContent,
     metadata: &AttachmentMetadata,
 ) -> anyhow::Result<()> {
-    content.visit_attachments_mut(|part| {
+    content.visit_external_parts_mut(|part| {
         if let NestedPart::ExternalPart {
             url, key, nonce, ..
         } = part
@@ -1046,7 +1049,8 @@ mod tests {
     use aircommon::DEFAULT_MAX_ATTACHMENT_SIZE;
     use tempfile::tempdir;
 
-    use super::ProbedAttachment;
+    use super::{ATTACHMENT_PART_INDEX, ProbedAttachment, attachment_content};
+    use crate::{AttachmentId, MessageId, MimiContentExt, VisitedPart};
 
     #[test]
     fn ordinary_file_can_exceed_the_default_server_limit() -> anyhow::Result<()> {
@@ -1056,6 +1060,28 @@ mod tests {
         file.set_len(DEFAULT_MAX_ATTACHMENT_SIZE + 1)?;
 
         assert!(ProbedAttachment::from_path(path)?.is_ok());
+        Ok(())
+    }
+
+    #[test]
+    fn attachment_part_index_matches_layout() -> anyhow::Result<()> {
+        let probed = ProbedAttachment {
+            filename: "a.png".to_owned(),
+            content_type: "image/png".to_owned(),
+            size: 1,
+            image_dimensions: Some((1, 1)),
+        };
+        let attachment_id = AttachmentId::derive(MessageId::random(), ATTACHMENT_PART_INDEX);
+        let content = attachment_content(probed.provisional_nested_parts(attachment_id))?;
+
+        let mut indices = Vec::new();
+        content.visit_parts(|part| {
+            if let VisitedPart::Attachment { index, .. } = part {
+                indices.push(index);
+            }
+            Ok(())
+        })?;
+        assert_eq!(indices, [ATTACHMENT_PART_INDEX]);
         Ok(())
     }
 }

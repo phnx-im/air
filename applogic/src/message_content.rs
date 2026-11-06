@@ -2,11 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircoreclient::AttachmentUrl;
-use mimi_content::{
-    MimiContent,
-    content_container::{Disposition, NestedPart, PartSemantics},
+use std::{io::Cursor, mem};
+
+use aircoreclient::{
+    AttachmentUrl, MediaType, MimiContentExt as _, PartIndex, TextFormat, VisitedPart, media_type,
 };
+use mimi_content::{MimiContent, content_container::NestedPart};
 use tracing::warn;
 
 use crate::api::{
@@ -32,7 +33,9 @@ impl MimiContentExt for MimiContent {
                 content,
                 content_type,
                 ..
-            } if content_type == "text/markdown" => str::from_utf8(content).ok(),
+            } if MediaType::of(content_type) == media_type::TEXT_MARKDOWN => {
+                str::from_utf8(content).ok()
+            }
             _ => None,
         }
     }
@@ -70,150 +73,195 @@ impl From<MimiContent> for UnresolvedMimiContent {
     fn from(mut mimi_content: MimiContent) -> Self {
         let mut res = Self {
             plain_body: None,
-            replaces: mimi_content.replaces.map(|id| id.as_slice().to_vec()),
-            topic_id: mimi_content.topic_id,
-            in_reply_to: mimi_content.in_reply_to.map(|id| id.as_slice().to_vec()),
+            replaces: mimi_content
+                .replaces
+                .take()
+                .map(|id| id.as_slice().to_vec()),
+            topic_id: mem::take(&mut mimi_content.topic_id),
+            in_reply_to: mimi_content
+                .in_reply_to
+                .take()
+                .map(|id| id.as_slice().to_vec()),
             content: None,
-            attachments: Default::default(),
+            attachments: Vec::new(),
         };
 
-        match std::mem::take(&mut mimi_content.nested_part) {
-            // multipart attachment message with ProcessAll semantics
-            NestedPart::MultiPart {
-                disposition: Disposition::Attachment,
-                part_semantics: PartSemantics::ProcessAll,
-                parts,
-                ..
-            } => {
-                let Some(attachment) = convert_attachment(parts) else {
-                    return res.error_message("Unsupported attachment message");
-                };
-                res.attachments = vec![attachment];
-            }
-
-            // single part message
-            NestedPart::SinglePart {
-                content,
-                content_type,
-                ..
-            } if content_type == "text/markdown" => {
-                let plain_body = String::from_utf8(content)
-                    .unwrap_or_else(|_| "Invalid non-UTF8 message".to_owned());
-                res.content = Some(MessageContent::parse_markdown(&plain_body));
-                res.plain_body = Some(plain_body);
-            }
-            NestedPart::NullPart { .. } => {
-                res.content = None;
-            }
-
-            // any other message
-            part => {
-                return res.error_message(format!("Unsupported message: {:?}", part.disposition()));
-            }
+        // A deleted message stays without content
+        if let NestedPart::NullPart { .. } = mimi_content.nested_part {
+            return res;
         }
 
+        // Parsed per part, so that syntax does not cross part boundaries
+        let mut elements = Vec::new();
+        let mut raw = Vec::new();
+        let _infallible = mimi_content.visit_parts(|part| {
+            match part {
+                VisitedPart::Text { content, format } => {
+                    let parsed = match format {
+                        TextFormat::Markdown => MessageContent::parse_markdown(content),
+                        TextFormat::Plain => {
+                            MessageContent::parse_markdown(&escape_markdown(content))
+                        }
+                    };
+                    elements.extend(parsed.elements);
+                    raw.push(content);
+                }
+                VisitedPart::Attachment { preview: true, .. } => {}
+                VisitedPart::Attachment {
+                    part,
+                    index,
+                    blurhash,
+                    ..
+                } => {
+                    res.attachments
+                        .extend(convert_attachment(part, index, blurhash));
+                }
+                VisitedPart::Unknown(_) => {}
+            }
+            Ok(())
+        });
+
+        if raw.is_empty() && res.attachments.is_empty() {
+            return res.error_message("Unsupported message");
+        }
+        if !raw.is_empty() {
+            res.content = Some(MessageContent { elements });
+            res.plain_body = Some(raw.join("\n\n"));
+        }
         res
     }
 }
 
-fn convert_attachment(parts: Vec<NestedPart>) -> Option<UnresolvedAttachment> {
-    let mut attachment: Option<UnresolvedAttachment> = None;
-    let mut blurhash: Option<String> = None;
-    let mut dimensions: Option<(u32, u32)> = None;
+/// Markdown source that renders `text` literally.
+fn escape_markdown(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    let mut line_start = true;
+    for c in text.chars() {
+        // Indentation would start a code block
+        if line_start && c == ' ' {
+            escaped.push_str("&#32;");
+            continue;
+        }
+        if line_start && c == '\t' {
+            escaped.push_str("&#9;");
+            continue;
+        }
+        line_start = c == '\n';
+        if c.is_ascii_punctuation() {
+            escaped.push('\\');
+        }
+        escaped.push(c);
+    }
+    escaped
+}
 
-    for part in parts {
-        match part {
-            // actual attachment
-            NestedPart::ExternalPart {
-                disposition: Disposition::Attachment,
-                content_type,
-                url,
-                description,
-                filename,
-                size,
-                ..
-            } => {
-                if attachment.is_some() {
-                    warn!("Skipping duplicate attachment part");
-                    continue;
+fn convert_attachment(
+    part: &NestedPart,
+    index: PartIndex,
+    blurhash: Option<&str>,
+) -> Option<UnresolvedAttachment> {
+    let image_metadata = |dimensions: Option<(u32, u32)>| {
+        dimensions.map(|(width, height)| UiImageMetadata {
+            blurhash: blurhash.map(str::to_owned),
+            width,
+            height,
+            // Classified locally, filled in at resolve time
+            is_animated: None,
+        })
+    };
+
+    match part {
+        NestedPart::ExternalPart {
+            content_type,
+            url,
+            description,
+            filename,
+            size,
+            ..
+        } => {
+            let (remote_attachment_id, dimensions) = match url.parse::<AttachmentUrl>() {
+                Ok(url) => (Some(url.remote_attachment_id()), url.dimensions()),
+                Err(error) => {
+                    warn!(%error, url, "Visited attachment with invalid url");
+                    (None, None)
                 }
-
-                let attachment_url: AttachmentUrl = match url.parse() {
-                    Ok(url) => url,
-                    Err(error) => {
-                        warn!(%error, url, "Skipping attachment part with invalid url");
-                        continue;
-                    }
-                };
-
-                dimensions = attachment_url.dimensions();
-
-                attachment = Some(UnresolvedAttachment {
-                    filename,
-                    content_type,
-                    description: Some(description).filter(|d| !d.is_empty()),
-                    size,
-                    image_metadata: None,
-                });
-            }
-
-            // blurhash preview
-            NestedPart::SinglePart {
-                disposition: Disposition::Preview,
-                content,
-                content_type,
-                ..
-            } if content_type == "text/blurhash" => {
-                if blurhash.is_some() {
-                    warn!("Skipping duplicate blurhash preview part");
-                    continue;
-                }
-                let Ok(content) = String::from_utf8(content.to_vec()) else {
-                    warn!("Skipping blurhash preview with non-UTF8 content");
-                    continue;
-                };
-                blurhash = Some(content);
-            }
-
-            // other parts
-            part => {
-                warn!(
-                    "Skipping unsupported attachment part: {:?}",
-                    part.disposition()
-                );
-            }
+            };
+            Some(UnresolvedAttachment {
+                index,
+                remote_attachment_id,
+                filename: filename.clone(),
+                content_type: content_type.clone(),
+                description: Some(description.clone()).filter(|d| !d.is_empty()),
+                size: *size,
+                image_metadata: image_metadata(dimensions),
+            })
+        }
+        NestedPart::SinglePart {
+            content_type,
+            content,
+            ..
+        } => {
+            let media_type = MediaType::of(content_type);
+            let dimensions = if media_type.has_type("image") {
+                image::ImageReader::new(Cursor::new(content))
+                    .with_guessed_format()
+                    .ok()
+                    .and_then(|reader| reader.into_dimensions().ok())
+            } else {
+                None
+            };
+            Some(UnresolvedAttachment {
+                index,
+                remote_attachment_id: None,
+                filename: inline_filename(media_type),
+                content_type: content_type.clone(),
+                description: None,
+                size: content.len() as u64,
+                image_metadata: image_metadata(dimensions),
+            })
+        }
+        NestedPart::NullPart { .. } | NestedPart::MultiPart { .. } => {
+            warn!("Visited attachment is neither an external nor a single part");
+            None
         }
     }
+}
 
-    if let Some(attachment) = &mut attachment {
-        match (blurhash, dimensions) {
-            (blurhash, Some((width, height))) => {
-                attachment.image_metadata = Some(UiImageMetadata {
-                    blurhash,
-                    width,
-                    height,
-                    // Classified locally, filled in at resolve time
-                    is_animated: None,
-                })
-            }
-            (Some(_), None) => {
-                warn!("Invalid image attachment: missing dimensions, but blurhash is present")
-            }
-            (None, None) => (),
-        }
+/// File name for an inline attachment, which carries none.
+fn inline_filename(media_type: MediaType) -> String {
+    const EXTENSIONS: &[(&str, &str)] = &[
+        ("text/vcard", "vcf"),
+        ("text/calendar", "ics"),
+        ("text/html", "html"),
+        ("text/csv", "csv"),
+        ("text/plain", "txt"),
+        ("text/markdown", "md"),
+        ("application/pdf", "pdf"),
+        ("application/json", "json"),
+        ("image/png", "png"),
+        ("image/jpeg", "jpg"),
+        ("image/gif", "gif"),
+        ("image/webp", "webp"),
+    ];
+    match EXTENSIONS.iter().find(|(known, _)| media_type == *known) {
+        Some((_, extension)) => format!("attachment.{extension}"),
+        None => "attachment".to_owned(),
     }
-
-    attachment
 }
 
 #[cfg(test)]
 mod tests {
     use aircommon::identifiers::RemoteAttachmentId;
-    use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
+    use aircoreclient::{AttachmentId, AttachmentInfo, MessageAttachments, MessageId};
+    use mimi_content::{
+        Disposition,
+        content_container::{EncryptionAlgorithm, HashAlgorithm, PartSemantics},
+    };
     use quickcheck_macros::quickcheck;
     use uuid::Uuid;
 
     use super::*;
+    use crate::api::markdown::{BlockElement, RangedBlockElement};
 
     fn markdown_message(markdown: &str) -> MimiContent {
         MimiContent::simple_markdown_message(markdown.to_owned(), [0; 16])
@@ -282,7 +330,7 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_attachment_preview_is_the_error() {
+    fn empty_attachment_container_preview_is_the_error() {
         let content = MimiContent {
             nested_part: NestedPart::MultiPart {
                 disposition: Disposition::Attachment,
@@ -294,7 +342,7 @@ mod tests {
         };
         assert_eq!(
             content.preview_text().as_deref(),
-            Some("Unsupported attachment message")
+            Some("Unsupported message")
         );
     }
 
@@ -311,20 +359,278 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_message_preview_is_the_error() {
+    fn plain_text_preview_is_the_literal_text() {
         let content = MimiContent {
             nested_part: NestedPart::SinglePart {
                 disposition: Disposition::Render,
                 language: String::new(),
                 content_type: "text/plain".to_owned(),
-                content: b"hello".to_vec(),
+                content: b"*hello* [x](y)".to_vec(),
             },
             ..Default::default()
         };
+        assert_eq!(content.preview_text().as_deref(), Some("*hello* [x](y)"));
+    }
+
+    fn single_part(disposition: Disposition, content_type: &str, content: &[u8]) -> NestedPart {
+        NestedPart::SinglePart {
+            disposition,
+            language: String::new(),
+            content_type: content_type.to_owned(),
+            content: content.to_vec(),
+        }
+    }
+
+    fn external_part(
+        disposition: Disposition,
+        content_type: &str,
+        id: u128,
+        filename: &str,
+    ) -> NestedPart {
+        let url = AttachmentUrl::new(RemoteAttachmentId::new(Uuid::from_u128(id)), None);
+        NestedPart::ExternalPart {
+            disposition,
+            language: String::new(),
+            content_type: content_type.to_owned(),
+            url: url.to_string(),
+            expires: 0,
+            size: 1,
+            enc_alg: EncryptionAlgorithm::None,
+            key: Vec::new(),
+            nonce: Vec::new(),
+            aad: Vec::new(),
+            hash_alg: HashAlgorithm::Unspecified,
+            content_hash: Vec::new(),
+            description: String::new(),
+            filename: filename.to_owned(),
+        }
+    }
+
+    fn render_container(parts: Vec<NestedPart>) -> MimiContent {
+        MimiContent {
+            nested_part: NestedPart::MultiPart {
+                disposition: Disposition::Render,
+                language: String::new(),
+                part_semantics: PartSemantics::ProcessAll,
+                parts,
+            },
+            ..Default::default()
+        }
+    }
+
+    fn attachment_info(attachment_id: AttachmentId) -> AttachmentInfo {
+        AttachmentInfo {
+            attachment_id,
+            remote_attachment_id: None,
+            is_animated: None,
+        }
+    }
+
+    #[test]
+    fn link_preview_body_hides_preview_parts() {
+        let content = render_container(vec![
+            single_part(
+                Disposition::Render,
+                "text/markdown",
+                b"see https://example.com",
+            ),
+            single_part(
+                Disposition::Preview,
+                "application/vnd.air.link-preview+cbor",
+                b"\x01\x02\x03",
+            ),
+            external_part(Disposition::Preview, "image/webp", 1, "preview.webp"),
+        ]);
         assert_eq!(
             content.preview_text().as_deref(),
-            Some("Unsupported message: Render")
+            Some("see https://example.com")
         );
+        let unresolved = UnresolvedMimiContent::from(content);
+        assert!(unresolved.attachments.is_empty());
+        assert_eq!(
+            unresolved.plain_body.as_deref(),
+            Some("see https://example.com")
+        );
+    }
+
+    fn attachment_indices(content: &MimiContent) -> Vec<PartIndex> {
+        let mut indices = Vec::new();
+        content
+            .visit_parts(|part| {
+                if let VisitedPart::Attachment { index, .. } = part {
+                    indices.push(index);
+                }
+                Ok(())
+            })
+            .unwrap();
+        indices
+    }
+
+    #[test]
+    fn attachments_are_paired_with_infos_by_derived_id() {
+        let content = render_container(vec![
+            external_part(Disposition::Preview, "image/webp", 1, "preview.webp"),
+            external_part(Disposition::Attachment, "application/pdf", 2, "doc.pdf"),
+        ]);
+        let message_id = MessageId::new(Uuid::from_u128(0x1234));
+        let indices = attachment_indices(&content);
+        let expected = AttachmentId::derive(message_id, indices[1]);
+
+        let infos = MessageAttachments::new(
+            message_id,
+            vec![
+                attachment_info(AttachmentId::derive(message_id, indices[0])),
+                attachment_info(expected),
+            ],
+        );
+        let resolved = UnresolvedMimiContent::from(content.clone()).resolve(Some(&infos));
+        assert_eq!(resolved.attachments.len(), 1);
+        assert_eq!(resolved.attachments[0].filename, "doc.pdf");
+        assert_eq!(resolved.attachments[0].attachment_id, expected);
+
+        let infos = MessageAttachments::new(
+            message_id,
+            vec![
+                attachment_info(expected),
+                attachment_info(AttachmentId::derive(message_id, indices[0])),
+            ],
+        );
+        let resolved = UnresolvedMimiContent::from(content).resolve(Some(&infos));
+        assert_eq!(resolved.attachments.len(), 1);
+        assert_eq!(resolved.attachments[0].filename, "doc.pdf");
+        assert_eq!(resolved.attachments[0].attachment_id, expected);
+    }
+
+    #[test]
+    fn attachments_fall_back_to_the_remote_id() {
+        let content = render_container(vec![
+            external_part(Disposition::Preview, "image/webp", 1, "preview.webp"),
+            external_part(Disposition::Attachment, "application/pdf", 2, "doc.pdf"),
+        ]);
+        let message_id = MessageId::new(Uuid::from_u128(0x1234));
+        // Not derived, like rows stored before ids were derived
+        let stored = AttachmentId {
+            uuid: Uuid::from_u128(0xb),
+        };
+        let infos = MessageAttachments::new(
+            message_id,
+            vec![AttachmentInfo {
+                remote_attachment_id: Some(RemoteAttachmentId::new(Uuid::from_u128(2))),
+                ..attachment_info(stored)
+            }],
+        );
+        let resolved = UnresolvedMimiContent::from(content).resolve(Some(&infos));
+        assert_eq!(resolved.attachments.len(), 1);
+        assert_eq!(resolved.attachments[0].attachment_id, stored);
+    }
+
+    #[test]
+    fn attachment_without_record_shows_an_error() {
+        let content = render_container(vec![external_part(
+            Disposition::Attachment,
+            "application/pdf",
+            2,
+            "doc.pdf",
+        )]);
+        let message_id = MessageId::new(Uuid::from_u128(0x1234));
+        let infos = MessageAttachments::new(message_id, Vec::new());
+
+        let resolved = UnresolvedMimiContent::from(content.clone()).resolve(Some(&infos));
+        assert!(resolved.attachments.is_empty());
+        let elements = resolved.content.unwrap().elements;
+        let [
+            RangedBlockElement {
+                element: BlockElement::Error(_),
+                ..
+            },
+        ] = &elements[..]
+        else {
+            panic!("expected an error, got {elements:?}");
+        };
+        assert_eq!(resolved.preview_text.as_deref(), Some(FILE_PREVIEW));
+
+        // Records not loaded
+        let resolved = UnresolvedMimiContent::from(content).resolve(None);
+        assert!(resolved.content.is_none());
+    }
+
+    #[test]
+    fn inline_attachment_gets_a_generated_filename() {
+        let content = render_container(vec![single_part(
+            Disposition::Render,
+            "text/vcard",
+            b"BEGIN:VCARD",
+        )]);
+        let indices = attachment_indices(&content);
+        let unresolved = UnresolvedMimiContent::from(content);
+        assert_eq!(unresolved.attachments.len(), 1);
+        let attachment = &unresolved.attachments[0];
+        assert_eq!(attachment.index, indices[0]);
+        assert_eq!(attachment.filename, "attachment.vcf");
+        assert_eq!(attachment.size, 11);
+        assert_eq!(attachment.content_type, "text/vcard");
+        assert!(attachment.image_metadata.is_none());
+    }
+
+    #[test]
+    fn inline_image_has_dimensions_and_blurhash() {
+        let mut bytes = Vec::new();
+        image::RgbImage::new(3, 2)
+            .write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)
+            .unwrap();
+        let content = render_container(vec![
+            single_part(Disposition::Render, "image/png", &bytes),
+            single_part(Disposition::Preview, "text/blurhash", b"LEHV6nWB2yk8"),
+        ]);
+        let unresolved = UnresolvedMimiContent::from(content);
+        assert_eq!(unresolved.attachments.len(), 1);
+        let attachment = &unresolved.attachments[0];
+        assert_eq!(attachment.filename, "attachment.png");
+        let metadata = attachment.image_metadata.as_ref().unwrap();
+        assert_eq!((metadata.width, metadata.height), (3, 2));
+        assert_eq!(metadata.blurhash.as_deref(), Some("LEHV6nWB2yk8"));
+    }
+
+    #[test]
+    fn plain_text_indentation_is_not_a_code_block() {
+        let content = MimiContent {
+            nested_part: single_part(Disposition::Render, "text/plain", b"    indented\n*star*"),
+            ..Default::default()
+        };
+        let unresolved = UnresolvedMimiContent::from(content);
+        let elements = &unresolved.content.as_ref().unwrap().elements;
+        assert!(
+            !elements
+                .iter()
+                .any(|e| matches!(e.element, BlockElement::CodeBlock(_))),
+            "{elements:?}"
+        );
+        let preview = unresolved.preview_text().unwrap();
+        assert!(preview.contains("*star*"), "{preview:?}");
+        assert!(preview.contains("indented"), "{preview:?}");
+    }
+
+    #[test]
+    fn markdown_does_not_cross_part_boundaries() {
+        let content = render_container(vec![
+            single_part(Disposition::Render, "text/markdown", b"```\ncode"),
+            single_part(Disposition::Render, "text/plain", b"*literal*"),
+        ]);
+        let unresolved = UnresolvedMimiContent::from(content);
+        let elements = &unresolved.content.as_ref().unwrap().elements;
+        assert_eq!(elements.len(), 2, "{elements:?}");
+        assert!(
+            matches!(elements[0].element, BlockElement::CodeBlock(_)),
+            "{elements:?}"
+        );
+        assert!(
+            matches!(elements[1].element, BlockElement::Paragraph(_)),
+            "{elements:?}"
+        );
+        let paragraph = MessageContent {
+            elements: vec![elements[1].clone()],
+        };
+        assert_eq!(paragraph.plain_text(), "*literal*");
     }
 
     #[quickcheck]

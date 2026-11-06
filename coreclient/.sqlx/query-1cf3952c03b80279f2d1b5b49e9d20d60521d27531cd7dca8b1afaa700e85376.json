@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS(\n                SELECT 1 FROM attachment WHERE remote_attachment_id = ?\n            ) AS \"exists: _\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "exists: _",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1cf3952c03b80279f2d1b5b49e9d20d60521d27531cd7dca8b1afaa700e85376"
+}

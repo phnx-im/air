@@ -980,8 +980,10 @@ impl TestBackend {
             .message()
             .mimi_content()
             .unwrap()
-            .visit_attachments(|part| {
-                assert!(external_part.replace(part.clone()).is_none());
+            .visit_parts(|part| {
+                if let VisitedPart::Attachment { part, .. } = part {
+                    assert!(external_part.replace(part.clone()).is_none());
+                }
                 Ok(())
             })
             .unwrap();
@@ -1015,7 +1017,10 @@ impl TestBackend {
                 .message()
                 .mimi_content()
                 .unwrap()
-                .visit_attachments(|part| {
+                .visit_parts(|part| {
+                    let VisitedPart::Attachment { part, .. } = part else {
+                        return Ok(());
+                    };
                     assert!(!attachment_found_once);
 
                     // Removed cleared fields from the expected attachment.
