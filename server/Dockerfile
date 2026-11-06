@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-FROM lukemathwalker/cargo-chef:latest-rust-1.97.1-trixie AS chef
+ARG RUST_VERSION
+FROM lukemathwalker/cargo-chef:latest-rust-${RUST_VERSION}-trixie AS chef
 WORKDIR /app
 
 FROM chef AS planner
@@ -20,16 +21,11 @@ ENV SQLX_OFFLINE=true
 
 RUN cargo build --release --bin airserver
 
-FROM debian:trixie-slim AS runtime
-
-RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends openssl ca-certificates \
-    # Clean up
-    && apt-get autoremove -y \
-    && apt-get clean -y \
-    && rm -rf /var/lib/apt/lists/*
+FROM gcr.io/distroless/cc-debian13 AS runtime
 
 COPY --from=builder /app/target/release/airserver airserver
+
+RUN ["./airserver", "--help"]
 
 COPY server/configuration server/configuration
 
