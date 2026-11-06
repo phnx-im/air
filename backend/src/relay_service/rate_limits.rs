@@ -83,15 +83,16 @@ impl RelayLimits {
         RlKey::new(operation, &[b"ip", &bucket])
     }
 
-    async fn allow(&self, max_requests: u64, key: RlKey) -> bool {
+    async fn allow(&self, limit: u64, key: RlKey) -> bool {
         let config = RlConfig {
-            max_requests,
+            limit,
             time_window: TIME_WINDOW,
         };
         let storage = RlPostgresStorage::new(self.pool.clone());
         RateLimiter::new(config, storage)
-            .allowed(key, Utc::now())
+            .allowed(key, 1, Utc::now())
             .await
+            .is_allowed()
     }
 }
 

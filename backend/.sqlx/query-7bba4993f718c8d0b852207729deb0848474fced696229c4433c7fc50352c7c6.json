@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT valid_until FROM allowance_record WHERE key_value = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "valid_until",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "allowance_record",
+            "name": "valid_until"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7bba4993f718c8d0b852207729deb0848474fced696229c4433c7fc50352c7c6"
+}

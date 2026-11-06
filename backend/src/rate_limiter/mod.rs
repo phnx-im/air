@@ -11,8 +11,26 @@ pub(crate) mod provider;
 
 #[derive(Debug, Clone)]
 pub(crate) struct RlConfig {
-    pub(crate) max_requests: u64,
+    /// The allowance per window, in units of cost.
+    pub(crate) limit: u64,
     pub(crate) time_window: TimeDelta,
+}
+
+/// Whether a charge against an allowance was accepted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RlDecision {
+    Allowed,
+    /// The charge was denied. `retry_at` is the earliest time it would fit
+    /// again, or `None` if that is unknown or it never fits.
+    Denied {
+        retry_at: Option<DateTime<Utc>>,
+    },
+}
+
+impl RlDecision {
+    pub(crate) fn is_allowed(self) -> bool {
+        matches!(self, RlDecision::Allowed)
+    }
 }
 
 /// A rate-limited operation. Operations sharing a variant share an allowance.
@@ -73,9 +91,15 @@ impl RlKey {
 }
 
 pub(crate) trait StorageProvider {
-    /// Atomically consumes one request from the allowance of `key` at `now` and
-    /// reports whether it is allowed.
-    async fn try_consume(&self, config: &RlConfig, key: &RlKey, now: DateTime<Utc>) -> bool;
+    /// Atomically charges `cost` against the allowance of `key` at `now` if it
+    /// fits, and reports the decision.
+    async fn try_consume(
+        &self,
+        config: &RlConfig,
+        key: &RlKey,
+        cost: u64,
+        now: DateTime<Utc>,
+    ) -> RlDecision;
 }
 
 pub(crate) struct RateLimiter<S: StorageProvider> {
@@ -88,7 +112,10 @@ impl<S: StorageProvider> RateLimiter<S> {
         RateLimiter { config, storage }
     }
 
-    pub(crate) async fn allowed(&self, key: RlKey, now: DateTime<Utc>) -> bool {
-        self.storage.try_consume(&self.config, &key, now).await
+    /// Charges `cost` against the allowance of `key` at `now` if it fits.
+    pub(crate) async fn allowed(&self, key: RlKey, cost: u64, now: DateTime<Utc>) -> RlDecision {
+        self.storage
+            .try_consume(&self.config, &key, cost, now)
+            .await
     }
 }

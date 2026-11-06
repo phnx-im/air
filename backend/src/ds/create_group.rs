@@ -328,12 +328,12 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             &[b"user_uuid", user_id.uuid().as_bytes()],
         );
         let config = RlConfig {
-            max_requests: 100,
+            limit: 100,
             time_window: TimeDelta::days(1),
         };
         let rl_storage = RlPostgresStorage::new(self.ds.db_pool.clone());
         let rl = RateLimiter::new(config, rl_storage);
-        if !rl.allowed(rl_key, Utc::now()).await {
+        if !rl.allowed(rl_key, 1, Utc::now()).await.is_allowed() {
             return Err(Status::resource_exhausted(
                 "Too many requests, please try again later",
             ));

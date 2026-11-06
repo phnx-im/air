@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use tracing::error;
 
-use super::{RlConfig, RlKey, StorageProvider};
+use super::{RlConfig, RlDecision, RlKey, StorageProvider};
 
 pub(crate) const ALLOWANCE_SWEEP_INTERVAL: Duration = Duration::from_hours(1);
 
@@ -35,61 +35,82 @@ impl RlPostgresStorage {
 }
 
 impl StorageProvider for RlPostgresStorage {
-    async fn try_consume(&self, config: &RlConfig, key: &RlKey, now: DateTime<Utc>) -> bool {
+    async fn try_consume(
+        &self,
+        config: &RlConfig,
+        key: &RlKey,
+        cost: u64,
+        now: DateTime<Utc>,
+    ) -> RlDecision {
         // Fails open, so an unreachable database does not lock users out.
-        persistence::try_consume(&self.pool, config, key, now)
+        persistence::try_consume(&self.pool, config, key, cost, now)
             .await
             .unwrap_or_else(|error| {
                 error!(%error, "Failed to consume allowance in Postgres");
-                true
+                RlDecision::Allowed
             })
     }
 }
 
 pub(crate) mod persistence {
     use chrono::{DateTime, Utc};
-    use sqlx::{PgExecutor, query};
+    use sqlx::{PgExecutor, PgPool, query, query_scalar};
 
     use crate::{
         errors::StorageError,
-        rate_limiter::{RlConfig, RlKey},
+        rate_limiter::{RlConfig, RlDecision, RlKey},
     };
 
     pub(super) async fn try_consume(
-        connection: impl PgExecutor<'_>,
+        pool: &PgPool,
         config: &RlConfig,
         key: &RlKey,
+        cost: u64,
         now: DateTime<Utc>,
-    ) -> Result<bool, StorageError> {
-        if config.max_requests == 0 {
-            return Ok(false);
+    ) -> Result<RlDecision, StorageError> {
+        if cost > config.limit {
+            return Ok(RlDecision::Denied { retry_at: None });
         }
-        // Consumes one request from the allowance of `key` in a single
-        // statement, so concurrent requests serialize on the row lock. Returns
-        // whether the request is allowed.
+        // Charges the allowance of `key` in a single statement, so concurrent
+        // requests serialize on the row lock.
         let consumed = query!(
             r#"INSERT INTO allowance_record AS a
                 (key_value, remaining, valid_until)
-                VALUES ($1, $2::bigint - 1, $4)
+                VALUES ($1, $2::bigint - $5::bigint, $4)
             ON CONFLICT (key_value) DO UPDATE SET
                 remaining = CASE WHEN a.valid_until < $3
                     THEN EXCLUDED.remaining
-                    ELSE a.remaining - 1 END,
+                    ELSE a.remaining - $5 END,
                 valid_until = CASE WHEN a.valid_until < $3
                     THEN EXCLUDED.valid_until
                     ELSE a.valid_until END
-            WHERE a.valid_until < $3 OR a.remaining > 0
+            WHERE a.valid_until < $3 OR a.remaining >= $5
             RETURNING 1 AS "consumed!""#,
             key.serialize(),
-            config.max_requests as i64,
+            saturating_i64(config.limit),
             now,
             now + config.time_window,
+            saturating_i64(cost),
         )
-        .fetch_optional(connection)
+        .fetch_optional(pool)
         .await?;
+        if consumed.is_some() {
+            return Ok(RlDecision::Allowed);
+        }
 
-        // A row that is not updated returns nothing, which means denied.
-        Ok(consumed.is_some())
+        // A row that is not updated returns nothing. The allowance refills
+        // when its window ends.
+        let retry_at = query_scalar!(
+            "SELECT valid_until FROM allowance_record WHERE key_value = $1",
+            key.serialize(),
+        )
+        .fetch_optional(pool)
+        .await?;
+        Ok(RlDecision::Denied { retry_at })
+    }
+
+    pub(in crate::rate_limiter) fn saturating_i64(value: u64) -> i64 {
+        value.try_into().unwrap_or(i64::MAX)
     }
 
     /// Delete all allowances expired at `now`.
@@ -174,9 +195,9 @@ pub(crate) mod persistence {
             }
         }
 
-        fn limiter(pool: &PgPool, max_requests: u64) -> RateLimiter<RlPostgresStorage> {
+        fn limiter(pool: &PgPool, limit: u64) -> RateLimiter<RlPostgresStorage> {
             let config = RlConfig {
-                max_requests,
+                limit,
                 time_window: TIME_WINDOW,
             };
             RateLimiter::new(config, RlPostgresStorage::new(pool.clone()))
@@ -211,9 +232,49 @@ pub(crate) mod persistence {
             let now = Utc::now();
 
             for _ in 0..LIMIT {
-                assert!(rl.allowed(key.clone(), now).await);
+                assert!(rl.allowed(key.clone(), 1, now).await.is_allowed());
             }
-            assert!(!rl.allowed(key, now).await);
+            assert!(!rl.allowed(key, 1, now).await.is_allowed());
+        }
+
+        #[sqlx::test]
+        async fn a_charge_spends_its_cost(pool: PgPool) {
+            let rl = limiter(&pool, 10);
+            let key = test_key(b"test");
+            let now = Utc::now();
+
+            assert!(rl.allowed(key.clone(), 7, now).await.is_allowed());
+            assert!(!rl.allowed(key.clone(), 4, now).await.is_allowed());
+            assert!(rl.allowed(key.clone(), 3, now).await.is_allowed());
+            assert!(!rl.allowed(key, 1, now).await.is_allowed());
+        }
+
+        #[sqlx::test]
+        async fn a_denial_retries_when_the_window_ends(pool: PgPool) {
+            let rl = limiter(&pool, 1);
+            let key = test_key(b"test");
+            // Postgres only stores microseconds
+            let now = Utc::now().round_subsecs(6);
+
+            assert!(rl.allowed(key.clone(), 1, now).await.is_allowed());
+            assert_eq!(
+                rl.allowed(key, 1, now).await,
+                RlDecision::Denied {
+                    retry_at: Some(now + TIME_WINDOW)
+                }
+            );
+        }
+
+        #[sqlx::test]
+        async fn a_charge_over_the_limit_never_fits(pool: PgPool) {
+            let rl = limiter(&pool, 10);
+            let key = test_key(b"test");
+
+            assert_eq!(
+                rl.allowed(key.clone(), 11, Utc::now()).await,
+                RlDecision::Denied { retry_at: None }
+            );
+            assert_eq!(Allowance::load(&pool, &key).await, None);
         }
 
         #[sqlx::test]
@@ -227,7 +288,9 @@ pub(crate) mod persistence {
             for _ in 0..REQUESTS {
                 let rl = limiter(&pool, LIMIT);
                 let key = key.clone();
-                requests.push(tokio::spawn(async move { rl.allowed(key, now).await }));
+                requests.push(tokio::spawn(async move {
+                    rl.allowed(key, 1, now).await.is_allowed()
+                }));
             }
 
             let mut allowed: u64 = 0;
@@ -244,12 +307,12 @@ pub(crate) mod persistence {
             let key = test_key(b"test");
             let rl = limiter(&pool, 1);
             let now = Utc::now();
-            assert!(rl.allowed(key.clone(), now).await);
-            assert!(!rl.allowed(key.clone(), now).await);
+            assert!(rl.allowed(key.clone(), 1, now).await.is_allowed());
+            assert!(!rl.allowed(key.clone(), 1, now).await.is_allowed());
 
             let later = now + TIME_WINDOW + TimeDelta::seconds(1);
-            assert!(rl.allowed(key.clone(), later).await);
-            assert!(!rl.allowed(key, later).await);
+            assert!(rl.allowed(key.clone(), 1, later).await.is_allowed());
+            assert!(!rl.allowed(key, 1, later).await.is_allowed());
         }
 
         #[sqlx::test]
