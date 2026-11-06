@@ -247,6 +247,7 @@
   "systemMessage_connectionRequestUnavailable": "Die Kontaktanfrage ist nicht mehr verfügbar.",
   "systemMessage_connectionRequestExpired": "Kontaktanfrage abgelaufen.",
   "systemMessage_sentConnectionRequestExpired": "Deine Kontaktanfrage ist abgelaufen. Wenn du diese Person weiterhin als Kontakt hinzufügen möchtest, sende ihr eine neue Anfrage.",
+  "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} ist bereits dein Kontakt. Diese Anfrage wurde geschlossen.",
   "sentContactRequest_title": "Du hast eine Kontaktanfrage gesendet",
   "sentContactRequest_titleWithName": "Du hast {displayName} eine Kontaktanfrage gesendet",
   "sentContactRequest_toUsername": "an den Benutzernamen {username}",

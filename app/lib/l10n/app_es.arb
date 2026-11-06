@@ -247,6 +247,7 @@
   "systemMessage_connectionRequestUnavailable": "La solicitud de contacto ya no está disponible.",
   "systemMessage_connectionRequestExpired": "La solicitud de contacto ha caducado.",
   "systemMessage_sentConnectionRequestExpired": "Tu solicitud de contacto ha caducado. Si todavía quieres añadir a esta persona como contacto, envíale una nueva solicitud.",
+  "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} ya es tu contacto. Esta solicitud se ha cerrado.",
   "sentContactRequest_title": "Has enviado una solicitud de contacto",
   "sentContactRequest_titleWithName": "Has enviado una solicitud de contacto a {displayName}",
   "sentContactRequest_toUsername": "al nombre de usuario {username}",

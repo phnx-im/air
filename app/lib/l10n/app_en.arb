@@ -1198,6 +1198,15 @@
   "@systemMessage_sentConnectionRequestExpired": {
     "description": "System message in the chat of a contact request the user sent, once 30 days passed without an answer."
   },
+  "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} is already your contact. This request was closed.",
+  "@systemMessage_sentConnectionRequestAlreadyConnected": {
+    "description": "System message in the chat of a contact request the user sent, once the request closed because its recipient is a contact of the user already, for example through another username. The placeholder is the display name of that contact.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
   "sentContactRequest_title": "You sent a contact request",
   "@sentContactRequest_title": {
     "description": "Headline of the card of a contact request the user sent to a username, while the recipient has not answered."

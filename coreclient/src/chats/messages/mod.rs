@@ -634,6 +634,11 @@ pub enum SystemMessage {
     ConnectionRequestExpired,
     /// A connection request we sent expired before the recipient answered it.
     SentConnectionRequestExpired,
+    /// A connection request we sent was closed, since it went to someone who
+    /// is a contact already.
+    SentConnectionRequestAlreadyConnected {
+        contact: UserId,
+    },
 }
 
 impl EventMessage {
@@ -719,7 +724,8 @@ impl SystemMessage {
             | SystemMessage::SentGroupConnectionRequest { .. }
             | SystemMessage::ConnectionRequestUnavailable
             | SystemMessage::ConnectionRequestExpired
-            | SystemMessage::SentConnectionRequestExpired => None,
+            | SystemMessage::SentConnectionRequestExpired
+            | SystemMessage::SentConnectionRequestAlreadyConnected { .. } => None,
         }
     }
 
@@ -748,7 +754,8 @@ impl SystemMessage {
             | SystemMessage::Onboarded
             | SystemMessage::ConnectionRequestUnavailable
             | SystemMessage::ConnectionRequestExpired
-            | SystemMessage::SentConnectionRequestExpired => true,
+            | SystemMessage::SentConnectionRequestExpired
+            | SystemMessage::SentConnectionRequestAlreadyConnected { .. } => true,
         }
     }
 
@@ -876,6 +883,10 @@ impl SystemMessage {
             SystemMessage::SentConnectionRequestExpired => "Your contact request expired. If you \
                 still want to add this person as a contact, send them a new request."
                 .into(),
+            SystemMessage::SentConnectionRequestAlreadyConnected { contact } => {
+                let display_name = core_user.user_profile(contact).await.display_name;
+                format!("{display_name} is already your contact. This request was closed.")
+            }
             SystemMessage::CreateGroup(user_id) => {
                 let user_display_name = core_user.user_profile(user_id).await.display_name;
                 format!("{user_display_name} created the group")

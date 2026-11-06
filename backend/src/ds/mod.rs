@@ -33,6 +33,7 @@ pub use grpc::GrpcDs;
 mod apq;
 mod attachments;
 pub(crate) mod client_references;
+mod close_connection_group;
 mod collision_tags;
 mod create_group;
 mod create_group_stream;

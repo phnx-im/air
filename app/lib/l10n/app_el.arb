@@ -236,6 +236,7 @@
   "systemMessage_connectionRequestUnavailable": "Το αίτημα επαφής δεν είναι πλέον διαθέσιμο.",
   "systemMessage_connectionRequestExpired": "Το αίτημα επαφής έληξε.",
   "systemMessage_sentConnectionRequestExpired": "Το αίτημα επαφής σας έληξε. Αν θέλετε ακόμη να προσθέσετε αυτό το άτομο στις επαφές σας, στείλτε του ένα νέο αίτημα.",
+  "systemMessage_sentConnectionRequestAlreadyConnected": "Ο/Η {displayName} είναι ήδη επαφή σας. Αυτό το αίτημα έκλεισε.",
   "sentContactRequest_title": "Στείλατε αίτημα επαφής",
   "sentContactRequest_titleWithName": "Στείλατε αίτημα επαφής στον/στην {displayName}",
   "sentContactRequest_toUsername": "στο όνομα χρήστη {username}",

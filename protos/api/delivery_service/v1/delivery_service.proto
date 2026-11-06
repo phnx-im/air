@@ -37,6 +37,14 @@ service DeliveryService {
 
   rpc ApqJoinConnectionGroup(ApqJoinConnectionGroupRequest) returns (ApqJoinConnectionGroupResponse);
 
+  // Joins a connection group and deletes it right away with an
+  // `AlreadyConnected` tombstone. The recipient of a connection request sends
+  // it when the sender is a contact already. The joiner signs the delete
+  // commit with the leaf the join adds.
+  rpc CloseConnectionGroup(CloseConnectionGroupRequest) returns (CloseConnectionGroupResponse);
+
+  rpc ApqCloseConnectionGroup(ApqCloseConnectionGroupRequest) returns (ApqCloseConnectionGroupResponse);
+
   rpc Resync(ResyncRequest) returns (ResyncResponse);
 
   rpc ApqResync(ApqResyncRequest) returns (ApqResyncResponse);
@@ -409,6 +417,36 @@ message ApqJoinConnectionGroupRequest {
 }
 
 message ApqJoinConnectionGroupResponse {
+  common.v1.Timestamp fanout_timestamp = 1;
+}
+
+// close connection group
+
+message CloseConnectionGroupRequest {
+  common.v1.ClientMetadata client_metadata = 1;
+  GroupStateEarKey group_state_ear_key = 2;
+  AssistedMessage external_commit = 3;
+  AssistedMessage delete_commit = 4;
+  QsReference qs_client_reference = 5;
+}
+
+message CloseConnectionGroupResponse {
+  // The time of the delete commit.
+  common.v1.Timestamp fanout_timestamp = 1;
+}
+
+// apq close connection group
+
+message ApqCloseConnectionGroupRequest {
+  common.v1.ClientMetadata client_metadata = 1;
+  GroupStateEarKey group_state_ear_key = 2;
+  ApqAssistedMlsMessage external_commit = 3;
+  ApqAssistedMlsMessage delete_commit = 4;
+  QsReference qs_client_reference = 5;
+}
+
+message ApqCloseConnectionGroupResponse {
+  // The time of the delete commit.
   common.v1.Timestamp fanout_timestamp = 1;
 }
 

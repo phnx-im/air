@@ -348,6 +348,10 @@ pub enum AadPayload {
     JoinConnectionGroup(JoinConnectionGroupParamsAad),
     Resync,
     DeleteGroup,
+    /// A join that is followed by a delete of the group in the same DS call,
+    /// see `CloseConnectionGroup` in the delivery service. Unlike
+    /// [`Self::JoinConnectionGroup`], it does not confirm the request.
+    CloseConnectionGroup(CloseConnectionGroupParamsAad),
     // There is no SelfRemoveClient entry, since that message consists of a
     // single proposal and since we don't otherwise support individual
     // proposals, there is not need to signal it explicitly.
@@ -457,6 +461,13 @@ pub struct JoinConnectionGroupParamsAad {
     pub encrypted_user_profile_key: EncryptedUserProfileKey,
 }
 
+/// The joiner closes the request in the same DS call. It shares only the
+/// profile key the DS records for every member.
+#[derive(TlsSerialize, TlsDeserializeBytes, TlsSize)]
+pub struct CloseConnectionGroupParamsAad {
+    pub encrypted_user_profile_key: EncryptedUserProfileKey,
+}
+
 #[derive(Debug)]
 pub struct ResyncParams {
     pub external_commit: AssistedMessageIn,
@@ -521,4 +532,25 @@ pub struct ApqWelcomeBundle {
     pub encrypted_attribution_info: EncryptedWelcomeAttributionInfo,
     // This part is added by the DS later.
     pub encrypted_joiner_info: EncryptedDsJoinerInformation,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn close_connection_group_aad_round_trip() {
+        let payload = CloseConnectionGroupParamsAad {
+            encrypted_user_profile_key: EncryptedUserProfileKey::random(),
+        };
+        let bytes = AadMessage::from(AadPayload::CloseConnectionGroup(payload))
+            .tls_serialize_detached()
+            .unwrap();
+
+        let decoded = AadMessage::tls_deserialize_exact_bytes(&bytes).unwrap();
+        assert_eq!(decoded.tls_serialize_detached().unwrap(), bytes);
+        let AadPayload::CloseConnectionGroup(_) = decoded.into_payload() else {
+            panic!("decoded as another AAD payload");
+        };
+    }
 }

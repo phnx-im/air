@@ -247,6 +247,7 @@
   "systemMessage_connectionRequestUnavailable": "Kontaktförfrågan är inte längre tillgänglig.",
   "systemMessage_connectionRequestExpired": "Kontaktförfrågan har gått ut.",
   "systemMessage_sentConnectionRequestExpired": "Din kontaktförfrågan har gått ut. Om du fortfarande vill lägga till personen som kontakt, skicka en ny förfrågan.",
+  "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} är redan din kontakt. Den här förfrågan har stängts.",
   "sentContactRequest_title": "Du har skickat en kontaktförfrågan",
   "sentContactRequest_titleWithName": "Du har skickat en kontaktförfrågan till {displayName}",
   "sentContactRequest_toUsername": "till användarnamnet {username}",

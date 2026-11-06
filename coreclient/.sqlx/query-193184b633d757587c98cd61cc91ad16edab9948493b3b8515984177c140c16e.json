@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE closing_connection_request\n                SET attempts = ?, retry_at = ?\n                WHERE request_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "193184b633d757587c98cd61cc91ad16edab9948493b3b8515984177c140c16e"
+}

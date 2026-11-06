@@ -107,6 +107,10 @@ impl CoreUser {
     /// would drop the parked delete, so the other members would never learn
     /// about it. Any other failure of the delete still erases the chat, so a
     /// chat whose group is broken can be removed.
+    ///
+    /// An outgoing request whose group is closed already is kept. Its recipient
+    /// may have closed it as a contact already, and the resync the delete
+    /// scheduled ends the chat with that record.
     pub async fn delete_and_erase_chat(&self, chat_id: ChatId) -> Result<()> {
         let chat = self
             .db()
@@ -117,6 +121,10 @@ impl CoreUser {
             return self.erase_chat(chat_id).await;
         }
         match self.execute_job(ChatOperation::delete_chat(chat_id)).await {
+            Err(JobError::GroupClosed) if chat.is_unconfirmed() => {
+                self.outbound_service().notify_pending_chat_operations();
+                return Ok(());
+            }
             Ok(_) | Err(JobError::NotFound | JobError::GroupClosed) => {}
             Err(JobError::NetworkError) => {
                 self.db()

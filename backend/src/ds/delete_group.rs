@@ -31,6 +31,37 @@ use crate::errors::GroupDeletionError;
 
 use super::group_state::DsGroupState;
 
+/// What a delete commit is for, beyond what every delete commit must do.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum DeleteKind {
+    /// A member deletes the group.
+    Member,
+    /// The member at `joiner` closes a connection group it joined in the same
+    /// DS call, see [`DsGroupState::close_connection_group`]. It must set an
+    /// `AlreadyConnected` tombstone.
+    Close { joiner: LeafNodeIndex },
+}
+
+impl DeleteKind {
+    fn check(self, delete: &ValidatedDelete) -> Result<(), GroupDeletionError> {
+        let DeleteKind::Close { joiner } = self else {
+            return Ok(());
+        };
+        if delete.sender_index != joiner {
+            warn!("Connection group close by another member than the joiner");
+            return Err(GroupDeletionError::InvalidMessage);
+        }
+        if delete.tombstone_context != Some(TombstoneContext::AlreadyConnected) {
+            warn!(
+                context = ?delete.tombstone_context,
+                "Connection group close without an already connected tombstone"
+            );
+            return Err(GroupDeletionError::InvalidMessage);
+        }
+        Ok(())
+    }
+}
+
 /// Source of truth for the group's membership when validating that a
 /// delete-group commit removes all other members.
 enum MembershipCheck {
@@ -46,6 +77,7 @@ impl DsGroupState {
     pub(crate) fn delete_group(
         &mut self,
         commit: AssistedMessageIn,
+        kind: DeleteKind,
     ) -> Result<SerializedMlsMessage, GroupDeletionError> {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
@@ -62,10 +94,14 @@ impl DsGroupState {
             return Err(GroupDeletionError::InvalidMessage);
         };
 
+        let delete =
+            self.validate_delete_commit(processed_message, MembershipCheck::MemberProfiles)?;
+        kind.check(&delete)?;
         let ValidatedDelete {
             sender_index,
             removed_clients,
-        } = self.validate_delete_commit(processed_message, MembershipCheck::MemberProfiles)?;
+            tombstone_context: _,
+        } = delete;
         self.remove_from_room_state(sender_index, &removed_clients)?;
 
         // Nobody is left to process the commit of a group's only member, so we
@@ -92,10 +128,13 @@ impl DsGroupState {
     /// are then validated per leg: the T leg against the DS member profiles and
     /// the PQ leg against the ratchet tree, since the DS keeps no member
     /// profiles for PQ groups.
+    ///
+    /// `kind` is checked against the T leg, which holds the tombstone.
     pub(crate) fn delete_apq_group(
         t_group_state: &mut Self,
         pq_group_state: &mut Self,
         commit: ApqAssistedMessageIn,
+        kind: DeleteKind,
     ) -> Result<SerializedMlsMessage, GroupDeletionError> {
         // Process both legs as a unit (but don't apply them). This performs the
         // mls-assist- and APQ-level validations.
@@ -109,17 +148,20 @@ impl DsGroupState {
         // Perform DS-level validation on each leg against its own source of
         // truth for the group's membership.
         let apq_processed_message = &processed_assisted_message.processed_message;
-        let ValidatedDelete {
-            sender_index,
-            removed_clients: t_removed_clients,
-        } = t_group_state.validate_delete_commit(
+        let t_delete = t_group_state.validate_delete_commit(
             &apq_processed_message.t_message,
             MembershipCheck::MemberProfiles,
         )?;
+        kind.check(&t_delete)?;
         pq_group_state.validate_delete_commit(
             &apq_processed_message.pq_message,
             MembershipCheck::RatchetTree,
         )?;
+        let ValidatedDelete {
+            sender_index,
+            removed_clients: t_removed_clients,
+            tombstone_context: _,
+        } = t_delete;
         // The room state is kept on the T leg only.
         t_group_state.remove_from_room_state(sender_index, &t_removed_clients)?;
 
@@ -201,17 +243,19 @@ impl DsGroupState {
             return Err(GroupDeletionError::InvalidMessage);
         }
         // Legacy delete commits set no tombstone.
-        match GroupAppData::tombstone(staged_extensions) {
-            None => {}
+        let tombstone_context = match GroupAppData::tombstone(staged_extensions) {
+            None => None,
             Some(GroupTombstone {
                 timestamp: Some(timestamp),
-                context: TombstoneContext::Deleted,
-            }) if (*timestamp.as_ref() - Utc::now()).abs() <= TOMBSTONE_TIMESTAMP_TOLERANCE => {}
+                context: context @ (TombstoneContext::Deleted | TombstoneContext::AlreadyConnected),
+            }) if (*timestamp.as_ref() - Utc::now()).abs() <= TOMBSTONE_TIMESTAMP_TOLERANCE => {
+                Some(context)
+            }
             Some(tombstone) => {
                 warn!(?tombstone, "Delete group commit sets an invalid tombstone");
                 return Err(GroupDeletionError::InvalidMessage);
             }
-        }
+        };
         // Process remove proposals, but only non-inline ones.
 
         // Note: The staged commit yields the remove proposals in no
@@ -245,6 +289,7 @@ impl DsGroupState {
         Ok(ValidatedDelete {
             sender_index: *sender_index,
             removed_clients,
+            tombstone_context,
         })
     }
 
@@ -281,6 +326,7 @@ const TOMBSTONE_TIMESTAMP_TOLERANCE: TimeDelta = TimeDelta::days(1);
 struct ValidatedDelete {
     sender_index: LeafNodeIndex,
     removed_clients: Vec<LeafNodeIndex>,
+    tombstone_context: Option<TombstoneContext>,
 }
 
 /// The group context extensions with the tombstone cleared and the APQ info
@@ -320,10 +366,14 @@ mod test {
         },
         crypto::{aead::keys::EncryptedUserProfileKey, hash::Hash},
         identifiers::{QsReference, SealedClientReference, UserId},
-        messages::client_ds::{
-            AadMessage, AadPayload, GroupOperationParams, GroupOperationParamsAad,
+        messages::{
+            client_as::EncryptedFriendshipPackage,
+            client_ds::{
+                AadMessage, AadPayload, CloseConnectionGroupParamsAad, GroupOperationParams,
+                GroupOperationParamsAad, JoinConnectionGroupParamsAad,
+            },
         },
-        mls_group_config::default_leaf_node_capabilities,
+        mls_group_config::{default_leaf_node_capabilities, default_mls_group_join_config},
         time::TimeStamp,
     };
     use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
@@ -332,7 +382,9 @@ mod test {
         authentication::{
             ApqCredentialWithKey, ApqSignatureKeyPair, ApqSignatureScheme, ApqSigner,
         },
-        messages::{ApqKeyPackage, ApqMlsMessageOut},
+        commit_builder::ApqCommitMessageBundle,
+        external_commit_builder::ApqExternalCommitBuilder,
+        messages::{ApqKeyPackage, ApqMlsMessageOut, ApqRatchetTreeIn, VerifiableApqGroupInfo},
     };
     use mimi_room_policy::{RoomPolicy, VerifiedRoomState};
     use mls_assist::{
@@ -340,12 +392,13 @@ mod test {
         messages::AssistedMessageOut,
         openmls::{
             component::ComponentData,
-            group::GroupContext,
+            group::{ExternalCommitBuilder, GroupContext},
             prelude::{
-                AppDataUpdateProposal, Ciphersuite, Credential, Extensions, HpkeCiphertext,
-                KeyPackage, LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsMessageBodyIn,
-                MlsMessageIn, MlsMessageOut, OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY,
-                Proposal, SignatureScheme,
+                AppDataUpdateProposal, Ciphersuite, Credential, CredentialWithKey, Extensions,
+                HpkeCiphertext, KeyPackage, LeafNodeIndex, LeafNodeParameters, MlsGroup,
+                MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
+                PURE_PLAINTEXT_WIRE_FORMAT_POLICY, Proposal, SignatureScheme,
+                group_info::VerifiableGroupInfo,
             },
         },
         openmls_rust_crypto::OpenMlsRustCrypto,
@@ -355,7 +408,12 @@ mod test {
 
     use crate::{
         ds::{
-            group_operation::ProcessedGroupOperation, group_state::MemberProfile, process::Provider,
+            close_connection_group::CloseConnectionGroupError,
+            group_operation::ProcessedGroupOperation,
+            group_state::MemberProfile,
+            grpc::ensure_no_tombstone,
+            join_connection_group::{ConnectionGroupJoin, JoinConnectionGroupError},
+            process::Provider,
         },
         errors::GroupOperationError,
     };
@@ -443,18 +501,11 @@ mod test {
     /// Returns the DS state of `group` as its creation leaves it, i.e. with
     /// the creator's member profile only.
     fn ds_group_state(creator: &Client, group: &MlsGroup, signer: &impl Signer) -> DsGroupState {
-        let group_info = group
-            .export_group_info(creator.provider.crypto(), signer, false)
-            .unwrap()
-            .tls_serialize_detached()
-            .unwrap();
-        let MlsMessageBodyIn::GroupInfo(group_info) =
-            MlsMessageIn::tls_deserialize_exact(group_info)
-                .unwrap()
-                .extract()
-        else {
-            panic!("expected a group info");
-        };
+        let group_info = verifiable_group_info(
+            group
+                .export_group_info(creator.provider.crypto(), signer, false)
+                .unwrap(),
+        );
         let provider = Provider::default();
         let ds_group =
             Group::new(&provider, group_info, group.export_ratchet_tree().into()).unwrap();
@@ -472,6 +523,17 @@ mod test {
             qs_reference(),
             room_state,
         )
+    }
+
+    fn verifiable_group_info(message: MlsMessageOut) -> VerifiableGroupInfo {
+        let bytes = message.tls_serialize_detached().unwrap();
+        let MlsMessageBodyIn::GroupInfo(group_info) = MlsMessageIn::tls_deserialize_exact(bytes)
+            .unwrap()
+            .extract()
+        else {
+            panic!("expected a group info");
+        };
+        group_info
     }
 
     /// Adds the member profiles and room roles the DS records when the
@@ -549,6 +611,10 @@ mod test {
 
     fn set_deleted(component: &mut AirComponent) {
         component.tombstone = Some(GroupTombstone::deleted(TimeStamp::now()));
+    }
+
+    fn set_already_connected(component: &mut AirComponent) {
+        component.tombstone = Some(GroupTombstone::already_connected(TimeStamp::now()));
     }
 
     fn set_tombstone_with_unknown_context(component: &mut AirComponent) {
@@ -657,6 +723,16 @@ mod test {
         AssistedMessageIn::tls_deserialize_exact_bytes(&bytes).unwrap()
     }
 
+    fn apq_assisted(bundle: ApqCommitMessageBundle) -> ApqAssistedMessageIn {
+        let (t_commit, pq_commit) = bundle.commit.split();
+        let (t_group_info, pq_group_info) =
+            ApqMlsMessageOut::from(bundle.group_info.unwrap()).split();
+        ApqAssistedMessageIn {
+            t_message: assisted(t_commit, t_group_info),
+            pq_message: assisted(pq_commit, pq_group_info),
+        }
+    }
+
     /// Deletes a group of `size` members as its creator and returns the DS
     /// group state afterwards.
     fn delete_t_group(
@@ -667,12 +743,9 @@ mod test {
         delete_t_group_with(Client::new(), joiners, update)
     }
 
-    fn delete_t_group_with(
-        creator: Client,
-        joiners: Vec<Client>,
-        update: Option<ComponentUpdate>,
-    ) -> Result<DsGroupState, GroupDeletionError> {
-        let mut group = new_t_group(&creator);
+    /// A T group of `creator` and `joiners`, and its DS state.
+    fn t_group_with(creator: &Client, joiners: Vec<Client>) -> (MlsGroup, DsGroupState) {
+        let mut group = new_t_group(creator);
         let key_packages: Vec<_> = joiners
             .into_iter()
             .map(|joiner| {
@@ -690,27 +763,29 @@ mod test {
             })
             .collect();
         if !key_packages.is_empty() {
-            t_commit(&creator, &mut group, key_packages, Vec::new(), None);
+            t_commit(creator, &mut group, key_packages, Vec::new(), None);
             group.merge_pending_commit(&creator.provider).unwrap();
         }
 
-        let mut state = ds_group_state(&creator, &group, creator.signer.t_signer());
+        let mut state = ds_group_state(creator, &group, creator.signer.t_signer());
         add_joiner_profiles(&mut state);
+        (group, state)
+    }
 
+    fn delete_t_group_with(
+        creator: Client,
+        joiners: Vec<Client>,
+        update: Option<ComponentUpdate>,
+    ) -> Result<DsGroupState, GroupDeletionError> {
+        let (mut group, mut state) = t_group_with(&creator, joiners);
         let removed = others(&group);
         let (commit, group_info) = t_commit(&creator, &mut group, Vec::new(), removed, update);
-        state.delete_group(assisted(commit, group_info))?;
+        state.delete_group(assisted(commit, group_info), DeleteKind::Member)?;
         Ok(state)
     }
 
-    /// The APQ counterpart of [`delete_t_group`]. Returns the T and the PQ
-    /// leg state.
-    fn delete_apq_group(
-        size: usize,
-        update: Option<ComponentUpdate>,
-    ) -> Result<(DsGroupState, DsGroupState), GroupDeletionError> {
-        let creator = Client::new();
-        let mut group = ApqMlsGroup::builder()
+    fn new_apq_group(creator: &Client) -> ApqMlsGroup {
+        ApqMlsGroup::builder()
             .with_ciphersuite(apq_ciphersuite())
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
             .with_capabilities(default_leaf_node_capabilities())
@@ -721,7 +796,17 @@ mod test {
                 &creator.signer,
                 creator.credential.clone(),
             )
-            .unwrap();
+            .unwrap()
+    }
+
+    /// The APQ counterpart of [`delete_t_group`]. Returns the T and the PQ
+    /// leg state.
+    fn delete_apq_group(
+        size: usize,
+        update: Option<ComponentUpdate>,
+    ) -> Result<(DsGroupState, DsGroupState), GroupDeletionError> {
+        let creator = Client::new();
+        let mut group = new_apq_group(&creator);
         let key_packages: Vec<_> = (1..size)
             .map(|_| {
                 let joiner = Client::new();
@@ -765,14 +850,12 @@ mod test {
         let bundle = builder
             .finalize(&creator.provider, &creator.signer, |_| true, |_| true)
             .unwrap();
-        let (t_commit, pq_commit) = bundle.commit.split();
-        let (t_group_info, pq_group_info) =
-            ApqMlsMessageOut::from(bundle.group_info.unwrap()).split();
-        let commit = ApqAssistedMessageIn {
-            t_message: assisted(t_commit, t_group_info),
-            pq_message: assisted(pq_commit, pq_group_info),
-        };
-        DsGroupState::delete_apq_group(&mut t_state, &mut pq_state, commit)?;
+        DsGroupState::delete_apq_group(
+            &mut t_state,
+            &mut pq_state,
+            apq_assisted(bundle),
+            DeleteKind::Member,
+        )?;
         Ok((t_state, pq_state))
     }
 
@@ -891,9 +974,10 @@ mod test {
             .unwrap()
             .into_contents();
 
-        let Err(GroupDeletionError::InvalidMessage) =
-            state.delete_group(assisted(commit, group_info.unwrap().into()))
-        else {
+        let Err(GroupDeletionError::InvalidMessage) = state.delete_group(
+            assisted(commit, group_info.unwrap().into()),
+            DeleteKind::Member,
+        ) else {
             panic!("the delete is accepted");
         };
     }
@@ -979,6 +1063,319 @@ mod test {
             self_update_group_operation(Some(set_deleted)).await
         else {
             panic!("the group operation is accepted");
+        };
+    }
+
+    #[test]
+    fn a_delete_with_an_already_connected_tombstone_is_accepted() {
+        let update = Some(set_already_connected as ComponentUpdate);
+        assert!(delete_t_group(2, update).unwrap().has_tombstone());
+        let (t_state, _pq_state) = delete_apq_group(2, update).unwrap();
+        assert!(t_state.has_tombstone());
+    }
+
+    fn close_aad() -> Vec<u8> {
+        AadMessage::from(AadPayload::CloseConnectionGroup(
+            CloseConnectionGroupParamsAad {
+                encrypted_user_profile_key: EncryptedUserProfileKey::dummy(),
+            },
+        ))
+        .tls_serialize_detached()
+        .unwrap()
+    }
+
+    fn join_aad() -> Vec<u8> {
+        AadMessage::from(AadPayload::JoinConnectionGroup(
+            JoinConnectionGroupParamsAad {
+                encrypted_friendship_package: EncryptedFriendshipPackage::dummy(),
+                encrypted_user_profile_key: EncryptedUserProfileKey::dummy(),
+            },
+        ))
+        .tls_serialize_detached()
+        .unwrap()
+    }
+
+    fn joiner_leaf_parameters() -> LeafNodeParameters {
+        LeafNodeParameters::builder()
+            .with_capabilities(default_leaf_node_capabilities())
+            .build()
+    }
+
+    /// A connection group as its inviter created it, with `extra_members`
+    /// more members than the inviter, and its DS state.
+    fn t_connection_group(extra_members: usize) -> (Client, MlsGroup, DsGroupState) {
+        let inviter = Client::new();
+        let members = (0..extra_members).map(|_| Client::new()).collect();
+        let (group, state) = t_group_with(&inviter, members);
+        (inviter, group, state)
+    }
+
+    /// The external commit of `joiner` into the inviter's `group`, with its
+    /// group info, and the joiner's group after it.
+    fn t_external_commit(
+        joiner: &Client,
+        inviter: &Client,
+        group: &MlsGroup,
+        aad: Vec<u8>,
+    ) -> (MlsGroup, MlsMessageOut, MlsMessageOut) {
+        let group_info = group
+            .export_group_info(inviter.provider.crypto(), inviter.signer.t_signer(), false)
+            .unwrap();
+        let (joined, bundle) = ExternalCommitBuilder::new()
+            .with_aad(aad)
+            .with_config(default_mls_group_join_config())
+            .with_ratchet_tree(group.export_ratchet_tree().into())
+            .build_group(
+                &joiner.provider,
+                verifiable_group_info(group_info),
+                joiner.credential.t_credential.clone(),
+            )
+            .unwrap()
+            .leaf_node_parameters(joiner_leaf_parameters())
+            .load_psks(joiner.provider.storage())
+            .unwrap()
+            .create_group_info(true)
+            .build(
+                joiner.provider.rand(),
+                joiner.provider.crypto(),
+                joiner.signer.t_signer(),
+                |_| true,
+            )
+            .unwrap()
+            .finalize(&joiner.provider)
+            .unwrap();
+        let (commit, _welcome, group_info) = bundle.into_contents();
+        (joined, commit, group_info.unwrap().into())
+    }
+
+    /// Joins a connection group of `extra_members + 1` members with `aad` and
+    /// deletes it with `update` in one close, and returns the DS state
+    /// afterwards.
+    fn close_t_group(
+        extra_members: usize,
+        aad: Vec<u8>,
+        update: ComponentUpdate,
+    ) -> Result<DsGroupState, CloseConnectionGroupError> {
+        let (inviter, group, mut state) = t_connection_group(extra_members);
+        let joiner = Client::new();
+        let (mut joined, join, join_group_info) = t_external_commit(&joiner, &inviter, &group, aad);
+        let removed = others(&joined);
+        let (delete, delete_group_info) =
+            t_commit(&joiner, &mut joined, Vec::new(), removed, Some(update));
+        state.close_connection_group(
+            assisted(join, join_group_info),
+            assisted(delete, delete_group_info),
+            qs_reference(),
+        )?;
+        Ok(state)
+    }
+
+    /// Signs both legs with the T key, as clients do. The DS binds the legs of
+    /// a joiner by its signature key.
+    struct SharedKey<'a>(&'a ApqSignatureKeyPair);
+
+    impl ApqSigner for SharedKey<'_> {
+        type TSigner = <ApqSignatureKeyPair as ApqSigner>::TSigner;
+        type PqSigner = <ApqSignatureKeyPair as ApqSigner>::TSigner;
+
+        fn t_signer(&self) -> &Self::TSigner {
+            self.0.t_signer()
+        }
+
+        fn pq_signer(&self) -> &Self::PqSigner {
+            self.0.t_signer()
+        }
+    }
+
+    /// The APQ counterpart of [`close_t_group`] for a group of the inviter
+    /// only. Returns the T and the PQ leg state.
+    fn close_apq_group(
+        aad: Vec<u8>,
+        update: ComponentUpdate,
+    ) -> Result<(DsGroupState, DsGroupState), CloseConnectionGroupError> {
+        let inviter = Client::new();
+        let group = new_apq_group(&inviter);
+        let mut t_state = ds_group_state(&inviter, &group.t_group, inviter.signer.t_signer());
+        let mut pq_state = ds_group_state(&inviter, group.pq_group(), inviter.signer.pq_signer());
+
+        let joiner = Client::new();
+        let signer = SharedKey(&joiner.signer);
+        let credential = ApqCredentialWithKey {
+            pq_credential: CredentialWithKey {
+                signature_key: joiner.credential.t_credential.signature_key.clone(),
+                ..joiner.credential.pq_credential.clone()
+            },
+            ..joiner.credential.clone()
+        };
+        let (t_group_info, pq_group_info) = group
+            .export_group_info(inviter.provider.crypto(), &inviter.signer, false)
+            .unwrap()
+            .split();
+        let group_info = VerifiableApqGroupInfo::new(
+            verifiable_group_info(t_group_info),
+            verifiable_group_info(pq_group_info),
+        );
+        let ratchet_tree = ApqRatchetTreeIn::new(
+            group.t_group.export_ratchet_tree().into(),
+            group.pq_group().export_ratchet_tree().into(),
+        );
+        let (mut joined, join) = ApqExternalCommitBuilder::new()
+            .with_ratchet_tree(ratchet_tree)
+            .with_aad(aad)
+            .with_config(default_mls_group_join_config())
+            .leaf_node_parameters(joiner_leaf_parameters(), joiner_leaf_parameters())
+            .create_group_info(true)
+            .build(&joiner.provider, &signer, credential, group_info, |_, _| {
+                true
+            })
+            .unwrap();
+
+        let component_data = updated_component_data(joined.t_group.extensions(), update);
+        let removed = others(&joined.t_group);
+        let delete = joined
+            .commit_builder()
+            .force_self_update(true)
+            .propose_removals(removed)
+            .create_group_info(true)
+            .update_t_app_data(component_data)
+            .finalize(&joiner.provider, &signer, |_| true, |_| true)
+            .unwrap();
+
+        DsGroupState::apq_close_connection_group(
+            &mut t_state,
+            &mut pq_state,
+            apq_assisted(join),
+            apq_assisted(delete),
+            qs_reference(),
+        )?;
+        Ok((t_state, pq_state))
+    }
+
+    fn tombstone_context(state: &DsGroupState) -> Option<TombstoneContext> {
+        GroupAppData::tombstone(state.group().group_info().group_context().extensions())
+            .map(|tombstone| tombstone.context)
+    }
+
+    #[test]
+    fn a_close_leaves_the_joiner_alone_behind_an_already_connected_tombstone() {
+        let state = close_t_group(0, close_aad(), set_already_connected).unwrap();
+        assert_eq!(state.group().members().count(), 1);
+        assert_eq!(state.member_profiles.len(), 1);
+        assert!(!state.is_marked_for_deletion());
+        assert_eq!(
+            tombstone_context(&state),
+            Some(TombstoneContext::AlreadyConnected)
+        );
+        let closer = room_identity(&state.group().members().next().unwrap().credential);
+        assert_eq!(room_users(&state), Vec::from_iter(closer));
+
+        let (t_state, pq_state) = close_apq_group(close_aad(), set_already_connected).unwrap();
+        assert_eq!(t_state.group().members().count(), 1);
+        assert_eq!(t_state.member_profiles.len(), 1);
+        assert_eq!(pq_state.group().members().count(), 1);
+        assert_eq!(
+            tombstone_context(&t_state),
+            Some(TombstoneContext::AlreadyConnected)
+        );
+        assert!(!pq_state.has_tombstone());
+    }
+
+    #[test]
+    fn a_closed_group_takes_no_further_close() {
+        let state = close_t_group(0, close_aad(), set_already_connected).unwrap();
+        let status = ensure_no_tombstone(&state).unwrap_err();
+        assert_eq!(status.code(), tonic::Code::NotFound);
+    }
+
+    #[test]
+    fn a_close_with_a_deleted_tombstone_is_rejected() {
+        let Err(CloseConnectionGroupError::Delete(GroupDeletionError::InvalidMessage)) =
+            close_t_group(0, close_aad(), set_deleted)
+        else {
+            panic!("the T close is accepted");
+        };
+        let Err(CloseConnectionGroupError::Delete(GroupDeletionError::InvalidMessage)) =
+            close_apq_group(close_aad(), set_deleted)
+        else {
+            panic!("the APQ close is accepted");
+        };
+    }
+
+    #[test]
+    fn a_close_with_the_join_aad_is_rejected() {
+        let Err(CloseConnectionGroupError::Join(JoinConnectionGroupError::InvalidMessage(_))) =
+            close_t_group(0, join_aad(), set_already_connected)
+        else {
+            panic!("the T close is accepted");
+        };
+        let Err(CloseConnectionGroupError::Join(JoinConnectionGroupError::InvalidMessage(_))) =
+            close_apq_group(join_aad(), set_already_connected)
+        else {
+            panic!("the APQ close is accepted");
+        };
+    }
+
+    #[test]
+    fn a_join_with_the_close_aad_is_rejected() {
+        let (inviter, group, mut state) = t_connection_group(0);
+        let (_joined, join_message, group_info) =
+            t_external_commit(&Client::new(), &inviter, &group, close_aad());
+        let kind = ConnectionGroupJoin::Accept;
+        let Err(JoinConnectionGroupError::InvalidMessage(_)) =
+            state.join_connection_group(assisted(join_message, group_info), qs_reference(), kind)
+        else {
+            panic!("the join is accepted");
+        };
+    }
+
+    #[test]
+    fn a_close_of_a_group_with_more_than_one_member_is_rejected() {
+        let Err(CloseConnectionGroupError::Join(JoinConnectionGroupError::NotAConnectionGroup)) =
+            close_t_group(1, close_aad(), set_already_connected)
+        else {
+            panic!("the close is accepted");
+        };
+    }
+
+    #[test]
+    fn a_close_by_another_member_than_the_joiner_is_rejected() {
+        let (inviter, mut group, mut state) = t_connection_group(0);
+        let (_joined, join, join_group_info) =
+            t_external_commit(&Client::new(), &inviter, &group, close_aad());
+
+        // The inviter merges the join and deletes the group itself.
+        let join_in =
+            MlsMessageIn::tls_deserialize_exact(join.tls_serialize_detached().unwrap()).unwrap();
+        let processed = group
+            .process_message(
+                &inviter.provider,
+                join_in.try_into_protocol_message().unwrap(),
+            )
+            .unwrap();
+        let ProcessedMessageContent::StagedCommitMessage(staged_commit) = processed.into_content()
+        else {
+            panic!("expected a commit");
+        };
+        group
+            .merge_staged_commit(&inviter.provider, *staged_commit)
+            .unwrap();
+        let removed = others(&group);
+        let (delete, delete_group_info) = t_commit(
+            &inviter,
+            &mut group,
+            Vec::new(),
+            removed,
+            Some(set_already_connected),
+        );
+
+        let Err(CloseConnectionGroupError::Delete(GroupDeletionError::InvalidMessage)) = state
+            .close_connection_group(
+                assisted(join, join_group_info),
+                assisted(delete, delete_group_info),
+                qs_reference(),
+            )
+        else {
+            panic!("the close is accepted");
         };
     }
 }

@@ -515,5 +515,11 @@ TextSpan buildSystemMessageText(
     UiSystemMessage_SentConnectionRequestExpired() => TextSpan(
       text: loc.systemMessage_sentConnectionRequestExpired,
     ),
+    UiSystemMessage_SentConnectionRequestAlreadyConnected(:final contact) =>
+      TextSpan(
+        text: loc.systemMessage_sentConnectionRequestAlreadyConnected(
+          nameOf(contact),
+        ),
+      ),
   };
 }

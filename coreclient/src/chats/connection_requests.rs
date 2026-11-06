@@ -17,6 +17,11 @@
 //! the self-group too. A declined request is remembered, so a late copy of it
 //! is dropped. Expiry needs no message, since every device expires a request
 //! at the same time, see [`request_expiry`].
+//!
+//! A request via a username whose sender is a contact already is closed on
+//! the DS, see [`ClosingConnectionRequest`]. The close tells its sender that
+//! the username belongs to a contact. The user sees nothing of it. Siblings
+//! need no message either. They close the request themselves or never had it.
 
 use aircommon::{
     codec::PersistenceCodec,
@@ -39,8 +44,8 @@ use uuid::Uuid;
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, ChatType, Contact, SystemMessage,
     chats::{
-        DeclinedConnectionRequest, PendingConnectionRequest, messages::TimestampedMessage,
-        persistence, request_expiry,
+        ClosingConnectionRequest, DeclinedConnectionRequest, PendingConnectionRequest,
+        messages::TimestampedMessage, persistence, request_expiry,
     },
     clients::{
         CoreUser,
@@ -241,14 +246,38 @@ pub(crate) async fn is_connected_contact(
     })
 }
 
-/// Returns true if a request is known already or its sender is a connected
-/// contact, so there is nothing to store.
-pub(crate) async fn is_settled(
+/// Why there is nothing to store for an incoming request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Settlement {
+    /// The request is known already.
+    Known,
+    /// Its sender is a connected contact.
+    ConnectedContact,
+}
+
+/// Returns why there is nothing to store for a request, if there is nothing.
+pub(crate) async fn settlement(
     mut txn: impl ReadTransaction,
     request_id: ChatId,
     sender: &UserId,
+) -> sqlx::Result<Option<Settlement>> {
+    if is_known(&mut txn, request_id).await? {
+        return Ok(Some(Settlement::Known));
+    }
+    if is_connected_contact(txn, sender).await? {
+        return Ok(Some(Settlement::ConnectedContact));
+    }
+    Ok(None)
+}
+
+/// Returns true if a request is known already or its sender is a connected
+/// contact, so there is nothing to store.
+pub(crate) async fn is_settled(
+    txn: impl ReadTransaction,
+    request_id: ChatId,
+    sender: &UserId,
 ) -> sqlx::Result<bool> {
-    Ok(is_known(&mut txn, request_id).await? || is_connected_contact(txn, sender).await?)
+    Ok(settlement(txn, request_id, sender).await?.is_some())
 }
 
 /// Helper struct for notifications, to track the effect of connection requests.
@@ -786,13 +815,21 @@ async fn close_incoming_chat(
     Ok(())
 }
 
-/// Clean up the pending requests when the users accepted the connection.
+/// Clean up the pending requests of `sender` in the chat when the users
+/// accepted the connection through the request `accepted`. The other requests
+/// are redundant now.
 pub(crate) async fn settle_accepted(
     txn: &mut WriteDbTransaction<'_>,
     chat_id: ChatId,
+    accepted: ChatId,
+    sender: &UserId,
 ) -> anyhow::Result<()> {
     for request in PendingConnectionRequest::load_for_chat(&mut *txn, chat_id).await? {
-        discard_request_state(txn, request).await?;
+        if request.request_id == accepted {
+            discard_request_state(txn, request).await?;
+        } else {
+            discard_redundant_request(txn, request, sender).await?;
+        }
     }
     Ok(())
 }
@@ -802,12 +839,13 @@ pub(crate) async fn settle_accepted(
 async fn discard_redundant_chat(
     txn: &mut WriteDbTransaction<'_>,
     chat_id: ChatId,
+    sender: &UserId,
 ) -> anyhow::Result<()> {
     let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
         return Ok(());
     };
     for request in PendingConnectionRequest::load_for_chat(&mut *txn, chat_id).await? {
-        discard_request_state(txn, request).await?;
+        discard_redundant_request(txn, request, sender).await?;
     }
     Group::delete_from_db(txn, chat.group_id()).await?;
     Chat::delete(&mut *txn, chat_id).await?;
@@ -820,8 +858,43 @@ pub(crate) async fn discard_requests_from(
     sender: &UserId,
 ) -> anyhow::Result<()> {
     if let Some(chat_id) = PendingConnectionRequest::chat_of_sender(&mut *txn, sender).await? {
-        discard_redundant_chat(txn, chat_id).await?;
+        discard_redundant_chat(txn, chat_id, sender).await?;
     }
+    Ok(())
+}
+
+/// Discards a pending request of `sender`, who is a contact by now. A request
+/// via a username is parked for closing on the DS, which tells its sender. A
+/// request via a group stays with its sender, who knows our user id.
+async fn discard_redundant_request(
+    txn: &mut WriteDbTransaction<'_>,
+    request: PendingConnectionRequest,
+    sender: &UserId,
+) -> anyhow::Result<()> {
+    if let Some(connection_offer_hash) = request.connection_offer_hash {
+        ClosingConnectionRequest {
+            request_id: request.request_id,
+            sender: sender.clone(),
+            connection_info: request.connection_info.clone(),
+            connection_offer_hash,
+            created_at: TimeStamp::now(),
+        }
+        .store(&mut *txn)
+        .await?;
+    }
+    discard_request_state(txn, request).await
+}
+
+/// Parks closing `request` on the DS, whose sender is a connected contact. The
+/// key of the connection package it consumed goes right away, since the offer
+/// needs no more decryption.
+pub(crate) async fn park_close(
+    txn: &mut WriteDbTransaction<'_>,
+    request: ClosingConnectionRequest,
+    connection_package_hash: &ConnectionPackageHash,
+) -> anyhow::Result<()> {
+    request.store(&mut *txn).await?;
+    delete_consumed_package_key(txn, connection_package_hash).await?;
     Ok(())
 }
 
@@ -1185,7 +1258,7 @@ mod tests {
             receive_request_from(txn, &sender, "ellie-03", at(0)).await?;
             let newest = receive_request_from(txn, &sender, "ellie-04", at(60)).await?;
 
-            settle_accepted(txn, newest.chat_id).await?;
+            settle_accepted(txn, newest.chat_id, newest.chat_id, &sender).await?;
 
             assert!(request_ids(txn, newest.chat_id).await?.is_empty());
             assert!(Chat::load(&mut *txn, &newest.chat_id).await?.is_some());
@@ -1240,9 +1313,9 @@ mod tests {
             let stored = receive_request_from(txn, &sender, "ellie-03", at(0)).await?;
             let chat = Chat::load(&mut *txn, &stored.chat_id).await?.unwrap();
 
-            chat.set_chat_type(&mut *txn, &ChatType::Connection(sender))
+            chat.set_chat_type(&mut *txn, &ChatType::Connection(sender.clone()))
                 .await?;
-            settle_accepted(txn, stored.chat_id).await?;
+            settle_accepted(txn, stored.chat_id, stored.chat_id, &sender).await?;
 
             assert_eq!(unread_chat_and_badge(txn, stored.chat_id).await?, (0, 0));
             Ok(())
@@ -1298,9 +1371,9 @@ mod tests {
             let sender = sender()?;
             let stored = receive_request_from(txn, &sender, "ellie-03", at(0)).await?;
             let chat = Chat::load(&mut *txn, &stored.chat_id).await?.unwrap();
-            chat.set_chat_type(&mut *txn, &ChatType::Connection(sender))
+            chat.set_chat_type(&mut *txn, &ChatType::Connection(sender.clone()))
                 .await?;
-            settle_accepted(txn, stored.chat_id).await?;
+            settle_accepted(txn, stored.chat_id, stored.chat_id, &sender).await?;
 
             let (marked, reported) = open(txn, stored.chat_id).await?;
 
@@ -2170,8 +2243,8 @@ mod tests {
             let sender = sender()?;
             let stored = receive_request_from(txn, &sender, "ellie-03", at(0)).await?;
             let chat = Chat::load(&mut *txn, &stored.chat_id).await?.unwrap();
-            settle_accepted(txn, stored.chat_id).await?;
-            chat.set_chat_type(&mut *txn, &ChatType::Connection(sender))
+            settle_accepted(txn, stored.chat_id, stored.chat_id, &sender).await?;
+            chat.set_chat_type(&mut *txn, &ChatType::Connection(sender.clone()))
                 .await?;
 
             let effects = apply_connection_requests_update(

@@ -23,7 +23,7 @@ use tracing::debug;
 
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
-    chats::{PendingConnectionRequest, connection_requests},
+    chats::{PendingConnectionRequest, connection_requests, outgoing_requests},
     clients::CoreUser,
     db::access::WriteDbTransaction,
     groups::{
@@ -222,7 +222,7 @@ impl CoreUser {
                 let user_handle = accepted.and_then(|request| request.username);
                 let host = PendingConnectionRequest::chat_of_sender(&mut *txn, &user_id).await?;
                 if let Some(host) = host {
-                    connection_requests::settle_accepted(txn, host).await?;
+                    connection_requests::settle_accepted(txn, host, request_id, &user_id).await?;
                 }
 
                 chat.store(&mut *txn).await?;
@@ -257,8 +257,15 @@ impl CoreUser {
                 .await?;
 
                 if let Some(hash) = connection_offer_hash {
-                    Group::delete_connection_offer_psk(txn, hash)?;
+                    Group::delete_connection_offer_psk(&mut *txn, hash)?;
                 }
+                outgoing_requests::close_targeted_request_to(
+                    txn,
+                    self.signing_key(),
+                    &user_id,
+                    ds_timestamp,
+                )
+                .await?;
                 host
             }
         };

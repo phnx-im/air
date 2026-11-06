@@ -236,6 +236,7 @@
   "systemMessage_connectionRequestUnavailable": "此联系请求已不再可用。",
   "systemMessage_connectionRequestExpired": "联系请求已过期。",
   "systemMessage_sentConnectionRequestExpired": "你的联系请求已过期。如果你仍想添加此人为联系人，请向对方发送新的请求。",
+  "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} 已经是你的联系人。此请求已关闭。",
   "sentContactRequest_title": "你已发送联系请求",
   "sentContactRequest_titleWithName": "你已向 {displayName} 发送联系请求",
   "sentContactRequest_toUsername": "发送至用户名 {username}",
