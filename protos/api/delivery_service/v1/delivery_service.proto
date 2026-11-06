@@ -152,8 +152,9 @@ message CreateGroupPayload {
   // credential is taken from the creator's leaf.
   optional UserCredential creator_user_credential = 10;
   // Opaque blob, encrypted for the creator's sibling clients. Set when a
-  // virtual client creates the group, in which case the DS echoes it unread to
-  // all of the creating user's client queues.
+  // virtual client creates the group. The DS echoes every creation to all of
+  // the creating user's client queues, with this blob unread or, without it,
+  // as a bare receipt.
   optional bytes group_bootstrap = 11;
 }
 
@@ -247,8 +248,9 @@ message CreateApqGroupPayload {
   // credential is taken from the creator's leaf.
   optional UserCredential creator_user_credential = 8;
   // Opaque blob, encrypted for the creator's sibling clients. Set when a
-  // virtual client creates the group, in which case the DS echoes it unread to
-  // all of the creating user's client queues.
+  // virtual client creates the group. The DS echoes every creation to all of
+  // the creating user's client queues, with this blob unread or, without it,
+  // as a bare receipt.
   optional bytes group_bootstrap = 9;
 }
 
