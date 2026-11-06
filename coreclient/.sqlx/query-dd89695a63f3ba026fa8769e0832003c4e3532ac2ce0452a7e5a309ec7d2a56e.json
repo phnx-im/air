@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                c.chat_id AS \"chat_id: _\"\n            FROM chat c\n            INNER JOIN \"group\" g ON g.group_id = c.group_id\n            LEFT JOIN blocked_contact b ON b.user_uuid = c.connection_user_uuid\n                AND b.user_domain = c.connection_user_domain\n            WHERE c.status != ?1\n                AND b.user_uuid IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "chat_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "chat_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "dd89695a63f3ba026fa8769e0832003c4e3532ac2ce0452a7e5a309ec7d2a56e"
+}

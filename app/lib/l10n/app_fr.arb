@@ -3,6 +3,7 @@
   "languageName": "Français",
   "userSettingsScreen_title": "Profil et paramètres",
   "userSettingsScreen_profileDescription": "Votre nom d'affichage et votre photo de profil sont visibles pour vos contacts Air et les membres de vos groupes.",
+  "userSettingsScreen_error_updateProfile": "Impossible de mettre à jour le profil",
   "userSettingsScreen_userNamesDescription": "Partagez vos noms d'utilisateur avec les personnes avec qui vous voulez entrer en contact. Les noms d'utilisateur ne sont pas visibles par les autres, pas même par vos contacts Air. Vous pouvez avoir jusqu'à 5 noms d'utilisateur.",
   "userSettingsScreen_help": "Aide",
   "userSettingsScreen_deleteAccount": "Supprimer le compte Air",

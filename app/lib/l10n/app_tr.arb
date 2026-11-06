@@ -3,6 +3,7 @@
   "languageName": "Türkçe",
   "userSettingsScreen_title": "Profil ve ayarlar",
   "userSettingsScreen_profileDescription": "Profil adınız ve resminiz Air kişilerinize ve bulunduğunuz grupların üyelerine görünür.",
+  "userSettingsScreen_error_updateProfile": "Profil güncellenemedi",
   "userSettingsScreen_userNamesDescription": "Kullanıcı adlarınızı iletişime geçmek istediğiniz kişilerle paylaşın. Kullanıcı adlarınız Air kişileriniz dahil kimseye gösterilmez. En fazla 5 kullanıcı adınız olabilir.",
   "userSettingsScreen_help": "Yardım",
   "userSettingsScreen_deleteAccount": "Air hesabını sil",

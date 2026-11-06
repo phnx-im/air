@@ -13,13 +13,13 @@ import 'package:air/features/user/avatar.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
+import 'package:air/features/you/profile_actions.dart';
 import 'package:air/features/you/you_fade_tokens.dart';
 import 'package:air/features/you/you_menu.dart';
 import 'package:air/features/you/you_sections.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:image_picker/image_picker.dart';
 
 /// The profile tab on a phone: who you are, above the sections you can open.
 ///
@@ -126,7 +126,7 @@ class _Identity extends StatelessWidget {
         UserAvatar(
           profile: profile,
           size: S.s160,
-          onPressed: () => _pickAvatar(context),
+          onPressed: () => pickOwnProfilePicture(context.read<UserCubit>()),
         ),
         const SizedBox(height: S.s12),
         Text(
@@ -140,22 +140,6 @@ class _Identity extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  void _pickAvatar(BuildContext context) async {
-    final user = context.read<UserCubit>();
-
-    final ImagePicker picker = ImagePicker();
-    // Reduce image quality to re-encode the image.
-    final XFile? image = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 99,
-    );
-    final bytes = await image?.readAsBytes();
-
-    if (bytes != null) {
-      await user.setProfile(profilePicture: bytes);
-    }
   }
 }
 

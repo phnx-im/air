@@ -3,6 +3,7 @@
   "languageName": "Ελληνικά",
   "userSettingsScreen_title": "Προφίλ και ρυθμίσεις",
   "userSettingsScreen_profileDescription": "Το εμφανιζόμενο όνομα και η εικόνα προφίλ σας είναι ορατά στις επαφές Air σας και στα μέλη των ομάδων στις οποίες συμμετέχετε.",
+  "userSettingsScreen_error_updateProfile": "Η ενημέρωση του προφίλ απέτυχε",
   "userSettingsScreen_userNamesDescription": "Μοιραστείτε τα ονόματα χρήστη σας με όποιον θέλετε να έρθει σε επαφή μαζί σας. Τα ονόματα χρήστη δεν είναι ορατά στους άλλους, ούτε καν στις επαφές Air σας. Μπορείτε να έχετε έως 5 ονόματα χρήστη.",
   "userSettingsScreen_help": "Βοήθεια",
   "userSettingsScreen_deleteAccount": "Διαγραφή λογαριασμού Air",

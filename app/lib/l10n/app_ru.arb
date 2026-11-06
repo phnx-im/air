@@ -3,6 +3,7 @@
   "languageName": "Русский",
   "userSettingsScreen_title": "Профиль и настройки",
   "userSettingsScreen_profileDescription": "Ваше отображаемое имя и фото профиля видны вашим контактам Air и участникам ваших групп.",
+  "userSettingsScreen_error_updateProfile": "Не удалось обновить профиль",
   "userSettingsScreen_userNamesDescription": "Делитесь именами пользователя с теми, с кем хотите связаться. Имена пользователя не видны другим, даже вашим контактам Air. У вас может быть до 5 имён пользователя.",
   "userSettingsScreen_help": "Помощь",
   "userSettingsScreen_deleteAccount": "Удалить аккаунт Air",

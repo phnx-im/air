@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use airapiclient::{ApiClient, ClassifyRequestError, RequestErrorKind};
 use aircommon::{
     crypto::indexed_aead::{ciphertexts::IndexEncryptable, keys::UserProfileKey},
     messages::client_ds::UserProfileKeyUpdateParams,
@@ -10,9 +11,9 @@ use anyhow::Context;
 use tracing::warn;
 
 use crate::{
-    Chat, ChatId,
-    clients::{block_contact::BlockedContact, own_client_info::OwnClientInfo},
-    groups::Group,
+    Chat,
+    clients::own_client_info::OwnClientInfo,
+    groups::{Group, handle_group_gone_on_ds},
     key_stores::indexed_keys::StorableIndexedKey,
     user_profiles::{IndexedUserProfile, UserProfile, update::UserProfileUpdate},
 };
@@ -64,51 +65,65 @@ impl CoreUser {
             .await?;
 
         // Phase 4: Send a notification to all groups
-        let own_user_id = self.user_id();
-        let mut connection = self.db().read().await?;
-
-        let groups_ids = Group::load_all_group_ids(&mut connection).await?;
-        let mut chat_ids = Chat::load_ordered_ids(&mut connection).await?;
-        chat_ids.sort_unstable();
-
-        for group_id in groups_ids {
-            let chat_id = ChatId::try_from(&group_id).context("invalid group id")?;
-
-            if chat_ids.binary_search(&chat_id).is_err() {
-                warn!(%chat_id, "Group has no chat");
-                continue; // Skip groups without a chat
-            }
-
-            if BlockedContact::check_blocked_chat(&mut connection, chat_id).await? {
-                continue; // Skip blocked chats
-            }
-
-            let group = Group::load_ref(&mut connection, &group_id)
-                .await?
-                .context("Failed to load group")?;
-
-            let own_index = group.own_index;
-            let user_profile_key =
-                user_profile_key.encrypt(&group.identity_link_wrapper_key, own_user_id)?;
-            let signer =
-                OwnClientInfo::signer_for_group(&mut connection, &group_id, self.signing_key())
-                    .await?;
-            let params = UserProfileKeyUpdateParams {
-                group_id,
-                sender_index: own_index,
-                user_profile_key: user_profile_key.clone(),
-            };
-
-            api_client
-                .ds_user_profile_key_update(params, &signer, &group.group_state_ear_key)
-                .await?;
-        }
+        self.send_user_profile_key_to_groups(&api_client, &user_profile_key)
+            .await?;
 
         // Phase 5: Merge the user profile on the server
         api_client
             .as_merge_user_profile(self.user_id().clone(), &self.inner.key_store.signing_key)
             .await?;
 
+        Ok(())
+    }
+
+    /// Sends the new user profile key to the groups of all chats, except
+    /// inactive and blocked ones.
+    async fn send_user_profile_key_to_groups(
+        &self,
+        api_client: &ApiClient,
+        user_profile_key: &UserProfileKey,
+    ) -> anyhow::Result<()> {
+        let own_user_id = self.user_id();
+        let chat_ids = Chat::load_ids_for_profile_update(self.db().read().await?).await?;
+
+        for chat_id in chat_ids {
+            let group = Group::load_ref_with_chat_id(self.db().read().await?, chat_id)
+                .await?
+                .context("Failed to load group")?;
+            let signer = OwnClientInfo::signer_for_group(
+                self.db().read().await?,
+                &group.group_id,
+                self.signing_key(),
+            )
+            .await?;
+
+            let user_profile_key =
+                user_profile_key.encrypt(&group.identity_link_wrapper_key, own_user_id)?;
+            let params = UserProfileKeyUpdateParams {
+                group_id: group.group_id.clone(),
+                sender_index: group.own_index,
+                user_profile_key,
+            };
+
+            match api_client
+                .ds_user_profile_key_update(params, &signer, &group.group_state_ear_key)
+                .await
+            {
+                Ok(()) => {}
+                Err(error) if error.is_not_found() => {
+                    warn!(%chat_id, %error, "Group gone on DS, skipping profile key update");
+                    self.db()
+                        .with_write_transaction(async |txn| {
+                            handle_group_gone_on_ds(txn, &group.group_id, &error).await
+                        })
+                        .await?;
+                }
+                Err(error) if matches!(error.kind(), RequestErrorKind::Rejected) => {
+                    warn!(%chat_id, %error, "DS rejected profile key update, skipping group");
+                }
+                Err(error) => return Err(error.into()),
+            }
+        }
         Ok(())
     }
 }
