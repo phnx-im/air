@@ -2406,7 +2406,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
             .ds
             .provision_object(
                 payload.object_type.try_into().unwrap_or_default(),
-                Some(content_length),
+                content_length,
                 payload.use_post_policy,
             )
             .await?;

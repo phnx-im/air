@@ -166,9 +166,6 @@ pub struct StorageSettings {
     /// Enables attachment provisioning for uploads via POST policy
     #[serde(default)]
     pub use_post_policy: bool,
-    /// Requires content length to be present when provisioning an attachment
-    #[serde(default = "default_require_content_length")]
-    pub require_content_length: bool,
     /// Path prefixes in the bucket for different storage object types
     #[serde(default)]
     pub storage_paths: StoragePaths,
@@ -588,10 +585,6 @@ mod duration_millis {
         let millis: u64 = serde::Deserialize::deserialize(d)?;
         Ok(Duration::from_millis(millis))
     }
-}
-
-fn default_require_content_length() -> bool {
-    true
 }
 
 #[cfg(test)]
