@@ -110,7 +110,6 @@ async fn oversized_connection_package_uploads_are_rejected() {
             payload: Some(PublishConnectionPackagesPayload {
                 client_metadata: None,
                 hash: Some(UsernameHash { bytes: vec![1; 32] }),
-                connection_packages: Vec::new(),
                 signed_connection_packages: vec![
                     SignedConnectionPackage {
                         payload: vec![0; MAX_CONNECTION_PACKAGE_BYTES + 1],

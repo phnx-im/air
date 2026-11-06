@@ -381,7 +381,6 @@ impl ApiClient {
         let payload = PublishConnectionPackagesPayload {
             client_metadata: Some(self.metadata().clone()),
             hash: Some(hash.into()),
-            connection_packages: Vec::new(),
             signed_connection_packages,
         };
         let request = payload.sign(signing_key)?;

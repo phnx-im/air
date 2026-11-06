@@ -1278,7 +1278,6 @@ mod tests {
                     payload: Some(PublishConnectionPackagesPayload {
                         client_metadata: None,
                         hash: Some(UsernameHash { bytes: vec![1; 32] }),
-                        connection_packages: Vec::new(),
                         signed_connection_packages: packages,
                     }),
                     signature: None,

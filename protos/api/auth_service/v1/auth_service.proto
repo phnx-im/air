@@ -321,10 +321,10 @@ message PublishConnectionPackagesRequest {
 }
 
 message PublishConnectionPackagesPayload {
+  // 2 was the legacy connection_packages field.
+  reserved 2;
   common.v1.ClientMetadata client_metadata = 4;
   UsernameHash hash = 3;
-  // Legacy packages, ignored by the server.
-  repeated ConnectionPackage connection_packages = 2;
   repeated SignedConnectionPackage signed_connection_packages = 5;
 }
 
