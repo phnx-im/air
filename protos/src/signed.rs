@@ -61,22 +61,6 @@ impl<T, const TAG: u32> SignedRequest<T, TAG> {
     }
 }
 
-impl<T> SignedRequest<T> {
-    /// Wraps a request that arrived nested in another message, such as a
-    /// stream step. Prost does not keep the wire bytes of nested messages, so
-    /// the payload is verified against its re-encoding. A payload field the
-    /// receiver does not know is dropped and breaks the signature.
-    ///
-    /// Returns `None` when the request has no payload.
-    pub fn from_nested<P: Message>(
-        request: T,
-        payload: impl FnOnce(&T) -> Option<&P>,
-    ) -> Option<Self> {
-        let payload_bytes = payload(&request)?.encode_to_vec();
-        Some(Self::new(request, payload_bytes.into()))
-    }
-}
-
 impl<T, const TAG: u32> Message for SignedRequest<T, TAG>
 where
     T: Message,
@@ -110,6 +94,95 @@ where
                 return Err(duplicate_payload_error());
             }
             self.payload_bytes = Some(payload_bytes);
+        }
+        self.request.merge(raw)?;
+        Ok(())
+    }
+
+    fn clear(&mut self) {
+        self.request.clear();
+        self.payload_bytes = None;
+    }
+}
+
+/// A wrapper around a message whose field `REQUEST_TAG` is a signed request.
+///
+/// During decoding it captures the wire bytes of field `PAYLOAD_TAG` inside
+/// field `REQUEST_TAG`, rejecting a duplicate of either field. The bytes are
+/// `None` when the message has no nested request or the nested request has no
+/// payload.
+///
+/// When `REQUEST_TAG` is a oneof variant and the message carries it together
+/// with another variant, prost keeps the last one. So the captured bytes belong
+/// to the decoded message only if its variant is the nested request.
+#[derive(Default)]
+pub struct SignedNestedRequest<T, const REQUEST_TAG: u32, const PAYLOAD_TAG: u32> {
+    request: T,
+    payload_bytes: Option<Bytes>,
+}
+
+impl<T: fmt::Debug, const REQUEST_TAG: u32, const PAYLOAD_TAG: u32> fmt::Debug
+    for SignedNestedRequest<T, REQUEST_TAG, PAYLOAD_TAG>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SignedNestedRequest")
+            .field("request", &self.request)
+            .field(
+                "payload_bytes",
+                &self.payload_bytes.as_ref().map(|b| b.len()),
+            )
+            .finish()
+    }
+}
+
+impl<T, const REQUEST_TAG: u32, const PAYLOAD_TAG: u32>
+    SignedNestedRequest<T, REQUEST_TAG, PAYLOAD_TAG>
+{
+    pub fn inner(&self) -> &T {
+        &self.request
+    }
+
+    pub fn into_inner(self) -> T {
+        self.request
+    }
+
+    /// Returns the message and the captured payload bytes of its nested request.
+    pub fn into_parts(self) -> (T, Option<Bytes>) {
+        (self.request, self.payload_bytes)
+    }
+}
+
+impl<T, const REQUEST_TAG: u32, const PAYLOAD_TAG: u32> Message
+    for SignedNestedRequest<T, REQUEST_TAG, PAYLOAD_TAG>
+where
+    T: Message,
+{
+    fn encode_raw(&self, buf: &mut impl BufMut) {
+        self.request.encode_raw(buf)
+    }
+
+    fn encoded_len(&self) -> usize {
+        self.request.encoded_len()
+    }
+
+    fn merge_field(
+        &mut self,
+        tag: u32,
+        wire_type: WireType,
+        buf: &mut impl prost::bytes::Buf,
+        ctx: DecodeContext,
+    ) -> Result<(), prost::DecodeError> {
+        self.request.merge_field(tag, wire_type, buf, ctx)
+    }
+
+    fn merge(&mut self, mut buf: impl Buf) -> Result<(), DecodeError> {
+        let raw = buf.copy_to_bytes(buf.remaining());
+        if let Some(request_bytes) = extract_field(&raw, REQUEST_TAG)? {
+            // A repeated `merge` carrying a second nested request is rejected like a duplicate.
+            if self.payload_bytes.is_some() {
+                return Err(duplicate_payload_error());
+            }
+            self.payload_bytes = extract_field(&request_bytes, PAYLOAD_TAG)?;
         }
         self.request.merge(raw)?;
         Ok(())
@@ -337,6 +410,15 @@ mod tests {
         payload: Option<TestPayload>,
     }
 
+    /// Message with a nested signed request at tag 1
+    #[derive(Clone, PartialEq, Message)]
+    struct TestOuterRequest {
+        #[prost(message, optional, tag = "1")]
+        request: Option<TestRequest>,
+        #[prost(message, optional, tag = "2")]
+        other: Option<TestPayload>,
+    }
+
     impl VerifiableRequest for TestRequest {
         fn signature(&self) -> Option<&common::v1::Signature> {
             None
@@ -460,25 +542,75 @@ mod tests {
     }
 
     #[test]
-    fn from_nested_captures_re_encoded_payload() {
-        let request = TestRequest {
-            payload: Some(payload()),
-        };
-        let signed =
-            SignedRequest::from_nested(request, |request| request.payload.as_ref()).unwrap();
-        assert_eq!(
-            signed.unsigned_payload().unwrap(),
-            payload().encode_to_vec()
-        );
-
-        let request = TestRequest { payload: None };
-        assert!(SignedRequest::from_nested(request, |request| request.payload.as_ref()).is_none());
-    }
-
-    #[test]
     fn new_captures_supplied_payload_bytes() {
         let signed =
             SignedRequest::<TestRequest>::new(TestRequest { payload: None }, vec![1, 2, 3].into());
         assert_eq!(signed.unsigned_payload().unwrap(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn signed_nested_request_captures_nested_payload_verbatim() {
+        // An unknown field in the payload is dropped by a re-encoding.
+        let mut payload_bytes = payload().encode_to_vec();
+        encode_key(9, WireType::Varint, &mut payload_bytes);
+        encode_varint(42, &mut payload_bytes);
+        let mut request_bytes = Vec::new();
+        push_len_delimited_field(&mut request_bytes, 1, &payload_bytes);
+        let mut item_bytes = Vec::new();
+        push_len_delimited_field(&mut item_bytes, 1, &request_bytes);
+
+        let signed =
+            <SignedNestedRequest<TestOuterRequest, 1, 1>>::decode(item_bytes.as_slice()).unwrap();
+        let (item, captured) = signed.into_parts();
+        let decoded_payload = item.request.unwrap().payload.unwrap();
+        assert_eq!(decoded_payload, payload());
+        assert_eq!(captured.as_deref(), Some(payload_bytes.as_slice()));
+        assert_ne!(captured.unwrap().to_vec(), decoded_payload.encode_to_vec());
+    }
+
+    #[test]
+    fn signed_nested_request_without_nested_request_captures_nothing() {
+        let other = TestOuterRequest {
+            request: None,
+            other: Some(payload()),
+        }
+        .encode_to_vec();
+        let signed =
+            <SignedNestedRequest<TestOuterRequest, 1, 1>>::decode(other.as_slice()).unwrap();
+        assert_eq!(signed.into_parts().1, None);
+
+        let no_payload = TestOuterRequest {
+            request: Some(TestRequest { payload: None }),
+            other: None,
+        }
+        .encode_to_vec();
+        let signed =
+            <SignedNestedRequest<TestOuterRequest, 1, 1>>::decode(no_payload.as_slice()).unwrap();
+        assert_eq!(signed.into_parts().1, None);
+    }
+
+    #[test]
+    fn signed_nested_request_rejects_duplicate_request_field() {
+        let request_bytes = TestRequest {
+            payload: Some(payload()),
+        }
+        .encode_to_vec();
+        let mut buf = Vec::new();
+        push_len_delimited_field(&mut buf, 1, &request_bytes);
+        push_len_delimited_field(&mut buf, 1, &request_bytes);
+
+        assert!(<SignedNestedRequest<TestOuterRequest, 1, 1>>::decode(buf.as_slice()).is_err());
+    }
+
+    #[test]
+    fn signed_nested_request_rejects_duplicate_payload_field() {
+        let payload_bytes = payload().encode_to_vec();
+        let mut request_bytes = Vec::new();
+        push_len_delimited_field(&mut request_bytes, 1, &payload_bytes);
+        push_len_delimited_field(&mut request_bytes, 1, &payload_bytes);
+        let mut buf = Vec::new();
+        push_len_delimited_field(&mut buf, 1, &request_bytes);
+
+        assert!(<SignedNestedRequest<TestOuterRequest, 1, 1>>::decode(buf.as_slice()).is_err());
     }
 }
