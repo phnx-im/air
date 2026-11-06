@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-FROM lukemathwalker/cargo-chef:latest-rust-latest AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.97.1-trixie AS chef
 WORKDIR /app
 
 FROM chef AS planner
@@ -20,7 +20,7 @@ ENV SQLX_OFFLINE=true
 
 RUN cargo build --release --bin airserver
 
-FROM debian:bookworm-slim AS runtime
+FROM debian:trixie-slim AS runtime
 
 RUN apt-get update -y \
     && apt-get install -y --no-install-recommends openssl ca-certificates \
