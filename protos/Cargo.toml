@@ -19,6 +19,7 @@ derive_more.workspace = true
 displaydoc.workspace = true
 mimi-room-policy.workspace = true
 mimi_content.workspace = true
+minicbor-serde.workspace = true
 mls-assist.workspace = true
 num_enum.workspace = true
 openmls.workspace = true
