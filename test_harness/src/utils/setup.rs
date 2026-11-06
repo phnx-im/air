@@ -219,8 +219,6 @@ pub struct TestBackendParams {
     pub registration: RegistrationSettings,
     pub unredeemable_code: Option<String>,
     pub max_attachment_size: u64,
-    /// Provisions uploads as POST policies for clients that accept them.
-    pub use_post_policy: bool,
     /// Overrides the configured device limit.
     pub max_devices: Option<u32>,
     pub ds: DsSettings,
@@ -250,7 +248,6 @@ impl Default for TestBackendParams {
             },
             unredeemable_code: None,
             max_attachment_size: DEFAULT_MAX_ATTACHMENT_SIZE,
-            use_post_policy: false,
             max_devices: None,
             ds: DsSettings::default(),
         }

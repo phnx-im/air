@@ -39,7 +39,7 @@ openmls_traits.workspace = true
 pin-project.workspace = true
 privacypass.workspace = true
 rand.workspace = true                                              # TODO: Replace this with a CSPRNG
-reqwest = { workspace = true, features = ["stream", "multipart"] }
+reqwest = { workspace = true, features = ["stream"] }
 serde.workspace = true
 serde_bytes.workspace = true
 serde_json.workspace = true
