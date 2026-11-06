@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE resync_queue\n                SET baseline_t_epoch = ?2, baseline_pq_epoch = ?3\n                WHERE group_id = ?1 AND baseline_t_epoch IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "1132647e57c624a00bc219f5a39cf5fc35d06cc2565731cbf2364ddd46ea5b09"
+}

@@ -19,6 +19,15 @@ pub(crate) struct GroupClosed {
     pub(crate) tombstone: GroupTombstone,
 }
 
+/// The room state of a group doesn't list exactly the group's members.
+#[derive(Debug, Error)]
+pub(crate) enum RoomStateMismatch {
+    #[error("room state lists users which are not group members")]
+    NonMembers,
+    #[error("room state is missing group members")]
+    MissingMembers,
+}
+
 #[derive(Error, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum GroupOperationError {

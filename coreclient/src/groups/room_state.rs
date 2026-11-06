@@ -9,12 +9,12 @@ use aircommon::{
     identifiers::UserId,
     utils::removed_client,
 };
-use anyhow::{Result, ensure};
+use anyhow::{Result, bail, ensure};
 use mimi_room_policy::{MimiProposal, RoleIndex, VerifiedRoomState};
 use openmls::prelude::{LeafNodeIndex, MlsGroup, Proposal, QueuedProposal, Sender, StagedCommit};
 use tracing::warn;
 
-use crate::groups::Group;
+use crate::groups::{Group, RoomStateMismatch};
 
 impl Group {
     /// Returns a list of (remover, removed) UserId pairs for pending remove proposals.
@@ -239,14 +239,12 @@ pub(super) fn ensure_room_state_matches_members(
 ) -> anyhow::Result<()> {
     let members = member_identities(mls_group)?;
     let users: HashSet<_> = room_state.users().keys().cloned().collect();
-    ensure!(
-        users.is_subset(&members),
-        "room state lists users which are not group members"
-    );
-    ensure!(
-        members.is_subset(&users),
-        "room state is missing group members"
-    );
+    if !users.is_subset(&members) {
+        bail!(RoomStateMismatch::NonMembers);
+    }
+    if !members.is_subset(&users) {
+        bail!(RoomStateMismatch::MissingMembers);
+    }
     Ok(())
 }
 

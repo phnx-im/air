@@ -104,7 +104,7 @@ pub struct SpawnedApp {
 }
 
 impl SpawnedApp {
-    pub(crate) fn qs_database_url(&self) -> String {
+    pub(crate) fn database_url(&self) -> String {
         let mut db_settings = self.db_settings.clone();
         db_settings.name = self.db_name.to_string();
         db_settings.connection_string()

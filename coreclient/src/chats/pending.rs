@@ -455,15 +455,14 @@ impl CoreUser {
         );
 
         let signer = LeafSigningKey::User(self.signing_key().clone());
-        let result = resync
-            .create_and_send_commit_with_info(
-                self.db().write().await?,
-                self.api_clients(),
-                &signer,
-                self.user_id(),
-                eci,
-            )
-            .await;
+        let result = Box::pin(resync.create_and_send_commit_with_info(
+            self.db().write().await?,
+            self.api_clients(),
+            &signer,
+            self.user_id(),
+            eci,
+        ))
+        .await;
         let profile_infos = match result {
             Ok(Some((_, profile_infos))) => profile_infos,
             Ok(None) => bail!("Not a member of the connection group"),
