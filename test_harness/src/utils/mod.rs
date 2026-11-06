@@ -158,6 +158,7 @@ pub(crate) async fn spawn_app(
         max_attachment_size,
         use_post_policy,
         max_devices,
+        ds: ds_settings,
     } = params;
 
     // Load configuration
@@ -249,6 +250,7 @@ pub(crate) async fn spawn_app(
     storage_config.max_attachment_size = max_attachment_size;
     storage_config.use_post_policy = use_post_policy;
     ds.set_storage(Storage::new(storage_config));
+    ds.set_settings(ds_settings);
 
     let as_connector = SimpleAsConnector::new(&auth_service);
 
