@@ -13,11 +13,16 @@
 //! commit, and they erase the chat when they process it. The deletion also
 //! travels through the self-group, for a sibling that cannot process the
 //! commit.
+//!
+//! A request that went to someone who is a contact already ends with a record
+//! of that. The recipient closes a request via a username, see
+//! [`connection_requests`]. We close our own request through a group chat once
+//! its recipient becomes a contact.
 
 use std::collections::HashSet;
 
 use aircommon::{
-    credentials::UserCredential,
+    credentials::{UserCredential, keys::UserSigningKey},
     crypto::{
         aead::{AeadDecryptable, keys::FriendshipPackageEarKey},
         indexed_aead::keys::UserProfileKey,
@@ -29,6 +34,7 @@ use aircommon::{
     },
     time::TimeStamp,
 };
+use airprotos::client::component::{GroupTombstone, TombstoneContext};
 use anyhow::{Context, bail, ensure};
 use openmls::{
     group::GroupId,
@@ -36,6 +42,7 @@ use openmls::{
 };
 use serde::{Deserialize, Serialize};
 use tls_codec::{DeserializeBytes, Serialize as _, VLBytes};
+use tracing::warn;
 
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, ChatType, SystemMessage,
@@ -44,6 +51,7 @@ use crate::{
     contacts::{PartialContact, PartialContactType, TargetedMessageContact, UsernameContact},
     db::access::{ReadDbTransaction, WriteDbTransaction},
     groups::{Group, client_auth_info::StorableUserCredential},
+    job::pending_chat_operation::PendingChatOperation,
 };
 
 /// An outgoing connection request.
@@ -193,10 +201,103 @@ impl OutgoingRequest {
 /// `at`, and frees its username or user for a new request.
 ///
 /// Does nothing if the chat is no outgoing request or was closed before, which
-/// its expiry record shows. Returns whether the request was closed.
+/// its last record shows. Returns whether the request was closed.
 pub(crate) async fn close_expired(
     txn: &mut WriteDbTransaction<'_>,
     chat: &mut Chat,
+    at: TimeStamp,
+) -> anyhow::Result<bool> {
+    close(txn, chat, SystemMessage::SentConnectionRequestExpired, at).await
+}
+
+/// Closes our open targeted request to `user_id`, who just became a contact
+/// through another chat. The parked deletion of its group tells our other
+/// devices.
+pub(crate) async fn close_targeted_request_to(
+    txn: &mut WriteDbTransaction<'_>,
+    signer: &UserSigningKey,
+    user_id: &UserId,
+    at: TimeStamp,
+) -> anyhow::Result<()> {
+    let Some(request) = TargetedMessageContact::load(&mut *txn, user_id).await? else {
+        return Ok(());
+    };
+    let Some(mut chat) = Chat::load(&mut *txn, &request.chat_id).await? else {
+        return Ok(());
+    };
+    let record = SystemMessage::SentConnectionRequestAlreadyConnected {
+        contact: user_id.clone(),
+    };
+    if close(txn, &mut chat, record, at).await? {
+        let tombstone = GroupTombstone::already_connected(TimeStamp::now());
+        park_group_delete(txn, signer, chat.id(), tombstone).await?;
+    }
+    Ok(())
+}
+
+/// Parks the deletion of the group of the closed outgoing request `chat_id`
+/// for the outbound service. A late accept then finds the group gone.
+///
+/// Nothing is parked while another operation of the group is pending.
+pub(crate) async fn park_group_delete(
+    txn: &mut WriteDbTransaction<'_>,
+    signer: &UserSigningKey,
+    chat_id: ChatId,
+    tombstone: GroupTombstone,
+) -> anyhow::Result<()> {
+    if PendingChatOperation::is_pending_for_chat(&mut *txn, chat_id).await? {
+        return Ok(());
+    }
+    // We only log a failure. Returning it would roll back the caller's
+    // transaction, and a failure that repeats would block it for good. The
+    // request is closed either way. Only its group stays on the DS.
+    let created = PendingChatOperation::create_delete(txn, signer, chat_id, Some(tombstone)).await;
+    if let Err(error) = created {
+        warn!(%error, %chat_id, "Could not park deleting the group of a closed request");
+    }
+    Ok(())
+}
+
+/// Ends the outgoing request `chat` with a record that names the contact, if
+/// `tombstone` is `AlreadyConnected`. Returns whether it did.
+///
+/// For a username request, the contact is `closer`. For a targeted request,
+/// the contact is the recipient. Either way, it must be a connected contact.
+pub(crate) async fn close_if_already_connected(
+    txn: &mut WriteDbTransaction<'_>,
+    chat: &mut Chat,
+    tombstone: Option<&GroupTombstone>,
+    closer: &UserId,
+    at: TimeStamp,
+) -> anyhow::Result<bool> {
+    let Some(GroupTombstone {
+        context: TombstoneContext::AlreadyConnected,
+        ..
+    }) = tombstone
+    else {
+        return Ok(false);
+    };
+    let contact = match chat.chat_type() {
+        ChatType::HandleConnection(_) => closer.clone(),
+        ChatType::TargetedMessageConnection(recipient) => recipient.clone(),
+        ChatType::Group(_) | ChatType::Connection(_) | ChatType::PendingConnection(_) => {
+            return Ok(false);
+        }
+    };
+    if !connection_requests::is_connected_contact(&mut *txn, &contact).await? {
+        return Ok(false);
+    }
+    let record = SystemMessage::SentConnectionRequestAlreadyConnected { contact };
+    close(txn, chat, record, at).await?;
+    Ok(true)
+}
+
+/// Ends the outgoing request `chat` stands for with `record` at `at`. See
+/// [`close_expired`].
+async fn close(
+    txn: &mut WriteDbTransaction<'_>,
+    chat: &mut Chat,
+    record: SystemMessage,
     at: TimeStamp,
 ) -> anyhow::Result<bool> {
     let contact = match chat.chat_type() {
@@ -213,7 +314,7 @@ pub(crate) async fn close_expired(
             return Ok(false);
         }
     };
-    if request_expiry::is_expired_record(&mut *txn, chat).await? {
+    if shows_end_record(&mut *txn, chat).await? {
         return Ok(false);
     }
     if !matches!(chat.status(), ChatStatus::Inactive(_)) {
@@ -227,10 +328,21 @@ pub(crate) async fn close_expired(
         }
         contact.delete(&mut *txn).await?;
     }
-    let record =
-        TimestampedMessage::system_message(SystemMessage::SentConnectionRequestExpired, at);
+    let record = TimestampedMessage::system_message(record, at);
     CoreUser::store_new_messages(txn, chat.id(), vec![record]).await?;
     Ok(true)
+}
+
+/// Whether the last message of `chat` records how its outgoing request ended.
+async fn shows_end_record(txn: &mut WriteDbTransaction<'_>, chat: &Chat) -> sqlx::Result<bool> {
+    let last = ChatMessage::last_system_message(&mut *txn, chat.id()).await?;
+    Ok(matches!(
+        last,
+        Some(
+            SystemMessage::SentConnectionRequestExpired
+                | SystemMessage::SentConnectionRequestAlreadyConnected { .. }
+        )
+    ))
 }
 
 /// Confirms the outgoing request `chat` stands for, now that `recipient` joined
@@ -368,7 +480,12 @@ pub(crate) fn join_friendship_package(
 
     match AadMessage::tls_deserialize_exact_bytes(aad.as_slice())?.into_payload() {
         AadPayload::JoinConnectionGroup(payload) => Ok(Some(payload.encrypted_friendship_package)),
-        AadPayload::GroupOperation(_) | AadPayload::Resync | AadPayload::DeleteGroup => Ok(None),
+        // The joiner of a close deletes the group in the same DS call. There
+        // is nothing to confirm.
+        AadPayload::GroupOperation(_)
+        | AadPayload::Resync
+        | AadPayload::DeleteGroup
+        | AadPayload::CloseConnectionGroup(_) => Ok(None),
     }
 }
 

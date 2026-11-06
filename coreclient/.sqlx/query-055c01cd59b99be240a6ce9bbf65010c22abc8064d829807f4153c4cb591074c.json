@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO closing_connection_request (\n                    request_id,\n                    sender_user_uuid,\n                    sender_user_domain,\n                    connection_info,\n                    connection_offer_hash,\n                    created_at\n                )\n                VALUES (?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "055c01cd59b99be240a6ce9bbf65010c22abc8064d829807f4153c4cb591074c"
+}

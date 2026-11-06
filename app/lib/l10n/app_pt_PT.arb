@@ -248,6 +248,7 @@
   "systemMessage_connectionRequestUnavailable": "O pedido de contacto já não está disponível.",
   "systemMessage_connectionRequestExpired": "O pedido de contacto expirou.",
   "systemMessage_sentConnectionRequestExpired": "O teu pedido de contacto expirou. Se ainda quiseres adicionar esta pessoa como contacto, envia-lhe um novo pedido.",
+  "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} já é teu contacto. Este pedido foi encerrado.",
   "sentContactRequest_title": "Enviaste um pedido de contacto",
   "sentContactRequest_titleWithName": "Enviaste um pedido de contacto a {displayName}",
   "sentContactRequest_toUsername": "para o nome de utilizador {username}",

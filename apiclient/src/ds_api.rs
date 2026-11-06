@@ -35,11 +35,12 @@ use airprotos::{
     },
     convert::{RefInto, TryRefInto},
     delivery_service::v1::{
-        AddUsersInfo, ApqAddUsersInfo, ApqAssistedMlsMessage, ApqDeleteGroupPayload,
-        ApqGroupOperationPayload, ApqJoinConnectionGroupRequest, ApqResyncPayload,
-        ApqSelfRemovePayload, ConnectionGroupInfoRequest, CreateApqGroupPayload,
-        CreateGroupPayload, CreateGroupV2PreparePayload, CreateGroupV2Request,
-        CreateGroupV2Response, DeleteGroupPayload, EpochSnapshotRequest, ExternalCommitInfoRequest,
+        AddUsersInfo, ApqAddUsersInfo, ApqAssistedMlsMessage, ApqCloseConnectionGroupRequest,
+        ApqDeleteGroupPayload, ApqGroupOperationPayload, ApqJoinConnectionGroupRequest,
+        ApqResyncPayload, ApqSelfRemovePayload, CloseConnectionGroupRequest,
+        ConnectionGroupInfoRequest, CreateApqGroupPayload, CreateGroupPayload,
+        CreateGroupV2PreparePayload, CreateGroupV2Request, CreateGroupV2Response,
+        DeleteGroupPayload, EpochSnapshotRequest, ExternalCommitInfoRequest,
         GetAttachmentUrlPayload, GroupInfo, GroupOperationPayload, GroupSessionData,
         IndexedEncryptedUserProfileKey, JoinConnectionGroupRequest, MlsMessage,
         ProvisionAttachmentPayload, RatchetTree, RequestGroupIdRequest, ResyncPayload,
@@ -793,7 +794,7 @@ impl ApiClient {
         // the joiner's sibling clients.
         group_bootstrap: Option<Vec<u8>>,
     ) -> Result<TimeStamp, DsRequestError> {
-        let external_commit = apq_external_commit_message(external_commit_bundle)?;
+        let external_commit = apq_commit_message(external_commit_bundle)?;
         let request = ApqJoinConnectionGroupRequest {
             client_metadata: Some(self.metadata().clone()),
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
@@ -804,6 +805,59 @@ impl ApiClient {
         let response = self
             .ds_grpc_client()
             .apq_join_connection_group(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
+    }
+
+    /// Join the connection group of a request and delete it at once, since its
+    /// sender is a contact already. Returns the time of the delete.
+    pub async fn ds_close_connection_group(
+        &self,
+        external_commit: AssistedMessageOut,
+        delete: DeleteGroupParamsOut,
+        qs_client_reference: QsReference,
+        group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<TimeStamp, DsRequestError> {
+        let request = CloseConnectionGroupRequest {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            external_commit: Some(external_commit.try_ref_into()?),
+            delete_commit: Some(delete.commit.try_ref_into()?),
+            qs_client_reference: Some(qs_client_reference.into()),
+        };
+        let response = self
+            .ds_grpc_client()
+            .close_connection_group(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
+    }
+
+    /// The APQ variant of [`Self::ds_close_connection_group`].
+    pub async fn ds_apq_close_connection_group(
+        &self,
+        external_commit_bundle: ApqCommitMessageBundle,
+        delete_bundle: ApqCommitMessageBundle,
+        qs_client_reference: QsReference,
+        group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<TimeStamp, DsRequestError> {
+        let request = ApqCloseConnectionGroupRequest {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            external_commit: Some(apq_commit_message(external_commit_bundle)?),
+            delete_commit: Some(apq_commit_message(delete_bundle)?),
+            qs_client_reference: Some(qs_client_reference.into()),
+        };
+        let response = self
+            .ds_grpc_client()
+            .apq_close_connection_group(request)
             .await?
             .into_inner();
         Ok(response
@@ -844,7 +898,7 @@ impl ApiClient {
         group_state_ear_key: &GroupStateEarKey,
         own_leaf_index: LeafNodeIndex,
     ) -> Result<TimeStamp, DsRequestError> {
-        let external_commit = apq_external_commit_message(external_commit_bundle)?;
+        let external_commit = apq_commit_message(external_commit_bundle)?;
         let payload = ApqResyncPayload {
             client_metadata: Some(self.metadata().clone()),
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
@@ -1034,28 +1088,10 @@ impl ApiClient {
         signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
-        let ApqCommitMessageBundle {
-            commit,
-            welcome,
-            group_info,
-        } = delete_bundle;
-        if welcome.is_some() {
-            error!("Unexpected welcome message in APQ delete group request");
-            return Err(DsRequestError::LibraryError);
-        }
-        let (t_commit, pq_commit) = commit.split();
-        let (t_group_info, pq_group_info) = group_info
-            .map(apqmls::messages::ApqMlsMessageOut::from)
-            .map(|msg| msg.split())
-            .unzip();
-        let commit = ApqAssistedMlsMessage {
-            t_message: Some(AssistedMessageOut::new(t_commit, t_group_info).try_ref_into()?),
-            pq_message: Some(AssistedMessageOut::new(pq_commit, pq_group_info).try_ref_into()?),
-        };
         let payload = ApqDeleteGroupPayload {
             client_metadata: Some(self.metadata().clone()),
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
-            commit: Some(commit),
+            commit: Some(apq_commit_message(delete_bundle)?),
         };
         let request = payload.sign(signing_key)?;
         let response = self
@@ -1222,14 +1258,16 @@ impl ApiClient {
     }
 }
 
-fn apq_external_commit_message(
-    external_commit_bundle: ApqCommitMessageBundle,
+/// The T and PQ commit of `bundle`, each with its group info. A commit that
+/// adds no one has no welcome.
+fn apq_commit_message(
+    bundle: ApqCommitMessageBundle,
 ) -> Result<ApqAssistedMlsMessage, DsRequestError> {
     let ApqCommitMessageBundle {
         commit,
         welcome,
         group_info,
-    } = external_commit_bundle;
+    } = bundle;
     if welcome.is_some() {
         error!("Unexpected welcome message");
         return Err(DsRequestError::LibraryError);
@@ -1239,11 +1277,10 @@ fn apq_external_commit_message(
         .map(apqmls::messages::ApqMlsMessageOut::from)
         .map(|msg| msg.split())
         .unzip();
-    let external_commit = ApqAssistedMlsMessage {
+    Ok(ApqAssistedMlsMessage {
         t_message: Some(AssistedMessageOut::new(t_commit, t_group_info).try_ref_into()?),
         pq_message: Some(AssistedMessageOut::new(pq_commit, pq_group_info).try_ref_into()?),
-    };
-    Ok(external_commit)
+    })
 }
 
 fn parse_pq_external_commit_info(

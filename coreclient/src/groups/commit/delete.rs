@@ -2,12 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{
-    messages::{
-        client_ds::{AadMessage, AadPayload},
-        client_ds_out::DeleteGroupParamsOut,
-    },
-    time::TimeStamp,
+use aircommon::messages::{
+    client_ds::{AadMessage, AadPayload},
+    client_ds_out::DeleteGroupParamsOut,
 };
 use airprotos::client::{
     app_data::GroupAppData,
@@ -33,18 +30,18 @@ use crate::{
 
 impl Group {
     /// Stages the commit that deletes the group. The commit removes every other
-    /// member. If `deleted` is Some, the commit also sets a tombstone recording
-    /// the deletion in the Air component of the group's context.
+    /// member. If `tombstone` is Some, the commit also sets it in the Air
+    /// component of the group's context.
     pub(crate) async fn stage_delete(
         &mut self,
         mut connection: impl WriteConnection,
         signer: &impl Signer,
-        deleted: Option<TimeStamp>,
+        tombstone: Option<GroupTombstone>,
     ) -> anyhow::Result<DeleteGroupParamsOut> {
         let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
         let remove_indices = self.other_member_indices();
-        let component_data = self.deleted_air_component(deleted)?;
+        let component_data = self.tombstoned_air_component(tombstone)?;
 
         // There shouldn't be a welcome
         let aad_payload = AadPayload::DeleteGroup;
@@ -82,19 +79,19 @@ impl Group {
         Ok(params)
     }
 
-    /// The APQ counterpart of [`Self::stage_delete`]. The flag goes into the
-    /// T group context only.
+    /// The APQ counterpart of [`Self::stage_delete`]. The tombstone goes into
+    /// the T group context only.
     pub(crate) async fn stage_apq_delete(
         &mut self,
         mut connection: impl WriteConnection,
         signer: &impl ApqSigner,
-        deleted: Option<TimeStamp>,
+        tombstone: Option<GroupTombstone>,
     ) -> anyhow::Result<ApqCommitMessageBundle> {
         let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
         let remove_indices = self.other_member_indices();
-        let component_data = self.deleted_air_component(deleted)?;
+        let component_data = self.tombstoned_air_component(tombstone)?;
 
         let (t_group, pq_group) = self.apq_mls_groups_mut()?;
 
@@ -131,14 +128,13 @@ impl Group {
             .collect()
     }
 
-    /// The Air component of the T group context with a tombstone marking the
-    /// group as deleted at `deleted`, ready for an app data update. `None` if
-    /// no tombstone is to be set.
-    fn deleted_air_component(
+    /// The Air component of the T group context with `tombstone`, ready for an
+    /// app data update. `None` if no tombstone is to be set.
+    fn tombstoned_air_component(
         &self,
-        deleted: Option<TimeStamp>,
+        tombstone: Option<GroupTombstone>,
     ) -> anyhow::Result<Option<ComponentData>> {
-        let Some(deleted) = deleted else {
+        let Some(tombstone) = tombstone else {
             return Ok(None);
         };
         let Some(mut component) = GroupAppData::air_component(self.mls_group.extensions()) else {
@@ -148,7 +144,7 @@ impl Group {
             );
             return Ok(None);
         };
-        component.tombstone = Some(GroupTombstone::deleted(deleted));
+        component.tombstone = Some(tombstone);
         Ok(Some(component.to_component_data()?))
     }
 }
