@@ -35,6 +35,7 @@ impl Default for MockNetworkProvider {
 
 impl MockNetworkProvider {
     pub fn new() -> Self {
+        aircommon::tls::install_crypto_provider();
         Self {
             client: Client::new(),
             transport_encryption: TransportEncryption::Off,
