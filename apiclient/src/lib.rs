@@ -204,6 +204,8 @@ pub(crate) fn classify_status(status: &Status) -> RequestErrorKind {
                     // The quota of a single operation type, it must not back off
                     // every other request of the client
                     Some(Detail::TokenQuotaExceeded(_)) => RequestErrorKind::Rejected,
+                    // A limit of the user, which retrying soon does not lift
+                    Some(Detail::UploadQuotaExceeded(_)) => RequestErrorKind::Rejected,
                     // Never sent with this code
                     Some(
                         Detail::VersionUnsupported(_)

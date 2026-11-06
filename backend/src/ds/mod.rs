@@ -48,6 +48,7 @@ mod resync;
 mod self_remove;
 pub mod storage;
 mod update_user_profile_key;
+mod upload_quota;
 mod welcome_info;
 
 /// Number of days after its last use upon which a group state is considered

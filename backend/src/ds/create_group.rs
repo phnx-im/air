@@ -41,6 +41,7 @@ use crate::{
         },
         grpc::{GroupBootstrapMaterial, WithGroupStateEarKey, WithQualifiedGroupId},
         process::Provider,
+        upload_quota::UploadPayer,
     },
     qs::QsConnector,
     rate_limiter::{RateLimiter, RlConfig, RlKey, RlOperation, provider::RlPostgresStorage},
@@ -341,26 +342,30 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         Ok(())
     }
 
-    /// Provisions the upload of a group profile of `size` bytes. Returns `None`
-    /// when no storage is configured.
+    /// Provisions the upload of a group profile of `size` bytes and charges it
+    /// to the quota of `payer`, if any. Returns `None` when no storage is
+    /// configured.
     pub(super) async fn provision_group_profile(
         &self,
         size: i64,
+        payer: Option<&UploadPayer>,
     ) -> Result<Option<ProvisionAttachmentResponse>, Status> {
         let content_length = size
             .try_into()
             .map_err(|_| Status::invalid_argument("invalid group profile size"))?;
         match self
             .ds
-            .provision_object(StorageObjectType::GroupProfile, content_length, false)
+            .provision_object(
+                StorageObjectType::GroupProfile,
+                content_length,
+                false,
+                payer,
+            )
             .await
         {
             Ok(response) => Ok(Some(response)),
             Err(ProvisionObjectError::NoStorageConfigured) => Ok(None),
-            Err(error) => {
-                error!(%error, "Failed to provision attachment");
-                Err(Status::internal("Failed to provision attachment"))
-            }
+            Err(error) => Err(error.into()),
         }
     }
 
@@ -574,8 +579,10 @@ impl<Qep: QsConnector, As: AsConnector> CreateGroupStreamBackend for GrpcDs<Qep,
     async fn provision_group_profile(
         &self,
         size: i64,
+        creator: &UserId,
     ) -> Result<Option<ProvisionAttachmentResponse>, Status> {
-        GrpcDs::provision_group_profile(self, size).await
+        let payer = UploadPayer::User(creator.clone());
+        GrpcDs::provision_group_profile(self, size, Some(&payer)).await
     }
 
     /// Creates an APQ group, a self-group included, from the create step of a

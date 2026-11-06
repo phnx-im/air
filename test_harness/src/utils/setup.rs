@@ -41,7 +41,7 @@ use crate::utils::{
     SentChallenges, controlled_listener::ControlHandle, core_user_ext::CoreUserExt, spawn_app,
 };
 
-pub use airbackend::settings::RelaySettings;
+pub use airbackend::settings::{RelaySettings, UploadQuotaSettings};
 
 #[derive(Debug)]
 pub struct TestUser {
@@ -221,6 +221,8 @@ pub struct TestBackendParams {
     pub max_attachment_size: u64,
     /// Provisions uploads as POST policies for clients that accept them.
     pub use_post_policy: bool,
+    /// Limits the bytes each user may provision for attachments and profiles.
+    pub upload_quota: Option<UploadQuotaSettings>,
     /// Overrides the configured device limit.
     pub max_devices: Option<u32>,
 }
@@ -250,6 +252,7 @@ impl Default for TestBackendParams {
             unredeemable_code: None,
             max_attachment_size: DEFAULT_MAX_ATTACHMENT_SIZE,
             use_post_policy: false,
+            upload_quota: None,
             max_devices: None,
         }
     }

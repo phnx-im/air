@@ -67,6 +67,7 @@ use super::{
     epoch_snapshot::{DsEpochSnapshot, EpochSnapshotParts},
     group_operation::AddUsersState,
     group_state::{DsGroupState, StorableDsGroupData},
+    upload_quota::UploadPayer,
     welcome_info::DsWelcomeInfo,
 };
 
@@ -831,6 +832,26 @@ fn sender_verifying_key(
     }
 }
 
+/// Whose quota an upload from the leaf at `sender_index` is charged to.
+///
+/// Self-group leaves name no user, so their uploads are charged to the group.
+fn sender_upload_payer(
+    group_state: &DsGroupState,
+    sender_index: LeafNodeIndex,
+    qgid: &QualifiedGroupId,
+) -> Result<UploadPayer, Status> {
+    let leaf = group_state
+        .group()
+        .leaf(sender_index)
+        .ok_or_else(|| Status::invalid_argument("unknown sender"))?;
+    let credential = LeafCredential::from_credential(leaf.credential())
+        .map_err(|_| Status::invalid_argument("invalid credential"))?;
+    match credential {
+        LeafCredential::User(credential) => Ok(UploadPayer::User(credential.user_id().clone())),
+        LeafCredential::SelfGroup(_) => Ok(UploadPayer::SelfGroup(qgid.group_uuid())),
+    }
+}
+
 /// Extracted data in leaf verification
 struct LeafVerificationData<'a, P, const LOADED_FOR_UPDATE: bool> {
     ear_key: &'a GroupStateEarKey,
@@ -936,7 +957,12 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
         let (qgid, pq_qgid) = self.ds.request_group_ids(request.request_pq_group_id)?;
 
         let group_profile_provisioning = match request.group_profile_size {
-            Some(group_profile_size) => self.provision_group_profile(group_profile_size).await?,
+            // Requests for group ids are unauthenticated, so nobody can be
+            // charged for the profile.
+            Some(group_profile_size) => {
+                self.provision_group_profile(group_profile_size, None)
+                    .await?
+            }
             None => None,
         };
 
@@ -2374,41 +2400,46 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
             .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
-        // the payload can be signed in different ways depending of the object type
-        let payload: ProvisionAttachmentPayload = match payload.object_type() {
-            StorageObjectType::Unspecified
-            | StorageObjectType::Attachment
-            | StorageObjectType::GroupProfile
-            | StorageObjectType::UserProfile => {
-                let ear_key = payload.ear_key()?;
-                let qgid = payload.validated_qgid(self.ds.own_domain())?;
-                let sender_index = payload.sender.ok_or_missing_field("sender")?.into();
-
-                let (_group_data, group_state) = self
-                    .load_group_state_immutable(&qgid, &ear_key)
-                    .await
-                    .map_err(to_status)?;
-                ensure_no_tombstone(&group_state)?;
-
-                let sender_key = sender_verifying_key(&group_state, sender_index)?;
-
-                request.verify(&sender_key).map_err(InvalidSignature)?
+        // A user target is signed with the user's key, a group target with the
+        // key of the sender's leaf. The signer pays for the upload.
+        let user_target = match payload.object_type() {
+            StorageObjectType::Attachment | StorageObjectType::GroupProfile => {
+                payload.user_id.is_some()
             }
-            StorageObjectType::DebugLogs => {
-                let user_id = payload
-                    .user_id
-                    .clone()
-                    .ok_or_missing_field("user_id")?
-                    .try_into()?;
-                let client_verifying_key = self
-                    .load_client_verifying_key(&user_id)
-                    .await?
-                    .ok_or_else(|| Status::not_found("user not found"))?;
+            StorageObjectType::DebugLogs => true,
+            StorageObjectType::Unspecified | StorageObjectType::UserProfile => false,
+        };
+        let (payload, payer): (ProvisionAttachmentPayload, _) = if user_target {
+            let user_id: UserId = payload
+                .user_id
+                .clone()
+                .ok_or_missing_field("user_id")?
+                .try_into()?;
+            let client_verifying_key = self
+                .load_client_verifying_key(&user_id)
+                .await?
+                .ok_or_else(|| Status::not_found("user not found"))?;
 
-                request
-                    .verify(&client_verifying_key)
-                    .map_err(InvalidSignature)?
-            }
+            let payload = request
+                .verify(&client_verifying_key)
+                .map_err(InvalidSignature)?;
+            (payload, UploadPayer::User(user_id))
+        } else {
+            let ear_key = payload.ear_key()?;
+            let qgid = payload.validated_qgid(self.ds.own_domain())?;
+            let sender_index = payload.sender.ok_or_missing_field("sender")?.into();
+
+            let (_group_data, group_state) = self
+                .load_group_state_immutable(&qgid, &ear_key)
+                .await
+                .map_err(to_status)?;
+            ensure_no_tombstone(&group_state)?;
+
+            let sender_key = sender_verifying_key(&group_state, sender_index)?;
+            let payer = sender_upload_payer(&group_state, sender_index, &qgid)?;
+
+            let payload = request.verify(&sender_key).map_err(InvalidSignature)?;
+            (payload, payer)
         };
 
         let content_length = payload
@@ -2422,6 +2453,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                 payload.object_type.try_into().unwrap_or_default(),
                 content_length,
                 payload.use_post_policy,
+                Some(&payer),
             )
             .await?;
 

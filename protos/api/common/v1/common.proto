@@ -94,6 +94,7 @@ message StatusDetails {
     DeviceLimitReachedDetail device_limit_reached = 7;
     UncommittedSelfRemoveDetail uncommitted_self_remove = 8;
     GroupClosedDetail group_closed = 9;
+    UploadQuotaExceededDetail upload_quota_exceeded = 10;
   }
 }
 
@@ -115,6 +116,8 @@ enum StatusDetailsCode {
   STATUS_DETAILS_CODE_UNCOMMITTED_SELF_REMOVE = 8;
   // The group context carries a tombstone, so the group takes no more messages
   STATUS_DETAILS_CODE_GROUP_CLOSED = 9;
+  // The user's upload quota has no room for the upload
+  STATUS_DETAILS_CODE_UPLOAD_QUOTA_EXCEEDED = 10;
 }
 
 message VersionUnsupportedDetail {
@@ -130,6 +133,12 @@ message AttachmentTooLargeDetail {
 message TokenQuotaExceededDetail {
   uint64 retry_after_secs = 1;
   uint32 tokens_available = 2;
+}
+
+message UploadQuotaExceededDetail {
+  // Seconds until the upload fits the quota, or 0 if it never fits
+  uint64 retry_after_secs = 1;
+  uint64 limit_bytes = 2;
 }
 
 message WrongEpochDetail {}

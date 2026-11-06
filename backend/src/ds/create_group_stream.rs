@@ -97,10 +97,12 @@ pub(super) trait CreateGroupStreamBackend {
 
     fn fresh_group_id(&self) -> QualifiedGroupId;
 
-    /// Returns `None` when no storage is configured.
+    /// Provisions the upload of a group profile of `size` bytes, charged to
+    /// `creator`. Returns `None` when no storage is configured.
     fn provision_group_profile(
         &self,
         size: i64,
+        creator: &UserId,
     ) -> impl Future<Output = Result<Option<ProvisionAttachmentResponse>, Status>> + Send;
 
     fn create_apq_group(
@@ -255,6 +257,7 @@ impl StreamError {
     fn classify(status: Status, cause: RejectCause) -> Self {
         let cause = match status.code() {
             Code::Internal => RejectCause::Internal,
+            Code::ResourceExhausted => RejectCause::RateLimited,
             _ => cause,
         };
         Self::Rejected(cause, status)
@@ -426,7 +429,7 @@ async fn admit(
     };
     let group_profile_provisioning = match prepare.group_profile_size {
         Some(size) => backend
-            .provision_group_profile(size)
+            .provision_group_profile(size, &creator.user_id)
             .await
             .map_err(|status| StreamError::classify(status, RejectCause::Protocol))?,
         None => None,
@@ -627,6 +630,7 @@ mod tests {
         async fn provision_group_profile(
             &self,
             _size: i64,
+            _creator: &UserId,
         ) -> Result<Option<ProvisionAttachmentResponse>, Status> {
             Ok(Some(ProvisionAttachmentResponse::default()))
         }

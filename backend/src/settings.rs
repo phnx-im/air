@@ -169,6 +169,23 @@ pub struct StorageSettings {
     /// Path prefixes in the bucket for different storage object types
     #[serde(default)]
     pub storage_paths: StoragePaths,
+    /// Bytes a user may provision for attachments and profiles in a rolling
+    /// window. No quota when absent.
+    #[serde(default)]
+    pub upload_quota: Option<UploadQuotaSettings>,
+    /// Bytes a user may provision for debug logs in a rolling window. No quota
+    /// when absent.
+    #[serde(default)]
+    pub debug_logs_upload_quota: Option<UploadQuotaSettings>,
+}
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+pub struct UploadQuotaSettings {
+    /// Bytes that may be provisioned per window
+    pub limit_bytes: u64,
+    /// Length of the rolling window, in seconds
+    #[serde(with = "duration_seconds")]
+    pub window: Duration,
 }
 
 #[derive(Debug, Deserialize, Clone, Zeroize)]
@@ -592,6 +609,49 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    fn storage_settings(extra: serde_json::Value) -> StorageSettings {
+        let mut value = json!({
+            "endpoint": "http://localhost:9000",
+            "region": "eu-west-1",
+            "access_key_id": "key",
+            "secret_access_key": "secret",
+        });
+        value
+            .as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        serde_json::from_value(value).unwrap()
+    }
+
+    #[test]
+    fn upload_quotas_are_absent_by_default() {
+        let settings = storage_settings(json!({}));
+        assert_eq!(settings.upload_quota, None);
+        assert_eq!(settings.debug_logs_upload_quota, None);
+    }
+
+    #[test]
+    fn upload_quotas_parse_bytes_and_window_seconds() {
+        let settings = storage_settings(json!({
+            "upload_quota": { "limit_bytes": 2_147_483_648_u64, "window": 604_800 },
+            "debug_logs_upload_quota": { "limit_bytes": 209_715_200, "window": 86_400 },
+        }));
+        assert_eq!(
+            settings.upload_quota,
+            Some(UploadQuotaSettings {
+                limit_bytes: 2_147_483_648,
+                window: Duration::days(7),
+            })
+        );
+        assert_eq!(
+            settings.debug_logs_upload_quota,
+            Some(UploadQuotaSettings {
+                limit_bytes: 209_715_200,
+                window: Duration::days(1),
+            })
+        );
+    }
 
     #[test]
     fn version_expiration_accepts_date_and_timestamp() {

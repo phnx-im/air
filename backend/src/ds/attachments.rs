@@ -7,7 +7,8 @@
 use aircommon::time::ExpirationData;
 use airprotos::{
     common::v1::{
-        AttachmentTooLargeDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
+        AttachmentTooLargeDetail, StatusDetails, StatusDetailsCode, UploadQuotaExceededDetail,
+        status_details::Detail,
     },
     delivery_service::v1::{
         GetAttachmentUrlResponse, HeaderEntry, ProvisionAttachmentResponse, SignedPostPolicy,
@@ -32,19 +33,32 @@ use uuid::Uuid;
 
 use crate::settings::{StoragePaths, StorageSettings};
 
-use super::{Ds, storage::Storage};
+use super::{Ds, storage::Storage, upload_quota::UploadPayer};
 
 impl Ds {
+    /// Provisions the upload of an object of `content_length` bytes and charges
+    /// it to the quota of `payer`, if any.
     pub(super) async fn provision_object(
         &self,
         object_type: StorageObjectType,
         content_length: u64,
         use_post_policy: bool,
+        payer: Option<&UploadPayer>,
     ) -> Result<ProvisionAttachmentResponse, ProvisionObjectError> {
         let Some(storage) = self.storage.as_ref() else {
             return Err(ProvisionObjectError::NoStorageConfigured);
         };
         check_content_length(storage.settings(), content_length)?;
+        if let Some(payer) = payer {
+            self.charge_upload(
+                storage.settings(),
+                payer,
+                object_type,
+                content_length,
+                Utc::now(),
+            )
+            .await?;
+        }
 
         let object_id = Uuid::new_v4();
         let expiration = ExpirationData::now(storage.settings().upload_expiration);
@@ -296,6 +310,11 @@ pub(super) enum ProvisionObjectError {
     ContentLengthRequired,
     /// Attachment is too large: {actual_size} bytes > {max_size} bytes
     DataTooLarge { max_size: u64, actual_size: u64 },
+    /// Upload quota of {limit_bytes} bytes exceeded, retry after {retry_after_secs} s
+    QuotaExceeded {
+        limit_bytes: u64,
+        retry_after_secs: u64,
+    },
 }
 
 impl From<ProvisionObjectError> for Status {
@@ -347,6 +366,22 @@ impl From<ProvisionObjectError> for Status {
                     .into(),
                 )
             }
+            ProvisionObjectError::QuotaExceeded {
+                limit_bytes,
+                retry_after_secs,
+            } => Status::with_details(
+                Code::ResourceExhausted,
+                msg,
+                StatusDetails {
+                    code: StatusDetailsCode::UploadQuotaExceeded.into(),
+                    detail: Some(Detail::UploadQuotaExceeded(UploadQuotaExceededDetail {
+                        retry_after_secs,
+                        limit_bytes,
+                    })),
+                }
+                .encode_to_vec()
+                .into(),
+            ),
         }
     }
 }
@@ -415,6 +450,8 @@ mod test {
             max_attachment_size: aircommon::DEFAULT_MAX_ATTACHMENT_SIZE,
             use_post_policy: false,
             storage_paths: Default::default(),
+            upload_quota: None,
+            debug_logs_upload_quota: None,
         };
         Storage::new(settings)
     }

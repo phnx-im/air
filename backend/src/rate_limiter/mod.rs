@@ -43,12 +43,18 @@ pub(crate) enum RlOperation {
     RelayProvision,
     /// Attaching to a linking session on the relay.
     RelayLink,
+    /// Provisioning an upload of an attachment or a profile, charged by size.
+    ProvisionUpload,
+    /// Provisioning an upload of debug logs, charged by size.
+    ProvisionDebugLogs,
 }
 
 impl RlOperation {
     fn service_name(self) -> &'static [u8] {
         match self {
-            RlOperation::ReserveGroupId => b"ds",
+            RlOperation::ReserveGroupId
+            | RlOperation::ProvisionUpload
+            | RlOperation::ProvisionDebugLogs => b"ds",
             RlOperation::RelayProvision | RlOperation::RelayLink => b"rs",
         }
     }
@@ -58,6 +64,8 @@ impl RlOperation {
             RlOperation::ReserveGroupId => b"reserve_group_id",
             RlOperation::RelayProvision => b"multi_device_provision_client",
             RlOperation::RelayLink => b"multi_device_link_client",
+            RlOperation::ProvisionUpload => b"provision_upload",
+            RlOperation::ProvisionDebugLogs => b"provision_debug_logs",
         }
     }
 }
