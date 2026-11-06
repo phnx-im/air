@@ -38,6 +38,7 @@ mod create_group;
 mod create_group_stream;
 mod delete_group;
 mod epoch_snapshot;
+mod ghost_leaves;
 mod group_id_reservations;
 mod group_operation;
 pub mod group_state;
