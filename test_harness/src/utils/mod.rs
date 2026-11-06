@@ -156,7 +156,6 @@ pub(crate) async fn spawn_app(
         registration,
         unredeemable_code,
         max_attachment_size,
-        use_post_policy,
         upload_quota,
         max_devices,
     } = params;
@@ -248,7 +247,6 @@ pub(crate) async fn spawn_app(
         .clone()
         .expect("no storage configuration");
     storage_config.max_attachment_size = max_attachment_size;
-    storage_config.use_post_policy = use_post_policy;
     storage_config.upload_quota = upload_quota;
     ds.set_storage(Storage::new(storage_config));
 

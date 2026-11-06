@@ -401,22 +401,17 @@ impl ChatOperation {
             let external = external.build(object_id.into());
 
             // Upload
-            if provision_response.post_policy.is_some() {
-                return Err(anyhow!("Post policy is not supported yet").into());
-            } else {
-                // upload encrypted content via signed PUT url
-                let mut request = http_client.put(provision_response.upload_url);
-                for header in provision_response.upload_headers {
-                    request = request.header(header.key, header.value);
-                }
-                request
-                    .body(ciphertext)
-                    .send()
-                    .await
-                    .context("Failed to upload group profile")?
-                    .error_for_status()
-                    .context("Failed to upload group profile")?;
+            let mut request = http_client.put(provision_response.upload_url);
+            for header in provision_response.upload_headers {
+                request = request.header(header.key, header.value);
             }
+            request
+                .body(ciphertext)
+                .send()
+                .await
+                .context("Failed to upload group profile")?
+                .error_for_status()
+                .context("Failed to upload group profile")?;
 
             let encrypted_title = EncryptedGroupTitle::encrypt(
                 &group_profile.title,

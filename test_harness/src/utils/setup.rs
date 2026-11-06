@@ -219,8 +219,6 @@ pub struct TestBackendParams {
     pub registration: RegistrationSettings,
     pub unredeemable_code: Option<String>,
     pub max_attachment_size: u64,
-    /// Provisions uploads as POST policies for clients that accept them.
-    pub use_post_policy: bool,
     /// Limits the bytes each user may provision for attachments and profiles.
     pub upload_quota: Option<UploadQuotaSettings>,
     /// Overrides the configured device limit.
@@ -251,7 +249,6 @@ impl Default for TestBackendParams {
             },
             unredeemable_code: None,
             max_attachment_size: DEFAULT_MAX_ATTACHMENT_SIZE,
-            use_post_policy: false,
             upload_quota: None,
             max_devices: None,
         }

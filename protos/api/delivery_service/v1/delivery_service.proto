@@ -655,7 +655,7 @@ message ProvisionAttachmentPayload {
   // or for a user
   common.v1.UserId user_id = 8;
 
-  bool use_post_policy = 4;
+  reserved 4; // removed use_post_policy; uploads always use a presigned PUT
   int64 content_length = 5;
   StorageObjectType object_type = 7;
 }
@@ -678,13 +678,7 @@ message ProvisionAttachmentResponse {
   common.v1.ExpirationData upload_url_expiration = 2;
   string upload_url = 4; // non-empty
   repeated HeaderEntry upload_headers = 5; // can be empty
-  // If present, the attachment should be uploaded via POST multipart/form-data
-  optional SignedPostPolicy post_policy = 6;
-}
-
-message SignedPostPolicy {
-  string base64 = 2;
-  string signature = 3;
+  reserved 6; // removed post_policy; uploads always use a presigned PUT
 }
 
 message HeaderEntry {

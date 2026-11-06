@@ -33,6 +33,5 @@ Ok(
                 value: "42",
             },
         ],
-        post_policy: None,
     },
 )

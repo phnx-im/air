@@ -11,8 +11,7 @@ use airprotos::{
         status_details::Detail,
     },
     delivery_service::v1::{
-        GetAttachmentUrlResponse, HeaderEntry, ProvisionAttachmentResponse, SignedPostPolicy,
-        StorageObjectType,
+        GetAttachmentUrlResponse, HeaderEntry, ProvisionAttachmentResponse, StorageObjectType,
     },
 };
 use aws_sdk_s3::{
@@ -21,12 +20,9 @@ use aws_sdk_s3::{
     operation::{get_object, put_object},
     presigning::{PresigningConfig, PresigningConfigError},
 };
-use base64::{Engine, prelude::BASE64_STANDARD};
 use chrono::{DateTime, Utc};
 use displaydoc::Display;
 use prost::Message;
-use serde::Serialize;
-use serde_json::json;
 use tonic::{Code, Response, Status};
 use tracing::error;
 use uuid::Uuid;
@@ -42,7 +38,6 @@ impl Ds {
         &self,
         object_type: StorageObjectType,
         content_length: u64,
-        use_post_policy: bool,
         payer: Option<&UploadPayer>,
     ) -> Result<ProvisionAttachmentResponse, ProvisionObjectError> {
         let Some(storage) = self.storage.as_ref() else {
@@ -63,12 +58,7 @@ impl Ds {
         let object_id = Uuid::new_v4();
         let expiration = ExpirationData::now(storage.settings().upload_expiration);
 
-        let response = if storage.settings().use_post_policy && use_post_policy {
-            create_signed_post(storage, object_id, expiration, content_length, object_type)
-        } else {
-            create_signed_put(storage, object_id, expiration, content_length, object_type).await?
-        };
-        Ok(response)
+        create_signed_put(storage, object_id, expiration, content_length, object_type).await
     }
 
     pub(super) async fn get_object_url(
@@ -189,80 +179,7 @@ async fn create_signed_put(
         upload_url_expiration: Some(expiration.into()),
         upload_url: url,
         upload_headers: header,
-        post_policy: None,
     })
-}
-
-#[derive(Serialize)]
-struct Policy {
-    expiration: DateTime<Utc>,
-    conditions: [serde_json::Value; 6],
-}
-
-/// Signs a POST policy that admits objects of at most `content_length` bytes.
-fn create_signed_post(
-    storage: &Storage,
-    object_id: Uuid,
-    expiration: ExpirationData,
-    content_length: u64,
-    object_type: StorageObjectType,
-) -> ProvisionAttachmentResponse {
-    let not_before: DateTime<Utc> = expiration.not_before().into();
-    let not_after: DateTime<Utc> = expiration.not_after().into();
-
-    let settings = storage.settings();
-
-    let x_amz_credential = format!(
-        "{access_key}/{date}/{region}/s3/aws4_request",
-        access_key = settings.access_key_id,
-        date = not_before.format("%Y%m%d"),
-        region = settings.region,
-    );
-
-    let bucket = select_bucket(settings, object_type);
-    let key = storage_key(&storage.settings().storage_paths, object_id, object_type);
-    let policy = Policy {
-        expiration: not_after,
-        conditions: [
-            json!({"bucket": bucket}),
-            json!({"key": key}),
-            json!(["content-length-range", 0, content_length]),
-            json!({"x-amz-credential": x_amz_credential}),
-            json!({"x-amz-algorithm": "AWS4-HMAC-SHA256"}),
-            json!({"x-amz-date": not_before.format("%Y%m%dT%H%M%SZ").to_string()}),
-        ],
-    };
-
-    // Note: sigv4a is not supported by minio, which is used in local deployment.
-    let signing_key = aws_sigv4::sign::v4::generate_signing_key(
-        settings.secret_access_key.as_ref(),
-        not_before.into(),
-        &settings.region,
-        "s3",
-    );
-    let policy_json = serde_json::to_string(&policy).expect("policy is always serializable");
-    let policy_base64 = BASE64_STANDARD.encode(policy_json);
-    let signature = aws_sigv4::sign::v4::calculate_signature(signing_key, policy_base64.as_bytes());
-
-    // Note: We just use a simpler path style URL here.
-    let upload_url = format!(
-        "{endpoint}/{bucket}",
-        endpoint = settings.endpoint,
-        bucket = settings.bucket,
-    );
-
-    let post_policy = SignedPostPolicy {
-        base64: policy_base64,
-        signature: signature.to_string(),
-    };
-
-    ProvisionAttachmentResponse {
-        object_id: Some(object_id.into()),
-        upload_url_expiration: Some(expiration.into()),
-        upload_url,
-        post_policy: Some(post_policy),
-        ..Default::default()
-    }
 }
 
 fn select_bucket(settings: &StorageSettings, object_type: StorageObjectType) -> String {
@@ -448,7 +365,6 @@ mod test {
             download_expiration: Duration::seconds(60),
             download_debug_logs_expiration: Duration::seconds(60),
             max_attachment_size: aircommon::DEFAULT_MAX_ATTACHMENT_SIZE,
-            use_post_policy: false,
             storage_paths: Default::default(),
             upload_quota: None,
             debug_logs_upload_quota: None,
@@ -494,32 +410,6 @@ mod test {
             Err(ProvisionObjectError::DataTooLarge { max_size: max, actual_size })
                 if max == max_size && actual_size == max_size + 1
         ));
-    }
-
-    #[test]
-    fn test_create_signed_policy() {
-        let object_id = uuid!("ba521fc6-1ec2-4f8e-a85e-3dacc1e96989");
-        let at = DateTime::parse_from_rfc3339("2023-01-01T00:00:00Z")
-            .unwrap()
-            .to_utc();
-        let expiration = ExpirationData::from_parts(at.into(), (at + Duration::seconds(60)).into());
-
-        let storage = storage();
-        let response = create_signed_post(
-            &storage,
-            object_id,
-            expiration,
-            42,
-            StorageObjectType::Unspecified,
-        );
-
-        insta::assert_debug_snapshot!(response);
-
-        let policy = response.post_policy.unwrap();
-        let policy_json = BASE64_STANDARD.decode(&policy.base64).unwrap();
-        let policy: serde_json::Value = serde_json::from_slice(&policy_json).unwrap();
-
-        insta::assert_debug_snapshot!(policy);
     }
 
     #[test]
