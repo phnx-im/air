@@ -8,22 +8,28 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use tracing::error;
 
-use super::{RlConfig, RlDecision, RlKey, StorageProvider};
+use super::{RlConfig, RlDecision, RlKey, StorageProvider, rolling};
 
 pub(crate) const ALLOWANCE_SWEEP_INTERVAL: Duration = Duration::from_hours(1);
 
-/// Deletes expired allowances every `period`, so keys that stop sending
-/// requests do not keep their rows forever.
+/// Deletes expired allowances and rolling-window charges every `period`, so
+/// keys that stop sending requests do not keep their rows forever.
 pub(crate) async fn sweep_expired_allowances(pool: PgPool, period: Duration) {
     let mut interval = tokio::time::interval(period);
     loop {
         interval.tick().await;
-        if let Err(error) = persistence::delete_expired(&pool, Utc::now()).await {
+        let now = Utc::now();
+        if let Err(error) = persistence::delete_expired(&pool, now).await {
             error!(%error, "Failed to delete expired allowances");
+        }
+        if let Err(error) = rolling::persistence::delete_expired(&pool, now).await {
+            error!(%error, "Failed to delete expired rolling-window charges");
         }
     }
 }
 
+/// Rate limiter storage over fixed windows. A window starts with the first
+/// charge after the previous one ended.
 pub(crate) struct RlPostgresStorage {
     pool: PgPool,
 }

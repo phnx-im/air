@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM allowance_event WHERE expires_at <= $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a7c79d55daa2596fa55b69a4577e6350e9afd5d734d99bdec5687b069abafaf6"
+}

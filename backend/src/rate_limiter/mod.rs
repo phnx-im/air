@@ -8,6 +8,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 use sha2::{Digest, Sha256};
 
 pub(crate) mod provider;
+pub(crate) mod rolling;
 
 #[derive(Debug, Clone)]
 pub(crate) struct RlConfig {

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(SUM(cost), 0)::bigint AS \"used!\"\n            FROM allowance_event\n            WHERE key_value = $1 AND expires_at > $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "used!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "0fee8f9fa5f4cacc8f698ad92616d94f1b900aaccf1fbef8b1639b3b1e56796a"
+}
