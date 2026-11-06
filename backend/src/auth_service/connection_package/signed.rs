@@ -8,13 +8,14 @@ use airprotos::{
     client::signed_connection_package::VerifiedSignedConnectionPackage, common::v1::Signature,
 };
 use chrono::{DateTime, Utc};
-use sqlx::PgExecutor;
+use sqlx::{PgExecutor, PgTransaction};
 
 pub(crate) struct StorableSignedConnectionPackage;
 
 impl StorableSignedConnectionPackage {
+    /// Stores the packages as the username's pool.
     pub(crate) async fn store_multiple_for_username(
-        connection: impl PgExecutor<'_>,
+        txn: &mut PgTransaction<'_>,
         hash: &UsernameHash,
         packages: Vec<VerifiedSignedConnectionPackage>,
     ) -> sqlx::Result<()> {
@@ -27,14 +28,28 @@ impl StorableSignedConnectionPackage {
         let mut is_last_resorts = Vec::with_capacity(packages.len());
         let mut expires_ats = Vec::with_capacity(packages.len());
         for package in packages {
-            // Stored but not read yet. Packages are only removed on fetch or together with the
-            // username.
+            // Stored but not read yet. Packages are removed on fetch, by the next publish or
+            // together with the username.
             expires_ats.push(DateTime::<Utc>::from(package.expires_at()));
             let (payload, signature, is_last_resort) = package.into_parts();
             payloads.push(payload);
             signatures.push(signature.into_bytes());
             is_last_resorts.push(is_last_resort);
         }
+
+        let replaces_regular = is_last_resorts.iter().any(|is_last_resort| !is_last_resort);
+        let replaces_last_resort = is_last_resorts.iter().any(|is_last_resort| *is_last_resort);
+        sqlx::query!(
+            "DELETE FROM username_signed_connection_package
+            WHERE hash = $1
+                AND ((NOT is_last_resort AND $2::boolean) OR (is_last_resort AND $3::boolean))",
+            hash.as_bytes(),
+            replaces_regular,
+            replaces_last_resort,
+        )
+        .execute(txn.as_mut())
+        .await?;
+
         sqlx::query!(
             r#"INSERT INTO username_signed_connection_package
                 (hash, payload, signature, is_last_resort, expires_at)
@@ -48,7 +63,7 @@ impl StorableSignedConnectionPackage {
             &is_last_resorts,
             &expires_ats,
         )
-        .execute(connection)
+        .execute(txn.as_mut())
         .await?;
 
         Ok(())
