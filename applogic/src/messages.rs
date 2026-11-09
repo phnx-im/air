@@ -87,22 +87,22 @@ impl User {
 
         let num_messages = messages.len();
         let processed_messages = self.user.fully_process_qs_messages(messages).await;
-        if processed_messages.processed != num_messages {
-            let dropped = num_messages - processed_messages.processed;
-            error!(%dropped, "failed to fully process messages");
-        }
-
-        match max_sequence_number {
-            // We received some messages, so we can ack them *after* they were fully
-            // processed. In particular, the queue ratchet sequence number was written back
-            // into the database.
-            Some(n) if drained => {
-                responder.ack(n + 1).await;
+        // Ack only after all messages were processed and the queue ratchet was
+        // written back. Unprocessed messages remain in the queue for the next
+        // fetch.
+        let unprocessed = num_messages - processed_messages.processed;
+        let acked_up_to = if unprocessed == 0 {
+            max_sequence_number.map(|n| n + 1)
+        } else {
+            error!(%unprocessed, "failed to fully process messages");
+            None
+        };
+        if let Some(n) = acked_up_to {
+            responder.ack(n).await;
+            if drained {
                 // half-close the request stream, then wait for the server to apply the ack
                 responder.close(&mut stream).await;
             }
-            Some(n) => responder.ack(n + 1).await,
-            None => {}
         }
 
         info!(
@@ -110,7 +110,7 @@ impl User {
             processed = processed_messages.processed,
             ?min_sequence_number,
             ?max_sequence_number,
-            acked_up_to = ?max_sequence_number.map(|n| n + 1),
+            ?acked_up_to,
             drained,
             "processed QS messages"
         );

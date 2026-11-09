@@ -90,11 +90,19 @@ pub struct QsMessageOutcome {
     reaction_notifications: Vec<ReactionNotification>,
     changed_chats: Vec<ChatId>,
     removed_chats: Vec<ChatId>,
+    errors: Vec<anyhow::Error>,
 }
 
 impl QsMessageOutcome {
     pub(super) fn empty() -> QsMessageOutcome {
         Self::default()
+    }
+
+    fn dropped(error: impl Into<anyhow::Error>) -> QsMessageOutcome {
+        Self {
+            errors: vec![error.into()],
+            ..Self::empty()
+        }
     }
 
     fn new_chat(chat_id: ChatId, added_by: UserId, messages: Vec<ChatMessage>) -> QsMessageOutcome {
@@ -145,6 +153,8 @@ pub struct ProcessedQsMessages {
     pub new_chats: Vec<NewChat>,
     pub new_messages: Vec<ChatMessage>,
     pub errors: Vec<anyhow::Error>,
+    /// Number of messages, from the start of the batch, whose ratchet update
+    /// was committed to the database. Includes dropped and replayed messages.
     pub processed: usize,
     pub new_connections: Vec<ChatId>,
     /// Reactions on our own messages, for which we should notify the user.
@@ -192,6 +202,7 @@ impl ProcessedQsMessages {
             reaction_notifications,
             changed_chats,
             removed_chats,
+            errors,
         }: QsMessageOutcome,
     ) {
         self.new_chats.extend(new_chat);
@@ -200,6 +211,7 @@ impl ProcessedQsMessages {
         self.reaction_notifications.extend(reaction_notifications);
         self.chats_with_changed_notifications.extend(changed_chats);
         self.removed_chats.extend(removed_chats);
+        self.errors.extend(errors);
     }
 }
 
@@ -1769,27 +1781,29 @@ impl CoreUser {
             };
 
             // Decrypt and process the message (and Box the large future)
-            if let Err(error) = Box::pin(self.decrypt_and_process_qs_message(
+            let outcome = match Box::pin(self.decrypt_and_process_qs_message(
                 &mut txn,
                 qs_message,
                 read_receipts_enabled,
-                &mut result,
             ))
             .await
             {
-                error!(%error, "Fatal error when processing a QS message; stopping loop");
-                return result; // Stop processing
+                Ok(outcome) => outcome,
+                Err(error) => {
+                    error!(%error, "Fatal error when processing a QS message; stopping loop");
+                    return result;
+                }
+            };
+
+            // Only a committed message counts as processed, because the caller
+            // acks processed messages and the server then deletes them.
+            if let Err(error) = txn.commit().await {
+                error!(%error, "Failed to commit the ratchet transaction; stopping loop");
+                return result;
             }
 
             result.processed += 1;
-
-            // Commit the ratchet update
-            txn.commit()
-                .await
-                .inspect_err(|error| {
-                    error!(%error, "Failed to commit the ratchet transaction");
-                })
-                .ok();
+            result.merge(outcome);
 
             connection.notify();
         }
@@ -1801,27 +1815,25 @@ impl CoreUser {
         result
     }
 
-    /// Returns `Ok(())` if the more messages should be processed, or `Err` if the processing
-    /// should be aborted.
+    /// Returns the outcome to merge once `txn` is committed, or `Err` if the
+    /// processing should be aborted.
     async fn decrypt_and_process_qs_message(
         &self,
         txn: &mut WriteDbTransaction<'_>,
         qs_message: QueueMessage,
         read_receipts_enabled: bool,
-        result: &mut ProcessedQsMessages,
-    ) -> sqlx::Result<()> {
+    ) -> sqlx::Result<QsMessageOutcome> {
         let qs_message_payload =
             match StorableQsQueueRatchet::decrypt_qs_queue_message(txn, qs_message).await {
                 Ok(Some(qs_message_payload)) => qs_message_payload,
                 Ok(None) => {
                     // Skip the message if it is behind the ratchet (replay)
-                    return Ok(());
+                    return Ok(QsMessageOutcome::empty());
                 }
                 Err(error) => {
                     // Cannot decrypt or deserialize the message's container
                     error!(%error, "QS queue message decryption failed; dropping message");
-                    result.errors.push(error.into());
-                    return Ok(());
+                    return Ok(QsMessageOutcome::dropped(error));
                 }
             };
 
@@ -1829,8 +1841,7 @@ impl CoreUser {
             Ok(extracted) => extracted,
             Err(error) => {
                 error!(%error, "Extracting message failed; dropping message");
-                result.errors.push(error.into());
-                return Ok(());
+                return Ok(QsMessageOutcome::dropped(error));
             }
         };
 
@@ -1848,32 +1859,29 @@ impl CoreUser {
         ))
         .await
         {
-            Ok(processed) => {
+            Ok(outcome) => {
                 savepoint_txn.commit().await?;
-                result.merge(processed);
+                Ok(outcome)
             }
             Err(error) if error.downcast_ref::<BlockedContactError>().is_some() => {
                 info!("Dropping message from blocked contact");
+                Ok(QsMessageOutcome::empty())
             }
-            Err(error) => {
-                match error.downcast::<sqlx::Error>() {
-                    Ok(error) if error.as_database_error().is_some() => {
-                        // Fatal database error, stop processing
-                        return Err(error);
-                    }
-                    Ok(error) => {
-                        error!(%error, "Processing message failed with a recoverable database error; continue");
-                        result.errors.push(error.into());
-                    }
-                    Err(error) => {
-                        error!(%error, "Processing message failed; continue");
-                        result.errors.push(error);
-                    }
+            Err(error) => match error.downcast::<sqlx::Error>() {
+                Ok(error) if error.as_database_error().is_some() => {
+                    // Fatal database error, stop processing
+                    Err(error)
                 }
-            }
+                Ok(error) => {
+                    error!(%error, "Processing message failed with a recoverable database error; continue");
+                    Ok(QsMessageOutcome::dropped(error))
+                }
+                Err(error) => {
+                    error!(%error, "Processing message failed; continue");
+                    Ok(QsMessageOutcome::dropped(error))
+                }
+            },
         }
-
-        Ok(())
     }
 }
 
@@ -1916,9 +1924,22 @@ fn log_processed_commit(group: &VerifiedGroup, sender: &Sender) {
 #[cfg(test)]
 mod tests {
     use aircommon::{
-        credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
-        crypto::aead::keys::IdentityLinkWrapperKey,
+        credentials::{
+            keys::{LeafSigningKey, SelfGroupSigningKey},
+            test_utils::create_test_credentials,
+        },
+        crypto::{
+            RatchetDecryptionKey,
+            aead::keys::{IdentityLinkWrapperKey, PushTokenEarKey, WelcomeAttributionInfoEarKey},
+            hpke::ClientIdDecryptionKey,
+            kdf::keys::RatchetSecret,
+            signatures::keys::{QsClientSigningKey, QsUserSigningKey},
+        },
         identifiers::{QsClientId, QsUserId},
+        messages::{
+            FriendshipToken,
+            client_ds::{QsQueueMessagePayload, QsQueueMessageType, QsQueueRatchet},
+        },
     };
     use openmls::{
         components::vc_derivation_info::KeyPackageUpload, prelude::tls_codec::Serialize as _,
@@ -1927,12 +1948,101 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
+        clients::{api_clients::ApiClients, create_user::QsRegisteredUserState},
         db::access::DbAccess,
         groups::{NewGroupContext, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
-        utils::persistence::open_db_in_memory,
+        key_stores::MemoryUserKeyStore,
+        utils::{global_lock::GlobalLock, persistence::open_db_in_memory},
     };
 
     use super::*;
+
+    /// A user without a server. Enough for queue messages that need no
+    /// network access.
+    async fn offline_user(db: DbAccess) -> anyhow::Result<CoreUser> {
+        let user_id = UserId::random("example.com".parse()?);
+        let (_, signing_key) = create_test_credentials(user_id.clone());
+        let key_store = MemoryUserKeyStore {
+            signing_key,
+            qs_client_signing_key: QsClientSigningKey::generate()?,
+            qs_user_signing_key: QsUserSigningKey::generate()?,
+            qs_queue_decryption_key: RatchetDecryptionKey::generate()?,
+            qs_client_id_encryption_key: ClientIdDecryptionKey::generate()?
+                .encryption_key()
+                .clone(),
+            push_token_ear_key: PushTokenEarKey::random()?,
+            friendship_token: FriendshipToken::random()?,
+            wai_ear_key: WelcomeAttributionInfoEarKey::random()?,
+        };
+        let state = QsRegisteredUserState::new(
+            key_store,
+            QsUserId::random(),
+            QsClientId::random(&mut rand::rng()),
+        );
+        let lock_file = tempfile::NamedTempFile::new()?;
+        Ok(state.persist().await?.into_self_user(
+            db,
+            Uuid::new_v4(),
+            ApiClients::new(user_id.domain().clone(), None),
+            GlobalLock::from_path(lock_file.path())?,
+        ))
+    }
+
+    #[tokio::test]
+    async fn failed_commit_leaves_message_unprocessed() -> anyhow::Result<()> {
+        let db = DbAccess::for_tests(open_db_in_memory().await?);
+        let ratchet_secret = RatchetSecret::random()?;
+        StorableQsQueueRatchet::initialize(db.write().await?, ratchet_secret.clone()).await?;
+        let user = offline_user(db.clone()).await?;
+
+        // An empty payload fails to extract. The message is dropped without
+        // network access, and its ratchet update is still committed.
+        let payload = QsQueueMessagePayload {
+            timestamp: TimeStamp::now(),
+            message_type: QsQueueMessageType::UserProfileKeyUpdate,
+            payload: Vec::new(),
+        };
+        let mut qs_ratchet: QsQueueRatchet = ratchet_secret.try_into()?;
+        let mut messages = Vec::new();
+        for _ in 0..3 {
+            messages.push(qs_ratchet.encrypt(&payload)?);
+        }
+
+        // A deferred foreign key violation fails the commit that moves the
+        // ratchet past the second message, like a full disk would.
+        sqlx::raw_sql(
+            "CREATE TABLE commit_blocker (
+                id INTEGER PRIMARY KEY,
+                parent INTEGER REFERENCES commit_blocker (id) DEFERRABLE INITIALLY DEFERRED
+            );
+            CREATE TRIGGER fail_commit AFTER UPDATE ON queue_ratchet
+            WHEN NEW.sequence_number = 2
+            BEGIN
+                INSERT INTO commit_blocker (id, parent) VALUES (1, 2);
+            END;",
+        )
+        .execute(db.write().await?.as_mut())
+        .await?;
+
+        let processed = user.fully_process_qs_messages(messages.clone()).await;
+        assert_eq!(processed.processed, 1);
+        assert_eq!(processed.errors.len(), 1);
+        let ratchet = StorableQsQueueRatchet::load(db.read().await?).await?;
+        assert_eq!(ratchet.sequence_number(), 1);
+
+        // A retry of the whole batch skips the committed first message as a
+        // replay and commits the other two.
+        sqlx::query("DROP TRIGGER fail_commit")
+            .execute(db.write().await?.as_mut())
+            .await?;
+        let processed = user.fully_process_qs_messages(messages).await;
+        assert_eq!(processed.processed, 3);
+        assert_eq!(processed.errors.len(), 2);
+        let ratchet = StorableQsQueueRatchet::load(db.read().await?).await?;
+        assert_eq!(ratchet.sequence_number(), 3);
+
+        Ok(())
+    }
 
     /// The DS fans our own key package upload commit back to us before it
     /// sends the `DsCommitResponse`. That echo has to yield the same batch id
