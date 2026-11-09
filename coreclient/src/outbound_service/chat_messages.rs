@@ -5,8 +5,7 @@
 use std::{collections::HashSet, time::Duration};
 
 use aircommon::time::TimeStamp;
-use anyhow::Context;
-use anyhow::anyhow;
+use anyhow::{Context, anyhow, bail};
 use chrono::{DateTime, Utc};
 use mimi_content::MessageStatus;
 use openmls::group::GroupId;
@@ -16,6 +15,7 @@ use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::chats::messages::edit::confirm_own_edit;
+use crate::clients::block_contact::BlockedContactError;
 use crate::db::access::WriteDbTransaction;
 use crate::groups::{Group, handle_group_gone_on_ds};
 use crate::job::JobError;
@@ -30,7 +30,7 @@ use crate::{
     outbound_service::chat_message_queue::{ChatMessageQueue, DequeuedMessage},
 };
 
-use super::{OutboundService, OutboundServiceContext, SendOutcome};
+use super::{OutboundService, OutboundServiceContext};
 
 /// How often we attempt to send a message before marking it as failed.
 const MAX_SEND_ATTEMPTS: usize = 3;
@@ -44,10 +44,24 @@ enum RunControl {
     EndRun,
 }
 
+/// Outcomes of an attempt to send messages.
+#[derive(Debug)]
+enum MessageSendOutcome {
+    /// The DS accepted the message, or there is nothing left to send.
+    Sent,
+    /// A sibling took the generation first.
+    Collided,
+    /// The message is postponed for a later epoch.
+    Postponed,
+}
+
 /// The outcome of committing the proposals pending in a chat's group.
 enum CommitOutcome {
     Committed,
-    ChatBlocked,
+    /// The DS rejected the commit because of a wrong epoch, or an earlier
+    /// commit is still in flight. We have to wait for the resolution by waiting
+    /// for what's in the queue.
+    WaitingForQueueResponse,
     /// The DS rejected the commit for missing proposals we have not
     /// processed yet.
     Stale,
@@ -83,11 +97,7 @@ impl OutboundService {
             .with_context(|| format!("Can't find message with id {message_id:?}"))?;
         let chat_id = message.chat_id();
 
-        // Load chat to check status
-        if Chat::is_blocked(&mut *txn, chat_id).await? {
-            return Ok(());
-        }
-
+        // Sending marks a message of a blocked chat as failed
         let message_queue = ChatMessageQueue::new(chat_id, message_id);
         message_queue.enqueue(txn).await?;
 
@@ -105,13 +115,6 @@ impl OutboundService {
                     warn!(%message_id, "Message is gone, not marking it as failed");
                     return Ok(());
                 };
-                let chat_id = message.chat_id();
-
-                // Load chat to check status
-                if Chat::is_blocked(&mut *txn, chat_id).await? {
-                    return Ok(());
-                }
-
                 let message_queue = ChatMessageQueue::new(message.chat_id(), message_id);
 
                 message_queue.remove_and_mark_as_failed(txn).await?;
@@ -181,7 +184,8 @@ impl OutboundServiceContext {
     /// exhausted, we presume the network to be down and fail the whole queue.
     /// When rate limited, the message stays queued and the run is aborted.
     /// After a server error it stays queued for a later run, until its
-    /// [`RetryPolicy::MESSAGES`] budget is used up.
+    /// [`RetryPolicy::MESSAGES`] budget is used up. While its group cannot take
+    /// a message, it stays queued for a later run without spending that budget.
     async fn send_queued_message(
         &self,
         run_token: &CancellationToken,
@@ -200,7 +204,7 @@ impl OutboundServiceContext {
                 attempts,
             );
             let error = match result {
-                Ok(SendOutcome::Sent) => {
+                Ok(MessageSendOutcome::Sent) => {
                     self.db
                         .with_write_transaction(async |txn| -> anyhow::Result<_> {
                             ChatMessageQueue::remove(txn, message_id).await?;
@@ -210,14 +214,15 @@ impl OutboundServiceContext {
                         .map_err(OutboundServiceError::fatal)?;
                     return Ok(RunControl::NextMessage);
                 }
-                Ok(SendOutcome::Collided) => {
-                    // Leave the message in the queue so a later run retries it
-                    // at a fresh generation instead of looping here. It stays
-                    // locked by this task instance until then.
+                Ok(outcome @ (MessageSendOutcome::Collided | MessageSendOutcome::Postponed)) => {
+                    // Leave the message in the queue for a later run instead of
+                    // looping here. It spends no attempt and stays locked by
+                    // this task instance until then.
                     debug!(
                         ?message_id,
                         ?chat_id,
-                        "Message collided, re-enqueuing for a later run"
+                        ?outcome,
+                        "Keeping message for a later run"
                     );
                     return Ok(RunControl::NextMessage);
                 }
@@ -282,7 +287,7 @@ impl OutboundServiceContext {
         &self,
         message_id: MessageId,
         stale_groups: &mut HashSet<GroupId>,
-    ) -> Result<SendOutcome, OutboundServiceError> {
+    ) -> Result<MessageSendOutcome, OutboundServiceError> {
         debug!(?message_id, "sending message");
 
         // load chat and message
@@ -305,9 +310,9 @@ impl OutboundServiceContext {
                     return Ok(None);
                 };
 
-                // Don't send messages for blocked chats
+                // A message queued before the block can't be sent anymore
                 if let ChatStatus::Blocked = chat.status() {
-                    return Ok(None);
+                    bail!(BlockedContactError);
                 }
 
                 // Don't send messages for chats with pending or failed resync
@@ -327,24 +332,25 @@ impl OutboundServiceContext {
             .await
             .map_err(OutboundServiceError::fatal)?
         else {
-            return Ok(SendOutcome::Sent);
+            return Ok(MessageSendOutcome::Sent);
         };
 
         if has_pending_proposals {
-            // A stale group is not committed to again in this run. Like a
-            // collision, the message stays queued and a later run retries it,
-            // once the missing proposals have been processed.
+            // A stale group is not committed to again in this run. The message
+            // waits for a later run, once the missing proposals have been
+            // processed.
             if stale_groups.contains(chat.group_id()) {
                 debug!(chat_id = ?chat.id(), "Not committing in a stale group");
-                return Ok(SendOutcome::Collided);
+                return Ok(MessageSendOutcome::Postponed);
             }
             match self.commit_pending_proposals(chat.id()).await? {
                 CommitOutcome::Committed => (),
-                // Nothing left to send in a blocked chat.
-                CommitOutcome::ChatBlocked => return Ok(SendOutcome::Sent),
+                // Processing the winning commit drops the parked one, and the
+                // run after that sends the message.
+                CommitOutcome::WaitingForQueueResponse => return Ok(MessageSendOutcome::Postponed),
                 CommitOutcome::Stale => {
                     stale_groups.insert(chat.group_id().clone());
-                    return Ok(SendOutcome::Collided);
+                    return Ok(MessageSendOutcome::Postponed);
                 }
             }
         }
@@ -391,7 +397,7 @@ impl OutboundServiceContext {
                 // rejected, so leave it in the queue to be re-encrypted at a
                 // fresh generation and retried by a later run.
                 if !ds_error.process_tag_collisions(&sent_tags).is_empty() {
-                    return Ok(SendOutcome::Collided);
+                    return Ok(MessageSendOutcome::Collided);
                 }
 
                 return Err(ds_error.into());
@@ -450,7 +456,7 @@ impl OutboundServiceContext {
             .await
             .map_err(OutboundServiceError::fatal)?;
 
-        Ok(SendOutcome::Sent)
+        Ok(MessageSendOutcome::Sent)
     }
 
     /// Commits the proposals pending in the chat's group.
@@ -466,7 +472,7 @@ impl OutboundServiceContext {
             .await
         {
             Ok(_) => Ok(CommitOutcome::Committed),
-            Err(JobError::Blocked) => Ok(CommitOutcome::ChatBlocked),
+            Err(JobError::Blocked) => Ok(CommitOutcome::WaitingForQueueResponse),
             Err(JobError::Recoverable(
                 error @ Recoverable {
                     cause: RecoverableCause::Stale,
