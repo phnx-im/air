@@ -100,8 +100,10 @@ async fn failing_message_does_not_block_qs_batch() {
         )
         .await
         .unwrap();
+    // The invite helper leaves a message from Bob behind. Reading it would add
+    // a read receipt to the batch.
     alice
-        .send_message(group_chat_id, content.clone(), None, MarkChatAsRead::Yes)
+        .send_message(group_chat_id, content.clone(), None, MarkChatAsRead::No)
         .await
         .unwrap();
     alice

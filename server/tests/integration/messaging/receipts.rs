@@ -240,3 +240,72 @@ async fn peer_read_receipt_keeps_own_unread_count() {
         "a read receipt from another member must not clear our unread messages"
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn reply_sends_read_receipt() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let bobs_message = bob.send_text(chat_id, "from bob").await;
+    alice.drain().await;
+
+    // Alice replies before the app marked anything as read.
+    alice.send_text(chat_id, "from alice").await;
+
+    bob.drain().await;
+    let bobs_message = bob.expect_message(bobs_message.id()).await;
+    assert_eq!(bobs_message.status(), MessageStatus::Read);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn reply_with_read_receipts_off_sends_no_read_receipt() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+    alice
+        .set_user_setting(&ReadReceiptsSetting(false))
+        .await
+        .unwrap();
+
+    let bobs_message = bob.send_text(chat_id, "from bob").await;
+    alice.drain().await;
+
+    alice.send_text(chat_id, "from alice").await;
+    assert_eq!(alice.unread_messages_count(chat_id).await, 0);
+
+    bob.drain().await;
+    let bobs_message = bob.expect_message(bobs_message.id()).await;
+    assert_eq!(bobs_message.status(), MessageStatus::Delivered);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn message_before_queued_reply_gets_read_receipt() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    // Alice's reply waits in her queue while Bob writes. The DS then puts
+    // Bob's message before hers.
+    let content = MimiContent::simple_markdown_message("from alice".to_owned(), [0; 16]);
+    alice
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+    let bobs_message = bob.send_text(chat_id, "from bob").await;
+    alice.drain().await;
+    assert_eq!(alice.unread_messages_count(chat_id).await, 1);
+
+    alice.outbound_service().run_once().await;
+    assert_eq!(
+        alice.unread_messages_count(chat_id).await,
+        0,
+        "the sent reply reads the chat up to it"
+    );
+    // The receipts of a confirmed send go out with the next run.
+    alice.outbound_service().run_once().await;
+
+    bob.drain().await;
+    let bobs_message = bob.expect_message(bobs_message.id()).await;
+    assert_eq!(bobs_message.status(), MessageStatus::Read);
+}

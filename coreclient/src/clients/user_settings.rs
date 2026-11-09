@@ -32,20 +32,13 @@ impl CoreUser {
             })
             .ok()?;
 
-        match UserSettingRecord::load(connection, T::KEY).await {
-            Ok(Some(bytes)) => match T::decode(bytes) {
-                Ok(value) => Some(value),
-                Err(error) => {
-                    error!(%error, "Failed to decode user setting; resetting to default");
-                    None
-                }
-            },
-            Ok(None) => None,
-            Err(error) => {
+        UserSettingRecord::load_decoded(connection)
+            .await
+            .inspect_err(|error| {
                 error!(%error, "Failed to load user setting; resetting to default");
-                None
-            }
-        }
+            })
+            .ok()
+            .flatten()
     }
 
     pub async fn set_user_setting<T: UserSetting>(&self, value: &T) -> anyhow::Result<()> {
@@ -539,8 +532,10 @@ impl UserSetting for ExperimentalFeaturesSetting {
 pub(crate) struct UserSettingRecord {}
 
 pub(crate) mod persistence {
+    use tracing::warn;
+
     use crate::{
-        clients::user_settings::SyncedUserSetting,
+        clients::user_settings::{SyncedUserSetting, UserSetting},
         db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
         groups::self_group::SelfGroup,
     };
@@ -555,6 +550,19 @@ pub(crate) mod persistence {
             sqlx::query_scalar!("SELECT value FROM user_setting WHERE setting = ?", setting)
                 .fetch_optional(connection.as_mut())
                 .await
+        }
+
+        /// Loads and decodes the setting `T`. A value that does not decode
+        /// counts as unset.
+        pub(crate) async fn load_decoded<T: UserSetting>(
+            connection: impl ReadConnection,
+        ) -> sqlx::Result<Option<T>> {
+            let Some(bytes) = Self::load(connection, T::KEY).await? else {
+                return Ok(None);
+            };
+            Ok(T::decode(bytes)
+                .inspect_err(|error| warn!(%error, setting = T::KEY, "Invalid user setting"))
+                .ok())
         }
 
         pub(crate) async fn store(
@@ -829,6 +837,27 @@ mod tests {
         .await?;
 
         assert_eq!(stored_read_receipts(&pool).await?, Some(true));
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn load_decoded_treats_undecodable_as_unset(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let load = async || -> anyhow::Result<Option<bool>> {
+            let setting =
+                UserSettingRecord::load_decoded::<ReadReceiptsSetting>(pool.read().await?).await?;
+            Ok(setting.map(|ReadReceiptsSetting(enabled)| enabled))
+        };
+
+        assert_eq!(load().await?, None);
+
+        UserSettingRecord::store(pool.write().await?, ReadReceiptsSetting::KEY, vec![0]).await?;
+        assert_eq!(load().await?, Some(false));
+
+        // Two bytes never decode to a `ReadReceiptsSetting`.
+        UserSettingRecord::store(pool.write().await?, ReadReceiptsSetting::KEY, vec![7, 7]).await?;
+        assert_eq!(load().await?, None);
+
         Ok(())
     }
 

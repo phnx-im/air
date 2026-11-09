@@ -27,7 +27,7 @@ use crate::{
     },
     clients::{
         CoreUser,
-        user_settings::{DeleteExpiredContactRequestsSetting, UserSetting, UserSettingRecord},
+        user_settings::{DeleteExpiredContactRequestsSetting, UserSettingRecord},
     },
     db::access::{ReadConnection, ReadTransaction, WriteDbTransaction},
     job::pending_chat_operation::PendingChatOperation,
@@ -156,13 +156,8 @@ async fn stage_group_delete(
 }
 
 async fn delete_expired_enabled(connection: impl ReadConnection) -> anyhow::Result<bool> {
-    let setting = UserSettingRecord::load(connection, DeleteExpiredContactRequestsSetting::KEY)
-        .await?
-        .map(DeleteExpiredContactRequestsSetting::decode)
-        .transpose()
-        .inspect_err(|error| warn!(%error, "Invalid setting for expired contact requests"))
-        .ok()
-        .flatten();
+    let setting =
+        UserSettingRecord::load_decoded::<DeleteExpiredContactRequestsSetting>(connection).await?;
     Ok(setting.is_some_and(|DeleteExpiredContactRequestsSetting(enabled)| enabled))
 }
 
@@ -323,6 +318,7 @@ mod tests {
         clients::{
             connection_offer::{FriendshipPackage, payload::ConnectionInfo},
             own_client_info::OwnClientInfo,
+            user_settings::UserSetting,
         },
         contacts::{TargetedMessageContact, UsernameContact},
         db::access::{DbAccess, ReadDbTransaction},
