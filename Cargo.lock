@@ -258,7 +258,6 @@ dependencies = [
  "airserver_test_harness",
  "anyhow",
  "apqmls",
- "base64 0.22.1",
  "blurhash",
  "cbor-diag",
  "chrono",
