@@ -38,6 +38,7 @@ use crate::errors::CborMlsAssistStorage;
 use super::{
     apq::ApqExternalCommit,
     group_state::{DsGroupState, MemberProfile, SelfRemoveCheckError, leaf_credential_is_valid},
+    user_credentials::Unauthenticated,
 };
 
 /// Reject any proposal an external commit joining a connection group must not
@@ -118,7 +119,7 @@ impl DsGroupState {
         external_commit: AssistedMessageIn,
         qs_client_reference: QsReference,
         bootstrap_requested: bool,
-    ) -> Result<JoinConnectionGroupOutcome, JoinConnectionGroupError> {
+    ) -> Result<Unauthenticated<JoinConnectionGroupOutcome>, JoinConnectionGroupError> {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
             .group()
@@ -180,10 +181,13 @@ impl DsGroupState {
             epoch
         });
 
-        Ok(JoinConnectionGroupOutcome {
-            message,
-            snapshot_epoch,
-        })
+        Ok(Unauthenticated::new(
+            JoinConnectionGroupOutcome {
+                message,
+                snapshot_epoch,
+            },
+            joiner_credential.into_user().into_iter().collect(),
+        ))
     }
 
     /// The APQ variant of [`Self::join_connection_group`]. The snapshot it
@@ -194,7 +198,7 @@ impl DsGroupState {
         external_commit: ApqAssistedMessageIn,
         qs_client_reference: QsReference,
         bootstrap_requested: bool,
-    ) -> Result<JoinConnectionGroupOutcome, JoinConnectionGroupError> {
+    ) -> Result<Unauthenticated<JoinConnectionGroupOutcome>, JoinConnectionGroupError> {
         let processed_assisted_message_plus = ApqGroupRef::from_groups(&mut t.group, &mut pq.group)
             .process_apq_assisted_message(t.provider.crypto(), external_commit, |_, _| true)?;
 
@@ -259,10 +263,16 @@ impl DsGroupState {
             epoch
         });
 
-        Ok(JoinConnectionGroupOutcome {
-            message: SerializedMlsMessage::combine_apq(t_serialized_message, pq_serialized_message),
-            snapshot_epoch,
-        })
+        Ok(Unauthenticated::new(
+            JoinConnectionGroupOutcome {
+                message: SerializedMlsMessage::combine_apq(
+                    t_serialized_message,
+                    pq_serialized_message,
+                ),
+                snapshot_epoch,
+            },
+            joiner_credential.into_user().into_iter().collect(),
+        ))
     }
 
     /// Checks the parts of a join that are specific to connection groups

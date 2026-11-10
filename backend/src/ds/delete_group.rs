@@ -320,10 +320,13 @@ mod test {
         },
         crypto::{aead::keys::EncryptedUserProfileKey, hash::Hash},
         identifiers::{QsReference, SealedClientReference, UserId},
-        messages::client_ds::{
-            AadMessage, AadPayload, GroupOperationParams, GroupOperationParamsAad,
+        messages::{
+            client_ds::{
+                AadMessage, AadPayload, AddUsersInfo, GroupOperationParams, GroupOperationParamsAad,
+            },
+            welcome_attribution_info::EncryptedWelcomeAttributionInfo,
         },
-        mls_group_config::default_leaf_node_capabilities,
+        mls_group_config::{QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_leaf_node_capabilities},
         time::TimeStamp,
     };
     use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
@@ -337,15 +340,15 @@ mod test {
     use mimi_room_policy::{RoomPolicy, VerifiedRoomState};
     use mls_assist::{
         group::Group,
-        messages::AssistedMessageOut,
+        messages::{AssistedMessageOut, AssistedWelcome},
         openmls::{
             component::ComponentData,
             group::GroupContext,
             prelude::{
-                AppDataUpdateProposal, Ciphersuite, Credential, Extensions, HpkeCiphertext,
-                KeyPackage, LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsMessageBodyIn,
-                MlsMessageIn, MlsMessageOut, OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY,
-                Proposal, SignatureScheme,
+                AppDataUpdateProposal, Ciphersuite, Credential, Extension, Extensions,
+                HpkeCiphertext, KeyPackage, LeafNodeIndex, LeafNodeParameters, MlsGroup,
+                MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
+                PURE_PLAINTEXT_WIRE_FORMAT_POLICY, Proposal, SignatureScheme, UnknownExtension,
             },
         },
         openmls_rust_crypto::OpenMlsRustCrypto,
@@ -795,7 +798,10 @@ mod test {
             commit: assisted(commit, group_info),
             add_users_info_option: None,
         };
-        state.process_group_operation(params, MAX_DEVICES).await
+        state
+            .process_group_operation(params, MAX_DEVICES)
+            .await
+            .map(|processed| processed.into_parts().0)
     }
 
     #[test]
@@ -970,6 +976,83 @@ mod test {
             let state = ds_group_state(&creator, &group, creator.signer.t_signer());
             assert!(ensure_created_without_tombstone(state.group()).is_err());
         }
+    }
+
+    fn group_operation_aad(new_members: usize) -> Vec<u8> {
+        AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
+            new_encrypted_user_profile_keys: (0..new_members)
+                .map(|_| EncryptedUserProfileKey::dummy())
+                .collect(),
+        }))
+        .tls_serialize_detached()
+        .unwrap()
+    }
+
+    fn key_package_with_qs_reference(client: &Client) -> KeyPackage {
+        let qs_reference = Extension::Unknown(
+            QS_CLIENT_REFERENCE_EXTENSION_TYPE,
+            UnknownExtension(qs_reference().tls_serialize_detached().unwrap()),
+        );
+        KeyPackage::builder()
+            .leaf_node_capabilities(default_leaf_node_capabilities())
+            .leaf_node_extensions(Extensions::single(qs_reference).unwrap())
+            .build(
+                T_CIPHERSUITE,
+                &client.provider,
+                client.signer.t_signer(),
+                client.credential.t_credential.clone(),
+            )
+            .unwrap()
+            .key_package()
+            .clone()
+    }
+
+    #[tokio::test]
+    async fn a_group_operation_holds_back_the_credentials_of_the_new_leaves() {
+        let creator = Client::new();
+        let joiner = Client::new();
+        let mut group = new_t_group(&creator);
+        let mut state = ds_group_state(&creator, &group, creator.signer.t_signer());
+
+        group.set_aad(group_operation_aad(1));
+        let (commit, welcome, group_info) = group
+            .commit_builder()
+            .force_self_update(true)
+            .propose_adds([key_package_with_qs_reference(&joiner)])
+            .load_psks(creator.provider.storage())
+            .unwrap()
+            .create_group_info(true)
+            .build(
+                creator.provider.rand(),
+                creator.provider.crypto(),
+                creator.signer.t_signer(),
+                |_| true,
+            )
+            .unwrap()
+            .stage_commit(&creator.provider)
+            .unwrap()
+            .into_contents();
+        let welcome = AssistedWelcome {
+            welcome: welcome.unwrap(),
+        };
+        let params = GroupOperationParams {
+            commit: assisted(commit, group_info.unwrap().into()),
+            add_users_info_option: Some(AddUsersInfo {
+                welcome,
+                encrypted_welcome_attribution_infos: vec![EncryptedWelcomeAttributionInfo::dummy()],
+            }),
+        };
+
+        let (_processed, credentials) = state
+            .process_group_operation(params, MAX_DEVICES)
+            .await
+            .unwrap()
+            .into_parts();
+        let user_ids: Vec<_> = credentials
+            .iter()
+            .map(|credential| credential.user_id().clone())
+            .collect();
+        assert_eq!(user_ids, [creator.user_id, joiner.user_id]);
     }
 
     #[tokio::test]
