@@ -89,12 +89,13 @@ async fn self_chat_attachment_reaches_sibling() {
     let path = tmp_dir.path().join("test.bin");
     std::fs::write(&path, &attachment).unwrap();
 
-    let (_attachment_id, _progress, upload_task) = alice
+    let upload = alice
         .upload_chat_attachment(chat_id, &path, MarkChatAsRead::Yes)
         .await
         .unwrap()
         .unwrap();
-    let message = upload_task
+    let message = upload
+        .task
         .await
         .unwrap_or_else(|error| panic!("upload in the self-group failed: {error:?}"));
     alice

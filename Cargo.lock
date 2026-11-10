@@ -266,6 +266,7 @@ dependencies = [
  "enumset",
  "hex",
  "hkdf 0.13.0",
+ "idna",
  "image",
  "indexmap",
  "infer",
@@ -280,6 +281,7 @@ dependencies = [
  "pin-project",
  "privacypass",
  "rand 0.10.3",
+ "regex",
  "reqwest",
  "serde",
  "serde_bytes",
@@ -296,6 +298,7 @@ dependencies = [
  "tonic",
  "tracing",
  "tracing-subscriber",
+ "unicode-security",
  "url",
  "uuid",
  "webpx",
@@ -7650,6 +7653,22 @@ name = "unicode-properties"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7df058c713841ad818f1dc5d3fd88063241cc61f49f5fbea4b951e8cf5a8d71d"
+
+[[package]]
+name = "unicode-script"
+version = "0.5.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa04c955db05429d464c74d495c1ee677e1866e783a4c3747f9c0cef7756cabf"
+
+[[package]]
+name = "unicode-security"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a23f3d0a5f302dbfdc8c5303c943c325e67cb478611bf1f44fb4c1520c64eb7"
+dependencies = [
+ "unicode-normalization",
+ "unicode-script",
+]
 
 [[package]]
 name = "unicode-segmentation"

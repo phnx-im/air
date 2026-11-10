@@ -15,9 +15,9 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
 part 'message_content.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `resolve`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `UnresolvedAttachment`, `UnresolvedMimiContent`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `hash`, `hash`, `hash`
+// These functions are ignored because they are not marked as `pub`: `new`, `ready`, `resolve`, `resolve`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `UnresolvedAttachment`, `UnresolvedLinkPreview`, `UnresolvedMimiContent`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`
 
 /// Mirror of the [`AttachmentId`] type
 class AttachmentId {
@@ -52,6 +52,20 @@ sealed class UiAttachment with _$UiAttachment {
 }
 
 @freezed
+sealed class UiComposerLinkPreview with _$UiComposerLinkPreview {
+  const UiComposerLinkPreview._();
+
+  const factory UiComposerLinkPreview.loading({required String url}) =
+      UiComposerLinkPreview_Loading;
+  const factory UiComposerLinkPreview.ready({
+    required UiLinkPreviewCard card,
+
+    /// Dimensions and blurhash, no bytes to keep the state changes small
+    UiImageMetadata? image,
+  }) = UiComposerLinkPreview_Ready;
+}
+
+@freezed
 sealed class UiImageMetadata with _$UiImageMetadata {
   const factory UiImageMetadata({
     String? blurhash,
@@ -60,6 +74,38 @@ sealed class UiImageMetadata with _$UiImageMetadata {
     bool? isAnimated,
   }) = _UiImageMetadata;
 }
+
+/// Link preview of a received or sent message.
+@freezed
+sealed class UiLinkPreview with _$UiLinkPreview {
+  const factory UiLinkPreview({
+    required UiLinkPreviewCard card,
+    UiLinkPreviewImage? image,
+  }) = _UiLinkPreview;
+}
+
+/// Text of a link preview card, shared by messages and the composer.
+@freezed
+sealed class UiLinkPreviewCard with _$UiLinkPreviewCard {
+  const factory UiLinkPreviewCard({
+    required String url,
+    required String host,
+    required String title,
+    required String description,
+    required UiLinkPreviewKind kind,
+  }) = _UiLinkPreviewCard;
+}
+
+@freezed
+sealed class UiLinkPreviewImage with _$UiLinkPreviewImage {
+  const factory UiLinkPreviewImage({
+    required UiAttachment attachment,
+    String? alt,
+  }) = _UiLinkPreviewImage;
+}
+
+/// How a link preview card is shown.
+enum UiLinkPreviewKind { default_, video, music, profile }
 
 /// The actual content of a message
 @freezed
@@ -72,6 +118,7 @@ sealed class UiMimiContent with _$UiMimiContent {
     Uint8List? inReplyTo,
     MessageContent? content,
     required List<UiAttachment> attachments,
+    UiLinkPreview? linkPreview,
   }) = _UiMimiContent;
 }
 

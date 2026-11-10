@@ -4,7 +4,12 @@
 
 //! A single chat details feature
 
-use std::{collections::HashMap, path::PathBuf, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    mem,
+    path::PathBuf,
+    time::Duration,
+};
 
 use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
 pub use aircoreclient::{
@@ -13,22 +18,26 @@ pub use aircoreclient::{
     GroupDebugInfo, PqGroupDebugInfo, RequiredDebugCapabilities, ResyncDebugInfo,
 };
 use aircoreclient::{
-    AttachmentId, AttachmentProgress, AttachmentStatus, Chat, ChatId, ChatMessage, MarkChatAsRead,
-    MessageEditError, MessageId, ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
+    AttachmentId, AttachmentStatus, Chat, ChatId, ChatMessage, MarkChatAsRead, MessageEditError,
+    MessageId, MimiContentExt as _, PendingUpload, ProvisionAttachmentError, UploadTaskError,
+    clients::CoreUser,
+    link_preview::{FetchedLinkPreview, select_links},
 };
 use airprotos::client::component::AirFeatures;
 use anyhow::{Context as _, bail};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
 use mimi_content::MimiContent;
+use parking_lot::Mutex;
 use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use crate::{
     StreamSink,
     api::{
-        message_content::{UiMimiId, UnresolvedMimiContent},
+        message_content::{UiComposerLinkPreview, UiMimiId, UnresolvedMimiContent},
         types::{UiChatMessage, UiInReplyToMessage, UiMessageVersion},
     },
     mark_as_read::MarkAsReadState,
@@ -84,6 +93,7 @@ impl From<MessageEditError> for UiSendMessageError {
 pub struct ChatDetailsState {
     pub chat: Option<UiChatDetails>,
     pub members: Vec<UiUserId>,
+    pub link_preview: Option<UiComposerLinkPreview>,
 }
 
 /// The cubit responsible for a single chat
@@ -96,6 +106,7 @@ pub struct ChatDetailsCubitBase {
     core: CubitCore<ChatDetailsState>,
     user_settings_rx: watch::Receiver<UserSettings>,
     attachment_in_progress: InProgressMap,
+    link_preview: Mutex<ComposerLinkPreview>,
 }
 
 impl ChatDetailsCubitBase {
@@ -117,6 +128,7 @@ impl ChatDetailsCubitBase {
         let initial_state = ChatDetailsState {
             chat,
             members: Default::default(),
+            link_preview: Default::default(),
         };
         let core = CubitCore::with_initial_state(initial_state);
 
@@ -150,6 +162,7 @@ impl ChatDetailsCubitBase {
             core,
             user_settings_rx,
             attachment_in_progress: attachments_repository.in_progress().clone(),
+            link_preview: Default::default(),
         }
     }
 
@@ -290,7 +303,7 @@ impl ChatDetailsCubitBase {
         Ok(())
     }
 
-    async fn try_send_message(&self, message_text: String) -> anyhow::Result<()> {
+    async fn try_send_message(&self, text: String) -> anyhow::Result<()> {
         // The draft is only cleared once the message is stored, so that its
         // text and reply/edit context survive a failed send.
         let draft = {
@@ -319,7 +332,7 @@ impl ChatDetailsCubitBase {
                 bail!("Unable to edit message with no body.");
             };
 
-            if plain_body == message_text {
+            if plain_body == text {
                 // Nothing changed, but clearing the draft leaves edit mode.
                 self.clear_draft(draft.as_ref()).await?;
                 return Ok(());
@@ -329,19 +342,33 @@ impl ChatDetailsCubitBase {
             None
         };
 
+        let preview = match &replaces {
+            None => self.with_link_preview(|lp| lp.take_for(&text)),
+            Some(_) => None,
+        };
+
         let salt: [u8; 16] = RustCrypto::default().random_array()?;
-        let mut content = MimiContent::simple_markdown_message(message_text, salt);
+        let mut content = MimiContent::simple_markdown_message(text, salt);
         // TODO: we should have nice setters and not have to deal with encoding ourselves (in mimi_content)
         content.in_reply_to = in_reply_to_mimi_id.map(Into::into);
 
-        Box::pin(self.context.core_user.send_message(
-            self.context.chat_id,
-            content,
-            replaces,
-            MarkChatAsRead::Yes,
-        ))
-        .await
-        .inspect_err(|error| error!(%error, "Failed to send message"))?;
+        let upload = match (replaces, preview) {
+            // Edit
+            (Some(original), _) => {
+                if let Some(original_content) = original.message().mimi_content() {
+                    content = content.with_link_preview_of(original_content);
+                }
+                self.send_plain(content, Some(original)).await?;
+                None
+            }
+            // Not an edit and no preview
+            (None, None) => {
+                self.send_plain(content, None).await?;
+                None
+            }
+            // Not an edit and has preview
+            (None, Some(preview)) => self.send_with_link_preview(content, preview).await?,
+        };
 
         // We don't want to propagate the error to the UI, otherwise the user
         // might think the message was not sent and retry, which would result in
@@ -349,8 +376,36 @@ impl ChatDetailsCubitBase {
         if let Err(error) = self.clear_draft(draft.as_ref()).await {
             error!(%error, "Failed to clear the draft after sending");
         }
+        if let Some(upload) = upload {
+            self.spawn_upload(upload);
+        }
 
         Ok(())
+    }
+
+    async fn send_plain(
+        &self,
+        content: MimiContent,
+        replaces: Option<ChatMessage>,
+    ) -> anyhow::Result<()> {
+        self.context
+            .core_user
+            .send_message(self.context.chat_id, content, replaces, MarkChatAsRead::Yes)
+            .await
+            .inspect_err(|error| error!(%error, "Failed to send message"))?;
+        Ok(())
+    }
+
+    async fn send_with_link_preview(
+        &self,
+        content: MimiContent,
+        preview: FetchedLinkPreview,
+    ) -> anyhow::Result<Option<PendingUpload>> {
+        self.context
+            .core_user
+            .send_link_preview_message(self.context.chat_id, content, preview, MarkChatAsRead::Yes)
+            .await
+            .inspect_err(|error| error!(%error, "Failed to send message"))
     }
 
     /// Clears the draft in the state and in the store.
@@ -411,19 +466,22 @@ impl ChatDetailsCubitBase {
         path: String,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let path = PathBuf::from(path);
-        let (attachment_id, progress, upload_task) =
-            match Box::pin(self.context.core_user.upload_chat_attachment(
-                self.context.chat_id,
-                &path,
-                MarkChatAsRead::Yes,
-            ))
-            .await?
-            {
-                Ok(result) => result,
-                Err(error) => return error.into_ui_result(),
-            };
-        self.upload_attachment_impl(attachment_id, progress, upload_task)
-            .await
+        let pending_upload = match Box::pin(self.context.core_user.upload_chat_attachment(
+            self.context.chat_id,
+            &path,
+            MarkChatAsRead::Yes,
+        ))
+        .await?
+        {
+            Ok(result) => result,
+            Err(error) => return error.into_ui_result(),
+        };
+        run_upload(
+            self.context.core_user.clone(),
+            self.attachment_in_progress.clone(),
+            pending_upload,
+        )
+        .await
     }
 
     pub async fn retry_upload_attachment(
@@ -442,7 +500,7 @@ impl ChatDetailsCubitBase {
         {
             return Ok(None);
         }
-        let Some((progress, upload_task)) = self
+        let Some(pending_upload) = self
             .context
             .core_user
             .retry_upload_chat_attachment(attachment_id)
@@ -452,48 +510,25 @@ impl ChatDetailsCubitBase {
             // user sees.
             return Ok(None);
         };
-        self.upload_attachment_impl(attachment_id, progress, upload_task)
-            .await
+        run_upload(
+            self.context.core_user.clone(),
+            self.attachment_in_progress.clone(),
+            pending_upload,
+        )
+        .await
     }
 
-    async fn upload_attachment_impl(
-        &self,
-        attachment_id: AttachmentId,
-        progress: AttachmentProgress,
-        upload_task: impl Future<Output = Result<ChatMessage, UploadTaskError>> + Send + 'static,
-    ) -> anyhow::Result<Option<UploadAttachmentError>> {
-        let handle = AttachmentTaskHandle::new(progress);
-        let cancel = handle.cancellation_token().clone();
-        self.attachment_in_progress.insert(attachment_id, handle);
-        match cancel.run_until_cancelled_owned(upload_task).await {
-            Some(Ok(message)) => {
-                self.context
-                    .core_user
-                    .outbound_service()
-                    .enqueue_chat_message(message.id())
-                    .await?;
+    fn spawn_upload(&self, upload: PendingUpload) {
+        let core_user = self.context.core_user.clone();
+        let in_progress = self.attachment_in_progress.clone();
+        let attachment_id = upload.attachment_id;
+        spawn_from_sync(async move {
+            match run_upload(core_user, in_progress, upload).await {
+                Ok(None) => {}
+                Ok(Some(error)) => warn!(?error, ?attachment_id, "Upload rejected"),
+                Err(error) => error!(%error, ?attachment_id, "Upload failed"),
             }
-            // The message is already gone, only the reason is left to report.
-            Some(Err(UploadTaskError::Provision(error))) => return error.into_ui_result(),
-            Some(Err(UploadTaskError::Failed { message_id, error })) => {
-                error!(%error, ?attachment_id, "Failed to upload attachment");
-                self.context
-                    .core_user
-                    .outbound_service()
-                    .fail_enqueued_chat_message(message_id)
-                    .await?;
-            }
-            None => {
-                info!(?attachment_id, "Upload was cancelled");
-                // The task was dropped before it could record an outcome, so
-                // the attachment would otherwise be stuck uploading.
-                self.context
-                    .core_user
-                    .fail_interrupted_attachment_upload(attachment_id)
-                    .await?;
-            }
-        }
-        Ok(None)
+        });
     }
 
     /// Marks the chat as read until the given message id (including).
@@ -795,6 +830,49 @@ impl ChatDetailsCubitBase {
         self.context.core_user.update_apq_key(chat_id).await?;
         Ok(())
     }
+
+    pub async fn update_link_previews(&self, text: String) -> anyhow::Result<()> {
+        let url = select_links(&text).next();
+        let parent = self.core.cancellation_token();
+        let Some((url, token)) = self.with_link_preview(|lp| lp.switch_to(url, parent)) else {
+            return Ok(());
+        };
+        let fetched = self
+            .context
+            .core_user
+            .fetch_link_preview(url, token.clone())
+            .await
+            .inspect_err(|error| error!(%error, "Failed to fetch link preview"))
+            .ok()
+            .flatten();
+        self.with_link_preview(|lp| lp.finish(&token, fetched));
+        Ok(())
+    }
+
+    pub fn dismiss_link_preview(&self, url: String) {
+        self.with_link_preview(|lp| lp.dismiss(&url));
+    }
+
+    fn with_link_preview<R>(&self, f: impl FnOnce(&mut ComposerLinkPreview) -> R) -> R {
+        let mut link_preview = self.link_preview.lock();
+        let result = f(&mut link_preview);
+        let ui = link_preview.ui();
+        self.core.state_tx().send_if_modified(|state| {
+            let changed = state.link_preview != ui;
+            state.link_preview = ui;
+            changed
+        });
+        result
+    }
+
+    pub fn composer_link_preview_image(&self, url: String) -> Option<Vec<u8>> {
+        match &self.link_preview.lock().fetch {
+            Fetch::Ready(fetched) if fetched.card().url() == url => {
+                fetched.image_bytes().map(|bytes| bytes.to_vec())
+            }
+            _ => None,
+        }
+    }
 }
 
 /// Loads the initial state and listen to the changes
@@ -921,6 +999,83 @@ impl ChatDetailsContext {
     }
 }
 
+#[frb(ignore)]
+#[derive(Debug, Default)]
+struct ComposerLinkPreview {
+    url: Option<String>,
+    fetch: Fetch,
+    dismissed: HashSet<String>,
+}
+
+#[frb(ignore)]
+#[derive(Debug, Default)]
+enum Fetch {
+    #[default]
+    None,
+    Loading(CancellationToken),
+    Ready(FetchedLinkPreview),
+}
+
+impl ComposerLinkPreview {
+    /// Takes the ready preview if it belongs to the first link of `text`.
+    fn take_for(&mut self, text: &str) -> Option<FetchedLinkPreview> {
+        let first = select_links(text).next()?;
+        match mem::take(&mut self.fetch) {
+            Fetch::Ready(fetched) if fetched.card().url() == first => Some(fetched),
+            other => {
+                self.fetch = other;
+                None
+            }
+        }
+    }
+
+    fn switch_to<'a>(
+        &mut self,
+        url: Option<&'a str>,
+        parent: &CancellationToken,
+    ) -> Option<(&'a str, CancellationToken)> {
+        if self.url.as_deref() == url {
+            return None;
+        };
+        self.cancel();
+        self.url = url.map(|s| s.to_owned());
+        let url = url.filter(|url| !self.dismissed.contains(*url))?;
+        let token = parent.child_token();
+        self.fetch = Fetch::Loading(token.clone());
+        Some((url, token))
+    }
+
+    fn cancel(&mut self) {
+        if let Fetch::Loading(token) = mem::take(&mut self.fetch) {
+            token.cancel();
+        }
+    }
+
+    /// Cancel the current fetch if any for this url, and remember this url as dismissed.
+    fn dismiss(&mut self, url: &str) {
+        if self.url.as_deref() == Some(url) {
+            self.cancel();
+        }
+        self.dismissed.insert(url.to_owned());
+    }
+
+    fn finish(&mut self, token: &CancellationToken, fetched: Option<FetchedLinkPreview>) {
+        if !token.is_cancelled() {
+            self.fetch = fetched.map(Fetch::Ready).unwrap_or(Fetch::None);
+        }
+    }
+
+    fn ui(&self) -> Option<UiComposerLinkPreview> {
+        match (&self.url, &self.fetch) {
+            (Some(url), Fetch::Loading(_)) => {
+                Some(UiComposerLinkPreview::Loading { url: url.clone() })
+            }
+            (_, Fetch::Ready(fetched)) => Some(UiComposerLinkPreview::ready(fetched)),
+            _ => None,
+        }
+    }
+}
+
 /// Loads additional details for a chat and converts it into a [`UiChatDetails`]
 pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiChatDetails {
     let unread_messages = core_user.unread_messages_count(chat.id()).await;
@@ -1015,7 +1170,48 @@ impl IntoUiResult for ProvisionAttachmentError {
     }
 }
 
+async fn run_upload(
+    core_user: CoreUser,
+    in_progress: InProgressMap,
+    PendingUpload {
+        attachment_id,
+        progress,
+        task,
+    }: PendingUpload,
+) -> anyhow::Result<Option<UploadAttachmentError>> {
+    let handle = AttachmentTaskHandle::new(progress);
+    let cancel = handle.cancellation_token().clone();
+    in_progress.insert(attachment_id, handle);
+    match cancel.run_until_cancelled_owned(task).await {
+        Some(Ok(message)) => {
+            core_user
+                .outbound_service()
+                .enqueue_chat_message(message.id())
+                .await?;
+        }
+        // The message is already gone, only the reason is left to report.
+        Some(Err(UploadTaskError::Provision(error))) => return error.into_ui_result(),
+        Some(Err(UploadTaskError::Failed { message_id, error })) => {
+            error!(%error, ?attachment_id, "Failed to upload attachment");
+            core_user
+                .outbound_service()
+                .fail_enqueued_chat_message(message_id)
+                .await?;
+        }
+        None => {
+            info!(?attachment_id, "Upload was cancelled");
+            // The task was dropped before it could record an outcome, so
+            // the attachment would otherwise be stuck uploading.
+            core_user
+                .fail_interrupted_attachment_upload(attachment_id)
+                .await?;
+        }
+    }
+    Ok(None)
+}
+
 /// Error which can occur when uploading an attachment
+#[derive(Debug)]
 pub enum UploadAttachmentError {
     /// The image could not be decoded, so it can never be sent.
     DecodingError,

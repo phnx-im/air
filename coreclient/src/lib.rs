@@ -13,6 +13,7 @@ pub mod db;
 mod groups;
 mod job;
 mod key_stores;
+pub mod link_preview;
 pub mod outbound_service;
 pub(crate) mod privacy_pass;
 mod user_profiles;
@@ -44,6 +45,7 @@ pub use crate::{
             AttachmentUrl, AttachmentUrlParseError, MessageAttachments, ProvisionAttachmentError,
             UploadTaskError,
             progress::{AttachmentProgress, AttachmentProgressEvent},
+            upload::PendingUpload,
         },
         block_contact::BlockedContactError,
         debug_info::{TimedTaskDebugInfo, UserDebugInfo},

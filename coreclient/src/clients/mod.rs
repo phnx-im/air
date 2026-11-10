@@ -64,6 +64,7 @@ use crate::{
     groups::{Group, self_group::SelfGroupNotJoinedYet},
     job::{Job, JobContext, JobContextDb, JobError},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
+    link_preview::LinkPreviewFetcher,
     outbound_service::{OutboundService, resync::Resync},
     utils::{
         global_lock::GlobalLock,
@@ -149,6 +150,7 @@ pub(crate) struct CoreUserInner {
     client_record_id: Uuid,
     api_clients: ApiClients,
     http_client: reqwest::Client,
+    pub(crate) link_preview_fetcher: LinkPreviewFetcher,
     qs_user_id: QsUserId,
     qs_client_id: QsClientId,
     key_store: MemoryUserKeyStore,

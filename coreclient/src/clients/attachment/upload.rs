@@ -6,6 +6,7 @@ use std::{
     ffi::OsStr,
     io::Cursor,
     path::{Path, PathBuf},
+    pin::Pin,
 };
 
 use airapiclient::{
@@ -132,16 +133,7 @@ impl CoreUser {
         chat_id: ChatId,
         path: &Path,
         mark_as_read: MarkChatAsRead,
-    ) -> anyhow::Result<
-        Result<
-            (
-                AttachmentId,
-                AttachmentProgress,
-                impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
-            ),
-            ProvisionAttachmentError,
-        >,
-    > {
+    ) -> anyhow::Result<Result<PendingUpload, ProvisionAttachmentError>> {
         if !Chat::exists(self.db().read().await?, &chat_id).await? {
             bail!("group {chat_id} does not exist");
         }
@@ -234,7 +226,59 @@ impl CoreUser {
             progress_tx,
         );
 
-        Ok(Ok((attachment_id, progress, task)))
+        Ok(Ok(PendingUpload::new(attachment_id, progress, task)))
+    }
+
+    /// Stores a message with an already processed attachment and returns task that sends it.
+    ///
+    /// `bytes` are stored as the attachment content, so failed upload can be retried.
+    pub(crate) async fn upload_processed_attachment(
+        &self,
+        chat_id: ChatId,
+        message_id: MessageId,
+        attachment_id: AttachmentId,
+        content: MimiContent,
+        bytes: Vec<u8>,
+        mark_as_read: MarkChatAsRead,
+    ) -> anyhow::Result<PendingUpload> {
+        let message = self
+            .db()
+            .with_write_transaction(async |txn| -> anyhow::Result<ChatMessage> {
+                let message = self
+                    .store_provisional_message(
+                        &mut *txn,
+                        chat_id,
+                        message_id,
+                        content,
+                        mark_as_read,
+                    )
+                    .await?;
+                AttachmentRecord {
+                    attachment_id,
+                    remote_attachment_id: None,
+                    chat_id,
+                    message_id,
+                    content_type: WEBP_CONTENT_TYPE.to_owned(),
+                    status: AttachmentStatus::Uploading,
+                    is_animated: Some(false),
+                    created_at: Utc::now(),
+                }
+                .store(&mut *txn, Some(&bytes))
+                .await?;
+                Ok(message)
+            })
+            .await?;
+        debug!(?attachment_id, ?message_id, "stored provisional message");
+
+        // The message is visible from here on.
+        let (progress_tx, progress) = AttachmentProgress::new();
+        let task = self.send_attachment_task(
+            attachment_id,
+            message,
+            AttachmentSource::Processed(bytes),
+            progress_tx,
+        );
+        Ok(PendingUpload::new(attachment_id, progress, task))
     }
 
     /// Retries a failed attachment send.
@@ -244,12 +288,7 @@ impl CoreUser {
     pub async fn retry_upload_chat_attachment(
         &self,
         attachment_id: AttachmentId,
-    ) -> anyhow::Result<
-        Option<(
-            AttachmentProgress,
-            impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
-        )>,
-    > {
+    ) -> anyhow::Result<Option<PendingUpload>> {
         // load locally stored data
         let (message, content) = self
             .db()
@@ -301,7 +340,7 @@ impl CoreUser {
             AttachmentSource::Processed(content),
             progress_tx,
         );
-        Ok(Some((progress, task)))
+        Ok(Some(PendingUpload::new(attachment_id, progress, task)))
     }
 
     /// Processes, provisions and uploads an attachment whose message is already
@@ -566,6 +605,29 @@ impl CoreUser {
     }
 }
 
+/// Upload of an attachment whose message is already stored.
+///
+/// Awaiting `task` uploads the attachment and returns the message.
+pub struct PendingUpload {
+    pub attachment_id: AttachmentId,
+    pub progress: AttachmentProgress,
+    pub task: Pin<Box<dyn Future<Output = Result<ChatMessage, UploadTaskError>> + Send>>,
+}
+
+impl PendingUpload {
+    pub fn new(
+        attachment_id: AttachmentId,
+        progress: AttachmentProgress,
+        task: impl Future<Output = Result<ChatMessage, UploadTaskError>> + Send + 'static,
+    ) -> Self {
+        Self {
+            attachment_id,
+            progress,
+            task: Box::pin(task),
+        }
+    }
+}
+
 /// The message content an attachment is stored with.
 ///
 /// The final message is derived by patching field values into these parts, so
@@ -697,6 +759,37 @@ impl ProbedAttachment {
     }
 }
 
+/// Provisional external part for already processed WebP image bytes.
+///
+/// Complete except for remote id, key and nonce, which provisioning patches in.
+pub(crate) fn provisional_image_part(
+    attachment_id: AttachmentId,
+    disposition: Disposition,
+    bytes: &[u8],
+    dimensions: (u32, u32),
+) -> NestedPart {
+    let url = AttachmentUrl::new(
+        RemoteAttachmentId::new(attachment_id.uuid),
+        Some(dimensions),
+    );
+    NestedPart::ExternalPart {
+        disposition,
+        language: String::new(),
+        content_type: WEBP_CONTENT_TYPE.to_owned(),
+        url: url.to_string(),
+        expires: 0,
+        size: bytes.len() as u64,
+        enc_alg: AIR_ATTACHMENT_ENCRYPTION_ALG,
+        key: Vec::new(),
+        nonce: Vec::new(),
+        aad: Default::default(),
+        hash_alg: AIR_ATTACHMENT_HASH_ALG,
+        content_hash: Sha256::digest(bytes).to_vec(),
+        description: Default::default(),
+        filename: String::new(),
+    }
+}
+
 /// In-memory loaded and processed attachment
 ///
 /// If it is an image, it will contain additional image data, like a blurhash.
@@ -715,6 +808,8 @@ struct ProcessedAttachmentImageData {
     height: u32,
     is_animated: bool,
 }
+
+const WEBP_CONTENT_TYPE: &str = "image/webp";
 
 impl ProcessedAttachment {
     fn from_bytes(
@@ -744,7 +839,7 @@ impl ProcessedAttachment {
             };
             (
                 webp_image.into(),
-                "image/webp".to_owned(),
+                WEBP_CONTENT_TYPE.to_owned(),
                 Self::image_filename(),
                 Some(image_data),
             )

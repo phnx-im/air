@@ -5,14 +5,17 @@
 use std::{io::Cursor, mem};
 
 use aircoreclient::{
-    AttachmentUrl, MediaType, MimiContentExt as _, PartIndex, TextFormat, VisitedPart, media_type,
+    AttachmentUrl, MediaType, MimiContentExt as _, PartIndex, TextFormat, VisitedPart,
+    link_preview::LinkPreview,
 };
 use mimi_content::{MimiContent, content_container::NestedPart};
 use tracing::warn;
 
 use crate::api::{
     markdown::{FILE_PREVIEW, IMAGE_PREVIEW, MessageContent},
-    message_content::{UiImageMetadata, UnresolvedAttachment, UnresolvedMimiContent},
+    message_content::{
+        UiImageMetadata, UnresolvedAttachment, UnresolvedLinkPreview, UnresolvedMimiContent,
+    },
 };
 
 pub(crate) trait MimiContentExt {
@@ -23,21 +26,8 @@ pub(crate) trait MimiContentExt {
 }
 
 impl MimiContentExt for MimiContent {
-    // Message editing relies on this function returning the original input
-    // again. When we add processing to the input or the plain_body function, we
-    // need to adjust message editing.
     fn plain_body(&self) -> Option<&str> {
-        match &self.nested_part {
-            // single part message
-            NestedPart::SinglePart {
-                content,
-                content_type,
-                ..
-            } if MediaType::of(content_type) == media_type::TEXT_MARKDOWN => {
-                str::from_utf8(content).ok()
-            }
-            _ => None,
-        }
+        aircoreclient::MimiContentExt::markdown_text(self)
     }
 
     fn preview_text(&self) -> Option<String> {
@@ -84,6 +74,7 @@ impl From<MimiContent> for UnresolvedMimiContent {
                 .map(|id| id.as_slice().to_vec()),
             content: None,
             attachments: Vec::new(),
+            link_preview: None,
         };
 
         // A deleted message stays without content
@@ -94,6 +85,7 @@ impl From<MimiContent> for UnresolvedMimiContent {
         // Parsed per part, so that syntax does not cross part boundaries
         let mut elements = Vec::new();
         let mut raw = Vec::new();
+        let mut card = None;
         let _infallible = mimi_content.visit_parts(|part| {
             match part {
                 VisitedPart::Text { content, format } => {
@@ -116,10 +108,21 @@ impl From<MimiContent> for UnresolvedMimiContent {
                     res.attachments
                         .extend(convert_attachment(part, index, blurhash));
                 }
+                VisitedPart::LinkPreview { card: bytes, .. } => {
+                    card.get_or_insert(bytes);
+                }
                 VisitedPart::Unknown(_) => {}
             }
             Ok(())
         });
+        res.link_preview = card
+            .and_then(|card| LinkPreview::parse(card, &raw, &mimi_content))
+            .map(|preview| {
+                let image = preview.image().and_then(|(_, index)| {
+                    convert_attachment(mimi_content.part_at(index)?, index, None)
+                });
+                UnresolvedLinkPreview { preview, image }
+            });
 
         if raw.is_empty() && res.attachments.is_empty() {
             return res.error_message("Unsupported message");
@@ -253,6 +256,7 @@ fn inline_filename(media_type: MediaType) -> String {
 mod tests {
     use aircommon::identifiers::RemoteAttachmentId;
     use aircoreclient::{AttachmentId, AttachmentInfo, MessageAttachments, MessageId};
+    use airprotos::client::link_preview::{LinkPreviewCard, LinkPreviewImage, LinkPreviewKind};
     use mimi_content::{
         Disposition,
         content_container::{EncryptionAlgorithm, HashAlgorithm, PartSemantics},
@@ -261,7 +265,10 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
-    use crate::api::markdown::{BlockElement, RangedBlockElement};
+    use crate::api::{
+        markdown::{BlockElement, RangedBlockElement},
+        message_content::UiLinkPreviewKind,
+    };
 
     fn markdown_message(markdown: &str) -> MimiContent {
         MimiContent::simple_markdown_message(markdown.to_owned(), [0; 16])
@@ -451,6 +458,78 @@ mod tests {
             unresolved.plain_body.as_deref(),
             Some("see https://example.com")
         );
+    }
+
+    fn link_preview_message() -> MimiContent {
+        let image = LinkPreviewImage::new(3, 4, 3, Some("LEHV6nWB2yk8".to_owned()), Some("alt"));
+        let card = LinkPreviewCard::new(
+            "https://example.com".to_owned(),
+            "Example",
+            "An example",
+            LinkPreviewKind::Video,
+            image,
+        )
+        .unwrap();
+        render_container(vec![
+            single_part(
+                Disposition::Render,
+                "text/markdown",
+                b"see https://example.com",
+            ),
+            single_part(
+                Disposition::Preview,
+                LinkPreviewCard::CONTENT_TYPE,
+                &card.encode().unwrap(),
+            ),
+            external_part(Disposition::Preview, "image/webp", 1, "preview.webp"),
+        ])
+    }
+
+    #[test]
+    fn link_preview_image_is_paired_with_its_record() {
+        let content = link_preview_message();
+        let message_id = MessageId::new(Uuid::from_u128(0x1234));
+        let image_id = AttachmentId::derive(message_id, attachment_indices(&content)[0]);
+        let infos = MessageAttachments::new(message_id, vec![attachment_info(image_id)]);
+
+        let resolved = UnresolvedMimiContent::from(content).resolve(Some(&infos));
+        assert!(resolved.attachments.is_empty());
+        let preview = resolved.link_preview.unwrap();
+        assert_eq!(preview.card.url, "https://example.com");
+        assert_eq!(preview.card.host, "example.com");
+        assert_eq!(preview.card.title, "Example");
+        assert_eq!(preview.card.kind, UiLinkPreviewKind::Video);
+        let image = preview.image.unwrap();
+        assert_eq!(image.attachment.attachment_id, image_id);
+        assert_eq!(image.attachment.filename, "preview.webp");
+        assert_eq!(
+            image.attachment.image_metadata,
+            Some(UiImageMetadata {
+                blurhash: Some("LEHV6nWB2yk8".to_owned()),
+                width: 4,
+                height: 3,
+                is_animated: Some(false),
+            })
+        );
+        assert_eq!(image.alt.as_deref(), Some("alt"));
+    }
+
+    #[test]
+    fn link_preview_without_records_has_no_image() {
+        let resolved = UnresolvedMimiContent::from(link_preview_message()).resolve(None);
+        let preview = resolved.link_preview.unwrap();
+        assert!(preview.image.is_none());
+    }
+
+    #[test]
+    fn link_preview_needs_its_link_in_the_text() {
+        let mut content = link_preview_message();
+        if let NestedPart::MultiPart { parts, .. } = &mut content.nested_part {
+            parts[0] = single_part(Disposition::Render, "text/markdown", b"no link");
+        }
+        let resolved = UnresolvedMimiContent::from(content).resolve(None);
+        assert!(resolved.link_preview.is_none());
+        assert!(resolved.attachments.is_empty());
     }
 
     fn attachment_indices(content: &MimiContent) -> Vec<PartIndex> {

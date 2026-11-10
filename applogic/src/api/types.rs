@@ -214,7 +214,7 @@ impl From<MessageDraft> for UiMessageDraft {
 }
 
 /// UI representation of a [`InReplyToMessage`]
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[doc(hidden)]
 #[frb(dart_metadata = ("freezed"))]
 pub enum UiInReplyToMessage {
@@ -398,7 +398,7 @@ pub struct UiReaction {
 }
 
 /// A message in a chat
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 #[frb(dart_metadata = ("freezed"))]
 pub struct UiChatMessage {
     pub chat_id: ChatId,
@@ -504,7 +504,7 @@ impl UiChatMessage {
 /// The actual message in a chat
 ///
 /// Can be either a message to display (e.g. a system message) or a message from a user.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 #[frb(dart_metadata = ("freezed"))]
 pub enum UiMessage {
     Content(Box<UiContentMessage>),
@@ -529,7 +529,7 @@ impl UiMessage {
 }
 
 /// Content of a message including the sender and whether it was sent
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 #[frb(dart_metadata = ("freezed"))]
 pub struct UiContentMessage {
     pub sender: UiUserId,
@@ -585,7 +585,7 @@ impl EditAllowance {
 }
 
 /// One version of a message, see [`MessageVersion`]
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[frb(dart_metadata = ("freezed"))]
 pub struct UiMessageVersion {
     pub content: UiMimiContent,

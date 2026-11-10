@@ -4,7 +4,11 @@
 
 use aircommon::identifiers::{MimiId, RemoteAttachmentId};
 pub(crate) use aircoreclient::AttachmentId;
-use aircoreclient::{MessageAttachments, PartIndex};
+use aircoreclient::{
+    MessageAttachments, PartIndex,
+    link_preview::{FetchedLinkPreview, LinkPreview},
+};
+use airprotos::client::link_preview::{LinkPreviewCard, LinkPreviewKind};
 use flutter_rust_bridge::frb;
 use uuid::Uuid;
 
@@ -58,10 +62,19 @@ pub(crate) struct UnresolvedMimiContent {
     pub content: Option<MessageContent>,
     /// Atachmment without local attachment ID yet
     pub attachments: Vec<UnresolvedAttachment>,
+    /// Card with its image not yet paired with a record
+    pub link_preview: Option<UnresolvedLinkPreview>,
+}
+
+#[derive(Debug)]
+#[frb(ignore)]
+pub(crate) struct UnresolvedLinkPreview {
+    pub preview: LinkPreview,
+    pub image: Option<UnresolvedAttachment>,
 }
 
 /// The actual content of a message
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 #[frb(dart_metadata = ("freezed"))]
 pub struct UiMimiContent {
     pub plain_body: Option<String>,
@@ -73,6 +86,7 @@ pub struct UiMimiContent {
     pub in_reply_to: Option<Vec<u8>>,
     pub content: Option<MessageContent>,
     pub attachments: Vec<UiAttachment>,
+    pub link_preview: Option<UiLinkPreview>,
 }
 
 /// [`UiAttachment`] without local attachment ID
@@ -90,7 +104,7 @@ pub(crate) struct UnresolvedAttachment {
     pub image_metadata: Option<UiImageMetadata>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 #[frb(dart_metadata = ("freezed"), type_64bit_int)]
 pub struct UiAttachment {
     pub attachment_id: AttachmentId,
@@ -101,7 +115,7 @@ pub struct UiAttachment {
     pub image_metadata: Option<UiImageMetadata>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 #[frb(dart_metadata = ("freezed"))]
 pub struct UiImageMetadata {
     pub blurhash: Option<String>,
@@ -109,6 +123,92 @@ pub struct UiImageMetadata {
     pub height: u32,
     /// Whether the image is animated, if already classified locally
     pub is_animated: Option<bool>,
+}
+
+/// Text of a link preview card, shared by messages and the composer.
+#[derive(Debug, Clone, Eq, PartialEq)]
+#[frb(dart_metadata = ("freezed"))]
+pub struct UiLinkPreviewCard {
+    pub url: String,
+    pub host: String,
+    pub title: String,
+    pub description: String,
+    pub kind: UiLinkPreviewKind,
+}
+
+impl UiLinkPreviewCard {
+    fn new(card: &LinkPreviewCard, host: &str) -> Self {
+        Self {
+            url: card.url().to_owned(),
+            host: host.to_owned(),
+            title: card.title().to_owned(),
+            description: card.description().to_owned(),
+            kind: card.kind().into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+#[frb(dart_metadata = ("freezed"))]
+pub struct UiLinkPreviewImage {
+    pub attachment: UiAttachment,
+    pub alt: Option<String>,
+}
+
+/// Link preview of a received or sent message.
+#[derive(Debug, Clone, Eq, PartialEq)]
+#[frb(dart_metadata = ("freezed"))]
+pub struct UiLinkPreview {
+    pub card: UiLinkPreviewCard,
+    pub image: Option<UiLinkPreviewImage>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+#[frb(dart_metadata = ("freezed"))]
+pub enum UiComposerLinkPreview {
+    Loading {
+        url: String,
+    },
+    Ready {
+        card: UiLinkPreviewCard,
+        /// Dimensions and blurhash, no bytes to keep the state changes small
+        image: Option<UiImageMetadata>,
+    },
+}
+
+impl UiComposerLinkPreview {
+    pub(crate) fn ready(fetched: &FetchedLinkPreview) -> Self {
+        let image = fetched.card().image().map(|image| UiImageMetadata {
+            blurhash: image.blur_hash().map(str::to_owned),
+            width: image.width(),
+            height: image.height(),
+            is_animated: Some(false),
+        });
+        Self::Ready {
+            card: UiLinkPreviewCard::new(fetched.card(), fetched.host()),
+            image,
+        }
+    }
+}
+
+/// How a link preview card is shown.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum UiLinkPreviewKind {
+    Default,
+    Video,
+    Music,
+    Profile,
+}
+
+impl From<LinkPreviewKind> for UiLinkPreviewKind {
+    fn from(kind: LinkPreviewKind) -> Self {
+        match kind {
+            LinkPreviewKind::Video => Self::Video,
+            LinkPreviewKind::Music => Self::Music,
+            LinkPreviewKind::Profile => Self::Profile,
+            LinkPreviewKind::Default | LinkPreviewKind::Other(_) => Self::Default,
+        }
+    }
 }
 
 impl UnresolvedMimiContent {
@@ -124,23 +224,7 @@ impl UnresolvedMimiContent {
         let attachments: Vec<UiAttachment> = self
             .attachments
             .into_iter()
-            .filter_map(|attachment| {
-                let info = records.and_then(|records| {
-                    records.find(attachment.index, attachment.remote_attachment_id)
-                })?;
-                Some((attachment, info))
-            })
-            .map(|(attachment, info)| UiAttachment {
-                attachment_id: info.attachment_id,
-                filename: attachment.filename,
-                content_type: attachment.content_type,
-                description: attachment.description,
-                size: attachment.size,
-                image_metadata: attachment.image_metadata.map(|metadata| UiImageMetadata {
-                    is_animated: info.is_animated,
-                    ..metadata
-                }),
-            })
+            .filter_map(|a| a.resolve(records))
             .collect();
 
         let content = match self.content {
@@ -150,6 +234,30 @@ impl UnresolvedMimiContent {
             content => content,
         };
 
+        let link_preview = self.link_preview.map(
+            |UnresolvedLinkPreview {
+                 preview,
+                 image: attachment,
+             }| UiLinkPreview {
+                card: UiLinkPreviewCard::new(preview.card(), preview.host()),
+                image: attachment
+                    .zip(preview.image())
+                    .and_then(|(attachment, (image, _))| {
+                        let mut attachment = attachment.resolve(records)?;
+                        attachment.image_metadata = Some(UiImageMetadata {
+                            blurhash: image.blur_hash().map(str::to_owned),
+                            width: image.width(),
+                            height: image.height(),
+                            is_animated: Some(false),
+                        });
+                        Some(UiLinkPreviewImage {
+                            attachment,
+                            alt: image.alt().map(str::to_owned),
+                        })
+                    }),
+            },
+        );
+
         UiMimiContent {
             plain_body: self.plain_body,
             preview_text,
@@ -158,6 +266,24 @@ impl UnresolvedMimiContent {
             in_reply_to: self.in_reply_to,
             content,
             attachments,
+            link_preview,
         }
+    }
+}
+
+impl UnresolvedAttachment {
+    fn resolve(self, records: Option<&MessageAttachments>) -> Option<UiAttachment> {
+        let info = records?.find(self.index, self.remote_attachment_id)?;
+        Some(UiAttachment {
+            attachment_id: info.attachment_id,
+            filename: self.filename,
+            content_type: self.content_type,
+            description: self.description,
+            size: self.size,
+            image_metadata: self.image_metadata.map(|metadata| UiImageMetadata {
+                is_animated: info.is_animated,
+                ..metadata
+            }),
+        })
     }
 }

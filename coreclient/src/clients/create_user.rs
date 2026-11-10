@@ -435,17 +435,21 @@ impl PersistedUserState {
             global_lock,
         );
 
+        let link_preview_fetcher =
+            LinkPreviewFetcher::new().expect("failed to build link preview fetcher");
+
         // listen to handles and queue messages
         let (event_loop, event_loop_sender, event_loop_cancel) = EventLoop::new();
 
         let inner = Arc::new(CoreUserInner {
             db,
             client_record_id,
-            key_store,
-            qs_user_id,
-            qs_client_id,
             api_clients,
             http_client,
+            link_preview_fetcher,
+            qs_user_id,
+            qs_client_id,
+            key_store,
             db_notifications_pending: Arc::new(Notify::new()),
             outbound_service,
             event_loop_sender,

@@ -26,6 +26,7 @@ derive_more.workspace = true
 enumset.workspace = true
 hex.workspace = true
 hkdf.workspace = true
+idna.workspace = true
 image.workspace = true
 indexmap.workspace = true
 infer.workspace = true
@@ -39,6 +40,7 @@ openmls_traits.workspace = true
 pin-project.workspace = true
 privacypass.workspace = true
 rand.workspace = true                                              # TODO: Replace this with a CSPRNG
+regex.workspace = true
 reqwest = { workspace = true, features = ["stream", "multipart"] }
 serde.workspace = true
 serde_bytes.workspace = true
@@ -54,6 +56,7 @@ tokio-stream = { workspace = true, features = ["sync"] }
 tokio-util.workspace = true
 tonic.workspace = true
 tracing.workspace = true
+unicode-security.workspace = true
 url.workspace = true
 uuid = { workspace = true, features = ["v4", "serde"] }
 webpx.workspace = true

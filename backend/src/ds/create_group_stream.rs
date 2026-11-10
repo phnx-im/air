@@ -612,7 +612,7 @@ mod tests {
         async fn consume_creation_allowance(&self, _user_id: &UserId) -> Result<(), Status> {
             tokio::time::sleep(self.allowance_delay).await;
             self.allowance
-                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
+                .try_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
                     left.checked_sub(1)
                 })
                 .map_err(|_| Status::resource_exhausted("Too many requests"))?;
