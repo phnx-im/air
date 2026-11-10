@@ -197,8 +197,14 @@ impl DsGroupState {
             .ok_or(GroupOperationError::InvalidMessage)?;
         let sender_identity = sender.room_policy_identity();
 
+        // The room policy identifies the sender by its leaf, so the new leaf must keep the
+        // owner. For an external commit, the sender is the leaf the commit replaces.
         let mut entering_credentials = Vec::new();
         if let Some(update_credential) = update_credential {
+            if update_credential.room_policy_identity() != sender_identity {
+                warn!("Update path leaf changes the owner of the sender's leaf");
+                return Err(GroupOperationError::InvalidMessage);
+            }
             entering_credentials.extend(update_credential.into_user());
         }
 

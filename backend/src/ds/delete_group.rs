@@ -1056,6 +1056,52 @@ mod test {
     }
 
     #[tokio::test]
+    async fn a_group_operation_that_changes_the_senders_user_id_is_rejected() {
+        let creator = Client::new();
+        let mut group = new_t_group(&creator);
+        let mut state = ds_group_state(&creator, &group, creator.signer.t_signer());
+
+        let other_user = UserId::random("example.com".parse().unwrap());
+        let credential = ApqCredentialWithKey::new(
+            &user_identity(&other_user, &creator.signer),
+            &creator.signer,
+        )
+        .t_credential;
+        group.set_aad(group_operation_aad(0));
+        let (commit, _welcome, group_info) = group
+            .commit_builder()
+            .force_self_update(true)
+            .leaf_node_parameters(
+                LeafNodeParameters::builder()
+                    .with_credential_with_key(credential)
+                    .build(),
+            )
+            .load_psks(creator.provider.storage())
+            .unwrap()
+            .create_group_info(true)
+            .build(
+                creator.provider.rand(),
+                creator.provider.crypto(),
+                creator.signer.t_signer(),
+                |_| true,
+            )
+            .unwrap()
+            .stage_commit(&creator.provider)
+            .unwrap()
+            .into_contents();
+        let params = GroupOperationParams {
+            commit: assisted(commit, group_info.unwrap().into()),
+            add_users_info_option: None,
+        };
+
+        let Err(GroupOperationError::InvalidMessage) =
+            state.process_group_operation(params, MAX_DEVICES).await
+        else {
+            panic!("the group operation is accepted");
+        };
+    }
+
+    #[tokio::test]
     async fn a_group_operation_that_sets_a_tombstone_is_rejected() {
         self_update_group_operation(None).await.unwrap();
         let Err(GroupOperationError::InvalidMessage) =

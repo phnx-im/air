@@ -60,6 +60,18 @@ impl DsGroupState {
         Ok(())
     }
 
+    /// Rejects a resync whose new leaf belongs to another owner than the leaf it replaces.
+    fn ensure_same_owner(
+        new: &LeafCredential,
+        replaced: &LeafCredential,
+    ) -> Result<(), ResyncClientError> {
+        if new.room_policy_identity() != replaced.room_policy_identity() {
+            error!("Resync leaf changes the owner of the sender's leaf");
+            return Err(ResyncClientError::InvalidMessage);
+        }
+        Ok(())
+    }
+
     /// An external commit re-adds the client at the leftmost blank leaf. If it differs from the
     /// original leaf index, re-key the member profile accordingly, so that fan-out exclusion and QS
     /// references stay correct.
@@ -150,6 +162,7 @@ impl DsGroupState {
         let sender = self
             .leaf_credential(sender_index)
             .ok_or(ResyncClientError::InvalidMessage)?;
+        Self::ensure_same_owner(&new_credential, &sender)?;
 
         // Collect all removed clients except the sender.
         let mut removed_indices = removed_clients(staged_commit_message);
@@ -264,6 +277,7 @@ impl DsGroupState {
         let t_sender = t_group_state
             .leaf_credential(t_sender_index)
             .ok_or(ResyncClientError::InvalidMessage)?;
+        Self::ensure_same_owner(&t_new_credential, &t_sender)?;
 
         // Collect all removed clients except the sender
         let mut t_removed_indices = removed_clients(t_staged_commit);
