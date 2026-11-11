@@ -2,5 +2,5 @@
 --
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 --
--- The resync commit the DS has not confirmed yet, resent by the next attempt.
+-- The resync commit the DS has not confirmed yet.
 ALTER TABLE resync_queue ADD COLUMN pending_commit BLOB;

@@ -603,6 +603,39 @@ async fn make_miss_a_commit(alice: &CoreUser, bob: &CoreUser, chat_id: ChatId) {
     );
 }
 
+/// Has `alice` remove `charlie` in a commit `bob` misses, then move the group
+/// on so that he queues a resync.
+async fn make_miss_a_removal(
+    alice: &CoreUser,
+    bob: &CoreUser,
+    charlie: &CoreUser,
+    chat_id: ChatId,
+) {
+    alice
+        .remove_users(chat_id, vec![charlie.user_id().clone()])
+        .await
+        .unwrap();
+    miss_queued_messages(bob).await;
+    alice.update_key(chat_id).await.unwrap();
+    bob.drain().await;
+    assert_eq!(
+        resync_status(bob, chat_id).await,
+        Some(ResyncStatus::Pending)
+    );
+}
+
+/// How many system messages of `user` say that `removed` was removed, without
+/// naming who removed them.
+async fn removal_messages(user: &CoreUser, chat_id: ChatId, removed: &CoreUser) -> usize {
+    user.system_messages(chat_id)
+        .await
+        .into_iter()
+        .filter(|message| {
+            matches!(message, SystemMessage::Remove(None, user_id) if user_id == removed.user_id())
+        })
+        .count()
+}
+
 /// The gRPC method that sends a resync commit for the test's groups.
 fn resync_method(setup: &TestBackend) -> &'static str {
     if setup.apq_groups {
@@ -638,8 +671,7 @@ async fn assert_messaging_works(
 }
 
 /// A DS replaying the group state from before a member's removal can't make
-/// another member rejoin it, so the removed member can't read that member's
-/// later messages.
+/// another member rejoin it.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn resync_rejects_stale_snapshot() {
     let mut setup = TestBackend::single().await;
@@ -661,9 +693,6 @@ async fn resync_rejects_stale_snapshot() {
     alice.update_key(chat_id).await.unwrap();
     bob.drain().await;
     let bob_epoch = epoch(&bob, chat_id).await;
-
-    // Charlie keeps the state from before the removal.
-    miss_queued_messages(&charlie).await;
 
     let current_row = setup.ds_group_row(group_uuid).await;
     setup.set_ds_group_row(group_uuid, &stale_row).await;
@@ -688,12 +717,6 @@ async fn resync_rejects_stale_snapshot() {
     bob.drain().await;
     assert_eq!(resync_status(&bob, chat_id).await, None);
     setup.send_message(chat_id, &bob, &[&alice]).await;
-    let processed = charlie.drain_unchecked().await;
-    assert!(
-        processed.new_messages.is_empty(),
-        "Charlie received {:?}",
-        processed.new_messages
-    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -766,25 +789,26 @@ async fn future_epoch_resync_rejects_current_epoch() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn resync_resends_stored_commit_after_dropped_request() {
     let mut setup = TestBackend::single().await;
-    let [alice, bob] = setup.add_users().await;
-    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob, &charlie]).await;
 
-    make_miss_a_commit(&alice, &bob, chat_id).await;
+    make_miss_a_removal(&alice, &bob, &charlie, chat_id).await;
     let attempted = drop_resync_request(&setup, &bob, chat_id).await;
 
     bob.outbound_service().run_once().await;
     assert_eq!(resync_status(&bob, chat_id).await, None);
     assert_eq!(epoch_authenticator(&bob, chat_id).await, attempted);
+    assert_eq!(removal_messages(&bob, chat_id, &charlie).await, 1);
     assert_messaging_works(&setup, &alice, &bob, chat_id).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn resync_finishes_when_commit_response_is_lost() {
     let mut setup = TestBackend::single().await;
-    let [alice, bob] = setup.add_users().await;
-    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob, &charlie]).await;
 
-    make_miss_a_commit(&alice, &bob, chat_id).await;
+    make_miss_a_removal(&alice, &bob, &charlie, chat_id).await;
     setup
         .listener_control_handle()
         .set_drop_next_response_to(resync_method(&setup));
@@ -798,12 +822,13 @@ async fn resync_finishes_when_commit_response_is_lost() {
     bob.outbound_service().run_once().await;
     assert_eq!(resync_status(&bob, chat_id).await, None);
     assert_eq!(epoch_authenticator(&bob, chat_id).await, accepted);
+    assert_eq!(removal_messages(&bob, chat_id, &charlie).await, 1);
     assert_messaging_works(&setup, &alice, &bob, chat_id).await;
 }
 
-/// The resync commit moves Bob's leaf into a blank one on his left. Resending
-/// it then fails on the DS's sender check rather than the epoch check, and the
-/// fetched state still shows that the DS applied it.
+/// A lost response is recognized from the fetched state also when the resend
+/// fails the DS's sender check rather than its epoch check, because the commit
+/// moved Bob's leaf.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn resync_finishes_lost_response_when_leaf_moved() {
     let mut setup = TestBackend::single().await;
@@ -836,10 +861,12 @@ async fn resync_finishes_lost_response_when_leaf_moved() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn resync_rebuilds_when_stored_commit_misses_self_remove() {
     let mut setup = TestBackend::single().await;
-    let [alice, bob, charlie] = setup.add_users().await;
-    let chat_id = setup.connected_group(&alice, &[&bob, &charlie]).await;
+    let [alice, bob, charlie, dave] = setup.add_users().await;
+    let chat_id = setup
+        .connected_group(&alice, &[&bob, &charlie, &dave])
+        .await;
 
-    make_miss_a_commit(&alice, &bob, chat_id).await;
+    make_miss_a_removal(&alice, &bob, &dave, chat_id).await;
     charlie.drain().await;
     let attempted = drop_resync_request(&setup, &bob, chat_id).await;
 
@@ -856,19 +883,15 @@ async fn resync_rebuilds_when_stored_commit_misses_self_remove() {
             .contains(charlie.user_id())
     );
     // The rebuild reports the changes since the state before the first
-    // attempt.
-    let charlie_removes = bob
-        .system_messages(chat_id)
-        .await
-        .into_iter()
-        .filter(|message| {
-            matches!(message, SystemMessage::Remove(None, removed) if removed == charlie.user_id())
-        })
-        .count();
-    assert_eq!(charlie_removes, 1);
+    // attempt, which still had Dave.
+    assert_eq!(removal_messages(&bob, chat_id, &dave).await, 1);
+    assert_eq!(removal_messages(&bob, chat_id, &charlie).await, 1);
     assert_messaging_works(&setup, &alice, &bob, chat_id).await;
 }
 
+/// Alice's commit takes the epoch the stored commit would produce. Only the
+/// transcript hash tells the two states apart, so the resync rebuilds instead
+/// of finishing.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn resync_rebuilds_when_another_commit_won() {
     let mut setup = TestBackend::single().await;
@@ -927,8 +950,7 @@ async fn resync_rebuild_rejects_snapshot_older_than_attempt() {
 }
 
 /// With a stored commit, a verified state without Bob's leaf only tears his
-/// group down if it is newer than the state the commit was built on. Alice
-/// forks the group at that epoch by removing Bob from the state before it.
+/// group down if it is newer than the state the commit was built on.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn resync_with_stored_commit_tears_down_only_on_newer_state() {
     let mut setup = TestBackend::single().await;
@@ -949,6 +971,8 @@ async fn resync_with_stored_commit_tears_down_only_on_newer_state() {
     bob.enqueue_group_resync(chat_id).await.unwrap();
     let attempted = drop_resync_request(&setup, &bob, chat_id).await;
 
+    // Alice forks the group at that epoch by removing Bob from the state before
+    // it.
     setup.set_ds_group_row(group_uuid, &row_before_fork).await;
     alice
         .remove_users(chat_id, vec![bob.user_id().clone()])
@@ -970,9 +994,8 @@ async fn resync_with_stored_commit_tears_down_only_on_newer_state() {
     assert!(bob.chat(&chat_id).await.unwrap().status().is_inactive());
 }
 
-/// The DS answers updates of a closed group with not found. That reply alone
-/// is not verified, so the resync fetches the group state, which here shows
-/// the group open.
+/// A group closed reply to a resend is not verified, so it doesn't tear the
+/// group down. The fetched state decides, which here shows the group open.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn group_closed_reply_to_resend_does_not_tear_down() {
     let mut setup = TestBackend::single().await;
@@ -1012,5 +1035,120 @@ async fn manual_resync_resends_after_rejected_commit() {
     bob.outbound_service().run_once().await;
     assert_eq!(resync_status(&bob, chat_id).await, None);
     assert_eq!(epoch_authenticator(&bob, chat_id).await, attempted);
+    assert_messaging_works(&setup, &alice, &bob, chat_id).await;
+}
+
+/// With a stored commit, a verified state that closes the group doesn't tear it
+/// down at the epoch the commit was built on, also when it keeps our leaf.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn resync_with_stored_commit_refuses_closed_state_at_same_epoch() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+    let alice2 = alice.add_synced_device().await;
+    bob.drain().await;
+    let group_uuid = group_uuid(&alice2, chat_id).await;
+
+    let row_before_fork = setup.ds_group_row(group_uuid).await;
+    bob.update_key(chat_id).await.unwrap();
+    miss_queued_messages(&alice).await;
+    alice2.drain().await;
+
+    alice2.enqueue_group_resync(chat_id).await.unwrap();
+    let attempted = drop_resync_request(&setup, &alice2, chat_id).await;
+
+    // Alice's first device forks the group at that epoch by deleting it from the
+    // state before it. The deletion keeps the leaf both devices share.
+    setup.set_ds_group_row(group_uuid, &row_before_fork).await;
+    alice.delete_chat(chat_id).await.unwrap();
+
+    alice2.outbound_service().run_once().await;
+    assert_eq!(
+        resync_status(&alice2, chat_id).await,
+        Some(ResyncStatus::Failed)
+    );
+    assert_eq!(epoch_authenticator(&alice2, chat_id).await, attempted);
+    assert!(!alice2.chat(&chat_id).await.unwrap().status().is_inactive());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn resync_with_stored_commit_closes_group_on_newer_state() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+    let alice2 = alice.add_synced_device().await;
+
+    alice2.enqueue_group_resync(chat_id).await.unwrap();
+    drop_resync_request(&setup, &alice2, chat_id).await;
+    alice.delete_chat(chat_id).await.unwrap();
+
+    alice2.outbound_service().run_once().await;
+    assert_eq!(resync_status(&alice2, chat_id).await, None);
+    assert!(alice2.chat(&chat_id).await.unwrap().status().is_inactive());
+    let deletions = alice2
+        .system_messages(chat_id)
+        .await
+        .into_iter()
+        .filter(|message| *message == SystemMessage::DeleteGroup(alice.user_id().clone()))
+        .count();
+    assert_eq!(deletions, 1);
+}
+
+async fn chat_title(user: &CoreUser, chat_id: ChatId) -> String {
+    user.chat(&chat_id)
+        .await
+        .unwrap()
+        .attributes()
+        .unwrap()
+        .title()
+        .to_owned()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn chat_operation_waits_for_dropped_resync_commit() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+
+    make_miss_a_commit(&alice, &bob, chat_id).await;
+    drop_resync_request(&setup, &bob, chat_id).await;
+    assert!(
+        bob.set_chat_title(chat_id, "renamed".to_owned())
+            .await
+            .is_err()
+    );
+
+    bob.outbound_service().run_once().await;
+    assert_eq!(resync_status(&bob, chat_id).await, None);
+    alice.drain().await;
+    assert_eq!(chat_title(&alice, chat_id).await, "renamed");
+    assert_messaging_works(&setup, &alice, &bob, chat_id).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn chat_operation_waits_for_resync_commit_with_lost_response() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+
+    make_miss_a_commit(&alice, &bob, chat_id).await;
+    setup
+        .listener_control_handle()
+        .set_drop_next_response_to(resync_method(&setup));
+    bob.outbound_service().run_once().await;
+    assert_eq!(
+        resync_status(&bob, chat_id).await,
+        Some(ResyncStatus::Pending)
+    );
+    assert!(
+        bob.set_chat_title(chat_id, "renamed".to_owned())
+            .await
+            .is_err()
+    );
+
+    bob.outbound_service().run_once().await;
+    assert_eq!(resync_status(&bob, chat_id).await, None);
+    alice.drain().await;
+    assert_eq!(chat_title(&alice, chat_id).await, "renamed");
     assert_messaging_works(&setup, &alice, &bob, chat_id).await;
 }

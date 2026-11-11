@@ -450,7 +450,6 @@ impl CoreUser {
             shares_vc_leaf: false,
             connection_contact: None,
             outgoing_request: None,
-            accepted_friendship_package: None,
             reason: ResyncReason::Manual,
             attempts: 0,
         };

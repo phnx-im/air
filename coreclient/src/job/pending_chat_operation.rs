@@ -59,7 +59,10 @@ use crate::{
         indexed_keys::StorableIndexedKey,
         key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
     },
-    outbound_service::timed_tasks::{TimedTask, TimedTaskKind},
+    outbound_service::{
+        resync::Resync,
+        timed_tasks::{TimedTask, TimedTaskKind},
+    },
     privacy_pass, usernames,
 };
 
@@ -538,6 +541,19 @@ impl PendingChatOperation {
                 group_id = ?self.group.group_id(),
                 "Failed to execute PendingChatOperation for group because
                 it is still waiting for a queue response",
+            );
+            return Err(JobError::Blocked);
+        }
+
+        // The local group may hold the state of a resync commit the DS has not
+        // accepted. A commit on top of it would be lost if the resync has to
+        // rebuild its commit, so it waits until the resync is done.
+        if self.operation.is_commit()
+            && Resync::has_pending_commit(context.db.read().await?, self.group.group_id()).await?
+        {
+            info!(
+                group_id = ?self.group.group_id(),
+                "Deferring PendingChatOperation until the resync of its group is done",
             );
             return Err(JobError::Blocked);
         }

@@ -217,9 +217,8 @@ async fn outgoing_requests_accepted_before_onboarding_joins_last() {
     linked_device_gets_open_outgoing_requests(Acceptance::BeforeOnboardingJoinsLast).await;
 }
 
-/// The recipient accepts while the new device's onboarding commit is
-/// unaccepted. The device keeps the join, and its next attempt rebuilds the
-/// commit on top of it and confirms the request.
+/// A recipient's join that arrives while the new device's onboarding commit is
+/// unaccepted confirms the request once the onboarding finishes.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn outgoing_request_accepted_while_onboarding_commit_is_unaccepted() {
     let mut setup = TestBackend::single().await;

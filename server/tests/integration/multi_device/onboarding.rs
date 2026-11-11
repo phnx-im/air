@@ -5,7 +5,7 @@
 //! State a newly linked device gets: settings, connection chats, and catching
 //! up with the self group.
 
-use aircoreclient::{ChatStatus, ChatType, ReadReceiptsSetting};
+use aircoreclient::{ChatStatus, ChatType, ReadReceiptsSetting, ResyncStatus, SystemMessage};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 
 use super::{read_receipts, send_and_receive};
@@ -201,4 +201,45 @@ async fn linked_device_skips_blocked_connection_chats() {
         alice2.chat(&connection_chat_id).await.is_none(),
         "a blocked connection chat should not be conveyed to a linked device"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn onboarding_announces_itself_once_after_a_resend() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    setup.connected_group(&alice, &[&bob]).await;
+
+    let alice2 = alice.add_linked_device().await;
+    let resync_method = if setup.apq_groups {
+        "ApqResync"
+    } else {
+        "Resync"
+    };
+    setup
+        .listener_control_handle()
+        .set_drop_next_request_to(resync_method);
+    alice2.outbound_service().run_once().await;
+    let mut pending = 0;
+    for chat_id in alice2.ordered_chat_ids().await.unwrap() {
+        if alice2.resync_status(chat_id).await.unwrap() == Some(ResyncStatus::Pending) {
+            pending += 1;
+        }
+    }
+    assert_eq!(pending, 1);
+
+    alice2.outbound_service().run_once().await;
+    let mut onboarded_chats = 0;
+    for chat_id in alice2.ordered_chat_ids().await.unwrap() {
+        assert_eq!(alice2.resync_status(chat_id).await.unwrap(), None);
+        let announcements = alice2
+            .system_messages(chat_id)
+            .await
+            .into_iter()
+            .filter(|message| *message == SystemMessage::Onboarded)
+            .count();
+        assert!(announcements <= 1, "{announcements} announcements");
+        onboarded_chats += announcements;
+    }
+    // The connection chat with Bob and the group
+    assert_eq!(onboarded_chats, 2);
 }
