@@ -285,7 +285,10 @@ mod tests {
 
     #[tokio::test]
     async fn title_split_across_chunks() {
-        let chunks = vec![Ok(b"<title>Hel".to_vec()), Ok(b"lo</title>".to_vec())];
+        let chunks = vec![
+            Ok(b"<title>Link ".to_vec()),
+            Ok(b"preview</title>".to_vec()),
+        ];
         let page = read_chunks("text/html", chunks).await.unwrap();
         assert_eq!(page.title, "Hello");
     }
