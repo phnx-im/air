@@ -23,6 +23,7 @@ use crate::job::chat_operation::{ChatOperation, DerivationEpoch};
 use crate::job::pending_chat_operation::PendingChatOperation;
 use crate::job::recoverable::{Recoverable, RecoverableCause};
 use crate::outbound_service::error::OutboundServiceError;
+use crate::outbound_service::receipts::enqueue_read_receipts;
 use crate::outbound_service::resync::Resync;
 use crate::outbound_service::retry::RetryPolicy;
 use crate::{
@@ -435,20 +436,23 @@ impl OutboundServiceContext {
                 // if the message was already marked as read when it was
                 // enqueued. A send that left the marker untouched (e.g. from
                 // the iOS share extension) must not move it here either.
-                // Deletions never move it.
+                // Deletions never move it. Messages the DS put between the
+                // enqueue and ours are read now as well. They get read receipts
+                // as on the send path. The next run sends them.
                 let last_read = Chat::load_watermark(&mut *txn, message.chat_id())
                     .await?
                     .map(|(last_read, _)| last_read);
                 if message.status() != MessageStatus::Deleted
                     && last_read.is_some_and(|last_read| last_read >= enqueued_at)
                 {
-                    Chat::mark_as_read_until_message_id(
+                    let (_, read_messages) = Chat::mark_as_read_until_message_id(
                         txn,
                         message.chat_id(),
                         message.id(),
                         self.user_id(),
                     )
                     .await?;
+                    enqueue_read_receipts(txn, message.chat_id(), &read_messages).await?;
                 }
 
                 Ok(())
