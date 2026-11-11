@@ -24,9 +24,13 @@ use crate::{
 
 pub use draft::MessageDraft;
 pub(crate) use {
-    declined::DeclinedConnectionRequest, pending::PendingConnectionRequest, status::StatusRecord,
+    closing::{ClosingConnectionRequest, DueClose},
+    declined::DeclinedConnectionRequest,
+    pending::PendingConnectionRequest,
+    status::StatusRecord,
 };
 
+mod closing;
 pub(crate) mod connection_requests;
 mod declined;
 mod draft;

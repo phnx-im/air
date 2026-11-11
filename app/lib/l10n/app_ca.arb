@@ -237,6 +237,7 @@
   "systemMessage_connectionRequestUnavailable": "La sol·licitud de contacte ja no és disponible.",
   "systemMessage_connectionRequestExpired": "La sol·licitud de contacte ha caducat.",
   "systemMessage_sentConnectionRequestExpired": "La vostra sol·licitud de contacte ha caducat. Si encara voleu afegir aquesta persona com a contacte, envieu-li una sol·licitud nova.",
+  "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} ja és un dels vostres contactes. Aquesta sol·licitud s'ha tancat.",
   "sentContactRequest_title": "Heu enviat una sol·licitud de contacte",
   "sentContactRequest_titleWithName": "Heu enviat una sol·licitud de contacte a {displayName}",
   "sentContactRequest_toUsername": "al nom d'usuari {username}",

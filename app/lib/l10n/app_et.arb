@@ -237,6 +237,7 @@
   "systemMessage_connectionRequestUnavailable": "Kontaktitaotlus ei ole enam saadaval.",
   "systemMessage_connectionRequestExpired": "Kontaktitaotlus aegus.",
   "systemMessage_sentConnectionRequestExpired": "Su kontaktitaotlus aegus. Kui soovid selle inimese ikka kontaktiks lisada, saada talle uus taotlus.",
+  "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} on juba su kontakt. See taotlus suleti.",
   "sentContactRequest_title": "Saatsid kontaktitaotluse",
   "sentContactRequest_titleWithName": "Saatsid kasutajale {displayName} kontaktitaotluse",
   "sentContactRequest_toUsername": "kasutajanimele {username}",

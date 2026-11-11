@@ -237,6 +237,7 @@
   "systemMessage_connectionRequestUnavailable": "Запрос на контакт больше недоступен.",
   "systemMessage_connectionRequestExpired": "Срок действия запроса на контакт истёк.",
   "systemMessage_sentConnectionRequestExpired": "Срок действия вашего запроса на контакт истёк. Если вы всё ещё хотите добавить этого человека в контакты, отправьте ему новый запрос.",
+  "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} уже есть в ваших контактах. Этот запрос закрыт.",
   "sentContactRequest_title": "Вы отправили запрос на контакт",
   "sentContactRequest_titleWithName": "Вы отправили запрос на контакт пользователю {displayName}",
   "sentContactRequest_toUsername": "на имя пользователя {username}",

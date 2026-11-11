@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM pending_group_creation\n                WHERE group_id = ?\n                RETURNING\n                    group_id AS \"group_id: _\",\n                    title,\n                    picture,\n                    created_at AS \"created_at: _\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "group_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_group_creation",
+            "name": "group_id"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "pending_group_creation",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "picture",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_group_creation",
+            "name": "picture"
+          }
+        }
+      },
+      {
+        "name": "created_at: _",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "pending_group_creation",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "249b19b21e8e533b628d709f8c5e9484fcdf6ff1fbf69f969b1565695f3dfe28"
+}
