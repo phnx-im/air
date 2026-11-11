@@ -174,6 +174,8 @@ class _MessageListViewState extends State<MessageListView>
   /// played or the tile was never built, and either way further tracking
   /// would only grow the set for the lifetime of the view.
   void _admitIncomingAnimations(Set<MessageId> ids) {
+    // The sent message is here, let the list follow the shrunk composer.
+    widget.scrollToBottomController?.sending.value = false;
     if (!_listController.isAtBottom.value) return;
     _animatingMessages.addAll(ids);
     Future.delayed(_animationWindow, () {
@@ -538,9 +540,10 @@ class _MessageListViewState extends State<MessageListView>
     //  - The scrollbar renders above the fade (not hidden behind it)
     //  - The scrollbar track stops at the top of the fade, matching the
     //    visible content area
-    return ValueListenableBuilder<double>(
-      valueListenable: composerHeightListenable,
-      builder: (context, composerHeight, _) {
+    return _ShrinkEasedHeight(
+      height: composerHeightListenable,
+      hold: widget.scrollToBottomController?.sending,
+      builder: (context, composerHeight) {
         final bottomInset = max(mediaPadding.bottom, S.s12);
         final listBottomPadding = composerHeight + bottomInset + _bottomGap;
 
@@ -836,4 +839,89 @@ class _MessageTileCubitHostState extends State<_MessageTileCubitHost> {
   Widget build(BuildContext context) {
     return BlocProvider<MessageCubit>.value(value: _cubit, child: widget.child);
   }
+}
+
+/// Follows [height], easing it down when it shrinks and jumping when it grows.
+///
+/// When the composer shrinks on send, the list sinks into the freed space at
+/// the pace a new row grows into it, so the two cancel out instead of the list
+/// jumping down and back up. Growing follows at once, or the composer would
+/// cover the newest row for a moment.
+class _ShrinkEasedHeight extends StatefulWidget {
+  const _ShrinkEasedHeight({
+    required this.height,
+    this.hold,
+    required this.builder,
+  });
+
+  final ValueListenable<double> height;
+
+  /// While true, a shrink waits, so it starts in the frame the sent row
+  /// starts growing.
+  final ValueListenable<bool>? hold;
+
+  final Widget Function(BuildContext context, double height) builder;
+
+  @override
+  State<_ShrinkEasedHeight> createState() => _ShrinkEasedHeightState();
+}
+
+class _ShrinkEasedHeightState extends State<_ShrinkEasedHeight>
+    with SingleTickerProviderStateMixin {
+  // Same motion as a row arriving in the list.
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: Effect.duration(MotionPreset.short),
+  )..addListener(_update);
+  late double _from = widget.height.value;
+  late double _value = widget.height.value;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.height.addListener(_onHeight);
+    widget.hold?.addListener(_onHeight);
+  }
+
+  @override
+  void didUpdateWidget(_ShrinkEasedHeight oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.height != widget.height || oldWidget.hold != widget.hold) {
+      oldWidget.height.removeListener(_onHeight);
+      oldWidget.hold?.removeListener(_onHeight);
+      widget.height.addListener(_onHeight);
+      widget.hold?.addListener(_onHeight);
+      _onHeight();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.height.removeListener(_onHeight);
+    widget.hold?.removeListener(_onHeight);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onHeight() {
+    final target = widget.height.value;
+    if (target >= _value) {
+      _controller.stop();
+      setState(() => _value = target);
+      return;
+    }
+    if (widget.hold?.value ?? false) return;
+    // Already easing towards it.
+    if (_controller.isAnimating) return;
+    _from = _value;
+    _controller.forward(from: 0);
+  }
+
+  void _update() {
+    final t = Effect.easeOutQuart.transform(_controller.value);
+    setState(() => _value = _from + (widget.height.value - _from) * t);
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context, _value);
 }
