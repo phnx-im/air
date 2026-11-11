@@ -11,6 +11,7 @@ use aircoreclient::{
     },
 };
 use anyhow::Result;
+use chrono::Utc;
 use tokio_stream::StreamExt;
 use tracing::{debug, error, info, warn};
 
@@ -48,11 +49,11 @@ impl User {
             .ok();
 
         let mut messages: Vec<QueueMessage> = Vec::new();
-        let drained = loop {
+        let drained_at = loop {
             match stream.next().await {
                 Some(Ok(response)) => match response.event {
                     // Empty event is the sentinel: the queue is drained.
-                    Some(listen_response::Event::Empty(_)) => break true,
+                    Some(listen_response::Event::Empty(_)) => break Some(Utc::now()),
                     Some(listen_response::Event::Message(queue_message)) => {
                         if let Ok(queue_message) = queue_message.try_into() {
                             messages.push(queue_message);
@@ -74,12 +75,14 @@ impl User {
                 // Terminal status => stream is over, acks cannot be confirmed
                 Some(Err(error)) => {
                     warn!(%error, "qs listen stream failed during drain");
-                    break false;
+                    break None;
                 }
                 // EOF without our half-close (old server) => stream is over
-                None => break false,
+                None => break None,
             }
         };
+
+        let drained = drained_at.is_some();
 
         // Invariant: messages are sorted by sequence number
         let min_sequence_number = messages.first().map(|m| m.sequence_number);
@@ -92,6 +95,15 @@ impl User {
         // fetch.
         let unprocessed = num_messages - processed_messages.processed;
         let acked_up_to = if unprocessed == 0 {
+            if let Some(drained_at) = drained_at {
+                self.user
+                    .discard_unconfirmed_group_creations(drained_at)
+                    .await
+                    .inspect_err(
+                        |error| error!(%error, "failed to discard unconfirmed group creations"),
+                    )
+                    .ok();
+            }
             max_sequence_number.map(|n| n + 1)
         } else {
             error!(%unprocessed, "failed to fully process messages");

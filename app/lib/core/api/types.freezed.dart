@@ -4094,6 +4094,74 @@ String toString() {
 
 
 /// @nodoc
+
+
+class UiSystemMessage_SentConnectionRequestAlreadyConnected extends UiSystemMessage {
+  const UiSystemMessage_SentConnectionRequestAlreadyConnected({required this.contact}): super._();
+  
+
+ final  UiUserId contact;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiSystemMessage_SentConnectionRequestAlreadyConnectedCopyWith<UiSystemMessage_SentConnectionRequestAlreadyConnected> get copyWith => _$UiSystemMessage_SentConnectionRequestAlreadyConnectedCopyWithImpl<UiSystemMessage_SentConnectionRequestAlreadyConnected>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_SentConnectionRequestAlreadyConnected&&(identical(other.contact, contact) || other.contact == contact));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,contact);
+}
+
+@override
+String toString() {
+    return 'UiSystemMessage.sentConnectionRequestAlreadyConnected(contact: $contact)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiSystemMessage_SentConnectionRequestAlreadyConnectedCopyWith<$Res> implements $UiSystemMessageCopyWith<$Res> {
+  factory $UiSystemMessage_SentConnectionRequestAlreadyConnectedCopyWith(UiSystemMessage_SentConnectionRequestAlreadyConnected value, $Res Function(UiSystemMessage_SentConnectionRequestAlreadyConnected) _then) = _$UiSystemMessage_SentConnectionRequestAlreadyConnectedCopyWithImpl;
+@useResult
+$Res call({
+ UiUserId contact
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiSystemMessage_SentConnectionRequestAlreadyConnectedCopyWithImpl<$Res>
+    implements $UiSystemMessage_SentConnectionRequestAlreadyConnectedCopyWith<$Res> {
+  _$UiSystemMessage_SentConnectionRequestAlreadyConnectedCopyWithImpl(this._self, this._then);
+
+  final UiSystemMessage_SentConnectionRequestAlreadyConnected _self;
+  final $Res Function(UiSystemMessage_SentConnectionRequestAlreadyConnected) _then;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? contact = null,}) {
+  return _then(UiSystemMessage_SentConnectionRequestAlreadyConnected(
+contact: null == contact ? _self.contact : contact // ignore: cast_nullable_to_non_nullable
+as UiUserId,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$UiUsername {
 
  String get plaintext;

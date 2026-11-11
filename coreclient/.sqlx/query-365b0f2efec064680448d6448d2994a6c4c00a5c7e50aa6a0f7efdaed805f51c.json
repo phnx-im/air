@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                g.group_id AS \"group_id: _\",\n                pq.group_id AS \"pq_group_id: _\",\n                g.group_state_ear_key AS \"group_state_ear_key: _\",\n                identity_link_wrapper_key AS \"identity_link_wrapper_key: _\"\n            FROM \"group\" g\n            LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id\n            WHERE g.group_id IS NOT ?\n            ",
+  "query": "SELECT\n                g.group_id AS \"group_id: _\",\n                pq.group_id AS \"pq_group_id: _\",\n                g.group_state_ear_key AS \"group_state_ear_key: _\",\n                identity_link_wrapper_key AS \"identity_link_wrapper_key: _\"\n            FROM \"group\" g\n            LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id\n            WHERE g.group_id IS NOT ?\n                AND g.group_id NOT IN (SELECT group_id FROM pending_group_creation)\n            ",
   "describe": {
     "columns": [
       {
@@ -58,5 +58,5 @@
       false
     ]
   },
-  "hash": "c2a1b577ec927a2b352403a98a6a99405265a85c77dcd4faa2c7768994d98be7"
+  "hash": "365b0f2efec064680448d6448d2994a6c4c00a5c7e50aa6a0f7efdaed805f51c"
 }

@@ -44,6 +44,7 @@ enum Kind {
     RequestUnavailable = 11,
     RequestExpired = 12,
     SentRequestExpired = 13,
+    SentRequestAlreadyConnected = 14,
 }
 
 impl SystemMessage {
@@ -93,6 +94,9 @@ impl SystemMessage {
             }
             SystemMessage::SentConnectionRequestExpired => {
                 derive(Kind::SentRequestExpired, group, None, &[])
+            }
+            SystemMessage::SentConnectionRequestAlreadyConnected { .. } => {
+                derive(Kind::SentRequestAlreadyConnected, group, None, &[])
             }
             SystemMessage::Add(None, _)
             | SystemMessage::Remove(None, _)
@@ -280,6 +284,7 @@ mod tests {
             SystemMessage::ConnectionRequestUnavailable,
             SystemMessage::ConnectionRequestExpired,
             SystemMessage::SentConnectionRequestExpired,
+            SystemMessage::SentConnectionRequestAlreadyConnected { contact: user(1) },
         ];
         let mut ids = Vec::new();
         for step in &steps {

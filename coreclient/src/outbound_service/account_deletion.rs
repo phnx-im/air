@@ -4,6 +4,7 @@
 
 use airapiclient::{ApiClient, ClassifyRequestError, RequestErrorKind, ds_api::DsRequestError};
 use aircommon::time::TimeStamp;
+use airprotos::client::component::GroupTombstone;
 use chrono::{TimeDelta, Utc};
 use mimi_room_policy::RoleIndex;
 use serde::{Deserialize, Serialize};
@@ -552,7 +553,7 @@ impl OutboundServiceContext {
                                 txn,
                                 self.signing_key(),
                                 chat.id(),
-                                Some(TimeStamp::now()),
+                                Some(GroupTombstone::deleted(TimeStamp::now())),
                             )
                             .await?
                         }
