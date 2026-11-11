@@ -7,7 +7,7 @@
 
 use std::time::Duration;
 
-use aircoreclient::clients::MarkChatAsRead;
+use aircoreclient::{UploadTaskError, clients::MarkChatAsRead};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use mimi_content::{MessageStatus, MimiContent};
 use rand::{RngExt, distr::Alphanumeric};
@@ -314,4 +314,158 @@ async fn send_commits_pending_proposals() {
         1,
         "the remaining member receives the message"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn send_keeps_message_when_its_commit_loses_the_epoch() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob, &charlie]).await;
+
+    // Charlie leaves, which proposes his own removal.
+    charlie.leave_chat(chat_id).await.unwrap();
+    alice.drain().await;
+    bob.drain().await;
+
+    // Alice commits the proposal before Bob learns about her commit.
+    alice.update_key(chat_id).await.unwrap();
+
+    const TEXT: &str = "sent after a lost epoch race";
+    let content = MimiContent::simple_markdown_message(TEXT.to_owned(), [16u8; 16]);
+    let message = bob
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+
+    // Bob's commit of the proposal hits a wrong epoch and is parked.
+    bob.outbound_service()
+        .send_queued_messages_once()
+        .await
+        .unwrap();
+    let pending = bob
+        .pending_chat_operation_info(chat_id)
+        .await
+        .unwrap()
+        .expect("the rejected commit should be parked");
+    assert_eq!(pending.request_status, "waiting_for_queue_response");
+    assert!(!bob.expect_message(message.id()).await.is_sent());
+
+    // Processing Alice's commit drops the parked one. The next run sends.
+    bob.drain().await;
+    bob.outbound_service().run_once().await;
+    assert!(
+        bob.expect_message(message.id()).await.is_sent(),
+        "a lost epoch race must not drop the message"
+    );
+
+    alice.drain().await;
+    assert_eq!(
+        alice
+            .text_messages(chat_id)
+            .await
+            .iter()
+            .filter(|rendered| *rendered == TEXT)
+            .count(),
+        1,
+        "Alice receives the message"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn message_queued_before_a_block_is_marked_failed() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    const TEXT: &str = "queued before the block";
+    let content = MimiContent::simple_markdown_message(TEXT.to_owned(), [17u8; 16]);
+    let message = alice
+        .send_message(chat_id, content, None, MarkChatAsRead::Yes)
+        .await
+        .unwrap();
+    alice.block_contact(bob.user_id().clone()).await.unwrap();
+
+    alice.outbound_service().run_once().await;
+    assert_eq!(
+        alice.expect_message(message.id()).await.status(),
+        MessageStatus::Error,
+        "the user sees that the message failed"
+    );
+
+    // The failed message left the queue. Unblocking does not send it.
+    alice.unblock_contact(bob.user_id().clone()).await.unwrap();
+    alice.outbound_service().run_once().await;
+    let stored = alice.expect_message(message.id()).await;
+    assert!(!stored.is_sent());
+    assert_eq!(stored.status(), MessageStatus::Error);
+
+    bob.drain().await;
+    assert!(
+        !bob.text_messages(chat_id)
+            .await
+            .iter()
+            .any(|rendered| rendered == TEXT),
+        "Bob never receives the message"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn attachments_finished_after_a_block_are_marked_failed() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let path = setup.temp_dir().join("attachment.bin");
+    std::fs::write(&path, [0u8, 1, 2, 3]).unwrap();
+    let (_, _, upload) = alice
+        .upload_chat_attachment(chat_id, &path, MarkChatAsRead::Yes)
+        .await
+        .unwrap()
+        .unwrap();
+    let (_, _, failing_upload) = alice
+        .upload_chat_attachment(chat_id, &path, MarkChatAsRead::Yes)
+        .await
+        .unwrap()
+        .unwrap();
+
+    // Alice blocks Bob before the uploads finish.
+    alice.block_contact(bob.user_id().clone()).await.unwrap();
+
+    let uploaded = upload.await.unwrap();
+    alice
+        .outbound_service()
+        .enqueue_chat_message(uploaded.id())
+        .await
+        .unwrap();
+
+    setup
+        .listener_control_handle()
+        .set_reject_next_request_to("ProvisionAttachment");
+    let Err(UploadTaskError::Failed {
+        message_id: failed_id,
+        ..
+    }) = failing_upload.await
+    else {
+        panic!("an upload the DS rejects should fail");
+    };
+    alice
+        .outbound_service()
+        .fail_enqueued_chat_message(failed_id)
+        .await
+        .unwrap();
+
+    // Only the send stage runs. The attachment recovery of a full run would
+    // enqueue the uploaded message by itself.
+    alice
+        .outbound_service()
+        .send_queued_messages_once()
+        .await
+        .unwrap();
+    for message_id in [uploaded.id(), failed_id] {
+        assert_eq!(
+            alice.expect_message(message_id).await.status(),
+            MessageStatus::Error,
+            "the user sees that the message failed"
+        );
+    }
 }
