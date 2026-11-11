@@ -12536,6 +12536,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiSystemMessage_ConnectionRequestExpired();
       case 21:
         return UiSystemMessage_SentConnectionRequestExpired();
+      case 22:
+        return UiSystemMessage_SentConnectionRequestAlreadyConnected(
+          contact: dco_decode_box_autoadd_ui_user_id(raw[1]),
+        );
       default:
         throw Exception("unreachable");
     }
@@ -17019,6 +17023,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiSystemMessage_ConnectionRequestExpired();
       case 21:
         return UiSystemMessage_SentConnectionRequestExpired();
+      case 22:
+        var var_contact = sse_decode_box_autoadd_ui_user_id(deserializer);
+        return UiSystemMessage_SentConnectionRequestAlreadyConnected(
+          contact: var_contact,
+        );
       default:
         throw UnimplementedError('');
     }
@@ -21542,6 +21551,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(20, serializer);
       case UiSystemMessage_SentConnectionRequestExpired():
         sse_encode_i_32(21, serializer);
+      case UiSystemMessage_SentConnectionRequestAlreadyConnected(
+        contact: final contact,
+      ):
+        sse_encode_i_32(22, serializer);
+        sse_encode_box_autoadd_ui_user_id(contact, serializer);
     }
   }
 

@@ -39,7 +39,7 @@ use crate::{
         group_state::{
             DsGroupState, EncryptedDsGroupState, StorableDsGroupData, leaf_credential_is_valid,
         },
-        grpc::{GroupBootstrapMaterial, WithGroupStateEarKey, WithQualifiedGroupId},
+        grpc::{CreationEcho, WithGroupStateEarKey, WithQualifiedGroupId},
         process::Provider,
     },
     qs::QsConnector,
@@ -70,7 +70,7 @@ pub(super) struct NewGroup {
 pub(super) struct NewGroupState {
     pub(super) group_state: DsGroupState,
     pub(super) creator_client_reference: QsReference,
-    pub(super) bootstrap: Option<GroupBootstrapMaterial>,
+    pub(super) echo: CreationEcho,
 }
 
 /// The chat data an APQ creation payload carries for both legs.
@@ -182,41 +182,29 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             room_state,
         );
 
-        let bootstrap = payload
-            .group_bootstrap
-            .map(|group_bootstrap| {
-                GroupBootstrapMaterial::for_creation(
-                    &group_state,
-                    qgid.clone().into(),
-                    None,
-                    group_bootstrap,
-                )
-            })
-            .transpose()?;
+        let echo = CreationEcho::new(
+            &group_state,
+            qgid.clone().into(),
+            None,
+            payload.group_bootstrap,
+        )?;
 
         Ok(NewGroupState {
             group_state,
             creator_client_reference,
-            bootstrap,
+            echo,
         })
     }
 
     /// Builds and checks the PQ leg of an APQ group from its verified creation
-    /// payload, with the bootstrap of both legs.
+    /// payload, with the creation echo of both legs.
     pub(super) fn new_pq_leg(
         &self,
         payload: CreateApqGroupPayload,
         chat: &NewApqChatData,
         t_qgid: &QualifiedGroupId,
         t_group_state: &DsGroupState,
-    ) -> Result<
-        (
-            QualifiedGroupId,
-            DsGroupState,
-            Option<GroupBootstrapMaterial>,
-        ),
-        Status,
-    > {
+    ) -> Result<(QualifiedGroupId, DsGroupState, CreationEcho), Status> {
         // Extract pq group state (PQ group uses the same ear_key as the T group)
         let (pq_qgid, pq_group_state, _) = self.extract_group_state(
             payload
@@ -252,30 +240,25 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         })?;
 
         // Both legs live in the snapshot of the T leg's group id
-        let bootstrap = payload
-            .group_bootstrap
-            .map(|group_bootstrap| {
-                GroupBootstrapMaterial::for_creation(
-                    t_group_state,
-                    t_qgid.clone().into(),
-                    Some((pq_qgid.clone().into(), &pq_group_state)),
-                    group_bootstrap,
-                )
-            })
-            .transpose()?;
+        let echo = CreationEcho::new(
+            t_group_state,
+            t_qgid.clone().into(),
+            Some((pq_qgid.clone().into(), &pq_group_state)),
+            payload.group_bootstrap,
+        )?;
 
-        Ok((pq_qgid, pq_group_state, bootstrap))
+        Ok((pq_qgid, pq_group_state, echo))
     }
 
-    /// Stores the legs of a new group and its bootstrap in one transaction,
-    /// then dispatches the bootstrap echo.
+    /// Stores the legs of a new group and its bootstrap snapshot in one
+    /// transaction, then dispatches the creation echo.
     ///
     /// The bootstrap snapshot is stored under `bootstrap_qgid`, the id of the
     /// group's first leg.
     pub(super) async fn store_new_group(
         &self,
         legs: impl IntoIterator<Item = NewGroupLeg>,
-        bootstrap: Option<GroupBootstrapMaterial>,
+        echo: CreationEcho,
         bootstrap_qgid: &QualifiedGroupId,
         ear_key: &GroupStateEarKey,
         creator_client_reference: QsReference,
@@ -303,20 +286,15 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
                 return Err(Status::already_exists("group already exists"));
             }
         }
-        if let Some(bootstrap) = bootstrap.as_ref() {
-            bootstrap
-                .store(&mut txn, bootstrap_qgid.group_uuid(), ear_key)
-                .await?;
-        }
+        echo.store(&mut txn, bootstrap_qgid.group_uuid(), ear_key)
+            .await?;
         txn.commit().await.map_err(|error| {
             error!(%error, "failed to commit transaction");
             Status::internal("database error")
         })?;
 
-        if let Some(bootstrap) = bootstrap {
-            self.dispatch_group_bootstrap_echo(bootstrap.echo, creator_client_reference)
-                .await;
-        }
+        self.dispatch_group_bootstrap_echo(echo.echo, creator_client_reference)
+            .await;
         Ok(())
     }
 
@@ -352,7 +330,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .map_err(|_| Status::invalid_argument("invalid group profile size"))?;
         match self
             .ds
-            .provision_object(StorageObjectType::GroupProfile, Some(content_length), false)
+            .provision_object(StorageObjectType::GroupProfile, content_length, false)
             .await
         {
             Ok(response) => Ok(Some(response)),
@@ -618,7 +596,7 @@ impl<Qep: QsConnector, As: AsConnector> CreateGroupStreamBackend for GrpcDs<Qep,
         )?;
         ensure_stream_creator(creator, &t_user_credential)?;
 
-        let (pq_qgid, pq_group_state, bootstrap) =
+        let (pq_qgid, pq_group_state, echo) =
             self.new_pq_leg(payload, &chat, &t_qgid, &t_group_state)?;
         ensure_mls_group_id(&pq_group_state, &reservation.pq_group_id)?;
         let encrypted_t_group_state = t_group_state.encrypt(&ear_key)?;
@@ -637,7 +615,7 @@ impl<Qep: QsConnector, As: AsConnector> CreateGroupStreamBackend for GrpcDs<Qep,
                     label: "pq group state",
                 },
             ],
-            bootstrap,
+            echo,
             &t_qgid,
             &ear_key,
             chat.creator_client_reference,

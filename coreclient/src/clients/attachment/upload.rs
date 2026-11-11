@@ -628,6 +628,44 @@ impl PendingUpload {
     }
 }
 
+#[cfg(feature = "test_utils")]
+impl CoreUser {
+    /// Provisions an attachment upload of `declared_size` bytes in the chat's
+    /// group and uploads `content` to it as is.
+    ///
+    /// # Errors
+    ///
+    /// Fails with a [`airapiclient::ds_api::DsRequestError`] when the DS
+    /// rejects the provisioning, and with a [`reqwest::Error`] when the
+    /// storage rejects the upload.
+    pub async fn upload_with_declared_size(
+        &self,
+        chat_id: ChatId,
+        declared_size: i64,
+        content: Vec<u8>,
+    ) -> anyhow::Result<()> {
+        let mut connection = self.db().read().await?;
+        let group = Group::load_ref_with_chat_id(&mut connection, chat_id)
+            .await?
+            .with_context(|| format!("Can't find group with id {chat_id:?}"))?;
+        drop(connection);
+
+        let target = group.attachment_target();
+        let signer = self.attachment_signer(&target).await?;
+        let response = self
+            .api_client()?
+            .ds_provision_attachment(
+                &signer,
+                target,
+                declared_size,
+                StorageObjectType::Attachment,
+            )
+            .await?;
+        let (progress_tx, _progress) = AttachmentProgress::new();
+        upload_encrypted_attachment(&self.http_client(), response, progress_tx, content).await
+    }
+}
+
 /// The message content an attachment is stored with.
 ///
 /// The final message is derived by patching field values into these parts, so

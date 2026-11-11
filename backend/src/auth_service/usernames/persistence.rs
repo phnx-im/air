@@ -111,6 +111,24 @@ impl UsernameRecord {
         .await
     }
 
+    /// Locks the username row `FOR NO KEY UPDATE` for the transaction.
+    ///
+    /// Publishers of its connection packages then run one at a time. Returns
+    /// `false` if there is no such username.
+    pub(crate) async fn lock_for_write(
+        executor: impl PgExecutor<'_>,
+        hash: &UsernameHash,
+    ) -> sqlx::Result<bool> {
+        let row = query_scalar!(
+            r#"SELECT 1 AS "locked!" FROM as_user_handle WHERE hash = $1
+            FOR NO KEY UPDATE"#,
+            hash.as_bytes(),
+        )
+        .fetch_optional(executor)
+        .await?;
+        Ok(row.is_some())
+    }
+
     pub(crate) async fn load_expiration_data_for_update(
         executor: impl PgExecutor<'_>,
         hash: &UsernameHash,

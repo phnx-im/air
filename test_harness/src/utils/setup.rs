@@ -13,7 +13,7 @@ use std::{
 use airbackend::{
     air_service::MaxDevices,
     qs::Qs,
-    settings::{RateLimitsSettings, RegistrationPolicy, RegistrationSettings},
+    settings::{DsSettings, RateLimitsSettings, RegistrationPolicy, RegistrationSettings},
     version::VersionPolicy,
 };
 use aircommon::{
@@ -219,8 +219,11 @@ pub struct TestBackendParams {
     pub registration: RegistrationSettings,
     pub unredeemable_code: Option<String>,
     pub max_attachment_size: u64,
+    /// Provisions uploads as POST policies for clients that accept them.
+    pub use_post_policy: bool,
     /// Overrides the configured device limit.
     pub max_devices: Option<u32>,
+    pub ds: DsSettings,
 }
 
 impl TestBackendParams {
@@ -247,7 +250,9 @@ impl Default for TestBackendParams {
             },
             unredeemable_code: None,
             max_attachment_size: DEFAULT_MAX_ATTACHMENT_SIZE,
+            use_post_policy: false,
             max_devices: None,
+            ds: DsSettings::default(),
         }
     }
 }

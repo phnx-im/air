@@ -546,6 +546,9 @@ sealed class UiSystemMessage with _$UiSystemMessage {
       UiSystemMessage_ConnectionRequestExpired;
   const factory UiSystemMessage.sentConnectionRequestExpired() =
       UiSystemMessage_SentConnectionRequestExpired;
+  const factory UiSystemMessage.sentConnectionRequestAlreadyConnected({
+    required UiUserId contact,
+  }) = UiSystemMessage_SentConnectionRequestAlreadyConnected;
 }
 
 /// UI representation of an [`UserId`]

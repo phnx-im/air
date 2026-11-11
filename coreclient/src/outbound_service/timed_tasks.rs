@@ -887,7 +887,6 @@ impl OutboundServiceContext {
             match api_client
                 .as_publish_connection_packages_for_username(
                     record.hash,
-                    Vec::new(), // no legacy packages
                     packages,
                     &record.signing_key,
                 )
@@ -962,12 +961,7 @@ impl OutboundServiceContext {
         let published = self
             .api_clients
             .default_client()?
-            .as_publish_connection_packages_for_username(
-                record.hash,
-                Vec::new(), // no legacy packages
-                packages,
-                &record.signing_key,
-            )
+            .as_publish_connection_packages_for_username(record.hash, packages, &record.signing_key)
             .await;
         let username = record.username.truncated_plaintext();
         match published {

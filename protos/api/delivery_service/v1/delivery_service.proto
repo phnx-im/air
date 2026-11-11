@@ -37,6 +37,14 @@ service DeliveryService {
 
   rpc ApqJoinConnectionGroup(ApqJoinConnectionGroupRequest) returns (ApqJoinConnectionGroupResponse);
 
+  // Joins a connection group and deletes it right away with an
+  // `AlreadyConnected` tombstone. The recipient of a connection request sends
+  // it when the sender is a contact already. The joiner signs the delete
+  // commit with the leaf the join adds.
+  rpc CloseConnectionGroup(CloseConnectionGroupRequest) returns (CloseConnectionGroupResponse);
+
+  rpc ApqCloseConnectionGroup(ApqCloseConnectionGroupRequest) returns (ApqCloseConnectionGroupResponse);
+
   rpc Resync(ResyncRequest) returns (ResyncResponse);
 
   rpc ApqResync(ApqResyncRequest) returns (ApqResyncResponse);
@@ -152,8 +160,9 @@ message CreateGroupPayload {
   // credential is taken from the creator's leaf.
   optional UserCredential creator_user_credential = 10;
   // Opaque blob, encrypted for the creator's sibling clients. Set when a
-  // virtual client creates the group, in which case the DS echoes it unread to
-  // all of the creating user's client queues.
+  // virtual client creates the group. The DS echoes every creation to all of
+  // the creating user's client queues, with this blob unread or, without it,
+  // as a bare receipt.
   optional bytes group_bootstrap = 11;
 }
 
@@ -195,10 +204,6 @@ message CreateGroupV2Prepare {
   common.v1.Signature signature = 2;
 }
 
-// WARNING: The signature of the `prepare` step is verified against the server's
-// prost *re-encoding* of this payload, not the wire bytes. A field the server
-// does not know is dropped and breaks the signature, and the encoding must stay
-// stable: never reorder, renumber, or remove fields.
 message CreateGroupV2PreparePayload {
   common.v1.ClientMetadata client_metadata = 1;
   common.v1.UserId user_id = 2;
@@ -251,8 +256,9 @@ message CreateApqGroupPayload {
   // credential is taken from the creator's leaf.
   optional UserCredential creator_user_credential = 8;
   // Opaque blob, encrypted for the creator's sibling clients. Set when a
-  // virtual client creates the group, in which case the DS echoes it unread to
-  // all of the creating user's client queues.
+  // virtual client creates the group. The DS echoes every creation to all of
+  // the creating user's client queues, with this blob unread or, without it,
+  // as a bare receipt.
   optional bytes group_bootstrap = 9;
 }
 
@@ -409,6 +415,36 @@ message ApqJoinConnectionGroupRequest {
 }
 
 message ApqJoinConnectionGroupResponse {
+  common.v1.Timestamp fanout_timestamp = 1;
+}
+
+// close connection group
+
+message CloseConnectionGroupRequest {
+  common.v1.ClientMetadata client_metadata = 1;
+  GroupStateEarKey group_state_ear_key = 2;
+  AssistedMessage external_commit = 3;
+  AssistedMessage delete_commit = 4;
+  QsReference qs_client_reference = 5;
+}
+
+message CloseConnectionGroupResponse {
+  // The time of the delete commit.
+  common.v1.Timestamp fanout_timestamp = 1;
+}
+
+// apq close connection group
+
+message ApqCloseConnectionGroupRequest {
+  common.v1.ClientMetadata client_metadata = 1;
+  GroupStateEarKey group_state_ear_key = 2;
+  ApqAssistedMlsMessage external_commit = 3;
+  ApqAssistedMlsMessage delete_commit = 4;
+  QsReference qs_client_reference = 5;
+}
+
+message ApqCloseConnectionGroupResponse {
+  // The time of the delete commit.
   common.v1.Timestamp fanout_timestamp = 1;
 }
 

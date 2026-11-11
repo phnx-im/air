@@ -45,6 +45,7 @@ const HTTP_TCP_KEEPALIVE: Duration = Duration::from_secs(30);
 /// No read timeout: reqwest applies it as a deadline for the response head
 /// counted from the start of the request, which would cut off large uploads.
 fn build_http_client() -> reqwest::Client {
+    aircommon::tls::install_crypto_provider();
     reqwest::Client::builder()
         .connect_timeout(HTTP_CONNECT_TIMEOUT)
         .tcp_keepalive(HTTP_TCP_KEEPALIVE)

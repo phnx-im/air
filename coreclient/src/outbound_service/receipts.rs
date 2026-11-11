@@ -23,10 +23,10 @@ use uuid::Uuid;
 use crate::{
     Chat, ChatId, ChatStatus, ChatType, MessageId,
     chats::StatusRecord,
+    clients::user_settings::{ReadReceiptsSetting, UserSettingRecord},
     db::access::WriteDbTransaction,
     groups::{
-        Group, handle_group_closed_on_ds, handle_group_not_found_on_ds,
-        openmls_provider::AirOpenMlsProvider, self_group::SelfGroup,
+        Group, handle_group_gone_on_ds, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup,
     },
     job::pending_chat_operation::PendingChatOperation,
     outbound_service::{
@@ -46,15 +46,8 @@ impl OutboundService {
         self.context
             .db
             .with_write_transaction(async |txn| {
-                let chat = Chat::load(&mut *txn, &chat_id).await?;
-                let receipts_chat_id = match chat.as_ref().map(Chat::chat_type) {
-                    Some(ChatType::PendingConnection(_)) => {
-                        let Some(self_chat) = SelfGroup::load_chat(&mut *txn).await? else {
-                            return Ok(());
-                        };
-                        self_chat.id()
-                    }
-                    _ => chat_id,
+                let Some(receipts_chat_id) = receipts_target(&mut *txn, chat_id).await? else {
+                    return Ok(());
                 };
                 self.schedule_receipts(txn, receipts_chat_id, statuses)
                     .await
@@ -70,19 +63,84 @@ impl OutboundService {
         chat_id: ChatId,
         statuses: impl Iterator<Item = (MessageId, &'a MimiId, MessageStatus)> + Send,
     ) -> anyhow::Result<()> {
-        if Chat::is_blocked(&mut *txn, chat_id).await? {
-            return Ok(());
-        }
-
-        for (message_id, mimi_id, status) in statuses {
-            let receipt_queue = ReceiptQueue::new(message_id, status);
-            receipt_queue.enqueue(&mut *txn, chat_id, mimi_id).await?;
-        }
-
+        enqueue_unless_blocked(txn, chat_id, statuses).await?;
         self.notify_work();
-
         Ok(())
     }
+
+    /// Schedules read receipts for messages the user just read, see
+    /// [`enqueue_read_receipts`].
+    pub(crate) async fn schedule_read_receipts(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        chat_id: ChatId,
+        read_messages: &[(MessageId, MimiId)],
+    ) -> anyhow::Result<()> {
+        if enqueue_read_receipts(txn, chat_id, read_messages).await? {
+            self.notify_work();
+        }
+        Ok(())
+    }
+}
+
+/// Enqueues read receipts for messages the user just read in `chat_id`. Returns
+/// `true` if it enqueued any receipt.
+pub(super) async fn enqueue_read_receipts(
+    txn: &mut WriteDbTransaction<'_>,
+    chat_id: ChatId,
+    read_messages: &[(MessageId, MimiId)],
+) -> anyhow::Result<bool> {
+    if read_messages.is_empty() {
+        return Ok(false);
+    }
+    let read_receipts_enabled = {
+        let setting = UserSettingRecord::load_decoded::<ReadReceiptsSetting>(&mut *txn).await?;
+        setting.is_none_or(|ReadReceiptsSetting(enabled)| enabled)
+    };
+    let receipts_chat_id = if read_receipts_enabled {
+        receipts_target(&mut *txn, chat_id).await?
+    } else {
+        SelfGroup::load_chat(&mut *txn).await?.map(|chat| chat.id())
+    };
+    let Some(receipts_chat_id) = receipts_chat_id else {
+        return Ok(false);
+    };
+    let statuses = read_messages
+        .iter()
+        .map(|(message_id, mimi_id)| (*message_id, mimi_id, MessageStatus::Read));
+    enqueue_unless_blocked(txn, receipts_chat_id, statuses).await
+}
+
+async fn receipts_target(
+    txn: &mut WriteDbTransaction<'_>,
+    chat_id: ChatId,
+) -> anyhow::Result<Option<ChatId>> {
+    let chat = Chat::load(&mut *txn, &chat_id).await?;
+    match chat.as_ref().map(Chat::chat_type) {
+        Some(ChatType::PendingConnection(_)) => {
+            Ok(SelfGroup::load_chat(&mut *txn).await?.map(|chat| chat.id()))
+        }
+        _ => Ok(Some(chat_id)),
+    }
+}
+
+/// Enqueues a message if the chat is not blocked. Returns false if the chat is
+/// blocked.
+async fn enqueue_unless_blocked<'a>(
+    txn: &mut WriteDbTransaction<'_>,
+    chat_id: ChatId,
+    statuses: impl Iterator<Item = (MessageId, &'a MimiId, MessageStatus)> + Send,
+) -> anyhow::Result<bool> {
+    if Chat::is_blocked(&mut *txn, chat_id).await? {
+        return Ok(false);
+    }
+
+    for (message_id, mimi_id, status) in statuses {
+        let receipt_queue = ReceiptQueue::new(message_id, status);
+        receipt_queue.enqueue(&mut *txn, chat_id, mimi_id).await?;
+    }
+
+    Ok(true)
 }
 
 impl OutboundServiceContext {
@@ -221,11 +279,7 @@ impl OutboundServiceContext {
             if ds_error.is_not_found() {
                 self.db
                     .with_write_transaction(async |txn| {
-                        if ds_error.is_group_closed() {
-                            handle_group_closed_on_ds(txn, chat.group_id()).await
-                        } else {
-                            handle_group_not_found_on_ds(txn, chat.group_id()).await
-                        }
+                        handle_group_gone_on_ds(txn, chat.group_id(), &ds_error).await
                     })
                     .await
                     .map_err(OutboundServiceError::fatal)?;
@@ -368,11 +422,7 @@ impl OutboundServiceContext {
             if ds_error.is_not_found() {
                 self.db
                     .with_write_transaction(async |txn| {
-                        if ds_error.is_group_closed() {
-                            handle_group_closed_on_ds(txn, chat.group_id()).await
-                        } else {
-                            handle_group_not_found_on_ds(txn, chat.group_id()).await
-                        }
+                        handle_group_gone_on_ds(txn, chat.group_id(), &ds_error).await
                     })
                     .await
                     .map_err(OutboundServiceError::fatal)?;

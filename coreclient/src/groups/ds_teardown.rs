@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use airapiclient::ds_api::DsRequestError;
 use openmls::prelude::GroupId;
 
 use crate::{
@@ -86,6 +87,20 @@ pub(crate) async fn handle_group_closed_on_ds(
         .enqueue_or_reset(&mut *txn)
         .await?;
     Ok(())
+}
+
+/// Handles a DS request `error` for which [`DsRequestError::is_not_found`]
+/// holds, which includes a closed group.
+pub(crate) async fn handle_group_gone_on_ds(
+    txn: &mut WriteDbTransaction<'_>,
+    group_id: &GroupId,
+    error: &DsRequestError,
+) -> anyhow::Result<()> {
+    if error.is_group_closed() {
+        handle_group_closed_on_ds(txn, group_id).await
+    } else {
+        handle_group_not_found_on_ds(txn, group_id).await
+    }
 }
 
 #[cfg(test)]

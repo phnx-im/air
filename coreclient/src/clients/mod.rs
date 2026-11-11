@@ -27,6 +27,7 @@ use aircommon::{
         signatures::keys::{QsClientSigningKey, QsUserSigningKey},
     },
     identifiers::{ClientConfig, QsClientId, QsReference, QsUserId, UserId},
+    limits::MAX_CONNECTION_PACKAGES_PER_REQUEST,
     messages::{FriendshipToken, QueueMessage, push_token::PushToken},
     registration::RegistrationChallenge,
     time::TimeStamp,
@@ -138,6 +139,9 @@ pub(crate) const CONNECTION_PACKAGES: usize = 50;
 
 #[cfg(feature = "test_utils")]
 pub(crate) const CONNECTION_PACKAGES: usize = 5;
+
+// A pool is published in one request.
+const _: () = assert!(CONNECTION_PACKAGES <= MAX_CONNECTION_PACKAGES_PER_REQUEST);
 
 #[derive(Debug, Clone)]
 pub struct CoreUser {

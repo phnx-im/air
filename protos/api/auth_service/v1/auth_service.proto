@@ -321,9 +321,10 @@ message PublishConnectionPackagesRequest {
 }
 
 message PublishConnectionPackagesPayload {
+  // 2 was the legacy connection_packages field.
+  reserved 2;
   common.v1.ClientMetadata client_metadata = 4;
   UsernameHash hash = 3;
-  repeated ConnectionPackage connection_packages = 2;
   repeated SignedConnectionPackage signed_connection_packages = 5;
 }
 
@@ -639,10 +640,6 @@ message InitListenUsernameRequest {
   UsernameSignature signature = 2;
 }
 
-// WARNING: The signature is verified against the server's prost *re-encoding*
-// of this message, not the wire bytes. Therefore, to keep verifying signatures
-// from older clients the encoding must be stable: never reorder, renumber, or
-// remove fields (adding optional fields is fine).
 message InitListenUsernamePayload {
   common.v1.ClientMetadata client_metadata = 2;
   UsernameHash hash = 1;

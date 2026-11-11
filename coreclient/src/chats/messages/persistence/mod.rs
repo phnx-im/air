@@ -23,7 +23,7 @@ use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatId, ChatMessage, ContentMessage, Message,
+    Chat, ChatId, ChatMessage, ContentMessage, Message, SystemMessage,
     chats::{
         messages::{InReplyToMessage, edit::MessageEdit},
         reactions::Reaction,
@@ -940,6 +940,18 @@ impl ChatMessage {
         .map(ChatMessage::from)
         .with_loaded_in_reply_to(&mut connection)
         .await
+    }
+
+    /// Get the last message in the chat, if it is a system message.
+    pub(crate) async fn last_system_message(
+        connection: impl ReadConnection,
+        chat_id: ChatId,
+    ) -> sqlx::Result<Option<SystemMessage>> {
+        let last = Self::last_message(connection, chat_id).await?;
+        Ok(last.and_then(|message| match message.into_message() {
+            Message::Event(EventMessage::System(system)) => Some(system),
+            Message::Event(EventMessage::Error(_)) | Message::Content(_) => None,
+        }))
     }
 
     /// The time of the oldest message in the chat.

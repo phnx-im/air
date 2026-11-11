@@ -74,6 +74,16 @@ impl Group {
                     encrypted_profile_infos: vec![profile_info],
                 }
             }
+            // The joiner closes the request right away, see
+            // `CloseConnectionGroup` in the delivery service.
+            AadPayload::CloseConnectionGroup(_) => {
+                self.verify_connection_group_joiner(txn, api_clients, processed_message)
+                    .await?;
+                PostProcessAadResult {
+                    we_were_removed: false,
+                    encrypted_profile_infos: Vec::new(),
+                }
+            }
             AadPayload::Resync => {
                 self.process_resync_aad(txn, api_clients, processed_message)
                     .await?;
@@ -212,7 +222,30 @@ impl Group {
         processed_message: &ProcessedMessage,
         join_connection_group_payload: JoinConnectionGroupParamsAad,
     ) -> Result<(UserCredential, EncryptedUserProfileKey)> {
+        let sender_credential = self
+            .verify_connection_group_joiner(txn, api_clients, processed_message)
+            .await?;
+        Ok((
+            sender_credential,
+            join_connection_group_payload.encrypted_user_profile_key,
+        ))
+    }
+
+    /// Checks that the commit is an external commit of a new user joining a
+    /// connection group of one member, and verifies and persists the joiner's
+    /// user credential.
+    async fn verify_connection_group_joiner(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        api_clients: &ApiClients,
+        processed_message: &ProcessedMessage,
+    ) -> Result<UserCredential> {
         let staged_commit = expect_staged_commit(processed_message)?;
+
+        let (sender_credential, sender_leaf_key) = update_path_leaf_node_info(staged_commit)?;
+        let sender_credential = sender_credential
+            .into_user()
+            .context("expected a user credential joining a connection group")?;
 
         validate_join_connection_group_commit(
             processed_message.sender(),
@@ -220,12 +253,9 @@ impl Group {
                 || staged_commit.update_proposals().next().is_some()
                 || staged_commit.remove_proposals().next().is_some(),
             self.mls_group.members().count(),
+            self.members()
+                .any(|member| &member == sender_credential.user_id()),
         )?;
-
-        let (sender_credential, sender_leaf_key) = update_path_leaf_node_info(staged_commit)?;
-        let sender_credential = sender_credential
-            .into_user()
-            .context("expected a user credential joining a connection group")?;
 
         let sender_credential = verify_and_store_credential(
             txn,
@@ -235,14 +265,7 @@ impl Group {
             None, // Since the join is an external commit, we don't have an old credential.
         )
         .await?;
-
-        // TODO: (More) validation:
-        // * Check that the user id is unique.
-
-        Ok((
-            sender_credential.into(),
-            join_connection_group_payload.encrypted_user_profile_key,
-        ))
+        Ok(sender_credential.into())
     }
 
     /// Process a resync AAD payload: verify and persist the resyncing member's
@@ -320,6 +343,7 @@ fn validate_join_connection_group_commit(
     sender: &Sender,
     contains_membership_proposal: bool,
     member_count: usize,
+    joiner_is_member: bool,
 ) -> Result<()> {
     ensure!(
         matches!(sender, Sender::NewMemberCommit),
@@ -332,6 +356,10 @@ fn validate_join_connection_group_commit(
     ensure!(
         member_count == 1,
         "JoinConnectionGroup operation must target a connection group"
+    );
+    ensure!(
+        !joiner_is_member,
+        "JoinConnectionGroup joiner is already a member of the group"
     );
     Ok(())
 }
@@ -361,34 +389,55 @@ mod tests {
 
     #[test]
     fn join_connection_group_validation_enforces_operation_shape() {
-        assert!(validate_join_connection_group_commit(&Sender::NewMemberCommit, false, 1).is_ok());
+        assert!(
+            validate_join_connection_group_commit(&Sender::NewMemberCommit, false, 1, false)
+                .is_ok()
+        );
 
         let cases = [
             (
                 Sender::Member(LeafNodeIndex::new(0)),
                 false,
                 1,
+                false,
                 "JoinConnectionGroup operation must be an external commit",
             ),
             (
                 Sender::NewMemberCommit,
                 true,
                 1,
+                false,
                 "JoinConnectionGroup operation must not contain add, update, or remove proposals",
             ),
             (
                 Sender::NewMemberCommit,
                 false,
                 2,
+                false,
                 "JoinConnectionGroup operation must target a connection group",
+            ),
+            (
+                Sender::NewMemberCommit,
+                false,
+                1,
+                true,
+                "JoinConnectionGroup joiner is already a member of the group",
             ),
         ];
 
-        for (sender, contains_membership_proposal, member_count, expected_error) in cases {
+        for (
+            sender,
+            contains_membership_proposal,
+            member_count,
+            joiner_is_member,
+            expected_error,
+        ) in cases
+        {
             let error = validate_join_connection_group_commit(
                 &sender,
                 contains_membership_proposal,
                 member_count,
+                joiner_is_member,
             )
             .expect_err("invalid JoinConnectionGroup operation should fail");
             assert!(

@@ -69,6 +69,7 @@ pub struct GroupTombstone {
 /// ```cddl
 /// TombstoneContext = {
 ///   1: null   ; the group was deleted by a member
+///   2: null   ; a connection request between contacts was closed
 /// }
 /// ```
 #[derive(
@@ -78,6 +79,10 @@ pub enum TombstoneContext {
     /// A member deleted the group.
     #[tag(1)]
     Deleted,
+    /// A connection request was closed, since its sender and its recipient are
+    /// contacts already.
+    #[tag(2)]
+    AlreadyConnected,
     /// A context this client does not understand, or none at all.
     #[default]
     #[unknown]
@@ -90,6 +95,15 @@ impl GroupTombstone {
         Self {
             timestamp: Some(timestamp),
             context: TombstoneContext::Deleted,
+        }
+    }
+
+    /// The tombstone that closes a connection request between contacts at
+    /// `timestamp`.
+    pub fn already_connected(timestamp: TimeStamp) -> Self {
+        Self {
+            timestamp: Some(timestamp),
+            context: TombstoneContext::AlreadyConnected,
         }
     }
 }
@@ -185,6 +199,34 @@ mod test {
         let component = deleted_component();
         let bytes = component.to_bytes().unwrap();
         assert_eq!(AirComponent::from_bytes(&bytes).unwrap(), component);
+    }
+
+    #[test]
+    fn already_connected_tombstone_round_trip() {
+        let component = AirComponent {
+            tombstone: Some(GroupTombstone::already_connected(
+                Utc.with_ymd_and_hms(2026, 11, 3, 12, 0, 0).unwrap().into(),
+            )),
+            ..deleted_component()
+        };
+        let bytes = component.to_bytes().unwrap();
+        assert_eq!(AirComponent::from_bytes(&bytes).unwrap(), component);
+    }
+
+    /// A client that only knows the `Deleted` context.
+    #[derive(Debug, PartialEq, Eq, SerializeTaggedUnion, DeserializeTaggedUnion)]
+    enum LegacyTombstoneContext {
+        #[tag(1)]
+        Deleted,
+        #[unknown]
+        Unknown,
+    }
+
+    #[test]
+    fn already_connected_decodes_as_unknown_on_a_legacy_client() {
+        let bytes = PersistenceCodec::to_vec(&TombstoneContext::AlreadyConnected).unwrap();
+        let decoded: LegacyTombstoneContext = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(decoded, LegacyTombstoneContext::Unknown);
     }
 
     /// The component as it was before the `tombstone` field existed.

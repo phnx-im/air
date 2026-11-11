@@ -21,11 +21,12 @@ use airprotos::{
         CreateGroupV2Response, ProvisionAttachmentResponse, create_group_v2_request,
         create_group_v2_response,
     },
-    signed::SignedRequest,
+    signed::{SignedNestedRequest, SignedRequest},
 };
 use futures_util::{Stream, StreamExt};
 use metrics::{counter, describe_counter};
 use parking_lot::Mutex;
+use prost::bytes::Bytes;
 use tokio::{
     sync::mpsc,
     time::{Instant, timeout_at},
@@ -59,6 +60,9 @@ pub(super) fn describe_metrics() {
         "Group creation streams the server rejected, by cause"
     );
 }
+
+/// A create group request with the wire bytes of its prepare payload.
+pub(super) type SignedCreateGroupV2Request = SignedNestedRequest<CreateGroupV2Request, 1, 1>;
 
 /// The user a stream authenticated in its prepare step.
 #[derive(Debug, Clone)]
@@ -272,7 +276,7 @@ pub(super) async fn run_protocol(
     backend: &impl CreateGroupStreamBackend,
     streams: &CreateGroupStreams,
     stop: &CancellationToken,
-    incoming: impl Stream<Item = Result<CreateGroupV2Request, Status>> + Unpin,
+    incoming: impl Stream<Item = Result<SignedCreateGroupV2Request, Status>> + Unpin,
     outgoing: mpsc::Sender<Result<CreateGroupV2Response, Status>>,
 ) {
     match run_protocol_impl(backend, streams, stop, incoming, &outgoing).await {
@@ -298,7 +302,7 @@ async fn run_protocol_impl(
     backend: &impl CreateGroupStreamBackend,
     streams: &CreateGroupStreams,
     stop: &CancellationToken,
-    mut incoming: impl Stream<Item = Result<CreateGroupV2Request, Status>> + Unpin,
+    mut incoming: impl Stream<Item = Result<SignedCreateGroupV2Request, Status>> + Unpin,
     outgoing: &mpsc::Sender<Result<CreateGroupV2Response, Status>>,
 ) -> Result<Outcome, StreamError> {
     // A stopping server ends the stream at any step before the creation. The
@@ -349,7 +353,7 @@ struct PreparedCreation {
 async fn prepare_creation(
     backend: &impl CreateGroupStreamBackend,
     streams: &CreateGroupStreams,
-    incoming: &mut (impl Stream<Item = Result<CreateGroupV2Request, Status>> + Unpin),
+    incoming: &mut (impl Stream<Item = Result<SignedCreateGroupV2Request, Status>> + Unpin),
     outgoing: &mpsc::Sender<Result<CreateGroupV2Response, Status>>,
 ) -> Result<Option<PreparedCreation>, StreamError> {
     let settings = backend.settings();
@@ -357,7 +361,7 @@ async fn prepare_creation(
 
     // As on the listen streams, the wait for the first step has no deadline.
     // The stream holds no slot and no allowance until Prepare is authenticated.
-    let Some(step) = next_step(incoming, None).await? else {
+    let Some((step, payload_bytes)) = next_step(incoming, None).await? else {
         return Ok(None);
     };
     let create_group_v2_request::Step::Prepare(prepare) = step else {
@@ -366,16 +370,18 @@ async fn prepare_creation(
     // Create must arrive within the deadline of Prepare, however long the
     // server's checks take.
     let create_deadline = Instant::now() + deadline;
-    let (slot, creator, reservation, reserved) =
-        timeout_at(create_deadline, admit(backend, streams, prepare))
-            .await
-            .map_err(|_elapsed| StreamError::TimedOut(WaitingFor::Admission))??;
+    let (slot, creator, reservation, reserved) = timeout_at(
+        create_deadline,
+        admit(backend, streams, prepare, payload_bytes),
+    )
+    .await
+    .map_err(|_elapsed| StreamError::TimedOut(WaitingFor::Admission))??;
     counter!(METRIC_PREPARED).increment(1);
     if !send_step(outgoing, create_group_v2_response::Step::Reserved(reserved)).await {
         return Ok(None);
     }
 
-    let Some(step) = next_step(incoming, Some(create_deadline)).await? else {
+    let Some((step, _payload_bytes)) = next_step(incoming, Some(create_deadline)).await? else {
         return Ok(None);
     };
     let create_group_v2_request::Step::Create(payload) = step else {
@@ -395,6 +401,7 @@ async fn admit(
     backend: &impl CreateGroupStreamBackend,
     streams: &CreateGroupStreams,
     prepare: CreateGroupV2Prepare,
+    payload_bytes: Option<Bytes>,
 ) -> Result<
     (
         StreamSlot,
@@ -405,7 +412,7 @@ async fn admit(
     StreamError,
 > {
     let settings = backend.settings();
-    let (creator, prepare) = authenticate(backend, prepare).await?;
+    let (creator, prepare) = authenticate(backend, prepare, payload_bytes).await?;
 
     let slot = streams.acquire(
         &creator.user_id,
@@ -442,12 +449,17 @@ async fn admit(
 
 /// Checks the version and the signature of the prepare step against the key the
 /// AS stores for the claimed user.
+///
+/// The signature is verified over `payload_bytes`, the wire bytes of the
+/// payload of `prepare`.
 async fn authenticate(
     backend: &impl CreateGroupStreamBackend,
     prepare: CreateGroupV2Prepare,
+    payload_bytes: Option<Bytes>,
 ) -> Result<(StreamCreator, CreateGroupV2PreparePayload), StreamError> {
-    let request = SignedRequest::from_nested(prepare, |prepare| prepare.payload.as_ref())
-        .ok_or_else(|| StreamError::protocol("missing prepare payload"))?;
+    let payload_bytes =
+        payload_bytes.ok_or_else(|| StreamError::protocol("missing prepare payload"))?;
+    let request: SignedRequest<CreateGroupV2Prepare> = SignedRequest::new(prepare, payload_bytes);
     let unverified = request.inner().payload.as_ref();
     backend
         .verify_client_version(unverified.and_then(|payload| payload.client_metadata.as_ref()))
@@ -475,10 +487,13 @@ async fn authenticate(
 }
 
 /// Waits for the next step until the create `deadline`, if any.
+///
+/// Returns the step with the wire bytes of the prepare payload the frame
+/// carried, if any.
 async fn next_step(
-    incoming: &mut (impl Stream<Item = Result<CreateGroupV2Request, Status>> + Unpin),
+    incoming: &mut (impl Stream<Item = Result<SignedCreateGroupV2Request, Status>> + Unpin),
     deadline: Option<Instant>,
-) -> Result<Option<create_group_v2_request::Step>, StreamError> {
+) -> Result<Option<(create_group_v2_request::Step, Option<Bytes>)>, StreamError> {
     let next = match deadline {
         Some(deadline) => timeout_at(deadline, incoming.next())
             .await
@@ -491,8 +506,12 @@ async fn next_step(
             debug!(%status, "group creation stream closed by the client");
             Ok(None)
         }
-        Some(Ok(CreateGroupV2Request { step: None })) => Err(StreamError::protocol("missing step")),
-        Some(Ok(CreateGroupV2Request { step: Some(step) })) => Ok(Some(step)),
+        Some(Ok(request)) => match request.into_parts() {
+            (CreateGroupV2Request { step: None }, _) => Err(StreamError::protocol("missing step")),
+            (CreateGroupV2Request { step: Some(step) }, payload_bytes) => {
+                Ok(Some((step, payload_bytes)))
+            }
+        },
     }
 }
 
@@ -695,6 +714,11 @@ mod tests {
         }
     }
 
+    /// Decodes `request` from the wire like the server does.
+    fn decode(request: CreateGroupV2Request) -> SignedCreateGroupV2Request {
+        prost::Message::decode(prost::Message::encode_to_vec(&request).as_slice()).unwrap()
+    }
+
     /// Runs one stream on which the client sends `requests` and then either
     /// closes its side or keeps it open.
     async fn run_stream(
@@ -705,7 +729,7 @@ mod tests {
     ) -> Run {
         let (requests_tx, requests_rx) = mpsc::channel(requests.len().max(1));
         for request in requests {
-            requests_tx.send(Ok(request)).await.unwrap();
+            requests_tx.send(Ok(decode(request))).await.unwrap();
         }
         let _keep_open = keep_open.then_some(requests_tx);
         let (outgoing_tx, mut outgoing_rx) = mpsc::channel(4);
@@ -1208,7 +1232,7 @@ mod tests {
         for _ in 0..max_per_user + 3 {
             let (requests_tx, requests_rx) = mpsc::channel(1);
             requests_tx
-                .send(Ok(prepare(&user_id, &signing_key)))
+                .send(Ok(decode(prepare(&user_id, &signing_key))))
                 .await
                 .unwrap();
             let (outgoing_tx, outgoing_rx) = mpsc::channel(4);
