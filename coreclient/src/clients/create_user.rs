@@ -48,6 +48,8 @@ fn build_http_client() -> reqwest::Client {
     reqwest::Client::builder()
         .connect_timeout(HTTP_CONNECT_TIMEOUT)
         .tcp_keepalive(HTTP_TCP_KEEPALIVE)
+        .no_gzip()
+        .no_brotli()
         .build()
         .expect("failed to build HTTP client")
 }

@@ -169,7 +169,7 @@ const RESERVED: [&str; 12] = [
     "home.arpa",
 ];
 
-fn is_selectable(link: &str) -> bool {
+pub(super) fn is_selectable(link: &str) -> bool {
     link.len() <= MAX_LINK_LEN
         && Url::parse(link).is_ok_and(|url| {
             url.scheme() == "https"

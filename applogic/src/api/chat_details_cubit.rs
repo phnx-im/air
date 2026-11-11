@@ -841,10 +841,7 @@ impl ChatDetailsCubitBase {
             .context
             .core_user
             .fetch_link_preview(url, token.clone())
-            .await
-            .inspect_err(|error| error!(%error, "Failed to fetch link preview"))
-            .ok()
-            .flatten();
+            .await;
         self.with_link_preview(|lp| lp.finish(&token, fetched));
         Ok(())
     }
