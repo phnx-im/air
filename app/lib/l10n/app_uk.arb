@@ -237,6 +237,7 @@
   "systemMessage_connectionRequestUnavailable": "Запит на контакт більше недоступний.",
   "systemMessage_connectionRequestExpired": "Термін дії запиту на контакт минув.",
   "systemMessage_sentConnectionRequestExpired": "Термін дії вашого запиту на контакт минув. Якщо ви все ще хочете додати цю людину до контактів, надішліть їй новий запит.",
+  "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} уже є у ваших контактах. Цей запит закрито.",
   "sentContactRequest_title": "Ви надіслали запит на контакт",
   "sentContactRequest_titleWithName": "Ви надіслали запит на контакт користувачу {displayName}",
   "sentContactRequest_toUsername": "на ім’я користувача {username}",

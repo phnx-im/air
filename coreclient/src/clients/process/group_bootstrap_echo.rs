@@ -23,13 +23,14 @@ use tracing::debug;
 
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
-    chats::{PendingConnectionRequest, connection_requests},
+    chats::{PendingConnectionRequest, connection_requests, outgoing_requests},
     clients::CoreUser,
     db::access::WriteDbTransaction,
     groups::{
         Group,
         client_auth_info::StorableUserCredential,
         group_bootstrap::{BootstrapConnection, GroupBootstrapContents},
+        pending_creation::PendingGroupCreation,
         self_group::SelfGroup,
     },
 };
@@ -44,6 +45,16 @@ impl CoreUser {
         carrier: GroupBootstrapCarrier,
         ds_timestamp: TimeStamp,
     ) -> Result<QsMessageOutcome> {
+        // The echo of our own creation confirms it, even when the DS's answer
+        // was lost.
+        if matches!(carrier, GroupBootstrapCarrier::CreationEcho)
+            && PendingGroupCreation::confirm(txn, &echo.group_id, self.user_id(), ds_timestamp)
+                .await?
+                .is_some()
+        {
+            debug!(group_id = ?echo.group_id, "Creation echo confirmed a pending group");
+            return Ok(QsMessageOutcome::empty());
+        }
         // A duplicate echo must not reinstall the group, nor revive one we left.
         if Group::load(&mut *txn, &echo.group_id).await?.is_some() {
             debug!(group_id = ?echo.group_id, "Group bootstrap for a group we already have");
@@ -232,7 +243,7 @@ impl CoreUser {
                 let user_handle = accepted.and_then(|request| request.username);
                 let host = PendingConnectionRequest::chat_of_sender(&mut *txn, &user_id).await?;
                 if let Some(host) = host {
-                    connection_requests::settle_accepted(txn, host).await?;
+                    connection_requests::settle_accepted(txn, host, request_id, &user_id).await?;
                 }
 
                 chat.store(&mut *txn).await?;
@@ -267,8 +278,15 @@ impl CoreUser {
                 .await?;
 
                 if let Some(hash) = connection_offer_hash {
-                    Group::delete_connection_offer_psk(txn, hash)?;
+                    Group::delete_connection_offer_psk(&mut *txn, hash)?;
                 }
+                outgoing_requests::close_targeted_request_to(
+                    txn,
+                    self.signing_key(),
+                    &user_id,
+                    ds_timestamp,
+                )
+                .await?;
                 host
             }
         };

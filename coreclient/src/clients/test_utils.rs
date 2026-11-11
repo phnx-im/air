@@ -30,6 +30,7 @@ use aircommon::{
 
 use crate::{
     ChatAttributes,
+    chats::ClosingConnectionRequest,
     groups::{NewGroupContext, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
     job::{
         chat_operation::{ChatOperation, DerivationEpoch},
@@ -445,6 +446,16 @@ impl CoreUser {
         };
         resync.enqueue(self.db().write().await?).await?;
         Ok(())
+    }
+
+    /// The number of redundant incoming requests whose close is still parked,
+    /// deferred ones included.
+    pub async fn parked_request_closes(&self) -> anyhow::Result<usize> {
+        let any_time = TimeStamp::from(Utc::now() + chrono::Duration::days(365));
+        let connection = self.db().read().await?;
+        Ok(ClosingConnectionRequest::load_due(connection, any_time)
+            .await?
+            .len())
     }
 
     pub async fn resync_status(&self, chat_id: ChatId) -> anyhow::Result<Option<ResyncStatus>> {

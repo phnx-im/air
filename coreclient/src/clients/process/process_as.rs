@@ -5,7 +5,7 @@
 use aircommon::{
     credentials::UserCredential,
     crypto::hpke::HpkeDecryptable,
-    identifiers::Username,
+    identifiers::{UserId, Username},
     messages::{
         client_as::{ConnectionOfferHash, ConnectionOfferMessage},
         connection_package::ConnectionPackageHash,
@@ -19,7 +19,10 @@ use tracing::error;
 
 use crate::{
     chats::{
-        connection_requests::{self, IncomingRequest, IncomingRequestSource, StoredRequest},
+        ClosingConnectionRequest,
+        connection_requests::{
+            self, IncomingRequest, IncomingRequestSource, Settlement, StoredRequest,
+        },
         request_expiry,
     },
     clients::{
@@ -30,7 +33,7 @@ use crate::{
             payload::{ConnectionInfo, ConnectionOfferPayload},
         },
     },
-    db::access::WriteConnection,
+    db::access::{WriteConnection, WriteDbTransaction},
     groups::client_auth_info::StorableUserCredential,
     job::{JobContext, JobContextDb},
     usernames::connection_packages::ConnectionPackageRecord,
@@ -85,6 +88,38 @@ struct UsernameConnectionInfo {
     connection_offer_hash: ConnectionOfferHash,
     connection_package_hash: ConnectionPackageHash,
     username: Username,
+}
+
+impl UsernameConnectionInfo {
+    /// Parks closing the request `request_id` of `sender`, who is a connected
+    /// contact.
+    async fn park_close(
+        self,
+        txn: &mut WriteDbTransaction<'_>,
+        request_id: ChatId,
+        sender: UserId,
+        connection_info: ConnectionInfo,
+    ) -> anyhow::Result<()> {
+        let request = ClosingConnectionRequest {
+            request_id,
+            sender,
+            connection_info,
+            connection_offer_hash: self.connection_offer_hash,
+            created_at: TimeStamp::now(),
+        };
+        connection_requests::park_close(txn, request, &self.connection_package_hash).await
+    }
+}
+
+/// What became of an incoming connection offer.
+pub(crate) enum OfferOutcome {
+    /// It is stored as a pending request.
+    Stored(StoredRequest),
+    /// It is parked for closing on the DS, since its sender is a connected
+    /// contact, see [`ClosingConnectionRequest`].
+    Closing,
+    /// It is known already or expired.
+    Dropped,
 }
 
 impl ConnectionInfoSource {
@@ -176,13 +211,20 @@ impl CoreUser {
                     now: Utc::now(),
                     qs_client_id: &self.inner.qs_client_id,
                 };
-                let stored =
+                let outcome =
                     Self::process_connection_offer(&mut context, connection_info_source).await?;
-                if stored.is_some() {
-                    // Hands the request to the siblings.
-                    self.outbound_service().notify_pending_chat_operations();
+                match outcome {
+                    OfferOutcome::Stored(stored) => {
+                        // Hands the request to the siblings.
+                        self.outbound_service().notify_pending_chat_operations();
+                        Ok(Some(stored))
+                    }
+                    OfferOutcome::Closing => {
+                        self.outbound_service().notify_request_closes();
+                        Ok(None)
+                    }
+                    OfferOutcome::Dropped => Ok(None),
                 }
-                Ok(stored)
             }
         }
     }
@@ -190,12 +232,12 @@ impl CoreUser {
     /// Stores an incoming connection request as pending. A request via a
     /// username is also parked for the siblings.
     ///
-    /// Returns where it was stored, or `None` if the request is known already
-    /// or expired.
+    /// A request via a username from a connected contact is parked for closing
+    /// instead. One via a group is dropped, since its sender closes it.
     pub(crate) async fn process_connection_offer(
         context: &mut JobContext<'_, '_>,
         connection_info_source: ConnectionInfoSource,
-    ) -> anyhow::Result<Option<StoredRequest>> {
+    ) -> anyhow::Result<OfferOutcome> {
         let api_clients = context.api_clients.clone();
         let (
             connection_info,
@@ -219,7 +261,7 @@ impl CoreUser {
 
         // A request that arrives after its deadline is never shown.
         if request_expiry::has_expired(*message_timestamp, context.now) {
-            return Ok(None);
+            return Ok(OfferOutcome::Dropped);
         }
 
         // Idempotency: the request id is deterministic from the group id, so
@@ -227,17 +269,26 @@ impl CoreUser {
         // newer request of the same sender.
         let request_id = ChatId::try_from(&connection_info.connection_group_id)?;
         let sender = sender_user_credential.user_id().clone();
-        let is_settled = {
+        let settlement = {
             let mut connection = context.db.read().await?;
             let txn = connection.begin().await?;
-            connection_requests::is_settled(txn, request_id, &sender).await?
+            connection_requests::settlement(txn, request_id, &sender).await?
         };
-        if is_settled {
-            return Ok(None);
+        match settlement {
+            None => {
+                CoreUser::fetch_request_sender_profile(
+                    context,
+                    &connection_info,
+                    &sender_user_credential,
+                )
+                .await?;
+            }
+            // A request to close needs no profile.
+            Some(Settlement::ConnectedContact) if username_connection_info.is_some() => {}
+            Some(Settlement::Known | Settlement::ConnectedContact) => {
+                return Ok(OfferOutcome::Dropped);
+            }
         }
-
-        CoreUser::fetch_request_sender_profile(context, &connection_info, &sender_user_credential)
-            .await?;
 
         context
             .db
@@ -247,8 +298,18 @@ impl CoreUser {
                 // The profile fetch held no database lock, so an accept on
                 // this device or a sibling's echo may have settled the sender
                 // meanwhile.
-                if connection_requests::is_settled(&mut *txn, request_id, &sender).await? {
-                    return Ok(None);
+                match connection_requests::settlement(&mut *txn, request_id, &sender).await? {
+                    None => {}
+                    Some(Settlement::Known) => return Ok(OfferOutcome::Dropped),
+                    Some(Settlement::ConnectedContact) => {
+                        let Some(username_info) = username_connection_info else {
+                            return Ok(OfferOutcome::Dropped);
+                        };
+                        username_info
+                            .park_close(txn, request_id, sender, connection_info)
+                            .await?;
+                        return Ok(OfferOutcome::Closing);
+                    }
                 }
                 // Only this device got a username offer from the AS queue. A
                 // targeted message reaches every sibling on its own.
@@ -293,7 +354,7 @@ impl CoreUser {
                     connection_requests::park_received(txn, request_id, &sender_user_credential)
                         .await?;
                 }
-                Ok(Some(stored))
+                Ok(OfferOutcome::Stored(stored))
             })
             .await
     }
