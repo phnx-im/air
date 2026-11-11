@@ -6,39 +6,8 @@
 
 use aircommon::credentials::VerifiableUserCredential;
 use tonic::Status;
-use tracing::{error, warn};
 
 use crate::auth_service::AsConnector;
-
-/// Checks that the key in `credential` is consistent with the one the AS stores for its user.
-///
-/// Returns [`Status::permission_denied`] if the AS has no record of the user or stores another
-/// key for it, and [`Status::internal`] if the lookup fails.
-pub(super) async fn authenticate_user_credential(
-    as_connector: &impl AsConnector,
-    credential: &VerifiableUserCredential,
-) -> Result<(), Status> {
-    let stored_key = as_connector
-        .client_verifying_key(credential.user_id())
-        .await
-        .map_err(|error| {
-            error!(%error, "Failed to load client verifying key from AS");
-            Status::internal("failed to load client verifying key")
-        })?;
-    match stored_key {
-        Some(stored_key) if stored_key == *credential.verifying_key() => Ok(()),
-        Some(_) => {
-            warn!("User credential carries another key than the AS stores");
-            Err(Status::permission_denied(
-                "user credential does not match the registered user",
-            ))
-        }
-        None => {
-            warn!("User credential of a user unknown to the AS");
-            Err(Status::permission_denied("unknown user"))
-        }
-    }
-}
 
 /// The outcome of a group-state step along with credentials that need to be verified with the AS.
 #[must_use = "the outcome is only available once its user credentials are authenticated"]
@@ -67,11 +36,14 @@ impl<T> Unauthenticated<T> {
         })
     }
 
-    /// Returns the outcome once every credential passed [`authenticate_user_credential`], or the
-    /// error of the first credential that fails.
+    /// Returns the outcome once every credential passed
+    /// [`AsConnector::authenticate_user_credential`], or the error of the first credential that
+    /// fails.
     pub(super) async fn authenticate(self, as_connector: &impl AsConnector) -> Result<T, Status> {
         for credential in &self.credentials {
-            authenticate_user_credential(as_connector, credential).await?;
+            as_connector
+                .authenticate_user_credential(credential)
+                .await?;
         }
         Ok(self.outcome)
     }
@@ -152,7 +124,8 @@ mod tests {
         let mut stored = StoredKeys::default();
         stored.register(&credential);
 
-        authenticate_user_credential(&stored, &credential)
+        stored
+            .authenticate_user_credential(&credential)
             .await
             .unwrap();
     }
@@ -163,7 +136,8 @@ mod tests {
         let mut stored = StoredKeys::default();
         stored.register(&credential(user_id.clone()));
 
-        let status = authenticate_user_credential(&stored, &credential(user_id))
+        let status = stored
+            .authenticate_user_credential(&credential(user_id))
             .await
             .unwrap_err();
         assert_eq!(status.code(), Code::PermissionDenied);
@@ -171,10 +145,10 @@ mod tests {
 
     #[tokio::test]
     async fn a_credential_of_an_unknown_user_is_rejected() {
-        let status =
-            authenticate_user_credential(&StoredKeys::default(), &credential(random_user()))
-                .await
-                .unwrap_err();
+        let status = StoredKeys::default()
+            .authenticate_user_credential(&credential(random_user()))
+            .await
+            .unwrap_err();
         assert_eq!(status.code(), Code::PermissionDenied);
     }
 
@@ -196,7 +170,8 @@ mod tests {
         let payload = UserCredentialPayload::new(csr, None, Hash::from_bytes([0; 32]));
         let foreign = VerifiableUserCredential::new(payload, AsIntermediateSignature::empty());
 
-        let status = authenticate_user_credential(&stored, &foreign)
+        let status = stored
+            .authenticate_user_credential(&foreign)
             .await
             .unwrap_err();
         assert_eq!(status.code(), Code::PermissionDenied);
@@ -204,7 +179,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_failing_lookup_is_an_internal_error() {
-        let status = authenticate_user_credential(&FailingAs, &credential(random_user()))
+        let status = FailingAs
+            .authenticate_user_credential(&credential(random_user()))
             .await
             .unwrap_err();
         assert_eq!(status.code(), Code::Internal);

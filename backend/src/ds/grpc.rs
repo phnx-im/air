@@ -56,7 +56,6 @@ use crate::{
         create_group_stream,
         group_operation::ProcessedApqGroupOperation,
         group_state::MemberProfile,
-        user_credentials::authenticate_user_credential,
     },
     errors::GroupOperationError,
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
@@ -986,7 +985,9 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
         let payload: CreateGroupPayload = request
             .verify(credential.verifying_key())
             .map_err(InvalidSignature)?;
-        authenticate_user_credential(&self.as_connector, &credential).await?;
+        self.as_connector
+            .authenticate_user_credential(&credential)
+            .await?;
 
         // Only after authentication, so a forged request cannot spend another
         // user's allowance.
@@ -1058,7 +1059,9 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
         let payload: CreateApqGroupPayload = request
             .verify(t_user_credential.verifying_key())
             .map_err(InvalidSignature)?;
-        authenticate_user_credential(&self.as_connector, &t_user_credential).await?;
+        self.as_connector
+            .authenticate_user_credential(&t_user_credential)
+            .await?;
 
         // Only after authentication, so a forged request cannot spend another
         // user's allowance.
