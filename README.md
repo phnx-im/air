@@ -22,12 +22,9 @@ Air is regularly updated with new features and improvements.
 
 ## Install
 
-> **Air is currently invite-only.** To sign up on Air you need an invite code from an existing Air user.
->
-
-The Air app is available for both Android and iOS, with desktop support coming soon. You can find links to the Google Play and Apple AppStore here: [https://air.ms/install](https://air.ms/install)
+The Air app is available for mobile and desktop platforms: [https://air.ms/download](https://air.ms/download)
 
 ## Licensing
 
-All code in this repository are licensed under [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html).
+All code in this repository is licensed under [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html).
 This README is licensed under [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/).

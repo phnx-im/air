@@ -162,13 +162,14 @@ pub struct DsCommitResponse {
     pub key_package_batch: Option<KeyPackageBatchId>,
 }
 
-/// Announces a group a virtual client created or externally joined. Meant to
-/// be put into the QS queues of all of the acting user's clients. The message
-/// type distinguishes creation from join.
+/// Announces a group a client created or a virtual client externally joined.
+/// Meant to be put into the QS queues of all of the acting user's clients. The
+/// message type distinguishes creation from join.
 ///
 /// The DS sends it when it accepts the operation, before any other traffic of
 /// that group reaches those queues. A sibling client uses it to join the group
-/// itself.
+/// itself. The DS echoes every creation, so the creator also learns of a
+/// creation whose answer it never received.
 #[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize, Clone)]
 pub struct GroupBootstrapEcho {
     pub group_id: GroupId,
@@ -180,6 +181,9 @@ pub struct GroupBootstrapEcho {
     pub timestamp: TimeStamp,
     /// A `GroupBootstrapBlob` (CBOR, defined in `airprotos`), encrypted for the
     /// acting client's siblings. The DS echoes it unread.
+    ///
+    /// Empty in the echo of a creation without a bootstrap. Such a receipt only
+    /// confirms the creation.
     pub group_bootstrap: Vec<u8>,
 }
 
@@ -348,6 +352,10 @@ pub enum AadPayload {
     JoinConnectionGroup(JoinConnectionGroupParamsAad),
     Resync,
     DeleteGroup,
+    /// A join that is followed by a delete of the group in the same DS call,
+    /// see `CloseConnectionGroup` in the delivery service. Unlike
+    /// [`Self::JoinConnectionGroup`], it does not confirm the request.
+    CloseConnectionGroup(CloseConnectionGroupParamsAad),
     // There is no SelfRemoveClient entry, since that message consists of a
     // single proposal and since we don't otherwise support individual
     // proposals, there is not need to signal it explicitly.
@@ -457,6 +465,13 @@ pub struct JoinConnectionGroupParamsAad {
     pub encrypted_user_profile_key: EncryptedUserProfileKey,
 }
 
+/// The joiner closes the request in the same DS call. It shares only the
+/// profile key the DS records for every member.
+#[derive(TlsSerialize, TlsDeserializeBytes, TlsSize)]
+pub struct CloseConnectionGroupParamsAad {
+    pub encrypted_user_profile_key: EncryptedUserProfileKey,
+}
+
 #[derive(Debug)]
 pub struct ResyncParams {
     pub external_commit: AssistedMessageIn,
@@ -521,4 +536,25 @@ pub struct ApqWelcomeBundle {
     pub encrypted_attribution_info: EncryptedWelcomeAttributionInfo,
     // This part is added by the DS later.
     pub encrypted_joiner_info: EncryptedDsJoinerInformation,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn close_connection_group_aad_round_trip() {
+        let payload = CloseConnectionGroupParamsAad {
+            encrypted_user_profile_key: EncryptedUserProfileKey::random(),
+        };
+        let bytes = AadMessage::from(AadPayload::CloseConnectionGroup(payload))
+            .tls_serialize_detached()
+            .unwrap();
+
+        let decoded = AadMessage::tls_deserialize_exact_bytes(&bytes).unwrap();
+        assert_eq!(decoded.tls_serialize_detached().unwrap(), bytes);
+        let AadPayload::CloseConnectionGroup(_) = decoded.into_payload() else {
+            panic!("decoded as another AAD payload");
+        };
+    }
 }

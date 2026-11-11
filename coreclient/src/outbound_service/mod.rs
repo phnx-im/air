@@ -49,6 +49,7 @@ mod reactions;
 pub(crate) mod receipt_queue;
 mod receipts;
 mod redeemed_tokens;
+mod request_closes;
 pub(crate) mod resync;
 mod retry;
 mod retry_pending_chat_operations;
@@ -232,6 +233,11 @@ impl<C: OutboundServiceWork> OutboundService<C> {
     /// Wakes the outbound service to send a freshly enqueued pending chat
     /// operation.
     pub(crate) fn notify_pending_chat_operations(&self) -> WaitForDoneFuture {
+        self.notify_work()
+    }
+
+    /// Wakes the outbound service to close freshly parked redundant requests.
+    pub(crate) fn notify_request_closes(&self) -> WaitForDoneFuture {
         self.notify_work()
     }
 
@@ -444,6 +450,10 @@ impl OutboundServiceContext {
         let mut stale_groups = Box::pin(self.send_pending_chat_operations(run_token))
             .await
             .or_abort("pending chat operations")?;
+
+        Box::pin(self.close_redundant_requests(run_token))
+            .await
+            .or_abort("redundant request closes")?;
 
         self.send_queued_receipts(run_token)
             .await

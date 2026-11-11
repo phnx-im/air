@@ -237,7 +237,8 @@ extension UiEventMessageExtension on UiEventMessage {
       UiSystemMessage_Onboarded() ||
       UiSystemMessage_ConnectionRequestUnavailable() ||
       UiSystemMessage_ConnectionRequestExpired() ||
-      UiSystemMessage_SentConnectionRequestExpired() => true,
+      UiSystemMessage_SentConnectionRequestExpired() ||
+      UiSystemMessage_SentConnectionRequestAlreadyConnected() => true,
     },
     UiEventMessage_Error() => true,
   };

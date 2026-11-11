@@ -242,6 +242,7 @@ impl ProductionPushNotificationProvider {
             None
         };
 
+        aircommon::tls::install_crypto_provider();
         Ok(Self {
             client: Client::new(),
             fcm_state,

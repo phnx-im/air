@@ -49,8 +49,9 @@ use crate::{
 };
 
 /// Tears down a group whose group context carries a tombstone as if the DS
-/// returns "group not found". Also announces the deletion in the chat,
-/// whatever the tombstone's context.
+/// returns "group not found". Also announces the deletion in the chat. An
+/// outgoing request that went to a contact ends with a record of that instead,
+/// see [`outgoing_requests::close_if_already_connected`].
 ///
 /// A closed self group means that the account is deleted, see
 /// [`AccountDeletion::self_group_closed`].
@@ -62,16 +63,27 @@ async fn handle_group_closed(
     if OwnClientInfo::is_own_self_group(&mut *txn, group_id).await? {
         AccountDeletion::self_group_closed(&mut *txn).await?;
     }
-    if let Some(chat) = Chat::load_by_group_id(&mut *txn, group_id).await?
+    if let Some(mut chat) = Chat::load_by_group_id(&mut *txn, group_id).await?
         && !chat.status().is_inactive()
     {
-        ChatMessage::new_system_message(
-            chat.id(),
-            closed.tombstone.timestamp.unwrap_or_else(TimeStamp::now),
-            SystemMessage::DeleteGroup(closed.closer.clone()),
+        let at = closed.tombstone.timestamp.unwrap_or_else(TimeStamp::now);
+        let already_connected = outgoing_requests::close_if_already_connected(
+            txn,
+            &mut chat,
+            Some(&closed.tombstone),
+            &closed.closer,
+            at,
         )
-        .store(&mut *txn)
         .await?;
+        if !already_connected {
+            ChatMessage::new_system_message(
+                chat.id(),
+                at,
+                SystemMessage::DeleteGroup(closed.closer.clone()),
+            )
+            .store(&mut *txn)
+            .await?;
+        }
     }
     handle_group_not_found_on_ds(txn, group_id).await
 }

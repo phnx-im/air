@@ -15,3 +15,9 @@ pub const MAX_KEY_PACKAGE_BYTES: usize = 16 * 1024;
 
 /// Serialized bytes of all key packages in one request.
 pub const MAX_KEY_PACKAGE_REQUEST_BYTES: usize = 1024 * 1024;
+
+/// Signed connection packages in one AS publish request.
+pub const MAX_CONNECTION_PACKAGES_PER_REQUEST: usize = 256;
+
+/// Payload and signature bytes of one signed connection package.
+pub const MAX_CONNECTION_PACKAGE_BYTES: usize = 2 * 1024;

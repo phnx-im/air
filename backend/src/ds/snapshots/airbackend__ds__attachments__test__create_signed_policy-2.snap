@@ -13,7 +13,7 @@ Object {
         Array [
             String("content-length-range"),
             Number(0),
-            Number(20971520),
+            Number(42),
         ],
         Object {
             "x-amz-credential": String("EXAMPLEKEY/20230101/example-region/s3/aws4_request"),

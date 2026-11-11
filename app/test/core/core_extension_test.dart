@@ -87,6 +87,11 @@ void main() {
           ),
         ),
         const UiEventMessage.system(UiSystemMessage.connectionRequestExpired()),
+        UiEventMessage.system(
+          UiSystemMessage.sentConnectionRequestAlreadyConnected(
+            contact: 1.userId(),
+          ),
+        ),
         const UiEventMessage.system(UiSystemMessage.onboarded()),
         const UiEventMessage.error(UiErrorMessage(message: 'error')),
       ]) {

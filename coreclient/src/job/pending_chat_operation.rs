@@ -17,6 +17,7 @@ use aircommon::{
     virtual_client::KeyPackageBatchId,
 };
 use airprotos::client::{
+    component::GroupTombstone,
     group::GroupData,
     self_group::{LinkedDevice, SelfGroupMessage, SettingsUpdate, TokenSeed},
 };
@@ -1203,13 +1204,12 @@ impl PendingChatOperation {
 
     /// Creates and stores a PendingChatOperation for deleting a chat.
     ///
-    /// `deleted` is recorded in the tombstone the delete commit sets, see
-    /// [`Group::stage_delete`].
+    /// The delete commit sets `tombstone`, see [`Group::stage_delete`].
     pub(crate) async fn create_delete(
         txn: &mut WriteDbTransaction<'_>,
         signer: &UserSigningKey,
         chat_id: ChatId,
-        deleted: Option<TimeStamp>,
+        tombstone: Option<GroupTombstone>,
     ) -> anyhow::Result<Self> {
         let chat = Chat::load(&mut *txn, &chat_id)
             .await?
@@ -1224,7 +1224,7 @@ impl PendingChatOperation {
         let operation_type = if group.is_apq() {
             let bundle = group
                 .group_mut()
-                .stage_apq_delete(&mut *txn, &signer, deleted)
+                .stage_apq_delete(&mut *txn, &signer, tombstone)
                 .await?;
             OperationType::ApqDelete {
                 commit: Box::new(bundle),
@@ -1232,7 +1232,7 @@ impl PendingChatOperation {
         } else {
             let message = group
                 .group_mut()
-                .stage_delete(&mut *txn, &signer, deleted)
+                .stage_delete(&mut *txn, &signer, tombstone)
                 .await?;
             OperationType::Delete(Box::new(message))
         };
@@ -2657,7 +2657,11 @@ pub(crate) mod tests {
         let group_id = group.group_id().clone();
         let params = group
             .group_mut()
-            .stage_delete(pool.write().await?, &signing_key, Some(TimeStamp::now()))
+            .stage_delete(
+                pool.write().await?,
+                &signing_key,
+                Some(GroupTombstone::deleted(TimeStamp::now())),
+            )
             .await?;
         PendingChatOperation::new(group, OperationType::Delete(Box::new(params)))
             .store(pool.write().await?)
@@ -2815,7 +2819,11 @@ pub(crate) mod tests {
             connection.with_transaction(async |txn| -> anyhow::Result<()> {
                 group
                     .group_mut()
-                    .stage_delete(&mut *txn, &signing_key, Some(deleted_at()))
+                    .stage_delete(
+                        &mut *txn,
+                        &signing_key,
+                        Some(GroupTombstone::deleted(deleted_at())),
+                    )
                     .await?;
                 Ok(())
             }),
@@ -2868,7 +2876,11 @@ pub(crate) mod tests {
             connection.with_transaction(async |txn| -> anyhow::Result<()> {
                 group
                     .group_mut()
-                    .stage_apq_delete(&mut *txn, &signing_key, Some(deleted_at()))
+                    .stage_apq_delete(
+                        &mut *txn,
+                        &signing_key,
+                        Some(GroupTombstone::deleted(deleted_at())),
+                    )
                     .await?;
                 Ok(())
             }),
@@ -2905,7 +2917,11 @@ pub(crate) mod tests {
             connection.with_transaction(async |txn| -> anyhow::Result<_> {
                 group
                     .group_mut()
-                    .stage_delete(&mut *txn, &signing_key, Some(deleted_at()))
+                    .stage_delete(
+                        &mut *txn,
+                        &signing_key,
+                        Some(GroupTombstone::deleted(deleted_at())),
+                    )
                     .await?;
                 let (messages, _group_data) = group
                     .merge_pending_commit(&mut *txn, None, TimeStamp::now())
@@ -2941,7 +2957,11 @@ pub(crate) mod tests {
             connection.with_transaction(async |txn| -> anyhow::Result<()> {
                 let params = group
                     .group_mut()
-                    .stage_delete(&mut *txn, &signing_key, Some(TimeStamp::now()))
+                    .stage_delete(
+                        &mut *txn,
+                        &signing_key,
+                        Some(GroupTombstone::deleted(TimeStamp::now())),
+                    )
                     .await?;
                 PendingChatOperation::new(group, OperationType::Delete(Box::new(params)))
                     .store(&mut *txn)

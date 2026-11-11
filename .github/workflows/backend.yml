@@ -17,6 +17,7 @@ on:
       - 'common/**'
       - 'backend/**'
       - 'Cargo.toml'
+      - 'rust-toolchain.toml'
   workflow_dispatch:
 
 # Defines two custom environment variables for the workflow. These are used for the Container registry domain, and a name for the Docker image that this workflow builds.
@@ -51,6 +52,9 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+      - name: Read Rust version from rust-toolchain.toml
+        id: rust
+        run: echo "version=$(yq -p toml -o yaml '.toolchain.channel' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       # This step uses the `docker/build-push-action` action to build the image, based on your repository's `Dockerfile`. If the build succeeds, it pushes the image to GitHub Packages.
@@ -65,6 +69,7 @@ jobs:
           file: server/Dockerfile
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: RUST_VERSION=${{ steps.rust.outputs.version }}
 
   deploy-staging:
     name: Update staging deployment

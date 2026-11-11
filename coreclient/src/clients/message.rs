@@ -98,7 +98,8 @@ impl CoreUser {
     ///
     /// The message is stored as unsent and enqueued for the outbound service,
     /// which sends it to the DS. If `mark_as_read` is [`MarkChatAsRead::Yes`],
-    /// the chat is marked as read until this message.
+    /// the chat is marked as read until this message, and the newly read
+    /// messages get read receipts.
     pub async fn send_message(
         &self,
         chat_id: ChatId,
@@ -120,14 +121,8 @@ impl CoreUser {
                     }
                     .store_unsent_message(&mut *txn, self.user_id(), replaces)
                     .await?;
-                    mark_as_read_until_message(
-                        &mut *txn,
-                        chat_id,
-                        &message,
-                        self.user_id(),
-                        mark_as_read,
-                    )
-                    .await?;
+                    self.mark_as_read_until_message(&mut *txn, &message, mark_as_read)
+                        .await?;
 
                     self.outbound_service()
                         .enqueue_chat_message_in_transaction(txn, message.id())
@@ -157,26 +152,31 @@ impl CoreUser {
             content,
         );
         message.store(&mut *txn).await?;
-        mark_as_read_until_message(txn, chat_id, &message, self.user_id(), mark_as_read).await?;
+        self.mark_as_read_until_message(txn, &message, mark_as_read)
+            .await?;
 
         Ok(message)
     }
-}
 
-/// Marks the chat as read until `message`, unless it is a deletion or the
-/// send must leave the last-read marker untouched.
-async fn mark_as_read_until_message(
-    txn: &mut WriteDbTransaction<'_>,
-    chat_id: ChatId,
-    message: &ChatMessage,
-    own_user: &UserId,
-    mark_as_read: MarkChatAsRead,
-) -> anyhow::Result<()> {
-    if mark_as_read == MarkChatAsRead::No || message.status() == MessageStatus::Deleted {
-        return Ok(());
+    /// Marks the chat as read until `message` and schedules read receipts for
+    /// the newly read messages, unless `message` is a deletion or the send must
+    /// leave the last-read marker untouched.
+    async fn mark_as_read_until_message(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        message: &ChatMessage,
+        mark_as_read: MarkChatAsRead,
+    ) -> anyhow::Result<()> {
+        if mark_as_read == MarkChatAsRead::No || message.status() == MessageStatus::Deleted {
+            return Ok(());
+        }
+        let chat_id = message.chat_id();
+        let (_, read_messages) =
+            Chat::mark_as_read_until_message_id(txn, chat_id, message.id(), self.user_id()).await?;
+        self.outbound_service()
+            .schedule_read_receipts(txn, chat_id, &read_messages)
+            .await
     }
-    Chat::mark_as_read_until_message_id(txn, chat_id, message.id(), own_user).await?;
-    Ok(())
 }
 
 struct UnsentContent {

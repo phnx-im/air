@@ -30,6 +30,7 @@ use crate::{
     chats::{
         connection_requests::{self, delete_consumed_package_key},
         messages::TimestampedMessage,
+        outgoing_requests,
     },
     clients::{
         CoreUser,
@@ -98,7 +99,12 @@ impl CoreUser {
         // Every round that does not end the loop removes one request.
         loop {
             match Box::pin(self.accept_newest_request(chat_id)).await? {
-                AcceptOutcome::Accepted => return Ok(Ok(chat_id)),
+                AcceptOutcome::Accepted => {
+                    // Accepting settles the sender's other requests and our own
+                    // request to the sender, which parks their closes.
+                    self.outbound_service().notify_pending_chat_operations();
+                    return Ok(Ok(chat_id));
+                }
                 AcceptOutcome::Failed(error) => return Ok(Err(error)),
                 AcceptOutcome::Unavailable { next: Some(next) } => chat_id = next,
                 AcceptOutcome::Unavailable { next: None } => {
@@ -347,7 +353,7 @@ impl CoreUser {
 
         self.db()
             .with_write_transaction(async |txn| {
-                Self::settle_accepted_request(
+                self.settle_accepted_request(
                     txn,
                     &chat,
                     sender_user_id,
@@ -492,7 +498,7 @@ impl CoreUser {
                         .context("Failed to delete connection package")?;
                 }
 
-                Self::settle_accepted_request(
+                self.settle_accepted_request(
                     txn,
                     &chat,
                     sender_user_id,
@@ -526,7 +532,9 @@ impl CoreUser {
     }
 
     /// The chat becomes the connection with the sender, and the sender's requests are settled.
+    /// Our own request to the sender through a group chat is closed.
     async fn settle_accepted_request(
+        &self,
         txn: &mut WriteDbTransaction<'_>,
         chat: &Chat,
         sender_user_id: UserId,
@@ -547,7 +555,7 @@ impl CoreUser {
         Self::store_new_messages(&mut *txn, chat.id, vec![accepted_message]).await?;
 
         Contact {
-            user_id: sender_user_id,
+            user_id: sender_user_id.clone(),
             wai_ear_key: friendship_package.wai_ear_key,
             friendship_token: friendship_package.friendship_token,
             chat_id: chat.id,
@@ -558,7 +566,10 @@ impl CoreUser {
         if let Some(hash) = connection_offer_hash {
             Group::delete_connection_offer_psk(&mut *txn, hash)?;
         }
-        connection_requests::settle_accepted(txn, chat.id).await
+        connection_requests::settle_accepted(txn, chat.id, chat.id, &sender_user_id).await?;
+        let signer = self.signing_key();
+        let now = TimeStamp::now();
+        outgoing_requests::close_targeted_request_to(txn, signer, &sender_user_id, now).await
     }
 }
 
