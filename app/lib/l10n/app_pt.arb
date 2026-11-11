@@ -248,6 +248,7 @@
   "systemMessage_connectionRequestUnavailable": "A solicitação de contato não está mais disponível.",
   "systemMessage_connectionRequestExpired": "A solicitação de contato expirou.",
   "systemMessage_sentConnectionRequestExpired": "Sua solicitação de contato expirou. Se você ainda quiser adicionar essa pessoa como contato, envie uma nova solicitação.",
+  "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} já é seu contato. Esta solicitação foi encerrada.",
   "sentContactRequest_title": "Você enviou uma solicitação de contato",
   "sentContactRequest_titleWithName": "Você enviou uma solicitação de contato para {displayName}",
   "sentContactRequest_toUsername": "para o nome de usuário {username}",

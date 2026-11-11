@@ -22,8 +22,9 @@ use aircommon::{
     virtual_client::KeyPackageBatchId,
 };
 use airprotos::client::{
-    app_data::GroupAppData, group::GroupData, group_bootstrap::GroupBootstrapCarrier,
-    self_group::SelfGroupAppMessage, virtual_client::extract_virtual_client_commit_data,
+    app_data::GroupAppData, component::GroupTombstone, group::GroupData,
+    group_bootstrap::GroupBootstrapCarrier, self_group::SelfGroupAppMessage,
+    virtual_client::extract_virtual_client_commit_data,
 };
 use anyhow::{Context, Result, bail, ensure};
 use apqmls::messages::ApqMlsMessageIn;
@@ -56,7 +57,7 @@ use crate::{
         attachment::MimiContentExt,
         block_contact::{BlockedContact, BlockedContactError},
         own_client_info::{OwnClientInfo, UnlinkReason},
-        process::process_as::{ConnectionInfoSource, TargetedMessageSource},
+        process::process_as::{ConnectionInfoSource, OfferOutcome, TargetedMessageSource},
         targeted_message::TargetedMessageContent,
         update_key::{update_chat_attributes, update_chat_title},
         user_settings::ReadReceiptsSetting,
@@ -757,10 +758,12 @@ impl CoreUser {
             qs_client_id: &self.inner.qs_client_id,
         };
 
-        let stored =
+        let outcome =
             CoreUser::process_connection_offer(&mut context, connection_info_source).await?;
-
-        Ok(stored.map_or_else(QsMessageOutcome::empty, QsMessageOutcome::new_connection))
+        match outcome {
+            OfferOutcome::Stored(stored) => Ok(QsMessageOutcome::new_connection(stored)),
+            OfferOutcome::Closing | OfferOutcome::Dropped => Ok(QsMessageOutcome::empty()),
+        }
     }
 
     async fn handle_mls_message(
@@ -806,14 +809,14 @@ impl CoreUser {
             return Ok(QsMessageOutcome::empty());
         };
 
-        self.finalize_handle_message(
+        Box::pin(self.finalize_handle_message(
             txn,
             ds_timestamp,
             read_receipts_enabled,
             chat,
             group,
             processed_message,
-        )
+        ))
         .await
     }
 
@@ -872,14 +875,14 @@ impl CoreUser {
             return Ok(QsMessageOutcome::empty());
         };
 
-        self.finalize_handle_message(
+        Box::pin(self.finalize_handle_message(
             txn,
             ds_timestamp,
             read_receipts_enabled,
             chat,
             group,
             processed_message,
-        )
+        ))
         .await
     }
 
@@ -955,9 +958,11 @@ impl CoreUser {
             }
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
                 // Only our own devices are members of an unconfirmed connection
-                // group, so its deletion is a sibling retracting the request,
-                // or closing it because it expired.
+                // group, besides a recipient that closes it right after its
+                // join. Its deletion ends the request, see
+                // `end_outgoing_request`.
                 let ended = we_were_removed && chat.is_unconfirmed();
+                let tombstone = GroupAppData::tombstone(staged_commit.group_context().extensions());
                 let sender_user_credential =
                     StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id)
                         .await?
@@ -983,10 +988,15 @@ impl CoreUser {
                 log_processed_commit(&group, &sender);
 
                 if ended {
-                    if let Some(mut chat) = Chat::load(&mut *txn, &chat_id).await?
-                        && !request_expiry::close_if_expired(txn, &mut chat, *ds_timestamp).await?
-                    {
-                        persistence::erase(txn, &chat).await?;
+                    if let Some(mut chat) = Chat::load(&mut *txn, &chat_id).await? {
+                        Self::end_outgoing_request(
+                            txn,
+                            &mut chat,
+                            tombstone.as_ref(),
+                            &sender_user_id,
+                            ds_timestamp,
+                        )
+                        .await?;
                     }
                     return Ok(QsMessageOutcome::empty());
                 }
@@ -1518,22 +1528,32 @@ impl CoreUser {
         // our request joined it. Our own siblings commit to an unconfirmed
         // connection group too, for example when a new device onboards into it.
         let mut group_messages = Vec::new();
-        if chat.is_unconfirmed()
-            && let AadPayload::JoinConnectionGroup(join) =
-                AadMessage::tls_deserialize_exact_bytes(&aad)?.into_payload()
-        {
-            let message = self
-                .handle_unconfirmed_chat(
-                    txn,
-                    join.encrypted_friendship_package,
-                    ds_timestamp,
-                    sender,
-                    sender_user_credential,
-                    &mut chat,
-                    group.group_mut(),
-                )
-                .await?;
-            group_messages.push(message);
+        if chat.is_unconfirmed() {
+            match AadMessage::tls_deserialize_exact_bytes(&aad)?.into_payload() {
+                AadPayload::JoinConnectionGroup(join) => {
+                    let message = self
+                        .handle_unconfirmed_chat(
+                            txn,
+                            join.encrypted_friendship_package,
+                            ds_timestamp,
+                            sender,
+                            sender_user_credential,
+                            &mut chat,
+                            group.group_mut(),
+                        )
+                        .await?;
+                    group_messages.push(message);
+                }
+                // The recipient deletes the group right after this join.
+                AadPayload::CloseConnectionGroup(_) => {
+                    self.admit_connection_group_joiner(
+                        group.group_mut(),
+                        sender,
+                        sender_user_credential,
+                    )?;
+                }
+                AadPayload::GroupOperation(_) | AadPayload::Resync | AadPayload::DeleteGroup => {}
+            }
         }
 
         // StagedCommitMessage Phase 2: Merge the staged commit into the group.
@@ -1593,6 +1613,27 @@ impl CoreUser {
         Ok(group_messages)
     }
 
+    /// Ends the outgoing request of `chat` through the `closer` and deletes it
+    /// with `tombstone` at `ds_timestamp`. When no tombstone is provided, we
+    /// assume the request expired or a sibling retracted it.
+    async fn end_outgoing_request(
+        txn: &mut WriteDbTransaction<'_>,
+        chat: &mut Chat,
+        tombstone: Option<&GroupTombstone>,
+        closer: &UserId,
+        ds_timestamp: TimeStamp,
+    ) -> Result<()> {
+        if outgoing_requests::close_if_already_connected(txn, chat, tombstone, closer, ds_timestamp)
+            .await?
+        {
+            return Ok(());
+        }
+        if !request_expiry::close_if_expired(txn, chat, *ds_timestamp).await? {
+            persistence::erase(txn, chat).await?;
+        }
+        Ok(())
+    }
+
     #[expect(clippy::too_many_arguments)]
     async fn handle_unconfirmed_chat(
         &self,
@@ -1604,11 +1645,7 @@ impl CoreUser {
         chat: &mut Chat,
         group: &mut Group,
     ) -> Result<TimestampedMessage, anyhow::Error> {
-        // Check if it was an external commit
-        ensure!(
-            matches!(sender, Sender::NewMemberCommit),
-            "Incoming commit to ConnectionGroup was not an external commit"
-        );
+        self.admit_connection_group_joiner(group, sender, sender_user_credential)?;
 
         let system_message = outgoing_requests::confirm(
             txn,
@@ -1617,19 +1654,35 @@ impl CoreUser {
             &encrypted_friendship_package,
         )
         .await?;
-
-        // Room state update: Pretend that we just invited that user
-        // We do that now, because we didn't know that user id when we created the room.
-        group.room_state_change_role(
-            self.user_id(),
+        outgoing_requests::close_targeted_request_to(
+            txn,
+            self.signing_key(),
             sender_user_credential.user_id(),
-            RoleIndex::Regular,
-        )?;
+            ds_timestamp,
+        )
+        .await?;
 
         Ok(TimestampedMessage::system_message(
             system_message,
             ds_timestamp,
         ))
+    }
+
+    /// Checks that `sender` joined the connection group with an external
+    /// commit, and enters `joiner` into the room state as if we had invited
+    /// it. We did not know its user id when we created the room.
+    fn admit_connection_group_joiner(
+        &self,
+        group: &mut Group,
+        sender: &Sender,
+        joiner: &UserCredential,
+    ) -> Result<()> {
+        ensure!(
+            matches!(sender, Sender::NewMemberCommit),
+            "Incoming commit to ConnectionGroup was not an external commit"
+        );
+        group.room_state_change_role(self.user_id(), joiner.user_id(), RoleIndex::Regular)?;
+        Ok(())
     }
 
     /// Handles a recipient's join of an outgoing request that this device
