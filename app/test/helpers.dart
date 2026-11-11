@@ -82,6 +82,15 @@ void sizeView(WidgetTester tester, Size size) {
   });
 }
 
+/// Raises a soft keyboard [keyboard] logical pixels tall for the rest of the
+/// test.
+void raiseKeyboard(WidgetTester tester, double keyboard) {
+  tester.view.viewInsets = FakeViewPadding(
+    bottom: keyboard * tester.view.devicePixelRatio,
+  );
+  addTearDown(tester.view.resetViewInsets);
+}
+
 /// Asserts that the widget [finder] resolves to runs to the bottom edge of the
 /// modal around it.
 ///
