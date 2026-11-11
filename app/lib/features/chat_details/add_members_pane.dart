@@ -7,7 +7,7 @@ import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/ds/patterns/modal/modal_guard.dart';
 import 'package:air/util/scaffold_messenger.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/core/core.dart';

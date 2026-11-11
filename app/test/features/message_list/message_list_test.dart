@@ -21,7 +21,7 @@ import 'package:air/util/time/time_labels.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/gestures.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1071,8 +1071,7 @@ void main() {
                   debugShowCheckedModeBanner: false,
                   theme: testThemeData(MediaQuery.platformBrightnessOf(context))
                       .copyWith(platform: platform),
-                  localizationsDelegates:
-                      AppLocalizations.localizationsDelegates,
+                  localizationsDelegates: appLocalizationsDelegates,
                   home: const Scaffold(
                     body: MessageListView(
                       createMessageCubit: createMockMessageCubit,

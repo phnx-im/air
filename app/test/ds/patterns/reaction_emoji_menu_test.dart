@@ -5,7 +5,7 @@
 import 'package:air/ds/components/emoji/centered_emoji.dart';
 import 'package:air/ds/patterns/reaction_emoji_menu/reaction_emoji_menu.dart';
 import 'package:air/ds/patterns/reaction_emoji_menu/reaction_emoji_menu_tokens.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers.dart';

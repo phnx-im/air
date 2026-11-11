@@ -17,7 +17,7 @@ import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/platform/haptics.dart';
 import 'package:air/util/image_providers.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 

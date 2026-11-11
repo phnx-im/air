@@ -6,7 +6,7 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/patterns/adaptive_modal/adaptive_modal.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers.dart';
@@ -17,7 +17,7 @@ Widget _host(Widget content) => Builder(
   builder: (context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    localizationsDelegates: appLocalizationsDelegates,
     home: Scaffold(
       body: Builder(
         builder: (context) => Center(

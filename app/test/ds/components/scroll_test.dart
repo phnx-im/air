@@ -6,7 +6,7 @@ import 'package:air/ds/components/scroll/edge_fade.dart';
 import 'package:air/ds/components/scroll/faded_scroll_frame.dart';
 import 'package:air/ds/components/scroll/scroll_edges.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers.dart';

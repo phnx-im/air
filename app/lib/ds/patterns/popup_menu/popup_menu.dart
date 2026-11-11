@@ -8,7 +8,8 @@ import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/components/menu/menu_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu_tokens.dart';
-import 'package:flutter/material.dart' show Material, MaterialLocalizations;
+import 'package:material_ui/material_ui.dart'
+    show Material, MaterialLocalizations;
 import 'package:flutter/widgets.dart';
 
 /// Which corner of a floating menu meets its anchor, and so which way the menu

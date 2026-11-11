@@ -4,7 +4,7 @@
 
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -219,7 +219,7 @@ void main() {
             return MaterialApp(
               debugShowCheckedModeBanner: false,
               theme: theme,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               home: const Scaffold(
                 body: MessageListView(
                   createMessageCubit: _createMockMessageCubit,

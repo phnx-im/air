@@ -5,7 +5,7 @@
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/modal/modal_route.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A modal in the router's page stack, presented per surface: a card floating
 /// over the two-pane layout where there's room beside it, an ordinary pushed

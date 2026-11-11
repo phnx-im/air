@@ -5,7 +5,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/features/chat/chat_screen.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';

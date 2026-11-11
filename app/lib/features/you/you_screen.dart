@@ -18,7 +18,7 @@ import 'package:air/features/you/you_fade_tokens.dart';
 import 'package:air/features/you/you_menu.dart';
 import 'package:air/features/you/you_sections.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// The profile tab on a phone: who you are, above the sections you can open.

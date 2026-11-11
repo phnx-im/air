@@ -4,7 +4,7 @@
 import 'package:air/ds/components/button/button_tokens.dart';
 import 'package:air/ds/components/state_layer/state_layer.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:flutter/material.dart' show CircularProgressIndicator;
+import 'package:material_ui/material_ui.dart' show CircularProgressIndicator;
 import 'package:flutter/widgets.dart';
 
 export 'package:air/ds/components/button/button_tokens.dart';

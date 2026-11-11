@@ -7,7 +7,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/ds/patterns/modal/modal_stack.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers.dart';
@@ -90,7 +90,7 @@ Widget _host({required List<ModalStackEntry> pages, VoidCallback? onDismiss}) =>
     MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: testLightTheme,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       home: _StackHost(
         key: _hostKey,
         initial: pages,

@@ -6,7 +6,7 @@ import 'dart:math' show min;
 
 import 'package:air/features/message_list/time_reveal.dart';
 import 'package:air/platform/haptics.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter/physics.dart';
 
 /// Maximum distance (in logical pixels) the bubble can slide.

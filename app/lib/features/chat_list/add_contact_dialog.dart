@@ -14,7 +14,7 @@ import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/ds/patterns/switch_field/switch_field.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:air/util/username_input_formatter.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:logging/logging.dart';

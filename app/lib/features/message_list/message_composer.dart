@@ -23,7 +23,7 @@ import 'package:air/util/debouncer.dart';
 import 'package:air/features/message_list/widgets/text_autocomplete.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:file_selector/file_selector.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';

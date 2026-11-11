@@ -5,7 +5,7 @@
 import 'package:air/ds/components/toggle/toggle.dart';
 import 'package:air/ds/components/toggle/toggle_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A labeled row with a toggle, used for a single on/off setting.
 class SwitchField extends StatelessWidget {

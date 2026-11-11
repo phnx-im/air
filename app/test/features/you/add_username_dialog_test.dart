@@ -6,7 +6,7 @@ import 'dart:io';
 
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/features/you/add_username_dialog.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/l10n/l10n.dart';
 
@@ -19,7 +19,7 @@ void main() {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           home: AddUsernameDialog(inProgress: inProgress),
         );
       },

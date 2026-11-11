@@ -6,7 +6,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/message_list/swipe_to_reply.dart';
 import 'package:air/features/message_list/time_reveal.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers.dart';
@@ -59,7 +59,7 @@ void main() {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: testLightTheme,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         home: Scaffold(body: revealable ? TimeRevealScope(child: row) : row),
       );
     }

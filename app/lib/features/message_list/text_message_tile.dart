@@ -50,7 +50,7 @@ import 'package:air/platform/haptics.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:flutter/gestures.dart'
     show EagerGestureRecognizer, kSecondaryMouseButton;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';

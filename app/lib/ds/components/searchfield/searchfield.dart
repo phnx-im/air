@@ -6,7 +6,7 @@ import 'package:air/ds/components/field/fallback_text_controller.dart';
 import 'package:air/ds/components/field/field_chrome.dart';
 import 'package:air/ds/components/searchfield/searchfield_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A pill carrying a query: the search glyph, the text, and a clear button
 /// that appears once there's something to clear.
