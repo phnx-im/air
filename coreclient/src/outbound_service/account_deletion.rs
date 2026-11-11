@@ -14,7 +14,7 @@ use crate::{
     Chat, UsernameRecord,
     clients::own_client_info::{OwnClientInfo, UnlinkReason},
     db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
-    groups::{Group, handle_group_not_found_on_ds, self_group::SelfGroup},
+    groups::{Group, self_group::SelfGroup, tear_down_group},
     job::{
         JobError,
         operation::{Operation, OperationData, OperationId, OperationKind},
@@ -711,9 +711,7 @@ impl OutboundServiceContext {
                 },
             }
             self.db
-                .with_write_transaction(async |txn| {
-                    handle_group_not_found_on_ds(txn, &group_id).await
-                })
+                .with_write_transaction(async |txn| tear_down_group(txn, &group_id).await)
                 .await
                 .map_err(OutboundServiceError::fatal)?;
         }

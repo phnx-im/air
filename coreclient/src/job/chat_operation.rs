@@ -21,7 +21,7 @@ use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
     clients::own_client_info::OwnClientInfo,
     db::access::WriteConnection,
-    groups::{Group, handle_group_not_found_on_ds},
+    groups::{Group, tear_down_group},
     job::{Job, JobContext, JobContextDb, JobError, pending_chat_operation::PendingChatOperation},
     outbound_service::resync::{Resync, ResyncStatus},
 };
@@ -350,7 +350,7 @@ impl ChatOperation {
                 // own leaf from another device: the DS holds the leave and the system message is
                 // already recorded.
                 if group.group().has_pending_own_self_remove() {
-                    handle_group_not_found_on_ds(txn, group.group_id()).await?;
+                    tear_down_group(txn, group.group_id()).await?;
                     return Ok(None);
                 }
 

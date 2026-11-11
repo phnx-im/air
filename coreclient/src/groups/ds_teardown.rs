@@ -4,20 +4,39 @@
 
 use airapiclient::ds_api::DsRequestError;
 use openmls::prelude::GroupId;
+use tracing::error;
 
 use crate::{
     ChatStatus,
     clients::own_client_info::OwnClientInfo,
     db::access::WriteDbTransaction,
     groups::Group,
-    outbound_service::{
-        account_deletion::AccountDeletion,
-        resync::{Resync, ResyncReason},
-    },
+    outbound_service::resync::{Resync, ResyncReason},
 };
 
-/// Deactivates the chat of a group and deletes the MLS group, when the DS
-/// reports the group gone or we left it.
+/// Handles the DS reporting a group gone, by tearing it down with
+/// [`tear_down_group`].
+///
+/// The own self group is kept instead, and a queued resync of it is marked
+/// failed. The DS reply is not authenticated, and ending the self group cuts
+/// this device off from its siblings. Only a resync that finds a tombstone in
+/// the signed group info ends it.
+pub(crate) async fn handle_group_not_found_on_ds(
+    txn: &mut WriteDbTransaction<'_>,
+    group_id: &GroupId,
+) -> anyhow::Result<()> {
+    if OwnClientInfo::is_own_self_group(&mut *txn, group_id).await? {
+        error!(
+            ?group_id,
+            "the DS reports the own self group gone, keeping it"
+        );
+        Resync::mark_failed(&mut *txn, group_id, "the DS reports the self group gone").await?;
+        return Ok(());
+    }
+    tear_down_group(txn, group_id).await
+}
+
+/// Deactivates the chat of a group and deletes the MLS group.
 ///
 /// Mirrors what happens when we process a deletion commit from another member:
 /// the chat is marked inactive (preserving history) and the MLS group is
@@ -26,7 +45,7 @@ use crate::{
 ///
 /// This function is idempotent, safe to call even if the group or chat is
 /// already gone.
-pub(crate) async fn handle_group_not_found_on_ds(
+pub(crate) async fn tear_down_group(
     txn: &mut WriteDbTransaction<'_>,
     group_id: &GroupId,
 ) -> anyhow::Result<()> {
@@ -65,15 +84,14 @@ pub(crate) async fn handle_group_not_found_on_ds(
 /// nothing to announce, and the group is cleaned up like one the DS doesn't
 /// know.
 ///
-/// A closed own self group means that the account is deleted, see
-/// [`AccountDeletion::self_group_closed`].
+/// A closed own self group means that the account is deleted. The DS reply is
+/// not authenticated, so for the self group too this only schedules the resync,
+/// which checks the tombstone in the signed group info and then records the
+/// deletion.
 pub(crate) async fn handle_group_closed_on_ds(
     txn: &mut WriteDbTransaction<'_>,
     group_id: &GroupId,
 ) -> anyhow::Result<()> {
-    if OwnClientInfo::is_own_self_group(&mut *txn, group_id).await? {
-        AccountDeletion::self_group_closed(&mut *txn).await?;
-    }
     let Some(group) = Group::load(&mut *txn, group_id).await? else {
         return handle_group_not_found_on_ds(txn, group_id).await;
     };
@@ -116,12 +134,113 @@ mod tests {
 
     use super::*;
     use crate::{
-        Chat, ChatStatus,
+        Chat, ChatAttributes, ChatId, ChatStatus,
         clients::{block_contact::BlockedContact, own_client_info::OwnClientInfo},
         db::access::{DbAccess, WriteConnection},
         groups::NewGroupContext,
+        outbound_service::resync::ResyncStatus,
         utils::persistence::open_db_in_memory,
     };
+
+    /// A group with an active chat that `own_client_info` names as the own self
+    /// group, and a queued resync of it.
+    async fn setup_own_self_group() -> anyhow::Result<(DbAccess, GroupId, ChatId)> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
+
+        let own_user_id = UserId::random("example.com".parse()?);
+        let (_as_signing_key, user_signing_key) = create_test_credentials(own_user_id);
+        let qgid = QualifiedGroupId::new(Uuid::new_v4(), "example.com".parse()?);
+        let group_id = GroupId::from(qgid);
+
+        let (group, _) = Group::create_group(
+            &mut connection,
+            &user_signing_key,
+            IdentityLinkWrapperKey::random()?,
+            group_id.clone(),
+            NewGroupContext::LegacyChat(GroupData::empty()),
+            None,
+        )?;
+        group.store(&mut connection).await?;
+
+        OwnClientInfo {
+            qs_user_id: QsUserId::random(),
+            qs_client_id: QsClientId::random(&mut rand::rng()),
+            user_id: user_signing_key.credential().user_id().clone(),
+            client_id: Uuid::new_v4(),
+            self_group_id: Some(group_id.clone()),
+            self_group_signing_key: None,
+        }
+        .store(&mut connection)
+        .await?;
+
+        let chat = Chat::new_group_chat(
+            group_id.clone(),
+            ChatAttributes::new("Self chat".into(), None),
+        );
+        let chat_id = chat.id();
+        chat.store(&mut connection).await?;
+
+        Resync::for_group(chat_id, &group, ResyncReason::FutureEpoch)
+            .enqueue_or_reset(&mut connection)
+            .await?;
+
+        drop(connection);
+        Ok((pool, group_id, chat_id))
+    }
+
+    async fn assert_self_group_kept(
+        pool: &DbAccess,
+        group_id: &GroupId,
+        chat_id: ChatId,
+    ) -> anyhow::Result<()> {
+        assert!(Group::load(pool.read().await?, group_id).await?.is_some());
+        let chat = pool
+            .with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
+            .await?
+            .expect("the self chat is kept");
+        assert!(!chat.status().is_inactive());
+        assert_eq!(
+            OwnClientInfo::account_unlink_reason(pool.read().await?).await?,
+            None
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn not_found_reply_keeps_own_self_group_and_fails_its_resync() -> anyhow::Result<()> {
+        let (pool, group_id, chat_id) = setup_own_self_group().await?;
+
+        pool.write()
+            .await?
+            .with_transaction(async |txn| handle_group_not_found_on_ds(txn, &group_id).await)
+            .await?;
+
+        assert_self_group_kept(&pool, &group_id, chat_id).await?;
+        assert_eq!(
+            Resync::status(pool.read().await?, &group_id).await?,
+            Some(ResyncStatus::Failed)
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn closed_reply_for_own_self_group_only_schedules_a_resync() -> anyhow::Result<()> {
+        let (pool, group_id, chat_id) = setup_own_self_group().await?;
+        Resync::mark_failed(pool.write().await?, &group_id, "earlier failure").await?;
+
+        pool.write()
+            .await?
+            .with_transaction(async |txn| handle_group_closed_on_ds(txn, &group_id).await)
+            .await?;
+
+        assert_self_group_kept(&pool, &group_id, chat_id).await?;
+        assert_eq!(
+            Resync::status(pool.read().await?, &group_id).await?,
+            Some(ResyncStatus::Pending)
+        );
+        Ok(())
+    }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn handle_group_not_found_marks_blocked_chat_inactive_under_block() -> anyhow::Result<()>

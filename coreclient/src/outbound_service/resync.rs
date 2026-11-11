@@ -38,7 +38,7 @@ use crate::{
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
         DecryptedProfileInfos, Group, GroupClosed, RoomStateMismatch, handle_group_not_found_on_ds,
-        self_group::SelfGroup,
+        self_group::SelfGroup, tear_down_group,
     },
     job::recoverable::Recoverable,
     outbound_service::{
@@ -86,7 +86,7 @@ async fn handle_group_closed(
             .await?;
         }
     }
-    handle_group_not_found_on_ds(txn, group_id).await
+    tear_down_group(txn, group_id).await
 }
 
 /// Why a group is being resynced.

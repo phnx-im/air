@@ -49,6 +49,7 @@ use crate::{
     groups::{
         Group, PreparedInvitee, VerifiedGroup, client_auth_info::StorableUserCredential,
         handle_group_closed_on_ds, handle_group_not_found_on_ds, self_group::SelfGroup,
+        tear_down_group,
     },
     job::{
         Job, JobContext, JobContextReadConnection, JobError,
@@ -884,7 +885,7 @@ impl PendingChatOperation {
                     // The DS holds our self-remove (or the group is gone there),
                     // so the group is of no further use. This also drops the
                     // pending operation.
-                    handle_group_not_found_on_ds(txn, self.group.group_id()).await?;
+                    tear_down_group(txn, self.group.group_id()).await?;
                 } else if !retry_leave {
                     Self::delete(txn, self.group.group_id()).await?;
                 } else {

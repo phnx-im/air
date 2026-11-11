@@ -65,17 +65,15 @@ async fn account_deletion_found_by_self_group_operation() -> anyhow::Result<()> 
     delete_self_group(&alice).await?;
 
     // Without processing the deletion, the sibling commits a setting change
-    // to the self group, which the DS rejects as closed.
+    // to the self group, which the DS rejects as closed. The rejection alone is
+    // not authenticated, so the sibling only queues a resync.
     alice2
         .set_synced_user_setting(&ReadReceiptsSetting(true))
         .await?;
     alice2.outbound_service().run_once().await;
-    assert_eq!(
-        alice2.account_unlink_reason().await?,
-        Some(UnlinkReason::AccountDeleted)
-    );
+    assert_eq!(alice2.account_unlink_reason().await?, None);
 
-    // The queued resync ends the self chat.
+    // The queued resync finds the tombstone and ends the self chat.
     alice2.outbound_service().run_once().await;
     let self_chat = alice2
         .chat(&self_chat_id)

@@ -545,12 +545,17 @@ async fn aborted_account_deletion_resumes_once_its_accepted_delete_shows() -> an
         Some(UnlinkReason::AccountDeleted)
     );
 
-    // The next self group commit finds the self group closed, and the
-    // deletion goes on instead of resetting this device without cleanup.
+    // The next self group commit finds the self group closed. The rejection
+    // alone is not authenticated, so it only queues a resync of the self group.
     alice.drain_unchecked().await;
     alice
         .set_synced_user_setting(&ReadReceiptsSetting(true))
         .await?;
+    alice.outbound_service().run_once().await;
+    assert!(alice.account_deletion_is_aborted().await?);
+
+    // The resync finds the tombstone, and the deletion goes on instead of
+    // resetting this device without cleanup.
     alice.outbound_service().run_once().await;
     assert!(!alice.account_deletion_is_aborted().await?);
     alice.outbound_service().run_once().await;
