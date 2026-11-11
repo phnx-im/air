@@ -15,19 +15,18 @@
 //! deadline has passed.
 
 use aircommon::credentials::keys::UserSigningKey;
+use airprotos::client::component::GroupTombstone;
 use chrono::{DateTime, Duration, Utc};
-use tracing::warn;
 
 use crate::{
     Chat, ChatId, ChatStatus, ChatType, SystemMessage,
     chats::{
         DeclinedConnectionRequest, PendingConnectionRequest, connection_requests,
-        messages::{ChatMessage, EventMessage, Message},
-        outgoing_requests, persistence,
+        messages::ChatMessage, outgoing_requests, persistence,
     },
     clients::{
         CoreUser,
-        user_settings::{DeleteExpiredContactRequestsSetting, UserSetting, UserSettingRecord},
+        user_settings::{DeleteExpiredContactRequestsSetting, UserSettingRecord},
     },
     db::access::{ReadConnection, ReadTransaction, WriteDbTransaction},
     job::pending_chat_operation::PendingChatOperation,
@@ -98,7 +97,8 @@ pub(crate) async fn expire_due(
         };
         let at = expires_at(sent_at).into();
         if outgoing_requests::close_expired(txn, &mut chat, at).await? {
-            stage_group_delete(txn, signer, chat_id, now).await?;
+            let tombstone = GroupTombstone::deleted(now.into());
+            outgoing_requests::park_group_delete(txn, signer, chat_id, tombstone).await?;
         }
     }
 
@@ -132,37 +132,9 @@ pub(crate) async fn is_due(
         && !deletable_expired_records(&mut txn).await?.is_empty())
 }
 
-/// Parks the deletion of the group of an expired outgoing request, so a late
-/// accept finds it gone. The outbound service sends it.
-///
-/// Nothing is parked while another operation of the group is pending.
-async fn stage_group_delete(
-    txn: &mut WriteDbTransaction<'_>,
-    signer: &UserSigningKey,
-    chat_id: ChatId,
-    now: DateTime<Utc>,
-) -> anyhow::Result<()> {
-    if PendingChatOperation::is_pending_for_chat(&mut *txn, chat_id).await? {
-        return Ok(());
-    }
-    // We only log a failure. Returning it would roll back the other expiries
-    // of the run, and a failure that repeats would block them for good. The
-    // request is closed either way. Only its group stays on the DS.
-    let deleted = Some(now.into());
-    if let Err(error) = PendingChatOperation::create_delete(txn, signer, chat_id, deleted).await {
-        warn!(%error, %chat_id, "Could not park deleting the group of an expired request");
-    }
-    Ok(())
-}
-
 async fn delete_expired_enabled(connection: impl ReadConnection) -> anyhow::Result<bool> {
-    let setting = UserSettingRecord::load(connection, DeleteExpiredContactRequestsSetting::KEY)
-        .await?
-        .map(DeleteExpiredContactRequestsSetting::decode)
-        .transpose()
-        .inspect_err(|error| warn!(%error, "Invalid setting for expired contact requests"))
-        .ok()
-        .flatten();
+    let setting =
+        UserSettingRecord::load_decoded::<DeleteExpiredContactRequestsSetting>(connection).await?;
     Ok(setting.is_some_and(|DeleteExpiredContactRequestsSetting(enabled)| enabled))
 }
 
@@ -184,10 +156,7 @@ async fn deletable_expired_records(mut txn: impl ReadTransaction) -> anyhow::Res
     Ok(records)
 }
 
-pub(crate) async fn is_expired_record(
-    connection: impl ReadConnection,
-    chat: &Chat,
-) -> anyhow::Result<bool> {
+async fn is_expired_record(connection: impl ReadConnection, chat: &Chat) -> anyhow::Result<bool> {
     let expected = match chat.chat_type() {
         ChatType::PendingConnection(_) => SystemMessage::ConnectionRequestExpired,
         ChatType::HandleConnection(_) | ChatType::TargetedMessageConnection(_) => {
@@ -195,13 +164,8 @@ pub(crate) async fn is_expired_record(
         }
         ChatType::Group(_) | ChatType::Connection(_) => return Ok(false),
     };
-    let last = ChatMessage::last_message(connection, chat.id()).await?;
-    Ok(last.is_some_and(|message| {
-        matches!(
-            message.into_message(),
-            Message::Event(EventMessage::System(system)) if system == expected
-        )
-    }))
+    let last = ChatMessage::last_system_message(connection, chat.id()).await?;
+    Ok(last == Some(expected))
 }
 
 /// When the open contact request the chat shows expires, if it shows one. For
@@ -319,10 +283,14 @@ mod tests {
 
     use crate::{
         ChatAttributes,
-        chats::connection_requests::{IncomingRequest, IncomingRequestSource, StoredRequest},
+        chats::{
+            connection_requests::{IncomingRequest, IncomingRequestSource, StoredRequest},
+            messages::{EventMessage, Message},
+        },
         clients::{
             connection_offer::{FriendshipPackage, payload::ConnectionInfo},
             own_client_info::OwnClientInfo,
+            user_settings::UserSetting,
         },
         contacts::{TargetedMessageContact, UsernameContact},
         db::access::{DbAccess, ReadDbTransaction},

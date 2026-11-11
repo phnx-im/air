@@ -407,6 +407,32 @@ void main() {
       );
     });
 
+    testWidgets('names the contact a closed sent request went to', (
+      tester,
+    ) async {
+      showChat(
+        requestChat(
+          const UiChatType_HandleConnection(UiUsername(plaintext: 'alice_03')),
+          closed: true,
+        ),
+      );
+      await tester.pumpWidget(
+        buildSubject(
+          UiSystemMessage.sentConnectionRequestAlreadyConnected(
+            contact: 1.userId(),
+          ),
+        ),
+      );
+
+      expect(
+        find.text(
+          'Alice is already your contact. This request was closed.',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('shows the request card while the request is open', (
       tester,
     ) async {

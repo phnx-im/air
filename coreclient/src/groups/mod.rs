@@ -21,6 +21,7 @@ pub(crate) mod group_bootstrap;
 pub(crate) mod group_data;
 pub(crate) mod join;
 pub(crate) mod openmls_provider;
+pub(crate) mod pending_creation;
 pub(crate) mod persistence;
 pub(crate) mod process;
 pub(crate) mod room_state;

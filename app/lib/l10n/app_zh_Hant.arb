@@ -237,6 +237,7 @@
   "systemMessage_connectionRequestUnavailable": "這個聯絡請求已無法使用。",
   "systemMessage_connectionRequestExpired": "聯絡請求已過期。",
   "systemMessage_sentConnectionRequestExpired": "你的聯絡請求已過期。如果你仍想新增這個人為聯絡人，請向對方傳送新的請求。",
+  "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} 已經是你的聯絡人。這個請求已關閉。",
   "sentContactRequest_title": "你已傳送聯絡請求",
   "sentContactRequest_titleWithName": "你已向 {displayName} 傳送聯絡請求",
   "sentContactRequest_toUsername": "傳送至使用者名稱 {username}",

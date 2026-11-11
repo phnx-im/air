@@ -685,6 +685,9 @@ pub enum UiSystemMessage {
     ConnectionRequestUnavailable,
     ConnectionRequestExpired,
     SentConnectionRequestExpired,
+    SentConnectionRequestAlreadyConnected {
+        contact: UiUserId,
+    },
 }
 
 /// The group chat a connection request came through.
@@ -790,6 +793,11 @@ impl From<SystemMessage> for UiSystemMessage {
             SystemMessage::ConnectionRequestExpired => UiSystemMessage::ConnectionRequestExpired,
             SystemMessage::SentConnectionRequestExpired => {
                 UiSystemMessage::SentConnectionRequestExpired
+            }
+            SystemMessage::SentConnectionRequestAlreadyConnected { contact } => {
+                UiSystemMessage::SentConnectionRequestAlreadyConnected {
+                    contact: contact.into(),
+                }
             }
         }
     }

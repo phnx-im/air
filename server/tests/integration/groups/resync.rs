@@ -235,6 +235,11 @@ async fn wrong_epoch_on_own_commit_does_not_resync() {
     assert!(bob.resync_status(chat_id).await.unwrap().is_none());
     assert!(!bob.chat_is_pending(&group_id).await.unwrap());
 
+    // The group setup leaves a message from Bob behind. Alice reads it first, or her send would
+    // add a read receipt to Bob's queue.
+    let newest = alice.expect_last_message(chat_id).await;
+    alice.mark_chat_as_read(chat_id, newest.id()).await.unwrap();
+
     // Alice sends a message from the epoch Bob missed. Processing it proves the desync and
     // schedules the resync.
     alice.send_text(chat_id, "message").await;

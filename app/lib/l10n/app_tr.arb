@@ -237,6 +237,7 @@
   "systemMessage_connectionRequestUnavailable": "Kişi ekleme isteği artık mevcut değil.",
   "systemMessage_connectionRequestExpired": "Kişi ekleme isteğinin süresi doldu.",
   "systemMessage_sentConnectionRequestExpired": "Kişi ekleme isteğinizin süresi doldu. Bu kullanıcıyı hâlâ kişi olarak eklemek istiyorsanız yeni bir istek gönderin.",
+  "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} zaten kişileriniz arasında. Bu istek kapatıldı.",
   "sentContactRequest_title": "Kişi ekleme isteği gönderdiniz",
   "sentContactRequest_titleWithName": "{displayName} kullanıcısına kişi ekleme isteği gönderdiniz",
   "sentContactRequest_toUsername": "{username} kullanıcı adına",
