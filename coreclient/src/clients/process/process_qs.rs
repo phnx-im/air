@@ -27,7 +27,7 @@ use airprotos::client::{
 };
 use anyhow::{Context, Result, bail, ensure};
 use apqmls::messages::ApqMlsMessageIn;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use mimi_content::{Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPart};
 use mimi_room_policy::RoleIndex;
 use openmls::{
@@ -65,6 +65,7 @@ use crate::{
     groups::{
         DecryptedProfileInfos, Group, JoinSigners, VerifiedGroup,
         client_auth_info::StorableUserCredential,
+        pending_creation::PendingGroupCreation,
         process::{ProcessMessageProcessed, ProcessMessageResult},
     },
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
@@ -1799,6 +1800,26 @@ impl CoreUser {
         result.chats_with_changed_notifications.sort_unstable();
         result.chats_with_changed_notifications.dedup();
         result
+    }
+
+    /// Discards the pending group creations after the grace period has passed
+    /// and the confirmation wasn't received in the queue.
+    pub async fn discard_unconfirmed_group_creations(
+        &self,
+        drained_at: DateTime<Utc>,
+    ) -> sqlx::Result<()> {
+        self.db()
+            .write()
+            .await?
+            .with_transaction(async |txn| {
+                PendingGroupCreation::discard_unconfirmed(txn, drained_at).await
+            })
+            .await
+    }
+
+    #[cfg(any(test, feature = "test_utils"))]
+    pub async fn pending_group_creations(&self) -> sqlx::Result<i64> {
+        PendingGroupCreation::count(self.db().read().await?).await
     }
 
     /// Returns `Ok(())` if the more messages should be processed, or `Err` if the processing

@@ -847,3 +847,40 @@ async fn failed_offer_send_keeps_created_group() {
     );
     assert_same_epoch_and_leaf(&alice, &alice2, chat_id, "after the creation echo").await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn lost_creation_answer_is_confirmed_by_the_bootstrap_echo() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice2 = alice.add_synced_device().await;
+    let chats_before = alice.ordered_chat_ids().await.unwrap();
+
+    let create_group = if setup.apq_groups {
+        "CreateApqGroup"
+    } else {
+        "CreateGroup"
+    };
+    setup
+        .listener_control_handle()
+        .set_drop_next_response_to(create_group);
+    alice
+        .create_chat("answer lost".to_owned(), None, setup.apq_groups)
+        .await
+        .expect_err("the lost answer should surface as an error");
+    setup.listener_control_handle().set_normal();
+    assert_eq!(alice.ordered_chat_ids().await.unwrap(), chats_before);
+
+    // The echo that bootstraps the sibling also confirms the creation
+    alice.drain().await;
+    let chat_id = alice
+        .ordered_chat_ids()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|chat_id| !chats_before.contains(chat_id))
+        .expect("the echo should create the chat");
+    assert_eq!(alice.pending_group_creations().await.unwrap(), 0);
+
+    alice2.drain().await;
+    assert_same_epoch_and_leaf(&alice, &alice2, chat_id, "after the lost answer").await;
+}
