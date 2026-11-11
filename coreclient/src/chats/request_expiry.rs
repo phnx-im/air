@@ -17,7 +17,6 @@
 use aircommon::credentials::keys::UserSigningKey;
 use airprotos::client::component::GroupTombstone;
 use chrono::{DateTime, Duration, Utc};
-use tracing::warn;
 
 use crate::{
     Chat, ChatId, ChatStatus, ChatType, SystemMessage,
