@@ -7,7 +7,10 @@
 
 use std::slice;
 
+use aircoreclient::SystemMessage;
+
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
+use chrono::{Duration, Utc};
 use tracing::info;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -173,37 +176,112 @@ async fn creation_without_siblings_is_echoed_as_a_receipt() {
     );
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn lost_creation_answer_leaves_a_receipt() {
-    let mut setup = TestBackend::single().await;
-    let alice = setup.add_user().await;
-    alice.drain().await;
-    let chats_before = alice.ordered_chat_ids().await.unwrap();
-
-    let create_group = if setup.apq_groups {
+fn create_group_method(setup: &TestBackend) -> &'static str {
+    if setup.apq_groups {
         "CreateApqGroup"
     } else {
         "CreateGroup"
-    };
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn lost_creation_answer_is_confirmed_by_the_receipt() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    alice.drain().await;
+    let chats_before = alice.ordered_chat_ids().await.unwrap();
+
     setup
         .listener_control_handle()
-        .set_drop_next_response_to(create_group);
+        .set_drop_next_response_to(create_group_method(&setup));
     alice
         .create_chat("answer lost".to_owned(), None, setup.apq_groups)
         .await
         .expect_err("the lost answer should surface as an error");
     setup.listener_control_handle().set_normal();
 
-    // The DS created the group, so its receipt is queued. The client already
-    // discarded the group and has nothing to confirm.
-    let queued = alice.qs_fetch_messages().await.unwrap();
-    assert_eq!(queued.len(), 1, "the DS should echo the creation");
-    let processed = alice.fully_process_qs_messages(queued).await;
-    assert!(
-        processed.errors.is_empty(),
-        "the receipt of an unknown group must be dropped silently: {:?}",
-        processed.errors
+    assert_eq!(
+        alice.ordered_chat_ids().await.unwrap(),
+        chats_before,
+        "a pending group has no chat"
     );
-    assert!(processed.new_chats.is_empty());
+    assert_eq!(alice.pending_group_creations().await.unwrap(), 1);
+
+    // The DS created the group, so its receipt confirms it
+    alice.drain().await;
+    assert_eq!(alice.pending_group_creations().await.unwrap(), 0);
+    let chat_id = alice
+        .ordered_chat_ids()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|chat_id| !chats_before.contains(chat_id))
+        .expect("the receipt should create the chat");
+    let chat = alice.expect_chat(chat_id).await;
+    assert_eq!(chat.attributes().unwrap().title(), "answer lost");
+    assert!(
+        alice
+            .system_messages(chat_id)
+            .await
+            .contains(&SystemMessage::CreateGroup(alice.user_id().clone()))
+    );
+
+    // The confirmed group works on the DS
+    alice
+        .invite_users(chat_id, slice::from_ref(bob.user_id()))
+        .await
+        .unwrap();
+    bob.drain().await;
+    assert!(bob.chat(&chat_id).await.is_some());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn creation_without_receipt_is_discarded_after_a_drain() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    alice.drain().await;
+    let chats_before = alice.ordered_chat_ids().await.unwrap();
+
+    // The request never reaches the DS, but the client can't tell
+    setup
+        .listener_control_handle()
+        .set_drop_next_request_to(create_group_method(&setup));
+    alice
+        .create_chat("never created".to_owned(), None, setup.apq_groups)
+        .await
+        .expect_err("the dropped request should surface as an error");
+    setup.listener_control_handle().set_normal();
+    assert_eq!(alice.pending_group_creations().await.unwrap(), 1);
+
+    // A drain right after the attempt proves nothing yet
+    alice.drain().await;
+    assert_eq!(alice.pending_group_creations().await.unwrap(), 1);
+
+    // A drain well after the attempt would have contained the receipt
+    alice
+        .discard_unconfirmed_group_creations(Utc::now() + Duration::minutes(3))
+        .await
+        .unwrap();
+    assert_eq!(alice.pending_group_creations().await.unwrap(), 0);
     assert_eq!(alice.ordered_chat_ids().await.unwrap(), chats_before);
+
+    setup.create_group(&alice).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn rejected_creation_is_discarded_at_once() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    setup
+        .listener_control_handle()
+        .set_reject_next_request_to(create_group_method(&setup));
+    alice
+        .create_chat("rejected".to_owned(), None, setup.apq_groups)
+        .await
+        .expect_err("the rejection should surface as an error");
+    setup.listener_control_handle().set_normal();
+
+    assert_eq!(alice.pending_group_creations().await.unwrap(), 0);
 }

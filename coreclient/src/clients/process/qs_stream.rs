@@ -4,6 +4,7 @@
 
 use aircommon::messages::QueueMessage;
 use airprotos::queue_service::v1::{ListenResponse, VersionStatus, listen_response};
+use chrono::Utc;
 use tracing::{debug, error, warn};
 
 use crate::clients::{QsListenResponder, own_client_info::OwnClientInfo};
@@ -74,6 +75,7 @@ impl QsStreamProcessor {
             },
             // Empty event indicates that the queue is empty
             Some(listen_response::Event::Empty(_)) => {
+                let drained_at = Utc::now();
                 let max_sequence_number = self.messages.last().map(|m| m.sequence_number);
 
                 let messages = std::mem::take(&mut self.messages);
@@ -103,6 +105,14 @@ impl QsStreamProcessor {
                             error!("logic error: no responder to ack QS messages");
                         }
                     }
+
+                    core_user
+                        .discard_unconfirmed_group_creations(drained_at)
+                        .await
+                        .inspect_err(|error| {
+                            error!(%error, "Failed to discard unconfirmed group creations");
+                        })
+                        .ok();
 
                     QsProcessEventResult::FullyProcessed {
                         processed: processed_messages,

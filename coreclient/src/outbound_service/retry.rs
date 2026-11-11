@@ -56,6 +56,12 @@ impl RetryPolicy {
         max: TimeDelta::minutes(10),
     };
 
+    pub(crate) const REQUEST_CLOSES: Self = Self {
+        max_attempts: 5,
+        base: TimeDelta::seconds(30),
+        max: TimeDelta::minutes(10),
+    };
+
     pub(crate) const RESYNC: Self = Self {
         max_attempts: 5,
         base: TimeDelta::minutes(1),

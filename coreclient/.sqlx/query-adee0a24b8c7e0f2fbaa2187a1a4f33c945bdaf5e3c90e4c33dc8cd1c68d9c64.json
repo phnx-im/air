@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                    request_id AS \"request_id: ChatId\",\n                    sender_user_uuid AS \"sender_user_uuid: Uuid\",\n                    sender_user_domain AS \"sender_user_domain: Fqdn\",\n                    connection_info AS \"connection_info: ConnectionInfo\",\n                    connection_offer_hash AS \"connection_offer_hash: _\",\n                    created_at AS \"created_at: TimeStamp\",\n                    attempts AS \"attempts: _\"\n                FROM closing_connection_request\n                WHERE retry_at IS NULL OR retry_at <= ?\n                ORDER BY created_at, request_id",
+  "describe": {
+    "columns": [
+      {
+        "name": "request_id: ChatId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "closing_connection_request",
+            "name": "request_id"
+          }
+        }
+      },
+      {
+        "name": "sender_user_uuid: Uuid",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "closing_connection_request",
+            "name": "sender_user_uuid"
+          }
+        }
+      },
+      {
+        "name": "sender_user_domain: Fqdn",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "closing_connection_request",
+            "name": "sender_user_domain"
+          }
+        }
+      },
+      {
+        "name": "connection_info: ConnectionInfo",
+        "ordinal": 3,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "closing_connection_request",
+            "name": "connection_info"
+          }
+        }
+      },
+      {
+        "name": "connection_offer_hash: _",
+        "ordinal": 4,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "closing_connection_request",
+            "name": "connection_offer_hash"
+          }
+        }
+      },
+      {
+        "name": "created_at: TimeStamp",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "closing_connection_request",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "attempts: _",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "closing_connection_request",
+            "name": "attempts"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "adee0a24b8c7e0f2fbaa2187a1a4f33c945bdaf5e3c90e4c33dc8cd1c68d9c64"
+}
