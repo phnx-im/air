@@ -63,6 +63,36 @@ fn main() {
             format!("crate::signed::SignedRequest<crate::{service}::v1::{request_type}, {tag}>",),
         );
     }
+    for (service, request_type, request_field) in SIGNED_NESTED_REQUESTS {
+        let package = format!("{service}.v1");
+        let (request_tag, nested_type) = field(&fds, &package, request_type, request_field)
+            .unwrap_or_else(|| {
+                panic!(
+                    "message {package}.{request_type} has no `{request_field}` field; \
+                     fix the proto or remove it from SIGNED_NESTED_REQUESTS",
+                )
+            });
+        let (nested_package, nested_message) = nested_type
+            .strip_prefix('.')
+            .and_then(|type_name| type_name.rsplit_once('.'))
+            .unwrap_or_else(|| {
+                panic!("unexpected type name `{nested_type}` of a nested signed request")
+            });
+        let (payload_tag, _) = field(&fds, nested_package, nested_message, SIGNED_FIELD)
+            .unwrap_or_else(|| {
+                panic!(
+                    "nested signed request {nested_type} has no `{SIGNED_FIELD}` field; \
+                     fix the proto or remove it from SIGNED_NESTED_REQUESTS",
+                )
+            });
+        builder = builder.extern_path(
+            format!(".{package}.{request_type}"),
+            format!(
+                "crate::signed::SignedNestedRequest<crate::{service}::v1::{request_type}, \
+                 {request_tag}, {payload_tag}>",
+            ),
+        );
+    }
     builder
         .compile_with_config(config(&protoc_path), PROTOS, &["api"])
         .unwrap();
@@ -129,6 +159,17 @@ const SIGNED_REQUESTS: &[(Service, &str)] = &[
     (Service::Qs, "PublishApqKeyPackagesRequest"),
 ];
 
+/// Messages that should be wrapped in `SignedNestedRequest<T, REQUEST_TAG, PAYLOAD_TAG>`.
+///
+/// Each entry names the message and its field holding a signed request. `REQUEST_TAG` is the
+/// number of that field, `PAYLOAD_TAG` the number of the `payload` field in the nested request,
+/// both derived from the proto at build time.
+const SIGNED_NESTED_REQUESTS: &[(Service, &str, &str)] = &[
+    (Service::As, "ListenUsernameRequest", "init"),
+    (Service::Ds, "CreateGroupV2Request", "prepare"),
+    (Service::Qs, "ListenRequest", "init"),
+];
+
 enum Service {
     As,
     Ds,
@@ -149,6 +190,16 @@ impl fmt::Display for Service {
 ///
 /// Returns `None` if the message has no such field, which the caller turns into a build error.
 fn payload_field_number(fds: &FileDescriptorSet, package: &str, message: &str) -> Option<u32> {
+    field(fds, package, message, SIGNED_FIELD).map(|(number, _)| number)
+}
+
+/// Look up the number and type name of field `name` of `package.message` in the descriptor set.
+fn field<'a>(
+    fds: &'a FileDescriptorSet,
+    package: &str,
+    message: &str,
+    name: &str,
+) -> Option<(u32, &'a str)> {
     fds.file
         .iter()
         .filter(|file| file.package() == package)
@@ -156,6 +207,6 @@ fn payload_field_number(fds: &FileDescriptorSet, package: &str, message: &str) -
         .find(|msg| msg.name() == message)?
         .field
         .iter()
-        .find(|field| field.name() == SIGNED_FIELD)
-        .map(|field| field.number() as u32)
+        .find(|field| field.name() == name)
+        .map(|field| (field.number() as u32, field.type_name()))
 }

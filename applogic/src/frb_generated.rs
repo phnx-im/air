@@ -13909,6 +13909,12 @@ impl SseDecode for crate::api::types::UiSystemMessage {
             21 => {
                 return crate::api::types::UiSystemMessage::SentConnectionRequestExpired;
             }
+            22 => {
+                let mut var_contact = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::SentConnectionRequestAlreadyConnected {
+                    contact: var_contact,
+                };
+            }
             _ => {
                 unimplemented!("");
             }
@@ -17343,6 +17349,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
             crate::api::types::UiSystemMessage::SentConnectionRequestExpired => {
                 [21.into_dart()].into_dart()
             }
+            crate::api::types::UiSystemMessage::SentConnectionRequestAlreadyConnected {
+                contact,
+            } => [22.into_dart(), contact.into_into_dart().into_dart()].into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -20770,6 +20779,12 @@ impl SseEncode for crate::api::types::UiSystemMessage {
             }
             crate::api::types::UiSystemMessage::SentConnectionRequestExpired => {
                 <i32>::sse_encode(21, serializer);
+            }
+            crate::api::types::UiSystemMessage::SentConnectionRequestAlreadyConnected {
+                contact,
+            } => {
+                <i32>::sse_encode(22, serializer);
+                <crate::api::types::UiUserId>::sse_encode(contact, serializer);
             }
             _ => {
                 unimplemented!("");

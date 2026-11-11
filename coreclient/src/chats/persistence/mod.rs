@@ -404,6 +404,26 @@ impl Chat {
         .await
     }
 
+    /// Loads the ids of all chats with a group, except inactive and blocked
+    /// chats.
+    pub(crate) async fn load_ids_for_profile_update(
+        mut connection: impl ReadConnection,
+    ) -> sqlx::Result<Vec<ChatId>> {
+        query_scalar!(
+            r#"SELECT
+                c.chat_id AS "chat_id: _"
+            FROM chat c
+            INNER JOIN "group" g ON g.group_id = c.group_id
+            LEFT JOIN blocked_contact b ON b.user_uuid = c.connection_user_uuid
+                AND b.user_domain = c.connection_user_domain
+            WHERE c.status != ?1
+                AND b.user_uuid IS NULL"#,
+            SqlChatStatus::Inactive,
+        )
+        .fetch_all(connection.as_mut())
+        .await
+    }
+
     /// Loads the ids of the active chats of outgoing requests whose oldest
     /// message is at or before `sent_until`.
     pub(crate) async fn load_open_outgoing_request_ids(

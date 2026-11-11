@@ -20,6 +20,7 @@ import 'package:air/features/you/invitation_codes_cubit.dart';
 import 'package:air/features/you/invitation_codes_modal.dart';
 import 'package:air/features/you/licenses_screen.dart';
 import 'package:air/features/you/linked_devices_screen.dart';
+import 'package:air/features/you/profile_actions.dart';
 import 'package:air/features/you/remove_username_dialog.dart';
 import 'package:air/features/you/you_fields.dart';
 import 'package:air/l10n/language_options.dart';
@@ -30,7 +31,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
 
 final _log = Logger('YouSections');
@@ -97,25 +97,9 @@ class _UserAvatar extends StatelessWidget {
       child: UserAvatar(
         profile: profile,
         size: S.s192,
-        onPressed: () => _pickAvatar(context),
+        onPressed: () => pickOwnProfilePicture(context.read<UserCubit>()),
       ),
     );
-  }
-
-  void _pickAvatar(BuildContext context) async {
-    final user = context.read<UserCubit>();
-
-    final ImagePicker picker = ImagePicker();
-    // Reduce image quality to re-encode the image.
-    final XFile? image = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 99,
-    );
-    final bytes = await image?.readAsBytes();
-
-    if (bytes != null) {
-      await user.setProfile(profilePicture: bytes);
-    }
   }
 }
 

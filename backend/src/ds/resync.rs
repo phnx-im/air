@@ -15,7 +15,7 @@ use mls_assist::{
     provider_traits::MlsAssistProvider,
 };
 use mls_assist::{
-    messages::AssistedMessageIn,
+    messages::{ApqAssistedMessageIn, AssistedMessageIn},
     openmls::prelude::{LeafNodeIndex, ProcessedMessageContent},
 };
 use tracing::error;
@@ -191,6 +191,11 @@ impl DsGroupState {
             self.provider.storage(),
             processed_assisted_message_plus.processed_assisted_message,
         )?;
+        self.warn_about_resurrected_leaves(
+            "resync",
+            removed_indices.iter().copied().chain([sender_index]),
+            new_sender_index,
+        );
 
         self.remove_profiles(removed_indices);
 
@@ -210,8 +215,7 @@ impl DsGroupState {
     pub(crate) fn apq_resync_client(
         t_group_state: &mut Self,
         pq_group_state: &mut Self,
-        t_message: AssistedMessageIn,
-        pq_message: AssistedMessageIn,
+        external_commit: ApqAssistedMessageIn,
         t_sender_index: LeafNodeIndex,
     ) -> Result<ResyncOutcome, ResyncClientError> {
         let client_references_before = ClientReferencesSnapshot::of(t_group_state);
@@ -219,8 +223,7 @@ impl DsGroupState {
             ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
                 .process_apq_assisted_message(
                     t_group_state.provider.crypto(),
-                    t_message,
-                    pq_message,
+                    external_commit,
                     |_, _| true,
                 )?;
 
@@ -300,6 +303,12 @@ impl DsGroupState {
                 pq_group_state.provider.storage(),
                 processed_assisted_message_plus.processed_assisted_message,
             )?;
+
+        t_group_state.warn_about_resurrected_leaves(
+            "resync_apq",
+            t_removed_indices.iter().copied().chain([t_sender_index]),
+            t_new_sender_index,
+        );
 
         client_references_before
             .compare(t_group_state)

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM username_signed_connection_package\n            WHERE hash = $1\n                AND ((NOT is_last_resort AND $2::boolean) OR (is_last_resort AND $3::boolean))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Bool",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "67d733cbfd68695a2d47e76442760bf84219f4c8d05e6fba497e680e8f931fdd"
+}

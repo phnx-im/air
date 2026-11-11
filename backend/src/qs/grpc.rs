@@ -7,7 +7,7 @@ use std::pin::Pin;
 use airprotos::{
     common::v1::ClientMetadata,
     queue_service::v1::{queue_service_server::QueueService, *},
-    signed::SignedRequest,
+    signed::{SignedNestedRequest, SignedRequest},
     validation::{InvalidTlsExt, MissingFieldExt},
 };
 
@@ -183,8 +183,7 @@ impl QueueService for GrpcQs {
                 .inner()
                 .payload
                 .as_ref()
-                .and_then(|p| p.client_metadata.as_ref())
-                .or(request.inner().client_metadata.as_ref()),
+                .and_then(|p| p.client_metadata.as_ref()),
         )?;
 
         let UpdateUserPayload {
@@ -224,8 +223,7 @@ impl QueueService for GrpcQs {
                 .inner()
                 .payload
                 .as_ref()
-                .and_then(|p| p.client_metadata.as_ref())
-                .or(request.inner().client_metadata.as_ref()),
+                .and_then(|p| p.client_metadata.as_ref()),
         )?;
 
         let DeleteUserPayload {
@@ -291,8 +289,7 @@ impl QueueService for GrpcQs {
                 .inner()
                 .payload
                 .as_ref()
-                .and_then(|p| p.client_metadata.as_ref())
-                .or(request.inner().client_metadata.as_ref()),
+                .and_then(|p| p.client_metadata.as_ref()),
         )?;
         let UpdateClientPayload {
             client_metadata: _,
@@ -327,8 +324,7 @@ impl QueueService for GrpcQs {
                 .inner()
                 .payload
                 .as_ref()
-                .and_then(|p| p.client_metadata.as_ref())
-                .or(request.inner().client_metadata.as_ref()),
+                .and_then(|p| p.client_metadata.as_ref()),
         )?;
         let DeleteClientPayload {
             client_metadata: _,
@@ -352,8 +348,7 @@ impl QueueService for GrpcQs {
                 .inner()
                 .payload
                 .as_ref()
-                .and_then(|p| p.client_metadata.as_ref())
-                .or(request.inner().client_metadata.as_ref()),
+                .and_then(|p| p.client_metadata.as_ref()),
         )?;
         let payload = request
             .inner()
@@ -506,14 +501,15 @@ impl QueueService for GrpcQs {
 
     async fn listen(
         &self,
-        request: Request<Streaming<ListenRequest>>,
+        request: Request<Streaming<SignedNestedRequest<ListenRequest, 1, 4>>>,
     ) -> Result<Response<Self::ListenStream>, Status> {
         let mut requests = request.into_inner();
 
-        let request = requests
+        let (request, payload_bytes) = requests
             .next()
             .await
-            .ok_or(ListenQueueProtocolViolation::MissingInitRequest)??;
+            .ok_or(ListenQueueProtocolViolation::MissingInitRequest)??
+            .into_parts();
         let Some(listen_request::Request::Init(init_request)) = request.request else {
             return Err(ListenQueueProtocolViolation::MissingInitRequest.into());
         };
@@ -522,8 +518,7 @@ impl QueueService for GrpcQs {
             init_request
                 .payload
                 .as_ref()
-                .and_then(|p| p.client_metadata.as_ref())
-                .or(init_request.client_metadata.as_ref()),
+                .and_then(|p| p.client_metadata.as_ref()),
         )?;
         let version_status = ListenResponse {
             event: Some(listen_response::Event::VersionStatus(VersionStatus {
@@ -534,9 +529,8 @@ impl QueueService for GrpcQs {
             })),
         };
 
-        let init_request =
-            SignedRequest::from_nested(init_request, |request| request.payload.as_ref())
-                .ok_or_missing_field("payload")?;
+        let init_request: SignedRequest<InitListenRequest> =
+            SignedRequest::new(init_request, payload_bytes.ok_or_missing_field("payload")?);
         let (
             InitListenPayload {
                 client_metadata: _,
@@ -585,6 +579,7 @@ impl QueueService for GrpcQs {
         };
         let qs_client = self.qs.pseudonymizer.client(&client_id);
         let responses = info_span!("qs_listen", %qs_client).in_scope(|| {
+            let requests = requests.map(|request| request.map(SignedNestedRequest::into_inner));
             spawn_listen_session(requests, events, self.qs.stop.clone(), handler, "qs")
         });
         Ok(Response::new(responses))
@@ -854,9 +849,6 @@ mod tests {
         let status = grpc_qs
             .publish_key_packages(Request::new(SignedRequest::new(
                 PublishKeyPackagesRequest {
-                    client_metadata: None,
-                    client_id: None,
-                    key_packages: Vec::new(),
                     payload: Some(PublishKeyPackagesPayload {
                         client_metadata: None,
                         client_id: None,

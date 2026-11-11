@@ -3,62 +3,33 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    codec::{BlobDecoded, BlobEncoded},
-    identifiers::UsernameHash,
+    codec::BlobDecoded, identifiers::UsernameHash,
     messages::connection_package::VersionedConnectionPackage,
 };
-use sqlx::{Arguments, AssertSqlSafe, PgExecutor, postgres::PgArguments};
+use sqlx::PgExecutor;
 
-use crate::errors::StorageError;
-
-use super::{StorableConnectionPackage, StorableConnectionPackageRef};
+use super::StorableConnectionPackage;
 
 impl StorableConnectionPackage {
-    pub(in crate::auth_service) async fn store_multiple_for_username(
+    /// Deletes the username's legacy packages if it has a signed last resort.
+    ///
+    /// A fetch serves a signed package whenever there is one and never deletes
+    /// a last resort package, so it would not reach them.
+    pub(in crate::auth_service) async fn delete_unreachable_for_username(
         connection: impl PgExecutor<'_>,
-        connection_packages: impl IntoIterator<Item = &VersionedConnectionPackage>,
         hash: &UsernameHash,
-    ) -> Result<(), StorageError> {
-        let mut connection_packages = connection_packages.into_iter().peekable();
-        if connection_packages.peek().is_none() {
-            return Ok(());
-        }
-
-        let mut query_args = PgArguments::default();
-        let mut query_string = String::from(
-            "INSERT INTO handle_connection_package (hash, connection_package, is_last_resort) VALUES",
-        );
-
-        for (i, connection_package) in connection_packages.enumerate() {
-            let is_last_resort = connection_package.is_last_resort();
-            let connection_package: StorableConnectionPackageRef = connection_package.into();
-
-            // Add values to the query arguments. None of these should throw an error.
-            query_args.add(hash.as_bytes())?;
-            query_args.add(BlobEncoded(connection_package))?;
-            query_args.add(is_last_resort)?;
-
-            if i > 0 {
-                query_string.push(',');
-            }
-
-            // Add placeholders for each value
-            query_string.push_str(&format!(
-                " (${}, ${}, ${})",
-                i * 3 + 1,
-                i * 3 + 2,
-                i * 3 + 3
-            ));
-        }
-
-        // Finalize the query string
-        query_string.push(';');
-
-        // Execute the query
-        sqlx::query_with(AssertSqlSafe(query_string), query_args)
-            .execute(connection)
-            .await?;
-
+    ) -> sqlx::Result<()> {
+        sqlx::query!(
+            "DELETE FROM handle_connection_package
+            WHERE hash = $1
+                AND EXISTS (
+                    SELECT 1 FROM username_signed_connection_package
+                    WHERE hash = $1 AND is_last_resort
+                )",
+            hash.as_bytes(),
+        )
+        .execute(connection)
+        .await?;
         Ok(())
     }
 
@@ -117,6 +88,7 @@ impl StorableConnectionPackage {
 #[cfg(test)]
 pub(crate) mod tests {
     use aircommon::{
+        codec::BlobEncoded,
         credentials::keys::{self, UsernameVerifyingKey},
         crypto::{ConnectionDecryptionKey, signatures::signable::Signature},
         messages::{
@@ -126,11 +98,77 @@ pub(crate) mod tests {
         },
         time::{Duration, ExpirationData},
     };
-    use sqlx::PgPool;
+    use serde::Serialize;
+    use sqlx::{Arguments, AssertSqlSafe, PgPool, postgres::PgArguments};
 
-    use crate::auth_service::usernames::UsernameRecord;
+    use crate::{auth_service::usernames::UsernameRecord, errors::StorageError};
 
     use super::*;
+
+    #[derive(Serialize)]
+    enum StorableConnectionPackageRef<'a> {
+        V1(&'a ConnectionPackageV1),
+        V2(&'a ConnectionPackage),
+    }
+
+    impl<'a> From<&'a VersionedConnectionPackage> for StorableConnectionPackageRef<'a> {
+        fn from(connection_package: &'a VersionedConnectionPackage) -> Self {
+            match connection_package {
+                VersionedConnectionPackage::V1(cp_v1) => StorableConnectionPackageRef::V1(cp_v1),
+                VersionedConnectionPackage::V2(cp_v2) => StorableConnectionPackageRef::V2(cp_v2),
+            }
+        }
+    }
+
+    impl StorableConnectionPackage {
+        pub(crate) async fn store_multiple_for_username(
+            connection: impl PgExecutor<'_>,
+            connection_packages: impl IntoIterator<Item = &VersionedConnectionPackage>,
+            hash: &UsernameHash,
+        ) -> Result<(), StorageError> {
+            let mut connection_packages = connection_packages.into_iter().peekable();
+            if connection_packages.peek().is_none() {
+                return Ok(());
+            }
+
+            let mut query_args = PgArguments::default();
+            let mut query_string = String::from(
+                "INSERT INTO handle_connection_package (hash, connection_package, is_last_resort) VALUES",
+            );
+
+            for (i, connection_package) in connection_packages.enumerate() {
+                let is_last_resort = connection_package.is_last_resort();
+                let connection_package: StorableConnectionPackageRef = connection_package.into();
+
+                // Add values to the query arguments. None of these should throw an error.
+                query_args.add(hash.as_bytes())?;
+                query_args.add(BlobEncoded(connection_package))?;
+                query_args.add(is_last_resort)?;
+
+                if i > 0 {
+                    query_string.push(',');
+                }
+
+                // Add placeholders for each value
+                query_string.push_str(&format!(
+                    " (${}, ${}, ${})",
+                    i * 3 + 1,
+                    i * 3 + 2,
+                    i * 3 + 3
+                ));
+            }
+
+            // Finalize the query string
+            query_string.push(';');
+
+            // Execute the query
+            sqlx::query_with(AssertSqlSafe(query_string), query_args)
+                .execute(connection)
+                .await?;
+
+            Ok(())
+        }
+    }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum ConnectionPackageType {
