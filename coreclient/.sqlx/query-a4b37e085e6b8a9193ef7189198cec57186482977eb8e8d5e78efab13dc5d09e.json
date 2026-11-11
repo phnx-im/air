@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT accepted_friendship_package AS \"accepted_friendship_package: BlobDecoded<EncryptedFriendshipPackage>\"\n                FROM resync_queue\n                WHERE group_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "accepted_friendship_package: BlobDecoded<EncryptedFriendshipPackage>",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "accepted_friendship_package"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "a4b37e085e6b8a9193ef7189198cec57186482977eb8e8d5e78efab13dc5d09e"
+}

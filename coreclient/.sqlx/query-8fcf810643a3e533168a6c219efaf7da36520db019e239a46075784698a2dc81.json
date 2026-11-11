@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT pending_commit AS \"pending_commit: BlobDecoded<PendingResyncCommit>\"\n                FROM resync_queue\n                WHERE group_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "pending_commit: BlobDecoded<PendingResyncCommit>",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "pending_commit"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "8fcf810643a3e533168a6c219efaf7da36520db019e239a46075784698a2dc81"
+}

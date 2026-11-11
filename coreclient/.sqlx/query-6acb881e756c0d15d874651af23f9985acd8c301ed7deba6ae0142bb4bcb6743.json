@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE resync_queue SET pending_commit = ?2 WHERE group_id = ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "6acb881e756c0d15d874651af23f9985acd8c301ed7deba6ae0142bb4bcb6743"
+}

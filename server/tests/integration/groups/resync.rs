@@ -6,9 +6,14 @@
 
 use std::{collections::HashSet, slice};
 
-use aircoreclient::{DisplayName, SystemMessage, UserProfile, clients::MarkChatAsRead};
+use aircommon::identifiers::QualifiedGroupId;
+use aircoreclient::{
+    ChatId, DisplayName, ResyncStatus, SystemMessage, UserProfile,
+    clients::{CoreUser, MarkChatAsRead},
+};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use mimi_content::MimiContent;
+use uuid::Uuid;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn missed_commit_triggers_resync_and_rejoin() {
@@ -540,4 +545,472 @@ async fn message_sent_during_resync_is_delivered_after_it() {
             .any(|text| text.contains("during resync")),
         "alice never received the message"
     );
+}
+
+async fn group_uuid(user: &CoreUser, chat_id: ChatId) -> Uuid {
+    let group_id = user.chat(&chat_id).await.unwrap().group_id;
+    QualifiedGroupId::try_from(group_id).unwrap().group_uuid()
+}
+
+async fn epoch(user: &CoreUser, chat_id: ChatId) -> u64 {
+    let (epoch, _) = user
+        .group_epoch_and_own_index(chat_id)
+        .await
+        .unwrap()
+        .expect("the group should exist");
+    epoch
+}
+
+async fn own_index(user: &CoreUser, chat_id: ChatId) -> u32 {
+    let (_, own_index) = user
+        .group_epoch_and_own_index(chat_id)
+        .await
+        .unwrap()
+        .expect("the group should exist");
+    own_index
+}
+
+async fn epoch_authenticator(user: &CoreUser, chat_id: ChatId) -> Vec<u8> {
+    user.epoch_authenticator(chat_id)
+        .await
+        .unwrap()
+        .expect("the group should exist")
+}
+
+async fn resync_status(user: &CoreUser, chat_id: ChatId) -> Option<ResyncStatus> {
+    user.resync_status(chat_id).await.unwrap()
+}
+
+/// Acks all queued messages of `user` without processing them.
+async fn miss_queued_messages(user: &CoreUser) {
+    let qs_messages = user.qs_fetch_messages().await.unwrap();
+    let last = qs_messages.last().expect("a queued message to miss");
+    let (mut stream, responder) = user.listen_queue().await.unwrap();
+    responder.ack(last.sequence_number + 1).await;
+    responder.close(&mut stream).await;
+}
+
+/// Has `alice` move the group on by two commits, of which `bob` misses the
+/// first, so that the second makes him queue a resync.
+async fn make_miss_a_commit(alice: &CoreUser, bob: &CoreUser, chat_id: ChatId) {
+    alice.update_key(chat_id).await.unwrap();
+    miss_queued_messages(bob).await;
+    alice.update_key(chat_id).await.unwrap();
+    bob.drain().await;
+    assert_eq!(
+        resync_status(bob, chat_id).await,
+        Some(ResyncStatus::Pending)
+    );
+}
+
+/// The gRPC method that sends a resync commit for the test's groups.
+fn resync_method(setup: &TestBackend) -> &'static str {
+    if setup.apq_groups {
+        "ApqResync"
+    } else {
+        "Resync"
+    }
+}
+
+/// Runs a resync of `bob` whose commit never reaches the DS. Returns the
+/// epoch authenticator of the state the stored commit produces.
+async fn drop_resync_request(setup: &TestBackend, bob: &CoreUser, chat_id: ChatId) -> Vec<u8> {
+    setup
+        .listener_control_handle()
+        .set_drop_next_request_to(resync_method(setup));
+    bob.outbound_service().run_once().await;
+    assert_eq!(
+        resync_status(bob, chat_id).await,
+        Some(ResyncStatus::Pending)
+    );
+    epoch_authenticator(bob, chat_id).await
+}
+
+async fn assert_messaging_works(
+    setup: &TestBackend,
+    alice: &CoreUser,
+    bob: &CoreUser,
+    chat_id: ChatId,
+) {
+    alice.drain().await;
+    setup.send_message(chat_id, bob, &[alice]).await;
+    setup.send_message(chat_id, alice, &[bob]).await;
+}
+
+/// A DS replaying the group state from before a member's removal can't make
+/// another member rejoin it, so the removed member can't read that member's
+/// later messages.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn resync_rejects_stale_snapshot() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
+        .await;
+
+    let group_uuid = group_uuid(&bob, chat_id).await;
+    let stale_row = setup.ds_group_row(group_uuid).await;
+
+    alice
+        .remove_users(chat_id, vec![charlie.user_id().clone()])
+        .await
+        .unwrap();
+    alice.update_key(chat_id).await.unwrap();
+    bob.drain().await;
+    let bob_epoch = epoch(&bob, chat_id).await;
+
+    // Charlie keeps the state from before the removal.
+    miss_queued_messages(&charlie).await;
+
+    let current_row = setup.ds_group_row(group_uuid).await;
+    setup.set_ds_group_row(group_uuid, &stale_row).await;
+    bob.enqueue_group_resync(chat_id).await.unwrap();
+    bob.outbound_service().run_once().await;
+
+    assert_eq!(
+        resync_status(&bob, chat_id).await,
+        Some(ResyncStatus::Failed)
+    );
+    assert_eq!(epoch(&bob, chat_id).await, bob_epoch);
+    assert!(
+        !bob.group_members(chat_id)
+            .await
+            .unwrap()
+            .contains(charlie.user_id())
+    );
+
+    // The next real commit clears the failed resync.
+    setup.set_ds_group_row(group_uuid, &current_row).await;
+    alice.update_key(chat_id).await.unwrap();
+    bob.drain().await;
+    assert_eq!(resync_status(&bob, chat_id).await, None);
+    setup.send_message(chat_id, &bob, &[&alice]).await;
+    let processed = charlie.drain_unchecked().await;
+    assert!(
+        processed.new_messages.is_empty(),
+        "Charlie received {:?}",
+        processed.new_messages
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn resync_keeps_group_when_snapshot_predates_join() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+
+    let group_uuid = group_uuid(&alice, chat_id).await;
+    let stale_row = setup.ds_group_row(group_uuid).await;
+
+    setup.invite_to_group(chat_id, &alice, &[&bob]).await;
+    let bob_epoch = epoch(&bob, chat_id).await;
+
+    let current_row = setup.ds_group_row(group_uuid).await;
+    setup.set_ds_group_row(group_uuid, &stale_row).await;
+    bob.enqueue_group_resync(chat_id).await.unwrap();
+    bob.outbound_service().run_once().await;
+
+    assert_eq!(
+        resync_status(&bob, chat_id).await,
+        Some(ResyncStatus::Failed)
+    );
+    assert_eq!(epoch(&bob, chat_id).await, bob_epoch);
+    assert!(!bob.chat(&chat_id).await.unwrap().status().is_inactive());
+
+    // The next real commit clears the failed resync.
+    setup.set_ds_group_row(group_uuid, &current_row).await;
+    alice.update_key(chat_id).await.unwrap();
+    bob.drain().await;
+    assert_eq!(resync_status(&bob, chat_id).await, None);
+    setup.send_message(chat_id, &bob, &[&alice]).await;
+}
+
+/// A resync triggered by a missed commit refuses a state at the member's own
+/// epoch, which a DS could serve after forging the trigger. A manual resync
+/// into the real state recovers.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn future_epoch_resync_rejects_current_epoch() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+
+    let group_uuid = group_uuid(&bob, chat_id).await;
+    let bob_epoch = epoch(&bob, chat_id).await;
+    let row_at_bob_epoch = setup.ds_group_row(group_uuid).await;
+
+    make_miss_a_commit(&alice, &bob, chat_id).await;
+
+    let current_row = setup.ds_group_row(group_uuid).await;
+    setup.set_ds_group_row(group_uuid, &row_at_bob_epoch).await;
+    bob.outbound_service().run_once().await;
+
+    assert_eq!(
+        resync_status(&bob, chat_id).await,
+        Some(ResyncStatus::Failed)
+    );
+    assert_eq!(epoch(&bob, chat_id).await, bob_epoch);
+
+    setup.set_ds_group_row(group_uuid, &current_row).await;
+    bob.enqueue_group_resync(chat_id).await.unwrap();
+    bob.outbound_service().run_once().await;
+
+    assert_eq!(resync_status(&bob, chat_id).await, None);
+    assert_eq!(epoch(&bob, chat_id).await, bob_epoch + 3);
+    assert_messaging_works(&setup, &alice, &bob, chat_id).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn resync_resends_stored_commit_after_dropped_request() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+
+    make_miss_a_commit(&alice, &bob, chat_id).await;
+    let attempted = drop_resync_request(&setup, &bob, chat_id).await;
+
+    bob.outbound_service().run_once().await;
+    assert_eq!(resync_status(&bob, chat_id).await, None);
+    assert_eq!(epoch_authenticator(&bob, chat_id).await, attempted);
+    assert_messaging_works(&setup, &alice, &bob, chat_id).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn resync_finishes_when_commit_response_is_lost() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+
+    make_miss_a_commit(&alice, &bob, chat_id).await;
+    setup
+        .listener_control_handle()
+        .set_drop_next_response_to(resync_method(&setup));
+    bob.outbound_service().run_once().await;
+    assert_eq!(
+        resync_status(&bob, chat_id).await,
+        Some(ResyncStatus::Pending)
+    );
+    let accepted = epoch_authenticator(&bob, chat_id).await;
+
+    bob.outbound_service().run_once().await;
+    assert_eq!(resync_status(&bob, chat_id).await, None);
+    assert_eq!(epoch_authenticator(&bob, chat_id).await, accepted);
+    assert_messaging_works(&setup, &alice, &bob, chat_id).await;
+}
+
+/// The resync commit moves Bob's leaf into a blank one on his left. Resending
+/// it then fails on the DS's sender check rather than the epoch check, and the
+/// fetched state still shows that the DS applied it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn resync_finishes_lost_response_when_leaf_moved() {
+    let mut setup = TestBackend::single().await;
+    let [alice, charlie, bob] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&charlie, &bob]).await;
+    setup
+        .remove_from_group(chat_id, &alice, &[&charlie])
+        .await
+        .unwrap();
+    let queued_index = own_index(&bob, chat_id).await;
+
+    make_miss_a_commit(&alice, &bob, chat_id).await;
+    setup
+        .listener_control_handle()
+        .set_drop_next_response_to(resync_method(&setup));
+    bob.outbound_service().run_once().await;
+    assert_eq!(
+        resync_status(&bob, chat_id).await,
+        Some(ResyncStatus::Pending)
+    );
+    assert!(own_index(&bob, chat_id).await < queued_index);
+    let accepted = epoch_authenticator(&bob, chat_id).await;
+
+    bob.outbound_service().run_once().await;
+    assert_eq!(resync_status(&bob, chat_id).await, None);
+    assert_eq!(epoch_authenticator(&bob, chat_id).await, accepted);
+    assert_messaging_works(&setup, &alice, &bob, chat_id).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn resync_rebuilds_when_stored_commit_misses_self_remove() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob, &charlie]).await;
+
+    make_miss_a_commit(&alice, &bob, chat_id).await;
+    charlie.drain().await;
+    let attempted = drop_resync_request(&setup, &bob, chat_id).await;
+
+    charlie.leave_chat(chat_id).await.unwrap();
+    miss_queued_messages(&bob).await;
+
+    bob.outbound_service().run_once().await;
+    assert_eq!(resync_status(&bob, chat_id).await, None);
+    assert_ne!(epoch_authenticator(&bob, chat_id).await, attempted);
+    assert!(
+        !bob.group_members(chat_id)
+            .await
+            .unwrap()
+            .contains(charlie.user_id())
+    );
+    // The rebuild reports the changes since the state before the first
+    // attempt.
+    let charlie_removes = bob
+        .system_messages(chat_id)
+        .await
+        .into_iter()
+        .filter(|message| {
+            matches!(message, SystemMessage::Remove(None, removed) if removed == charlie.user_id())
+        })
+        .count();
+    assert_eq!(charlie_removes, 1);
+    assert_messaging_works(&setup, &alice, &bob, chat_id).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn resync_rebuilds_when_another_commit_won() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+
+    make_miss_a_commit(&alice, &bob, chat_id).await;
+    let attempted = drop_resync_request(&setup, &bob, chat_id).await;
+
+    alice.update_key(chat_id).await.unwrap();
+    miss_queued_messages(&bob).await;
+
+    bob.outbound_service().run_once().await;
+    assert_eq!(resync_status(&bob, chat_id).await, None);
+    assert_ne!(epoch_authenticator(&bob, chat_id).await, attempted);
+    assert_messaging_works(&setup, &alice, &bob, chat_id).await;
+}
+
+/// A rebuild is checked against the state the first attempt joined, not
+/// against the older state the DS last accepted from this member.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn resync_rebuild_rejects_snapshot_older_than_attempt() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+    let group_uuid = group_uuid(&bob, chat_id).await;
+
+    alice.update_key(chat_id).await.unwrap();
+    miss_queued_messages(&bob).await;
+    // Newer than Bob's state, but older than the one his first attempt joins.
+    let older_row = setup.ds_group_row(group_uuid).await;
+    alice.update_key(chat_id).await.unwrap();
+    bob.drain().await;
+    assert_eq!(
+        resync_status(&bob, chat_id).await,
+        Some(ResyncStatus::Pending)
+    );
+
+    let attempted = drop_resync_request(&setup, &bob, chat_id).await;
+
+    let current_row = setup.ds_group_row(group_uuid).await;
+    setup.set_ds_group_row(group_uuid, &older_row).await;
+    bob.outbound_service().run_once().await;
+    assert_eq!(
+        resync_status(&bob, chat_id).await,
+        Some(ResyncStatus::Failed)
+    );
+    assert_eq!(epoch_authenticator(&bob, chat_id).await, attempted);
+
+    setup.set_ds_group_row(group_uuid, &current_row).await;
+    bob.enqueue_group_resync(chat_id).await.unwrap();
+    bob.outbound_service().run_once().await;
+    assert_eq!(resync_status(&bob, chat_id).await, None);
+    assert_eq!(epoch_authenticator(&bob, chat_id).await, attempted);
+    assert_messaging_works(&setup, &alice, &bob, chat_id).await;
+}
+
+/// With a stored commit, a verified state without Bob's leaf only tears his
+/// group down if it is newer than the state the commit was built on. Alice
+/// forks the group at that epoch by removing Bob from the state before it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn resync_with_stored_commit_tears_down_only_on_newer_state() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, &[&bob, &charlie])
+        .await;
+    let group_uuid = group_uuid(&bob, chat_id).await;
+
+    let row_before_fork = setup.ds_group_row(group_uuid).await;
+    charlie.update_key(chat_id).await.unwrap();
+    miss_queued_messages(&alice).await;
+    bob.drain().await;
+
+    bob.enqueue_group_resync(chat_id).await.unwrap();
+    let attempted = drop_resync_request(&setup, &bob, chat_id).await;
+
+    setup.set_ds_group_row(group_uuid, &row_before_fork).await;
+    alice
+        .remove_users(chat_id, vec![bob.user_id().clone()])
+        .await
+        .unwrap();
+
+    bob.outbound_service().run_once().await;
+    assert_eq!(
+        resync_status(&bob, chat_id).await,
+        Some(ResyncStatus::Failed)
+    );
+    assert_eq!(epoch_authenticator(&bob, chat_id).await, attempted);
+    assert!(!bob.chat(&chat_id).await.unwrap().status().is_inactive());
+
+    alice.update_key(chat_id).await.unwrap();
+    bob.enqueue_group_resync(chat_id).await.unwrap();
+    bob.outbound_service().run_once().await;
+    assert_eq!(resync_status(&bob, chat_id).await, None);
+    assert!(bob.chat(&chat_id).await.unwrap().status().is_inactive());
+}
+
+/// The DS answers updates of a closed group with not found. That reply alone
+/// is not verified, so the resync fetches the group state, which here shows
+/// the group open.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn group_closed_reply_to_resend_does_not_tear_down() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+
+    make_miss_a_commit(&alice, &bob, chat_id).await;
+    drop_resync_request(&setup, &bob, chat_id).await;
+
+    setup
+        .listener_control_handle()
+        .set_close_next_request_to(resync_method(&setup));
+    bob.outbound_service().run_once().await;
+    assert_eq!(resync_status(&bob, chat_id).await, None);
+    assert!(!bob.chat(&chat_id).await.unwrap().status().is_inactive());
+    assert_messaging_works(&setup, &alice, &bob, chat_id).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn manual_resync_resends_after_rejected_commit() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+
+    make_miss_a_commit(&alice, &bob, chat_id).await;
+    setup
+        .listener_control_handle()
+        .set_reject_next_request_to(resync_method(&setup));
+    bob.outbound_service().run_once().await;
+    assert_eq!(
+        resync_status(&bob, chat_id).await,
+        Some(ResyncStatus::Failed)
+    );
+    let attempted = epoch_authenticator(&bob, chat_id).await;
+
+    bob.enqueue_group_resync(chat_id).await.unwrap();
+    bob.outbound_service().run_once().await;
+    assert_eq!(resync_status(&bob, chat_id).await, None);
+    assert_eq!(epoch_authenticator(&bob, chat_id).await, attempted);
+    assert_messaging_works(&setup, &alice, &bob, chat_id).await;
 }

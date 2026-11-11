@@ -4,7 +4,7 @@
 
 //! Open incoming and outgoing requests on a newly linked device.
 
-use aircoreclient::{ChatType, SystemMessage};
+use aircoreclient::{ChatType, ResyncStatus, SystemMessage};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 
 use super::{has_system_message, request_expires_at};
@@ -215,6 +215,63 @@ async fn outgoing_requests_accepted_before_onboarding_joins_first() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn outgoing_requests_accepted_before_onboarding_joins_last() {
     linked_device_gets_open_outgoing_requests(Acceptance::BeforeOnboardingJoinsLast).await;
+}
+
+/// The recipient accepts while the new device's onboarding commit is
+/// unaccepted. The device keeps the join, and its next attempt rebuilds the
+/// commit on top of it and confirms the request.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn outgoing_request_accepted_while_onboarding_commit_is_unaccepted() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let record = setup.add_username(&bob).await;
+    let chat_id = alice
+        .add_contact(record.username.clone(), record.hash, setup.apq_groups)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let alice2 = alice.add_linked_device().await;
+    alice.drain().await;
+    let resync_method = if setup.apq_groups {
+        "ApqResync"
+    } else {
+        "Resync"
+    };
+    setup
+        .listener_control_handle()
+        .set_drop_next_request_to(resync_method);
+    alice2.outbound_service().run_once().await;
+    assert_eq!(
+        alice2.resync_status(chat_id).await.unwrap(),
+        Some(ResyncStatus::Pending)
+    );
+
+    bob.receive_connection_offer(&record).await;
+    bob.accept_contact_request(chat_id).await.unwrap().unwrap();
+    alice2.drain().await;
+    alice2.outbound_service().run_once().await;
+    assert_eq!(alice2.resync_status(chat_id).await.unwrap(), None);
+
+    assert_eq!(
+        alice2.expect_chat(chat_id).await.chat_type(),
+        &ChatType::Connection(bob.user_id().clone())
+    );
+    let announcements = alice2
+        .system_messages(chat_id)
+        .await
+        .into_iter()
+        .filter(|message| matches!(message, SystemMessage::NewHandleConnectionChat(_)))
+        .count();
+    assert_eq!(announcements, 1);
+    assert!(
+        has_system_message(&alice2, chat_id, |message| matches!(
+            message,
+            SystemMessage::ReceivedConnectionConfirmation { sender, .. } if sender == bob.user_id()
+        ))
+        .await
+    );
+    send_and_receive(&alice2, &[&bob, &alice], chat_id, "hi bob").await;
 }
 
 /// When the recipients accept the outgoing requests, relative to the new

@@ -377,15 +377,17 @@ impl From<ResyncClientError> for Status {
                 Status::invalid_argument(msg)
             }
             ResyncClientError::ProcessingError(error) => {
-                error!(%error, "Failed to process assisted message");
-                Status::internal("Error processing message")
+                ProcessErrorKind::from(&error).into_status(&error, Status::invalid_argument)
             }
             ResyncClientError::ApqProcessingError(error) => {
-                error!(%error, "Failed to process APQ assisted message");
-                Status::internal("Error processing message")
+                ProcessErrorKind::from(&error).into_status(&error, Status::invalid_argument)
             }
             ResyncClientError::SelfRemoveCheck(error) => {
-                error!(%error, "Failed self-remove check");
+                // An uncommitted self remove is a race with another member, not an error of the
+                // DS.
+                if matches!(error, SelfRemoveCheckError::ProposalStore) {
+                    error!(%error, "Failed self-remove check");
+                }
                 error.into()
             }
             ResyncClientError::MergeCommitError(error) => {

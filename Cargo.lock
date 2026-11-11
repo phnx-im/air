@@ -412,6 +412,7 @@ dependencies = [
  "airbackend",
  "aircommon",
  "aircoreclient",
+ "airprotos",
  "airserver",
  "anyhow",
  "async-trait",
