@@ -19,6 +19,8 @@ use crate::{
 
 use super::*;
 
+use edit::{EDIT_WINDOW, MAX_EDITS};
+
 pub(crate) mod edit;
 mod event_id;
 pub(crate) mod persistence;
@@ -112,7 +114,9 @@ pub struct ChatMessage {
     pub(super) in_reply_to: Option<(MimiId, Option<InReplyToMessage>)>,
     pub(super) timestamped_message: TimestampedMessage,
     pub(super) status: MessageStatus,
+    pub(super) event_mimi_id: Option<MimiId>,
     pub(super) reactions: IndexMap<String, Vec<UserId>>,
+    pub(super) edit_count: u32,
 }
 
 impl ChatMessage {
@@ -129,7 +133,9 @@ impl ChatMessage {
             in_reply_to: None,
             timestamped_message,
             status: MessageStatus::Unread,
+            event_mimi_id: None,
             reactions: IndexMap::new(),
+            edit_count: 0,
         }
     }
 
@@ -172,7 +178,9 @@ impl ChatMessage {
             },
             in_reply_to: None,
             status: MessageStatus::Unread,
+            event_mimi_id: None,
             reactions: IndexMap::new(),
+            edit_count: 0,
         }
     }
 
@@ -196,7 +204,9 @@ impl ChatMessage {
             in_reply_to: None,
             timestamped_message,
             status: MessageStatus::Unread,
+            event_mimi_id: None,
             reactions: IndexMap::new(),
+            edit_count: 0,
         }
     }
 
@@ -227,7 +237,9 @@ impl ChatMessage {
             in_reply_to: None,
             timestamped_message,
             status: MessageStatus::Unread,
+            event_mimi_id: None,
             reactions: IndexMap::new(),
+            edit_count: 0,
         }
     }
 
@@ -239,7 +251,7 @@ impl ChatMessage {
         let salt: [u8; 16] = RustCrypto::default().random_array()?;
         Ok(MimiContent {
             salt: salt.to_vec(),
-            replaces: self.message().mimi_id().map(|id| id.as_slice().to_vec()),
+            replaces: self.message().mimi_id().map(|id| (*id).into()),
             topic_id: Default::default(),
             expires: None,
             in_reply_to: None,
@@ -349,6 +361,23 @@ impl ChatMessage {
 
     pub fn reactions(&self) -> &IndexMap<String, Vec<UserId>> {
         &self.reactions
+    }
+
+    /// Until when the sender can edit this message. Returns `None` once they
+    /// cannot edit it anymore, because it is not sent yet, deleted, or was
+    /// edited [`MAX_EDITS`] times.
+    pub fn editable_until(&self) -> Option<DateTime<Utc>> {
+        let Message::Content(content) = self.message() else {
+            return None;
+        };
+        let editable =
+            content.was_sent() && !self.message().is_deleted() && self.edit_count < MAX_EDITS;
+        editable.then(|| self.timestamp() + EDIT_WINDOW)
+    }
+
+    /// How many more times the sender can edit this message.
+    pub fn edits_left(&self) -> u32 {
+        MAX_EDITS.saturating_sub(self.edit_count)
     }
 }
 
@@ -605,6 +634,11 @@ pub enum SystemMessage {
     ConnectionRequestExpired,
     /// A connection request we sent expired before the recipient answered it.
     SentConnectionRequestExpired,
+    /// A connection request we sent was closed, since it went to someone who
+    /// is a contact already.
+    SentConnectionRequestAlreadyConnected {
+        contact: UserId,
+    },
 }
 
 impl EventMessage {
@@ -690,7 +724,8 @@ impl SystemMessage {
             | SystemMessage::SentGroupConnectionRequest { .. }
             | SystemMessage::ConnectionRequestUnavailable
             | SystemMessage::ConnectionRequestExpired
-            | SystemMessage::SentConnectionRequestExpired => None,
+            | SystemMessage::SentConnectionRequestExpired
+            | SystemMessage::SentConnectionRequestAlreadyConnected { .. } => None,
         }
     }
 
@@ -719,7 +754,8 @@ impl SystemMessage {
             | SystemMessage::Onboarded
             | SystemMessage::ConnectionRequestUnavailable
             | SystemMessage::ConnectionRequestExpired
-            | SystemMessage::SentConnectionRequestExpired => true,
+            | SystemMessage::SentConnectionRequestExpired
+            | SystemMessage::SentConnectionRequestAlreadyConnected { .. } => true,
         }
     }
 
@@ -847,6 +883,10 @@ impl SystemMessage {
             SystemMessage::SentConnectionRequestExpired => "Your contact request expired. If you \
                 still want to add this person as a contact, send them a new request."
                 .into(),
+            SystemMessage::SentConnectionRequestAlreadyConnected { contact } => {
+                let display_name = core_user.user_profile(contact).await.display_name;
+                format!("{display_name} is already your contact. This request was closed.")
+            }
             SystemMessage::CreateGroup(user_id) => {
                 let user_display_name = core_user.user_profile(user_id).await.display_name;
                 format!("{user_display_name} created the group")

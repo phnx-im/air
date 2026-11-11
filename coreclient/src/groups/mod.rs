@@ -21,6 +21,7 @@ pub(crate) mod group_bootstrap;
 pub(crate) mod group_data;
 pub(crate) mod join;
 pub(crate) mod openmls_provider;
+pub(crate) mod pending_creation;
 pub(crate) mod persistence;
 pub(crate) mod process;
 pub(crate) mod room_state;
@@ -32,7 +33,9 @@ pub(crate) mod vc_epoch_retention;
 
 pub(crate) use commit::{invite::PreparedInvitee, update::client_reference_extension};
 pub(crate) use create::{NewGroupContext, PartialCreateGroupParams};
-pub(crate) use ds_teardown::{handle_group_closed_on_ds, handle_group_not_found_on_ds};
+pub(crate) use ds_teardown::{
+    handle_group_closed_on_ds, handle_group_gone_on_ds, handle_group_not_found_on_ds,
+};
 pub(crate) use error::*;
 pub(crate) use join::{
     DecryptedProfileInfos, ProfileInfo, external::ConnectionGroupJoin, welcome::JoinSigners,
@@ -102,6 +105,34 @@ pub(crate) struct Group {
 }
 
 impl Group {
+    /// Creates a new group with self updated at set to now.
+    pub(super) fn new(
+        identity_link_wrapper_key: IdentityLinkWrapperKey,
+        group_state_ear_key: GroupStateEarKey,
+        mls_group: MlsGroup,
+        pq_mls_group: Option<MlsGroup>,
+        room_state: VerifiedRoomState,
+        own_user_id: UserId,
+    ) -> Self {
+        let now = TimeStamp::now();
+        let pq = pq_mls_group.map(|mls_group| PqGroup {
+            mls_group,
+            self_updated_at: Some(now),
+        });
+        Self {
+            identity_link_wrapper_key,
+            group_state_ear_key,
+            mls_group,
+            room_state,
+            pending_diff: None,
+            self_updated_at: Some(now),
+            pq,
+            pending_commit_failed: false,
+            send_message_collision_key: None,
+            own_user_id,
+        }
+    }
+
     pub(crate) fn is_apq(&self) -> bool {
         self.pq.is_some()
     }

@@ -23,8 +23,11 @@ use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatId, ChatMessage, ContentMessage, Message,
-    chats::{messages::InReplyToMessage, reactions::Reaction},
+    Chat, ChatId, ChatMessage, ContentMessage, Message, SystemMessage,
+    chats::{
+        messages::{InReplyToMessage, edit::MessageEdit},
+        reactions::Reaction,
+    },
     clients::attachment::AttachmentRecord,
     db::access::{ReadConnection, WriteConnection},
 };
@@ -132,11 +135,11 @@ impl From<SqlChatMessage> for ChatMessage {
             in_reply_to_mimi_id,
         }: SqlChatMessage,
     ) -> Self {
-        let message = match (sender_user_uuid, sender_user_domain) {
+        let (message, event_mimi_id) = match (sender_user_uuid, sender_user_domain) {
             // user message
             (Some(sender_user_uuid), Some(sender_user_domain)) => {
                 let sender = UserId::new(sender_user_uuid, sender_user_domain);
-                content
+                let message = content
                     .into_inner()
                     .to_mimi_content()
                     .map(|content| {
@@ -153,13 +156,17 @@ impl From<SqlChatMessage> for ChatMessage {
                         Message::Event(EventMessage::Error(ErrorMessage::new(
                             "Message parsing failed".to_owned(),
                         )))
-                    })
+                    });
+                (message, None)
             }
             // system message
-            _ => Message::Event(content.into_inner().to_event_message().unwrap_or_else(|e| {
-                warn!("Event parsing failed: {e}");
-                EventMessage::Error(ErrorMessage::new("Event parsing failed".to_owned()))
-            })),
+            _ => {
+                let event = content.into_inner().to_event_message().unwrap_or_else(|e| {
+                    warn!("Event parsing failed: {e}");
+                    EventMessage::Error(ErrorMessage::new("Event parsing failed".to_owned()))
+                });
+                (Message::Event(event), mimi_id)
+            }
         };
 
         let timestamped_message = TimestampedMessage { timestamp, message };
@@ -177,8 +184,10 @@ impl From<SqlChatMessage> for ChatMessage {
             in_reply_to: in_reply_to_mimi_id.map(|id| (id, None)),
             timestamped_message,
             status,
+            event_mimi_id,
             // Populated by `augment` after the row is decoded.
             reactions: IndexMap::new(),
+            edit_count: 0,
         }
     }
 }
@@ -694,6 +703,11 @@ impl ChatMessage {
             *message = InReplyToMessage::load(&mut connection, mimi_id).await?;
         }
 
+        // Only an edited message has an edit history.
+        if self.edited_at().is_some() {
+            self.edit_count = MessageEdit::count_by_message_id(&mut connection, self.id()).await?;
+        }
+
         if let Some(mimi_id) = self.message().mimi_id().copied() {
             self.reactions = Reaction::load_by_target(&mut connection, &mimi_id)
                 .await?
@@ -710,15 +724,22 @@ impl ChatMessage {
         Ok(())
     }
 
+    fn stored_mimi_id(&self) -> Option<&MimiId> {
+        match &self.timestamped_message.message {
+            Message::Content(content_message) => content_message.mimi_id(),
+            Message::Event(_) => self.event_mimi_id.as_ref(),
+        }
+    }
+
     pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> anyhow::Result<()> {
-        let (sender_uuid, sender_domain, mimi_id) = match &self.timestamped_message.message {
+        let (sender_uuid, sender_domain) = match &self.timestamped_message.message {
             Message::Content(content_message) => (
                 Some(content_message.sender.uuid()),
                 Some(content_message.sender.domain()),
-                Some(content_message.mimi_id()),
             ),
-            Message::Event(_) => (None, None, None),
+            Message::Event(_) => (None, None),
         };
+        let mimi_id = self.stored_mimi_id();
         let event_id = match &self.timestamped_message.message {
             Message::Event(EventMessage::System(system_message)) => {
                 let group_id = Chat::load_group_id(&mut connection, self.chat_id)
@@ -743,14 +764,8 @@ impl ChatMessage {
             .timestamped_message
             .message
             .mimi_content()
-            .and_then(|content| content.in_reply_to.as_ref())
-            .and_then(|bytes| {
-                MimiId::from_slice(bytes)
-                    .inspect_err(|error| {
-                        error!(%error, "failed to decode in_reply_to MimiId");
-                    })
-                    .ok()
-            });
+            .and_then(|content| content.in_reply_to)
+            .map(MimiId::from);
         let in_reply_to_mimi_id = in_reply_to_mimi_id.as_ref();
 
         query!(
@@ -788,7 +803,7 @@ impl ChatMessage {
     }
 
     pub(crate) async fn update(&self, mut connection: impl WriteConnection) -> anyhow::Result<()> {
-        let mimi_id = self.message().mimi_id();
+        let mimi_id = self.stored_mimi_id();
         let content = match &self.timestamped_message.message {
             Message::Content(content_message) => {
                 VersionedMessage::from_mimi_content(&content_message.content)?
@@ -925,6 +940,18 @@ impl ChatMessage {
         .map(ChatMessage::from)
         .with_loaded_in_reply_to(&mut connection)
         .await
+    }
+
+    /// Get the last message in the chat, if it is a system message.
+    pub(crate) async fn last_system_message(
+        connection: impl ReadConnection,
+        chat_id: ChatId,
+    ) -> sqlx::Result<Option<SystemMessage>> {
+        let last = Self::last_message(connection, chat_id).await?;
+        Ok(last.and_then(|message| match message.into_message() {
+            Message::Event(EventMessage::System(system)) => Some(system),
+            Message::Event(EventMessage::Error(_)) | Message::Content(_) => None,
+        }))
     }
 
     /// The time of the oldest message in the chat.
@@ -1272,7 +1299,8 @@ pub(crate) mod tests {
     use sqlx::SqlitePool;
 
     use crate::{
-        ContentMessage, Message, MessageId, SystemMessage, chats::persistence::tests::test_chat,
+        Chat, ContentMessage, Message, MessageId, SystemMessage,
+        chats::persistence::tests::test_chat,
         clients::attachment::persistence::test::test_attachment_record, db::access::DbAccess,
     };
 
@@ -1319,8 +1347,33 @@ pub(crate) mod tests {
             timestamped_message,
             status: MessageStatus::Unread,
             in_reply_to: None,
+            event_mimi_id: None,
             reactions: IndexMap::new(),
+            edit_count: 0,
         }
+    }
+
+    /// Stores a content message by `sender` with the text `v0`.
+    pub(crate) async fn store_test_chat_message(
+        pool: &DbAccess,
+        chat: &Chat,
+        sender: &UserId,
+        sent: bool,
+        sent_at: TimeStamp,
+    ) -> anyhow::Result<ChatMessage> {
+        let message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            sent_at,
+            ContentMessage::new(
+                sender.clone(),
+                sent,
+                MimiContent::simple_markdown_message("v0".to_owned(), [0; 16]),
+                chat.group_id(),
+            ),
+        );
+        message.store(pool.write().await?).await?;
+        Ok(message)
     }
 
     #[sqlx::test]
@@ -1735,7 +1788,7 @@ pub(crate) mod tests {
         let sender = UserId::random("localhost".parse().unwrap());
         let report = MessageStatusReport {
             statuses: vec![PerMessageStatus {
-                mimi_id: mimi_id.as_ref().to_vec(),
+                mimi_id: (*mimi_id).into(),
                 status: mimi_content::MessageStatus::Delivered,
             }],
         };

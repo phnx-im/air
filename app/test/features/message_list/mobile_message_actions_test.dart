@@ -11,6 +11,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/features/message_list/message_details.dart';
 import 'package:air/features/message_list/message_list_view.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/message_list/message_cubit.dart';
@@ -151,6 +152,15 @@ final _mobileMessages = [
   ),
 ];
 
+/// The own message 4, which its sender can edit until [editableUntil].
+UiChatMessage _ownMessage({required DateTime? editableUntil}) {
+  final message = _mobileMessages[3];
+  final content = (message.message as UiMessage_Content).field0;
+  return message.copyWith(
+    message: UiMessage_Content(content.copyWith(editableUntil: editableUntil)),
+  );
+}
+
 MessageCubit _createMockMessageCubit({
   required UserCubit userCubit,
   required MessageState initialState,
@@ -242,6 +252,67 @@ void main() {
         matchesGoldenFile('goldens/message_list_mobile_actions.png'),
       );
     });
+
+    for (final (description, editableUntil, offersEdit) in [
+      (
+        'offers Edit within the edit window',
+        DateTime.now().add(const Duration(hours: 1)),
+        true,
+      ),
+      (
+        'hides Edit once the edit window has passed',
+        DateTime.now().subtract(const Duration(minutes: 1)),
+        false,
+      ),
+      ('hides Edit once no edits are left', null, false),
+    ]) {
+      testWidgets(description, (tester) async {
+        tester.view.physicalSize = _testSize;
+        addTearDown(tester.view.resetPhysicalSize);
+        messageListCubit.setState([_ownMessage(editableUntil: editableUntil)]);
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+        await tester.longPress(find.text('How are you doing?'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Edit'), offersEdit ? findsOneWidget : findsNothing);
+      });
+    }
+
+    testWidgets(
+      'Info opens the details with the message as the chat shows it',
+      (tester) async {
+        tester.view.physicalSize = _testSize;
+        addTearDown(tester.view.resetPhysicalSize);
+        final message = _mobileMessages[3];
+        final content = (message.message as UiMessage_Content).field0.content;
+        when(
+          () => chatDetailsCubit.messageVersions(messageId: message.id),
+        ).thenAnswer(
+          (_) async => [
+            UiMessageVersion(content: content, createdAt: message.timestamp),
+          ],
+        );
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+        await tester.longPress(find.text('How are you doing?'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Info'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Message details'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(MessageDetailsView),
+            matching: find.text('How are you doing?'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Edit history'), findsNothing);
+      },
+    );
 
     testWidgets('defers a picked reaction until the overlay is dismissed', (
       tester,

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT group_id AS \"group_id: GroupIdWrapper\"\n                FROM pending_group_creation\n                WHERE created_at < ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "group_id: GroupIdWrapper",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_group_creation",
+            "name": "group_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "762aced12e533af064e346f3bf9e54067bc66b2081621ea4e0be95c2a2012a14"
+}

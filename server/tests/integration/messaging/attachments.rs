@@ -6,6 +6,7 @@
 
 use std::{assert_matches, io::Cursor};
 
+use airapiclient::ds_api::DsRequestError;
 use aircoreclient::{AttachmentProgressEvent, AttachmentStatus, ProvisionAttachmentError};
 use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams};
 use base64::{Engine, prelude::BASE64_STANDARD};
@@ -262,4 +263,51 @@ async fn oversized_attachment_is_rejected() {
             panic!("wrong error");
         }
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn upload_without_declared_size_is_rejected() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let error = alice
+        .upload_with_declared_size(chat_id, 0, vec![0; 16])
+        .await
+        .unwrap_err();
+    let error = error.downcast::<DsRequestError>().unwrap();
+    assert_matches!(
+        error,
+        DsRequestError::Tonic(status) if status.code() == tonic::Code::InvalidArgument
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn post_upload_larger_than_declared_is_rejected() {
+    const DECLARED_SIZE: usize = 16;
+
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        use_post_policy: true,
+        ..Default::default()
+    })
+    .await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    alice
+        .upload_with_declared_size(chat_id, DECLARED_SIZE as i64, vec![0; DECLARED_SIZE])
+        .await
+        .unwrap();
+
+    let error = alice
+        .upload_with_declared_size(chat_id, DECLARED_SIZE as i64, vec![0; DECLARED_SIZE + 1])
+        .await
+        .unwrap_err();
+    let error = error.downcast::<reqwest::Error>().unwrap();
+    assert!(
+        error
+            .status()
+            .is_some_and(|status| status.is_client_error()),
+        "{error:?}"
+    );
 }

@@ -110,6 +110,7 @@ impl TimedTaskKind {
                 "Signed Connection Package Upload"
             }
             TimedTaskKind::ConnectionRequestExpiry => "Connection Request Expiry",
+            TimedTaskKind::PendingUsername { .. } => "Pending Username",
         }
     }
 }

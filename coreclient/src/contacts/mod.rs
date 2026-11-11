@@ -57,6 +57,22 @@ pub(crate) enum ContactKeyPackage {
     Apq(Box<ApqKeyPackage>),
 }
 
+impl ContactKeyPackage {
+    pub(crate) fn into_traditional(self) -> Option<KeyPackage> {
+        match self {
+            Self::Traditional(key_package) => Some(*key_package),
+            Self::Apq(_) => None,
+        }
+    }
+
+    pub(crate) fn into_apq(self) -> Option<ApqKeyPackage> {
+        match self {
+            Self::Traditional(_) => None,
+            Self::Apq(key_package) => Some(*key_package),
+        }
+    }
+}
+
 impl Contact {
     pub(crate) async fn fetch_add_infos(
         &self,

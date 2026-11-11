@@ -155,6 +155,9 @@ impl From<QsStageKeyPackagesError> for Status {
             | QsStageKeyPackagesError::Stage(
                 StageKeyPackageError::MissingKeyPackage | StageKeyPackageError::KeyPackageMismatch,
             ) => Status::invalid_argument(error.to_string()),
+            QsStageKeyPackagesError::Stage(StageKeyPackageError::TooManyBatches) => {
+                Status::resource_exhausted(error.to_string())
+            }
             QsStageKeyPackagesError::Sqlx(error)
             | QsStageKeyPackagesError::Stage(StageKeyPackageError::Sqlx(error)) => {
                 error!(%error, "Failed to stage key packages");

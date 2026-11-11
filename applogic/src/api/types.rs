@@ -18,8 +18,8 @@ use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, AttachmentId, AttachmentInfo, ChatAttributes, ChatMessage, ChatMuted, ChatStatus,
     ChatType, Contact, ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat,
-    LastReaction, Message, MessageDraft, SystemMessage, TargetedMessageContact, UserProfile,
-    clients::CoreUser,
+    LastReaction, Message, MessageDraft, MessageVersion, SystemMessage, TargetedMessageContact,
+    UserProfile, clients::CoreUser,
 };
 use chrono::{DateTime, Local, Utc};
 use flutter_rust_bridge::frb;
@@ -486,13 +486,14 @@ impl UiChatMessage {
         let id = chat_message.id();
         let timestamp = chat_message.timestamp().with_timezone(&Local);
         let reactions = aggregate_reactions(chat_message.reactions());
+        let edit_allowance = EditAllowance::of(&chat_message);
         let message = chat_message.into_message();
 
         Self {
             chat_id,
             id,
             timestamp,
-            message: UiMessage::from_message(message, local_attachment_infos),
+            message: UiMessage::from_message(message, local_attachment_infos, edit_allowance),
             in_reply_to_message,
             status,
             reactions,
@@ -520,11 +521,19 @@ pub enum UiMessage {
 }
 
 impl UiMessage {
-    fn from_message(message: Message, local_attachment_infos: &[AttachmentInfo]) -> Self {
+    fn from_message(
+        message: Message,
+        local_attachment_infos: &[AttachmentInfo],
+        edit_allowance: EditAllowance,
+    ) -> Self {
         match message {
-            Message::Content(content_message) => UiMessage::Content(Box::new(
-                UiContentMessage::from_message(*content_message, local_attachment_infos),
-            )),
+            Message::Content(content_message) => {
+                UiMessage::Content(Box::new(UiContentMessage::from_message(
+                    *content_message,
+                    local_attachment_infos,
+                    edit_allowance,
+                )))
+            }
             Message::Event(display_message) => {
                 UiMessage::Display(UiEventMessage::from(display_message))
             }
@@ -540,12 +549,20 @@ pub struct UiContentMessage {
     pub sent: bool,
     pub content: UiMimiContent,
     pub edited: bool,
+    /// Until when the sender can edit the message, `None` once they cannot
+    /// edit it anymore.
+    #[frb(default = "null")]
+    pub editable_until: Option<DateTime<Local>>,
+    /// How many more times the sender can edit the message.
+    #[frb(default = 0)]
+    pub edits_left: u32,
 }
 
 impl UiContentMessage {
     fn from_message(
         content_message: ContentMessage,
         local_attachment_infos: &[AttachmentInfo],
+        edit_allowance: EditAllowance,
     ) -> Self {
         let sent = content_message.was_sent();
         let edited = content_message.edited_at().is_some();
@@ -555,6 +572,50 @@ impl UiContentMessage {
             sent,
             edited,
             content: UnresolvedMimiContent::from(content).resolve(local_attachment_infos),
+            editable_until: edit_allowance.until,
+            edits_left: edit_allowance.edits_left,
+        }
+    }
+}
+
+/// How long and how often the sender can still edit a message
+#[derive(Debug, Clone, Copy)]
+#[frb(ignore)]
+struct EditAllowance {
+    until: Option<DateTime<Local>>,
+    edits_left: u32,
+}
+
+impl EditAllowance {
+    fn of(message: &ChatMessage) -> Self {
+        Self {
+            until: message
+                .editable_until()
+                .map(|until| until.with_timezone(&Local)),
+            edits_left: message.edits_left(),
+        }
+    }
+}
+
+/// One version of a message, see [`MessageVersion`]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[frb(dart_metadata = ("freezed"))]
+pub struct UiMessageVersion {
+    pub content: UiMimiContent,
+    /// When the original was sent, or when the edit was made.
+    pub created_at: DateTime<Local>,
+}
+
+impl From<MessageVersion> for UiMessageVersion {
+    fn from(
+        MessageVersion {
+            content,
+            created_at,
+        }: MessageVersion,
+    ) -> Self {
+        Self {
+            content: UnresolvedMimiContent::from(content).resolve(&[]),
+            created_at: created_at.with_timezone(&Local),
         }
     }
 }
@@ -624,6 +685,9 @@ pub enum UiSystemMessage {
     ConnectionRequestUnavailable,
     ConnectionRequestExpired,
     SentConnectionRequestExpired,
+    SentConnectionRequestAlreadyConnected {
+        contact: UiUserId,
+    },
 }
 
 /// The group chat a connection request came through.
@@ -729,6 +793,11 @@ impl From<SystemMessage> for UiSystemMessage {
             SystemMessage::ConnectionRequestExpired => UiSystemMessage::ConnectionRequestExpired,
             SystemMessage::SentConnectionRequestExpired => {
                 UiSystemMessage::SentConnectionRequestExpired
+            }
+            SystemMessage::SentConnectionRequestAlreadyConnected { contact } => {
+                UiSystemMessage::SentConnectionRequestAlreadyConnected {
+                    contact: contact.into(),
+                }
             }
         }
     }

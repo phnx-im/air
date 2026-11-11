@@ -4,8 +4,9 @@
 
 use aircommon::{
     credentials::{LeafCredential, LeafCredentialError},
+    crypto::aead::keys::EncryptedUserProfileKey,
     identifiers::QsReference,
-    messages::client_ds::{AadMessage, AadPayload, JoinConnectionGroupParamsAad},
+    messages::client_ds::{AadMessage, AadPayload},
     time::TimeStamp,
 };
 use airprotos::client::app_data::ClientAppData;
@@ -17,7 +18,7 @@ use mls_assist::{
         apq::{ApqGroupRef, ApqRetainedWelcomeInfo},
         errors::{ProcessApqAssistedMessageError, ProcessAssistedMessageError},
     },
-    messages::{AssistedMessageIn, SerializedMlsMessage},
+    messages::{ApqAssistedMessageIn, AssistedMessageIn, SerializedMlsMessage},
     openmls::{
         error::LibraryError,
         group::MergeCommitError,
@@ -37,9 +38,7 @@ use crate::errors::CborMlsAssistStorage;
 
 use super::{
     apq::ApqExternalCommit,
-    group_state::{
-        DsGroupState, MemberProfile, SelfRemoveCheckError, leaf_credential_matches_flag,
-    },
+    group_state::{DsGroupState, MemberProfile, SelfRemoveCheckError, leaf_credential_is_valid},
 };
 
 /// Reject any proposal an external commit joining a connection group must not
@@ -91,35 +90,55 @@ fn validate_join_proposals(
     Ok(())
 }
 
-/// Only a virtual client has siblings to echo to.
-fn validate_virtual_client_leaf(leaf: &LeafNode) -> Result<(), JoinConnectionGroupError> {
-    if ClientAppData::leaf_is_virtual_client(leaf) {
-        Ok(())
-    } else {
-        Err(JoinConnectionGroupError::InvalidMessage(
-            "group bootstrap requires a virtual-client joiner leaf",
-        ))
+/// What a connection-group join is for.
+#[derive(Debug, Clone, Copy)]
+pub(super) enum ConnectionGroupJoin {
+    /// The joiner accepts the request.
+    Accept,
+    /// The joiner closes the request.
+    Close,
+}
+
+impl ConnectionGroupJoin {
+    /// Whether the joiner's sibling emulator clients get an echo of the join.
+    fn echoes_to_siblings(self, joiner_leaf: &LeafNode) -> bool {
+        match self {
+            Self::Accept => ClientAppData::leaf_is_virtual_client(joiner_leaf),
+            Self::Close => false,
+        }
+    }
+
+    /// The joiner's profile key, if `payload` is the AAD of this kind of join.
+    fn profile_key(self, payload: AadPayload) -> Option<EncryptedUserProfileKey> {
+        match payload {
+            AadPayload::JoinConnectionGroup(payload) => match self {
+                Self::Accept => Some(payload.encrypted_user_profile_key),
+                Self::Close => None,
+            },
+            AadPayload::CloseConnectionGroup(payload) => match self {
+                Self::Accept => None,
+                Self::Close => Some(payload.encrypted_user_profile_key),
+            },
+            AadPayload::GroupOperation(_) | AadPayload::Resync | AadPayload::DeleteGroup => None,
+        }
     }
 }
 
 pub(super) struct JoinConnectionGroupOutcome {
     pub(super) message: SerializedMlsMessage,
-    /// The epoch of the staged snapshot, present iff the join carried a group
-    /// bootstrap.
+    pub(super) joiner_index: LeafNodeIndex,
+    /// The epoch of the staged snapshot, present iff the join echoes to the
+    /// joiner's siblings.
     pub(super) snapshot_epoch: Option<GroupEpoch>,
 }
 
 impl DsGroupState {
     /// Accept an external commit joining a connection group.
-    ///
-    /// With `bootstrap_requested`, the joiner's sibling emulator clients get an
-    /// echo of the operation, so the joining leaf must be a virtual-client leaf
-    /// and the pre-commit state is staged as an epoch snapshot for them.
     pub(super) fn join_connection_group(
         &mut self,
         external_commit: AssistedMessageIn,
         qs_client_reference: QsReference,
-        bootstrap_requested: bool,
+        join: ConnectionGroupJoin,
     ) -> Result<JoinConnectionGroupOutcome, JoinConnectionGroupError> {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
@@ -155,35 +174,37 @@ impl DsGroupState {
             JoinConnectionGroupError::InvalidMessage("update path leaf node not found"),
         )?;
         let joiner_credential = LeafCredential::from_credential(joiner_leaf.credential())?;
-        self.validate_connection_group_join(staged_commit, &joiner_credential, false)?;
-        if bootstrap_requested {
-            validate_virtual_client_leaf(joiner_leaf)?;
-        }
+        self.validate_connection_group_join(staged_commit, &joiner_credential, joiner_leaf, false)?;
+        let echo_to_siblings = join.echoes_to_siblings(joiner_leaf);
         let joiner_index = self.group().ext_commit_sender_index(staged_commit)?;
-        let aad_payload =
-            self.admit_connection_group_joiner(processed_message.tail_aad(), &joiner_credential)?;
+        let profile_key = self.admit_connection_group_joiner(
+            processed_message.tail_aad(),
+            &joiner_credential,
+            join,
+        )?;
 
         // The siblings apply the commit on top of the state the joiner used, so
         // capture it before the commit is accepted.
-        let staged_snapshot =
-            bootstrap_requested.then(|| (self.group().epoch(), self.epoch_snapshot()));
+        let staged_snapshot = echo_to_siblings.then(|| self.epoch_snapshot());
 
         let retained_welcome_info = self.group.accept_processed_message(
             self.provider.storage(),
             processed_assisted_message_plus.processed_assisted_message,
         )?;
 
-        self.insert_joiner_profile(joiner_index, qs_client_reference, aad_payload);
+        self.insert_joiner_profile(joiner_index, qs_client_reference, profile_key);
         self.stage_welcome_info(retained_welcome_info);
 
         let message = processed_assisted_message_plus.serialized_mls_message;
-        let snapshot_epoch = staged_snapshot.map(|(epoch, snapshot)| {
+        let snapshot_epoch = staged_snapshot.map(|snapshot| {
+            let epoch = self.group().epoch();
             self.stage_epoch_snapshot(epoch, snapshot.with_join_commit(&message));
             epoch
         });
 
         Ok(JoinConnectionGroupOutcome {
             message,
+            joiner_index,
             snapshot_epoch,
         })
     }
@@ -193,15 +214,12 @@ impl DsGroupState {
     pub(super) fn apq_join_connection_group(
         t: &mut Self,
         pq: &mut Self,
-        t_message: AssistedMessageIn,
-        pq_message: AssistedMessageIn,
+        external_commit: ApqAssistedMessageIn,
         qs_client_reference: QsReference,
-        bootstrap_requested: bool,
+        join: ConnectionGroupJoin,
     ) -> Result<JoinConnectionGroupOutcome, JoinConnectionGroupError> {
         let processed_assisted_message_plus = ApqGroupRef::from_groups(&mut t.group, &mut pq.group)
-            .process_apq_assisted_message(t.provider.crypto(), t_message, pq_message, |_, _| {
-                true
-            })?;
+            .process_apq_assisted_message(t.provider.crypto(), external_commit, |_, _| true)?;
 
         let ApqExternalCommit {
             t_staged_commit,
@@ -220,24 +238,25 @@ impl DsGroupState {
         // self-remove proposal.
         t.ensure_self_removes_committed(t_staged_commit)?;
         pq.ensure_self_removes_committed(pq_staged_commit)?;
-        t.validate_connection_group_join(t_staged_commit, &joiner_credential, true)?;
+        t.validate_connection_group_join(t_staged_commit, &joiner_credential, t_new_leaf, true)?;
         validate_join_proposals(pq_staged_commit, true)?;
-        if bootstrap_requested {
-            // The legs share a signature key, but being a virtual client is a
-            // leaf extension, so each leaf carries it on its own.
-            validate_virtual_client_leaf(t_new_leaf)?;
-            validate_virtual_client_leaf(pq_new_leaf)?;
+        let echo_to_siblings = join.echoes_to_siblings(t_new_leaf);
+        // The legs share a signature key, but being a virtual client is a leaf
+        // extension that each leaf contains on its own.
+        if echo_to_siblings && !ClientAppData::leaf_is_virtual_client(pq_new_leaf) {
+            return Err(JoinConnectionGroupError::InvalidMessage(
+                "virtual-client joiner without a virtual-client PQ leaf",
+            ));
         }
-        let aad_payload = t.admit_connection_group_joiner(aad, &joiner_credential)?;
+        let profile_key = t.admit_connection_group_joiner(aad, &joiner_credential, join)?;
 
         // The siblings apply both commits on top of the state the joiner used,
         // so capture it before the commits are accepted.
-        let staged_snapshot = bootstrap_requested.then(|| {
-            let snapshot = t.epoch_snapshot().with_pq_leg(
+        let staged_snapshot = echo_to_siblings.then(|| {
+            t.epoch_snapshot().with_pq_leg(
                 pq.group().group_info().clone(),
                 pq.group().export_ratchet_tree(),
-            );
-            (t.group().epoch(), snapshot)
+            )
         });
 
         let ApqRetainedWelcomeInfo {
@@ -250,13 +269,14 @@ impl DsGroupState {
         )?;
 
         // Profiles are never maintained in PQ group state
-        t.insert_joiner_profile(joiner_index, qs_client_reference, aad_payload);
+        t.insert_joiner_profile(joiner_index, qs_client_reference, profile_key);
         t.stage_welcome_info(t_retained_welcome_info);
         pq.stage_welcome_info_without_profile_keys(pq_retained_welcome_info);
 
         let t_serialized_message = processed_assisted_message_plus.t_serialized_message;
         let pq_serialized_message = processed_assisted_message_plus.pq_serialized_message;
-        let snapshot_epoch = staged_snapshot.map(|(epoch, snapshot)| {
+        let snapshot_epoch = staged_snapshot.map(|snapshot| {
+            let epoch = t.group().epoch();
             t.stage_epoch_snapshot(
                 epoch,
                 snapshot.with_apq_join_commits(&t_serialized_message, &pq_serialized_message),
@@ -266,6 +286,7 @@ impl DsGroupState {
 
         Ok(JoinConnectionGroupOutcome {
             message: SerializedMlsMessage::combine_apq(t_serialized_message, pq_serialized_message),
+            joiner_index,
             snapshot_epoch,
         })
     }
@@ -275,6 +296,7 @@ impl DsGroupState {
         &self,
         staged_commit: &StagedCommit,
         joiner_credential: &LeafCredential,
+        joiner_leaf: &LeafNode,
         apq: bool,
     ) -> Result<(), JoinConnectionGroupError> {
         validate_join_proposals(staged_commit, apq)?;
@@ -283,16 +305,21 @@ impl DsGroupState {
                 "connection group must not be a self-group",
             ));
         }
-        if !leaf_credential_matches_flag(joiner_credential, false) {
+        if !leaf_credential_is_valid(
+            joiner_credential,
+            joiner_leaf.signature_key().as_slice(),
+            false,
+        ) {
             return Err(JoinConnectionGroupError::InvalidMessage(
-                "connection group joiner must carry a user credential",
+                "connection group joiner must carry a user credential binding its leaf key",
             ));
         }
         Ok(())
     }
 
     /// Parses the join AAD, checks that the group has exactly one member (the
-    /// inviter) and admits the joiner into the room state.
+    /// inviter) and admits the joiner into the room state. Returns the
+    /// joiner's profile key.
     ///
     /// The inviter created the room state before it knew the joiner's user id,
     /// so the joiner is not in it yet. Record the joiner as if the inviter had
@@ -301,14 +328,13 @@ impl DsGroupState {
         &mut self,
         aad: &[u8],
         joiner_credential: &LeafCredential,
-    ) -> Result<JoinConnectionGroupParamsAad, JoinConnectionGroupError> {
+        join: ConnectionGroupJoin,
+    ) -> Result<EncryptedUserProfileKey, JoinConnectionGroupError> {
         let aad_message = AadMessage::tls_deserialize_exact_bytes(aad)?;
         // TODO: Check version of Aad Message
-        let AadPayload::JoinConnectionGroup(aad_payload) = aad_message.into_payload() else {
-            return Err(JoinConnectionGroupError::InvalidMessage(
-                "wrong AAD payload",
-            ));
-        };
+        let profile_key = join.profile_key(aad_message.into_payload()).ok_or(
+            JoinConnectionGroupError::InvalidMessage("wrong AAD payload"),
+        )?;
 
         let mut member_indices = self.member_profiles.keys();
         let (Some(&inviter_index), None) = (member_indices.next(), member_indices.next()) else {
@@ -326,7 +352,7 @@ impl DsGroupState {
             "failed to admit joiner into the room state",
         ))?;
 
-        Ok(aad_payload)
+        Ok(profile_key)
     }
 
     /// Records the joiner's profile. Call after the commit was accepted, so
@@ -335,14 +361,14 @@ impl DsGroupState {
         &mut self,
         leaf_index: LeafNodeIndex,
         qs_client_reference: QsReference,
-        aad_payload: JoinConnectionGroupParamsAad,
+        encrypted_user_profile_key: EncryptedUserProfileKey,
     ) {
         let member_profile = MemberProfile {
             leaf_index,
             client_queue_config: qs_client_reference,
             activity_time: TimeStamp::now(),
             activity_epoch: self.group().epoch(),
-            encrypted_user_profile_key: aad_payload.encrypted_user_profile_key,
+            encrypted_user_profile_key,
         };
         self.member_profiles.insert(leaf_index, member_profile);
 

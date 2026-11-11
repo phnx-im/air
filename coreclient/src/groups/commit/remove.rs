@@ -6,13 +6,13 @@ use aircommon::{
     credentials::{LeafCredential, keys::UserSigningKey},
     identifiers::UserId,
     messages::{
-        client_ds::{AadMessage, AadPayload, GroupOperationParamsAad},
+        client_ds::AadMessage,
         client_ds_out::{ApqGroupOperationParamsOut, GroupOperationParamsOut},
     },
 };
 use anyhow::{Result, anyhow, ensure};
 use mls_assist::messages::AssistedMessageOut;
-use openmls::prelude::{OpenMlsProvider, tls_codec::Serialize as TlsSerializeTrait};
+use openmls::prelude::{LeafNodeIndex, OpenMlsProvider, tls_codec::Serialize as TlsSerializeTrait};
 use uuid::Uuid;
 
 use crate::{
@@ -25,27 +25,11 @@ impl Group {
         &mut self,
         mut connection: impl WriteConnection,
         signer: &UserSigningKey,
-        mut members: Vec<UserId>,
+        members: Vec<UserId>,
     ) -> Result<GroupOperationParamsOut> {
-        // Note: The order of `remove_indices` is not the same as the order of `members`.
-        let mut remove_indices = Vec::with_capacity(members.len());
-        for member in self.mls_group.members() {
-            let credential = LeafCredential::from_credential(&member.credential)?;
-            let user_id = credential.user_id(self.own_user_id());
-            if let Some(idx) = members.iter().position(|id| id == user_id) {
-                remove_indices.push(member.index);
-                members.swap_remove(idx);
-            }
-            if members.is_empty() {
-                break;
-            }
-        }
-        ensure!(members.is_empty(), "Not all members to remove were found");
+        let remove_indices = self.leaf_indices_of(members)?;
 
-        let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
-            new_encrypted_user_profile_keys: vec![],
-        });
-        let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
+        let aad = AadMessage::empty_group_operation().tls_serialize_detached()?;
         self.mls_group.set_aad(aad);
         let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
@@ -74,6 +58,27 @@ impl Group {
         Ok(params)
     }
 
+    /// Return the indices of users in `members`.
+    ///
+    /// The order of indices is not the same as of `members`. If one of the members is not found, an
+    /// error is returned.
+    fn leaf_indices_of(&self, mut members: Vec<UserId>) -> anyhow::Result<Vec<LeafNodeIndex>> {
+        let mut indices = Vec::with_capacity(members.len());
+        for member in self.mls_group.members() {
+            let credential = LeafCredential::from_credential(&member.credential)?;
+            let user_id = credential.user_id(self.own_user_id());
+            if let Some(idx) = members.iter().position(|id| id == user_id) {
+                indices.push(member.index);
+                members.swap_remove(idx);
+            }
+            if members.is_empty() {
+                break;
+            }
+        }
+        ensure!(members.is_empty(), "Not all members found");
+        Ok(indices)
+    }
+
     /// The client ids of all self-group leaves this group can parse.
     ///
     /// Infallible and in-memory, for refining a pending removal against the
@@ -98,31 +103,15 @@ impl Group {
         &mut self,
         mut connection: impl WriteConnection,
         signer: &UserSigningKey,
-        mut members: Vec<UserId>,
+        members: Vec<UserId>,
     ) -> anyhow::Result<ApqGroupOperationParamsOut> {
-        // Note: The order of `remove_indices` is not the same as the order of `members`.
-        let mut remove_indices = Vec::with_capacity(members.len());
-        for member in self.mls_group.members() {
-            let credential = LeafCredential::from_credential(&member.credential)?;
-            let user_id = credential.user_id(self.own_user_id());
-            if let Some(idx) = members.iter().position(|id| id == user_id) {
-                remove_indices.push(member.index);
-                members.swap_remove(idx);
-            }
-            if members.is_empty() {
-                break;
-            }
-        }
-        ensure!(members.is_empty(), "Not all members to remove were found");
+        let remove_indices = self.leaf_indices_of(members)?;
 
         let vc_group_id = self.resolve_vc_emulation_group(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
 
-        let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
-            new_encrypted_user_profile_keys: Vec::new(),
-        });
-        let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
+        let aad = AadMessage::empty_group_operation().tls_serialize_detached()?;
         t_mls_group.set_aad(aad);
 
         let mut builder =

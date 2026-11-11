@@ -69,7 +69,7 @@ impl Qs {
         }
 
         let mut txn = self.db_pool.begin().await?;
-        let user_id = UserRecord::lock_active_owner(&mut *txn, &sender)
+        let user_id = UserRecord::lock_active_owner_for_write(&mut *txn, &sender)
             .await?
             .ok_or(QsPublishKeyPackagesError::UnknownUser)?;
         if let Some(last_resort_key_package) = last_resort_key_package {
@@ -112,7 +112,7 @@ impl Qs {
 
         let mut txn = self.db_pool.begin().await?;
 
-        let user_id = UserRecord::lock_active_owner(&mut *txn, &sender)
+        let user_id = UserRecord::lock_active_owner_for_write(&mut *txn, &sender)
             .await?
             .ok_or(QsPublishKeyPackagesError::UnknownUser)?;
         if let Some(last_resort_key_package) = last_resort_key_package {
@@ -179,7 +179,7 @@ impl Qs {
         }
 
         let mut txn = self.db_pool.begin().await?;
-        let user_id = UserRecord::lock_active_owner(txn.as_mut(), &client_id)
+        let user_id = UserRecord::lock_active_owner_for_write(txn.as_mut(), &client_id)
             .await?
             .ok_or(QsStageKeyPackagesError::UnknownClient)?;
 
@@ -260,14 +260,20 @@ impl Qs {
 
 #[cfg(test)]
 mod tests {
+    use mls_assist::openmls::{components::vc_derivation_info::EpochId, prelude::LeafNodeIndex};
     use sqlx::PgPool;
+    use tls_codec::Serialize;
 
     use crate::qs::{
         client_api::tests::qs,
         client_record::persistence::tests::store_random_client_record,
-        staged_key_package::tests::{build_apq_key_package, build_key_package},
+        staged_key_package::{
+            MAX_STAGED_BATCHES_PER_USER, StageKeyPackageError,
+            tests::{build_apq_key_package, build_key_package},
+        },
         user_record::persistence::tests::{run_during_soft_delete, store_random_user_record},
     };
+    use crate::util::wait_for_lock_waiter;
 
     use super::*;
 
@@ -276,6 +282,87 @@ mod tests {
             key_package.t_key_package().clone().into(),
             key_package.pq_key_package().clone().into(),
         )
+    }
+
+    fn key_package_proto(key_package: &KeyPackage) -> queue_service::v1::KeyPackage {
+        queue_service::v1::KeyPackage {
+            tls: key_package.tls_serialize_detached().unwrap(),
+        }
+    }
+
+    fn batch_id(generation: u32) -> KeyPackageBatchId {
+        KeyPackageBatchId {
+            epoch_id: EpochId::new(b"epoch-1".to_vec()),
+            leaf_index: LeafNodeIndex::new(0),
+            generation,
+        }
+    }
+
+    /// A stage waits for an uncommitted stage of the user and counts its batch.
+    #[sqlx::test]
+    async fn concurrent_stages_respect_the_batch_cap(pool: PgPool) -> anyhow::Result<()> {
+        let qs = qs(&pool).await?;
+        let user = store_random_user_record(&pool).await?;
+        let client = store_random_client_record(&pool, user.user_id).await?;
+        let cap = u32::try_from(MAX_STAGED_BATCHES_PER_USER)?;
+
+        for generation in 0..cap - 1 {
+            qs.qs_stage_key_packages(
+                client.client_id,
+                batch_id(generation),
+                vec![key_package_proto(&build_key_package(false))],
+                vec![],
+            )
+            .await?;
+        }
+
+        // The last allowed batch is staged but not committed yet. It holds
+        // only the shared lock, so the test fails if the handler stops taking
+        // the write lock.
+        let mut txn = pool.begin().await?;
+        UserRecord::lock_active_owner(txn.as_mut(), &client.client_id).await?;
+        let key_package = build_key_package(false);
+        let encoded = PersistenceCodec::to_vec(&key_package)?;
+        StagedKeyPackages {
+            user_id: user.user_id,
+            batch_id: batch_id(cap - 1),
+            key_packages: vec![(key_package, encoded)],
+            apq_key_packages: vec![],
+        }
+        .stage(&mut txn)
+        .await?;
+
+        let client_id = client.client_id;
+        let staged = tokio::spawn(async move {
+            qs.qs_stage_key_packages(
+                client_id,
+                batch_id(cap),
+                vec![key_package_proto(&build_key_package(false))],
+                vec![],
+            )
+            .await
+        });
+        wait_for_lock_waiter(&pool).await?;
+        txn.commit().await?;
+
+        let result = staged.await?;
+        assert!(
+            matches!(
+                result,
+                Err(QsStageKeyPackagesError::Stage(
+                    StageKeyPackageError::TooManyBatches
+                ))
+            ),
+            "{result:?}"
+        );
+        let batches: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM qs_staged_key_package_batch WHERE user_id = $1",
+        )
+        .bind(user.user_id)
+        .fetch_one(&pool)
+        .await?;
+        assert_eq!(batches, i64::from(cap));
+        Ok(())
     }
 
     #[sqlx::test]

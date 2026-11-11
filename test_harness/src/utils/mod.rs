@@ -156,7 +156,9 @@ pub(crate) async fn spawn_app(
         registration,
         unredeemable_code,
         max_attachment_size,
+        use_post_policy,
         max_devices,
+        ds: ds_settings,
     } = params;
 
     // Load configuration
@@ -186,11 +188,6 @@ pub(crate) async fn spawn_app(
             Mode::RejectNextRequest if interceptor_control_handle.take_armed(path) => {
                 interceptor_control_handle.fired();
                 return Err(Status::invalid_argument("rejected for interop test"));
-            }
-            Mode::DelayNextRequest if interceptor_control_handle.take_armed(path) => {
-                let delay = interceptor_control_handle.delay();
-                interceptor_control_handle.fired();
-                std::thread::sleep(delay);
             }
             Mode::FailNextRequest if interceptor_control_handle.take_armed(path) => {
                 interceptor_control_handle.fired();
@@ -251,8 +248,9 @@ pub(crate) async fn spawn_app(
         .clone()
         .expect("no storage configuration");
     storage_config.max_attachment_size = max_attachment_size;
-    storage_config.require_content_length = true;
+    storage_config.use_post_policy = use_post_policy;
     ds.set_storage(Storage::new(storage_config));
+    ds.set_settings(ds_settings);
 
     let as_connector = SimpleAsConnector::new(&auth_service);
 

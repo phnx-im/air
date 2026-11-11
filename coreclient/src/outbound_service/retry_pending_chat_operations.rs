@@ -243,7 +243,7 @@ pub(super) async fn free_self_group(
     txn: &mut WriteDbTransaction<'_>,
     self_group_id: &GroupId,
 ) -> anyhow::Result<Option<VerifiedGroup>> {
-    if PendingChatOperation::load_by_group_id(&mut *txn, self_group_id)
+    if PendingChatOperation::load_operation_by_group_id(&mut *txn, self_group_id)
         .await?
         .is_some()
     {

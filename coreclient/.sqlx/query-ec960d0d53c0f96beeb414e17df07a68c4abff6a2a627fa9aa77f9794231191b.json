@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                    operation_data AS \"operation_data: BlobDecoded<OperationType>\"\n                FROM pending_chat_operation\n                WHERE group_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "operation_data: BlobDecoded<OperationType>",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_chat_operation",
+            "name": "operation_data"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ec960d0d53c0f96beeb414e17df07a68c4abff6a2a627fa9aa77f9794231191b"
+}

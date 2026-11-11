@@ -32,6 +32,7 @@ import 'package:air/features/message_list/delete_for_me_dialog.dart';
 import 'package:air/features/message_list/image_viewer.dart';
 import 'package:air/features/message_list/jump_highlight.dart';
 import 'package:air/features/message_list/message_band.dart';
+import 'package:air/features/message_list/message_details.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/message_list/message_reactions.dart';
 import 'package:air/features/message_list/message_renderer.dart';
@@ -46,6 +47,7 @@ import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/platform/haptics.dart';
+import 'package:air/util/time/app_clock.dart';
 import 'package:flutter/gestures.dart'
     show EagerGestureRecognizer, kSecondaryMouseButton;
 import 'package:flutter/material.dart';
@@ -124,7 +126,13 @@ class TextMessageTile extends HookWidget {
     // message reports how far it got instead, in words, so a row that has been
     // replied to since trades its clock for a delivery state.
     final showsTime = isNewest;
-    final stamp = _stamp(context, showsTime: showsTime);
+    // The end of the chat and the reader's own last word in it. The latter
+    // keeps reporting even once someone has replied since.
+    final stamp = _stamp(
+      context,
+      showsTime: showsTime,
+      isPrimary: isNewest || isNewestOwn,
+    );
 
     // Outside the row rather than around the bubble: the timestamp column hangs
     // off the list's trailing edge, which is the row's own edge and not the
@@ -157,6 +165,8 @@ class TextMessageTile extends HookWidget {
           timestamp: timestamp,
           showsTime: showsTime,
           bubbleKey: bubbleKey,
+          detailsPreview: ({required isHidden}) =>
+              _DetailsPreview(tile: this, isHidden: isHidden),
         ),
       ),
     );
@@ -173,7 +183,11 @@ class TextMessageTile extends HookWidget {
   /// message reports its delivery state whatever that state is. Older rows do
   /// so only while the send is in flight or failed, so a run of own messages
   /// reports its state once, on its last row.
-  Widget? _stamp(BuildContext context, {required bool showsTime}) {
+  Widget? _stamp(
+    BuildContext context, {
+    required bool showsTime,
+    required bool isPrimary,
+  }) {
     // A deleted message reports neither: what it once said and how far it got
     // are both gone with it. Rows deleted before deletions stopped stamping an
     // edit time still carry one, so the marker goes by the status.
@@ -188,9 +202,6 @@ class TextMessageTile extends HookWidget {
           UiMessageStatus.hidden ||
           UiMessageStatus.deleted => false,
         };
-    // The end of the chat and the reader's own last word in it. The latter
-    // keeps reporting even once someone has replied since.
-    final isPrimary = isNewest || isNewestOwn;
     if (!isPrimary && !isEdited && !wantsAttention) return null;
 
     final loc = AppLocalizations.of(context);
@@ -218,6 +229,66 @@ class TextMessageTile extends HookWidget {
         null => null,
       },
       editedLabel: isEdited ? loc.textMessage_edited : null,
+    );
+  }
+}
+
+/// The message as its row shows it at the end of the chat, for the message
+/// details. Read-only, and laid out without the row's inset from the edges of
+/// the conversation.
+class _DetailsPreview extends StatelessWidget {
+  const _DetailsPreview({required this.tile, required this.isHidden});
+
+  final TextMessageTile tile;
+  final bool isHidden;
+
+  @override
+  Widget build(BuildContext context) {
+    final current = MessageRowTokens.current;
+    final tokens = MessageRowTokens(
+      padding: EdgeInsets.zero,
+      avatarSize: current.avatarSize,
+      groupGap: current.groupGap,
+    );
+    final contentMessage = tile.contentMessage;
+    final withParticipant = tile.showSender && !tile.isSender;
+    final profile = withParticipant
+        ? context.select(
+            (UsersCubit cubit) =>
+                cubit.state.profile(userId: contentMessage.sender),
+          )
+        : null;
+
+    return IgnorePointer(
+      child: MessageRow(
+        tokens: tokens,
+        outgoing: tile.isSender,
+        reserveAvatar: withParticipant,
+        avatar: profile != null
+            ? UserAvatar(profile: profile, size: tokens.avatarSize)
+            : null,
+        senderName: profile?.displayName,
+        child: LayoutBuilder(
+          builder: (context, constraints) => MessageBand(
+            outgoing: tile.isSender,
+            bubble: _MessageContent(
+              messageId: tile.messageId,
+              content: contentMessage.content,
+              inReplyToMessage: tile.inReplyToMessage,
+              isSender: tile.isSender,
+              senderId: contentMessage.sender,
+              isHidden: isHidden,
+              enableSelection: false,
+              maxWidth: constraints.maxWidth,
+            ),
+            stamp: tile._stamp(context, showsTime: true, isPrimary: true),
+            affordance: null,
+            reactions: tile.reactions,
+            ownUserId: tile.ownUserId,
+            onTapReaction: (_) {},
+          ),
+        ),
+      ),
     );
   }
 }
@@ -289,6 +360,7 @@ class _MessageView extends HookWidget {
     required this.timestamp,
     required this.showsTime,
     required this.bubbleKey,
+    required this.detailsPreview,
   });
 
   /// The stamp under the bubble, or null on a row that carries none.
@@ -310,6 +382,9 @@ class _MessageView extends HookWidget {
   /// Keys the bubble for everything that has to find it: the menus that anchor
   /// on it, and the time reveal around the row.
   final GlobalKey bubbleKey;
+
+  /// The message as the message details show it.
+  final Widget Function({required bool isHidden}) detailsPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -361,6 +436,7 @@ class _MessageView extends HookWidget {
         isMobilePlatform: isMobilePlatform,
         bubbleKey: bubbleKey,
         cursorPosition: cursorPosition,
+        detailsPreview: () => detailsPreview(isHidden: isHidden),
       ),
       isDeleted: isDeleted,
       isHidden: isHidden,
@@ -442,6 +518,7 @@ class _MessageShell extends StatelessWidget {
       context,
       commands: commands,
       content: contentMessage.content,
+      editableUntil: contentMessage.editableUntil,
       isSender: isSender,
       isDeleted: isDeleted,
       isReplyable: isReplyable,
@@ -747,6 +824,7 @@ class _MessageCommands {
     required this.isMobilePlatform,
     required this.bubbleKey,
     required this.cursorPosition,
+    required this.detailsPreview,
   });
 
   final BuildContext context;
@@ -760,6 +838,8 @@ class _MessageCommands {
   /// Where the last right-click landed, so a reaction bar raised from the
   /// context menu opens at the pointer.
   final ObjectRef<Offset?> cursorPosition;
+
+  final Widget Function() detailsPreview;
 
   Rect? bubbleRect() => _globalRectOf(bubbleKey);
 
@@ -775,6 +855,14 @@ class _MessageCommands {
 
   void edit() {
     context.read<ChatDetailsCubit>().editMessage(messageId: messageId);
+  }
+
+  void showDetails() {
+    showMessageDetails(
+      context,
+      messageId: messageId,
+      preview: detailsPreview(),
+    );
   }
 
   void sendReaction(String emoji) {
@@ -852,6 +940,7 @@ List<MessageAction> _messageActions(
   BuildContext context, {
   required _MessageCommands commands,
   required UiMimiContent content,
+  required DateTime? editableUntil,
   required bool isSender,
   required bool isDeleted,
   required bool isReplyable,
@@ -862,6 +951,8 @@ List<MessageAction> _messageActions(
   final plainBody = content.plainBody?.trim();
   final attachments = content.attachments;
   final messageId = commands.messageId;
+  final now = AppClock.maybeOf(context)?.value ?? DateTime.now();
+  final isEditable = editableUntil != null && now.isBefore(editableUntil);
 
   return [
     if (isReplyable)
@@ -876,11 +967,17 @@ List<MessageAction> _messageActions(
         leading: const AppIcon.copy(size: _menuIconSize),
         onSelected: () => Clipboard.setData(ClipboardData(text: plainBody)),
       ),
-    if (isSender && attachments.isEmpty && !isDeleted)
+    if (isSender && attachments.isEmpty && isEditable)
       MessageAction(
         label: loc.messageContextMenu_edit,
         leading: const AppIcon.pencil(size: _menuIconSize),
         onSelected: commands.edit,
+      ),
+    if (isReplyable)
+      MessageAction(
+        label: loc.messageContextMenu_info,
+        leading: const AppIcon.info(size: _menuIconSize),
+        onSelected: commands.showDetails,
       ),
     MessageAction(
       label: loc.messageContextMenu_delete,

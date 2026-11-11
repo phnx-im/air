@@ -21,12 +21,11 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatId, ChatStatus, MessageId,
+    Chat, ChatId, ChatStatus, ChatType, MessageId,
     chats::StatusRecord,
     db::access::WriteDbTransaction,
     groups::{
-        Group, handle_group_closed_on_ds, handle_group_not_found_on_ds,
-        openmls_provider::AirOpenMlsProvider,
+        Group, handle_group_gone_on_ds, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup,
     },
     job::pending_chat_operation::PendingChatOperation,
     outbound_service::{
@@ -46,7 +45,18 @@ impl OutboundService {
         self.context
             .db
             .with_write_transaction(async |txn| {
-                self.schedule_receipts(txn, chat_id, statuses).await
+                let chat = Chat::load(&mut *txn, &chat_id).await?;
+                let receipts_chat_id = match chat.as_ref().map(Chat::chat_type) {
+                    Some(ChatType::PendingConnection(_)) => {
+                        let Some(self_chat) = SelfGroup::load_chat(&mut *txn).await? else {
+                            return Ok(());
+                        };
+                        self_chat.id()
+                    }
+                    _ => chat_id,
+                };
+                self.schedule_receipts(txn, receipts_chat_id, statuses)
+                    .await
             })
             .await?;
         self.notify_work();
@@ -210,11 +220,7 @@ impl OutboundServiceContext {
             if ds_error.is_not_found() {
                 self.db
                     .with_write_transaction(async |txn| {
-                        if ds_error.is_group_closed() {
-                            handle_group_closed_on_ds(txn, chat.group_id()).await
-                        } else {
-                            handle_group_not_found_on_ds(txn, chat.group_id()).await
-                        }
+                        handle_group_gone_on_ds(txn, chat.group_id(), &ds_error).await
                     })
                     .await
                     .map_err(OutboundServiceError::fatal)?;
@@ -357,11 +363,7 @@ impl OutboundServiceContext {
             if ds_error.is_not_found() {
                 self.db
                     .with_write_transaction(async |txn| {
-                        if ds_error.is_group_closed() {
-                            handle_group_closed_on_ds(txn, chat.group_id()).await
-                        } else {
-                            handle_group_not_found_on_ds(txn, chat.group_id()).await
-                        }
+                        handle_group_gone_on_ds(txn, chat.group_id(), &ds_error).await
                     })
                     .await
                     .map_err(OutboundServiceError::fatal)?;
@@ -440,7 +442,7 @@ impl UnsentReceipt {
             statuses: statuses
                 .into_iter()
                 .map(|(id, status)| PerMessageStatus {
-                    mimi_id: id.as_ref().to_vec(),
+                    mimi_id: (*id).into(),
                     status,
                 })
                 .collect(),
@@ -476,7 +478,7 @@ mod tests {
 
     fn status(mimi_id: u8, status: MessageStatus) -> PerMessageStatus {
         PerMessageStatus {
-            mimi_id: vec![mimi_id],
+            mimi_id: mimi_content::MimiId([mimi_id; 32]),
             status,
         }
     }

@@ -49,6 +49,7 @@ mod reactions;
 pub(crate) mod receipt_queue;
 mod receipts;
 mod redeemed_tokens;
+mod request_closes;
 pub(crate) mod resync;
 mod retry;
 mod retry_pending_chat_operations;
@@ -235,6 +236,11 @@ impl<C: OutboundServiceWork> OutboundService<C> {
         self.notify_work()
     }
 
+    /// Wakes the outbound service to close freshly parked redundant requests.
+    pub(crate) fn notify_request_closes(&self) -> WaitForDoneFuture {
+        self.notify_work()
+    }
+
     /// Wakes the outbound service to run freshly enqueued profile fetches.
     pub(crate) fn notify_profile_fetches(&self) -> WaitForDoneFuture {
         self.notify_work()
@@ -248,6 +254,12 @@ impl<C: OutboundServiceWork> OutboundService<C> {
 
     /// Wakes the outbound service to run a key package upload that was made due.
     pub(crate) fn notify_key_package_upload(&self) -> WaitForDoneFuture {
+        self.notify_work()
+    }
+
+    /// Wakes the outbound service to publish the connection packages of a
+    /// username whose registration did not finish.
+    pub(crate) fn notify_pending_usernames(&self) -> WaitForDoneFuture {
         self.notify_work()
     }
 
@@ -438,6 +450,10 @@ impl OutboundServiceContext {
         let mut stale_groups = Box::pin(self.send_pending_chat_operations(run_token))
             .await
             .or_abort("pending chat operations")?;
+
+        Box::pin(self.close_redundant_requests(run_token))
+            .await
+            .or_abort("redundant request closes")?;
 
         self.send_queued_receipts(run_token)
             .await

@@ -211,6 +211,54 @@ async fn sibling_holding_request_follows_accept() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn sibling_holding_request_from_a_virtual_client_follows_accept() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let alice2 = alice.add_synced_device().await;
+    // bob2 makes bob a VC, so his group creation stores a snapshot at epoch 0.
+    // Alice's join snapshot must not collide with it.
+    let bob2 = bob.add_synced_device().await;
+    let record = setup.add_username(&alice).await;
+    alice.outbound_service().run_once().await;
+    alice2.drain().await;
+
+    bob.add_contact(record.username.clone(), record.hash, setup.apq_groups)
+        .await
+        .unwrap()
+        .unwrap();
+    bob2.drain().await;
+    let chat_id = alice.receive_connection_offer(&record).await;
+    alice.outbound_service().run_once().await;
+    alice2.drain().await;
+    assert_eq!(
+        pending_chats_from(&alice2, bob.user_id()).await,
+        vec![chat_id]
+    );
+
+    alice
+        .accept_contact_request(chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+
+    alice2.drain().await;
+    assert!(pending_chats_from(&alice2, bob.user_id()).await.is_empty());
+    assert_eq!(
+        alice2.expect_chat(chat_id).await.chat_type(),
+        &ChatType::Connection(bob.user_id().clone())
+    );
+    assert_eq!(
+        alice2.contact(bob.user_id()).await.unwrap().chat_id,
+        chat_id
+    );
+
+    bob.drain().await;
+    bob2.drain().await;
+    send_and_receive(&alice2, &[&alice, &bob, &bob2], chat_id, "hello bob").await;
+    send_and_receive(&bob2, &[&bob, &alice, &alice2], chat_id, "hello alice").await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn sibling_moves_older_requests_into_accepted_chat() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;

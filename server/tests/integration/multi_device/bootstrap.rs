@@ -436,6 +436,82 @@ async fn sibling_mirrors_targeted_message_connection() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn siblings_accept_request_at_the_same_time() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    let group_chat_id = setup.connected_group(&bob, &[&alice, &charlie]).await;
+
+    let charlie2 = charlie.add_synced_device().await;
+    // alice follows charlie2's onboarding into the shared group.
+    alice.drain().await;
+
+    let chat_id = alice
+        .add_contact_from_group(group_chat_id, charlie.user_id().clone(), setup.apq_groups)
+        .await
+        .unwrap();
+
+    charlie.drain().await;
+    charlie2.drain().await;
+    charlie
+        .accept_contact_request(chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+
+    // The sibling has not processed the join echo yet.
+    let accepted_chat_id = charlie2
+        .accept_contact_request(chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(accepted_chat_id, chat_id);
+
+    // The late join echo finds the group already installed.
+    let processed = charlie2.drain().await;
+    assert!(
+        processed.new_chats.is_empty() && processed.new_connections.is_empty(),
+        "the late join echo must not create a chat"
+    );
+
+    charlie.drain().await;
+    assert_same_epoch_and_leaf(&charlie2, &charlie, chat_id, "after the sibling's accept").await;
+
+    let chat = charlie2.expect_chat(chat_id).await;
+    assert_eq!(
+        chat.chat_type(),
+        &ChatType::Connection(alice.user_id().clone())
+    );
+    assert_eq!(chat.status(), &ChatStatus::Active);
+    assert!(
+        charlie2.contact(alice.user_id()).await.is_some(),
+        "the sibling should have the contact"
+    );
+
+    alice.drain().await;
+    send_and_receive(
+        &charlie2,
+        &[&alice, &charlie],
+        chat_id,
+        "hello alice, from the sibling",
+    )
+    .await;
+    send_and_receive(
+        &charlie,
+        &[&alice, &charlie2],
+        chat_id,
+        "hello alice, from charlie",
+    )
+    .await;
+    send_and_receive(
+        &alice,
+        &[&charlie, &charlie2],
+        chat_id,
+        "hello charlie, from alice",
+    )
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn offline_sibling_catches_up_on_created_group() {
     const TEXT: &str = "sent while the sibling was away";
 
@@ -770,4 +846,41 @@ async fn failed_offer_send_keeps_created_group() {
         &ChatType::TargetedMessageConnection(charlie.user_id().clone())
     );
     assert_same_epoch_and_leaf(&alice, &alice2, chat_id, "after the creation echo").await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn lost_creation_answer_is_confirmed_by_the_bootstrap_echo() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice2 = alice.add_synced_device().await;
+    let chats_before = alice.ordered_chat_ids().await.unwrap();
+
+    let create_group = if setup.apq_groups {
+        "CreateApqGroup"
+    } else {
+        "CreateGroup"
+    };
+    setup
+        .listener_control_handle()
+        .set_drop_next_response_to(create_group);
+    alice
+        .create_chat("answer lost".to_owned(), None, setup.apq_groups)
+        .await
+        .expect_err("the lost answer should surface as an error");
+    setup.listener_control_handle().set_normal();
+    assert_eq!(alice.ordered_chat_ids().await.unwrap(), chats_before);
+
+    // The echo that bootstraps the sibling also confirms the creation
+    alice.drain().await;
+    let chat_id = alice
+        .ordered_chat_ids()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|chat_id| !chats_before.contains(chat_id))
+        .expect("the echo should create the chat");
+    assert_eq!(alice.pending_group_creations().await.unwrap(), 0);
+
+    alice2.drain().await;
+    assert_same_epoch_and_leaf(&alice, &alice2, chat_id, "after the lost answer").await;
 }

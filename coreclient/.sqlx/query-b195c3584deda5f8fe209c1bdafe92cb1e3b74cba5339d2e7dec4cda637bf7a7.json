@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM closing_connection_request WHERE request_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "b195c3584deda5f8fe209c1bdafe92cb1e3b74cba5339d2e7dec4cda637bf7a7"
+}

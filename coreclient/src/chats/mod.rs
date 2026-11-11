@@ -24,9 +24,13 @@ use crate::{
 
 pub use draft::MessageDraft;
 pub(crate) use {
-    declined::DeclinedConnectionRequest, pending::PendingConnectionRequest, status::StatusRecord,
+    closing::{ClosingConnectionRequest, DueClose},
+    declined::DeclinedConnectionRequest,
+    pending::PendingConnectionRequest,
+    status::StatusRecord,
 };
 
+mod closing;
 pub(crate) mod connection_requests;
 mod declined;
 mod draft;
@@ -178,7 +182,7 @@ impl Chat {
         Self {
             id: ChatId::try_from(&group_id).unwrap(),
             group_id,
-            last_read: Utc::now(),
+            last_read: DateTime::UNIX_EPOCH,
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::PendingConnection(user_id),

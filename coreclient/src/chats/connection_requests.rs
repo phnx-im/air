@@ -17,11 +17,16 @@
 //! the self-group too. A declined request is remembered, so a late copy of it
 //! is dropped. Expiry needs no message, since every device expires a request
 //! at the same time, see [`request_expiry`].
+//!
+//! A request via a username whose sender is a contact already is closed on
+//! the DS, see [`ClosingConnectionRequest`]. The close tells its sender that
+//! the username belongs to a contact. The user sees nothing of it. Siblings
+//! need no message either. They close the request themselves or never had it.
 
 use aircommon::{
     codec::PersistenceCodec,
     credentials::UserCredential,
-    identifiers::{UserId, Username},
+    identifiers::{MimiId, UserId, Username},
     messages::{client_as::ConnectionOfferHash, connection_package::ConnectionPackageHash},
     time::TimeStamp,
 };
@@ -39,8 +44,8 @@ use uuid::Uuid;
 use crate::{
     Chat, ChatId, ChatMessage, ChatStatus, ChatType, Contact, SystemMessage,
     chats::{
-        DeclinedConnectionRequest, PendingConnectionRequest, messages::TimestampedMessage,
-        persistence, request_expiry,
+        ClosingConnectionRequest, DeclinedConnectionRequest, PendingConnectionRequest,
+        messages::TimestampedMessage, persistence, request_expiry,
     },
     clients::{
         CoreUser,
@@ -162,8 +167,14 @@ impl IncomingRequest {
             ),
         };
         request.store(&mut *txn).await?;
-        let announcement = TimestampedMessage::system_message(announcement, received_at);
-        CoreUser::store_new_messages(txn, chat_id, vec![announcement]).await?;
+        // Every device announces the request under the same ID, so opening
+        // the chat on one of them reads the announcement on all of them.
+        ChatMessage {
+            event_mimi_id: Some(MimiId::for_connection_request(request.group_id())),
+            ..ChatMessage::new_system_message(chat_id, received_at, announcement)
+        }
+        .store(&mut *txn)
+        .await?;
 
         let host = rehost(txn, chat_id).await?.unwrap_or(chat_id);
         Ok(StoredRequest {
@@ -193,7 +204,10 @@ async fn rehost(
     let ChatType::PendingConnection(sender) = old.chat_type() else {
         anyhow::bail!("chat {chat_id} with pending requests is not an incoming request");
     };
-    let chat = Chat::new_pending_connection_chat(newest.group_id().clone(), sender.clone());
+    let chat = Chat {
+        last_read: old.last_read(),
+        ..Chat::new_pending_connection_chat(newest.group_id().clone(), sender.clone())
+    };
     chat.store(&mut *txn).await?;
     ChatMessage::move_to_chat(&mut *txn, chat_id, chat.id()).await?;
     PendingConnectionRequest::move_to_chat(&mut *txn, chat_id, chat.id()).await?;
@@ -232,14 +246,38 @@ pub(crate) async fn is_connected_contact(
     })
 }
 
-/// Returns true if a request is known already or its sender is a connected
-/// contact, so there is nothing to store.
-pub(crate) async fn is_settled(
+/// Why there is nothing to store for an incoming request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Settlement {
+    /// The request is known already.
+    Known,
+    /// Its sender is a connected contact.
+    ConnectedContact,
+}
+
+/// Returns why there is nothing to store for a request, if there is nothing.
+pub(crate) async fn settlement(
     mut txn: impl ReadTransaction,
     request_id: ChatId,
     sender: &UserId,
+) -> sqlx::Result<Option<Settlement>> {
+    if is_known(&mut txn, request_id).await? {
+        return Ok(Some(Settlement::Known));
+    }
+    if is_connected_contact(txn, sender).await? {
+        return Ok(Some(Settlement::ConnectedContact));
+    }
+    Ok(None)
+}
+
+/// Returns true if a request is known already or its sender is a connected
+/// contact, so there is nothing to store.
+pub(crate) async fn is_settled(
+    txn: impl ReadTransaction,
+    request_id: ChatId,
+    sender: &UserId,
 ) -> sqlx::Result<bool> {
-    Ok(is_known(&mut txn, request_id).await? || is_connected_contact(txn, sender).await?)
+    Ok(settlement(txn, request_id, sender).await?.is_some())
 }
 
 /// Helper struct for notifications, to track the effect of connection requests.
@@ -777,13 +815,21 @@ async fn close_incoming_chat(
     Ok(())
 }
 
-/// Clean up the pending requests when the users accepted the connection.
+/// Clean up the pending requests of `sender` in the chat when the users
+/// accepted the connection through the request `accepted`. The other requests
+/// are redundant now.
 pub(crate) async fn settle_accepted(
     txn: &mut WriteDbTransaction<'_>,
     chat_id: ChatId,
+    accepted: ChatId,
+    sender: &UserId,
 ) -> anyhow::Result<()> {
     for request in PendingConnectionRequest::load_for_chat(&mut *txn, chat_id).await? {
-        discard_request_state(txn, request).await?;
+        if request.request_id == accepted {
+            discard_request_state(txn, request).await?;
+        } else {
+            discard_redundant_request(txn, request, sender).await?;
+        }
     }
     Ok(())
 }
@@ -793,12 +839,13 @@ pub(crate) async fn settle_accepted(
 async fn discard_redundant_chat(
     txn: &mut WriteDbTransaction<'_>,
     chat_id: ChatId,
+    sender: &UserId,
 ) -> anyhow::Result<()> {
     let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
         return Ok(());
     };
     for request in PendingConnectionRequest::load_for_chat(&mut *txn, chat_id).await? {
-        discard_request_state(txn, request).await?;
+        discard_redundant_request(txn, request, sender).await?;
     }
     Group::delete_from_db(txn, chat.group_id()).await?;
     Chat::delete(&mut *txn, chat_id).await?;
@@ -811,8 +858,43 @@ pub(crate) async fn discard_requests_from(
     sender: &UserId,
 ) -> anyhow::Result<()> {
     if let Some(chat_id) = PendingConnectionRequest::chat_of_sender(&mut *txn, sender).await? {
-        discard_redundant_chat(txn, chat_id).await?;
+        discard_redundant_chat(txn, chat_id, sender).await?;
     }
+    Ok(())
+}
+
+/// Discards a pending request of `sender`, who is a contact by now. A request
+/// via a username is parked for closing on the DS, which tells its sender. A
+/// request via a group stays with its sender, who knows our user id.
+async fn discard_redundant_request(
+    txn: &mut WriteDbTransaction<'_>,
+    request: PendingConnectionRequest,
+    sender: &UserId,
+) -> anyhow::Result<()> {
+    if let Some(connection_offer_hash) = request.connection_offer_hash {
+        ClosingConnectionRequest {
+            request_id: request.request_id,
+            sender: sender.clone(),
+            connection_info: request.connection_info.clone(),
+            connection_offer_hash,
+            created_at: TimeStamp::now(),
+        }
+        .store(&mut *txn)
+        .await?;
+    }
+    discard_request_state(txn, request).await
+}
+
+/// Parks closing `request` on the DS, whose sender is a connected contact. The
+/// key of the connection package it consumed goes right away, since the offer
+/// needs no more decryption.
+pub(crate) async fn park_close(
+    txn: &mut WriteDbTransaction<'_>,
+    request: ClosingConnectionRequest,
+    connection_package_hash: &ConnectionPackageHash,
+) -> anyhow::Result<()> {
+    request.store(&mut *txn).await?;
+    delete_consumed_package_key(txn, connection_package_hash).await?;
     Ok(())
 }
 
@@ -922,13 +1004,17 @@ mod tests {
         messages::{FriendshipToken, connection_package::ConnectionPackage},
     };
     use chrono::{DateTime, Utc};
+    use mimi_content::{MessageStatus, MessageStatusReport, PerMessageStatus};
     use uuid::Uuid;
 
     use airprotos::client::self_group::BlockedContactEntry;
 
     use crate::{
-        ChatAttributes, UsernameRecord,
-        chats::messages::{EventMessage, Message},
+        ChatAttributes, MessageId, UsernameRecord,
+        chats::{
+            StatusRecord,
+            messages::{EventMessage, Message},
+        },
         clients::{
             block_contact::{pending::BlockedState, persistence::apply_blocked_contacts_update},
             connection_offer::FriendshipPackage,
@@ -1021,6 +1107,33 @@ mod tests {
             .into_iter()
             .map(|request| request.request_id)
             .collect())
+    }
+
+    fn own_user() -> UserId {
+        UserId::new(Uuid::from_u128(1), "localhost".parse().unwrap())
+    }
+
+    /// The unread count of the chat and the one of the app badge.
+    async fn unread_chat_and_badge(
+        txn: &mut WriteDbTransaction<'_>,
+        chat_id: ChatId,
+    ) -> anyhow::Result<(usize, usize)> {
+        let own_user = own_user();
+        Ok((
+            Chat::unread_messages_count(&mut *txn, chat_id, &own_user).await?,
+            Chat::global_unread_message_count(&mut *txn, &own_user).await?,
+        ))
+    }
+
+    /// Marks the chat as read up to its newest message, as opening it does.
+    async fn open(
+        txn: &mut WriteDbTransaction<'_>,
+        chat_id: ChatId,
+    ) -> anyhow::Result<(bool, Vec<(MessageId, MimiId)>)> {
+        let newest = ChatMessage::last_message(&mut *txn, chat_id)
+            .await?
+            .context("no message in the chat")?;
+        Ok(Chat::mark_as_read_until_message_id(txn, chat_id, newest.id(), &own_user()).await?)
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1145,10 +1258,154 @@ mod tests {
             receive_request_from(txn, &sender, "ellie-03", at(0)).await?;
             let newest = receive_request_from(txn, &sender, "ellie-04", at(60)).await?;
 
-            settle_accepted(txn, newest.chat_id).await?;
+            settle_accepted(txn, newest.chat_id, newest.chat_id, &sender).await?;
 
             assert!(request_ids(txn, newest.chat_id).await?.is_empty());
             assert!(Chat::load(&mut *txn, &newest.chat_id).await?.is_some());
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_request_is_unread_until_its_chat_is_opened() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let sender = sender()?;
+            let first = receive_request_from(txn, &sender, "ellie-03", at(0)).await?;
+            assert_eq!(unread_chat_and_badge(txn, first.chat_id).await?, (1, 1));
+
+            open(txn, first.chat_id).await?;
+            assert_eq!(unread_chat_and_badge(txn, first.chat_id).await?, (0, 0));
+
+            // The newer request moves the chat, and only its announcement is
+            // new.
+            let second = receive_request_from(txn, &sender, "ellie-04", at(60)).await?;
+            assert_eq!(second.moved_from, Some(first.chat_id));
+            assert_eq!(unread_chat_and_badge(txn, second.chat_id).await?, (1, 1));
+
+            open(txn, second.chat_id).await?;
+            assert_eq!(unread_chat_and_badge(txn, second.chat_id).await?, (0, 0));
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn every_unopened_request_of_a_sender_is_unread() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let sender = sender()?;
+            receive_request_from(txn, &sender, "ellie-03", at(0)).await?;
+            let newest = receive_request_from(txn, &sender, "ellie-04", at(60)).await?;
+
+            assert_eq!(unread_chat_and_badge(txn, newest.chat_id).await?, (2, 2));
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_accepted_request_is_no_longer_unread() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let sender = sender()?;
+            let stored = receive_request_from(txn, &sender, "ellie-03", at(0)).await?;
+            let chat = Chat::load(&mut *txn, &stored.chat_id).await?.unwrap();
+
+            chat.set_chat_type(&mut *txn, &ChatType::Connection(sender.clone()))
+                .await?;
+            settle_accepted(txn, stored.chat_id, stored.chat_id, &sender).await?;
+
+            assert_eq!(unread_chat_and_badge(txn, stored.chat_id).await?, (0, 0));
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_ended_request_is_no_longer_unread() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let stored = receive_request_from(txn, &sender()?, "ellie-03", at(0)).await?;
+
+            remove_unavailable(txn, stored.chat_id).await?;
+
+            assert_eq!(unread_chat_and_badge(txn, stored.chat_id).await?, (0, 0));
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn opening_a_request_reports_its_announcement() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let stored = receive_request_from(txn, &sender()?, "ellie-03", at(0)).await?;
+            let request = PendingConnectionRequest::load(&mut *txn, stored.chat_id)
+                .await?
+                .context("no request")?;
+            let announcement = ChatMessage::last_message(&mut *txn, stored.chat_id)
+                .await?
+                .context("no announcement")?;
+
+            let (marked, reported) = open(txn, stored.chat_id).await?;
+
+            assert!(marked);
+            assert_eq!(
+                reported,
+                vec![(
+                    announcement.id(),
+                    MimiId::for_connection_request(request.group_id())
+                )]
+            );
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn opening_an_accepted_request_reports_nothing() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let sender = sender()?;
+            let stored = receive_request_from(txn, &sender, "ellie-03", at(0)).await?;
+            let chat = Chat::load(&mut *txn, &stored.chat_id).await?.unwrap();
+            chat.set_chat_type(&mut *txn, &ChatType::Connection(sender.clone()))
+                .await?;
+            settle_accepted(txn, stored.chat_id, stored.chat_id, &sender).await?;
+
+            let (marked, reported) = open(txn, stored.chat_id).await?;
+
+            assert!(marked);
+            assert_eq!(reported, vec![]);
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_siblings_report_opens_the_request() -> anyhow::Result<()> {
+        let db = db().await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            let own_user = own_user();
+            let stored = receive_request_from(txn, &sender()?, "ellie-03", at(0)).await?;
+            let request = PendingConnectionRequest::load(&mut *txn, stored.chat_id)
+                .await?
+                .context("no request")?;
+            let report = MessageStatusReport {
+                statuses: vec![PerMessageStatus {
+                    mimi_id: MimiId::for_connection_request(request.group_id()).into(),
+                    status: MessageStatus::Read,
+                }],
+            };
+            let record = StatusRecord::borrowed(&own_user, report, at(5));
+            record.store_report(txn).await?;
+
+            let opened = record.advance_read_markers(txn, &own_user).await?;
+
+            assert_eq!(opened, vec![stored.chat_id]);
+            assert_eq!(unread_chat_and_badge(txn, stored.chat_id).await?, (0, 0));
             Ok(())
         })
         .await
@@ -1986,8 +2243,8 @@ mod tests {
             let sender = sender()?;
             let stored = receive_request_from(txn, &sender, "ellie-03", at(0)).await?;
             let chat = Chat::load(&mut *txn, &stored.chat_id).await?.unwrap();
-            settle_accepted(txn, stored.chat_id).await?;
-            chat.set_chat_type(&mut *txn, &ChatType::Connection(sender))
+            settle_accepted(txn, stored.chat_id, stored.chat_id, &sender).await?;
+            chat.set_chat_type(&mut *txn, &ChatType::Connection(sender.clone()))
                 .await?;
 
             let effects = apply_connection_requests_update(

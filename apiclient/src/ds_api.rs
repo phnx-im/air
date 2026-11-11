@@ -29,20 +29,24 @@ use aircommon::{
 pub use airprotos::delivery_service::v1::ProvisionAttachmentResponse;
 use airprotos::{
     common::v1::{
-        AttachmentTooLargeDetail, DeviceLimitReachedDetail, StatusDetails, StatusDetailsCode,
+        AttachmentTooLargeDetail, DeviceLimitReachedDetail,
+        QualifiedGroupId as QualifiedGroupIdProto, StatusDetails, StatusDetailsCode,
         status_details::{self, Detail},
     },
     convert::{RefInto, TryRefInto},
     delivery_service::v1::{
-        AddUsersInfo, ApqAddUsersInfo, ApqAssistedMlsMessage, ApqDeleteGroupPayload,
-        ApqGroupOperationPayload, ApqJoinConnectionGroupRequest, ApqResyncPayload,
-        ApqSelfRemovePayload, ConnectionGroupInfoRequest, CreateApqGroupPayload,
-        CreateGroupPayload, DeleteGroupPayload, EpochSnapshotRequest, ExternalCommitInfoRequest,
+        AddUsersInfo, ApqAddUsersInfo, ApqAssistedMlsMessage, ApqCloseConnectionGroupRequest,
+        ApqDeleteGroupPayload, ApqGroupOperationPayload, ApqJoinConnectionGroupRequest,
+        ApqResyncPayload, ApqSelfRemovePayload, CloseConnectionGroupRequest,
+        ConnectionGroupInfoRequest, CreateApqGroupPayload, CreateGroupPayload,
+        CreateGroupV2PreparePayload, CreateGroupV2Request, CreateGroupV2Response,
+        DeleteGroupPayload, EpochSnapshotRequest, ExternalCommitInfoRequest,
         GetAttachmentUrlPayload, GroupInfo, GroupOperationPayload, GroupSessionData,
         IndexedEncryptedUserProfileKey, JoinConnectionGroupRequest, MlsMessage,
         ProvisionAttachmentPayload, RatchetTree, RequestGroupIdRequest, ResyncPayload,
         SelfRemovePayload, SendMessageCollisionTags, SendMessagePayload, StorageObjectType,
         TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
+        create_group_v2_request, create_group_v2_response,
     },
     validation::MissingFieldExt,
 };
@@ -55,7 +59,9 @@ use mls_assist::{
         tls_codec::DeserializeBytes as _,
     },
 };
-use tonic::Code;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+use tonic::{Code, Streaming};
 use tracing::error;
 
 use crate::{ApiClient, ClassifyRequestError, RequestErrorKind, classify_status};
@@ -168,6 +174,110 @@ impl DsRequestError {
     }
 }
 
+/// The group ids and group profile upload a group creation stream handed out.
+#[derive(Debug)]
+pub struct DsGroupReservation {
+    pub group_id: GroupId,
+    pub pq_group_id: GroupId,
+    /// Set when a group profile upload was requested and the server has
+    /// storage configured.
+    pub group_profile_provisioning: Option<ProvisionAttachmentResponse>,
+}
+
+/// The open create step of a group creation stream.
+///
+/// Dropping it closes the stream without creating the group.
+#[derive(Debug)]
+pub struct DsGroupCreator {
+    api_client: ApiClient,
+    requests: mpsc::Sender<CreateGroupV2Request>,
+    responses: Streaming<CreateGroupV2Response>,
+}
+
+impl DsGroupCreator {
+    /// Creates the APQ group. `params` must use both ids of the reservation.
+    pub async fn create(
+        mut self,
+        params: CreateGroupParamsOut,
+        group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<(), DsRequestError> {
+        let payload = match self
+            .api_client
+            .create_group_payload(params, group_state_ear_key)?
+        {
+            CreateGroupPayloads::Apq(payload) => payload,
+            CreateGroupPayloads::Classical(_) => {
+                error!("group creation streams only create APQ groups");
+                return Err(DsRequestError::LibraryError);
+            }
+        };
+        let step = create_group_v2_request::Step::Create(payload);
+        if self
+            .requests
+            .send(CreateGroupV2Request { step: Some(step) })
+            .await
+            .is_err()
+        {
+            // The server closed the stream, and its last response carries the
+            // reason.
+            next_create_group_v2_step(&mut self.responses).await?;
+            error!("group creation stream closed before the create step");
+            return Err(DsRequestError::UnexpectedResponse);
+        }
+        match next_create_group_v2_step(&mut self.responses).await? {
+            create_group_v2_response::Step::Created(_) => Ok(()),
+            create_group_v2_response::Step::Reserved(_) => {
+                error!("protocol violation: expected created step");
+                Err(DsRequestError::UnexpectedResponse)
+            }
+        }
+    }
+}
+
+enum CreateGroupPayloads {
+    Classical(CreateGroupPayload),
+    Apq(CreateApqGroupPayload),
+}
+
+fn group_profile_size_to_i64(size: Option<usize>) -> Result<Option<i64>, DsRequestError> {
+    size.map(i64::try_from)
+        .transpose()
+        .inspect_err(|_| {
+            error!("Failed to convert group profile size to i64");
+        })
+        .map_err(|_| DsRequestError::LibraryError)
+}
+
+/// Parses a group id the server must have sent in field `name`.
+fn response_qgid(
+    qgid: Option<QualifiedGroupIdProto>,
+    name: &'static str,
+) -> Result<QualifiedGroupId, DsRequestError> {
+    qgid.ok_or_missing_field(name)
+        .map_err(|error| {
+            error!(%error, "unexpected response");
+            DsRequestError::UnexpectedResponse
+        })?
+        .try_ref_into()
+        .map_err(|error| {
+            error!(%error, "unexpected response");
+            DsRequestError::UnexpectedResponse
+        })
+}
+
+async fn next_create_group_v2_step(
+    responses: &mut Streaming<CreateGroupV2Response>,
+) -> Result<create_group_v2_response::Step, DsRequestError> {
+    responses
+        .message()
+        .await?
+        .and_then(|response| response.step)
+        .ok_or_else(|| {
+            error!("protocol violation: missing group creation stream step");
+            DsRequestError::UnexpectedResponse
+        })
+}
+
 pub enum DsAttachmentTarget<'a> {
     Group {
         group_state_ear_key: &'a GroupStateEarKey,
@@ -187,6 +297,80 @@ impl ApiClient {
         signing_key: &UserSigningKey,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<(), DsRequestError> {
+        match self.create_group_payload(params, group_state_ear_key)? {
+            CreateGroupPayloads::Classical(payload) => {
+                let request = payload.sign(signing_key)?;
+                self.ds_grpc_client().create_group(request).await?;
+            }
+            CreateGroupPayloads::Apq(payload) => {
+                let request = payload.sign(signing_key)?;
+                self.ds_grpc_client().create_apq_group(request).await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Opens a group creation stream for an APQ group: authenticates as the
+    /// user of `signing_key`, and reserves fresh T and PQ group ids and
+    /// optionally the upload of a group profile of the given size.
+    ///
+    /// Each call consumes one unit of the user's group creation allowance,
+    /// whether or not the group is created later. The group must be created
+    /// with [`DsGroupCreator::create`] before the server's deadline.
+    pub async fn ds_prepare_group_creation(
+        &self,
+        signing_key: &UserSigningKey,
+        group_profile_size: Option<usize>,
+    ) -> Result<(DsGroupReservation, DsGroupCreator), DsRequestError> {
+        let group_profile_size = group_profile_size_to_i64(group_profile_size)?;
+        let payload = CreateGroupV2PreparePayload {
+            client_metadata: Some(self.metadata().clone()),
+            user_id: Some(signing_key.credential().user_id().clone().into()),
+            group_profile_size,
+        };
+        let prepare = payload.sign(signing_key)?;
+
+        let (requests, requests_rx) = mpsc::channel(1);
+        requests
+            .send(CreateGroupV2Request {
+                step: Some(create_group_v2_request::Step::Prepare(prepare)),
+            })
+            .await
+            .map_err(|_| DsRequestError::LibraryError)?;
+        let mut responses = self
+            .ds_grpc_client()
+            .create_group_v2(ReceiverStream::new(requests_rx))
+            .await?
+            .into_inner();
+
+        let reserved = match next_create_group_v2_step(&mut responses).await? {
+            create_group_v2_response::Step::Reserved(reserved) => reserved,
+            create_group_v2_response::Step::Created(_) => {
+                error!("protocol violation: expected reserved step");
+                return Err(DsRequestError::UnexpectedResponse);
+            }
+        };
+        let group_id = response_qgid(reserved.group_id, "group_id")?;
+        let pq_group_id = response_qgid(reserved.pq_group_id, "pq_group_id")?;
+
+        let reservation = DsGroupReservation {
+            group_id: group_id.into(),
+            pq_group_id: pq_group_id.into(),
+            group_profile_provisioning: reserved.group_profile_provisioning,
+        };
+        let creator = DsGroupCreator {
+            api_client: self.clone(),
+            requests,
+            responses,
+        };
+        Ok((reservation, creator))
+    }
+
+    fn create_group_payload(
+        &self,
+        params: CreateGroupParamsOut,
+        group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<CreateGroupPayloads, DsRequestError> {
         let CreateGroupParamsOut {
             group_id,
             group_info,
@@ -231,8 +415,7 @@ impl ApiClient {
                 creator_user_credential,
                 group_bootstrap,
             };
-            let request = payload.sign(signing_key)?;
-            self.ds_grpc_client().create_apq_group(request).await?;
+            Ok(CreateGroupPayloads::Apq(payload))
         } else {
             let payload = CreateGroupPayload {
                 client_metadata: Some(self.metadata().clone()),
@@ -246,10 +429,8 @@ impl ApiClient {
                 creator_user_credential,
                 group_bootstrap,
             };
-            let request = payload.sign(signing_key)?;
-            self.ds_grpc_client().create_group(request).await?;
+            Ok(CreateGroupPayloads::Classical(payload))
         }
-        Ok(())
     }
 
     /// Performs a group operation.
@@ -613,7 +794,7 @@ impl ApiClient {
         // the joiner's sibling clients.
         group_bootstrap: Option<Vec<u8>>,
     ) -> Result<TimeStamp, DsRequestError> {
-        let external_commit = apq_external_commit_message(external_commit_bundle)?;
+        let external_commit = apq_commit_message(external_commit_bundle)?;
         let request = ApqJoinConnectionGroupRequest {
             client_metadata: Some(self.metadata().clone()),
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
@@ -624,6 +805,59 @@ impl ApiClient {
         let response = self
             .ds_grpc_client()
             .apq_join_connection_group(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
+    }
+
+    /// Join the connection group of a request and delete it at once, since its
+    /// sender is a contact already. Returns the time of the delete.
+    pub async fn ds_close_connection_group(
+        &self,
+        external_commit: AssistedMessageOut,
+        delete: DeleteGroupParamsOut,
+        qs_client_reference: QsReference,
+        group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<TimeStamp, DsRequestError> {
+        let request = CloseConnectionGroupRequest {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            external_commit: Some(external_commit.try_ref_into()?),
+            delete_commit: Some(delete.commit.try_ref_into()?),
+            qs_client_reference: Some(qs_client_reference.into()),
+        };
+        let response = self
+            .ds_grpc_client()
+            .close_connection_group(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
+    }
+
+    /// The APQ variant of [`Self::ds_close_connection_group`].
+    pub async fn ds_apq_close_connection_group(
+        &self,
+        external_commit_bundle: ApqCommitMessageBundle,
+        delete_bundle: ApqCommitMessageBundle,
+        qs_client_reference: QsReference,
+        group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<TimeStamp, DsRequestError> {
+        let request = ApqCloseConnectionGroupRequest {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            external_commit: Some(apq_commit_message(external_commit_bundle)?),
+            delete_commit: Some(apq_commit_message(delete_bundle)?),
+            qs_client_reference: Some(qs_client_reference.into()),
+        };
+        let response = self
+            .ds_grpc_client()
+            .apq_close_connection_group(request)
             .await?
             .into_inner();
         Ok(response
@@ -664,7 +898,7 @@ impl ApiClient {
         group_state_ear_key: &GroupStateEarKey,
         own_leaf_index: LeafNodeIndex,
     ) -> Result<TimeStamp, DsRequestError> {
-        let external_commit = apq_external_commit_message(external_commit_bundle)?;
+        let external_commit = apq_commit_message(external_commit_bundle)?;
         let payload = ApqResyncPayload {
             client_metadata: Some(self.metadata().clone()),
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
@@ -854,28 +1088,10 @@ impl ApiClient {
         signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
-        let ApqCommitMessageBundle {
-            commit,
-            welcome,
-            group_info,
-        } = delete_bundle;
-        if welcome.is_some() {
-            error!("Unexpected welcome message in APQ delete group request");
-            return Err(DsRequestError::LibraryError);
-        }
-        let (t_commit, pq_commit) = commit.split();
-        let (t_group_info, pq_group_info) = group_info
-            .map(apqmls::messages::ApqMlsMessageOut::from)
-            .map(|msg| msg.split())
-            .unzip();
-        let commit = ApqAssistedMlsMessage {
-            t_message: Some(AssistedMessageOut::new(t_commit, t_group_info).try_ref_into()?),
-            pq_message: Some(AssistedMessageOut::new(pq_commit, pq_group_info).try_ref_into()?),
-        };
         let payload = ApqDeleteGroupPayload {
             client_metadata: Some(self.metadata().clone()),
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
-            commit: Some(commit),
+            commit: Some(apq_commit_message(delete_bundle)?),
         };
         let request = payload.sign(signing_key)?;
         let response = self
@@ -925,13 +1141,7 @@ impl ApiClient {
         ),
         DsRequestError,
     > {
-        let group_profile_size: Option<i64> = provision_group_profile_size
-            .map(|size| size.try_into())
-            .transpose()
-            .inspect_err(|_| {
-                error!("Failed to convert group profile size to i64");
-            })
-            .map_err(|_| DsRequestError::LibraryError)?;
+        let group_profile_size = group_profile_size_to_i64(provision_group_profile_size)?;
         let response = self
             .ds_grpc_client()
             .request_group_id(RequestGroupIdRequest {
@@ -941,32 +1151,9 @@ impl ApiClient {
             })
             .await?
             .into_inner();
-        let qgid: QualifiedGroupId = response
-            .group_id
-            .ok_or_missing_field("group_id")
-            .map_err(|error| {
-                error!(%error, "unexpected response");
-                DsRequestError::UnexpectedResponse
-            })?
-            .try_ref_into()
-            .map_err(|error| {
-                error!(%error, "unexpected response");
-                DsRequestError::UnexpectedResponse
-            })?;
+        let qgid = response_qgid(response.group_id, "group_id")?;
         let pq_qgid = if request_pq_group_id {
-            let qgid: QualifiedGroupId = response
-                .pq_group_id
-                .ok_or_missing_field("pq_group_id")
-                .map_err(|error| {
-                    error!(%error, "unexpected response");
-                    DsRequestError::UnexpectedResponse
-                })?
-                .try_ref_into()
-                .map_err(|error| {
-                    error!(%error, "unexpected response");
-                    DsRequestError::UnexpectedResponse
-                })?;
-            Some(qgid)
+            Some(response_qgid(response.pq_group_id, "pq_group_id")?)
         } else {
             None
         };
@@ -1071,14 +1258,16 @@ impl ApiClient {
     }
 }
 
-fn apq_external_commit_message(
-    external_commit_bundle: ApqCommitMessageBundle,
+/// The T and PQ commit of `bundle`, each with its group info. A commit that
+/// adds no one has no welcome.
+fn apq_commit_message(
+    bundle: ApqCommitMessageBundle,
 ) -> Result<ApqAssistedMlsMessage, DsRequestError> {
     let ApqCommitMessageBundle {
         commit,
         welcome,
         group_info,
-    } = external_commit_bundle;
+    } = bundle;
     if welcome.is_some() {
         error!("Unexpected welcome message");
         return Err(DsRequestError::LibraryError);
@@ -1088,11 +1277,10 @@ fn apq_external_commit_message(
         .map(apqmls::messages::ApqMlsMessageOut::from)
         .map(|msg| msg.split())
         .unzip();
-    let external_commit = ApqAssistedMlsMessage {
+    Ok(ApqAssistedMlsMessage {
         t_message: Some(AssistedMessageOut::new(t_commit, t_group_info).try_ref_into()?),
         pq_message: Some(AssistedMessageOut::new(pq_commit, pq_group_info).try_ref_into()?),
-    };
-    Ok(external_commit)
+    })
 }
 
 fn parse_pq_external_commit_info(

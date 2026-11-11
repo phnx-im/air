@@ -32,6 +32,8 @@ pub struct Settings {
     pub registration: RegistrationSettings,
     #[serde(default)]
     pub relay: RelaySettings,
+    #[serde(default)]
+    pub ds: DsSettings,
 }
 
 /// Configuration for the application.
@@ -164,9 +166,6 @@ pub struct StorageSettings {
     /// Enables attachment provisioning for uploads via POST policy
     #[serde(default)]
     pub use_post_policy: bool,
-    /// Requires content length to be present when provisioning an attachment
-    #[serde(default = "default_require_content_length")]
-    pub require_content_length: bool,
     /// Path prefixes in the bucket for different storage object types
     #[serde(default)]
     pub storage_paths: StoragePaths,
@@ -286,6 +285,34 @@ impl Default for RelaySettings {
     }
 }
 
+/// Bounds of the delivery service.
+///
+/// Environment variables cannot override these fields, because environment
+/// overrides split on the underscores in their names.
+#[derive(Debug, Deserialize, Clone)]
+pub struct DsSettings {
+    /// How long a group creation stream may take from its prepare step to its
+    /// create step.
+    #[serde(default = "default_5min", with = "duration_seconds")]
+    pub create_deadline: Duration,
+    /// Open group creation streams one user may have at a time.
+    #[serde(default = "default_create_streams_per_user")]
+    pub create_streams_per_user: usize,
+    /// Authenticated group creation streams this process accepts at a time.
+    #[serde(default = "default_create_streams")]
+    pub create_streams: usize,
+}
+
+impl Default for DsSettings {
+    fn default() -> Self {
+        Self {
+            create_deadline: default_5min(),
+            create_streams_per_user: default_create_streams_per_user(),
+            create_streams: default_create_streams(),
+        }
+    }
+}
+
 fn default_session_ttl() -> std::time::Duration {
     std::time::Duration::from_secs(10 * 60)
 }
@@ -296,6 +323,14 @@ fn default_id_quarantine() -> std::time::Duration {
 
 fn default_relay_attempts() -> u64 {
     10
+}
+
+fn default_create_streams_per_user() -> usize {
+    4
+}
+
+fn default_create_streams() -> usize {
+    10_000
 }
 
 /// How registration is gated.
@@ -550,10 +585,6 @@ mod duration_millis {
         let millis: u64 = serde::Deserialize::deserialize(d)?;
         Ok(Duration::from_millis(millis))
     }
-}
-
-fn default_require_content_length() -> bool {
-    true
 }
 
 #[cfg(test)]

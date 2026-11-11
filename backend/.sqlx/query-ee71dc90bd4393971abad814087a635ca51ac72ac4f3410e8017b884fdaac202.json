@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM handle_connection_package\n            WHERE hash = $1\n                AND EXISTS (\n                    SELECT 1 FROM username_signed_connection_package\n                    WHERE hash = $1 AND is_last_resort\n                )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ee71dc90bd4393971abad814087a635ca51ac72ac4f3410e8017b884fdaac202"
+}

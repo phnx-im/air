@@ -7,7 +7,9 @@
 
 use std::assert_matches;
 
-use aircoreclient::{Asset, DisplayName, EventMessage, Message, SystemMessage, UserProfile};
+use aircoreclient::{
+    Asset, DisplayName, EventMessage, Message, SystemMessage, UserProfile, clients::CoreUser,
+};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 
 use crate::messaging::attachments::test_picture_bytes;
@@ -191,4 +193,126 @@ async fn leaving_member_profile_is_erased_for_non_contact() {
         bob_user_profile_charlie,
         aircoreclient::UserProfile::from_user_id(charlie.user_id())
     );
+}
+
+/// Sets the display name of `user` and checks that `contact` receives it.
+async fn rename_and_check_contact(user: &CoreUser, contact: &CoreUser, name: &str) {
+    let display_name: DisplayName = name.parse().unwrap();
+    user.set_own_user_profile(UserProfile {
+        user_id: user.user_id().clone(),
+        display_name: display_name.clone(),
+        profile_picture: None,
+    })
+    .await
+    .unwrap();
+
+    contact.drain().await;
+    contact.outbound_service().run_once().await;
+    assert_eq!(
+        contact.user_profile(user.user_id()).await.display_name,
+        display_name
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn profile_change_skips_group_after_removal_and_deletion() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+    setup
+        .remove_from_group(chat_id, &alice, &[&bob])
+        .await
+        .unwrap();
+    rename_and_check_contact(&bob, &alice, "New Bob").await;
+
+    // Alice deletes the group as its last member, which deletes it on the DS.
+    setup.delete_group(chat_id, &alice).await;
+    rename_and_check_contact(&alice, &bob, "New Alice").await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn profile_change_skips_closed_group() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+
+    // The DS keeps a group deleted by one of several members, closed.
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+    setup.delete_group(chat_id, &alice).await;
+
+    rename_and_check_contact(&alice, &bob, "New Alice").await;
+    rename_and_check_contact(&bob, &alice, "New Bob").await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn profile_change_ends_chat_of_group_missing_on_ds() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+
+    // Alice removes Bob and deletes the group as its last member while Bob is
+    // offline. Bob's chat is still active.
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+    alice
+        .remove_users(chat_id, vec![bob.user_id().clone()])
+        .await
+        .unwrap();
+    alice.delete_chat(chat_id).await.unwrap();
+
+    rename_and_check_contact(&bob, &alice, "New Bob").await;
+    assert!(bob.expect_chat(chat_id).await.status().is_inactive());
+
+    // The queued removal and deletion find the chat already ended.
+    bob.drain().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn profile_change_skips_group_with_pending_removal() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, charlie] = setup.add_users().await;
+
+    // Alice removes Bob from two groups while Bob is offline. In the second
+    // group, Charlie takes Bob's leaf.
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+    let reused_chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(reused_chat_id, &alice, &[&bob]).await;
+    setup.connect_users(&alice, &charlie).await;
+    for chat_id in [chat_id, reused_chat_id] {
+        alice
+            .remove_users(chat_id, vec![bob.user_id().clone()])
+            .await
+            .unwrap();
+    }
+    alice
+        .invite_users(reused_chat_id, &[charlie.user_id().clone()])
+        .await
+        .unwrap();
+    charlie.drain().await;
+
+    rename_and_check_contact(&bob, &alice, "New Bob").await;
+
+    bob.drain().await;
+    assert!(bob.expect_chat(chat_id).await.status().is_inactive());
+    assert!(bob.expect_chat(reused_chat_id).await.status().is_inactive());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn profile_change_resyncs_closed_group() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+
+    // Alice deletes the group while Bob is offline. Bob's chat is still active.
+    let chat_id = setup.connected_group(&alice, &[&bob]).await;
+    alice.delete_chat(chat_id).await.unwrap();
+
+    rename_and_check_contact(&bob, &alice, "New Bob").await;
+
+    // The resync finds the tombstone and ends the chat.
+    bob.outbound_service().run_once().await;
+    assert!(bob.expect_chat(chat_id).await.status().is_inactive());
+    assert_eq!(
+        bob.system_messages(chat_id).await.last(),
+        Some(&SystemMessage::DeleteGroup(alice.user_id().clone()))
+    );
+
+    bob.drain().await;
 }

@@ -49,8 +49,9 @@ use crate::{
 };
 
 /// Tears down a group whose group context carries a tombstone as if the DS
-/// returns "group not found". Also announces the deletion in the chat,
-/// whatever the tombstone's context.
+/// returns "group not found". Also announces the deletion in the chat. An
+/// outgoing request that went to a contact ends with a record of that instead,
+/// see [`outgoing_requests::close_if_already_connected`].
 ///
 /// A closed self group means that the account is deleted, see
 /// [`AccountDeletion::self_group_closed`].
@@ -62,16 +63,27 @@ async fn handle_group_closed(
     if OwnClientInfo::is_own_self_group(&mut *txn, group_id).await? {
         AccountDeletion::self_group_closed(&mut *txn).await?;
     }
-    if let Some(chat) = Chat::load_by_group_id(&mut *txn, group_id).await?
+    if let Some(mut chat) = Chat::load_by_group_id(&mut *txn, group_id).await?
         && !chat.status().is_inactive()
     {
-        ChatMessage::new_system_message(
-            chat.id(),
-            closed.tombstone.timestamp.unwrap_or_else(TimeStamp::now),
-            SystemMessage::DeleteGroup(closed.closer.clone()),
+        let at = closed.tombstone.timestamp.unwrap_or_else(TimeStamp::now);
+        let already_connected = outgoing_requests::close_if_already_connected(
+            txn,
+            &mut chat,
+            Some(&closed.tombstone),
+            &closed.closer,
+            at,
         )
-        .store(&mut *txn)
         .await?;
+        if !already_connected {
+            ChatMessage::new_system_message(
+                chat.id(),
+                at,
+                SystemMessage::DeleteGroup(closed.closer.clone()),
+            )
+            .store(&mut *txn)
+            .await?;
+        }
     }
     handle_group_not_found_on_ds(txn, group_id).await
 }
@@ -89,6 +101,8 @@ pub(crate) enum ResyncReason {
     Manual,
     /// Onboarding a freshly linked device into a higher-level group.
     Onboarding,
+    /// Joining a connection group a sibling device already joined on accept.
+    SiblingAccepted,
 }
 
 impl ResyncReason {
@@ -99,6 +113,7 @@ impl ResyncReason {
             Self::VirtualClientDesync => "virtual_client_desync",
             Self::Manual => "manual",
             Self::Onboarding => "onboarding",
+            Self::SiblingAccepted => "sibling_accepted",
         }
     }
 }
@@ -113,6 +128,7 @@ impl FromStr for ResyncReason {
             "virtual_client_desync" => Self::VirtualClientDesync,
             "manual" => Self::Manual,
             "onboarding" => Self::Onboarding,
+            "sibling_accepted" => Self::SiblingAccepted,
             _ => bail!("Invalid resync reason: {s}"),
         })
     }
@@ -216,6 +232,30 @@ impl Resync {
             outgoing_request: None,
             accepted_friendship_package: None,
             reason,
+            attempts: 0,
+        }
+    }
+
+    pub(crate) fn for_sibling_accept(
+        chat_id: ChatId,
+        group_id: GroupId,
+        pq_group_id: Option<GroupId>,
+        group_state_ear_key: GroupStateEarKey,
+        identity_link_wrapper_key: IdentityLinkWrapperKey,
+        original_leaf_index: LeafNodeIndex,
+    ) -> Self {
+        Self {
+            chat_id: Some(chat_id),
+            group_id,
+            pq_group_id,
+            group_state_ear_key,
+            identity_link_wrapper_key,
+            original_leaf_index,
+            shares_vc_leaf: true,
+            connection_contact: None,
+            outgoing_request: None,
+            accepted_friendship_package: None,
+            reason: ResyncReason::SiblingAccepted,
             attempts: 0,
         }
     }
@@ -452,7 +492,7 @@ impl Resync {
     /// the server has no leaf of ours in the group, i.e. we were removed: the
     /// chat is then marked inactive and the resync dropped.
     async fn create_and_send_commit(
-        mut self,
+        self,
         mut connection: impl WriteConnection,
         api_clients: &ApiClients,
         signer: &LeafSigningKey,
@@ -467,8 +507,27 @@ impl Resync {
                 ),
             )));
         }
-
         let external_commit_info = self.fetch_group_info(api_clients).await?;
+        Box::pin(self.create_and_send_commit_with_info(
+            connection,
+            api_clients,
+            signer,
+            own_user_id,
+            external_commit_info,
+        ))
+        .await
+    }
+
+    /// Same as [`Self::create_and_send_commit`] but with already fetched external commit info.
+    pub(crate) async fn create_and_send_commit_with_info(
+        mut self,
+        mut connection: impl WriteConnection,
+        api_clients: &ApiClients,
+        signer: &LeafSigningKey,
+        own_user_id: &UserId,
+        external_commit_info: ExternalCommitInfoIn,
+    ) -> Result<Option<(ChatId, DecryptedProfileInfos)>, OutboundServiceError> {
+        let shares_vc_leaf = self.shares_vc_leaf;
         let existing_chat_id = self.chat_id;
         let group_id = self.group_id.clone();
         let original_leaf_index = self.resolve_original_leaf_index(&external_commit_info, signer);
@@ -643,8 +702,7 @@ impl Resync {
         Ok(chat.id())
     }
 
-    fn resolve_original_leaf_index(
-        &self,
+    pub(crate) fn find_own_leaf(
         external_commit_info: &ExternalCommitInfoIn,
         signer: &LeafSigningKey,
     ) -> Option<LeafNodeIndex> {
@@ -653,17 +711,24 @@ impl Resync {
             .ratchet_tree_in
             .full_leaves()
             .find(|(_, leaf)| leaf.signature_key().as_slice() == signature_key_bytes)
-            .map(|(index, _)| {
-                if index != self.original_leaf_index {
-                    info!(
-                        group_id = ?self.group_id,
-                        queued = %self.original_leaf_index,
-                        resolved = %index,
-                        "The leaf to resync moved since the resync was queued"
-                    );
-                }
-                index
-            })
+            .map(|(index, _)| index)
+    }
+
+    fn resolve_original_leaf_index(
+        &self,
+        external_commit_info: &ExternalCommitInfoIn,
+        signer: &LeafSigningKey,
+    ) -> Option<LeafNodeIndex> {
+        Self::find_own_leaf(external_commit_info, signer).inspect(|&index| {
+            if index != self.original_leaf_index {
+                info!(
+                    group_id = ?self.group_id,
+                    queued = %self.original_leaf_index,
+                    resolved = %index,
+                    "The leaf to resync moved since the resync was queued"
+                );
+            }
+        })
     }
 
     async fn fetch_group_info(

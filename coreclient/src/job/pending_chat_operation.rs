@@ -17,6 +17,7 @@ use aircommon::{
     virtual_client::KeyPackageBatchId,
 };
 use airprotos::client::{
+    component::GroupTombstone,
     group::GroupData,
     self_group::{LinkedDevice, SelfGroupMessage, SettingsUpdate, TokenSeed},
 };
@@ -74,7 +75,7 @@ const RETRY_INTERVAL: Duration = Duration::seconds(1);
 const MAX_RETRIES: u32 = 5;
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(super) enum OperationType {
+pub(crate) enum OperationType {
     Leave(Box<SelfRemoveParamsOut>),
     Delete(Box<DeleteGroupParamsOut>),
     ApqDelete {
@@ -212,6 +213,10 @@ impl OperationType {
             self,
             OperationType::Delete(_) | OperationType::ApqDelete { .. }
         )
+    }
+
+    pub(crate) fn is_leave(&self) -> bool {
+        matches!(self, OperationType::Leave(_))
     }
 }
 
@@ -451,10 +456,6 @@ impl PendingChatOperation {
         self.group.group_id()
     }
 
-    pub(crate) fn is_leave(&self) -> bool {
-        matches!(self.operation, OperationType::Leave(_))
-    }
-
     pub(crate) fn is_delete(&self) -> bool {
         self.operation.is_delete()
     }
@@ -469,10 +470,10 @@ impl PendingChatOperation {
     /// Completes the pending intent this operation asserted, now that its commit
     /// was accepted. No-op for operations that carry no self-group state.
     async fn complete_self_group_intent(
-        &self,
+        operation: &OperationType,
         txn: &mut WriteDbTransaction<'_>,
     ) -> anyhow::Result<()> {
-        match &self.operation {
+        match operation {
             OperationType::SelfGroupMessages { messages, .. } => {
                 complete_sent_messages(txn, messages).await
             }
@@ -494,8 +495,8 @@ impl PendingChatOperation {
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
     ) -> anyhow::Result<()> {
-        if let Some(operation) = Self::load_by_group_id(&mut *txn, group_id).await? {
-            operation.complete_self_group_intent(txn).await?;
+        if let Some(operation) = Self::load_operation_by_group_id(&mut *txn, group_id).await? {
+            Self::complete_self_group_intent(&operation, txn).await?;
         }
         Ok(())
     }
@@ -861,7 +862,7 @@ impl PendingChatOperation {
 
                 // Our self-group commit was accepted: complete the pending
                 // intent it asserted.
-                self.complete_self_group_intent(txn).await?;
+                Self::complete_self_group_intent(&self.operation, txn).await?;
 
                 if leave_done {
                     // The DS holds our self-remove (or the group is gone there),
@@ -1203,13 +1204,12 @@ impl PendingChatOperation {
 
     /// Creates and stores a PendingChatOperation for deleting a chat.
     ///
-    /// `deleted` is recorded in the tombstone the delete commit sets, see
-    /// [`Group::stage_delete`].
+    /// The delete commit sets `tombstone`, see [`Group::stage_delete`].
     pub(crate) async fn create_delete(
         txn: &mut WriteDbTransaction<'_>,
         signer: &UserSigningKey,
         chat_id: ChatId,
-        deleted: Option<TimeStamp>,
+        tombstone: Option<GroupTombstone>,
     ) -> anyhow::Result<Self> {
         let chat = Chat::load(&mut *txn, &chat_id)
             .await?
@@ -1224,7 +1224,7 @@ impl PendingChatOperation {
         let operation_type = if group.is_apq() {
             let bundle = group
                 .group_mut()
-                .stage_apq_delete(&mut *txn, &signer, deleted)
+                .stage_apq_delete(&mut *txn, &signer, tombstone)
                 .await?;
             OperationType::ApqDelete {
                 commit: Box::new(bundle),
@@ -1232,7 +1232,7 @@ impl PendingChatOperation {
         } else {
             let message = group
                 .group_mut()
-                .stage_delete(&mut *txn, &signer, deleted)
+                .stage_delete(&mut *txn, &signer, tombstone)
                 .await?;
             OperationType::Delete(Box::new(message))
         };
@@ -1391,15 +1391,38 @@ impl PendingChatOperation {
     /// For a self-group key package upload this also sweeps the batch's
     /// generated key packages: their refs exist only in this job's row, so
     /// they become orphans the moment the row is gone.
-    pub(crate) async fn discard(&self, txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<()> {
-        Self::delete(&mut *txn, self.group.group_id()).await?;
-        if matches!(
-            self.operation,
-            OperationType::SelfGroupKeyPackageUpload { .. }
-        ) {
+    pub(crate) async fn discard(
+        txn: &mut WriteDbTransaction<'_>,
+        group_id: &GroupId,
+        operation: &OperationType,
+    ) -> anyhow::Result<()> {
+        Self::delete(&mut *txn, group_id).await?;
+        if matches!(operation, OperationType::SelfGroupKeyPackageUpload { .. }) {
             delete_orphaned_key_packages(txn).await?;
         }
         Ok(())
+    }
+
+    /// The new chat picture of the pending update of the group.
+    ///
+    /// `None` if there is no pending update. `Some(None)` if the update removes
+    /// the picture.
+    pub(crate) async fn load_new_chat_picture(
+        txn: &mut WriteDbTransaction<'_>,
+        group_id: &GroupId,
+    ) -> anyhow::Result<Option<Option<Vec<u8>>>> {
+        let Some(operation) = Self::load_operation_by_group_id(txn, group_id).await? else {
+            return Ok(None);
+        };
+        Ok(match operation {
+            OperationType::Other {
+                new_chat_picture, ..
+            }
+            | OperationType::ApqOther {
+                new_chat_picture, ..
+            } => Some(new_chat_picture),
+            _ => None,
+        })
     }
 
     /// Completes the pending job after the queue proved that our own commit
@@ -1419,10 +1442,10 @@ impl PendingChatOperation {
         group_id: &GroupId,
         key_package_batch: Option<&KeyPackageBatchId>,
     ) -> anyhow::Result<()> {
-        let Some(job) = Self::load_by_group_id(&mut *txn, group_id).await? else {
+        let Some(operation) = Self::load_operation_by_group_id(&mut *txn, group_id).await? else {
             return Ok(());
         };
-        match &job.operation {
+        match &operation {
             OperationType::SelfGroupKeyPackageUpload {
                 batch_id,
                 plain_refs,
@@ -1455,16 +1478,16 @@ impl PendingChatOperation {
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
     ) -> anyhow::Result<()> {
-        let Some(mut job) = Self::load_by_group_id(&mut *txn, group_id).await? else {
+        let Some(operation) = Self::load_operation_by_group_id(&mut *txn, group_id).await? else {
             return Ok(());
         };
-        if !job.operation.is_delete() {
+        if !operation.is_delete() {
             return Ok(());
         }
-        job.group
-            .group_mut()
-            .discard_pending_commit(&mut *txn)
-            .await?;
+        let mut group = Group::load_verified(&mut *txn, group_id)
+            .await?
+            .with_context(|| format!("Can't find group of pending delete: {group_id:?}"))?;
+        group.group_mut().discard_pending_commit(&mut *txn).await?;
         Self::delete(txn, group_id).await?;
         Ok(())
     }
@@ -1585,7 +1608,7 @@ mod persistence {
     }
 
     impl SqlPendingChatOperation {
-        async fn into_pending_chat_operation(
+        async fn with_loaded_group(
             self,
             connection: impl ReadConnection,
         ) -> sqlx::Result<PendingChatOperation> {
@@ -1667,6 +1690,28 @@ mod persistence {
             Ok(())
         }
 
+        /// Loads only the operation data without the group data.
+        pub(crate) async fn load_operation_by_group_id(
+            mut connection: impl ReadConnection,
+            group_id: &GroupId,
+        ) -> sqlx::Result<Option<OperationType>> {
+            let group_id = group_id.as_slice();
+            query_scalar!(
+                r#"SELECT
+                    operation_data AS "operation_data: BlobDecoded<OperationType>"
+                FROM pending_chat_operation
+                WHERE group_id = ?"#,
+                group_id
+            )
+            .fetch_optional(connection.as_mut())
+            .await
+            .map(|op| op.map(|op| op.0))
+        }
+
+        /// Loads pending chat operation by group id including the full group state.
+        ///
+        /// Use [`Self::load_operation_by_group_id`] if only the operation is needed.
+        #[cfg(any(test, feature = "test_utils"))]
         pub(crate) async fn load_by_group_id(
             mut connection: impl ReadConnection,
             group_id: &GroupId,
@@ -1692,7 +1737,7 @@ mod persistence {
             };
 
             sql_pending_operation
-                .into_pending_chat_operation(connection)
+                .with_loaded_group(connection)
                 .await
                 .map(Some)
         }
@@ -1723,7 +1768,7 @@ mod persistence {
             };
 
             sql_pending_operation
-                .into_pending_chat_operation(connection)
+                .with_loaded_group(connection)
                 .await
                 .map(Some)
         }
@@ -1808,9 +1853,7 @@ mod persistence {
                 return Ok(None);
             };
 
-            let pending_operation = sql_pending_operation
-                .into_pending_chat_operation(txn)
-                .await?;
+            let pending_operation = sql_pending_operation.with_loaded_group(txn).await?;
 
             Ok(Some(pending_operation))
         }
@@ -2529,7 +2572,7 @@ pub(crate) mod tests {
                     .group_mut()
                     .discard_pending_commit(&mut *txn)
                     .await?;
-                job.discard(txn).await?;
+                PendingChatOperation::discard(txn, job.group_id(), &job.operation).await?;
                 Ok(())
             })
             .await?;
@@ -2614,7 +2657,11 @@ pub(crate) mod tests {
         let group_id = group.group_id().clone();
         let params = group
             .group_mut()
-            .stage_delete(pool.write().await?, &signing_key, Some(TimeStamp::now()))
+            .stage_delete(
+                pool.write().await?,
+                &signing_key,
+                Some(GroupTombstone::deleted(TimeStamp::now())),
+            )
             .await?;
         PendingChatOperation::new(group, OperationType::Delete(Box::new(params)))
             .store(pool.write().await?)
@@ -2772,7 +2819,11 @@ pub(crate) mod tests {
             connection.with_transaction(async |txn| -> anyhow::Result<()> {
                 group
                     .group_mut()
-                    .stage_delete(&mut *txn, &signing_key, Some(deleted_at()))
+                    .stage_delete(
+                        &mut *txn,
+                        &signing_key,
+                        Some(GroupTombstone::deleted(deleted_at())),
+                    )
                     .await?;
                 Ok(())
             }),
@@ -2825,7 +2876,11 @@ pub(crate) mod tests {
             connection.with_transaction(async |txn| -> anyhow::Result<()> {
                 group
                     .group_mut()
-                    .stage_apq_delete(&mut *txn, &signing_key, Some(deleted_at()))
+                    .stage_apq_delete(
+                        &mut *txn,
+                        &signing_key,
+                        Some(GroupTombstone::deleted(deleted_at())),
+                    )
                     .await?;
                 Ok(())
             }),
@@ -2862,7 +2917,11 @@ pub(crate) mod tests {
             connection.with_transaction(async |txn| -> anyhow::Result<_> {
                 group
                     .group_mut()
-                    .stage_delete(&mut *txn, &signing_key, Some(deleted_at()))
+                    .stage_delete(
+                        &mut *txn,
+                        &signing_key,
+                        Some(GroupTombstone::deleted(deleted_at())),
+                    )
                     .await?;
                 let (messages, _group_data) = group
                     .merge_pending_commit(&mut *txn, None, TimeStamp::now())
@@ -2898,7 +2957,11 @@ pub(crate) mod tests {
             connection.with_transaction(async |txn| -> anyhow::Result<()> {
                 let params = group
                     .group_mut()
-                    .stage_delete(&mut *txn, &signing_key, Some(TimeStamp::now()))
+                    .stage_delete(
+                        &mut *txn,
+                        &signing_key,
+                        Some(GroupTombstone::deleted(TimeStamp::now())),
+                    )
                     .await?;
                 PendingChatOperation::new(group, OperationType::Delete(Box::new(params)))
                     .store(&mut *txn)

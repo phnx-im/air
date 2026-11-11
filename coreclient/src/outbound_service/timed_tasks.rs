@@ -4,13 +4,13 @@
 
 use airapiclient::{ClassifyRequestError, RequestErrorKind, as_api::UsernameRefresh};
 use aircommon::{
-    identifiers::{USERNAME_REFRESH_THRESHOLD, USERNAME_VALIDITY_PERIOD, UsernameHash},
+    credentials::keys::UsernameSigningKey,
+    identifiers::{USERNAME_REFRESH_THRESHOLD, USERNAME_VALIDITY_PERIOD, Username, UsernameHash},
     limits::MAX_KEY_PACKAGES_PER_REQUEST,
-    messages::connection_package::ConnectionPackageHash,
     mls_group_config::VC_DERIVATION_EPOCH_RETENTION_WINDOW,
 };
 use airprotos::{auth_service::v1::OperationType, client::app_data::GroupAppData};
-use anyhow::bail;
+use anyhow::{Context, bail};
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -92,6 +92,15 @@ impl TimedTask {
     ) -> sqlx::Result<()> {
         Self::new(kind).into_operation().enqueue(connection).await
     }
+
+    /// Id of the [`TimedTaskKind::PendingUsername`] task of `username`.
+    pub(crate) fn pending_username_id(username: &Username) -> OperationId {
+        let mut id = Vec::new();
+        id.extend_from_slice(b"timed_task");
+        id.push(7);
+        id.extend_from_slice(username.plaintext().as_bytes());
+        OperationId(id)
+    }
 }
 
 impl OperationData for TimedTask {
@@ -112,6 +121,9 @@ impl OperationData for TimedTask {
             }
             TimedTaskKind::SignedConnectionPackageUpload { .. } => id.push(5),
             TimedTaskKind::ConnectionRequestExpiry => id.push(6),
+            TimedTaskKind::PendingUsername { username, .. } => {
+                return Self::pending_username_id(username);
+            }
         }
         OperationId(id)
     }
@@ -135,6 +147,11 @@ pub(crate) enum TimedTaskKind {
     },
     /// Closes the connection requests whose deadline passed.
     ConnectionRequestExpiry,
+    /// Holds the signing key of an unfinished username registration.
+    PendingUsername {
+        username: Username,
+        signing_key: UsernameSigningKey,
+    },
 }
 
 impl TimedTaskKind {
@@ -151,6 +168,7 @@ impl TimedTaskKind {
             },
             TimedTaskKind::SignedConnectionPackageUpload { .. } => Duration::minutes(5),
             TimedTaskKind::ConnectionRequestExpiry => CONNECTION_REQUEST_EXPIRY_INTERVAL,
+            TimedTaskKind::PendingUsername { .. } => Duration::minutes(5),
         }
     }
 }
@@ -435,6 +453,12 @@ impl OutboundServiceContext {
                     .await
                     .map_err(OutboundServiceError::fatal)?;
                 Ok(Some(CONNECTION_REQUEST_EXPIRY_INTERVAL))
+            }
+            TimedTaskKind::PendingUsername { username, .. } => {
+                self.upload_pending_username(username)
+                    .await
+                    .map_err(OutboundServiceError::fatal)?;
+                Ok(None)
             }
         }
     }
@@ -846,17 +870,15 @@ impl OutboundServiceContext {
             } = generate_signed_connection_packages(&record.signing_key, record.hash)?;
 
             // Store decryption keys before publishing
-            let stored_hashes: Vec<ConnectionPackageHash> = self
+            let stored_hashes = self
                 .db
-                .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                    let mut hashes = Vec::with_capacity(decryption_keys.len());
-                    for (decryption_key, metadata) in decryption_keys {
-                        hashes.push(metadata.hash);
-                        ConnectionPackageRecord::from(metadata)
-                            .store_for_username(&mut *txn, &record.username, &decryption_key)
-                            .await?;
-                    }
-                    Ok(hashes)
+                .with_write_transaction(async |txn| {
+                    ConnectionPackageRecord::store_all_for_username(
+                        txn,
+                        &record.username,
+                        decryption_keys,
+                    )
+                    .await
                 })
                 .await?;
 
@@ -865,7 +887,6 @@ impl OutboundServiceContext {
             match api_client
                 .as_publish_connection_packages_for_username(
                     record.hash,
-                    Vec::new(), // no legacy packages
                     packages,
                     &record.signing_key,
                 )
@@ -911,6 +932,69 @@ impl OutboundServiceContext {
             bail!("failed to upload signed connection packages for {failed} username(s)");
         }
         Ok(())
+    }
+
+    /// Publishes fresh connection packages of a pending username and finishes
+    /// its registration.
+    async fn upload_pending_username(&self, username: &Username) -> anyhow::Result<()> {
+        let Some(record) = UsernameRecord::load(self.db.read().await?, username).await? else {
+            // Early return, since the username was removed from the pending list
+            // in the meantime.
+            return Ok(());
+        };
+        let SignedConnectionPackages {
+            packages,
+            decryption_keys,
+        } = generate_signed_connection_packages(&record.signing_key, record.hash)?;
+        let hashes = self
+            .db
+            .with_write_transaction(async |txn| {
+                ConnectionPackageRecord::store_all_for_username(
+                    txn,
+                    &record.username,
+                    decryption_keys,
+                )
+                .await
+            })
+            .await?;
+
+        let published = self
+            .api_clients
+            .default_client()?
+            .as_publish_connection_packages_for_username(record.hash, packages, &record.signing_key)
+            .await;
+        let username = record.username.truncated_plaintext();
+        match published {
+            Ok(()) => {
+                info!(
+                    username,
+                    "Published the connection packages of a pending username"
+                );
+                self.db
+                    .with_write_transaction(async |txn| {
+                        usernames::finish_registration(txn, &record.username).await
+                    })
+                    .await?;
+                Ok(())
+            }
+            Err(error) if error.is_not_found() || error.is_unauthenticated() => {
+                warn!(username, %error, "Pending username is not ours, removing it");
+                self.db
+                    .with_write_transaction(async |txn| {
+                        UsernameRecord::delete(txn, &record.username).await
+                    })
+                    .await?;
+                Ok(())
+            }
+            Err(error) => {
+                self.db
+                    .with_write_transaction(async |txn| {
+                        usernames::discard_unpublished_package_keys(txn, &hashes, &error).await
+                    })
+                    .await?;
+                Err(error).with_context(|| format!("failed to publish pending username {username}"))
+            }
+        }
     }
 
     async fn persist_pending_usernames(

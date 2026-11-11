@@ -3,16 +3,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::{LeafCredential, UserCredential},
+    credentials::{LeafCredential, UserCredential, keys::ClientVerifyingKey},
     crypto::aead::keys::{EncryptedUserProfileKey, GroupStateEarKey},
     identifiers::{QsReference, QualifiedGroupId, UserId},
 };
 use airprotos::{
     client::app_data::GroupAppData,
+    common::v1::ClientMetadata,
     convert::{TryFromRef, TryRefInto},
     delivery_service::v1::{
-        CreateApqGroupPayload, CreateGroupPayload, GroupSessionData, ProvisionAttachmentResponse,
-        StorageObjectType, UserCredential as UserCredentialProto,
+        CreateApqGroupPayload, CreateGroupPayload, GroupSessionData, MlsMessage as MlsMessageProto,
+        ProvisionAttachmentResponse, RatchetTree as RatchetTreeProto, StorageObjectType,
+        UserCredential as UserCredentialProto,
     },
     validation::{InvalidTlsExt, MissingFieldExt},
 };
@@ -21,25 +23,28 @@ use chrono::{TimeDelta, Utc};
 use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
     group::Group,
-    openmls::prelude::{MlsMessageBodyIn, MlsMessageIn, RatchetTreeIn},
+    openmls::prelude::{GroupId, MlsMessageBodyIn, MlsMessageIn, RatchetTreeIn},
 };
 use tls_codec::DeserializeBytes;
 use tonic::Status;
 use tracing::{error, warn};
+use uuid::Uuid;
 
 use crate::{
     auth_service::AsConnector,
     ds::{
         GrpcDs, ReservedGroupId,
         attachments::ProvisionObjectError,
+        create_group_stream::{CreateGroupStreamBackend, StreamCreator, StreamReservation},
         group_state::{
-            DsGroupState, EncryptedDsGroupState, StorableDsGroupData, leaf_credential_matches_flag,
+            DsGroupState, EncryptedDsGroupState, StorableDsGroupData, leaf_credential_is_valid,
         },
-        grpc::{GroupBootstrapMaterial, WithGroupStateEarKey, WithQualifiedGroupId},
+        grpc::{CreationEcho, WithGroupStateEarKey, WithQualifiedGroupId},
         process::Provider,
     },
     qs::QsConnector,
     rate_limiter::{RateLimiter, RlConfig, RlKey, RlOperation, provider::RlPostgresStorage},
+    settings::DsSettings,
 };
 
 /// Rejects a new group whose context already carries a tombstone. Only a
@@ -65,7 +70,7 @@ pub(super) struct NewGroup {
 pub(super) struct NewGroupState {
     pub(super) group_state: DsGroupState,
     pub(super) creator_client_reference: QsReference,
-    pub(super) bootstrap: Option<GroupBootstrapMaterial>,
+    pub(super) echo: CreationEcho,
 }
 
 /// The chat data an APQ creation payload carries for both legs.
@@ -114,6 +119,15 @@ pub(super) struct NewGroupLeg {
     pub(super) label: &'static str,
 }
 
+/// What storing a new group does when its id is taken.
+#[derive(Debug, Clone, Copy)]
+pub(super) enum GroupInsert {
+    /// Reports success without storing anything.
+    IgnoreConflict,
+    /// Fails with `ALREADY_EXISTS`.
+    FailOnConflict,
+}
+
 impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     /// Builds a classical group from its creation payload, before the payload is
     /// verified.
@@ -121,29 +135,11 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         let qgid = payload.validated_qgid(&self.ds.own_domain)?;
         let ear_key = payload.ear_key()?;
 
-        let group_info: MlsMessageIn = payload
-            .group_info
-            .as_ref()
-            .ok_or_missing_field("group_info")?
-            .try_ref_into()
-            .invalid_tls("group_info")?;
-        let MlsMessageBodyIn::GroupInfo(group_info) = group_info.extract() else {
-            return Err(Status::invalid_argument("invalid message"));
-        };
-
-        let ratchet_tree: RatchetTreeIn = payload
-            .ratchet_tree
-            .as_ref()
-            .ok_or_missing_field("ratchet_tree")?
-            .try_ref_into()
-            .invalid_tls("ratchet_tree")?;
-
-        let provider = Provider::default();
-        let group = Group::new(&provider, group_info.clone(), ratchet_tree).map_err(|error| {
-            error!(%error, "failed to create group");
-            Status::internal("failed to create group")
-        })?;
-        ensure_created_without_tombstone(&group)?;
+        let (provider, group) = build_group(
+            payload.group_info.as_ref(),
+            payload.ratchet_tree.as_ref(),
+            "group",
+        )?;
 
         Ok(NewGroup {
             qgid,
@@ -186,44 +182,35 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             room_state,
         );
 
-        let bootstrap = payload
-            .group_bootstrap
-            .map(|group_bootstrap| {
-                GroupBootstrapMaterial::for_creation(
-                    &group_state,
-                    qgid.clone().into(),
-                    None,
-                    group_bootstrap,
-                )
-            })
-            .transpose()?;
+        let echo = CreationEcho::new(
+            &group_state,
+            qgid.clone().into(),
+            None,
+            payload.group_bootstrap,
+        )?;
 
         Ok(NewGroupState {
             group_state,
             creator_client_reference,
-            bootstrap,
+            echo,
         })
     }
 
     /// Builds and checks the PQ leg of an APQ group from its verified creation
-    /// payload, with the bootstrap of both legs.
+    /// payload, with the creation echo of both legs.
     pub(super) fn new_pq_leg(
         &self,
         payload: CreateApqGroupPayload,
         chat: &NewApqChatData,
         t_qgid: &QualifiedGroupId,
         t_group_state: &DsGroupState,
-    ) -> Result<
-        (
-            QualifiedGroupId,
-            DsGroupState,
-            Option<GroupBootstrapMaterial>,
-        ),
-        Status,
-    > {
+    ) -> Result<(QualifiedGroupId, DsGroupState, CreationEcho), Status> {
         // Extract pq group state (PQ group uses the same ear_key as the T group)
         let (pq_qgid, pq_group_state, _) = self.extract_group_state(
-            payload.pq_group_data.ok_or_missing_field("pq_group_data")?,
+            payload
+                .pq_group_data
+                .as_ref()
+                .ok_or_missing_field("pq_group_data")?,
             &chat.encrypted_user_profile_key,
             &chat.creator_client_reference,
             &chat.room_state,
@@ -253,33 +240,29 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         })?;
 
         // Both legs live in the snapshot of the T leg's group id
-        let bootstrap = payload
-            .group_bootstrap
-            .map(|group_bootstrap| {
-                GroupBootstrapMaterial::for_creation(
-                    t_group_state,
-                    t_qgid.clone().into(),
-                    Some((pq_qgid.clone().into(), &pq_group_state)),
-                    group_bootstrap,
-                )
-            })
-            .transpose()?;
+        let echo = CreationEcho::new(
+            t_group_state,
+            t_qgid.clone().into(),
+            Some((pq_qgid.clone().into(), &pq_group_state)),
+            payload.group_bootstrap,
+        )?;
 
-        Ok((pq_qgid, pq_group_state, bootstrap))
+        Ok((pq_qgid, pq_group_state, echo))
     }
 
-    /// Stores the legs of a new group and its bootstrap in one transaction,
-    /// then dispatches the bootstrap echo.
+    /// Stores the legs of a new group and its bootstrap snapshot in one
+    /// transaction, then dispatches the creation echo.
     ///
     /// The bootstrap snapshot is stored under `bootstrap_qgid`, the id of the
     /// group's first leg.
     pub(super) async fn store_new_group(
         &self,
         legs: impl IntoIterator<Item = NewGroupLeg>,
-        bootstrap: Option<GroupBootstrapMaterial>,
+        echo: CreationEcho,
         bootstrap_qgid: &QualifiedGroupId,
         ear_key: &GroupStateEarKey,
         creator_client_reference: QsReference,
+        insert: GroupInsert,
     ) -> Result<(), Status> {
         let mut txn = self.ds.db_pool.begin().await.map_err(|error| {
             error!(%error, "failed to start transaction");
@@ -291,27 +274,27 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             label,
         } in legs
         {
-            StorableDsGroupData::new_and_store(txn.as_mut(), group_id, encrypted_group_state)
-                .await
-                .map_err(|error| {
-                    error!(%error, "failed to store {label}");
-                    Status::internal(format!("failed to store {label}"))
-                })?;
+            let stored =
+                StorableDsGroupData::store_if_new(txn.as_mut(), group_id, encrypted_group_state)
+                    .await
+                    .map_err(|error| {
+                        error!(%error, "failed to store {label}");
+                        Status::internal(format!("failed to store {label}"))
+                    })?;
+            if !stored && matches!(insert, GroupInsert::FailOnConflict) {
+                error!("new group id is already taken");
+                return Err(Status::already_exists("group already exists"));
+            }
         }
-        if let Some(bootstrap) = bootstrap.as_ref() {
-            bootstrap
-                .store(&mut txn, bootstrap_qgid.group_uuid(), ear_key)
-                .await?;
-        }
+        echo.store(&mut txn, bootstrap_qgid.group_uuid(), ear_key)
+            .await?;
         txn.commit().await.map_err(|error| {
             error!(%error, "failed to commit transaction");
             Status::internal("database error")
         })?;
 
-        if let Some(bootstrap) = bootstrap {
-            self.dispatch_group_bootstrap_echo(bootstrap.echo, creator_client_reference)
-                .await;
-        }
+        self.dispatch_group_bootstrap_echo(echo.echo, creator_client_reference)
+            .await;
         Ok(())
     }
 
@@ -324,7 +307,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         );
         let config = RlConfig {
             max_requests: 100,
-            time_window: TimeDelta::hours(1),
+            time_window: TimeDelta::days(1),
         };
         let rl_storage = RlPostgresStorage::new(self.ds.db_pool.clone());
         let rl = RateLimiter::new(config, rl_storage);
@@ -347,7 +330,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .map_err(|_| Status::invalid_argument("invalid group profile size"))?;
         match self
             .ds
-            .provision_object(StorageObjectType::GroupProfile, Some(content_length), false)
+            .provision_object(StorageObjectType::GroupProfile, content_length, false)
             .await
         {
             Ok(response) => Ok(Some(response)),
@@ -361,7 +344,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 
     pub(super) fn extract_group_state(
         &self,
-        data: GroupSessionData,
+        data: &GroupSessionData,
         encrypted_user_profile_key: &EncryptedUserProfileKey,
         creator_client_reference: &QsReference,
         room_state: &VerifiedRoomState,
@@ -369,32 +352,11 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         let qgid = data.validated_qgid(self.ds.own_domain())?;
         let ear_key = data.ear_key()?;
 
-        let GroupSessionData {
-            qgid: _,
-            group_state_ear_key: _,
-            ratchet_tree,
-            group_info,
-        } = data;
-
-        let group_info: MlsMessageIn = group_info
-            .as_ref()
-            .ok_or_missing_field("group_info")?
-            .try_ref_into()
-            .invalid_tls("group_info")?;
-        let MlsMessageBodyIn::GroupInfo(group_info) = group_info.extract() else {
-            return Err(Status::invalid_argument("invalid message"));
-        };
-        let ratchet_tree: RatchetTreeIn = ratchet_tree
-            .as_ref()
-            .ok_or_missing_field("ratchet_tree")?
-            .try_ref_into()
-            .invalid_tls("ratchet_tree")?;
-        let provider = Provider::default();
-        let group = Group::new(&provider, group_info.clone(), ratchet_tree).map_err(|error| {
-            error!(%error, "failed to create t_group");
-            Status::internal("failed to create t_group")
-        })?;
-        ensure_created_without_tombstone(&group)?;
+        let (provider, group) = build_group(
+            data.group_info.as_ref(),
+            data.ratchet_tree.as_ref(),
+            "t_group",
+        )?;
 
         let state = DsGroupState::new(
             provider,
@@ -429,7 +391,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .map_err(|_| Status::invalid_argument("invalid credential"))?;
         let is_self_group =
             GroupAppData::is_self_group_context(group.group_info().group_context().extensions());
-        if !leaf_credential_matches_flag(&leaf_credential, is_self_group) {
+        if !leaf_credential_is_valid(&leaf_credential, &member.signature_key, is_self_group) {
             return Err(Status::invalid_argument(
                 "creator leaf credential does not match group kind",
             ));
@@ -486,5 +448,179 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         } else {
             Ok(())
         }
+    }
+}
+
+/// Builds a group from its GroupInfo and ratchet tree. `what` names the group
+/// in errors.
+fn build_group(
+    group_info: Option<&MlsMessageProto>,
+    ratchet_tree: Option<&RatchetTreeProto>,
+    what: &str,
+) -> Result<(Provider, Group), Status> {
+    let group_info: MlsMessageIn = group_info
+        .ok_or_missing_field("group_info")?
+        .try_ref_into()
+        .invalid_tls("group_info")?;
+    let MlsMessageBodyIn::GroupInfo(group_info) = group_info.extract() else {
+        return Err(Status::invalid_argument("invalid message"));
+    };
+    let ratchet_tree: RatchetTreeIn = ratchet_tree
+        .ok_or_missing_field("ratchet_tree")?
+        .try_ref_into()
+        .invalid_tls("ratchet_tree")?;
+    let provider = Provider::default();
+    let group = Group::new(&provider, group_info, ratchet_tree).map_err(|error| {
+        error!(%error, "failed to create {what}");
+        Status::internal(format!("failed to create {what}"))
+    })?;
+    ensure_created_without_tombstone(&group)?;
+    Ok((provider, group))
+}
+
+fn ensure_stream_group_id(
+    group_id: &QualifiedGroupId,
+    reserved: &QualifiedGroupId,
+) -> Result<(), Status> {
+    if group_id != reserved {
+        return Err(Status::invalid_argument(
+            "group id was not reserved by this stream",
+        ));
+    }
+    Ok(())
+}
+
+/// Rejects a group whose MLS group id is not the one the stream reserved. The
+/// outer group id of the request does not tell, since the group is built from
+/// its GroupInfo.
+fn ensure_mls_group_id(
+    group_state: &DsGroupState,
+    reserved: &QualifiedGroupId,
+) -> Result<(), Status> {
+    let reserved: GroupId = reserved.clone().into();
+    if group_state.group().group_info().group_context().group_id() != &reserved {
+        return Err(Status::invalid_argument(
+            "MLS group id does not match the group id reserved by this stream",
+        ));
+    }
+    Ok(())
+}
+
+/// Rejects a creator credential that is not the one the stream authenticated.
+fn ensure_stream_creator(
+    creator: &StreamCreator,
+    credential: &UserCredential,
+) -> Result<(), Status> {
+    if credential.user_id() != &creator.user_id
+        || credential.verifying_key() != &creator.verifying_key
+    {
+        return Err(Status::permission_denied(
+            "creator credential does not belong to the authenticated user",
+        ));
+    }
+    Ok(())
+}
+
+impl<Qep: QsConnector, As: AsConnector> CreateGroupStreamBackend for GrpcDs<Qep, As> {
+    fn settings(&self) -> &DsSettings {
+        &self.ds.settings
+    }
+
+    fn verify_client_version(
+        &self,
+        client_metadata: Option<&ClientMetadata>,
+    ) -> Result<(), Status> {
+        GrpcDs::verify_client_version(self, client_metadata)?;
+        Ok(())
+    }
+
+    async fn user_verifying_key(
+        &self,
+        user_id: &UserId,
+    ) -> Result<Option<ClientVerifyingKey>, Status> {
+        self.load_client_verifying_key(user_id).await
+    }
+
+    async fn consume_creation_allowance(&self, user_id: &UserId) -> Result<(), Status> {
+        GrpcDs::consume_creation_allowance(self, user_id).await
+    }
+
+    fn fresh_group_id(&self) -> QualifiedGroupId {
+        QualifiedGroupId::new(Uuid::new_v4(), self.ds.own_domain.clone())
+    }
+
+    async fn provision_group_profile(
+        &self,
+        size: i64,
+    ) -> Result<Option<ProvisionAttachmentResponse>, Status> {
+        GrpcDs::provision_group_profile(self, size).await
+    }
+
+    /// Creates an APQ group, a self-group included, from the create step of a
+    /// stream.
+    async fn create_apq_group(
+        &self,
+        creator: &StreamCreator,
+        reservation: &StreamReservation,
+        payload: CreateApqGroupPayload,
+    ) -> Result<(), Status> {
+        let t_group_data = payload
+            .t_group_data
+            .as_ref()
+            .ok_or_missing_field("t_group_data")?;
+        let pq_group_data = payload
+            .pq_group_data
+            .as_ref()
+            .ok_or_missing_field("pq_group_data")?;
+        ensure_stream_group_id(
+            &t_group_data.validated_qgid(&self.ds.own_domain)?,
+            &reservation.t_group_id,
+        )?;
+        ensure_stream_group_id(
+            &pq_group_data.validated_qgid(&self.ds.own_domain)?,
+            &reservation.pq_group_id,
+        )?;
+
+        let chat = NewApqChatData::from_payload(&payload)?;
+        let (t_qgid, t_group_state, ear_key) = self.extract_group_state(
+            t_group_data,
+            &chat.encrypted_user_profile_key,
+            &chat.creator_client_reference,
+            &chat.room_state,
+        )?;
+        ensure_mls_group_id(&t_group_state, &reservation.t_group_id)?;
+        // For a self-group, this is the credential sent alongside the leaves
+        let t_user_credential = Self::creator_credential(
+            &t_group_state.group,
+            payload.creator_user_credential.as_ref(),
+        )?;
+        ensure_stream_creator(creator, &t_user_credential)?;
+
+        let (pq_qgid, pq_group_state, echo) =
+            self.new_pq_leg(payload, &chat, &t_qgid, &t_group_state)?;
+        ensure_mls_group_id(&pq_group_state, &reservation.pq_group_id)?;
+        let encrypted_t_group_state = t_group_state.encrypt(&ear_key)?;
+        let encrypted_pq_group_state = pq_group_state.encrypt(&ear_key)?;
+
+        self.store_new_group(
+            [
+                NewGroupLeg {
+                    group_id: ReservedGroupId(t_qgid.group_uuid()),
+                    encrypted_group_state: encrypted_t_group_state,
+                    label: "t group state",
+                },
+                NewGroupLeg {
+                    group_id: ReservedGroupId(pq_qgid.group_uuid()),
+                    encrypted_group_state: encrypted_pq_group_state,
+                    label: "pq group state",
+                },
+            ],
+            echo,
+            &t_qgid,
+            &ear_key,
+            chat.creator_client_reference,
+            GroupInsert::FailOnConflict,
+        )
+        .await
     }
 }

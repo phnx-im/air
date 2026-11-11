@@ -11,7 +11,7 @@ use mls_assist::{
         ApqProcessedAssistedMessagePlus, ProcessedAssistedMessage,
         apq::{ApqGroupRef, ApqRetainedWelcomeInfo},
     },
-    messages::{AssistedMessageIn, AssistedWelcome, SerializedMlsMessage},
+    messages::{ApqAssistedMessageIn, AssistedWelcome, SerializedMlsMessage},
     openmls::{
         group::StagedCommit,
         messages::proposals::Proposal,
@@ -52,7 +52,7 @@ use crate::{
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload, QsVirtualClientHint},
 };
 
-use super::group_state::{MemberProfile, leaf_credential_matches_flag};
+use super::group_state::{MemberProfile, leaf_credential_is_valid};
 
 use super::group_state::DsGroupState;
 
@@ -148,15 +148,19 @@ impl DsGroupState {
         let is_self_group = self.is_self_group();
 
         // If the commit carries an update path, the sender's new leaf credential must match the
-        // group kind.
+        // group kind and bind the new leaf key.
         if let Some(update_leaf) = staged_commit.update_path_leaf_node() {
             let update_credential = LeafCredential::from_credential(update_leaf.credential())
                 .map_err(|e| {
                     error!(%e, "Update path leaf credential is invalid");
                     GroupOperationError::InvalidMessage
                 })?;
-            if !leaf_credential_matches_flag(&update_credential, is_self_group) {
-                warn!("Update path leaf credential does not match group kind");
+            if !leaf_credential_is_valid(
+                &update_credential,
+                update_leaf.signature_key().as_slice(),
+                is_self_group,
+            ) {
+                warn!("Update path leaf credential is not valid for this group");
                 return Err(GroupOperationError::InvalidMessage);
             }
         }
@@ -234,7 +238,11 @@ impl DsGroupState {
                             error!(%e, "Credential of added user is invalid");
                             GroupOperationError::InvalidMessage
                         })?;
-                if !leaf_credential_matches_flag(&added_credential, is_self_group) {
+                if !leaf_credential_is_valid(
+                    &added_credential,
+                    added_key_package.leaf_node().signature_key().as_slice(),
+                    is_self_group,
+                ) {
                     warn!("Added user credential does not match group kind");
                     return Err(GroupOperationError::InvalidMessage);
                 }
@@ -438,8 +446,7 @@ impl DsGroupState {
     pub(super) fn process_apq_group_operation(
         t_group_state: &mut DsGroupState,
         pq_group_state: &mut DsGroupState,
-        t_message: AssistedMessageIn,
-        pq_message: AssistedMessageIn,
+        commit: ApqAssistedMessageIn,
         t_add_users_info: Option<AddUsersInfo>,
         pq_add_users_info: Option<AddUsersInfo>,
         max_devices: u32,
@@ -450,7 +457,7 @@ impl DsGroupState {
             t_serialized_message,
             pq_serialized_message,
         } = ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
-            .process_apq_assisted_message(crypto, t_message, pq_message, |_, _| true)?;
+            .process_apq_assisted_message(crypto, commit, |_, _| true)?;
 
         // PQ-side validation: sender type, self-remove check, welcome
         let (pq_staged_commit, pq_welcome) = {

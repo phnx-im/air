@@ -22,12 +22,13 @@ use aircommon::{
     virtual_client::KeyPackageBatchId,
 };
 use airprotos::client::{
-    app_data::GroupAppData, group::GroupData, group_bootstrap::GroupBootstrapCarrier,
-    self_group::SelfGroupAppMessage, virtual_client::extract_virtual_client_commit_data,
+    app_data::GroupAppData, component::GroupTombstone, group::GroupData,
+    group_bootstrap::GroupBootstrapCarrier, self_group::SelfGroupAppMessage,
+    virtual_client::extract_virtual_client_commit_data,
 };
 use anyhow::{Context, Result, bail, ensure};
 use apqmls::messages::ApqMlsMessageIn;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use mimi_content::{Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPart};
 use mimi_room_policy::RoleIndex;
 use openmls::{
@@ -45,7 +46,7 @@ use crate::{
     chats::{
         GroupDataExt, StatusRecord,
         messages::{
-            edit::{MessageEdit, handle_message_edit},
+            edit::{MessageEdit, confirm_own_edit, handle_message_edit},
             persistence::apply_deleted_messages,
         },
         outgoing_requests, persistence,
@@ -56,15 +57,16 @@ use crate::{
         attachment::MimiContentExt,
         block_contact::{BlockedContact, BlockedContactError},
         own_client_info::{OwnClientInfo, UnlinkReason},
-        process::process_as::{ConnectionInfoSource, TargetedMessageSource},
+        process::process_as::{ConnectionInfoSource, OfferOutcome, TargetedMessageSource},
         targeted_message::TargetedMessageContent,
-        update_key::update_chat_title,
+        update_key::{update_chat_attributes, update_chat_title},
         user_settings::ReadReceiptsSetting,
     },
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
         DecryptedProfileInfos, Group, JoinSigners, VerifiedGroup,
         client_auth_info::StorableUserCredential,
+        pending_creation::PendingGroupCreation,
         process::{ProcessMessageProcessed, ProcessMessageResult},
     },
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
@@ -383,7 +385,7 @@ impl CoreUser {
     }
 
     /// Applies the side effects of merging one of our own commits: any group
-    /// data change carried by the commit (currently the chat title) is applied
+    /// data change carried by the commit (chat title and picture) is applied
     /// to `chat`, appending the corresponding system messages to
     /// `group_messages`, and the pending chat operation is deleted.
     ///
@@ -403,32 +405,45 @@ impl CoreUser {
         key_package_batch: Option<KeyPackageBatchId>,
         ds_timestamp: TimeStamp,
     ) -> anyhow::Result<()> {
-        // Update group data in chat attributes if present
+        // Update group data in chat attributes if present. The picture is not
+        // part of the commit, it is stored with the pending update.
         if let Some(group_data) = group_data
             && let (title, _profile) = group_data.into_parts(group.identity_link_wrapper_key())
             && let Some(title) = title
         {
-            update_chat_title(
-                &mut *txn,
-                chat,
-                self.user_id(),
-                title,
-                ds_timestamp,
-                group_messages,
-            )
-            .await?;
+            match PendingChatOperation::load_new_chat_picture(&mut *txn, group.group_id()).await? {
+                Some(picture) => {
+                    let attributes = ChatAttributes::new(title, picture);
+                    update_chat_attributes(
+                        txn,
+                        chat,
+                        self.user_id(),
+                        attributes,
+                        ds_timestamp,
+                        group_messages,
+                    )
+                    .await?;
+                }
+                None => {
+                    update_chat_title(
+                        &mut *txn,
+                        chat,
+                        self.user_id(),
+                        title,
+                        ds_timestamp,
+                        group_messages,
+                    )
+                    .await?;
+                }
+            }
         }
 
         // Our self-group commit was accepted: complete the pending intent it
         // asserted before the operation is deleted. Only self-group commits
-        // carry settings or token seeds. Boxed because the loaded operation
-        // carries the full group state.
+        // carry settings or token seeds.
         if group.is_self_group() {
-            Box::pin(PendingChatOperation::complete_self_group_intent_of_group(
-                &mut *txn,
-                group.group_id(),
-            ))
-            .await?;
+            PendingChatOperation::complete_self_group_intent_of_group(&mut *txn, group.group_id())
+                .await?;
         }
 
         // Complete the pending chat operation
@@ -743,10 +758,12 @@ impl CoreUser {
             qs_client_id: &self.inner.qs_client_id,
         };
 
-        let stored =
+        let outcome =
             CoreUser::process_connection_offer(&mut context, connection_info_source).await?;
-
-        Ok(stored.map_or_else(QsMessageOutcome::empty, QsMessageOutcome::new_connection))
+        match outcome {
+            OfferOutcome::Stored(stored) => Ok(QsMessageOutcome::new_connection(stored)),
+            OfferOutcome::Closing | OfferOutcome::Dropped => Ok(QsMessageOutcome::empty()),
+        }
     }
 
     async fn handle_mls_message(
@@ -792,14 +809,14 @@ impl CoreUser {
             return Ok(QsMessageOutcome::empty());
         };
 
-        self.finalize_handle_message(
+        Box::pin(self.finalize_handle_message(
             txn,
             ds_timestamp,
             read_receipts_enabled,
             chat,
             group,
             processed_message,
-        )
+        ))
         .await
     }
 
@@ -858,14 +875,14 @@ impl CoreUser {
             return Ok(QsMessageOutcome::empty());
         };
 
-        self.finalize_handle_message(
+        Box::pin(self.finalize_handle_message(
             txn,
             ds_timestamp,
             read_receipts_enabled,
             chat,
             group,
             processed_message,
-        )
+        ))
         .await
     }
 
@@ -941,9 +958,11 @@ impl CoreUser {
             }
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
                 // Only our own devices are members of an unconfirmed connection
-                // group, so its deletion is a sibling retracting the request,
-                // or closing it because it expired.
+                // group, besides a recipient that closes it right after its
+                // join. Its deletion ends the request, see
+                // `end_outgoing_request`.
                 let ended = we_were_removed && chat.is_unconfirmed();
+                let tombstone = GroupAppData::tombstone(staged_commit.group_context().extensions());
                 let sender_user_credential =
                     StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id)
                         .await?
@@ -969,10 +988,15 @@ impl CoreUser {
                 log_processed_commit(&group, &sender);
 
                 if ended {
-                    if let Some(mut chat) = Chat::load(&mut *txn, &chat_id).await?
-                        && !request_expiry::close_if_expired(txn, &mut chat, *ds_timestamp).await?
-                    {
-                        persistence::erase(txn, &chat).await?;
+                    if let Some(mut chat) = Chat::load(&mut *txn, &chat_id).await? {
+                        Self::end_outgoing_request(
+                            txn,
+                            &mut chat,
+                            tombstone.as_ref(),
+                            &sender_user_id,
+                            ds_timestamp,
+                        )
+                        .await?;
                     }
                     return Ok(QsMessageOutcome::empty());
                 }
@@ -1210,8 +1234,7 @@ impl CoreUser {
 
         // Message edit
         if let Ok(content) = &mut content
-            && let Some(replaces) = content.replaces.as_ref()
-            && let Ok(mimi_id) = MimiId::from_slice(replaces)
+            && let Some(mimi_id) = content.replaces.map(MimiId::from)
         {
             // Don't fail here, otherwise message processing of other messages will fail.
             let mut savepoint_txn = txn.begin().await?;
@@ -1225,12 +1248,10 @@ impl CoreUser {
             )
             .await
             .inspect_err(|error| {
-                // We don't have the message to edit in our database, so we
-                // can't apply the edit. This can happen if the original message
-                // was deleted or if the original message was sent before we
-                // joined the group and we don't have the original message in
-                // our database. In this case, we just skip the edit.
-                warn!(%error, "Cannot edit message because original message is missing; skipping");
+                // The edit cannot be applied, so we skip it. This happens if
+                // the original message was deleted, if it was sent before we
+                // joined the group, or if the edit exceeds the edit limits.
+                warn!(%error, "Cannot apply message edit; skipping");
             })
             .ok();
             if message.is_some() {
@@ -1327,6 +1348,7 @@ impl CoreUser {
                     .await?;
                 if !is_deletion {
                     existing.set_edited_at(ds_timestamp);
+                    confirm_own_edit(&mut *txn, &existing, ds_timestamp).await?;
                 }
                 existing.update(&mut *txn).await?;
             } else {
@@ -1363,8 +1385,7 @@ impl CoreUser {
         ds_timestamp: TimeStamp,
     ) -> anyhow::Result<(Option<ReactionNotification>, Option<ChatId>)> {
         // Retraction: `replaces` the previously sent reaction with an empty body.
-        if let Some(replaces) = content.replaces.as_ref() {
-            let replaced_mimi_id = MimiId::from_slice(replaces)?;
+        if let Some(replaced_mimi_id) = content.replaces.map(MimiId::from) {
             let mut changed_chat = None;
             if let Some(target_mimi_id) =
                 Reaction::delete_by_mimi_id(&mut *txn, &replaced_mimi_id).await?
@@ -1380,11 +1401,10 @@ impl CoreUser {
         }
 
         // Add: `in_reply_to` references the reacted-to message.
-        let Some(in_reply_to) = content.in_reply_to.as_ref() else {
+        let Some(target_mimi_id) = content.in_reply_to.map(MimiId::from) else {
             warn!("Received reaction without in_reply_to, ignoring");
             return Ok((None, None));
         };
-        let target_mimi_id = MimiId::from_slice(in_reply_to)?;
 
         let Some(target) = ChatMessage::load_by_mimi_id(&mut *txn, &target_mimi_id).await? else {
             warn!("Received reaction for unknown message, ignoring");
@@ -1508,22 +1528,32 @@ impl CoreUser {
         // our request joined it. Our own siblings commit to an unconfirmed
         // connection group too, for example when a new device onboards into it.
         let mut group_messages = Vec::new();
-        if chat.is_unconfirmed()
-            && let AadPayload::JoinConnectionGroup(join) =
-                AadMessage::tls_deserialize_exact_bytes(&aad)?.into_payload()
-        {
-            let message = self
-                .handle_unconfirmed_chat(
-                    txn,
-                    join.encrypted_friendship_package,
-                    ds_timestamp,
-                    sender,
-                    sender_user_credential,
-                    &mut chat,
-                    group.group_mut(),
-                )
-                .await?;
-            group_messages.push(message);
+        if chat.is_unconfirmed() {
+            match AadMessage::tls_deserialize_exact_bytes(&aad)?.into_payload() {
+                AadPayload::JoinConnectionGroup(join) => {
+                    let message = self
+                        .handle_unconfirmed_chat(
+                            txn,
+                            join.encrypted_friendship_package,
+                            ds_timestamp,
+                            sender,
+                            sender_user_credential,
+                            &mut chat,
+                            group.group_mut(),
+                        )
+                        .await?;
+                    group_messages.push(message);
+                }
+                // The recipient deletes the group right after this join.
+                AadPayload::CloseConnectionGroup(_) => {
+                    self.admit_connection_group_joiner(
+                        group.group_mut(),
+                        sender,
+                        sender_user_credential,
+                    )?;
+                }
+                AadPayload::GroupOperation(_) | AadPayload::Resync | AadPayload::DeleteGroup => {}
+            }
         }
 
         // StagedCommitMessage Phase 2: Merge the staged commit into the group.
@@ -1583,6 +1613,27 @@ impl CoreUser {
         Ok(group_messages)
     }
 
+    /// Ends the outgoing request of `chat` through the `closer` and deletes it
+    /// with `tombstone` at `ds_timestamp`. When no tombstone is provided, we
+    /// assume the request expired or a sibling retracted it.
+    async fn end_outgoing_request(
+        txn: &mut WriteDbTransaction<'_>,
+        chat: &mut Chat,
+        tombstone: Option<&GroupTombstone>,
+        closer: &UserId,
+        ds_timestamp: TimeStamp,
+    ) -> Result<()> {
+        if outgoing_requests::close_if_already_connected(txn, chat, tombstone, closer, ds_timestamp)
+            .await?
+        {
+            return Ok(());
+        }
+        if !request_expiry::close_if_expired(txn, chat, *ds_timestamp).await? {
+            persistence::erase(txn, chat).await?;
+        }
+        Ok(())
+    }
+
     #[expect(clippy::too_many_arguments)]
     async fn handle_unconfirmed_chat(
         &self,
@@ -1594,11 +1645,7 @@ impl CoreUser {
         chat: &mut Chat,
         group: &mut Group,
     ) -> Result<TimestampedMessage, anyhow::Error> {
-        // Check if it was an external commit
-        ensure!(
-            matches!(sender, Sender::NewMemberCommit),
-            "Incoming commit to ConnectionGroup was not an external commit"
-        );
+        self.admit_connection_group_joiner(group, sender, sender_user_credential)?;
 
         let system_message = outgoing_requests::confirm(
             txn,
@@ -1607,19 +1654,35 @@ impl CoreUser {
             &encrypted_friendship_package,
         )
         .await?;
-
-        // Room state update: Pretend that we just invited that user
-        // We do that now, because we didn't know that user id when we created the room.
-        group.room_state_change_role(
-            self.user_id(),
+        outgoing_requests::close_targeted_request_to(
+            txn,
+            self.signing_key(),
             sender_user_credential.user_id(),
-            RoleIndex::Regular,
-        )?;
+            ds_timestamp,
+        )
+        .await?;
 
         Ok(TimestampedMessage::system_message(
             system_message,
             ds_timestamp,
         ))
+    }
+
+    /// Checks that `sender` joined the connection group with an external
+    /// commit, and enters `joiner` into the room state as if we had invited
+    /// it. We did not know its user id when we created the room.
+    fn admit_connection_group_joiner(
+        &self,
+        group: &mut Group,
+        sender: &Sender,
+        joiner: &UserCredential,
+    ) -> Result<()> {
+        ensure!(
+            matches!(sender, Sender::NewMemberCommit),
+            "Incoming commit to ConnectionGroup was not an external commit"
+        );
+        group.room_state_change_role(self.user_id(), joiner.user_id(), RoleIndex::Regular)?;
+        Ok(())
     }
 
     /// Handles a recipient's join of an outgoing request that this device
@@ -1790,6 +1853,26 @@ impl CoreUser {
         result.chats_with_changed_notifications.sort_unstable();
         result.chats_with_changed_notifications.dedup();
         result
+    }
+
+    /// Discards the pending group creations after the grace period has passed
+    /// and the confirmation wasn't received in the queue.
+    pub async fn discard_unconfirmed_group_creations(
+        &self,
+        drained_at: DateTime<Utc>,
+    ) -> sqlx::Result<()> {
+        self.db()
+            .write()
+            .await?
+            .with_transaction(async |txn| {
+                PendingGroupCreation::discard_unconfirmed(txn, drained_at).await
+            })
+            .await
+    }
+
+    #[cfg(any(test, feature = "test_utils"))]
+    pub async fn pending_group_creations(&self) -> sqlx::Result<i64> {
+        PendingGroupCreation::count(self.db().read().await?).await
     }
 
     /// Returns `Ok(())` if the more messages should be processed, or `Err` if the processing
