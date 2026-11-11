@@ -33,7 +33,8 @@ use aircommon::identifiers::Fqdn;
 use aircommon::messages::QueueMessage;
 use aircommon::mls_group_config::{APQ_CIPHERSUITE, self_group_leaf_node_capabilities};
 use airprotos::client::app_data::ClientAppData;
-use airprotos::client::self_group::SettingsUpdate;
+use airprotos::client::linking::PairingConfirmation;
+use airprotos::client::self_group::{LinkedDevicePlatform, SettingsUpdate};
 use airprotos::relay_service::mdl::{
     Abort, AbortCode, LinkingPayloadType, MDL_INITIATOR_LABEL, MDL_PROTOCOL_VERSION, MdlContext,
     MdlKdfContext, MdlMessage, PakeShareA, PakeShareB, SessionAssigned,
@@ -71,6 +72,7 @@ use crate::{
         api_clients::ApiClients,
         block_contact::persistence::{apply_blocked_contacts_update, blocked_contacts_snapshot},
         create_user::QsRegisteredUserState,
+        linked_devices::current_platform,
         listen_response,
         own_client_info::{OwnClientInfo, UnlinkReason},
         process::process_qs::ProcessedQsMessages,
@@ -385,6 +387,17 @@ fn open_payload(
     Ok(payload.payload)
 }
 
+/// Reads the new device's platform from its pairing confirmation.
+fn announced_platform(payload: &[u8]) -> Option<LinkedDevicePlatform> {
+    if payload.is_empty() {
+        return None;
+    }
+    let confirmation: PairingConfirmation = PersistenceCodec::from_slice(payload)
+        .inspect_err(|error| warn!(%error, "ignoring an undecodable pairing confirmation"))
+        .ok()?;
+    Some(confirmation.platform).filter(|platform| *platform != LinkedDevicePlatform::Unknown)
+}
+
 /// Hands the new device the provisioning package and reads back its
 /// self-group join request.
 async fn exchange_provisioning(
@@ -623,7 +636,11 @@ impl CoreUser {
         info!("joined the pairing group");
 
         // The existing device creates nothing for us before it hears this.
-        let frame = pairing.send(LinkingPayloadType::PairingConfirmed, Vec::new())?;
+        let pairing_confirmation = PersistenceCodec::to_vec(&PairingConfirmation {
+            platform: current_platform(),
+        })
+        .context("encode the pairing confirmation")?;
+        let frame = pairing.send(LinkingPayloadType::PairingConfirmed, pairing_confirmation)?;
         send_frame(tx, frame, "confirm the pairing").await?;
 
         let package =
@@ -826,7 +843,7 @@ impl CoreUser {
     pub async fn multi_device_link_client(
         &self,
         code: String,
-        connected_tx: oneshot::Sender<()>,
+        connected_tx: oneshot::Sender<Option<LinkedDevicePlatform>>,
         confirmation_rx: oneshot::Receiver<String>,
     ) -> anyhow::Result<Result<(), MultiDeviceLinkClientError>> {
         let code = match LinkingCode::parse(&code) {
@@ -886,7 +903,7 @@ impl CoreUser {
         code: &LinkingCode,
         tx: &mpsc::Sender<RelayFrame>,
         rx: &mut Streaming<RelayFrame>,
-        connected_tx: oneshot::Sender<()>,
+        connected_tx: oneshot::Sender<Option<LinkedDevicePlatform>>,
         confirmation_rx: oneshot::Receiver<String>,
     ) -> Result<(), LinkingError> {
         let message = next_message(rx).await?;
@@ -932,12 +949,13 @@ impl CoreUser {
 
         // Only a peer that derived the same PSK can speak in the group, so
         // this is where the new device is authenticated to this side.
-        receive_payload(&mut pairing, rx, LinkingPayloadType::PairingConfirmed).await?;
+        let pairing_confirmation =
+            receive_payload(&mut pairing, rx, LinkingPayloadType::PairingConfirmed).await?;
         info!("the new device confirmed the pairing");
 
         // Asking the user only now spares them the dialog for a mistyped
         // code. The account material still waits for their confirmation.
-        let _ = connected_tx.send(());
+        let _ = connected_tx.send(announced_platform(&pairing_confirmation));
         let device_name = tokio::select! {
             confirmation = confirmation_rx => {
                 confirmation.map_err(|_| LinkingError::UserRejected)?

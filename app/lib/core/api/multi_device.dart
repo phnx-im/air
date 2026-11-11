@@ -72,8 +72,11 @@ sealed class MultiDeviceLinkEvent with _$MultiDeviceLinkEvent {
 
   /// Connected to the relay; waiting for the user to approve on this device via
   /// [`MultiDeviceLinkConfirmation::confirm`].
-  const factory MultiDeviceLinkEvent.awaitingConfirmation() =
-      MultiDeviceLinkEvent_AwaitingConfirmation;
+  const factory MultiDeviceLinkEvent.awaitingConfirmation({
+    /// The name of the new device's platform, to prefill the name the user
+    /// gives it. `None` if the new device did not announce one.
+    String? suggestedName,
+  }) = MultiDeviceLinkEvent_AwaitingConfirmation;
 
   /// Linking completed successfully.
   const factory MultiDeviceLinkEvent.linked() = MultiDeviceLinkEvent_Linked;

@@ -10906,7 +10906,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
       case 0:
-        return MultiDeviceLinkEvent_AwaitingConfirmation();
+        return MultiDeviceLinkEvent_AwaitingConfirmation(
+          suggestedName: dco_decode_opt_String(raw[1]),
+        );
       case 1:
         return MultiDeviceLinkEvent_Linked();
       case 2:
@@ -14830,7 +14832,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var tag_ = sse_decode_i_32(deserializer);
     switch (tag_) {
       case 0:
-        return MultiDeviceLinkEvent_AwaitingConfirmation();
+        var var_suggestedName = sse_decode_opt_String(deserializer);
+        return MultiDeviceLinkEvent_AwaitingConfirmation(
+          suggestedName: var_suggestedName,
+        );
       case 1:
         return MultiDeviceLinkEvent_Linked();
       case 2:
@@ -19322,8 +19327,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     switch (self) {
-      case MultiDeviceLinkEvent_AwaitingConfirmation():
+      case MultiDeviceLinkEvent_AwaitingConfirmation(
+        suggestedName: final suggestedName,
+      ):
         sse_encode_i_32(0, serializer);
+        sse_encode_opt_String(suggestedName, serializer);
       case MultiDeviceLinkEvent_Linked():
         sse_encode_i_32(1, serializer);
       case MultiDeviceLinkEvent_Failed(field0: final field0):

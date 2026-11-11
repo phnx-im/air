@@ -8,6 +8,7 @@ pub mod app_data;
 pub mod component;
 pub mod group;
 pub mod group_bootstrap;
+pub mod linking;
 pub mod self_group;
 pub mod signed_connection_package;
 pub mod virtual_client;
