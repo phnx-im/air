@@ -8,7 +8,7 @@ use std::{collections::HashSet, slice};
 
 use aircommon::identifiers::QualifiedGroupId;
 use aircoreclient::{
-    ChatId, DisplayName, ResyncStatus, SystemMessage, UserProfile,
+    ChatId, ChatStatus, DisplayName, ResyncStatus, SystemMessage, UserProfile,
     clients::{CoreUser, MarkChatAsRead},
 };
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
@@ -1104,51 +1104,56 @@ async fn chat_title(user: &CoreUser, chat_id: ChatId) -> String {
         .to_owned()
 }
 
+/// While the resync of a chat is pending, the operations a user starts in it
+/// fail without leaving anything behind, and work again once it is done.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn chat_operation_waits_for_dropped_resync_commit() {
+async fn group_operations_fail_while_resync_is_pending() {
     let mut setup = TestBackend::single().await;
-    let [alice, bob] = setup.add_users().await;
+    let [alice, bob, charlie] = setup.add_users().await;
     let chat_id = setup.connected_group(&alice, &[&bob]).await;
+    setup.connect_users(&bob, &charlie).await;
 
     make_miss_a_commit(&alice, &bob, chat_id).await;
     drop_resync_request(&setup, &bob, chat_id).await;
+    let title = chat_title(&bob, chat_id).await;
+
     assert!(
         bob.set_chat_title(chat_id, "renamed".to_owned())
             .await
             .is_err()
     );
-
-    bob.outbound_service().run_once().await;
-    assert_eq!(resync_status(&bob, chat_id).await, None);
-    alice.drain().await;
-    assert_eq!(chat_title(&alice, chat_id).await, "renamed");
-    assert_messaging_works(&setup, &alice, &bob, chat_id).await;
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn chat_operation_waits_for_resync_commit_with_lost_response() {
-    let mut setup = TestBackend::single().await;
-    let [alice, bob] = setup.add_users().await;
-    let chat_id = setup.connected_group(&alice, &[&bob]).await;
-
-    make_miss_a_commit(&alice, &bob, chat_id).await;
-    setup
-        .listener_control_handle()
-        .set_drop_next_response_to(resync_method(&setup));
-    bob.outbound_service().run_once().await;
-    assert_eq!(
-        resync_status(&bob, chat_id).await,
-        Some(ResyncStatus::Pending)
-    );
     assert!(
-        bob.set_chat_title(chat_id, "renamed".to_owned())
+        bob.invite_users(chat_id, slice::from_ref(charlie.user_id()))
             .await
             .is_err()
     );
+    assert!(bob.leave_chat(chat_id).await.is_err());
+    assert!(bob.delete_and_erase_chat(chat_id).await.is_err());
+    assert!(
+        bob.pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let chat = bob.chat(&chat_id).await.expect("the chat should be kept");
+    assert_eq!(chat.status(), &ChatStatus::Active);
+    assert_eq!(chat_title(&bob, chat_id).await, title);
 
     bob.outbound_service().run_once().await;
     assert_eq!(resync_status(&bob, chat_id).await, None);
+    bob.set_chat_title(chat_id, "renamed".to_owned())
+        .await
+        .unwrap();
+    bob.invite_users(chat_id, slice::from_ref(charlie.user_id()))
+        .await
+        .unwrap();
     alice.drain().await;
     assert_eq!(chat_title(&alice, chat_id).await, "renamed");
-    assert_messaging_works(&setup, &alice, &bob, chat_id).await;
+    assert!(
+        alice
+            .group_members(chat_id)
+            .await
+            .unwrap()
+            .contains(charlie.user_id())
+    );
 }

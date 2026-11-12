@@ -462,6 +462,7 @@
   "contactRequestDialog_error_incompatibleClient": "No s'ha pogut acceptar la sol·licitud de contacte. Actualitzeu l'Air a la versió més recent i torneu-ho a provar.",
   "errorDialog_title": "S'ha produït un error",
   "errorDialog_confirm": "D'acord",
+  "errorDialog_tryAgainLater": "Espereu un moment i torneu-ho a provar.",
   "memberSelectionList_client_not_supported": "Aquest contacte té una versió antiga de l'aplicació que cal actualitzar.",
   "memberSelectionList_cantBeAddedTitle": "No es poden afegir",
   "memberSelectionList_cantBeAddedDescription": "Aquestes persones no es poden afegir al grup. És possible que els seus comptes ja no siguin actius o que tinguin una versió de l'aplicació massa antiga.",

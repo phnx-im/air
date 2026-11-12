@@ -462,6 +462,7 @@
   "contactRequestDialog_error_incompatibleClient": "Kontaktitaotlusega nõustumine ebaõnnestus. Uuenda Airi uusimale versioonile ja proovi uuesti.",
   "errorDialog_title": "Midagi läks valesti",
   "errorDialog_confirm": "OK",
+  "errorDialog_tryAgainLater": "Oota hetk ja proovi uuesti.",
   "memberSelectionList_client_not_supported": "Selle kontakti rakendus on aegunud ja seda tuleb uuendada.",
   "memberSelectionList_cantBeAddedTitle": "Ei saa lisada",
   "memberSelectionList_cantBeAddedDescription": "Neid inimesi ei saa gruppi lisada. Põhjus võib olla see, et nende konto ei ole enam aktiivne või nende rakenduse versioon on liiga vana.",

@@ -462,6 +462,7 @@
   "contactRequestDialog_error_incompatibleClient": "Kişi ekleme isteği kabul edilemedi. Air'i en yeni sürüme güncelleyip tekrar deneyin.",
   "errorDialog_title": "Bir sorun oluştu",
   "errorDialog_confirm": "Tamam",
+  "errorDialog_tryAgainLater": "Biraz bekleyip tekrar deneyin.",
   "memberSelectionList_client_not_supported": "Bu kişinin uygulaması eski ve güncellenmesi gerekiyor.",
   "memberSelectionList_cantBeAddedTitle": "Eklenemeyen kişiler",
   "memberSelectionList_cantBeAddedDescription": "Bu kişiler gruba eklenemez. Bunun nedeni hesaplarının artık etkin olmaması veya uygulama sürümlerinin çok eski olması olabilir.",

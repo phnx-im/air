@@ -477,6 +477,7 @@
   "contactRequestDialog_error_incompatibleClient": "Kunde inte acceptera kontaktförfrågan. Uppdatera Air till den senaste versionen och försök sedan igen.",
   "errorDialog_title": "Något gick fel",
   "errorDialog_confirm": "Okay",
+  "errorDialog_tryAgainLater": "Vänta en stund och försök igen.",
   "memberSelectionList_client_not_supported": "Den här kontakten har en föråldrad app som behöver uppdateras.",
   "memberSelectionList_cantBeAddedTitle": "Kan inte läggas till",
   "memberSelectionList_cantBeAddedDescription": "De här personerna kan inte läggas till i gruppen. Det kan bero på att deras konto inte längre är aktivt eller att deras appversion är för gammal.",

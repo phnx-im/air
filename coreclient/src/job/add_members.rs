@@ -10,7 +10,9 @@ use crate::{
     ChatId, ChatMessage,
     job::{
         Job, JobContext, JobError,
-        chat_operation::{ChatOperationError, execute_pending_operation, load_active_group},
+        chat_operation::{
+            ChatOperationError, execute_pending_operation, load_active_group, refuse_during_resync,
+        },
         pending_chat_operation::PendingChatOperation,
     },
 };
@@ -99,6 +101,7 @@ impl Job for AddMembers {
         &mut self,
         context: &mut JobContext<'_, '_>,
     ) -> Result<(), JobError<Self::DomainError>> {
+        refuse_during_resync(self.chat_id, context).await?;
         execute_pending_operation(self.chat_id, context).await
     }
 }

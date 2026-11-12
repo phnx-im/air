@@ -4,6 +4,7 @@
 
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/scroll/app_scrollbar.dart';
+import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/ds/patterns/modal/modal_guard.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -120,10 +121,18 @@ class _AddMembersViewState extends State<AddMembersView> {
   ) async {
     final navigationCubit = context.read<NavigationCubit>();
     final userCubit = context.read<UserCubit>();
-    final notAdded = await userCubit.addUserToChat(
-      widget.chatId,
-      selectedContacts.toList(),
-    );
+    final List<UiUserId> notAdded;
+    try {
+      notAdded = await userCubit.addUserToChat(
+        widget.chatId,
+        selectedContacts.toList(),
+      );
+    } catch (e, stackTrace) {
+      _log.severe('Failed to add members: $e', e, stackTrace);
+      if (!context.mounted) return;
+      showErrorDialog(context, message: (loc) => loc.errorDialog_tryAgainLater);
+      return;
+    }
     if (notAdded.isNotEmpty) {
       _log.warning('Failed to add members: incompatible client');
       showSnackBarStandalone(

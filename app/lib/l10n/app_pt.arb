@@ -477,6 +477,7 @@
   "contactRequestDialog_error_incompatibleClient": "Não foi possível aceitar a solicitação de contato. Atualize o Air para a versão mais recente e tente de novo.",
   "errorDialog_title": "Algo deu errado",
   "errorDialog_confirm": "Entendi",
+  "errorDialog_tryAgainLater": "Espere um momento e tente de novo.",
   "memberSelectionList_client_not_supported": "Este contato tem uma versão antiga do app que precisa ser atualizada.",
   "memberSelectionList_cantBeAddedTitle": "Não podem ser adicionadas",
   "memberSelectionList_cantBeAddedDescription": "Estas pessoas não podem ser adicionadas ao grupo. Pode ser porque a conta delas não está mais ativa ou porque a versão do app delas é muito antiga.",

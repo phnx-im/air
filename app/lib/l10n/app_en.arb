@@ -2412,6 +2412,10 @@
   "@errorDialog_confirm": {
     "description": "Button that acknowledges and closes an error dialog."
   },
+  "errorDialog_tryAgainLater": "Wait a moment, then try again.",
+  "@errorDialog_tryAgainLater": {
+    "description": "Message of the error dialog when a change to a chat failed, for example its title, picture or members, or leaving it."
+  },
 
   "memberSelectionList_client_not_supported": "This contact has an outdated app which needs to be updated.",
   "@memberSelectionList_client_not_supported": {
