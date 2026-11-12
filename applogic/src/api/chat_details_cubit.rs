@@ -4,12 +4,7 @@
 
 //! A single chat details feature
 
-use std::{
-    collections::{HashMap, HashSet},
-    mem,
-    path::PathBuf,
-    time::Duration,
-};
+use std::{collections::HashMap, path::PathBuf, time::Duration};
 
 use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
 pub use aircoreclient::{
@@ -31,7 +26,6 @@ use mimi_content::MimiContent;
 use parking_lot::Mutex;
 use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
-use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use crate::{
@@ -40,6 +34,7 @@ use crate::{
         message_content::{UiComposerLinkPreview, UiMimiId, UnresolvedMimiContent},
         types::{UiChatMessage, UiInReplyToMessage, UiMessageVersion},
     },
+    composer_link_preview::ComposerLinkPreview,
     mark_as_read::MarkAsReadState,
 };
 use crate::{api::types::UiMessageDraft, message_content::MimiContentExt};
@@ -869,12 +864,7 @@ impl ChatDetailsCubitBase {
     }
 
     pub fn composer_link_preview_image(&self, url: String) -> Option<Vec<u8>> {
-        match &self.link_preview.lock().fetch {
-            Fetch::Ready(fetched) if fetched.card().url() == url => {
-                fetched.image_bytes().map(|bytes| bytes.to_vec())
-            }
-            _ => None,
-        }
+        self.link_preview.lock().image_for(&url)
     }
 }
 
@@ -998,87 +988,6 @@ impl ChatDetailsContext {
             {
                 self.load_and_emit_state().await;
             }
-        }
-    }
-}
-
-#[frb(ignore)]
-#[derive(Debug, Default)]
-struct ComposerLinkPreview {
-    url: Option<String>,
-    fetch: Fetch,
-    dismissed: HashSet<String>,
-}
-
-#[frb(ignore)]
-#[derive(Debug, Default)]
-enum Fetch {
-    #[default]
-    None,
-    Loading(CancellationToken),
-    Ready(FetchedLinkPreview),
-}
-
-impl ComposerLinkPreview {
-    /// Copy of the ready preview if it belongs to the first link of `text`.
-    fn ready_for(&self, text: &str) -> Option<FetchedLinkPreview> {
-        let first = select_links(text).next()?;
-        match &self.fetch {
-            Fetch::Ready(fetched) if fetched.card().url() == first => Some(fetched.clone()),
-            _ => None,
-        }
-    }
-
-    /// Resets the state after a sent message and cancels a running fetch.
-    fn reset(&mut self) {
-        self.cancel();
-        self.url = None;
-        self.dismissed.clear();
-    }
-
-    fn switch_to<'a>(
-        &mut self,
-        url: Option<&'a str>,
-        parent: &CancellationToken,
-    ) -> Option<(&'a str, CancellationToken)> {
-        if self.url.as_deref() == url {
-            return None;
-        };
-        self.cancel();
-        self.url = url.map(|s| s.to_owned());
-        let url = url.filter(|url| !self.dismissed.contains(*url))?;
-        let token = parent.child_token();
-        self.fetch = Fetch::Loading(token.clone());
-        Some((url, token))
-    }
-
-    fn cancel(&mut self) {
-        if let Fetch::Loading(token) = mem::take(&mut self.fetch) {
-            token.cancel();
-        }
-    }
-
-    /// Cancel the current fetch if any for this url, and remember this url as dismissed.
-    fn dismiss(&mut self, url: &str) {
-        if self.url.as_deref() == Some(url) {
-            self.cancel();
-        }
-        self.dismissed.insert(url.to_owned());
-    }
-
-    fn finish(&mut self, token: &CancellationToken, fetched: Option<FetchedLinkPreview>) {
-        if !token.is_cancelled() {
-            self.fetch = fetched.map(Fetch::Ready).unwrap_or(Fetch::None);
-        }
-    }
-
-    fn ui(&self) -> Option<UiComposerLinkPreview> {
-        match (&self.url, &self.fetch) {
-            (Some(url), Fetch::Loading(_)) => {
-                Some(UiComposerLinkPreview::Loading { url: url.clone() })
-            }
-            (_, Fetch::Ready(fetched)) => Some(UiComposerLinkPreview::ready(fetched)),
-            _ => None,
         }
     }
 }
