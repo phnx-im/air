@@ -78,10 +78,10 @@ const BLOCKED_V6: [Ipv6Net; 3] = [
 
 /// IPv6 ranges with an IPv4 address inside, and where it starts in the address, counted in bits
 /// from the right.
-const EMBEDDING_V4: [(Ipv6Net, u32); 3] = [
-    // NAT64, from DNS64 on IPv6-only networks
+const EMBEDDING_V4: [(Ipv6Net, u32); 2] = [
+    // NAT64, from DNS64 on IPv6-only networks. The local-use 64:ff9b:1::/48 is
+    // not listed, because the position of its IPv4 address is not fixed.
     (v6([0x64, 0xff9b, 0, 0, 0, 0, 0, 0], 96), 0),
-    (v6([0x64, 0xff9b, 1, 0, 0, 0, 0, 0], 48), 0),
     // 6to4
     (v6([0x2002, 0, 0, 0, 0, 0, 0, 0], 16), 80),
 ];
@@ -189,7 +189,10 @@ mod tests {
                 // NAT64 and 6to4 with a private IPv4 inside
                 "64:ff9b::a00:1",
                 "64:ff9b::7f00:1",
+                // Local-use NAT64 is blocked as a whole
                 "64:ff9b:1::c0a8:101",
+                "64:ff9b:1::101:101",
+                "64:ff9b:1:c0a8:1:100:101:101",
                 "2002:a00:1::",
                 "2002:c0a8:101::",
             ],
@@ -208,7 +211,6 @@ mod tests {
                 "3ffe::1",
                 // NAT64 and 6to4 with a public IPv4 inside
                 "64:ff9b::101:101",
-                "64:ff9b:1::101:101",
                 "2002:101:101::",
             ],
             true,
