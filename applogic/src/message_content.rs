@@ -492,7 +492,6 @@ mod tests {
         assert!(resolved.attachments.is_empty());
         let preview = resolved.link_preview.unwrap();
         assert_eq!(preview.card.url, "https://air.ms");
-        assert_eq!(preview.card.host, "air.ms");
         assert_eq!(preview.card.title, "Air");
         assert_eq!(preview.card.kind, UiLinkPreviewKind::Video);
         let image = preview.image.unwrap();

@@ -4,14 +4,12 @@
 
 use airprotos::client::link_preview::{LinkPreviewCard, LinkPreviewImage};
 use mimi_content::{Disposition, MimiContent, NestedPart};
-use url::Url;
 
 use crate::{MediaType, MimiContentExt as _, PartIndex, VisitedPart, link_preview::select_links};
 
 #[derive(Debug)]
 pub struct LinkPreview {
     card: LinkPreviewCard,
-    host: String,
     image: Option<PartIndex>,
 }
 
@@ -25,7 +23,6 @@ impl LinkPreview {
         {
             return None;
         }
-        let host = Url::parse(card.url()).ok()?.host_str()?.to_owned();
         let image = card
             .image()
             .map(|image| PartIndex(image.part_index()))
@@ -34,7 +31,7 @@ impl LinkPreview {
             Some(_) => card,
             None => card.without_image(),
         };
-        Some(Self { card, host, image })
+        Some(Self { card, image })
     }
 
     /// First link preview in `content`.
@@ -64,10 +61,6 @@ impl LinkPreview {
 
     pub fn card(&self) -> &LinkPreviewCard {
         &self.card
-    }
-
-    pub fn host(&self) -> &str {
-        &self.host
     }
 
     pub fn image(&self) -> Option<(&LinkPreviewImage, PartIndex)> {
@@ -183,15 +176,6 @@ mod tests {
             url_and_image(preview),
             Some(("https://a.org".to_owned(), Some(3)))
         );
-    }
-
-    #[test]
-    fn host_of_url() {
-        let preview = preview(all(vec![
-            text("https://Air.ms/x"),
-            card("https://Air.ms/x", None),
-        ]));
-        assert_eq!(preview.unwrap().host(), "air.ms");
     }
 
     #[test]
