@@ -498,14 +498,10 @@ async fn upload_without_declared_size_is_rejected() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn post_upload_larger_than_declared_is_rejected() {
+async fn upload_larger_than_declared_is_rejected() {
     const DECLARED_SIZE: usize = 16;
 
-    let mut setup = TestBackend::single_with_params(TestBackendParams {
-        use_post_policy: true,
-        ..Default::default()
-    })
-    .await;
+    let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 

@@ -23,20 +23,16 @@ use aircommon::{
     identifiers::{RemoteAttachmentId, UserId},
 };
 use airprotos::{
-    common::v1::AttachmentTooLargeDetail,
-    delivery_service::v1::{SignedPostPolicy, StorageObjectType},
+    common::v1::AttachmentTooLargeDetail, delivery_service::v1::StorageObjectType,
     validation::MissingFieldExt,
 };
 use anyhow::{Context, bail, ensure};
-use base64::{Engine, prelude::BASE64_STANDARD};
-use chrono::{DateTime, Local, Utc};
+use chrono::{Local, Utc};
 use mimi_content::{
     MimiContent,
     content_container::{Disposition, NestedPart, PartSemantics},
 };
-use reqwest::{Body, multipart};
-use serde::Deserialize;
-use serde_json::Value;
+use reqwest::Body;
 use sha2::{Digest, Sha256};
 use tokio::task::spawn_blocking;
 use tokio_stream::StreamExt;
@@ -631,7 +627,8 @@ impl PendingUpload {
 #[cfg(feature = "test_utils")]
 impl CoreUser {
     /// Provisions an attachment upload of `declared_size` bytes in the chat's
-    /// group and uploads `content` to it as is.
+    /// group and uploads `content` to it as is, with a `content-length` of
+    /// `content`'s actual size.
     ///
     /// # Errors
     ///
@@ -661,8 +658,17 @@ impl CoreUser {
                 StorageObjectType::Attachment,
             )
             .await?;
-        let (progress_tx, _progress) = AttachmentProgress::new();
-        upload_encrypted_attachment(&self.http_client(), response, progress_tx, content).await
+        let mut request = self.http_client().put(response.upload_url);
+        for header in response.upload_headers {
+            if !header
+                .key
+                .eq_ignore_ascii_case(reqwest::header::CONTENT_LENGTH.as_str())
+            {
+                request = request.header(header.key, header.value);
+            }
+        }
+        request.body(content).send().await?.error_for_status()?;
+        Ok(())
     }
 }
 
@@ -1063,91 +1069,12 @@ async fn upload_encrypted_attachment(
     mut progress_tx: AttachmentProgressSender,
     ciphertext: Vec<u8>,
 ) -> anyhow::Result<()> {
-    if let Some(signed_post_policy) = provision_response.post_policy {
-        multipart_upload(
-            http_client,
-            &provision_response.upload_url,
-            signed_post_policy,
-            ciphertext,
-            &progress_tx,
-        )
-        .await?;
-        progress_tx.completed();
-    } else {
-        // upload encrypted content via signed PUT url
-        let mut request = http_client.put(provision_response.upload_url);
-        for header in provision_response.upload_headers {
-            request = request.header(header.key, header.value);
-        }
-
-        let bytes_total = ciphertext.len();
-        let mut uploaded = 0;
-        let tx = progress_tx.tx();
-        let stream = ReaderStream::new(Cursor::new(ciphertext)).map(move |chunk| {
-            if let Ok(chunk) = &chunk {
-                uploaded += chunk.len();
-                if let Some(tx) = tx.as_ref() {
-                    let _ = tx.send(AttachmentProgressEvent::Progress {
-                        bytes_total,
-                        bytes_loaded: uploaded,
-                    });
-                }
-            }
-            chunk
-        });
-
-        request
-            .body(Body::wrap_stream(stream))
-            .send()
-            .await?
-            .error_for_status()?;
-
-        progress_tx.completed();
+    let mut request = http_client.put(provision_response.upload_url);
+    for header in provision_response.upload_headers {
+        request = request.header(header.key, header.value);
     }
-    Ok(())
-}
 
-#[derive(Debug, Deserialize)]
-struct PostPolicy {
-    expiration: DateTime<Utc>,
-    conditions: Vec<Value>,
-}
-
-async fn multipart_upload(
-    http_client: &reqwest::Client,
-    upload_url: &str,
-    signed_post_policy: SignedPostPolicy,
-    ciphertext: Vec<u8>,
-    progress_tx: &AttachmentProgressSender,
-) -> anyhow::Result<()> {
     let bytes_total = ciphertext.len();
-    progress_tx.report(ciphertext.len(), 0);
-
-    let post_policy = BASE64_STANDARD.decode(&signed_post_policy.base64)?;
-    let post_policy: PostPolicy = serde_json::from_slice(&post_policy)?;
-
-    ensure!(Utc::now() < post_policy.expiration, "post policy expired");
-
-    let mut form = multipart::Form::new()
-        .text("policy", signed_post_policy.base64)
-        .text("x-amz-signature", signed_post_policy.signature);
-
-    const KEYS: &[&str] = &["key", "x-amz-credential", "x-amz-algorithm", "x-amz-date"];
-    for condition in post_policy.conditions {
-        if let Value::Object(object) = condition
-            && object.len() == 1
-            && let Some((key, Value::String(value))) = object.into_iter().next()
-            && KEYS.contains(&key.as_str())
-        {
-            form = form.text(key, value);
-        }
-    }
-
-    // Stream the ciphertext so upload progress is reported incrementally
-    // instead of jumping straight to completion. The content length is set
-    // explicitly because S3 POST uploads require it and it avoids chunked
-    // transfer encoding.
-    let total_len = ciphertext.len() as u64;
     let mut uploaded = 0;
     let tx = progress_tx.tx();
     let stream = ReaderStream::new(Cursor::new(ciphertext)).map(move |chunk| {
@@ -1162,16 +1089,14 @@ async fn multipart_upload(
         }
         chunk
     });
-    let file_part = multipart::Part::stream_with_length(Body::wrap_stream(stream), total_len);
-    let form = form.part("file", file_part);
 
-    http_client
-        .post(upload_url)
-        .multipart(form)
+    request
+        .body(Body::wrap_stream(stream))
         .send()
         .await?
         .error_for_status()?;
 
+    progress_tx.completed();
     Ok(())
 }
 
