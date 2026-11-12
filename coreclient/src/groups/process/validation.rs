@@ -12,9 +12,9 @@ use aircommon::{
     crypto::hash::Hash,
     utils::removed_client,
 };
-use anyhow::{Context, Result, anyhow, bail, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use mimi_room_policy::RoleIndex;
-use openmls::prelude::{Credential, LeafNodeIndex, Sender, SignaturePublicKey, StagedCommit};
+use openmls::prelude::{LeafNodeIndex, Sender, SignaturePublicKey, StagedCommit};
 
 use crate::{
     db::access::WriteDbTransaction,
@@ -148,44 +148,17 @@ impl Group {
         }
         Ok(())
     }
-
-    pub(super) fn process_resync(
-        &self,
-        credential: &Credential,
-        staged_commit: &StagedCommit,
-    ) -> Result<()> {
-        let removed_index = staged_commit
-            .remove_proposals()
-            .next()
-            .ok_or(anyhow!(
-                "Resync operation did not contain a remove proposal"
-            ))?
-            .remove_proposal()
-            .removed();
-
-        let Some(removed_member) = self.mls_group().member_at(removed_index) else {
-            bail!("Could not find removed member in group")
-        };
-
-        // Check that the leaf credential hasn't changed during the resync.
-        if &removed_member.credential != credential {
-            bail!("Invalid resync operation: Leaf credential does not match.")
-        }
-
-        // No need to verify or update the credential, since the sender is already member of the
-        // group and the credential did not change.
-
-        Ok(())
-    }
 }
 
 /// Pair the new and old leaf credential of a member transition for AS verification.
 ///
-/// Returns `None` when both are self-group credentials with the same client id, since they carry no
-/// AS material to verify or store. Mixed pairs and client id changes are rejected.
+/// Each side is a leaf credential and the leaf's signature key. Returns `None` when both are
+/// self-group credentials, since they carry no AS material to verify or store. Their client id and
+/// signature key must stay the same, because a self-group credential carries no key the leaf could
+/// be bound to. Mixed pairs are rejected.
 pub(super) fn user_credential_transition(
-    new: LeafCredential,
-    old: LeafCredential,
+    (new, new_key): (LeafCredential, &SignaturePublicKey),
+    (old, old_key): (LeafCredential, &SignaturePublicKey),
     context: &str,
 ) -> Result<Option<(VerifiableUserCredential, VerifiableUserCredential)>> {
     match (new, old) {
@@ -194,6 +167,10 @@ pub(super) fn user_credential_transition(
             ensure!(
                 new.client_id() == old.client_id(),
                 "self-group client id changed in {context}"
+            );
+            ensure!(
+                new_key == old_key,
+                "self-group signature key changed in {context}"
             );
             Ok(None)
         }
@@ -262,24 +239,45 @@ mod tests {
         LeafCredential::SelfGroup(SelfGroupCredential::new(Uuid::from_u128(client_id)))
     }
 
-    #[test]
-    fn self_group_transition_preserves_client_id() -> anyhow::Result<()> {
-        let transition = user_credential_transition(
-            self_group_credential(1),
-            self_group_credential(1),
-            "update path",
-        )?;
+    fn signature_key(byte: u8) -> SignaturePublicKey {
+        SignaturePublicKey::from(vec![byte; 32])
+    }
 
-        assert!(transition.is_none());
+    #[test]
+    fn self_group_transition_preserves_client_id_and_key() -> anyhow::Result<()> {
+        let key = signature_key(1);
+        for context in ["update path", "resync"] {
+            let transition = user_credential_transition(
+                (self_group_credential(1), &key),
+                (self_group_credential(1), &key),
+                context,
+            )?;
+
+            assert!(transition.is_none(), "{context}");
+        }
         Ok(())
     }
 
     #[test]
     fn self_group_transition_rejects_client_id_change() {
+        let key = signature_key(1);
         for context in ["update path", "resync"] {
             let transition = user_credential_transition(
-                self_group_credential(2),
-                self_group_credential(1),
+                (self_group_credential(2), &key),
+                (self_group_credential(1), &key),
+                context,
+            );
+
+            assert!(transition.is_err(), "{context}");
+        }
+    }
+
+    #[test]
+    fn self_group_transition_rejects_signature_key_change() {
+        for context in ["update path", "resync"] {
+            let transition = user_credential_transition(
+                (self_group_credential(1), &signature_key(2)),
+                (self_group_credential(1), &signature_key(1)),
                 context,
             );
 
