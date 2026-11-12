@@ -342,9 +342,12 @@ impl ChatDetailsCubitBase {
             None
         };
 
-        let preview = match &replaces {
-            None => self.with_link_preview(|lp| lp.take_for(&text)),
-            Some(_) => None,
+        let is_edit = replaces.is_some();
+        // Only reset once the message is stored, so that it survives a failed send.
+        let preview = if is_edit {
+            None
+        } else {
+            self.link_preview.lock().ready_for(&text)
         };
 
         let salt: [u8; 16] = RustCrypto::default().random_array()?;
@@ -375,6 +378,9 @@ impl ChatDetailsCubitBase {
         // a duplicate message.
         if let Err(error) = self.clear_draft(draft.as_ref()).await {
             error!(%error, "Failed to clear the draft after sending");
+        }
+        if !is_edit {
+            self.with_link_preview(|lp| lp.reset());
         }
         if let Some(upload) = upload {
             self.spawn_upload(upload);
@@ -1014,21 +1020,20 @@ enum Fetch {
 }
 
 impl ComposerLinkPreview {
-    /// Takes the ready preview if it belongs to the first link of `text`.
-    ///
-    /// If the preview is taken, the url is reset too.
-    fn take_for(&mut self, text: &str) -> Option<FetchedLinkPreview> {
+    /// Copy of the ready preview if it belongs to the first link of `text`.
+    fn ready_for(&self, text: &str) -> Option<FetchedLinkPreview> {
         let first = select_links(text).next()?;
-        match mem::take(&mut self.fetch) {
-            Fetch::Ready(fetched) if fetched.card().url() == first => {
-                self.url = None;
-                Some(fetched)
-            }
-            other => {
-                self.fetch = other;
-                None
-            }
+        match &self.fetch {
+            Fetch::Ready(fetched) if fetched.card().url() == first => Some(fetched.clone()),
+            _ => None,
         }
+    }
+
+    /// Resets the state after a sent message and cancels a running fetch.
+    fn reset(&mut self) {
+        self.cancel();
+        self.url = None;
+        self.dismissed.clear();
     }
 
     fn switch_to<'a>(

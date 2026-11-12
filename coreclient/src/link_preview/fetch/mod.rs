@@ -38,7 +38,7 @@ impl CoreUser {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FetchedLinkPreview {
     card: LinkPreviewCard,
     host: String,
