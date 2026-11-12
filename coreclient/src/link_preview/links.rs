@@ -13,14 +13,14 @@ use url::{Host, Url};
 /// A link is selected if all of the following rules hold:
 ///
 /// 1. Boundaries: it starts at `http://` or `https://` (case-insensitive). The character before it
-///    is not alphanumeric, `_`, `@` or a format character, and the character after is its extent is
+///    is not alphanumeric, `_`, `@` or a format character, and the character after its extent is
 ///    not a format character. A rejected candidate still takes up its extent, so a URL inside
 ///    another URL is not a link.
 /// 2. Extent: it ends at whitespace, a format character, or one of `` < > " ` | \ ``, and before a
 ///    `,` or `;` directly followed by another candidate. Within the host it also ends at `'`.
-///    Trailing `. , ! ? ; : ' "` are trimmed, and a closing bracket is trimmed unless it is
-///    balances an opening one in the link. Balancing brackets is important for recognizing links
-///    inside markdown links.
+///    Trailing `. , ! ? ; : ' "` are trimmed, and a closing bracket is trimmed unless it balances
+///    an opening one in the link. Balancing brackets is important for recognizing links inside
+///    markdown links.
 /// 3. Scheme: `https`. Not folded into the rule 1, because candidates are needed for their extent.
 /// 4. Host: parses (WHATWG) as a domain, never an IP address, and has no userinfo before it.
 /// 5. Not reserved: the host, without one trailing dot, has more than one label and is not one of
