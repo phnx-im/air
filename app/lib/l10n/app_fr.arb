@@ -248,6 +248,7 @@
   "systemMessage_connectionRequestUnavailable": "La demande de contact n'est plus disponible.",
   "systemMessage_connectionRequestExpired": "Demande de contact expirée.",
   "systemMessage_sentConnectionRequestExpired": "Votre demande de contact a expiré. Si vous voulez toujours ajouter cette personne à vos contacts, envoyez-lui une nouvelle demande.",
+  "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} fait déjà partie de vos contacts. Cette demande a été fermée.",
   "sentContactRequest_title": "Vous avez envoyé une demande de contact",
   "sentContactRequest_titleWithName": "Vous avez envoyé une demande de contact à {displayName}",
   "sentContactRequest_toUsername": "au nom d'utilisateur {username}",

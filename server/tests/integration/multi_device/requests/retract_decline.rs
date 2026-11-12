@@ -235,6 +235,31 @@ async fn retracting_on_both_devices_erases_chat() {
     assert_erased(&alice2, chat_id, "late").await;
 }
 
+/// The sibling sees its own user delete the group, as when a device closes a
+/// targeted request to a new contact. Only the tombstone context tells the
+/// retract apart.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn retracting_targeted_request_erases_it_on_sibling() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, charlie] = setup.add_users().await;
+    let group_chat_id = setup.connected_group(&charlie, &[&alice, &bob]).await;
+    let alice2 = alice.add_synced_device().await;
+
+    let chat_id = alice
+        .add_contact_from_group(group_chat_id, bob.user_id().clone(), setup.apq_groups)
+        .await
+        .unwrap();
+    alice2.drain().await;
+    assert!(alice2.chat(&chat_id).await.is_some());
+
+    alice.retract_contact_request(chat_id).await.unwrap();
+    assert_erased(&alice, chat_id, "retracting").await;
+    // The self-group deletion is not sent yet, so only the delete commit
+    // reaches the sibling.
+    alice2.drain().await;
+    assert_erased(&alice2, chat_id, "sibling").await;
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn accepting_falls_back_to_older_request() {
     let mut setup = TestBackend::single().await;

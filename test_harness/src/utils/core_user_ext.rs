@@ -9,6 +9,7 @@ use aircoreclient::{
     UsernameRecord,
     clients::{CoreUser, listen_response::Event, process::process_qs::ProcessedQsMessages},
 };
+use chrono::Utc;
 use mimi_content::MimiContent;
 use tokio::time::timeout;
 use tokio_stream::StreamExt;
@@ -59,6 +60,7 @@ pub trait CoreUserExt {
 impl CoreUserExt for CoreUser {
     async fn drain(&self) -> ProcessedQsMessages {
         let messages = self.qs_fetch_messages().await.unwrap();
+        let drained_at = Utc::now();
         let expected = messages.len();
         let processed = self.fully_process_qs_messages(messages).await;
         assert!(
@@ -67,6 +69,9 @@ impl CoreUserExt for CoreUser {
             processed.errors
         );
         assert_eq!(processed.processed, expected, "not all messages processed");
+        self.discard_unconfirmed_group_creations(drained_at)
+            .await
+            .unwrap();
         processed
     }
 

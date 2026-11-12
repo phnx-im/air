@@ -6,7 +6,10 @@ use std::{borrow::Cow, collections::HashSet};
 
 use aircommon::{crypto::errors::EncryptionError, identifiers::UserId, time::TimeStamp};
 use airprotos::{
-    client::group::{EncryptedGroupTitle, GroupData, GroupProfile},
+    client::{
+        component::GroupTombstone,
+        group::{EncryptedGroupTitle, GroupData, GroupProfile},
+    },
     delivery_service::v1::StorageObjectType,
 };
 use anyhow::{Context, anyhow, bail};
@@ -28,10 +31,10 @@ enum ChatOperationType {
     /// Removes individual self-group leaves, identified by client id.
     RemoveClients(Vec<Uuid>),
     Leave,
-    /// Deletes the group. `deleted` is recorded in the tombstone the delete
-    /// commit sets, see [`Group::stage_delete`].
+    /// Deletes the group. The delete commit sets `tombstone`, see
+    /// [`Group::stage_delete`].
     Delete {
-        deleted: Option<TimeStamp>,
+        tombstone: Option<GroupTombstone>,
     },
     Update(Option<ChatAttributes>, DerivationEpoch),
     ApqUpdate(DerivationEpoch),
@@ -181,7 +184,7 @@ impl ChatOperation {
         ChatOperation {
             chat_id,
             operation: ChatOperationType::Delete {
-                deleted: Some(TimeStamp::now()),
+                tombstone: Some(GroupTombstone::deleted(TimeStamp::now())),
             },
         }
     }
@@ -192,7 +195,7 @@ impl ChatOperation {
     pub(crate) fn delete_chat_without_tombstone(chat_id: ChatId) -> Self {
         ChatOperation {
             chat_id,
-            operation: ChatOperationType::Delete { deleted: None },
+            operation: ChatOperationType::Delete { tombstone: None },
         }
     }
 
@@ -252,7 +255,9 @@ impl ChatOperation {
                 self.execute_remove_clients(context, client_ids).await
             }
             ChatOperationType::Leave => self.execute_leave_chat(context).await,
-            ChatOperationType::Delete { deleted } => self.execute_delete(context, deleted).await,
+            ChatOperationType::Delete { tombstone } => {
+                self.execute_delete(context, tombstone).await
+            }
             ChatOperationType::Update(chat_attributes, derivation_epoch) => {
                 self.execute_update(context, chat_attributes, derivation_epoch)
                     .await
@@ -479,7 +484,7 @@ impl ChatOperation {
     async fn execute_delete(
         self,
         context: &mut JobContext<'_, '_>,
-        deleted: Option<TimeStamp>,
+        tombstone: Option<GroupTombstone>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext { db, key_store, .. } = context;
         let job = db
@@ -490,7 +495,7 @@ impl ChatOperation {
                     txn,
                     &key_store.signing_key,
                     self.chat_id,
-                    deleted,
+                    tombstone,
                 )
                 .await
             })

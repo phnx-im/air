@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO pending_group_creation (group_id, title, picture, created_at)\n                VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "746eb08bf52938b6008dad515a3a3155450ca8f0c19043399fe1ede52dde8957"
+}

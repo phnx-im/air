@@ -33,6 +33,7 @@ pub use grpc::GrpcDs;
 mod apq;
 mod attachments;
 pub(crate) mod client_references;
+mod close_connection_group;
 mod collision_tags;
 mod create_group;
 mod create_group_stream;
@@ -49,6 +50,7 @@ mod resync;
 mod self_remove;
 pub mod storage;
 mod update_user_profile_key;
+mod user_credentials;
 mod welcome_info;
 
 /// Number of days after its last use upon which a group state is considered

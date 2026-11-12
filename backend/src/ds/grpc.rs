@@ -64,9 +64,11 @@ use crate::{
 
 use super::{
     Ds, EPOCH_SNAPSHOT_EXPIRATION, WELCOME_INFO_EXPIRATION,
+    delete_group::DeleteKind,
     epoch_snapshot::{DsEpochSnapshot, EpochSnapshotParts},
     group_operation::AddUsersState,
     group_state::{DsGroupState, StorableDsGroupData},
+    join_connection_group::ConnectionGroupJoin,
     welcome_info::DsWelcomeInfo,
 };
 
@@ -703,7 +705,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 ///
 /// The status is `NotFound`, which clients without the group closed detail
 /// treat as a gone group.
-fn ensure_no_tombstone(group_state: &DsGroupState) -> Result<(), Status> {
+pub(super) fn ensure_no_tombstone(group_state: &DsGroupState) -> Result<(), Status> {
     if group_state.has_tombstone() {
         let status = StatusDetails {
             code: StatusDetailsCode::GroupClosed.into(),
@@ -934,6 +936,38 @@ impl CreationEcho {
     }
 }
 
+/// The echo of an accepted connection-group join to the joiner's siblings.
+fn connection_group_join_echo(
+    group_bootstrap: Option<Vec<u8>>,
+    snapshot_epoch: Option<GroupEpoch>,
+    group_id: GroupId,
+    pq_group_id: Option<GroupId>,
+) -> Result<Option<QsQueueMessagePayload>, Status> {
+    let (group_bootstrap, epoch) = match (group_bootstrap, snapshot_epoch) {
+        (Some(group_bootstrap), Some(epoch)) => (group_bootstrap, epoch),
+        (None, None) => return Ok(None),
+        (Some(_), None) => {
+            return Err(Status::invalid_argument(
+                "group bootstrap requires a virtual-client joiner leaf",
+            ));
+        }
+        (None, Some(_)) => {
+            return Err(Status::invalid_argument(
+                "virtual-client joiner without a group bootstrap",
+            ));
+        }
+    };
+    let echo = QsQueueMessagePayload::group_join_echo(GroupBootstrapEcho {
+        group_id,
+        pq_group_id,
+        epoch,
+        timestamp: TimeStamp::now(),
+        group_bootstrap,
+    })
+    .tls_failed("group join echo")?;
+    Ok(Some(echo))
+}
+
 #[async_trait]
 impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for GrpcDs<Qep, As> {
     async fn request_group_id(
@@ -985,8 +1019,11 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
         let payload: CreateGroupPayload = request
             .verify(credential.verifying_key())
             .map_err(InvalidSignature)?;
+        self.as_connector
+            .authenticate_user_credential(&credential)
+            .await?;
 
-        // Only after verification, so a forged request cannot spend another
+        // Only after authentication, so a forged request cannot spend another
         // user's allowance.
         self.consume_creation_allowance(credential.user_id())
             .await?;
@@ -1056,8 +1093,11 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
         let payload: CreateApqGroupPayload = request
             .verify(t_user_credential.verifying_key())
             .map_err(InvalidSignature)?;
+        self.as_connector
+            .authenticate_user_credential(&t_user_credential)
+            .await?;
 
-        // Only after verification, so a forged request cannot spend another
+        // Only after authentication, so a forged request cannot spend another
         // user's allowance.
         self.consume_creation_allowance(t_user_credential.user_id())
             .await?;
@@ -1472,28 +1512,24 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                     // Destination clients do not contain self yet, TODO: will need to be adjusted with virtual clients
                     let destination_clients: Vec<_> = group_state.destination_clients().collect();
 
-                    let outcome = group_state.join_connection_group(
-                        external_commit,
-                        qs_client_reference.clone(),
-                        group_bootstrap.is_some(),
-                    )?;
+                    let outcome = group_state
+                        .join_connection_group(
+                            external_commit,
+                            qs_client_reference.clone(),
+                            ConnectionGroupJoin::Accept,
+                        )?
+                        .authenticate(&self.as_connector)
+                        .await?;
 
                     group_state.proposals.clear();
 
                     // Dispatched by the caller once the snapshot the echo points at is committed.
-                    let echo = group_bootstrap
-                        .zip(outcome.snapshot_epoch)
-                        .map(|(group_bootstrap, epoch)| {
-                            QsQueueMessagePayload::group_join_echo(GroupBootstrapEcho {
-                                group_id: qgid.clone().into(),
-                                pq_group_id: None,
-                                epoch,
-                                timestamp: TimeStamp::now(),
-                                group_bootstrap,
-                            })
-                            .tls_failed("group join echo")
-                        })
-                        .transpose()?;
+                    let echo = connection_group_join_echo(
+                        group_bootstrap,
+                        outcome.snapshot_epoch,
+                        qgid.clone().into(),
+                        None,
+                    )?;
 
                     let timestamp = self
                         .fan_out_message_without_notifications(
@@ -1553,26 +1589,21 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                         pq_group_state,
                         external_commit,
                         qs_client_reference.clone(),
-                        group_bootstrap.is_some(),
-                    )?;
+                        ConnectionGroupJoin::Accept,
+                    )?
+                    .authenticate(&self.as_connector)
+                    .await?;
 
                     t_group_state.proposals.clear();
                     pq_group_state.proposals.clear();
 
                     // Dispatched by the caller once the snapshot the echo points at is committed.
-                    let echo = group_bootstrap
-                        .zip(outcome.snapshot_epoch)
-                        .map(|(group_bootstrap, epoch)| {
-                            QsQueueMessagePayload::group_join_echo(GroupBootstrapEcho {
-                                group_id: t_qgid.into(),
-                                pq_group_id: Some(pq_qgid.into()),
-                                epoch,
-                                timestamp: TimeStamp::now(),
-                                group_bootstrap,
-                            })
-                            .tls_failed("group join echo")
-                        })
-                        .transpose()?;
+                    let echo = connection_group_join_echo(
+                        group_bootstrap,
+                        outcome.snapshot_epoch,
+                        t_qgid.into(),
+                        Some(pq_qgid.into()),
+                    )?;
 
                     let timestamp = TimeStamp::now();
                     let payload =
@@ -1590,6 +1621,138 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
         }
 
         Ok(Response::new(ApqJoinConnectionGroupResponse {
+            fanout_timestamp: Some(timestamp.into()),
+        }))
+    }
+
+    async fn close_connection_group(
+        &self,
+        request: Request<CloseConnectionGroupRequest>,
+    ) -> Result<Response<CloseConnectionGroupResponse>, Status> {
+        let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
+
+        let external_commit: AssistedMessageIn = request
+            .external_commit
+            .ok_or_missing_field("external_commit")?
+            .try_ref_into()
+            .invalid_tls("external_commit")?;
+        let delete_commit: AssistedMessageIn = request
+            .delete_commit
+            .ok_or_missing_field("delete_commit")?
+            .try_ref_into()
+            .invalid_tls("delete_commit")?;
+        let qgid = external_commit.validated_qgid(self.ds.own_domain())?;
+        let ear_key = request
+            .group_state_ear_key
+            .ok_or_missing_field("group_state_ear_key")?
+            .try_ref_into()?;
+        let qs_client_reference: identifiers::QsReference = request
+            .qs_client_reference
+            .ok_or_missing_field("qs_client_reference")?
+            .try_into()?;
+
+        let timestamp = self
+            .update_group_state_without_verification(
+                &qgid,
+                &ear_key,
+                async |group_state, _group_data| {
+                    if group_state.is_apq() {
+                        return Err(Status::failed_precondition(
+                            "Non APQ operation on an APQ group",
+                        ));
+                    }
+                    // The members before the join, which is the sender.
+                    let destination_clients: Vec<_> = group_state.destination_clients().collect();
+                    let closed = group_state
+                        .close_connection_group(
+                            external_commit,
+                            delete_commit,
+                            qs_client_reference,
+                        )?
+                        .authenticate(&self.as_connector)
+                        .await?;
+                    group_state.proposals.clear();
+
+                    self.fan_out_message_without_notifications(
+                        closed.join,
+                        destination_clients.clone(),
+                        true,
+                    )
+                    .await;
+                    let timestamp = self
+                        .fan_out_message_without_notifications(
+                            closed.delete,
+                            destination_clients,
+                            true,
+                        )
+                        .await;
+                    Ok(timestamp)
+                },
+            )
+            .await?;
+
+        Ok(Response::new(CloseConnectionGroupResponse {
+            fanout_timestamp: Some(timestamp.into()),
+        }))
+    }
+
+    async fn apq_close_connection_group(
+        &self,
+        request: Request<ApqCloseConnectionGroupRequest>,
+    ) -> Result<Response<ApqCloseConnectionGroupResponse>, Status> {
+        let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
+
+        let external_commit =
+            apq_assisted_message(request.external_commit.as_ref(), "external_commit")?;
+        let delete_commit = apq_assisted_message(request.delete_commit.as_ref(), "delete_commit")?;
+        let ear_key: GroupStateEarKey = request
+            .group_state_ear_key
+            .ok_or_missing_field("group_state_ear_key")?
+            .try_ref_into()?;
+        let qs_client_reference: identifiers::QsReference = request
+            .qs_client_reference
+            .ok_or_missing_field("qs_client_reference")?
+            .try_into()?;
+
+        let timestamp = self
+            .update_apq_group_state_without_verification(
+                &ear_key,
+                external_commit,
+                async |t_group_state, pq_group_state, external_commit| {
+                    // The members before the join, which is the sender.
+                    let destination_clients: Vec<_> = t_group_state.destination_clients().collect();
+                    let closed = DsGroupState::apq_close_connection_group(
+                        t_group_state,
+                        pq_group_state,
+                        external_commit,
+                        delete_commit,
+                        qs_client_reference,
+                    )?
+                    .authenticate(&self.as_connector)
+                    .await?;
+                    t_group_state.proposals.clear();
+                    pq_group_state.proposals.clear();
+
+                    let join =
+                        QsQueueMessagePayload::apq_mls_message(TimeStamp::now(), closed.join);
+                    self.fan_out_message_without_notifications(
+                        join,
+                        destination_clients.clone(),
+                        true,
+                    )
+                    .await;
+                    let timestamp = TimeStamp::now();
+                    let delete = QsQueueMessagePayload::apq_mls_message(timestamp, closed.delete);
+                    self.fan_out_message_without_notifications(delete, destination_clients, true)
+                        .await;
+                    Ok(timestamp)
+                },
+            )
+            .await?;
+
+        Ok(Response::new(ApqCloseConnectionGroupResponse {
             fanout_timestamp: Some(timestamp.into()),
         }))
     }
@@ -1629,7 +1792,10 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                     .collect();
                 let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
-                let outcome = group_state.resync_client(external_commit, sender_index)?;
+                let outcome = group_state
+                    .resync_client(external_commit, sender_index)?
+                    .authenticate(&self.as_connector)
+                    .await?;
 
                 // A sibling emulator client took over the virtual client's leaf;
                 // the leaf's previous occupant has to process the commit to follow
@@ -1691,7 +1857,9 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                         pq_group_state,
                         external_commit,
                         t_sender_index,
-                    )?;
+                    )?
+                    .authenticate(&self.as_connector)
+                    .await?;
 
                     // A sibling emulator client took over the virtual client's
                     // leaf; its previous occupant has to follow onto it.
@@ -1946,7 +2114,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                     .collect();
                 let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
-                let group_message = group_state.delete_group(commit)?;
+                let group_message = group_state.delete_group(commit, DeleteKind::Member)?;
 
                 let timestamp = self
                     .fan_out_message_without_notifications(
@@ -1997,8 +2165,12 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                     .other_destination_clients(t_sender_index)
                     .collect();
 
-                let serialized_apq_message =
-                    DsGroupState::delete_apq_group(t_group_state, pq_group_state, commit)?;
+                let serialized_apq_message = DsGroupState::delete_apq_group(
+                    t_group_state,
+                    pq_group_state,
+                    commit,
+                    DeleteKind::Member,
+                )?;
 
                 let timestamp = TimeStamp::now();
                 let apq_payload =
@@ -2091,6 +2263,8 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                 let (group_message, mut individual_fan_out_messages, virtual_client_hint) =
                     group_state
                         .group_operation(params, ear_key, self.ds.max_devices.get())
+                        .await?
+                        .authenticate(&self.as_connector)
                         .await?;
                 let virtual_client_hint = client_references_before
                     .compare(group_state)
@@ -2231,7 +2405,9 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                         t_add_users_info,
                         pq_add_users_info,
                         self.ds.max_devices.get(),
-                    )?;
+                    )?
+                    .authenticate(&self.as_connector)
+                    .await?;
                     let virtual_client_hint = client_references_before
                         .compare(t_group_state)
                         .commit_hint(
@@ -2967,5 +3143,58 @@ struct NoEpochSnapshotFound;
 impl From<NoEpochSnapshotFound> for Status {
     fn from(_: NoEpochSnapshotFound) -> Self {
         Status::not_found("no epoch snapshot found")
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use aircommon::messages::client_ds::QsQueueMessageType;
+    use tls_codec::DeserializeBytes;
+    use tonic::Code;
+
+    use super::*;
+
+    #[test]
+    fn a_virtual_client_join_with_a_group_bootstrap_echoes() {
+        let group_id = GroupId::from_slice(b"t group");
+        let pq_group_id = GroupId::from_slice(b"pq group");
+        let echo = connection_group_join_echo(
+            Some(vec![7; 4]),
+            Some(GroupEpoch::from(3)),
+            group_id.clone(),
+            Some(pq_group_id.clone()),
+        )
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(echo.message_type, QsQueueMessageType::GroupJoinEcho);
+        let echo = GroupBootstrapEcho::tls_deserialize_exact_bytes(&echo.payload).unwrap();
+        assert_eq!(echo.group_id, group_id);
+        assert_eq!(echo.pq_group_id, Some(pq_group_id));
+        assert_eq!(echo.epoch, GroupEpoch::from(3));
+        assert_eq!(echo.group_bootstrap, vec![7; 4]);
+    }
+
+    #[test]
+    fn a_plain_join_without_a_group_bootstrap_does_not_echo() {
+        let echo =
+            connection_group_join_echo(None, None, GroupId::from_slice(b"group"), None).unwrap();
+        assert!(echo.is_none());
+    }
+
+    #[test]
+    fn a_mismatch_of_group_bootstrap_and_virtual_client_joiner_is_rejected() {
+        for (group_bootstrap, snapshot_epoch) in
+            [(Some(vec![7; 4]), None), (None, Some(GroupEpoch::from(3)))]
+        {
+            let status = connection_group_join_echo(
+                group_bootstrap,
+                snapshot_epoch,
+                GroupId::from_slice(b"group"),
+                None,
+            )
+            .unwrap_err();
+            assert_eq!(status.code(), Code::InvalidArgument);
+        }
     }
 }
