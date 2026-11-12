@@ -14,12 +14,12 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM chef AS builder
 COPY --from=planner /app/recipe.json recipe.json
 
-RUN cargo chef cook --release --recipe-path recipe.json
+RUN cargo chef cook --release --package airserver --recipe-path recipe.json
 
 COPY . .
 ENV SQLX_OFFLINE=true
 
-RUN cargo build --release --bin airserver
+RUN cargo build --release --package airserver --bin airserver
 
 FROM gcr.io/distroless/cc-debian13 AS runtime
 
