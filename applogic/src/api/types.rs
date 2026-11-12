@@ -16,9 +16,9 @@ pub(crate) use airprotos::client::component::AirFeatures;
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
-    Asset, AttachmentId, AttachmentInfo, ChatAttributes, ChatMessage, ChatMuted, ChatStatus,
-    ChatType, Contact, ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat,
-    LastReaction, Message, MessageDraft, MessageVersion, SystemMessage, TargetedMessageContact,
+    Asset, ChatAttributes, ChatMessage, ChatMuted, ChatStatus, ChatType, Contact, ContentMessage,
+    DisplayName, ErrorMessage, EventMessage, InactiveChat, LastReaction, Message,
+    MessageAttachments, MessageDraft, MessageVersion, SystemMessage, TargetedMessageContact,
     UserProfile, clients::CoreUser,
 };
 use chrono::{DateTime, Local, Utc};
@@ -200,7 +200,7 @@ impl From<MessageDraft> for UiMessageDraft {
                             mimi_content: UnresolvedMimiContent::from(
                                 in_reply_to.mimi_content.unwrap_or_default(),
                             )
-                            .resolve(&attachment_infos(&in_reply_to.attachment_ids)),
+                            .resolve(Some(&in_reply_to.attachments)),
                         },
                         None => UiInReplyToMessage::NotFound,
                     },
@@ -439,19 +439,10 @@ pub enum UiMessageStatus {
     Deleted,
 }
 
-/// Infos for attachments whose local classification the caller does not need.
-fn attachment_infos(attachment_ids: &[AttachmentId]) -> Vec<AttachmentInfo> {
-    attachment_ids
-        .iter()
-        .copied()
-        .map(AttachmentInfo::from)
-        .collect()
-}
-
 impl UiChatMessage {
     pub(crate) fn from_message(
         mut chat_message: ChatMessage,
-        local_attachment_infos: &[AttachmentInfo],
+        attachments: Option<&MessageAttachments>,
     ) -> Self {
         // A deleted message has nothing to report but the deletion. The
         // deletion is derived from the content rather than the stored status,
@@ -475,7 +466,7 @@ impl UiChatMessage {
                 mimi_content: UnresolvedMimiContent::from(
                     in_reply_to.mimi_content.unwrap_or_default(),
                 )
-                .resolve(&attachment_infos(&in_reply_to.attachment_ids)),
+                .resolve(Some(&in_reply_to.attachments)),
             },
             // this means we have a reference but couldn't load the contents
             // (i.e. deleted for me, or in past history after joining).
@@ -493,7 +484,7 @@ impl UiChatMessage {
             chat_id,
             id,
             timestamp,
-            message: UiMessage::from_message(message, local_attachment_infos, edit_allowance),
+            message: UiMessage::from_message(message, attachments, edit_allowance),
             in_reply_to_message,
             status,
             reactions,
@@ -504,9 +495,9 @@ impl UiChatMessage {
     /// local attachment ids it therefore has no reason to load.
     ///
     /// The attachments themselves do not survive this, but
-    /// [`UiMimiContent::attachment_type`] does.
+    /// [`UiMimiContent::preview_text`] does.
     pub(crate) fn from_message_without_attachments(message: ChatMessage) -> Self {
-        Self::from_message(message, &[])
+        Self::from_message(message, None)
     }
 }
 
@@ -523,17 +514,13 @@ pub enum UiMessage {
 impl UiMessage {
     fn from_message(
         message: Message,
-        local_attachment_infos: &[AttachmentInfo],
+        attachments: Option<&MessageAttachments>,
         edit_allowance: EditAllowance,
     ) -> Self {
         match message {
-            Message::Content(content_message) => {
-                UiMessage::Content(Box::new(UiContentMessage::from_message(
-                    *content_message,
-                    local_attachment_infos,
-                    edit_allowance,
-                )))
-            }
+            Message::Content(content_message) => UiMessage::Content(Box::new(
+                UiContentMessage::from_message(*content_message, attachments, edit_allowance),
+            )),
             Message::Event(display_message) => {
                 UiMessage::Display(UiEventMessage::from(display_message))
             }
@@ -561,7 +548,7 @@ pub struct UiContentMessage {
 impl UiContentMessage {
     fn from_message(
         content_message: ContentMessage,
-        local_attachment_infos: &[AttachmentInfo],
+        attachments: Option<&MessageAttachments>,
         edit_allowance: EditAllowance,
     ) -> Self {
         let sent = content_message.was_sent();
@@ -571,7 +558,7 @@ impl UiContentMessage {
             sender: sender.into(),
             sent,
             edited,
-            content: UnresolvedMimiContent::from(content).resolve(local_attachment_infos),
+            content: UnresolvedMimiContent::from(content).resolve(attachments),
             editable_until: edit_allowance.until,
             edits_left: edit_allowance.edits_left,
         }
@@ -614,7 +601,7 @@ impl From<MessageVersion> for UiMessageVersion {
         }: MessageVersion,
     ) -> Self {
         Self {
-            content: UnresolvedMimiContent::from(content).resolve(&[]),
+            content: UnresolvedMimiContent::from(content).resolve(None),
             created_at: created_at.with_timezone(&Local),
         }
     }

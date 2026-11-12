@@ -12,7 +12,7 @@ use mimi_content::{
 use tracing::{error, warn};
 
 use crate::{
-    clients::{CoreUser, attachment::AttachmentId},
+    clients::{CoreUser, attachment::MessageAttachments},
     db::access::ReadTransaction,
     groups::Group,
 };
@@ -21,6 +21,7 @@ use super::*;
 
 use edit::{EDIT_WINDOW, MAX_EDITS};
 
+pub(crate) mod content;
 pub(crate) mod edit;
 mod event_id;
 pub(crate) mod persistence;
@@ -386,8 +387,8 @@ pub struct InReplyToMessage {
     pub message_id: MessageId,
     pub sender: UserId,
     pub mimi_content: Option<MimiContent>,
-    /// Attachment IDs of the replied-to message, ordered by position in the mimi content.
-    pub attachment_ids: Vec<AttachmentId>,
+    /// Attachment records of the replied-to message.
+    pub attachments: MessageAttachments,
 }
 
 // WARNING: If this type is changed, a new `VersionedMessage` variant must be

@@ -56,6 +56,7 @@ use uuid::Uuid;
 use crate::{
     Asset, ChatMuted, PartialContact, StoredRequest, UsernameRecord,
     clients::{
+        attachment::{persistence::AttachmentRecord, process::ExtractedAttachment},
         event_loop::{EventLoop, EventLoopSender},
         process::process_as::keep_failed_username_message,
     },
@@ -922,18 +923,31 @@ impl CoreUser {
         group_messages: Vec<TimestampedMessage>,
     ) -> Result<Vec<ChatMessage>> {
         let mut stored_messages = Vec::with_capacity(group_messages.len());
-        for timestamped_message in group_messages.into_iter() {
+        for timestamped_message in group_messages {
             let message_id = MessageId::random();
             let mut message = ChatMessage::new(chat_id, message_id, timestamped_message);
-            let attachment_records = Self::extract_attachments(&mut message);
+            let attachment_records = Self::extract_attachments(&mut message)?;
             message.store(&mut *txn).await?;
-            for (record, pending_record) in attachment_records {
-                if let Err(error) = record.store(&mut *txn, None).await {
-                    error!(%error, "Failed to store attachment");
-                    continue;
-                }
-                if let Err(error) = pending_record.store(&mut *txn, record.attachment_id).await {
-                    error!(%error, "Failed to store pending attachment");
+            for attachment_record in attachment_records {
+                match attachment_record {
+                    ExtractedAttachment::External(record, pending_record) => {
+                        if let Some(remote_id) = record.remote_attachment_id
+                            && AttachmentRecord::exists_by_remote_id(&mut *txn, remote_id).await?
+                        {
+                            warn!(
+                                message_id = ?message.id(),
+                                "Skipping attachment with already known remote id"
+                            );
+                            continue;
+                        }
+                        record.store(&mut *txn, None).await?;
+                        pending_record
+                            .store(&mut *txn, record.attachment_id)
+                            .await?;
+                    }
+                    ExtractedAttachment::Inline(record, content) => {
+                        record.store(&mut *txn, Some(&content)).await?;
+                    }
                 }
             }
             stored_messages.push(message);
