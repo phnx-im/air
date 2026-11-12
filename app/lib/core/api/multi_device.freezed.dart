@@ -50,8 +50,7 @@ class MultiDeviceLinkEvent_AwaitingConfirmation extends MultiDeviceLinkEvent {
   const MultiDeviceLinkEvent_AwaitingConfirmation({this.suggestedName}): super._();
   
 
-/// The name of the new device's platform, to prefill the name the user
-/// gives it. `None` if the new device did not announce one.
+/// The name of the new device's platform, to prefill the device name.
  final  String? suggestedName;
 
 /// Create a copy of MultiDeviceLinkEvent
