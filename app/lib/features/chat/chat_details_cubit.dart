@@ -92,6 +92,15 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
     required bool isCommitted,
   }) => _impl.storeDraft(draftMessage: draftMessage, isCommitted: isCommitted);
 
+  Future<void> updateLinkPreviews(String text) =>
+      _impl.updateLinkPreviews(text: text);
+
+  Future<void> dismissLinkPreview(String url) =>
+      _impl.dismissLinkPreview(url: url);
+
+  Future<Uint8List?> composerLinkPreviewImage(String url) =>
+      _impl.composerLinkPreviewImage(url: url);
+
   Future<void> resetDraft() => _impl.resetDraft();
 
   Future<void> resetDraftReply() => _impl.resetDraftReply();

@@ -45,6 +45,7 @@ enum AppIconType {
   notepadText,
   paperclip,
   pencil,
+  play,
   plus,
   qrCode,
   refreshCcw,
@@ -175,6 +176,9 @@ final Map<AppIconType, _InlineBytesLoader> _compiledSvgLoaders = {
   ),
   AppIconType.pencil: const _InlineBytesLoader(
     'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAALAAAAAAICAQIBAgIBAgMsAAAAAAAAWmSpQef72UBUMrJBX8K2QGQyskG+T3tAfmSpQQ3cNECZlqBBttDcP/lPkkEOw9w/BoGJQc3MNEBU43VAWmSBQUgHZ0B3PoNBDgpcQDaGhUFU41VAMQiIQRBYAUAX2apBvvL7P/BBrEHvEAFA28itQRxlCUDz0q5BSbkRQAvdr0Hn8R1AXD+wQUw3KUDy0q9BbeffQJZDpUHo7OlAhICkQakL80ABI6NByXb6QLpJoUEbAAEAAgAAAAABBAAAAAAAAABwQQAAoEAAAJhBAAAQQTAeAAAAAP//HgEAAAD//w==',
+  ),
+  AppIconType.play: const _InlineBytesLoader(
+    'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAAFAAAAAAEBAQMIAAAAAAAAwEAAAEBAAACgQQAAQEEAAMBAAACoQQAAwEAAAEBAMB4AAAAA//8=',
   ),
   AppIconType.plus: const _InlineBytesLoader(
     'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAACAAAAAAEEAAAAAACgQAAAQEEAAJhBAABAQRsAAQACAAAAAAEEAAAAAAAAAEBBAACgQAAAQEEAAJhBMB4AAAAA//8eAQAAAP//',
@@ -431,6 +435,11 @@ class AppIcon extends StatelessWidget {
 
   const AppIcon.pencil({super.key, this.size, this.color})
     : type = AppIconType.pencil,
+      fit = .contain,
+      alignment = Alignment.center;
+
+  const AppIcon.play({super.key, this.size, this.color})
+    : type = AppIconType.play,
       fit = .contain,
       alignment = Alignment.center;
 
