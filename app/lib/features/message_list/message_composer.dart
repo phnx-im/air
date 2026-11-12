@@ -13,11 +13,15 @@ import 'package:air/features/emoji/emoji_autocomplete.dart';
 import 'package:air/ds/components/field/field_chrome.dart';
 import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/patterns/message_input/message_input.dart';
+import 'package:air/ds/patterns/message_input/message_input_link_preview.dart';
 import 'package:air/ds/patterns/message_input/message_input_quote.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:air/ds/patterns/message_input/message_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/features/message_list/link_preview_data.dart';
 import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
+import 'package:flutter_blurhash/flutter_blurhash.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/util/debouncer.dart';
 import 'package:air/features/message_list/widgets/text_autocomplete.dart';
@@ -65,6 +69,9 @@ class _MessageComposerState extends State<MessageComposer>
   late final TextEditingController _inputController;
   final Debouncer _storeDraftDebouncer = Debouncer(
     delay: const Duration(seconds: 1),
+  );
+  final Debouncer _linkPreviewDebouncer = Debouncer(
+    delay: const Duration(milliseconds: 300),
   );
   StreamSubscription<ChatDetailsState>? _draftLoadingSubscription;
   final _focusNode = FocusNode();
@@ -249,6 +256,7 @@ class _MessageComposerState extends State<MessageComposer>
     WidgetsBinding.instance.removeObserver(this);
 
     _storeDraftDebouncer.dispose();
+    _linkPreviewDebouncer.dispose();
 
     _chatDetailsCubit.storeDraft(
       draftMessage: _inputController.text.trim(),
@@ -278,6 +286,7 @@ class _MessageComposerState extends State<MessageComposer>
       inReplyToId,
       isConfirmedChat,
       hasUnread,
+      hasLinkPreview,
     ) = context.select((ChatDetailsCubit cubit) {
       final chat = cubit.state.chat;
       return (
@@ -286,6 +295,7 @@ class _MessageComposerState extends State<MessageComposer>
         chat?.draft?.inReplyTo?.$1,
         chat?.isConfirmed ?? false,
         (chat?.unreadMessages ?? 0) > 0,
+        cubit.state.linkPreview != null && chat?.draft?.editingId == null,
       );
     });
 
@@ -324,6 +334,10 @@ class _MessageComposerState extends State<MessageComposer>
           onScrollBack: () => controller?.scrollToBottom(),
           aboveField: [
             if (editingId != null) _EditBanner(editingId: editingId),
+            // Above the quote: it is attached, not part of what is replied to.
+            // Only present while staged, an empty row would cost the field its
+            // top inset.
+            if (hasLinkPreview) const _LinkPreviewStaged(),
             if (inReplyToId != null) const _ReplyPreview(),
           ],
           field: _ComposerField(
@@ -717,6 +731,30 @@ class _MessageComposerState extends State<MessageComposer>
       );
     });
     _emojiAutocomplete.handleTextChanged();
+    _scheduleLinkPreviewUpdate(currentText);
+  }
+
+  /// Asks Rust to resolve a preview for the first link in [text].
+  ///
+  /// Experimental, and skipped while editing, since an edit keeps the original
+  /// message's preview.
+  void _scheduleLinkPreviewUpdate(String text) {
+    _linkPreviewDebouncer.run(() {
+      if (!mounted) return;
+      final enabled = context
+          .read<UserSettingsCubit>()
+          .state
+          .experimentalFeaturesActive;
+      if (!enabled || _chatDetailsCubit.state.chat?.draft?.editingId != null) {
+        return;
+      }
+      _chatDetailsCubit
+          .updateLinkPreviews(text)
+          .catchError(
+            (Object e, StackTrace st) =>
+                _log.warning("Failed to update link previews", e, st),
+          );
+    });
   }
 }
 
@@ -791,6 +829,81 @@ class _ReplyPreview extends StatelessWidget {
       senderName: quote.senderName,
       thumbnail: quotedThumbnail(context, inReplyTo.$2),
       onRemove: () => context.read<ChatDetailsCubit>().resetDraftReply(),
+    );
+  }
+}
+
+/// The link preview of the draft, shown above the field once it resolves.
+class _LinkPreviewStaged extends StatelessWidget {
+  const _LinkPreviewStaged();
+
+  @override
+  Widget build(BuildContext context) {
+    final (preview, isEditing) = context.select(
+      (ChatDetailsCubit cubit) =>
+          (cubit.state.linkPreview, cubit.state.chat?.draft?.editingId != null),
+    );
+    if (preview == null || isEditing) return const SizedBox.shrink();
+
+    final cubit = context.read<ChatDetailsCubit>();
+    return switch (preview) {
+      UiComposerLinkPreview_Loading(:final url) => MessageInputLinkPreview(
+        url: url,
+      ),
+      UiComposerLinkPreview_Ready(:final card, :final image) =>
+        MessageInputLinkPreview(
+          url: card.url,
+          data: card.toData(
+            imageWidth: image?.width.toDouble(),
+            imageHeight: image?.height.toDouble(),
+          ),
+          imageBuilder: image == null
+              ? null
+              : (fit) => _LinkPreviewImage(
+                  url: card.url,
+                  blurhash: image.blurhash,
+                  fit: fit,
+                ),
+          onRemove: () => cubit.dismissLinkPreview(card.url),
+        ),
+    };
+  }
+}
+
+/// The staged preview's image. Bytes stay in Rust and are fetched once per
+/// [url], the blurhash shows until they load.
+class _LinkPreviewImage extends HookWidget {
+  const _LinkPreviewImage({
+    required this.url,
+    required this.blurhash,
+    required this.fit,
+  });
+
+  final String url;
+  final String? blurhash;
+  final BoxFit fit;
+
+  @override
+  Widget build(BuildContext context) {
+    final cubit = context.read<ChatDetailsCubit>();
+    final future = useMemoized(() => cubit.composerLinkPreviewImage(url), [
+      url,
+    ]);
+    final bytes = useFuture(future).data;
+    final hash = blurhash;
+    return Stack(
+      fit: .expand,
+      children: [
+        ColoredBox(color: SemanticPalette.of(context).fill.tertiary),
+        if (hash != null) BlurHash(hash: hash),
+        if (bytes != null)
+          Image.memory(
+            bytes,
+            fit: fit,
+            gaplessPlayback: true,
+            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+          ),
+      ],
     );
   }
 }

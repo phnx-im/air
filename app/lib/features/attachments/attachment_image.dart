@@ -34,12 +34,18 @@ class AttachmentImage extends HookWidget {
     required this.fit,
     required this.isSender,
     this.onTap,
+    this.showTransfer = true,
   });
 
   final UiAttachment attachment;
   final UiImageMetadata imageMetadata;
   final BoxFit fit;
   final bool isSender;
+
+  /// Whether the still picture carries the transfer overlay (progress, cancel,
+  /// retry). An image that is not on the device yet always shows it, it has
+  /// nothing else to show.
+  final bool showTransfer;
 
   /// Receives the provider the still picture is painted from. Unused on the
   /// animated branch, which keeps the tap for its own playback.
@@ -57,11 +63,14 @@ class AttachmentImage extends HookWidget {
         useStream<UiAttachmentStatus>(statusStream).data
             is UiAttachmentStatus_Completed;
 
+    final imageAspect = imageMetadata.width / imageMetadata.height;
     final content = switch (imageMetadata.isAnimated) {
       false => _StaticAttachmentImage(
         attachment: attachment,
         fit: fit,
+        imageAspect: imageAspect,
         isSender: isSender,
+        showTransfer: showTransfer,
         onTap: onTap,
       ),
       // When we have the full payload (download finished) or persisted
@@ -75,19 +84,23 @@ class AttachmentImage extends HookWidget {
       true => _StaticAttachmentImage(
         attachment: attachment,
         fit: fit,
+        imageAspect: imageAspect,
         isSender: isSender,
+        showTransfer: showTransfer,
       ),
       null => _UnclassifiedAttachmentImage(
         attachment: attachment,
         fit: fit,
+        imageAspect: imageAspect,
         isSender: isSender,
+        showTransfer: showTransfer,
         onTap: onTap,
       ),
     };
 
     final blurhash = imageMetadata.blurhash;
     return AspectRatio(
-      aspectRatio: imageMetadata.width / imageMetadata.height,
+      aspectRatio: imageAspect,
       child: Stack(
         fit: .expand,
         children: [
@@ -108,13 +121,17 @@ class _UnclassifiedAttachmentImage extends StatefulWidget {
   const _UnclassifiedAttachmentImage({
     required this.attachment,
     required this.fit,
+    required this.imageAspect,
     required this.isSender,
+    required this.showTransfer,
     this.onTap,
   });
 
   final UiAttachment attachment;
   final BoxFit fit;
+  final double imageAspect;
   final bool isSender;
+  final bool showTransfer;
   final void Function(ImageProvider thumbnail)? onTap;
 
   @override
@@ -155,7 +172,9 @@ class _UnclassifiedAttachmentImageState
       false => _StaticAttachmentImage(
         attachment: widget.attachment,
         fit: widget.fit,
+        imageAspect: widget.imageAspect,
         isSender: widget.isSender,
+        showTransfer: widget.showTransfer,
         onTap: widget.onTap,
       ),
       true => AnimatedAttachmentImage(
@@ -182,12 +201,18 @@ class _StaticAttachmentImage extends StatelessWidget {
   const _StaticAttachmentImage({
     required this.attachment,
     required this.fit,
+    required this.imageAspect,
     required this.isSender,
+    required this.showTransfer,
     this.onTap,
   });
 
   final UiAttachment attachment;
   final BoxFit fit;
+  final bool showTransfer;
+
+  /// Width over height of the declared image, used to size a cover decode.
+  final double imageAspect;
   final bool isSender;
   final void Function(ImageProvider thumbnail)? onTap;
 
@@ -214,23 +239,46 @@ class _StaticAttachmentImage extends StatelessWidget {
             );
           },
         ),
-        AttachmentImageOverlay(
-          attachmentId: attachment.attachmentId,
-          size: attachment.size,
-          isSender: isSender,
-          isAnimationPaused: false,
-          // A known classification implies the content is on device, so a
-          // download can never be offered here.
-          onTapDownload: () {},
-        ),
+        if (showTransfer)
+          AttachmentImageOverlay(
+            attachmentId: attachment.attachmentId,
+            size: attachment.size,
+            isSender: isSender,
+            isAnimationPaused: false,
+            // A known classification implies the content is on device, so a
+            // download can never be offered here.
+            onTapDownload: () {},
+          ),
       ],
     );
   }
 
   /// The provider the still picture is painted from: a decode bounded by the
   /// box on screen, so the list holds thumbnails rather than full frames.
+  ///
+  /// For [BoxFit.cover] only the shorter-side-limiting dimension is bounded,
+  /// so the decode still covers a box whose aspect differs from the image.
   ImageProvider _thumbnail(BuildContext context, BoxConstraints constraints) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
+    int? width = constraints.maxWidth.isFinite
+        ? (constraints.maxWidth * dpr).round()
+        : null;
+    int? height = constraints.maxHeight.isFinite
+        ? (constraints.maxHeight * dpr).round()
+        : null;
+    if (fit == BoxFit.cover &&
+        width != null &&
+        height != null &&
+        width > 0 &&
+        height > 0 &&
+        imageAspect.isFinite &&
+        imageAspect > 0) {
+      if (imageAspect > width / height) {
+        width = null;
+      } else {
+        height = null;
+      }
+    }
     return ResizeImage(
       AttachmentThumbnailProvider(
         attachmentId: attachment.attachmentId,
@@ -241,12 +289,8 @@ class _StaticAttachmentImage extends StatelessWidget {
       // the box like .fill and distort the image, so constrain the decode
       // instead of reshaping it.
       policy: .fit,
-      width: constraints.maxWidth.isFinite
-          ? (constraints.maxWidth * dpr).round()
-          : null,
-      height: constraints.maxHeight.isFinite
-          ? (constraints.maxHeight * dpr).round()
-          : null,
+      width: width,
+      height: height,
       allowUpscaling: false,
     );
   }
