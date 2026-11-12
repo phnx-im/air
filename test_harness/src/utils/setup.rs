@@ -1028,25 +1028,7 @@ impl TestBackend {
                     };
                     assert!(!attachment_found_once);
 
-                    // Removed cleared fields from the expected attachment.
-                    let mut expected = external_part.clone();
-                    if let NestedPart::ExternalPart {
-                        key,
-                        nonce,
-                        aad,
-                        content_hash,
-                        ..
-                    } = &mut expected
-                    {
-                        key.clear();
-                        nonce.clear();
-                        aad.clear();
-                        content_hash.clear();
-                    } else {
-                        panic!("Unexpected attachment type")
-                    }
-
-                    assert_eq!(part, &expected);
+                    assert_eq!(part, &external_part);
                     attachment_found_once = true;
                     Ok(())
                 })

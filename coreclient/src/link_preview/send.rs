@@ -81,7 +81,7 @@ pub(crate) fn carry_over_link_preview(
     let Some(preview) = LinkPreview::from_content(original) else {
         return content;
     };
-    if !select_links(text).any(|link| link == preview.card().url()) {
+    if select_links(text).next() != Some(preview.card().url()) {
         return content;
     }
     let image = preview
@@ -343,6 +343,15 @@ mod tests {
         assert!(preview.image().is_none());
         assert!(preview.card().image().is_none());
         assert_eq!(edited.part_at(PartIndex(3)), None);
+    }
+
+    #[test]
+    fn carry_over_drops_card_of_later_link() {
+        let link = "https://a.org";
+        let original = content(all(vec![text(link), card(link, None)]));
+        let edit = markdown(&format!("https://b.org and {link}"));
+        let edited = carry_over_link_preview(&original, edit.clone());
+        assert_eq!(edited, edit);
     }
 
     #[test]

@@ -199,7 +199,8 @@ impl MessageAttachments {
     /// Finds the info of the attachment stored for the given part.
     ///
     /// Matches the derived id first, then falls back to the remote attachment
-    /// id of the part, if it has one.
+    /// id of the part, if it has one. A record of another remote attachment is
+    /// never matched.
     pub fn find(
         &self,
         index: PartIndex,
@@ -207,7 +208,11 @@ impl MessageAttachments {
     ) -> Option<&AttachmentInfo> {
         let derived = AttachmentId::derive(self.message_id, index);
         if let Some(info) = self.infos.iter().find(|info| info.attachment_id == derived) {
-            return Some(info);
+            // An edit can put another attachment at the index of the record
+            match (info.remote_attachment_id, remote_attachment_id) {
+                (Some(stored), Some(part)) if stored != part => {}
+                _ => return Some(info),
+            }
         }
         // Rows stored before attachment ids were derived. They stay in local
         // databases, so this fallback is permanent.
@@ -342,6 +347,27 @@ mod test {
             AttachmentId::derive(message_a, PartIndex(1)),
             AttachmentId::derive(message_b, PartIndex(1))
         );
+    }
+
+    #[test]
+    fn find_skips_record_of_another_remote_attachment() {
+        let message_id = MessageId::new(uuid!("b6a42a7a-62fa-4c10-acfb-6124d80aae09"));
+        let stored = RemoteAttachmentId::new(uuid!("b6a42a7a-62fa-4c10-acfb-6124d80aae0a"));
+        let other = RemoteAttachmentId::new(uuid!("b6a42a7a-62fa-4c10-acfb-6124d80aae0b"));
+        let info = |remote_attachment_id| AttachmentInfo {
+            attachment_id: AttachmentId::derive(message_id, PartIndex(3)),
+            remote_attachment_id,
+            is_animated: None,
+        };
+
+        let attachments = MessageAttachments::new(message_id, vec![info(Some(stored))]);
+        assert!(attachments.find(PartIndex(3), Some(stored)).is_some());
+        assert!(attachments.find(PartIndex(3), None).is_some());
+        assert!(attachments.find(PartIndex(3), Some(other)).is_none());
+
+        // Not uploaded yet
+        let attachments = MessageAttachments::new(message_id, vec![info(None)]);
+        assert!(attachments.find(PartIndex(3), Some(other)).is_some());
     }
 
     #[test]
