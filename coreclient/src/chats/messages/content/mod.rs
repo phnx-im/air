@@ -45,7 +45,7 @@ pub trait MimiContentExt {
     /// Returns `None` for any other body.
     fn markdown_text(&self) -> Option<&str>;
 
-    /// Copies the link preview of `original` if its url is still a link in the text.
+    /// Copies the link preview of `original` if its url is the first link in the text.
     fn with_link_preview_of(self, original: &MimiContent) -> Self
     where
         Self: Sized;

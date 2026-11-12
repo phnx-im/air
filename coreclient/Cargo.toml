@@ -19,7 +19,6 @@ aircommon.workspace = true
 airprotos.workspace = true
 anyhow.workspace = true
 apqmls.workspace = true
-base64.workspace = true
 blurhash.workspace = true
 chrono.workspace = true
 derive_more.workspace = true
@@ -47,7 +46,7 @@ pin-project.workspace = true
 privacypass.workspace = true
 rand.workspace = true                                              # TODO: Replace this with a CSPRNG
 regex.workspace = true
-reqwest = { workspace = true, features = ["stream", "multipart", "brotli", "gzip"] }
+reqwest = { workspace = true, features = ["stream", "brotli", "gzip"] }
 serde.workspace = true
 serde_bytes.workspace = true
 serde_json.workspace = true

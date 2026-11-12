@@ -249,7 +249,7 @@ async fn nested_attachments_have_derived_ids() {
         assert_eq!(content.as_deref(), Some(expected));
     }
 
-    // Bob's stored copy has no secrets left
+    // Bob's stored copy is kept as received
     let stored = bob.message(message.id()).await.unwrap().unwrap();
     let mut external_parts = 0;
     stored
@@ -263,17 +263,15 @@ async fn nested_attachments_have_derived_ids() {
             let NestedPart::ExternalPart {
                 key,
                 nonce,
-                aad,
                 content_hash,
                 ..
             } = part
             else {
                 panic!("unexpected attachment type");
             };
-            assert!(key.is_empty());
-            assert!(nonce.is_empty());
-            assert!(aad.is_empty());
-            assert!(content_hash.is_empty());
+            assert!(!key.is_empty());
+            assert!(!nonce.is_empty());
+            assert!(!content_hash.is_empty());
             external_parts += 1;
             Ok(())
         })
@@ -500,14 +498,10 @@ async fn upload_without_declared_size_is_rejected() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn post_upload_larger_than_declared_is_rejected() {
+async fn upload_larger_than_declared_is_rejected() {
     const DECLARED_SIZE: usize = 16;
 
-    let mut setup = TestBackend::single_with_params(TestBackendParams {
-        use_post_policy: true,
-        ..Default::default()
-    })
-    .await;
+    let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 

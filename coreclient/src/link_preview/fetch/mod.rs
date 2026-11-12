@@ -5,7 +5,6 @@
 use std::{sync::Arc, time::Duration};
 
 use airprotos::client::link_preview::{LinkPreviewCard, LinkPreviewImage, LinkPreviewKind};
-use anyhow::Context;
 use percent_encoding::percent_decode_str;
 use reqwest::{header, redirect};
 use tokio::time::timeout;
@@ -38,7 +37,7 @@ impl CoreUser {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FetchedLinkPreview {
     card: LinkPreviewCard,
     host: String,
@@ -49,6 +48,18 @@ pub struct FetchedLinkPreview {
 }
 
 impl FetchedLinkPreview {
+    /// Preview of `card` with the WebP bytes of its image.
+    ///
+    /// Returns `None` if the card url has no host, or if only one of the card
+    /// and `image` has an image.
+    pub fn new(card: LinkPreviewCard, image: Option<Vec<u8>>) -> Option<Self> {
+        if card.image().is_some() != image.is_some() {
+            return None;
+        }
+        let host = Url::parse(card.url()).ok()?.host_str()?.to_owned();
+        Some(Self { card, host, image })
+    }
+
     pub fn host(&self) -> &str {
         &self.host
     }
@@ -119,7 +130,6 @@ impl LinkPreviewFetcher {
 
     async fn do_fetch(&self, url: &str) -> anyhow::Result<Option<FetchedLinkPreview>> {
         let link = Url::parse(url)?;
-        let host = link.host_str().context("link without host")?.to_owned();
 
         let image_types = IMAGE_TYPES.map(|(ty, _)| ty).join(",");
         let accept = format!("text/html,application/xhtml+xml,{image_types}");
@@ -170,7 +180,7 @@ impl LinkPreviewFetcher {
         else {
             return Ok(None);
         };
-        Ok(Some(FetchedLinkPreview { card, host, image }))
+        Ok(FetchedLinkPreview::new(card, image))
     }
 
     /// GET `url`, following redirects that pass the link rules from [`super::links`].

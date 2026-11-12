@@ -927,8 +927,8 @@ impl CoreUser {
         let mut stored_messages = Vec::with_capacity(group_messages.len());
         for timestamped_message in group_messages {
             let message_id = MessageId::random();
-            let mut message = ChatMessage::new(chat_id, message_id, timestamped_message);
-            let attachment_records = Self::extract_attachments(&mut message)?;
+            let message = ChatMessage::new(chat_id, message_id, timestamped_message);
+            let attachment_records = Self::extract_attachments(&message)?;
             message.store(&mut *txn).await?;
             for attachment_record in attachment_records {
                 match attachment_record {

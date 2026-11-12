@@ -7,7 +7,7 @@
 
 use std::time::Duration;
 
-use aircoreclient::{UploadTaskError, clients::MarkChatAsRead};
+use aircoreclient::{PendingUpload, UploadTaskError, clients::MarkChatAsRead};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use mimi_content::{MessageStatus, MimiContent};
 use rand::{RngExt, distr::Alphanumeric};
@@ -417,12 +417,15 @@ async fn attachments_finished_after_a_block_are_marked_failed() {
 
     let path = setup.temp_dir().join("attachment.bin");
     std::fs::write(&path, [0u8, 1, 2, 3]).unwrap();
-    let (_, _, upload) = alice
+    let PendingUpload { task: upload, .. } = alice
         .upload_chat_attachment(chat_id, &path, MarkChatAsRead::Yes)
         .await
         .unwrap()
         .unwrap();
-    let (_, _, failing_upload) = alice
+    let PendingUpload {
+        task: failing_upload,
+        ..
+    } = alice
         .upload_chat_attachment(chat_id, &path, MarkChatAsRead::Yes)
         .await
         .unwrap()
