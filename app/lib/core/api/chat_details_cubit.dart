@@ -21,12 +21,11 @@ import 'user_cubit.dart';
 import 'user_settings_cubit.dart';
 part 'chat_details_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `cancel`, `clear_draft`, `dismiss`, `finish`, `keep_as_new_message`, `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `run_upload`, `send_plain`, `send_with_link_preview`, `spawn_upload`, `store_draft_from_state`, `switch_to`, `take_for`, `try_send_message`, `ui`, `update_state_task`, `with_link_preview`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AcceptContactRequestError`, `ChatDetailsContext`, `ComposerLinkPreview`, `Fetch`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
+// These functions are ignored because they are not marked as `pub`: `clear_draft`, `keep_as_new_message`, `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `run_upload`, `send_plain`, `send_with_link_preview`, `spawn_upload`, `store_draft_from_state`, `try_send_message`, `update_state_task`, `with_link_preview`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AcceptContactRequestError`, `ChatDetailsContext`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `into_ui_result`
 // These functions are ignored (category: IgnoreBecauseNotAllowedOwner): `into_ui_result`
-// These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`, `default`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>>
 abstract class ChatDetailsCubitBase implements RustOpaqueInterface {

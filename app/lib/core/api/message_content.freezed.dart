@@ -704,7 +704,7 @@ $UiLinkPreviewImageCopyWith<$Res>? get image {
 /// @nodoc
 mixin _$UiLinkPreviewCard {
 
- String get url; String get host; String get title; String get description; UiLinkPreviewKind get kind;
+ String get url; String get title; String get description; UiLinkPreviewKind get kind;
 /// Create a copy of UiLinkPreviewCard
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -716,20 +716,20 @@ $UiLinkPreviewCardCopyWith<UiLinkPreviewCard> get copyWith => _$UiLinkPreviewCar
 @override
 bool operator ==(Object other) {
   final _this = this as UiLinkPreviewCard;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiLinkPreviewCard&&(identical(other.url, _this.url) || other.url == _this.url)&&(identical(other.host, _this.host) || other.host == _this.host)&&(identical(other.title, _this.title) || other.title == _this.title)&&(identical(other.description, _this.description) || other.description == _this.description)&&(identical(other.kind, _this.kind) || other.kind == _this.kind));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiLinkPreviewCard&&(identical(other.url, _this.url) || other.url == _this.url)&&(identical(other.title, _this.title) || other.title == _this.title)&&(identical(other.description, _this.description) || other.description == _this.description)&&(identical(other.kind, _this.kind) || other.kind == _this.kind));
 }
 
 
 @override
 int get hashCode {
   final _this = this as UiLinkPreviewCard;
-  return Object.hash(runtimeType,_this.url,_this.host,_this.title,_this.description,_this.kind);
+  return Object.hash(runtimeType,_this.url,_this.title,_this.description,_this.kind);
 }
 
 @override
 String toString() {
   final _this = this as UiLinkPreviewCard;
-  return 'UiLinkPreviewCard(url: ${_this.url}, host: ${_this.host}, title: ${_this.title}, description: ${_this.description}, kind: ${_this.kind})';
+  return 'UiLinkPreviewCard(url: ${_this.url}, title: ${_this.title}, description: ${_this.description}, kind: ${_this.kind})';
 }
 
 
@@ -740,7 +740,7 @@ abstract mixin class $UiLinkPreviewCardCopyWith<$Res>  {
   factory $UiLinkPreviewCardCopyWith(UiLinkPreviewCard value, $Res Function(UiLinkPreviewCard) _then) = _$UiLinkPreviewCardCopyWithImpl;
 @useResult
 $Res call({
- String url, String host, String title, String description, UiLinkPreviewKind kind
+ String url, String title, String description, UiLinkPreviewKind kind
 });
 
 
@@ -757,10 +757,9 @@ class _$UiLinkPreviewCardCopyWithImpl<$Res>
 
 /// Create a copy of UiLinkPreviewCard
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? url = null,Object? host = null,Object? title = null,Object? description = null,Object? kind = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? url = null,Object? title = null,Object? description = null,Object? kind = null,}) {
   return _then(UiLinkPreviewCard(
 url: null == url ? _self.url : url // ignore: cast_nullable_to_non_nullable
-as String,host: null == host ? _self.host : host // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
@@ -776,11 +775,10 @@ as UiLinkPreviewKind,
 
 
 class _UiLinkPreviewCard implements UiLinkPreviewCard {
-  const _UiLinkPreviewCard({required this.url, required this.host, required this.title, required this.description, required this.kind});
+  const _UiLinkPreviewCard({required this.url, required this.title, required this.description, required this.kind});
   
 
 @override final  String url;
-@override final  String host;
 @override final  String title;
 @override final  String description;
 @override final  UiLinkPreviewKind kind;
@@ -795,18 +793,18 @@ _$UiLinkPreviewCardCopyWith<_UiLinkPreviewCard> get copyWith => __$UiLinkPreview
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiLinkPreviewCard&&(identical(other.url, url) || other.url == url)&&(identical(other.host, host) || other.host == host)&&(identical(other.title, title) || other.title == title)&&(identical(other.description, description) || other.description == description)&&(identical(other.kind, kind) || other.kind == kind));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiLinkPreviewCard&&(identical(other.url, url) || other.url == url)&&(identical(other.title, title) || other.title == title)&&(identical(other.description, description) || other.description == description)&&(identical(other.kind, kind) || other.kind == kind));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,url,host,title,description,kind);
+    return Object.hash(runtimeType,url,title,description,kind);
 }
 
 @override
 String toString() {
-    return 'UiLinkPreviewCard(url: $url, host: $host, title: $title, description: $description, kind: $kind)';
+    return 'UiLinkPreviewCard(url: $url, title: $title, description: $description, kind: $kind)';
 }
 
 
@@ -817,7 +815,7 @@ abstract mixin class _$UiLinkPreviewCardCopyWith<$Res> implements $UiLinkPreview
   factory _$UiLinkPreviewCardCopyWith(_UiLinkPreviewCard value, $Res Function(_UiLinkPreviewCard) _then) = __$UiLinkPreviewCardCopyWithImpl;
 @override @useResult
 $Res call({
- String url, String host, String title, String description, UiLinkPreviewKind kind
+ String url, String title, String description, UiLinkPreviewKind kind
 });
 
 
@@ -834,10 +832,9 @@ class __$UiLinkPreviewCardCopyWithImpl<$Res>
 
 /// Create a copy of UiLinkPreviewCard
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? url = null,Object? host = null,Object? title = null,Object? description = null,Object? kind = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? url = null,Object? title = null,Object? description = null,Object? kind = null,}) {
   return _then(_UiLinkPreviewCard(
 url: null == url ? _self.url : url // ignore: cast_nullable_to_non_nullable
-as String,host: null == host ? _self.host : host // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable

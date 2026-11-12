@@ -130,17 +130,15 @@ pub struct UiImageMetadata {
 #[frb(dart_metadata = ("freezed"))]
 pub struct UiLinkPreviewCard {
     pub url: String,
-    pub host: String,
     pub title: String,
     pub description: String,
     pub kind: UiLinkPreviewKind,
 }
 
 impl UiLinkPreviewCard {
-    fn new(card: &LinkPreviewCard, host: &str) -> Self {
+    fn new(card: &LinkPreviewCard) -> Self {
         Self {
             url: card.url().to_owned(),
-            host: host.to_owned(),
             title: card.title().to_owned(),
             description: card.description().to_owned(),
             kind: card.kind().into(),
@@ -185,7 +183,7 @@ impl UiComposerLinkPreview {
             is_animated: Some(false),
         });
         Self::Ready {
-            card: UiLinkPreviewCard::new(fetched.card(), fetched.host()),
+            card: UiLinkPreviewCard::new(fetched.card()),
             image,
         }
     }
@@ -239,7 +237,7 @@ impl UnresolvedMimiContent {
                  preview,
                  image: attachment,
              }| UiLinkPreview {
-                card: UiLinkPreviewCard::new(preview.card(), preview.host()),
+                card: UiLinkPreviewCard::new(preview.card()),
                 image: attachment
                     .zip(preview.image())
                     .and_then(|(attachment, (image, _))| {

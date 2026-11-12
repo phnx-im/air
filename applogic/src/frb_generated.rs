@@ -13718,14 +13718,12 @@ impl SseDecode for crate::api::message_content::UiLinkPreviewCard {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_url = <String>::sse_decode(deserializer);
-        let mut var_host = <String>::sse_decode(deserializer);
         let mut var_title = <String>::sse_decode(deserializer);
         let mut var_description = <String>::sse_decode(deserializer);
         let mut var_kind =
             <crate::api::message_content::UiLinkPreviewKind>::sse_decode(deserializer);
         return crate::api::message_content::UiLinkPreviewCard {
             url: var_url,
-            host: var_host,
             title: var_title,
             description: var_description,
             kind: var_kind,
@@ -17201,7 +17199,6 @@ impl flutter_rust_bridge::IntoDart for crate::api::message_content::UiLinkPrevie
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.url.into_into_dart().into_dart(),
-            self.host.into_into_dart().into_dart(),
             self.title.into_into_dart().into_dart(),
             self.description.into_into_dart().into_dart(),
             self.kind.into_into_dart().into_dart(),
@@ -20879,7 +20876,6 @@ impl SseEncode for crate::api::message_content::UiLinkPreviewCard {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.url, serializer);
-        <String>::sse_encode(self.host, serializer);
         <String>::sse_encode(self.title, serializer);
         <String>::sse_encode(self.description, serializer);
         <crate::api::message_content::UiLinkPreviewKind>::sse_encode(self.kind, serializer);
