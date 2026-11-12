@@ -192,4 +192,66 @@ void main() {
       );
     });
   });
+  group('AttachmentImage tap', () {
+    Future<void> pumpImage(
+      WidgetTester tester, {
+      required VoidCallback onHostTap,
+      void Function(ImageProvider thumbnail)? onTap,
+    }) async {
+      when(
+        () => attachmentsRepository.loadThumbnail(
+          attachmentId: any(named: 'attachmentId'),
+          retryDownloadIfFailed: any(named: 'retryDownloadIfFailed'),
+        ),
+      ).thenAnswer((_) async => null);
+      await tester.pumpWidget(
+        RepositoryProvider<AttachmentsRepository>.value(
+          value: attachmentsRepository,
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            home: Scaffold(
+              body: GestureDetector(
+                onTap: onHostTap,
+                child: SizedBox(
+                  width: 200,
+                  height: 100,
+                  child: AttachmentImage(
+                    attachment: file.copyWith(attachmentId: 5.attachmentId()),
+                    imageMetadata: file.imageMetadata!.copyWith(
+                      isAnimated: false,
+                    ),
+                    isSender: false,
+                    fit: .cover,
+                    showTransfer: false,
+                    onTap: onTap,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets('is left to the host without a handler', (tester) async {
+      var hostTaps = 0;
+      await pumpImage(tester, onHostTap: () => hostTaps++);
+      await tester.tap(find.byType(AttachmentImage));
+      expect(hostTaps, 1);
+    });
+
+    testWidgets('is taken by the handler', (tester) async {
+      var hostTaps = 0;
+      var imageTaps = 0;
+      await pumpImage(
+        tester,
+        onHostTap: () => hostTaps++,
+        onTap: (_) => imageTaps++,
+      );
+      await tester.tap(find.byType(AttachmentImage));
+      expect(imageTaps, 1);
+      expect(hostTaps, 0);
+    });
+  });
 }

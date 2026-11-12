@@ -218,6 +218,7 @@ class _StaticAttachmentImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onTap = this.onTap;
     return Stack(
       fit: .expand,
       children: [
@@ -229,7 +230,8 @@ class _StaticAttachmentImage extends StatelessWidget {
             final thumbnail = _thumbnail(context, constraints);
             return GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => onTap?.call(thumbnail),
+              // Without a handler the tap is left to a host around the image.
+              onTap: onTap == null ? null : () => onTap(thumbnail),
               child: Image(
                 image: thumbnail,
                 fit: fit,
