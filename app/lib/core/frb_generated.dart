@@ -12223,14 +12223,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiLinkPreviewCard dco_decode_ui_link_preview_card(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return UiLinkPreviewCard(
       url: dco_decode_String(arr[0]),
-      host: dco_decode_String(arr[1]),
-      title: dco_decode_String(arr[2]),
-      description: dco_decode_String(arr[3]),
-      kind: dco_decode_ui_link_preview_kind(arr[4]),
+      title: dco_decode_String(arr[1]),
+      description: dco_decode_String(arr[2]),
+      kind: dco_decode_ui_link_preview_kind(arr[3]),
     );
   }
 
@@ -16666,13 +16665,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_url = sse_decode_String(deserializer);
-    var var_host = sse_decode_String(deserializer);
     var var_title = sse_decode_String(deserializer);
     var var_description = sse_decode_String(deserializer);
     var var_kind = sse_decode_ui_link_preview_kind(deserializer);
     return UiLinkPreviewCard(
       url: var_url,
-      host: var_host,
       title: var_title,
       description: var_description,
       kind: var_kind,
@@ -21234,7 +21231,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.url, serializer);
-    sse_encode_String(self.host, serializer);
     sse_encode_String(self.title, serializer);
     sse_encode_String(self.description, serializer);
     sse_encode_ui_link_preview_kind(self.kind, serializer);

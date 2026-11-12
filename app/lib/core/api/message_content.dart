@@ -89,7 +89,6 @@ sealed class UiLinkPreview with _$UiLinkPreview {
 sealed class UiLinkPreviewCard with _$UiLinkPreviewCard {
   const factory UiLinkPreviewCard({
     required String url,
-    required String host,
     required String title,
     required String description,
     required UiLinkPreviewKind kind,
