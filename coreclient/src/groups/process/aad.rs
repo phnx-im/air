@@ -265,6 +265,7 @@ impl Group {
             self.mls_group.members().count(),
             self.members()
                 .any(|member| &member == sender_credential.user_id()),
+            self.is_self_group(),
         )?;
 
         let sender_credential = verify_and_store_credential(
@@ -367,10 +368,17 @@ fn validate_join_connection_group_commit(
     contains_membership_proposal: bool,
     member_count: usize,
     joiner_is_member: bool,
+    is_self_group: bool,
 ) -> Result<()> {
     ensure!(
         matches!(sender, Sender::NewMemberCommit),
         "JoinConnectionGroup operation must be an external commit"
+    );
+    // A self group with a single device also has one member, and its members
+    // must all be our own devices.
+    ensure!(
+        !is_self_group,
+        "JoinConnectionGroup operation must not target the self group"
     );
     ensure!(
         !contains_membership_proposal,
@@ -423,7 +431,7 @@ mod tests {
     #[test]
     fn join_connection_group_validation_enforces_operation_shape() {
         assert!(
-            validate_join_connection_group_commit(&Sender::NewMemberCommit, false, 1, false)
+            validate_join_connection_group_commit(&Sender::NewMemberCommit, false, 1, false, false)
                 .is_ok()
         );
 
@@ -433,12 +441,14 @@ mod tests {
                 false,
                 1,
                 false,
+                false,
                 "JoinConnectionGroup operation must be an external commit",
             ),
             (
                 Sender::NewMemberCommit,
                 true,
                 1,
+                false,
                 false,
                 "JoinConnectionGroup operation must not contain add, update, or remove proposals",
             ),
@@ -447,6 +457,7 @@ mod tests {
                 false,
                 2,
                 false,
+                false,
                 "JoinConnectionGroup operation must target a connection group",
             ),
             (
@@ -454,7 +465,16 @@ mod tests {
                 false,
                 1,
                 true,
+                false,
                 "JoinConnectionGroup joiner is already a member of the group",
+            ),
+            (
+                Sender::NewMemberCommit,
+                false,
+                1,
+                false,
+                true,
+                "JoinConnectionGroup operation must not target the self group",
             ),
         ];
 
@@ -463,6 +483,7 @@ mod tests {
             contains_membership_proposal,
             member_count,
             joiner_is_member,
+            is_self_group,
             expected_error,
         ) in cases
         {
@@ -471,6 +492,7 @@ mod tests {
                 contains_membership_proposal,
                 member_count,
                 joiner_is_member,
+                is_self_group,
             )
             .expect_err("invalid JoinConnectionGroup operation should fail");
             assert!(
