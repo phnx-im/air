@@ -22,7 +22,7 @@ use url::{Host, Url};
 ///    balances an opening one in the link. Balancing brackets is important for recognizing links
 ///    inside markdown links.
 /// 3. Scheme: `https`. Not folded into the rule 1, because candidates are needed for their extent.
-/// 4. Host: parses (WHATWG) as a domain, never an IP address.
+/// 4. Host: parses (WHATWG) as a domain, never an IP address, and has no userinfo before it.
 /// 5. Not reserved: the host, without one trailing dot, has more than one label and is not one of
 ///    [`RESERVED`] or a subdomain of one.
 /// 6. Not a homograph: each label of decoded host passes the UTS #39 highly restrictive check.
@@ -173,6 +173,8 @@ pub(super) fn is_selectable(link: &str) -> bool {
     link.len() <= MAX_LINK_LEN
         && Url::parse(link).is_ok_and(|url| {
             url.scheme() == "https"
+                && url.username().is_empty()
+                && url.password().is_none()
                 && match url.host() {
                     Some(Host::Domain(host)) => !is_reserved(host) && !is_homograph(host),
                     _ => false,
@@ -339,6 +341,16 @@ mod tests {
             "https://[::1]/",
             "https://[::ffff:127.0.0.1]/",
         ]);
+    }
+
+    #[test]
+    fn no_userinfo() {
+        assert_no_links(&[
+            "https://air.ms@evil.ms/",
+            "https://user:pass@air.ms/",
+            "https://:pass@air.ms/",
+        ]);
+        assert_eq!(links("https://air.ms/@user"), ["https://air.ms/@user"]);
     }
 
     #[test]
