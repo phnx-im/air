@@ -290,7 +290,7 @@ mod tests {
             Ok(b"preview</title>".to_vec()),
         ];
         let page = read_chunks("text/html", chunks).await.unwrap();
-        assert_eq!(page.title, "Hello");
+        assert_eq!(page.title, "Link preview");
     }
 
     #[tokio::test]

@@ -27,7 +27,7 @@ use mls_assist::{
 use apqmls::messages::ApqWelcome;
 
 use aircommon::{
-    credentials::LeafCredential,
+    credentials::{LeafCredential, VerifiableUserCredential},
     crypto::{
         aead::keys::{EncryptedUserProfileKey, GroupStateEarKey},
         hpke::{HpkeEncryptable, JoinerInfoEncryptionKey},
@@ -52,9 +52,10 @@ use crate::{
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload, QsVirtualClientHint},
 };
 
-use super::group_state::{MemberProfile, leaf_credential_is_valid};
-
-use super::group_state::DsGroupState;
+use super::{
+    group_state::{DsGroupState, MemberProfile, leaf_credential_is_valid},
+    user_credentials::Unauthenticated,
+};
 
 #[derive(Clone, Copy)]
 enum SenderIndex {
@@ -76,6 +77,8 @@ struct TCommitValidation {
     added_users_state: Option<AddUsersState>,
     external_sender_information: Option<(EncryptedUserProfileKey, QsReference)>,
     removed_clients: Vec<LeafNodeIndex>,
+    /// User credentials of the update-path leaf and the added leaves.
+    entering_credentials: Vec<VerifiableUserCredential>,
 }
 
 pub(crate) struct ProcessedGroupOperation {
@@ -147,23 +150,7 @@ impl DsGroupState {
 
         let is_self_group = self.is_self_group();
 
-        // If the commit carries an update path, the sender's new leaf credential must match the
-        // group kind and bind the new leaf key.
-        if let Some(update_leaf) = staged_commit.update_path_leaf_node() {
-            let update_credential = LeafCredential::from_credential(update_leaf.credential())
-                .map_err(|e| {
-                    error!(%e, "Update path leaf credential is invalid");
-                    GroupOperationError::InvalidMessage
-                })?;
-            if !leaf_credential_is_valid(
-                &update_credential,
-                update_leaf.signature_key().as_slice(),
-                is_self_group,
-            ) {
-                warn!("Update path leaf credential is not valid for this group");
-                return Err(GroupOperationError::InvalidMessage);
-            }
-        }
+        let update_credential = update_path_credential(staged_commit, is_self_group)?;
 
         // Perform validation depending on the type of message
         let sender_index = match processed_message.sender() {
@@ -209,6 +196,17 @@ impl DsGroupState {
             .leaf_credential(sender_index.leaf_index())
             .ok_or(GroupOperationError::InvalidMessage)?;
         let sender_identity = sender.room_policy_identity();
+
+        // The room policy identifies the sender by its leaf, so the new leaf must keep the
+        // owner. For an external commit, the sender is the leaf the commit replaces.
+        let mut entering_credentials = Vec::new();
+        if let Some(update_credential) = update_credential {
+            if update_credential.room_policy_identity() != sender_identity {
+                warn!("Update path leaf changes the owner of the sender's leaf");
+                return Err(GroupOperationError::InvalidMessage);
+            }
+            entering_credentials.extend(update_credential.into_user());
+        }
 
         // Check if the operation adds a user.
         let adds_users = staged_commit.add_proposals().count() != 0;
@@ -266,6 +264,7 @@ impl DsGroupState {
 
                 self.room_state_change_role(&sender_identity, &added_identity, RoleIndex::Regular)
                     .ok_or(GroupOperationError::InvalidMessage)?;
+                entering_credentials.extend(added_credential.into_user());
             }
 
             if let Some(pq_adds_sig_keys) = pq_add_proposals.as_mut()
@@ -360,6 +359,7 @@ impl DsGroupState {
             added_users_state,
             external_sender_information,
             removed_clients,
+            entering_credentials,
         })
     }
 
@@ -368,7 +368,7 @@ impl DsGroupState {
         &mut self,
         params: GroupOperationParams,
         max_devices: u32,
-    ) -> Result<ProcessedGroupOperation, GroupOperationError> {
+    ) -> Result<Unauthenticated<ProcessedGroupOperation>, GroupOperationError> {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
             .group
@@ -391,6 +391,7 @@ impl DsGroupState {
             added_users_state,
             external_sender_information,
             removed_clients,
+            entering_credentials,
         } = self.validate_t_commit(
             processed_message,
             params.add_users_info_option,
@@ -435,11 +436,14 @@ impl DsGroupState {
                 .insert(sender_index.leaf_index(), client_profile);
         }
 
-        Ok(ProcessedGroupOperation {
-            serialized_message: processed_assisted_message_plus.serialized_mls_message,
-            added_users_state,
-            virtual_client_hint,
-        })
+        Ok(Unauthenticated::new(
+            ProcessedGroupOperation {
+                serialized_message: processed_assisted_message_plus.serialized_mls_message,
+                added_users_state,
+                virtual_client_hint,
+            },
+            entering_credentials,
+        ))
     }
 
     /// Returns (serialized message, T added users state, PQ welcome info)
@@ -450,7 +454,7 @@ impl DsGroupState {
         t_add_users_info: Option<AddUsersInfo>,
         pq_add_users_info: Option<AddUsersInfo>,
         max_devices: u32,
-    ) -> Result<ProcessedApqGroupOperation, GroupOperationError> {
+    ) -> Result<Unauthenticated<ProcessedApqGroupOperation>, GroupOperationError> {
         let crypto = t_group_state.provider.crypto();
         let ApqProcessedAssistedMessagePlus {
             processed_assisted_message,
@@ -517,6 +521,7 @@ impl DsGroupState {
             added_users_state: t_add_users_state,
             external_sender_information,
             removed_clients: t_removed_clients,
+            entering_credentials,
         } = t_group_state.validate_t_commit(
             &processed_assisted_message.processed_message.t_message,
             t_add_users_info,
@@ -572,15 +577,18 @@ impl DsGroupState {
                 .insert(t_sender_index.leaf_index(), client_profile);
         }
 
-        Ok(ProcessedApqGroupOperation {
-            serialized_message: SerializedMlsMessage::combine_apq(
-                t_serialized_message,
-                pq_serialized_message,
-            ),
-            t_add_users_state,
-            pq_welcome,
-            virtual_client_hint,
-        })
+        Ok(Unauthenticated::new(
+            ProcessedApqGroupOperation {
+                serialized_message: SerializedMlsMessage::combine_apq(
+                    t_serialized_message,
+                    pq_serialized_message,
+                ),
+                t_add_users_state,
+                pq_welcome,
+                virtual_client_hint,
+            },
+            entering_credentials,
+        ))
     }
 
     pub(super) async fn group_operation(
@@ -589,32 +597,39 @@ impl DsGroupState {
         group_state_ear_key: &GroupStateEarKey,
         max_devices: u32,
     ) -> Result<
-        (
+        Unauthenticated<(
             SerializedMlsMessage,
             Vec<DsFanOutMessage>,
             Option<QsVirtualClientHint>,
-        ),
+        )>,
         GroupOperationError,
     > {
-        let ProcessedGroupOperation {
-            serialized_message,
-            added_users_state,
-            virtual_client_hint,
-        } = self.process_group_operation(params, max_devices).await?;
-
-        let fan_out_messages = added_users_state
-            .map(
-                |AddUsersState {
-                     added_users,
-                     welcome,
+        self.process_group_operation(params, max_devices)
+            .await?
+            .try_map(
+                |ProcessedGroupOperation {
+                     serialized_message,
+                     added_users_state,
+                     virtual_client_hint,
                  }| {
-                    self.generate_fan_out_messages(added_users, group_state_ear_key, &welcome)
+                    let fan_out_messages = added_users_state
+                        .map(
+                            |AddUsersState {
+                                 added_users,
+                                 welcome,
+                             }| {
+                                self.generate_fan_out_messages(
+                                    added_users,
+                                    group_state_ear_key,
+                                    &welcome,
+                                )
+                            },
+                        )
+                        .transpose()?
+                        .unwrap_or_default();
+                    Ok((serialized_message, fan_out_messages, virtual_client_hint))
                 },
             )
-            .transpose()?
-            .unwrap_or_default();
-
-        Ok((serialized_message, fan_out_messages, virtual_client_hint))
     }
 
     /// Updates client and user profiles based on the added users.
@@ -830,6 +845,32 @@ impl DsGroupState {
         };
         Ok(response)
     }
+}
+
+/// Returns the credential of the update-path leaf, if the commit carries an update path.
+///
+/// The credential must match the group kind and bind the new leaf key.
+fn update_path_credential(
+    staged_commit: &StagedCommit,
+    is_self_group: bool,
+) -> Result<Option<LeafCredential>, GroupOperationError> {
+    let Some(update_leaf) = staged_commit.update_path_leaf_node() else {
+        return Ok(None);
+    };
+    let update_credential =
+        LeafCredential::from_credential(update_leaf.credential()).map_err(|e| {
+            error!(%e, "Update path leaf credential is invalid");
+            GroupOperationError::InvalidMessage
+        })?;
+    if !leaf_credential_is_valid(
+        &update_credential,
+        update_leaf.signature_key().as_slice(),
+        is_self_group,
+    ) {
+        warn!("Update path leaf credential is not valid for this group");
+        return Err(GroupOperationError::InvalidMessage);
+    }
+    Ok(Some(update_credential))
 }
 
 /// Extract the virtual client hint if present from the Safe AAD part of the message.

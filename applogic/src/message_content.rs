@@ -304,10 +304,10 @@ mod tests {
 
     #[test]
     fn markdown_preview_is_plain_text() {
-        let content = markdown_message("**Hi**, see [the docs](https://example.com)\n\n- one");
+        let content = markdown_message("**Hi**, see [the messenger](https://air.ms)\n\n- one");
         assert_eq!(
             content.preview_text().as_deref(),
-            Some("Hi, see the docs\none")
+            Some("Hi, see the messenger\none")
         );
     }
 
@@ -463,19 +463,15 @@ mod tests {
     fn link_preview_message() -> MimiContent {
         let image = LinkPreviewImage::new(3, 4, 3, Some("LEHV6nWB2yk8".to_owned()), Some("alt"));
         let card = LinkPreviewCard::new(
-            "https://example.com".to_owned(),
-            "Example",
-            "An example",
+            "https://air.ms".to_owned(),
+            "Air",
+            "Secure messaging for everyone",
             LinkPreviewKind::Video,
             image,
         )
         .unwrap();
         render_container(vec![
-            single_part(
-                Disposition::Render,
-                "text/markdown",
-                b"see https://example.com",
-            ),
+            single_part(Disposition::Render, "text/markdown", b"see https://air.ms"),
             single_part(
                 Disposition::Preview,
                 LinkPreviewCard::CONTENT_TYPE,
@@ -495,9 +491,9 @@ mod tests {
         let resolved = UnresolvedMimiContent::from(content).resolve(Some(&infos));
         assert!(resolved.attachments.is_empty());
         let preview = resolved.link_preview.unwrap();
-        assert_eq!(preview.card.url, "https://example.com");
-        assert_eq!(preview.card.host, "example.com");
-        assert_eq!(preview.card.title, "Example");
+        assert_eq!(preview.card.url, "https://air.ms");
+        assert_eq!(preview.card.host, "air.ms");
+        assert_eq!(preview.card.title, "Air");
         assert_eq!(preview.card.kind, UiLinkPreviewKind::Video);
         let image = preview.image.unwrap();
         assert_eq!(image.attachment.attachment_id, image_id);

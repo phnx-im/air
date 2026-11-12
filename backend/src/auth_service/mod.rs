@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use aircommon::{
-    credentials::keys::ClientVerifyingKey,
+    credentials::{VerifiableUserCredential, keys::ClientVerifyingKey},
     crypto::signatures::DEFAULT_SIGNATURE_SCHEME,
     identifiers::{Fqdn, UserId},
 };
@@ -16,6 +16,8 @@ use credentials::{
 use sqlx::PgPool;
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
+use tonic::Status;
+use tracing::{error, warn};
 use usernames::UsernameQueues;
 
 use crate::{
@@ -207,4 +209,36 @@ pub trait AsConnector: Sync + Send + std::fmt::Debug + 'static {
         &self,
         user_id: &UserId,
     ) -> impl Future<Output = Result<Option<ClientVerifyingKey>, Self::Error>> + Send;
+
+    /// Checks that the key in `credential` is consistent with the one the AS stores for its user.
+    ///
+    /// Returns [`Status::permission_denied`] if the AS has no record of the user or stores another
+    /// key for it, and [`Status::internal`] if the lookup fails.
+    fn authenticate_user_credential(
+        &self,
+        credential: &VerifiableUserCredential,
+    ) -> impl Future<Output = Result<(), Status>> + Send {
+        async move {
+            let stored_key = self
+                .client_verifying_key(credential.user_id())
+                .await
+                .map_err(|error| {
+                    error!(%error, "Failed to load client verifying key from AS");
+                    Status::internal("failed to load client verifying key")
+                })?;
+            match stored_key {
+                Some(stored_key) if stored_key == *credential.verifying_key() => Ok(()),
+                Some(_) => {
+                    warn!("User credential carries another key than the AS stores");
+                    Err(Status::permission_denied(
+                        "user credential does not match the registered user",
+                    ))
+                }
+                None => {
+                    warn!("User credential of a user unknown to the AS");
+                    Err(Status::permission_denied("unknown user"))
+                }
+            }
+        }
+    }
 }
