@@ -110,7 +110,7 @@ impl Group {
                 RoleIndex::Regular,
             )?;
 
-            credential.store(&mut *txn).await?;
+            credential.pin(&mut *txn).await?;
             credentials.push(credential.into());
         }
 

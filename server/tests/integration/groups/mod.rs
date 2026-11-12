@@ -15,6 +15,7 @@ mod missed_commits;
 mod pending_operations;
 mod profile;
 mod resync;
+mod second_credential;
 mod self_update;
 
 use aircoreclient::SystemMessage;

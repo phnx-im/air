@@ -150,7 +150,7 @@ impl Group {
         self.store(&mut *txn).await?;
 
         for credential in &credentials {
-            credential.store(&mut *txn).await?;
+            credential.pin(&mut *txn).await?;
         }
 
         Ok(self.decrypt_member_profile_keys(

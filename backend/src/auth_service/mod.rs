@@ -200,6 +200,25 @@ impl AuthService {
     pub fn max_devices_handle(&self) -> MaxDevices {
         self.username_queues.max_devices_handle()
     }
+
+    /// Signs a CSR with the active intermediate key, which the home server
+    /// can do for any user id, registered or not.
+    #[cfg(feature = "test_utils")]
+    pub async fn sign_user_credential_csr(
+        connection: &mut sqlx::PgConnection,
+        csr: aircommon::credentials::UserCredentialCsr,
+    ) -> aircommon::credentials::UserCredential {
+        use aircommon::{
+            credentials::UserCredentialPayload, crypto::signatures::signable::Signable,
+        };
+        let signing_key = IntermediateSigningKey::load(connection)
+            .await
+            .expect("loading the intermediate key failed")
+            .expect("no active intermediate key");
+        let payload =
+            UserCredentialPayload::new(csr, None, *signing_key.credential().fingerprint());
+        payload.sign(&signing_key).expect("signing failed")
+    }
 }
 
 pub trait AsConnector: Sync + Send + std::fmt::Debug + 'static {
