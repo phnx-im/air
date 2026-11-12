@@ -5,8 +5,10 @@
 use airprotos::client::self_group::SelfGroupAppMessage;
 use mimi_content::{MimiContent, content_container::NestedPart};
 
+use crate::link_preview::{carry_over_link_preview, editable_text};
+
 pub mod media_type;
-mod walk;
+pub(crate) mod walk;
 
 pub trait MimiContentExt {
     /// Visits the parts of the body a client acts on, depth-first.
@@ -25,6 +27,9 @@ pub trait MimiContentExt {
         visitor: impl FnMut(VisitedPart<'a>) -> anyhow::Result<()>,
     ) -> anyhow::Result<()>;
 
+    /// Part at `index`
+    fn part_at(&self, index: PartIndex) -> Option<&NestedPart>;
+
     /// Calls `f` on every `ExternalPart` in the tree, regardless of semantics
     /// and selection.
     fn visit_external_parts_mut(
@@ -34,6 +39,16 @@ pub trait MimiContentExt {
 
     /// The self-group application message this content carries, if any.
     fn self_group_message(&self) -> Option<SelfGroupAppMessage>;
+
+    /// Text of a plain markdown message or of a link preview message.
+    ///
+    /// Returns `None` for any other body.
+    fn markdown_text(&self) -> Option<&str>;
+
+    /// Copies the link preview of `original` if its url is the first link in the text.
+    fn with_link_preview_of(self, original: &MimiContent) -> Self
+    where
+        Self: Sized;
 }
 
 /// Zero-indexed depth-first index of a part in a MIMI body.
@@ -64,6 +79,8 @@ pub enum VisitedPart<'a> {
         /// text/blurhash preview sibling
         blurhash: Option<&'a str>,
     },
+    /// A link preview card
+    LinkPreview { card: &'a [u8], index: PartIndex },
     /// Meant as content, but not renderable.
     Unknown(&'a NestedPart),
 }
@@ -82,6 +99,10 @@ impl MimiContentExt for MimiContent {
         walk::walk(&self.nested_part, &mut visitor)
     }
 
+    fn part_at(&self, index: PartIndex) -> Option<&NestedPart> {
+        walk::part_at(&self.nested_part, index)
+    }
+
     fn visit_external_parts_mut(
         &mut self,
         mut f: impl FnMut(&mut NestedPart) -> anyhow::Result<()>,
@@ -91,6 +112,14 @@ impl MimiContentExt for MimiContent {
 
     fn self_group_message(&self) -> Option<SelfGroupAppMessage> {
         SelfGroupAppMessage::from_mimi_content(self)
+    }
+
+    fn markdown_text(&self) -> Option<&str> {
+        editable_text(&self.nested_part)
+    }
+
+    fn with_link_preview_of(self, original: &MimiContent) -> Self {
+        carry_over_link_preview(original, self)
     }
 }
 

@@ -143,6 +143,14 @@ impl LinkPreviewCard {
         })
     }
 
+    /// Same card but without an image.
+    pub fn without_image(self) -> Self {
+        Self {
+            image: None,
+            ..self
+        }
+    }
+
     /// Decodes and validates a received card.
     ///
     /// Text fields are sanitised. An invalid image is dropped instead of

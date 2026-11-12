@@ -310,7 +310,7 @@ pub fn image_is_animated(bytes: &[u8]) -> bool {
 
 /// Compute the blurhash on a (very) small thumbnail, which produces a very
 /// similar result for photos and runs much faster.
-fn compute_blurhash(image: &DynamicImage) -> anyhow::Result<String> {
+pub(crate) fn compute_blurhash(image: &DynamicImage) -> anyhow::Result<String> {
     let thumbnail = image
         .thumbnail(BLURHASH_MAX_EDGE, BLURHASH_MAX_EDGE)
         .to_rgba8();

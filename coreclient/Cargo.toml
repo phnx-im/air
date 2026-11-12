@@ -22,12 +22,17 @@ apqmls.workspace = true
 blurhash.workspace = true
 chrono.workspace = true
 derive_more.workspace = true
+encoding_rs.workspace = true
 enumset.workspace = true
 hex.workspace = true
 hkdf.workspace = true
+html-escape = "0.3.1"
+idna.workspace = true
 image.workspace = true
 indexmap.workspace = true
 infer.workspace = true
+ipnet.workspace = true
+lol_html.workspace = true
 mimi-room-policy.workspace = true
 mimi_content.workspace = true
 mls-assist.workspace = true
@@ -35,10 +40,13 @@ openmls.workspace = true
 openmls_basic_credential.workspace = true
 openmls_rust_crypto.workspace = true
 openmls_traits.workspace = true
+parking_lot.workspace = true
+percent-encoding = "2.3.2"
 pin-project.workspace = true
 privacypass.workspace = true
 rand.workspace = true                                              # TODO: Replace this with a CSPRNG
-reqwest = { workspace = true, features = ["stream"] }
+regex.workspace = true
+reqwest = { workspace = true, features = ["stream", "brotli", "gzip"] }
 serde.workspace = true
 serde_bytes.workspace = true
 serde_json.workspace = true
@@ -53,6 +61,7 @@ tokio-stream = { workspace = true, features = ["sync"] }
 tokio-util.workspace = true
 tonic.workspace = true
 tracing.workspace = true
+unicode-security.workspace = true
 url.workspace = true
 uuid = { workspace = true, features = ["v4", "serde"] }
 webpx.workspace = true
@@ -63,6 +72,7 @@ airbackend.workspace = true
 aircommon = { workspace = true, features = ["test_utils"] }
 airserver_test_harness.workspace = true
 cbor-diag.workspace = true
+http.workspace = true
 insta = { workspace = true, features = ["json"] }
 tempfile.workspace = true
 tracing-subscriber.workspace = true

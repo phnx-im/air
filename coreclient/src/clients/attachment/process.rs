@@ -24,19 +24,18 @@ pub(crate) enum ExtractedAttachment {
 }
 
 impl CoreUser {
-    /// Extract attachments from message's mimi content and store them as pending.
+    /// Extracts the attachment records of the message's mimi content.
     ///
-    /// Note: This function cannot store the attachment records and pending attachment records
-    /// directly, because first the message needs to be stored due to foreign key constraints.
-    /// But this function also modifies the message's mimi content.
+    /// The records are not stored here, because the message has to be stored
+    /// first due to foreign key constraints. The content is left as is.
     pub(crate) fn extract_attachments(
-        message: &mut ChatMessage,
+        message: &ChatMessage,
     ) -> anyhow::Result<Vec<ExtractedAttachment>> {
         let chat_id = message.chat_id();
         let message_id = message.id();
         let created_at = message.timestamp();
 
-        let Some(mimi_content) = message.message_mut().mimi_content_mut() else {
+        let Some(mimi_content) = message.message().mimi_content() else {
             return Ok(Vec::new());
         };
 
@@ -111,24 +110,6 @@ impl CoreUser {
             Ok(())
         })?;
 
-        // Strip key/nonce/hash/aad from the message
-        mimi_content.visit_external_parts_mut(|part| {
-            if let NestedPart::ExternalPart {
-                key,
-                nonce,
-                content_hash,
-                aad,
-                ..
-            } = part
-            {
-                key.clear();
-                nonce.clear();
-                content_hash.clear();
-                aad.clear();
-            }
-            Ok(())
-        })?;
-
         Ok(records)
     }
 }
@@ -195,7 +176,7 @@ mod tests {
     }
 
     #[test]
-    fn extract_attachments_collects_and_strips_secrets() {
+    fn extract_attachments_collects_records_and_keeps_content() {
         let remote_png = RemoteAttachmentId::new(Uuid::new_v4());
         let remote_webp = RemoteAttachmentId::new(Uuid::new_v4());
         let nested_part = NestedPart::MultiPart {
@@ -209,14 +190,14 @@ mod tests {
                 external(Disposition::Preview, "image/webp", remote_webp, 10),
             ],
         };
-        let mut message = message_with(MimiContent {
+        let message = message_with(MimiContent {
             nested_part,
             ..Default::default()
         });
         let chat_id = message.chat_id();
         let message_id = message.id();
 
-        let extracted = CoreUser::extract_attachments(&mut message).unwrap();
+        let extracted = CoreUser::extract_attachments(&message).unwrap();
 
         let [
             ExtractedAttachment::External(png, png_pending),
@@ -283,8 +264,8 @@ mod tests {
                     ..
                 } => {
                     externals += 1;
-                    assert!(key.is_empty() && nonce.is_empty());
-                    assert!(aad.is_empty() && content_hash.is_empty());
+                    assert!(!key.is_empty() && !nonce.is_empty());
+                    assert!(!aad.is_empty() && !content_hash.is_empty());
                 }
                 NestedPart::SinglePart {
                     content_type,
@@ -301,14 +282,10 @@ mod tests {
 
     #[test]
     fn extract_attachments_without_attachments_is_empty() {
-        let mut message = message_with(MimiContent::simple_markdown_message(
+        let message = message_with(MimiContent::simple_markdown_message(
             "hello".to_owned(),
             [0; 16],
         ));
-        assert!(
-            CoreUser::extract_attachments(&mut message)
-                .unwrap()
-                .is_empty()
-        );
+        assert!(CoreUser::extract_attachments(&message).unwrap().is_empty());
     }
 }
