@@ -129,6 +129,12 @@ impl Contact {
         let incoming_user_credential =
             StorableUserCredential::verify(verifiable_user_credential, &as_credential)?;
 
+        // The key package must belong to this contact.
+        ensure!(
+            incoming_user_credential.user_id() == &self.user_id,
+            "contact key package belongs to another user"
+        );
+
         // Check that the user credential is the same as the one we have on file.
         let current_user_credential = StorableUserCredential::load_by_user_id(
             &mut connection,
