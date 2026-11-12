@@ -328,6 +328,7 @@ dependencies = [
  "insta",
  "mimi-room-policy",
  "mimi_content",
+ "minicbor-serde",
  "mls-assist",
  "num_enum",
  "openmls",
