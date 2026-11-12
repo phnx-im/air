@@ -30,6 +30,10 @@ struct Meta {
     og_image: Option<String>,
     twitter_image: Option<String>,
     og_type: Option<String>,
+    /// Only their presence is used, as a sign that the page has media to play.
+    /// Music sites rarely set `og:audio`.
+    og_video: Option<String>,
+    og_audio: Option<String>,
     /// `<body>` or `</head>` reached, all metadata is in the head
     done: bool,
 }
@@ -97,6 +101,14 @@ impl Page {
     }
 }
 
+/// `music.*` types of something to play, unlike `music.musician`.
+const PLAYABLE_MUSIC_TYPES: [&str; 4] = [
+    "music.song",
+    "music.album",
+    "music.playlist",
+    "music.radio_station",
+];
+
 impl Meta {
     /// The body is read in chunks => title might be read in chunks
     fn extend_title(&mut self, chunk: &str) {
@@ -116,6 +128,8 @@ impl Meta {
             "og:image" | "og:image:url" | "og:image:secure_url" => &mut self.og_image,
             "twitter:image" => &mut self.twitter_image,
             "og:type" => &mut self.og_type,
+            "og:video" | "og:video:url" | "og:video:secure_url" => &mut self.og_video,
+            "og:audio" | "og:audio:url" | "og:audio:secure_url" => &mut self.og_audio,
             _ => return,
         };
         slot.get_or_insert(content);
@@ -131,9 +145,13 @@ impl Meta {
             .or_else(|| text(self.description))
             .unwrap_or_default();
         let image = text(self.og_image).or_else(|| text(self.twitter_image));
+        // og:type says what the page is about, not that it has media to play
+        let has_video = text(self.og_video).is_some();
+        let has_audio = text(self.og_audio).is_some();
         let kind = match self.og_type.as_deref().map(str::to_ascii_lowercase) {
-            Some(ty) if ty.starts_with("video") => LinkPreviewKind::Video,
-            Some(ty) if ty.starts_with("music") => LinkPreviewKind::Music,
+            Some(ty) if ty.starts_with("video") && has_video => LinkPreviewKind::Video,
+            Some(ty) if PLAYABLE_MUSIC_TYPES.contains(&ty.as_str()) => LinkPreviewKind::Music,
+            Some(ty) if ty.starts_with("music") && has_audio => LinkPreviewKind::Music,
             Some(ty) if ty == "profile" => LinkPreviewKind::Profile,
             _ => LinkPreviewKind::Default,
         };
@@ -266,14 +284,60 @@ mod tests {
 
     #[tokio::test]
     async fn kinds() {
-        for (og_type, kind) in [
-            ("video.movie", LinkPreviewKind::Video),
-            ("music.song", LinkPreviewKind::Music),
-            ("Profile", LinkPreviewKind::Profile),
-            ("website", LinkPreviewKind::Default),
+        for (og_type, media, kind) in [
+            ("video.other", "og:video", LinkPreviewKind::Video),
+            ("Video.Movie", "OG:Video:URL", LinkPreviewKind::Video),
+            ("video.movie", "og:video:secure_url", LinkPreviewKind::Video),
+            ("music.musician", "og:audio", LinkPreviewKind::Music),
+            ("music.musician", "og:audio:url", LinkPreviewKind::Music),
+            ("Music.Other", "og:audio:secure_url", LinkPreviewKind::Music),
+            ("Profile", "og:video", LinkPreviewKind::Profile),
+            ("website", "og:video", LinkPreviewKind::Default),
+            // Media of the other kind
+            ("video.movie", "og:audio", LinkPreviewKind::Default),
+            ("music.musician", "og:video", LinkPreviewKind::Default),
+        ] {
+            let html = format!(
+                r#"<title>t</title>
+                <meta property="og:type" content="{og_type}">
+                <meta property="{media}" content="https://a.org/media">"#
+            );
+            assert_eq!(read(&html).await.unwrap().kind, kind, "{og_type} {media}");
+        }
+    }
+
+    #[tokio::test]
+    async fn playable_music_types() {
+        for og_type in [
+            "music.song",
+            "music.album",
+            "music.playlist",
+            "music.radio_station",
+            "Music.Song",
         ] {
             let html = format!(r#"<title>t</title><meta property="og:type" content="{og_type}">"#);
-            assert_eq!(read(&html).await.unwrap().kind, kind, "{og_type}");
+            let kind = read(&html).await.unwrap().kind;
+            assert_eq!(kind, LinkPreviewKind::Music, "{og_type}");
+        }
+    }
+
+    #[tokio::test]
+    async fn playable_kind_needs_media() {
+        for (og_type, media) in [
+            ("video.movie", None),
+            ("music.musician", None),
+            ("music", None),
+            ("song", None),
+            ("video.movie", Some(("og:video", ""))),
+            ("music.musician", Some(("og:audio", " "))),
+        ] {
+            let media = media
+                .map(|(key, content)| format!(r#"<meta property="{key}" content="{content}">"#))
+                .unwrap_or_default();
+            let html =
+                format!(r#"<title>t</title><meta property="og:type" content="{og_type}">{media}"#);
+            let kind = read(&html).await.unwrap().kind;
+            assert_eq!(kind, LinkPreviewKind::Default, "{html}");
         }
     }
 

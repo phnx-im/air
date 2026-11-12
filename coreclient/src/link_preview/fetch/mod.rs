@@ -40,7 +40,6 @@ impl CoreUser {
 #[derive(Debug, Clone)]
 pub struct FetchedLinkPreview {
     card: LinkPreviewCard,
-    host: String,
     /// WebP bytes of the card image
     ///
     /// `Some` iff the card has an image.
@@ -50,18 +49,12 @@ pub struct FetchedLinkPreview {
 impl FetchedLinkPreview {
     /// Preview of `card` with the WebP bytes of its image.
     ///
-    /// Returns `None` if the card url has no host, or if only one of the card
-    /// and `image` has an image.
+    /// Returns `None` if only one of the card and `image` has an image.
     pub fn new(card: LinkPreviewCard, image: Option<Vec<u8>>) -> Option<Self> {
         if card.image().is_some() != image.is_some() {
             return None;
         }
-        let host = Url::parse(card.url()).ok()?.host_str()?.to_owned();
-        Some(Self { card, host, image })
-    }
-
-    pub fn host(&self) -> &str {
-        &self.host
+        Some(Self { card, image })
     }
 
     pub fn card(&self) -> &LinkPreviewCard {
