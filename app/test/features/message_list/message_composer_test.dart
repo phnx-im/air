@@ -50,7 +50,6 @@ const _linkUrl = 'https://air.ms/blog/link-previews';
 
 const _linkCard = UiLinkPreviewCard(
   url: _linkUrl,
-  host: 'air.ms',
   title: 'Link previews in Air',
   description: 'How a card is resolved by the sender and travels inside.',
   kind: UiLinkPreviewKind.default_,

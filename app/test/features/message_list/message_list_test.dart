@@ -830,7 +830,6 @@ final linkPreviewMessages = [
     text: 'Have a look https://air.ms/blog/link-previews',
     card: const UiLinkPreviewCard(
       url: 'https://air.ms/blog/link-previews',
-      host: 'air.ms',
       title: 'Link previews in Air',
       description: 'How a card is resolved by the sender and travels inside.',
       kind: UiLinkPreviewKind.default_,
@@ -843,7 +842,6 @@ final linkPreviewMessages = [
     text: 'https://example.com',
     card: const UiLinkPreviewCard(
       url: 'https://example.com',
-      host: 'example.com',
       title: 'Example Domain',
       description: 'This domain is for use in documentation examples.',
       kind: UiLinkPreviewKind.default_,
@@ -856,7 +854,6 @@ final linkPreviewMessages = [
     text: 'The docs https://example.org/docs',
     card: const UiLinkPreviewCard(
       url: 'https://example.org/docs',
-      host: 'example.org',
       title: 'Documentation without a picture',
       description: '',
       kind: UiLinkPreviewKind.default_,
@@ -868,7 +865,6 @@ final linkPreviewMessages = [
     text: 'This one https://example.com',
     card: const UiLinkPreviewCard(
       url: 'https://example.com',
-      host: 'example.com',
       title: 'Example Domain',
       description: 'This domain is for use in documentation examples.',
       kind: UiLinkPreviewKind.default_,
