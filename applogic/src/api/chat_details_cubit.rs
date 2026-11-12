@@ -1015,10 +1015,15 @@ enum Fetch {
 
 impl ComposerLinkPreview {
     /// Takes the ready preview if it belongs to the first link of `text`.
+    ///
+    /// If the preview is taken, the url is reset too.
     fn take_for(&mut self, text: &str) -> Option<FetchedLinkPreview> {
         let first = select_links(text).next()?;
         match mem::take(&mut self.fetch) {
-            Fetch::Ready(fetched) if fetched.card().url() == first => Some(fetched),
+            Fetch::Ready(fetched) if fetched.card().url() == first => {
+                self.url = None;
+                Some(fetched)
+            }
             other => {
                 self.fetch = other;
                 None
