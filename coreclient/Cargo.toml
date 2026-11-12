@@ -47,7 +47,7 @@ pin-project.workspace = true
 privacypass.workspace = true
 rand.workspace = true                                              # TODO: Replace this with a CSPRNG
 regex.workspace = true
-reqwest = { workspace = true, features = ["stream", "multipart"] }
+reqwest = { workspace = true, features = ["stream", "multipart", "brotli", "gzip"] }
 serde.workspace = true
 serde_bytes.workspace = true
 serde_json.workspace = true
