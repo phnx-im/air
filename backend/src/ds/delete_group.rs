@@ -369,11 +369,15 @@ mod test {
         messages::{
             client_as::EncryptedFriendshipPackage,
             client_ds::{
-                AadMessage, AadPayload, CloseConnectionGroupParamsAad, GroupOperationParams,
-                GroupOperationParamsAad, JoinConnectionGroupParamsAad,
+                AadMessage, AadPayload, AddUsersInfo, CloseConnectionGroupParamsAad,
+                GroupOperationParams, GroupOperationParamsAad, JoinConnectionGroupParamsAad,
             },
+            welcome_attribution_info::EncryptedWelcomeAttributionInfo,
         },
-        mls_group_config::{default_leaf_node_capabilities, default_mls_group_join_config},
+        mls_group_config::{
+            QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_leaf_node_capabilities,
+            default_mls_group_join_config,
+        },
         time::TimeStamp,
     };
     use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
@@ -389,15 +393,15 @@ mod test {
     use mimi_room_policy::{RoomPolicy, VerifiedRoomState};
     use mls_assist::{
         group::Group,
-        messages::AssistedMessageOut,
+        messages::{AssistedMessageOut, AssistedWelcome},
         openmls::{
             component::ComponentData,
             group::{ExternalCommitBuilder, GroupContext},
             prelude::{
-                AppDataUpdateProposal, Ciphersuite, Credential, CredentialWithKey, Extensions,
-                HpkeCiphertext, KeyPackage, LeafNodeIndex, LeafNodeParameters, MlsGroup,
-                MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
-                PURE_PLAINTEXT_WIRE_FORMAT_POLICY, Proposal, SignatureScheme,
+                AppDataUpdateProposal, Ciphersuite, Credential, CredentialWithKey, Extension,
+                Extensions, HpkeCiphertext, KeyPackage, LeafNodeIndex, LeafNodeParameters,
+                MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
+                PURE_PLAINTEXT_WIRE_FORMAT_POLICY, Proposal, SignatureScheme, UnknownExtension,
                 group_info::VerifiableGroupInfo,
             },
         },
@@ -878,7 +882,10 @@ mod test {
             commit: assisted(commit, group_info),
             add_users_info_option: None,
         };
-        state.process_group_operation(params, MAX_DEVICES).await
+        state
+            .process_group_operation(params, MAX_DEVICES)
+            .await
+            .map(|processed| processed.into_parts().0)
     }
 
     #[test]
@@ -1056,6 +1063,129 @@ mod test {
         }
     }
 
+    fn group_operation_aad(new_members: usize) -> Vec<u8> {
+        AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
+            new_encrypted_user_profile_keys: (0..new_members)
+                .map(|_| EncryptedUserProfileKey::dummy())
+                .collect(),
+        }))
+        .tls_serialize_detached()
+        .unwrap()
+    }
+
+    fn key_package_with_qs_reference(client: &Client) -> KeyPackage {
+        let qs_reference = Extension::Unknown(
+            QS_CLIENT_REFERENCE_EXTENSION_TYPE,
+            UnknownExtension(qs_reference().tls_serialize_detached().unwrap()),
+        );
+        KeyPackage::builder()
+            .leaf_node_capabilities(default_leaf_node_capabilities())
+            .leaf_node_extensions(Extensions::single(qs_reference).unwrap())
+            .build(
+                T_CIPHERSUITE,
+                &client.provider,
+                client.signer.t_signer(),
+                client.credential.t_credential.clone(),
+            )
+            .unwrap()
+            .key_package()
+            .clone()
+    }
+
+    #[tokio::test]
+    async fn a_group_operation_holds_back_the_credentials_of_the_new_leaves() {
+        let creator = Client::new();
+        let joiner = Client::new();
+        let mut group = new_t_group(&creator);
+        let mut state = ds_group_state(&creator, &group, creator.signer.t_signer());
+
+        group.set_aad(group_operation_aad(1));
+        let (commit, welcome, group_info) = group
+            .commit_builder()
+            .force_self_update(true)
+            .propose_adds([key_package_with_qs_reference(&joiner)])
+            .load_psks(creator.provider.storage())
+            .unwrap()
+            .create_group_info(true)
+            .build(
+                creator.provider.rand(),
+                creator.provider.crypto(),
+                creator.signer.t_signer(),
+                |_| true,
+            )
+            .unwrap()
+            .stage_commit(&creator.provider)
+            .unwrap()
+            .into_contents();
+        let welcome = AssistedWelcome {
+            welcome: welcome.unwrap(),
+        };
+        let params = GroupOperationParams {
+            commit: assisted(commit, group_info.unwrap().into()),
+            add_users_info_option: Some(AddUsersInfo {
+                welcome,
+                encrypted_welcome_attribution_infos: vec![EncryptedWelcomeAttributionInfo::dummy()],
+            }),
+        };
+
+        let (_processed, credentials) = state
+            .process_group_operation(params, MAX_DEVICES)
+            .await
+            .unwrap()
+            .into_parts();
+        let user_ids: Vec<_> = credentials
+            .iter()
+            .map(|credential| credential.user_id().clone())
+            .collect();
+        assert_eq!(user_ids, [creator.user_id, joiner.user_id]);
+    }
+
+    #[tokio::test]
+    async fn a_group_operation_that_changes_the_senders_user_id_is_rejected() {
+        let creator = Client::new();
+        let mut group = new_t_group(&creator);
+        let mut state = ds_group_state(&creator, &group, creator.signer.t_signer());
+
+        let other_user = UserId::random("example.com".parse().unwrap());
+        let credential = ApqCredentialWithKey::new(
+            &user_identity(&other_user, &creator.signer),
+            &creator.signer,
+        )
+        .t_credential;
+        group.set_aad(group_operation_aad(0));
+        let (commit, _welcome, group_info) = group
+            .commit_builder()
+            .force_self_update(true)
+            .leaf_node_parameters(
+                LeafNodeParameters::builder()
+                    .with_credential_with_key(credential)
+                    .build(),
+            )
+            .load_psks(creator.provider.storage())
+            .unwrap()
+            .create_group_info(true)
+            .build(
+                creator.provider.rand(),
+                creator.provider.crypto(),
+                creator.signer.t_signer(),
+                |_| true,
+            )
+            .unwrap()
+            .stage_commit(&creator.provider)
+            .unwrap()
+            .into_contents();
+        let params = GroupOperationParams {
+            commit: assisted(commit, group_info.unwrap().into()),
+            add_users_info_option: None,
+        };
+
+        let Err(GroupOperationError::InvalidMessage) =
+            state.process_group_operation(params, MAX_DEVICES).await
+        else {
+            panic!("the group operation is accepted");
+        };
+    }
+
     #[tokio::test]
     async fn a_group_operation_that_sets_a_tombstone_is_rejected() {
         self_update_group_operation(None).await.unwrap();
@@ -1162,11 +1292,13 @@ mod test {
         let removed = others(&joined);
         let (delete, delete_group_info) =
             t_commit(&joiner, &mut joined, Vec::new(), removed, Some(update));
-        state.close_connection_group(
-            assisted(join, join_group_info),
-            assisted(delete, delete_group_info),
-            qs_reference(),
-        )?;
+        let (_closed, _credentials) = state
+            .close_connection_group(
+                assisted(join, join_group_info),
+                assisted(delete, delete_group_info),
+                qs_reference(),
+            )?
+            .into_parts();
         Ok(state)
     }
 
@@ -1241,13 +1373,14 @@ mod test {
             .finalize(&joiner.provider, &signer, |_| true, |_| true)
             .unwrap();
 
-        DsGroupState::apq_close_connection_group(
+        let (_closed, _credentials) = DsGroupState::apq_close_connection_group(
             &mut t_state,
             &mut pq_state,
             apq_assisted(join),
             apq_assisted(delete),
             qs_reference(),
-        )?;
+        )?
+        .into_parts();
         Ok((t_state, pq_state))
     }
 
@@ -1278,6 +1411,36 @@ mod test {
             Some(TombstoneContext::AlreadyConnected)
         );
         assert!(!pq_state.has_tombstone());
+    }
+
+    #[test]
+    fn a_close_holds_back_the_credential_of_the_joiner() {
+        let (inviter, group, mut state) = t_connection_group(0);
+        let joiner = Client::new();
+        let (mut joined, join, join_group_info) =
+            t_external_commit(&joiner, &inviter, &group, close_aad());
+        let removed = others(&joined);
+        let (delete, delete_group_info) = t_commit(
+            &joiner,
+            &mut joined,
+            Vec::new(),
+            removed,
+            Some(set_already_connected),
+        );
+
+        let (_closed, credentials) = state
+            .close_connection_group(
+                assisted(join, join_group_info),
+                assisted(delete, delete_group_info),
+                qs_reference(),
+            )
+            .unwrap()
+            .into_parts();
+        let user_ids: Vec<_> = credentials
+            .iter()
+            .map(|credential| credential.user_id().clone())
+            .collect();
+        assert_eq!(user_ids, [joiner.user_id]);
     }
 
     #[test]

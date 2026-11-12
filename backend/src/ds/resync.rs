@@ -26,6 +26,7 @@ use super::{
     apq::ApqExternalCommit,
     client_references::ClientReferencesSnapshot,
     group_state::{DsGroupState, leaf_credential_is_valid},
+    user_credentials::Unauthenticated,
 };
 
 /// Outcome of a resync: the message to distribute, plus the queue of the leaf the
@@ -59,6 +60,18 @@ impl DsGroupState {
         Ok(())
     }
 
+    /// Rejects a resync whose new leaf belongs to another owner than the leaf it replaces.
+    fn ensure_same_owner(
+        new: &LeafCredential,
+        replaced: &LeafCredential,
+    ) -> Result<(), ResyncClientError> {
+        if new.room_policy_identity() != replaced.room_policy_identity() {
+            error!("Resync leaf changes the owner of the sender's leaf");
+            return Err(ResyncClientError::InvalidMessage);
+        }
+        Ok(())
+    }
+
     /// An external commit re-adds the client at the leftmost blank leaf. If it differs from the
     /// original leaf index, re-key the member profile accordingly, so that fan-out exclusion and QS
     /// references stay correct.
@@ -75,11 +88,11 @@ impl DsGroupState {
         }
     }
 
-    pub(crate) fn resync_client(
+    pub(super) fn resync_client(
         &mut self,
         external_commit: AssistedMessageIn,
         sender_index: LeafNodeIndex,
-    ) -> Result<ResyncOutcome, ResyncClientError> {
+    ) -> Result<Unauthenticated<ResyncOutcome>, ResyncClientError> {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
             .group()
@@ -149,6 +162,7 @@ impl DsGroupState {
         let sender = self
             .leaf_credential(sender_index)
             .ok_or(ResyncClientError::InvalidMessage)?;
+        Self::ensure_same_owner(&new_credential, &sender)?;
 
         // Collect all removed clients except the sender.
         let mut removed_indices = removed_clients(staged_commit_message);
@@ -206,18 +220,21 @@ impl DsGroupState {
 
         self.stage_welcome_info(retained_welcome_info);
 
-        Ok(ResyncOutcome {
-            message: processed_assisted_message_plus.serialized_mls_message,
-            sibling_queue,
-        })
+        Ok(Unauthenticated::new(
+            ResyncOutcome {
+                message: processed_assisted_message_plus.serialized_mls_message,
+                sibling_queue,
+            },
+            new_credential.into_user().into_iter().collect(),
+        ))
     }
 
-    pub(crate) fn apq_resync_client(
+    pub(super) fn apq_resync_client(
         t_group_state: &mut Self,
         pq_group_state: &mut Self,
         external_commit: ApqAssistedMessageIn,
         t_sender_index: LeafNodeIndex,
-    ) -> Result<ResyncOutcome, ResyncClientError> {
+    ) -> Result<Unauthenticated<ResyncOutcome>, ResyncClientError> {
         let client_references_before = ClientReferencesSnapshot::of(t_group_state);
         let processed_assisted_message_plus =
             ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
@@ -260,6 +277,7 @@ impl DsGroupState {
         let t_sender = t_group_state
             .leaf_credential(t_sender_index)
             .ok_or(ResyncClientError::InvalidMessage)?;
+        Self::ensure_same_owner(&t_new_credential, &t_sender)?;
 
         // Collect all removed clients except the sender
         let mut t_removed_indices = removed_clients(t_staged_commit);
@@ -325,12 +343,15 @@ impl DsGroupState {
         t_group_state.stage_welcome_info(t_retained_welcome_info);
         pq_group_state.stage_welcome_info_without_profile_keys(pq_retained_welcome_info);
 
-        Ok(ResyncOutcome {
-            message: SerializedMlsMessage::combine_apq(
-                processed_assisted_message_plus.t_serialized_message,
-                processed_assisted_message_plus.pq_serialized_message,
-            ),
-            sibling_queue,
-        })
+        Ok(Unauthenticated::new(
+            ResyncOutcome {
+                message: SerializedMlsMessage::combine_apq(
+                    processed_assisted_message_plus.t_serialized_message,
+                    processed_assisted_message_plus.pq_serialized_message,
+                ),
+                sibling_queue,
+            },
+            t_new_credential.into_user().into_iter().collect(),
+        ))
     }
 }

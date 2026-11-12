@@ -163,9 +163,6 @@ pub struct StorageSettings {
     /// Default is 20 MiB.
     #[serde(default = "default_max_attachment_size")]
     pub max_attachment_size: u64,
-    /// Enables attachment provisioning for uploads via POST policy
-    #[serde(default)]
-    pub use_post_policy: bool,
     /// Path prefixes in the bucket for different storage object types
     #[serde(default)]
     pub storage_paths: StoragePaths,

@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use super::*;
 use crate::{
-    clients::{attachment::MimiContentExt, own_client_info::OwnClientInfo},
+    MimiContentExt, clients::own_client_info::OwnClientInfo,
     groups::application_message::suppress_notifications,
 };
 
