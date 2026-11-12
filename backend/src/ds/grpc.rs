@@ -1019,8 +1019,11 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
         let payload: CreateGroupPayload = request
             .verify(credential.verifying_key())
             .map_err(InvalidSignature)?;
+        self.as_connector
+            .authenticate_user_credential(&credential)
+            .await?;
 
-        // Only after verification, so a forged request cannot spend another
+        // Only after authentication, so a forged request cannot spend another
         // user's allowance.
         self.consume_creation_allowance(credential.user_id())
             .await?;
@@ -1090,8 +1093,11 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
         let payload: CreateApqGroupPayload = request
             .verify(t_user_credential.verifying_key())
             .map_err(InvalidSignature)?;
+        self.as_connector
+            .authenticate_user_credential(&t_user_credential)
+            .await?;
 
-        // Only after verification, so a forged request cannot spend another
+        // Only after authentication, so a forged request cannot spend another
         // user's allowance.
         self.consume_creation_allowance(t_user_credential.user_id())
             .await?;
@@ -1506,11 +1512,14 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                     // Destination clients do not contain self yet, TODO: will need to be adjusted with virtual clients
                     let destination_clients: Vec<_> = group_state.destination_clients().collect();
 
-                    let outcome = group_state.join_connection_group(
-                        external_commit,
-                        qs_client_reference.clone(),
-                        ConnectionGroupJoin::Accept,
-                    )?;
+                    let outcome = group_state
+                        .join_connection_group(
+                            external_commit,
+                            qs_client_reference.clone(),
+                            ConnectionGroupJoin::Accept,
+                        )?
+                        .authenticate(&self.as_connector)
+                        .await?;
 
                     group_state.proposals.clear();
 
@@ -1581,7 +1590,9 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                         external_commit,
                         qs_client_reference.clone(),
                         ConnectionGroupJoin::Accept,
-                    )?;
+                    )?
+                    .authenticate(&self.as_connector)
+                    .await?;
 
                     t_group_state.proposals.clear();
                     pq_group_state.proposals.clear();
@@ -1653,11 +1664,14 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                     }
                     // The members before the join, which is the sender.
                     let destination_clients: Vec<_> = group_state.destination_clients().collect();
-                    let closed = group_state.close_connection_group(
-                        external_commit,
-                        delete_commit,
-                        qs_client_reference,
-                    )?;
+                    let closed = group_state
+                        .close_connection_group(
+                            external_commit,
+                            delete_commit,
+                            qs_client_reference,
+                        )?
+                        .authenticate(&self.as_connector)
+                        .await?;
                     group_state.proposals.clear();
 
                     self.fan_out_message_without_notifications(
@@ -1715,7 +1729,9 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                         external_commit,
                         delete_commit,
                         qs_client_reference,
-                    )?;
+                    )?
+                    .authenticate(&self.as_connector)
+                    .await?;
                     t_group_state.proposals.clear();
                     pq_group_state.proposals.clear();
 
@@ -1776,7 +1792,10 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                     .collect();
                 let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
-                let outcome = group_state.resync_client(external_commit, sender_index)?;
+                let outcome = group_state
+                    .resync_client(external_commit, sender_index)?
+                    .authenticate(&self.as_connector)
+                    .await?;
 
                 // A sibling emulator client took over the virtual client's leaf;
                 // the leaf's previous occupant has to process the commit to follow
@@ -1838,7 +1857,9 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                         pq_group_state,
                         external_commit,
                         t_sender_index,
-                    )?;
+                    )?
+                    .authenticate(&self.as_connector)
+                    .await?;
 
                     // A sibling emulator client took over the virtual client's
                     // leaf; its previous occupant has to follow onto it.
@@ -2242,6 +2263,8 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                 let (group_message, mut individual_fan_out_messages, virtual_client_hint) =
                     group_state
                         .group_operation(params, ear_key, self.ds.max_devices.get())
+                        .await?
+                        .authenticate(&self.as_connector)
                         .await?;
                 let virtual_client_hint = client_references_before
                     .compare(group_state)
@@ -2382,7 +2405,9 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
                         t_add_users_info,
                         pq_add_users_info,
                         self.ds.max_devices.get(),
-                    )?;
+                    )?
+                    .authenticate(&self.as_connector)
+                    .await?;
                     let virtual_client_hint = client_references_before
                         .compare(t_group_state)
                         .commit_hint(

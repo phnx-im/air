@@ -6,6 +6,7 @@
 //! resync, epochs and pending operations.
 
 mod creation_stream;
+mod creator_credentials;
 mod deletion;
 mod epochs;
 mod lifecycle;

@@ -442,7 +442,9 @@ class _MessageComposerState extends State<MessageComposer>
       return;
     }
 
-    widget.scrollToBottomController?.scrollToBottom();
+    widget.scrollToBottomController
+      ?..scrollToBottom()
+      ..sending.value = true;
 
     setState(() {
       _inputController.clear();
@@ -475,6 +477,9 @@ class _MessageComposerState extends State<MessageComposer>
           _inputController.text = messageText;
         });
       }
+    } finally {
+      // Normally the arriving message has released it already.
+      if (mounted) widget.scrollToBottomController?.sending.value = false;
     }
   }
 

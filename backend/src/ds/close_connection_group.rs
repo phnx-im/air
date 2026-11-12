@@ -17,6 +17,7 @@ use super::{
     delete_group::DeleteKind,
     group_state::DsGroupState,
     join_connection_group::{ConnectionGroupJoin, JoinConnectionGroupError},
+    user_credentials::Unauthenticated,
 };
 
 /// The commits of a close, in the order the members get them.
@@ -33,19 +34,21 @@ impl DsGroupState {
         external_commit: AssistedMessageIn,
         delete_commit: AssistedMessageIn,
         qs_client_reference: QsReference,
-    ) -> Result<ClosedConnectionGroup, CloseConnectionGroupError> {
-        let join = self.join_connection_group(
+    ) -> Result<Unauthenticated<ClosedConnectionGroup>, CloseConnectionGroupError> {
+        self.join_connection_group(
             external_commit,
             qs_client_reference,
             ConnectionGroupJoin::Close,
-        )?;
-        let kind = DeleteKind::Close {
-            joiner: join.joiner_index,
-        };
-        let delete = self.delete_group(delete_commit, kind)?;
-        Ok(ClosedConnectionGroup {
-            join: join.message,
-            delete,
+        )?
+        .try_map(|join| {
+            let kind = DeleteKind::Close {
+                joiner: join.joiner_index,
+            };
+            let delete = self.delete_group(delete_commit, kind)?;
+            Ok(ClosedConnectionGroup {
+                join: join.message,
+                delete,
+            })
         })
     }
 
@@ -56,21 +59,23 @@ impl DsGroupState {
         external_commit: ApqAssistedMessageIn,
         delete_commit: ApqAssistedMessageIn,
         qs_client_reference: QsReference,
-    ) -> Result<ClosedConnectionGroup, CloseConnectionGroupError> {
-        let join = Self::apq_join_connection_group(
+    ) -> Result<Unauthenticated<ClosedConnectionGroup>, CloseConnectionGroupError> {
+        Self::apq_join_connection_group(
             t,
             pq,
             external_commit,
             qs_client_reference,
             ConnectionGroupJoin::Close,
-        )?;
-        let kind = DeleteKind::Close {
-            joiner: join.joiner_index,
-        };
-        let delete = Self::delete_apq_group(t, pq, delete_commit, kind)?;
-        Ok(ClosedConnectionGroup {
-            join: join.message,
-            delete,
+        )?
+        .try_map(|join| {
+            let kind = DeleteKind::Close {
+                joiner: join.joiner_index,
+            };
+            let delete = Self::delete_apq_group(t, pq, delete_commit, kind)?;
+            Ok(ClosedConnectionGroup {
+                join: join.message,
+                delete,
+            })
         })
     }
 }
