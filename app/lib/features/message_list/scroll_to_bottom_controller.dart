@@ -13,6 +13,11 @@ class ScrollToBottomController {
   /// to reserve matching bottom padding so content isn't obscured.
   final composerHeight = ValueNotifier<double>(0);
 
+  /// Set by the composer from send until the sent message arrives in the list
+  /// or the send returns. While set, the list keeps its bottom padding when
+  /// the composer shrinks, so the list and the arriving row move together.
+  final sending = ValueNotifier<bool>(false);
+
   VoidCallback? _onScrollToBottom;
 
   set onScrollToBottom(VoidCallback? callback) => _onScrollToBottom = callback;
@@ -22,5 +27,6 @@ class ScrollToBottomController {
   void dispose() {
     showButton.dispose();
     composerHeight.dispose();
+    sending.dispose();
   }
 }
