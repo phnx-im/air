@@ -2,10 +2,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{collections::HashSet, fmt, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+    str::FromStr,
+};
 
 use aircommon::{
-    credentials::keys::LeafSigningKey,
+    credentials::{LeafCredential, keys::LeafSigningKey},
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::{QualifiedGroupId, UserId},
     messages::{
@@ -14,7 +18,7 @@ use aircommon::{
     },
     time::TimeStamp,
 };
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use chrono::{DateTime, Utc};
 use openmls::{
@@ -766,9 +770,15 @@ impl Resync {
         // reflect that in the UI.
 
         // Collect members of the group before we delete it.
-        let members_before: Option<HashSet<UserId>> = Group::load(&mut *txn, &self.group_id)
-            .await?
-            .map(|group| group.members().collect());
+        let group_before = Group::load(&mut *txn, &self.group_id).await?;
+        let members_before: Option<HashSet<UserId>> =
+            group_before.as_ref().map(|group| group.members().collect());
+        // Make sure our sibling devices have the same keys as before.
+        let self_group_keys_before = group_before
+            .as_ref()
+            .filter(|group| group.is_self_group())
+            .map(self_group_leaf_keys)
+            .transpose()?;
 
         // Delete any old group states if they exist
         Group::delete_from_db(txn, &self.group_id).await?;
@@ -829,6 +839,10 @@ impl Resync {
             )
         };
 
+        if let Some(keys_before) = &self_group_keys_before {
+            ensure_self_group_keys_kept(keys_before, &self_group_leaf_keys(&group)?)?;
+        }
+
         let members_after: HashSet<UserId> = group.members().collect();
         let diff = members_before
             .map(|before| MembersDiff::compute(before, members_after))
@@ -878,6 +892,36 @@ impl Resync {
 
         Ok(())
     }
+}
+
+/// The signature key of each self-group leaf, by client ID.
+fn self_group_leaf_keys(group: &Group) -> Result<HashMap<Uuid, Vec<u8>>> {
+    let mut keys = HashMap::new();
+    for member in group.mls_group().members() {
+        let LeafCredential::SelfGroup(credential) =
+            LeafCredential::from_credential(&member.credential)?
+        else {
+            bail!("user credential in the self group");
+        };
+        keys.insert(credential.client_id(), member.signature_key);
+    }
+    Ok(keys)
+}
+
+/// Require every client in both trees to keep its signature key.
+fn ensure_self_group_keys_kept(
+    before: &HashMap<Uuid, Vec<u8>>,
+    after: &HashMap<Uuid, Vec<u8>>,
+) -> Result<()> {
+    for (client_id, key_before) in before {
+        if let Some(key_after) = after.get(client_id) {
+            ensure!(
+                key_after == key_before,
+                "self-group signature key of client {client_id} changed in resync"
+            );
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Default)]
@@ -1358,6 +1402,28 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn self_group_resync_keeps_known_keys() {
+        let kept = Uuid::new_v4();
+        let unlinked = Uuid::new_v4();
+        let linked = Uuid::new_v4();
+        let before = HashMap::from([(kept, vec![1]), (unlinked, vec![2])]);
+        let after = HashMap::from([(kept, vec![1]), (linked, vec![3])]);
+        ensure_self_group_keys_kept(&before, &after).unwrap();
+    }
+
+    #[test]
+    fn self_group_resync_rejects_a_changed_key() {
+        let client_id = Uuid::new_v4();
+        let before = HashMap::from([(client_id, vec![1])]);
+        let after = HashMap::from([(client_id, vec![2])]);
+        let error = ensure_self_group_keys_kept(&before, &after).unwrap_err();
+        assert!(
+            error.to_string().contains("changed in resync"),
+            "unexpected error: {error:#}"
+        );
+    }
 
     /// A chat and a matching queue entry. The queue only stores ids and keys,
     /// so no MLS group is needed.

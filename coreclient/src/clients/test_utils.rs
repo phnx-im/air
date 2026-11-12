@@ -837,6 +837,49 @@ impl CoreUser {
         victim: Uuid,
         aad: aircommon::messages::client_ds::AadPayload,
     ) -> anyhow::Result<Vec<u8>> {
+        use openmls::prelude::tls_codec::Serialize as _;
+
+        let (bundle, _) = self.build_self_group_leaf_takeover(victim, aad).await?;
+        Ok(bundle.into_message_out().tls_serialize_detached()?)
+    }
+
+    pub async fn apply_own_self_group_leaf_takeover_on_ds(&self) -> anyhow::Result<()> {
+        use anyhow::Context;
+
+        let victim = self.own_client_id().await?;
+        let (bundle, victim_index) = self
+            .build_self_group_leaf_takeover(
+                victim,
+                aircommon::messages::client_ds::AadPayload::Resync,
+            )
+            .await?;
+        let mut read = self.db().read().await?;
+        let own_client_info = OwnClientInfo::load(&mut read).await?;
+        let group_id = own_client_info.self_group_id.context("no self group")?;
+        let signer = LeafSigningKey::SelfGroup(
+            own_client_info
+                .self_group_signing_key
+                .context("no self-group key")?,
+        );
+        let group = Group::load(read, &group_id)
+            .await?
+            .context("self group not persisted")?;
+        let qgid: QualifiedGroupId = group_id.try_into()?;
+        self.api_clients()
+            .get(qgid.owning_domain())?
+            .ds_apq_resync(bundle, &signer, group.group_state_ear_key(), victim_index)
+            .await?;
+        Ok(())
+    }
+
+    async fn build_self_group_leaf_takeover(
+        &self,
+        victim: Uuid,
+        aad: aircommon::messages::client_ds::AadPayload,
+    ) -> anyhow::Result<(
+        apqmls::commit_builder::ApqCommitMessageBundle,
+        openmls::prelude::LeafNodeIndex,
+    )> {
         use aircommon::{
             credentials::LeafCredential,
             messages::client_ds::AadMessage,
@@ -965,7 +1008,7 @@ impl CoreUser {
                 VerifiableApqGroupInfo::new(info.verifiable_group_info, pq_info.group_info),
                 |_, _| true,
             )?;
-        Ok(bundle.into_message_out().tls_serialize_detached()?)
+        Ok((bundle, victim_index))
     }
 
     /// The IDs and the ear key of our self group, which the DS holds too.
