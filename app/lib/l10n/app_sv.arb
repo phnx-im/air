@@ -125,8 +125,8 @@
   "invitationCodesScreen_global_quota_exceeded": "Vi har inga fler inbjudningar för tillfället, försök igen senare.",
   "invitationCodesScreen_errorRequestingCode": "Något gick fel. Försök igen.",
   "invitationCodesScreen_copiedToClipboard": "Kopierat till urklipp",
-  "invitationCodesScreen_codeClipboardMessage": "Låt oss chatta på Air: https://air.ms/install. Använd inbjudningskoden {code}.",
-  "invitationCodesScreen_codesClipboardMessage": "Låt oss chatta på Air: https://air.ms/install. Använd en av dessa inbjudningskoder för att gå med:\n\n{codes}",
+  "invitationCodesScreen_codeClipboardMessage": "Låt oss chatta på Air: https://air.ms/download. Använd inbjudningskoden {code}.",
+  "invitationCodesScreen_codesClipboardMessage": "Låt oss chatta på Air: https://air.ms/download. Använd en av dessa inbjudningskoder för att gå med:\n\n{codes}",
 
   "accountCreation_unsupported_header": "Uppdatering krävs",
   "accountCreation_unsupported_body": "Den här servern kräver något som den här versionen av Air inte kan tillhandahålla. Uppdatera Air för att fortsätta.",

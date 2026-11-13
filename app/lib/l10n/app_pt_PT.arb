@@ -125,8 +125,8 @@
   "invitationCodesScreen_global_quota_exceeded": "Ficámos sem convites para já, tenta de novo mais tarde.",
   "invitationCodesScreen_errorRequestingCode": "Algo correu mal. Tenta de novo.",
   "invitationCodesScreen_copiedToClipboard": "Copiado para a área de transferência",
-  "invitationCodesScreen_codeClipboardMessage": "Vamos falar no Air: https://air.ms/install. Usa o código de convite {code}.",
-  "invitationCodesScreen_codesClipboardMessage": "Vamos falar no Air: https://air.ms/install. Usa um destes códigos de convite para entrares:\n\n{codes}",
+  "invitationCodesScreen_codeClipboardMessage": "Vamos falar no Air: https://air.ms/download. Usa o código de convite {code}.",
+  "invitationCodesScreen_codesClipboardMessage": "Vamos falar no Air: https://air.ms/download. Usa um destes códigos de convite para entrares:\n\n{codes}",
 
   "accountCreation_unsupported_header": "Atualização necessária",
   "accountCreation_unsupported_body": "Este servidor pede algo que esta versão do Air não consegue fornecer. Atualiza o Air para continuares.",

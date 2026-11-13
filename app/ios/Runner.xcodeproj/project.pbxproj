@@ -138,6 +138,12 @@
 		AE123456000000000000000F /* el */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = el; path = el.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		AE1234560000000000000010 /* tr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = tr; path = tr.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		AE1234560000000000000011 /* ca */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ca; path = ca.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		AE1234560000000000000012 /* da */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = da; path = da.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		AE1234560000000000000013 /* fi */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fi; path = fi.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		AE1234560000000000000014 /* it */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = it; path = it.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		AE1234560000000000000015 /* nb */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = nb; path = nb.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		AE1234560000000000000016 /* nl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = nl; path = nl.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		AE1234560000000000000017 /* pl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = pl; path = pl.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		AE975A052C472F0B00007EF7 /* NotificationService.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AE975A072C472F0B00007EF7 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		AE975A092C472F0B00007EF7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -427,11 +433,17 @@
 			knownRegions = (
 				en,
 				ca,
+				da,
 				de,
 				el,
 				es,
 				et,
+				fi,
 				fr,
+				it,
+				nb,
+				nl,
+				pl,
 				pt,
 				"pt-PT",
 				ru,
@@ -654,6 +666,12 @@
 				AE123456000000000000000F /* el */,
 				AE1234560000000000000010 /* tr */,
 				AE1234560000000000000011 /* ca */,
+				AE1234560000000000000012 /* da */,
+				AE1234560000000000000013 /* fi */,
+				AE1234560000000000000014 /* it */,
+				AE1234560000000000000015 /* nb */,
+				AE1234560000000000000016 /* nl */,
+				AE1234560000000000000017 /* pl */,
 			);
 			name = InfoPlist.strings;
 			sourceTree = "<group>";

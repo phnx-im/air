@@ -114,7 +114,7 @@ impl Group {
                 RoleIndex::Regular,
             )?;
 
-            credential.store(&mut *txn).await?;
+            credential.store_checked(&mut *txn).await?;
             credentials.push(credential.into());
         }
 

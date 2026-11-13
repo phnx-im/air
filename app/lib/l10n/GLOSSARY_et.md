@@ -12,7 +12,7 @@ Keelevariant saab oma failid, eraldi ARB-faili ja eraldi sõnastiku. Seda ei seg
 
 ## Pöördumine
 
-Air pöördub kasutaja poole sina-vormis kõigis sõnedes, nagu Signal ja Element eesti keeles. Pöördumine ei muutu sõnest sõnesse. Lühivormid „sa“, „su“, „sul“ ja „sulle“ on eelistatud, kui rõhk ei ole asesõnal.
+Air pöördub kasutaja poole sina-vormis kõigis sõnedes. Pöördumine ei muutu sõnest sõnesse. Lühivormid „sa“, „su“, „sul“ ja „sulle“ on eelistatud, kui rõhk ei ole asesõnal.
 
 Nupud ja menüüpunktid on käskivas kõneviisis: „Kustuta“, „Saada“, „Tühista“. Juhised ja veateated on samuti käskivas kõneviisis: „Proovi uuesti.“, „Sisesta kood“.
 

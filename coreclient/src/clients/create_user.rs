@@ -244,16 +244,13 @@ impl PostAsRegistrationState {
         let user_credential: UserCredential = self
             .user_credential
             .verify(as_intermediate_credential.verifying_key())?;
-        StorableUserCredential::new(user_credential.clone())
-            .store(db.write().await?)
-            .await?;
 
         let signing_key =
             UserSigningKey::from_prelim_key(key_store.signing_key, user_credential.clone())?;
 
         // Store the own user credential in the DB
         StorableUserCredential::new(user_credential.clone())
-            .store(db.write().await?)
+            .store_checked(db.write().await?)
             .await?;
 
         // Replace preliminary signing key in the key store
