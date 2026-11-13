@@ -684,7 +684,7 @@ impl CoreUser {
                 let group_id = group.group_id().clone();
                 match Resync::status(&mut *txn, &group_id).await? {
                     None => {
-                        warn!(%chat_id, ?group_id, %reason, "Group is out of sync; scheduling resync");
+                        warn!(%chat_id, ?group_id, %reason, "Group is out of sync");
                         Resync::for_group(chat_id, group.group(), reason)
                             .enqueue(&mut *txn)
                             .await?;
@@ -1035,7 +1035,7 @@ impl CoreUser {
                 }
             }
             ProcessedMessageContent::ExternalJoinProposalMessage(_) => {
-                unimplemented!()
+                bail!("Unexpected ExternalJoinProposalMessage, should have been rejected before")
             }
             ProcessedMessageContent::OwnPendingCommit => {
                 // Our own commit was echoed back before the matching
@@ -2232,5 +2232,61 @@ mod tests {
                 Ok(())
             })
             .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_new_member_proposal_is_rejected() -> anyhow::Result<()> {
+        use aircommon::mls_group_config::default_leaf_node_capabilities;
+        use openmls::prelude::{
+            BasicCredential, CredentialWithKey, JoinProposal, KeyPackage, OpenMlsProvider,
+        };
+        use openmls_basic_credential::SignatureKeyPair;
+        use openmls_rust_crypto::OpenMlsRustCrypto;
+
+        use crate::{
+            groups::NewMemberProposalRejected,
+            job::pending_chat_operation::tests::setup_group_and_chat,
+        };
+
+        let (pool, mut group, _chat_id, signing_key) = Box::pin(setup_group_and_chat()).await?;
+        let mls_group = group.group().mls_group();
+        let ciphersuite = mls_group.ciphersuite();
+
+        let provider = OpenMlsRustCrypto::default();
+        let signer = SignatureKeyPair::new(ciphersuite.signature_algorithm())?;
+        let key_package = KeyPackage::builder()
+            .leaf_node_capabilities(default_leaf_node_capabilities())
+            .build(
+                ciphersuite,
+                &provider,
+                &signer,
+                CredentialWithKey {
+                    credential: BasicCredential::new(b"outsider".to_vec()).into(),
+                    signature_key: signer.public().into(),
+                },
+            )?
+            .into_key_package();
+        let proposal = JoinProposal::new::<<OpenMlsRustCrypto as OpenMlsProvider>::StorageProvider>(
+            key_package,
+            mls_group.group_id().clone(),
+            mls_group.epoch(),
+            &signer,
+        )?;
+        let proposal =
+            MlsMessageIn::tls_deserialize_exact_bytes(&proposal.tls_serialize_detached()?)?
+                .try_into_protocol_message()?;
+
+        let api_clients =
+            ApiClients::new(signing_key.credential().user_id().domain().clone(), None);
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+        let error = group
+            .group_mut()
+            .process_message(&mut txn, &api_clients, proposal)
+            .await
+            .err()
+            .context("the new member proposal is processed")?;
+        assert!(error.is::<NewMemberProposalRejected>(), "{error:?}");
+        Ok(())
     }
 }

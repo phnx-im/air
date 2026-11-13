@@ -19,6 +19,11 @@ pub(crate) struct GroupClosed {
     pub(crate) tombstone: GroupTombstone,
 }
 
+/// A proposal from a new member asking to join, which Air clients never send.
+#[derive(Debug, Error)]
+#[error("new member proposals are not supported")]
+pub(crate) struct NewMemberProposalRejected;
+
 #[derive(Error, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum GroupOperationError {

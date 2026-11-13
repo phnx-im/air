@@ -34,11 +34,11 @@ use crate::{
     clients::api_clients::ApiClients,
     db::access::WriteDbTransaction,
     groups::{
-        Group,
+        Group, NewMemberProposalRejected,
         openmls_provider::AirOpenMlsProvider,
         process::{
             self_group_payload::apply_self_group_payload,
-            validation::verify_pq_update_path_signature_key,
+            validation::{ensure_self_group_commit, verify_pq_update_path_signature_key},
         },
     },
     job::pending_chat_operation::PendingChatOperation,
@@ -113,7 +113,7 @@ impl Group {
         let post_process_state = match processed_message.content() {
             // For now, we only care about commits.
             ProcessedMessageContent::ExternalJoinProposalMessage(_) => {
-                bail!("Unsupported message type")
+                bail!(NewMemberProposalRejected)
             }
             ProcessedMessageContent::ApplicationMessage(_) => {
                 debug!("process application message");
@@ -250,6 +250,12 @@ impl Group {
         // service can re-issue them.
         let mut connection_request_effects = ConnectionRequestEffects::default();
         if self.is_self_group() {
+            ensure_self_group_commit(
+                &self.mls_group,
+                processed_message,
+                self.pq.as_ref().map(|pq| &pq.mls_group),
+                pq_staged_commit,
+            )?;
             let payload = self.extract_self_group_messages(txn, staged_commit).await;
             if !payload.is_empty() {
                 // Own echo: the DS fanned our own commit back while our pending

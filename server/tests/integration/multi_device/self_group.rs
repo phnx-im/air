@@ -261,8 +261,8 @@ async fn resync_keeps_sibling_in_sync() {
 
 /// A malicious DS forges an external commit that gives a new leaf the
 /// self-group credential of a sibling with a fresh signature key and removes
-/// the sibling's leaf. The other devices must reject it.
-async fn sibling_leaf_takeover_is_rejected(aad: AadPayload) {
+/// the sibling's leaf. The other devices must reject it with `expected_error`.
+async fn sibling_leaf_takeover_is_rejected(aad: AadPayload, expected_error: &str) {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = alice.add_linked_device().await;
@@ -288,10 +288,12 @@ async fn sibling_leaf_takeover_is_rejected(aad: AadPayload) {
         .await
         .unwrap();
 
-    let processed = alice.process_incoming_apq_mls_message(&commit).await;
+    let Err(error) = alice.process_incoming_apq_mls_message(&commit).await else {
+        panic!("the forged commit takes over the sibling's leaf");
+    };
     assert!(
-        processed.is_err(),
-        "the forged commit takes over the sibling's leaf"
+        format!("{error:#}").contains(expected_error),
+        "unexpected error: {error:#}"
     );
     let members_after = alice.mls_members(chat_id).await.unwrap().unwrap();
     assert_eq!(members_after, members_before);
@@ -299,15 +301,19 @@ async fn sibling_leaf_takeover_is_rejected(aad: AadPayload) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn sibling_leaf_takeover_by_resync_is_rejected() {
-    sibling_leaf_takeover_is_rejected(AadPayload::Resync).await;
+    sibling_leaf_takeover_is_rejected(
+        AadPayload::Resync,
+        "self-group resync changes the signature key of the removed leaf",
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn sibling_leaf_takeover_by_group_operation_is_rejected() {
-    sibling_leaf_takeover_is_rejected(AadPayload::GroupOperation(GroupOperationParamsAad {
+    let aad = AadPayload::GroupOperation(GroupOperationParamsAad {
         new_encrypted_user_profile_keys: Vec::new(),
-    }))
-    .await;
+    });
+    sibling_leaf_takeover_is_rejected(aad, "self-group external commit is no resync").await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -338,7 +344,7 @@ async fn external_delete_commit_is_rejected() {
         panic!("the forged commit deletes the self group");
     };
     assert!(
-        format!("{error:#}").contains("DeleteGroup operation must be a member commit"),
+        format!("{error:#}").contains("self-group external commit is no resync"),
         "unexpected error: {error:#}"
     );
     assert_eq!(alice.account_unlink_reason().await.unwrap(), None);
@@ -380,7 +386,7 @@ async fn connection_group_close_into_the_self_group_is_rejected() {
         panic!("the forged commit adds Mallory to Alice's self group");
     };
     assert!(
-        format!("{error:#}").contains("must not target the self group"),
+        format!("{error:#}").contains("self-group external commit is no resync"),
         "unexpected error: {error:#}"
     );
     assert_eq!(

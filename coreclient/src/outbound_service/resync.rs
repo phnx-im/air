@@ -944,10 +944,39 @@ mod persistence {
     sqlx_text_enum!(ResyncStatus);
 
     impl Resync {
+        /// Whether to skip queueing this resync, because it rejoins the own
+        /// self group without the user asking for it.
+        async fn skip_queueing(&self, connection: impl ReadConnection) -> sqlx::Result<bool> {
+            let automatic = match self.reason {
+                ResyncReason::Manual => false,
+                ResyncReason::FutureEpoch
+                | ResyncReason::MissingPqGroupState
+                | ResyncReason::VirtualClientDesync
+                | ResyncReason::Onboarding
+                | ResyncReason::SiblingAccepted => true,
+            };
+            if !automatic || !OwnClientInfo::is_own_self_group(connection, &self.group_id).await? {
+                return Ok(false);
+            }
+            debug!(
+                ?self.group_id,
+                %self.reason,
+                "Not queueing an automatic resync of the own self group"
+            );
+            Ok(true)
+        }
+
+        /// Queues this resync unless the group already has a queue entry.
+        ///
+        /// Skips an automatic resync of the own self group, see
+        /// [`Resync::skip_queueing`].
         pub(crate) async fn enqueue(
             &self,
             mut connection: impl WriteConnection,
         ) -> sqlx::Result<()> {
+            if self.skip_queueing(&mut connection).await? {
+                return Ok(());
+            }
             debug!(
                 ?self.group_id,
                 ?self.chat_id,
@@ -999,10 +1028,16 @@ mod persistence {
         }
 
         /// Like [`Resync::enqueue`], but resets an existing entry.
+        ///
+        /// An automatic resync of the own self group leaves an existing entry
+        /// untouched.
         pub(crate) async fn enqueue_or_reset(
             &self,
             mut connection: impl WriteConnection,
         ) -> sqlx::Result<()> {
+            if self.skip_queueing(&mut connection).await? {
+                return Ok(());
+            }
             debug!(
                 ?self.group_id,
                 ?self.chat_id,
@@ -1764,6 +1799,99 @@ mod tests {
             .expect("entry should be due");
         assert_eq!(dequeued.attempts, 1);
 
+        Ok(())
+    }
+
+    const AUTOMATIC_REASONS: [ResyncReason; 5] = [
+        ResyncReason::FutureEpoch,
+        ResyncReason::MissingPqGroupState,
+        ResyncReason::VirtualClientDesync,
+        ResyncReason::Onboarding,
+        ResyncReason::SiblingAccepted,
+    ];
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn automatic_resyncs_of_the_own_self_group_are_not_queued() -> anyhow::Result<()> {
+        for reason in AUTOMATIC_REASONS {
+            for reset in [false, true] {
+                let (pool, resync) = setup(reason).await?;
+                let mut connection = pool.write().await?;
+                OwnClientInfo::store_for_test(&mut connection, Some(resync.group_id.clone()))
+                    .await?;
+
+                if reset {
+                    resync.enqueue_or_reset(&mut connection).await?;
+                } else {
+                    resync.enqueue(&mut connection).await?;
+                }
+
+                assert_eq!(
+                    Resync::status(&mut connection, &resync.group_id).await?,
+                    None,
+                    "{reason}"
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_automatic_resync_keeps_a_failed_manual_one_of_the_own_self_group()
+    -> anyhow::Result<()> {
+        let (pool, manual) = setup(ResyncReason::Manual).await?;
+        let mut connection = pool.write().await?;
+        OwnClientInfo::store_for_test(&mut connection, Some(manual.group_id.clone())).await?;
+        manual.enqueue(&mut connection).await?;
+        Resync::mark_failed(&mut connection, &manual.group_id, "boom").await?;
+
+        let automatic = Resync {
+            reason: ResyncReason::FutureEpoch,
+            ..manual
+        };
+        automatic.enqueue_or_reset(&mut connection).await?;
+
+        let info = Resync::debug_info(&mut connection, &automatic.group_id)
+            .await?
+            .context("no queue entry")?;
+        assert_eq!(info.reason, ResyncReason::Manual.as_str());
+        assert_eq!(info.status, ResyncStatus::Failed.as_str());
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_manual_resync_of_the_own_self_group_is_queued() -> anyhow::Result<()> {
+        let (pool, resync) = setup(ResyncReason::Manual).await?;
+        let mut connection = pool.write().await?;
+        OwnClientInfo::store_for_test(&mut connection, Some(resync.group_id.clone())).await?;
+
+        resync.enqueue_or_reset(&mut connection).await?;
+
+        assert_eq!(
+            Resync::status(&mut connection, &resync.group_id).await?,
+            Some(ResyncStatus::Pending)
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn automatic_resyncs_of_other_groups_are_queued() -> anyhow::Result<()> {
+        for reason in AUTOMATIC_REASONS {
+            let (pool, resync) = setup(reason).await?;
+            let mut connection = pool.write().await?;
+            let self_group_id = GroupId::from(QualifiedGroupId::new(
+                Uuid::new_v4(),
+                "example.com".parse()?,
+            ));
+            OwnClientInfo::store_for_test(&mut connection, Some(self_group_id)).await?;
+
+            resync.enqueue(&mut connection).await?;
+
+            assert_eq!(
+                Resync::status(&mut connection, &resync.group_id).await?,
+                Some(ResyncStatus::Pending),
+                "{reason}"
+            );
+        }
         Ok(())
     }
 }
