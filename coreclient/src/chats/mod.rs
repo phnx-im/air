@@ -11,7 +11,7 @@ use aircommon::{
 };
 use airprotos::client::group::{ExternalGroupProfile, GroupData};
 use anyhow::bail;
-use chrono::{DateTime, Datelike, Utc};
+use chrono::{DateTime, Utc};
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
 use tracing::error;
@@ -477,7 +477,7 @@ impl GroupDataExt for GroupData {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum ChatMuted {
     Until(DateTime<Utc>),
     Forever,
@@ -504,8 +504,7 @@ impl ChatMuted {
 
 impl From<DateTime<Utc>> for ChatMuted {
     fn from(dt: DateTime<Utc>) -> Self {
-        // anything that's far enough in the future
-        if dt.year() > 9999 {
+        if dt >= Self::Forever.into_date_time() {
             Self::Forever
         } else {
             Self::Until(dt)

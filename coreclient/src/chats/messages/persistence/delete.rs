@@ -53,7 +53,8 @@ impl DeletedMessageId {
             | OutboxKind::BlockedContact
             | OutboxKind::DeletedChat
             | OutboxKind::ConnectionRequest
-            | OutboxKind::Username => None,
+            | OutboxKind::Username
+            | OutboxKind::ChatMute => None,
         }
     }
 }

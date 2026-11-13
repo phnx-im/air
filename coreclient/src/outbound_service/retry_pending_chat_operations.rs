@@ -6,8 +6,8 @@ use std::collections::HashSet;
 
 use aircommon::credentials::keys::SelfGroupSigningKey;
 use airprotos::client::self_group::{
-    BlockedContactsUpdate, ConnectionRequestsUpdate, SelfGroupMessage, SettingsUpdate,
-    UsernamesUpdate,
+    BlockedContactsUpdate, ChatMutesUpdate, ConnectionRequestsUpdate, SelfGroupMessage,
+    SettingsUpdate, UsernamesUpdate,
 };
 use anyhow::Context as _;
 use openmls::group::GroupId;
@@ -221,6 +221,13 @@ async fn drain_outbox(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<Vec<Se
         messages.push(SelfGroupMessage::ConnectionRequestsUpdate(
             ConnectionRequestsUpdate { requests },
         ));
+    }
+
+    let mutes = chats::persistence::staged_mutes(&mut *txn).await?;
+    if !mutes.is_empty() {
+        messages.push(SelfGroupMessage::ChatMutesUpdate(ChatMutesUpdate {
+            chats: mutes,
+        }));
     }
 
     messages.extend(

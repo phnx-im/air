@@ -26,7 +26,7 @@ use tracing::{Instrument, debug, error, info, info_span, warn};
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
+    Chat, ChatId, ChatMessage, ChatMuted, ChatStatus, Contact, SystemMessage,
     chats::outgoing_requests::{self, OutgoingRequest},
     clients::{
         CoreUser,
@@ -299,6 +299,7 @@ impl CoreUser {
                 vc_leaf_index,
                 connection,
                 outgoing_request,
+                muted_until,
             } = group;
 
             let resync = Resync {
@@ -317,6 +318,7 @@ impl CoreUser {
             };
 
             resync.enqueue(&mut *txn).await?;
+            Resync::record_mute(&mut *txn, &resync.group_id, muted_until).await?;
             queued += 1;
         }
 
@@ -598,6 +600,12 @@ impl Resync {
                 true,
             ),
         };
+        if chat_created {
+            // We read the mute here and not at dequeue. A sibling's change can
+            // reach the queue entry in between.
+            let muted_until = Resync::recorded_mute(&mut txn, &group_id).await?;
+            Chat::set_muted_until(&mut txn, chat_id, muted_until).await?;
+        }
 
         txn.commit().await?;
 
@@ -1268,6 +1276,44 @@ mod persistence {
             .execute(connection.as_mut())
             .await?;
             Ok(())
+        }
+
+        /// Records the mute of the chat the group's onboarding creates. Does
+        /// nothing if the group has no queue entry.
+        pub(crate) async fn record_mute(
+            mut connection: impl WriteConnection,
+            group_id: &GroupId,
+            muted_until: Option<ChatMuted>,
+        ) -> sqlx::Result<()> {
+            let group_id = group_id.as_slice();
+            let muted_until = muted_until.map(ChatMuted::into_date_time);
+            query!(
+                "UPDATE resync_queue
+                SET muted_until = ?2
+                WHERE group_id = ?1",
+                group_id,
+                muted_until,
+            )
+            .execute(connection.as_mut())
+            .await?;
+            Ok(())
+        }
+
+        /// The mute [`Self::record_mute`] recorded for the group.
+        pub(crate) async fn recorded_mute(
+            mut connection: impl ReadConnection,
+            group_id: &GroupId,
+        ) -> sqlx::Result<Option<ChatMuted>> {
+            let group_id = group_id.as_slice();
+            let muted_until: Option<Option<DateTime<Utc>>> = query_scalar!(
+                r#"SELECT muted_until AS "muted_until: _"
+                FROM resync_queue
+                WHERE group_id = ?"#,
+                group_id,
+            )
+            .fetch_optional(connection.as_mut())
+            .await?;
+            Ok(muted_until.flatten().map(ChatMuted::from))
         }
 
         /// Records a spent attempt and when the next one may run.
