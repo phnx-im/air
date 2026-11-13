@@ -9,7 +9,7 @@ use aircommon::{
     credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
     messages::client_ds::{AadPayload, GroupOperationParamsAad},
 };
-use aircoreclient::{ChatStatus, clients::MarkChatAsRead};
+use aircoreclient::{ChatStatus, ResyncStatus, clients::MarkChatAsRead};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::{DateTime, Utc};
 use tempfile::TempDir;
@@ -344,6 +344,60 @@ async fn external_delete_commit_is_rejected() {
     assert_eq!(
         alice.chat(&chat_id).await.unwrap().status(),
         &ChatStatus::Active
+    );
+    let members_after = alice.mls_members(chat_id).await.unwrap().unwrap();
+    assert_eq!(members_after, members_before);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn resync_rejects_a_sibling_key_change_in_the_served_tree() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice2 = alice.add_linked_device().await;
+    let alice3 = alice.add_linked_device().await;
+    alice.drain().await;
+    alice2.drain().await;
+    alice3.drain().await;
+
+    // The forged commit needs a blank leaf left of the victim's.
+    alice
+        .unlink_device(alice2.own_client_id().await.unwrap())
+        .await
+        .unwrap();
+    alice.drain().await;
+    alice3.drain().await;
+
+    let chat_id = self_chat_id(&alice).await;
+    let members_before = alice.mls_members(chat_id).await.unwrap().unwrap();
+
+    // The DS applies a takeover of Alice3's leaf to its group state. Alice
+    // rejects the commit and falls an epoch behind the DS.
+    alice3
+        .apply_own_self_group_leaf_takeover_on_ds()
+        .await
+        .unwrap();
+    let processed = alice.drain_unchecked().await;
+    assert_eq!(processed.errors.len(), 1, "{:?}", processed.errors);
+
+    // Any later message from the DS is from a future epoch and makes Alice
+    // resync. The tree the DS serves gives Alice3's client ID a new key.
+    alice.enqueue_group_resync(chat_id).await.unwrap();
+    alice.outbound_service().run_once().await;
+
+    assert_eq!(
+        alice.resync_status(chat_id).await.unwrap(),
+        Some(ResyncStatus::Failed)
+    );
+    let last_error = alice
+        .chat_debug_info(chat_id)
+        .await
+        .unwrap()
+        .resync
+        .and_then(|resync| resync.last_error)
+        .unwrap_or_default();
+    assert!(
+        last_error.contains("changed in resync"),
+        "unexpected error: {last_error}"
     );
     let members_after = alice.mls_members(chat_id).await.unwrap().unwrap();
     assert_eq!(members_after, members_before);
