@@ -211,28 +211,29 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn sibling_update_wins_locally_but_keeps_our_parked_change(
-        pool: SqlitePool,
-    ) -> anyhow::Result<()> {
+    async fn our_parked_change_outlasts_a_sibling_update(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
         let contested = user(1);
-        let untouched = user(2);
+        let other = user(2);
 
         pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
             record_locally(txn, blocked_state(&contested, 10, "Alice")).await?;
-            record_locally(txn, blocked_state(&untouched, 20, "Bob")).await?;
 
-            let payload = blocked_contacts_payload(vec![unblocked_entry(&contested)]);
+            let payload = blocked_contacts_payload(vec![
+                unblocked_entry(&contested),
+                blocked_entry(&other, 20, "Bob"),
+            ]);
             apply_self_group_payload(txn, &payload, false).await?;
 
-            assert!(!BlockedContact::check_blocked(&mut *txn, &contested).await?);
+            assert!(
+                BlockedContact::check_blocked(&mut *txn, &contested).await?,
+                "our parked block wins once our commit is accepted"
+            );
+            assert!(BlockedContact::check_blocked(&mut *txn, &other).await?);
             assert_eq!(
                 staged_entries(&mut *txn).await?,
-                vec![
-                    blocked_entry(&contested, 10, "Alice"),
-                    blocked_entry(&untouched, 20, "Bob")
-                ],
-                "both parked changes must survive to be re-sent"
+                vec![blocked_entry(&contested, 10, "Alice")],
+                "our parked change must survive to be sent"
             );
             Ok(())
         })

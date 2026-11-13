@@ -47,6 +47,11 @@ pub(crate) async fn apply_blocked_contacts_update(
         let Some(state) = BlockedState::from_entry(entry) else {
             continue;
         };
+        // We skip contacts for which we also have a change. This way, there is
+        // no conflict and the state among the siblings converges.
+        if is_parked(&mut *txn, entry).await? {
+            continue;
+        }
         state.apply(&mut *txn).await?;
         if let BlockedState::Blocked(contact) = &state {
             let declined = connection_requests::apply_blocked_sender(
@@ -59,6 +64,24 @@ pub(crate) async fn apply_blocked_contacts_update(
         }
     }
     Ok(declined_chats)
+}
+
+/// The outbox key of the contact in an entry.
+fn outbox_key(entry: &BlockedContactEntry) -> Option<Vec<u8>> {
+    entry
+        .user_id()
+        .and_then(|id| PersistenceCodec::to_vec(id).ok())
+}
+
+async fn is_parked(
+    connection: impl ReadConnection,
+    entry: &BlockedContactEntry,
+) -> anyhow::Result<bool> {
+    let Some(key) = outbox_key(entry) else {
+        return Ok(false);
+    };
+    let parked = self_group_outbox::load(connection, OutboxKind::BlockedContact, &key).await?;
+    Ok(parked.is_some())
 }
 
 /// Every stored block, as the entries a provisioning package carries.
@@ -81,10 +104,7 @@ pub(crate) async fn store_outgoing_entry(
     connection: impl WriteConnection,
     entry: &BlockedContactEntry,
 ) -> anyhow::Result<()> {
-    let Some(key) = entry
-        .user_id()
-        .and_then(|id| PersistenceCodec::to_vec(id).ok())
-    else {
+    let Some(key) = outbox_key(entry) else {
         return Ok(());
     };
     self_group_outbox::stage(
@@ -113,10 +133,7 @@ pub(crate) async fn complete_sent_entries(
     sent: &[BlockedContactEntry],
 ) -> anyhow::Result<()> {
     for entry in sent {
-        let Some(key) = entry
-            .user_id()
-            .and_then(|id| PersistenceCodec::to_vec(id).ok())
-        else {
+        let Some(key) = outbox_key(entry) else {
             continue;
         };
         self_group_outbox::complete_sent(
