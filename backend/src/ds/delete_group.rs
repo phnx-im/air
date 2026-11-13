@@ -1706,7 +1706,7 @@ mod test {
     }
 
     #[test]
-    fn a_self_group_rejoin_on_the_evicted_leafs_key_is_accepted() {
+    fn a_self_group_rejoin_on_the_evicted_leaf_key_is_accepted() {
         let (creator, device, group, mut state) = self_group_with_blank_leaf();
         let rejoin = t_self_group_external_commit(&device, &creator, &group, resync_aad(), &[]);
         assert!(state.resync_client(rejoin, rejoiner()).is_ok());
