@@ -12127,7 +12127,10 @@ impl SseDecode for crate::api::multi_device::MultiDeviceLinkEvent {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
-                return crate::api::multi_device::MultiDeviceLinkEvent::AwaitingConfirmation;
+                let mut var_suggestedName = <Option<String>>::sse_decode(deserializer);
+                return crate::api::multi_device::MultiDeviceLinkEvent::AwaitingConfirmation {
+                    suggested_name: var_suggestedName,
+                };
             }
             1 => {
                 return crate::api::multi_device::MultiDeviceLinkEvent::Linked;
@@ -15884,9 +15887,9 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::message_cubit::MessageState>
 impl flutter_rust_bridge::IntoDart for crate::api::multi_device::MultiDeviceLinkEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            crate::api::multi_device::MultiDeviceLinkEvent::AwaitingConfirmation => {
-                [0.into_dart()].into_dart()
-            }
+            crate::api::multi_device::MultiDeviceLinkEvent::AwaitingConfirmation {
+                suggested_name,
+            } => [0.into_dart(), suggested_name.into_into_dart().into_dart()].into_dart(),
             crate::api::multi_device::MultiDeviceLinkEvent::Linked => [1.into_dart()].into_dart(),
             crate::api::multi_device::MultiDeviceLinkEvent::Failed(field0) => {
                 [2.into_dart(), field0.into_into_dart().into_dart()].into_dart()
@@ -19313,8 +19316,11 @@ impl SseEncode for crate::api::multi_device::MultiDeviceLinkEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::api::multi_device::MultiDeviceLinkEvent::AwaitingConfirmation => {
+            crate::api::multi_device::MultiDeviceLinkEvent::AwaitingConfirmation {
+                suggested_name,
+            } => {
                 <i32>::sse_encode(0, serializer);
+                <Option<String>>::sse_encode(suggested_name, serializer);
             }
             crate::api::multi_device::MultiDeviceLinkEvent::Linked => {
                 <i32>::sse_encode(1, serializer);
