@@ -58,8 +58,6 @@ async fn safety_codes_match_across_users() {
     }
 }
 
-/// A user id that registers again after its account was deleted carries a new key. Bob pinned the
-/// old key, so he rejects the new holder of the user id and keeps the old safety code.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn reregistered_user_id_keeps_the_pinned_key() {
     let mut setup = TestBackend::single().await;

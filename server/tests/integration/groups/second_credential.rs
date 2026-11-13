@@ -6,10 +6,6 @@
 
 use airserver_test_harness::utils::setup::TestBackend;
 
-/// The victim's home server can mint a second credential for the victim's user id with a fresh key
-/// and forge a resync commit from the group info and the ear key it holds. Carol's client stands
-/// in for the server and sends nothing to the DS. Alice's client takes the commit on the path her
-/// QS queue feeds and must reject it, since the key differs from the one pinned for the victim.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn second_credential_for_known_user_id_is_rejected() {
     let mut setup = TestBackend::single().await;
