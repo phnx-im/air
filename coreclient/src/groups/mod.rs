@@ -35,7 +35,6 @@ pub(crate) use commit::{invite::PreparedInvitee, update::client_reference_extens
 pub(crate) use create::{NewGroupContext, PartialCreateGroupParams};
 pub(crate) use ds_teardown::{
     handle_group_closed_on_ds, handle_group_gone_on_ds, handle_group_not_found_on_ds,
-    tear_down_group,
 };
 pub(crate) use error::*;
 pub(crate) use join::{

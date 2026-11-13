@@ -420,8 +420,7 @@ impl UserCubitBase {
     }
 
     /// Deletes the chat on the server and erases it on all of the user's
-    /// devices. Fails without a change if the server cannot be reached or the
-    /// chat's resync is pending.
+    /// devices. Fails without a change if the server cannot be reached.
     #[frb(positional)]
     pub async fn delete_chat(&self, chat_id: ChatId) -> anyhow::Result<()> {
         self.context.core_user.delete_and_erase_chat(chat_id).await

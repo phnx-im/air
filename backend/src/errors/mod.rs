@@ -377,66 +377,21 @@ impl From<ResyncClientError> for Status {
                 Status::invalid_argument(msg)
             }
             ResyncClientError::ProcessingError(error) => {
-                ProcessErrorKind::from(&error).into_status(&error, Status::invalid_argument)
+                error!(%error, "Failed to process assisted message");
+                Status::internal("Error processing message")
             }
             ResyncClientError::ApqProcessingError(error) => {
-                ProcessErrorKind::from(&error).into_status(&error, Status::invalid_argument)
+                error!(%error, "Failed to process APQ assisted message");
+                Status::internal("Error processing message")
             }
             ResyncClientError::SelfRemoveCheck(error) => {
-                // An uncommitted self remove is a race with another member, not an error of the
-                // DS.
-                if matches!(error, SelfRemoveCheckError::ProposalStore) {
-                    error!(%error, "Failed self-remove check");
-                }
+                error!(%error, "Failed self-remove check");
                 error.into()
             }
             ResyncClientError::MergeCommitError(error) => {
                 error!(%error, "Failed merging commit");
                 Status::internal("Error merging commit")
             }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn wrong_epoch() -> PublicProcessMessageError {
-        PublicProcessMessageError::ValidationError(ValidationError::WrongEpoch)
-    }
-
-    fn status_code(status: &Status) -> Option<StatusDetailsCode> {
-        StatusDetails::from_status(status).map(|details| details.code())
-    }
-
-    #[test]
-    fn resync_at_wrong_epoch_is_reported_as_wrong_epoch() {
-        let errors = [
-            ResyncClientError::ProcessingError(wrong_epoch().into()),
-            ResyncClientError::ApqProcessingError(
-                ApqProcessPublicMessageError::from(wrong_epoch()).into(),
-            ),
-        ];
-        for error in errors {
-            let status = Status::from(error);
-            assert_eq!(status.code(), Code::InvalidArgument);
-            assert_eq!(status_code(&status), Some(StatusDetailsCode::WrongEpoch));
-        }
-    }
-
-    #[test]
-    fn invalid_resync_is_an_invalid_argument() {
-        let errors = [
-            ResyncClientError::ProcessingError(ProcessAssistedMessageError::InvalidAssistedMessage),
-            ResyncClientError::ApqProcessingError(
-                ProcessApqAssistedMessageError::InvalidAssistedMessage,
-            ),
-        ];
-        for error in errors {
-            let status = Status::from(error);
-            assert_eq!(status.code(), Code::InvalidArgument);
-            assert_ne!(status_code(&status), Some(StatusDetailsCode::WrongEpoch));
         }
     }
 }

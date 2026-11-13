@@ -30,7 +30,6 @@ pub enum Mode {
     DropConnectionOnWrite = 4,
     RejectNextRequest = 5,
     FailNextRequest = 6,
-    CloseNextRequest = 7,
 }
 
 impl Mode {
@@ -42,7 +41,6 @@ impl Mode {
             4 => Mode::DropConnectionOnWrite,
             5 => Mode::RejectNextRequest,
             6 => Mode::FailNextRequest,
-            7 => Mode::CloseNextRequest,
             _ => Mode::Normal,
         }
     }
@@ -146,13 +144,6 @@ impl ControlHandle {
     /// `method`. See [`Self::set_drop_next_response_to`].
     pub fn set_reject_next_request_to(&self, method: &str) {
         self.arm_for(Mode::RejectNextRequest, method, 1);
-    }
-
-    /// Answers the next call of `method` as the DS answers an update of a
-    /// closed group, without passing it on. See
-    /// [`Self::set_drop_next_response_to`].
-    pub fn set_close_next_request_to(&self, method: &str) {
-        self.arm_for(Mode::CloseNextRequest, method, 1);
     }
 
     /// Fails the next request with an internal server error.

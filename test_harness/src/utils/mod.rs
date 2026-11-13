@@ -27,9 +27,6 @@ use aircommon::{
     identifiers::Fqdn,
     messages::push_token::{PushToken, PushTokenOperator},
 };
-use airprotos::common::v1::{
-    GroupClosedDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
-};
 use airserver::{
     Addressed as _, ServerRunParams, as_connector::SimpleAsConnector,
     configurations::get_configuration_from_str, network_provider::MockNetworkProvider,
@@ -44,7 +41,7 @@ use tokio::{
     task::{JoinHandle, block_in_place},
 };
 use tokio_util::sync::CancellationToken;
-use tonic::{Code, Status};
+use tonic::Status;
 use tracing::info;
 use uuid::Uuid;
 
@@ -107,7 +104,7 @@ pub struct SpawnedApp {
 }
 
 impl SpawnedApp {
-    pub(crate) fn database_url(&self) -> String {
+    pub(crate) fn qs_database_url(&self) -> String {
         let mut db_settings = self.db_settings.clone();
         db_settings.name = self.db_name.to_string();
         db_settings.connection_string()
@@ -220,14 +217,6 @@ pub(crate) async fn spawn_app(
             Mode::FailNextRequest if interceptor_control_handle.take_armed(path) => {
                 interceptor_control_handle.fired();
                 return Err(Status::internal("failed for interop test"));
-            }
-            Mode::CloseNextRequest if interceptor_control_handle.take_armed(path) => {
-                interceptor_control_handle.fired();
-                let details = StatusDetails {
-                    code: StatusDetailsCode::GroupClosed.into(),
-                    detail: Some(Detail::GroupClosed(GroupClosedDetail {})),
-                };
-                return Err(details.to_status(Code::NotFound, "closed for interop test"));
             }
             _ => {}
         }

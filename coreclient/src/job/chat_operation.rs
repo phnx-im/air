@@ -21,9 +21,8 @@ use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
     clients::own_client_info::OwnClientInfo,
     db::access::WriteConnection,
-    groups::{Group, tear_down_group},
+    groups::{Group, handle_group_not_found_on_ds},
     job::{Job, JobContext, JobContextDb, JobError, pending_chat_operation::PendingChatOperation},
-    outbound_service::resync::{Resync, ResyncStatus},
 };
 
 #[derive(Debug, Clone)]
@@ -72,22 +71,6 @@ pub(crate) enum ChatOperationError {
     UserProfileKeyEncryptionError(EncryptionError),
     #[error("device limit reached: max = {max_devices}")]
     DeviceLimitReached { max_devices: u32 },
-    /// The chat's resync is pending, so its group may still change.
-    #[error("the chat's resync is pending")]
-    ResyncPending,
-}
-
-/// Refuses an operation while the chat's resync is pending, since the group
-/// the user sees may change once the resync is done.
-pub(super) async fn refuse_during_resync(
-    chat_id: ChatId,
-    context: &mut JobContext<'_, '_>,
-) -> Result<(), JobError<ChatOperationError>> {
-    let status = Resync::status_for_chat(context.db.read().await?, &chat_id).await?;
-    match status {
-        Some(ResyncStatus::Pending) => Err(JobError::Domain(ChatOperationError::ResyncPending)),
-        Some(ResyncStatus::Failed) | None => Ok(()),
-    }
 }
 
 /// Executes any pending operation for the chat, so that a job starts from a
@@ -153,7 +136,6 @@ impl Job for ChatOperation {
         &mut self,
         context: &mut JobContext<'_, '_>,
     ) -> Result<(), JobError<Self::DomainError>> {
-        refuse_during_resync(self.chat_id, context).await?;
         execute_pending_operation(self.chat_id, context).await
     }
 }
@@ -350,7 +332,7 @@ impl ChatOperation {
                 // own leaf from another device: the DS holds the leave and the system message is
                 // already recorded.
                 if group.group().has_pending_own_self_remove() {
-                    tear_down_group(txn, group.group_id()).await?;
+                    handle_group_not_found_on_ds(txn, group.group_id()).await?;
                     return Ok(None);
                 }
 

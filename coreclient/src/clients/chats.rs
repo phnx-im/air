@@ -26,9 +26,7 @@ use crate::{
     },
     groups::Group,
     job::{
-        JobError,
-        chat_operation::{ChatOperation, ChatOperationError},
-        create_chat::CreateChat,
+        JobError, chat_operation::ChatOperation, create_chat::CreateChat,
         pending_chat_operation::PendingChatOperation,
     },
     utils::image::resize_profile_image,
@@ -105,10 +103,10 @@ impl CoreUser {
     /// devices. The chat of incoming requests has no group of ours on the DS,
     /// so it is only erased, which declines the requests.
     ///
-    /// Fails without a change if the DS cannot be reached or the chat's resync
-    /// is pending. Erasing the chat would drop the parked delete, so the other
-    /// members would never learn about it. Any other failure of the delete
-    /// still erases the chat, so a chat whose group is broken can be removed.
+    /// Fails without a change if the DS cannot be reached. Erasing the chat
+    /// would drop the parked delete, so the other members would never learn
+    /// about it. Any other failure of the delete still erases the chat, so a
+    /// chat whose group is broken can be removed.
     ///
     /// An outgoing request whose group is closed already is kept. Its recipient
     /// may have closed it as a contact already, and the resync the delete
@@ -135,9 +133,6 @@ impl CoreUser {
                     })
                     .await?;
                 bail!("Failed to reach the DS to delete chat {chat_id}");
-            }
-            Err(JobError::Domain(ChatOperationError::ResyncPending)) => {
-                bail!("Can't delete chat {chat_id} while its resync is pending");
             }
             // An inactive chat has no group on the DS left to delete.
             Err(error) if matches!(chat.status(), ChatStatus::Inactive(_)) => {

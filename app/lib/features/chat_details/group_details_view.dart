@@ -104,13 +104,7 @@ class GroupDetailsView extends StatelessWidget {
       return;
     }
     final bytes = await image.readAsBytes();
-    try {
-      await chatDetailsCubit.setChatPicture(bytes: bytes);
-    } catch (e, stackTrace) {
-      _log.severe("Failed to change the group picture: $e", e, stackTrace);
-      if (!context.mounted) return;
-      showErrorDialog(context, message: (loc) => loc.errorDialog_tryAgainLater);
-    }
+    chatDetailsCubit.setChatPicture(bytes: bytes);
   }
 }
 
@@ -344,16 +338,10 @@ class _GroupActions extends StatelessWidget {
         confirm: loc.leaveChatDialog_leave,
       ),
     );
-    if (!(confirmed ?? false)) return;
-    try {
-      await userCubit.leaveChat(chat.id);
-    } catch (e, stackTrace) {
-      _log.severe("Failed to leave chat: $e", e, stackTrace);
-      if (!context.mounted) return;
-      showErrorDialog(context, message: (loc) => loc.errorDialog_tryAgainLater);
-      return;
+    if (confirmed ?? false) {
+      userCubit.leaveChat(chat.id);
+      navigationCubit.closeChat();
     }
-    navigationCubit.closeChat();
   }
 
   void _delete(BuildContext context) async {

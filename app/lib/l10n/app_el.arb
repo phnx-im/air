@@ -462,7 +462,6 @@
   "contactRequestDialog_error_incompatibleClient": "Η αποδοχή του αιτήματος επαφής απέτυχε. Ενημερώστε το Air στην πιο πρόσφατη έκδοση και δοκιμάστε ξανά.",
   "errorDialog_title": "Κάτι πήγε στραβά",
   "errorDialog_confirm": "OK",
-  "errorDialog_tryAgainLater": "Περιμένετε λίγο και δοκιμάστε ξανά.",
   "memberSelectionList_client_not_supported": "Αυτή η επαφή έχει παλιά έκδοση της εφαρμογής, η οποία πρέπει να ενημερωθεί.",
   "memberSelectionList_cantBeAddedTitle": "Δεν μπορούν να προστεθούν",
   "memberSelectionList_cantBeAddedDescription": "Αυτά τα άτομα δεν μπορούν να προστεθούν στην ομάδα. Αυτό μπορεί να συμβαίνει επειδή ο λογαριασμός τους δεν είναι πλέον ενεργός ή επειδή η έκδοση της εφαρμογής τους είναι πολύ παλιά.",

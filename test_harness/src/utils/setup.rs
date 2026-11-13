@@ -43,14 +43,6 @@ use crate::utils::{
 
 pub use airbackend::settings::RelaySettings;
 
-/// A group's row in the DS database: its encrypted state and its deleted
-/// queues.
-#[derive(Debug, Clone)]
-pub struct DsGroupRow {
-    ciphertext: Vec<u8>,
-    deleted_queues: Vec<u8>,
-}
-
 #[derive(Debug)]
 pub struct TestUser {
     pub user: CoreUser,
@@ -206,7 +198,7 @@ pub struct TestBackend {
     /// Present only if we spawned a local server.
     max_devices: Option<[MaxDevices; 3]>,
     /// Present only if we spawned a local server.
-    database_url: Option<String>,
+    qs_database_url: Option<String>,
     /// Whether to create APQ groups by default
     ///
     /// Read from the `TEST_WITH_APQ_GROUPS` environment variable.
@@ -295,7 +287,7 @@ impl TestBackend {
             invitation_codes,
             sent_challenges,
             max_devices,
-            database_url,
+            qs_database_url,
             _cleanup,
         ) = if let Ok(value) = std::env::var("TEST_SERVER_URL") {
             let url: Url = value.parse().unwrap();
@@ -320,7 +312,7 @@ impl TestBackend {
             let codes = app.codes.clone();
             let sent_challenges = app.sent_challenges.clone();
             let max_devices = app.max_devices.clone();
-            let database_url = app.database_url();
+            let qs_database_url = app.qs_database_url();
             info!(%listen_addr, "using spawned test server");
             let cleanup: Box<dyn Any> = Box::new(app);
             (
@@ -330,7 +322,7 @@ impl TestBackend {
                 codes,
                 sent_challenges,
                 Some(max_devices),
-                Some(database_url),
+                Some(qs_database_url),
                 Some(cleanup),
             )
         };
@@ -352,7 +344,7 @@ impl TestBackend {
             temp_dir: tempfile::tempdir().unwrap(),
             listener_control_handle,
             max_devices,
-            database_url,
+            qs_database_url,
             invitation_codes,
             sent_challenges,
             apq_groups,
@@ -375,7 +367,7 @@ impl TestBackend {
     /// server.
     pub async fn qs_client_has_push_token(&self, client_id: &QsClientId) -> bool {
         let url = self
-            .database_url
+            .qs_database_url
             .as_ref()
             .expect("the QS can only be inspected on a spawned server");
         // We use a short-lived connection. Cleanup can then drop the test databases.
@@ -393,7 +385,7 @@ impl TestBackend {
     /// Returns `None` if the server was not spawned by the test, because its
     /// database is not reachable then.
     pub async fn qs_user_record_exists(&self, user_id: QsUserId) -> Option<bool> {
-        let url = self.database_url.as_ref()?;
+        let url = self.qs_database_url.as_ref()?;
         let mut connection = PgConnection::connect(url).await.unwrap();
         let exists =
             sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM qs_user_record WHERE user_id = $1)")
@@ -402,49 +394,6 @@ impl TestBackend {
                 .await
                 .unwrap();
         Some(exists)
-    }
-
-    /// The stored DS row of a group. Only works on a spawned server.
-    pub async fn ds_group_row(&self, group_uuid: Uuid) -> DsGroupRow {
-        let mut connection = self.database_connection().await;
-        let (ciphertext, deleted_queues) = sqlx::query_as(
-            "SELECT ciphertext, deleted_queues FROM encrypted_group WHERE group_id = $1",
-        )
-        .bind(group_uuid)
-        .fetch_one(&mut connection)
-        .await
-        .unwrap();
-        connection.close().await.unwrap();
-        DsGroupRow {
-            ciphertext,
-            deleted_queues,
-        }
-    }
-
-    /// Overwrites the stored DS row of a group, as a server replaying an older
-    /// group state would. Only works on a spawned server.
-    pub async fn set_ds_group_row(&self, group_uuid: Uuid, row: &DsGroupRow) {
-        let mut connection = self.database_connection().await;
-        sqlx::query(
-            "UPDATE encrypted_group SET ciphertext = $2, deleted_queues = $3 WHERE group_id = $1",
-        )
-        .bind(group_uuid)
-        .bind(&row.ciphertext)
-        .bind(&row.deleted_queues)
-        .execute(&mut connection)
-        .await
-        .unwrap();
-        connection.close().await.unwrap();
-    }
-
-    /// A short-lived connection to the server database, so that cleanup can
-    /// drop it. Only works on a spawned server.
-    async fn database_connection(&self) -> PgConnection {
-        let url = self
-            .database_url
-            .as_ref()
-            .expect("the database is only reachable on a spawned server");
-        PgConnection::connect(url).await.unwrap()
     }
 
     /// A credential for `user_id` signed by the AS of the spawned server,

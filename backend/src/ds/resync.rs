@@ -2,12 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{
-    credentials::LeafCredential,
-    identifiers::QsReference,
-    messages::client_ds::{AadMessage, AadPayload},
-    utils::removed_clients,
-};
+use aircommon::{credentials::LeafCredential, identifiers::QsReference, utils::removed_clients};
 use airprotos::client::app_data::ClientAppData;
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
@@ -21,9 +16,8 @@ use mls_assist::{
 };
 use mls_assist::{
     messages::{ApqAssistedMessageIn, AssistedMessageIn},
-    openmls::prelude::{LeafNodeIndex, ProcessedMessageContent, StagedCommit},
+    openmls::prelude::{LeafNodeIndex, ProcessedMessageContent},
 };
-use tls_codec::DeserializeBytes;
 use tracing::error;
 
 use crate::errors::ResyncClientError;
@@ -73,52 +67,6 @@ impl DsGroupState {
     ) -> Result<(), ResyncClientError> {
         if new.room_policy_identity() != replaced.room_policy_identity() {
             error!("Resync leaf changes the owner of the sender's leaf");
-            return Err(ResyncClientError::InvalidMessage);
-        }
-        Ok(())
-    }
-
-    /// Checks one leg of an external commit into a self group: its only Remove
-    /// proposal evicts `evicted`, and its new leaf carries the evicted leaf's
-    /// signature key.
-    ///
-    /// The self-group signature key is per device. So only the device that owns
-    /// a leaf can rejoin on it, and no other device can enter the group this
-    /// way.
-    fn ensure_self_group_rejoin(
-        &self,
-        staged_commit: &StagedCommit,
-        evicted: LeafNodeIndex,
-    ) -> Result<(), ResyncClientError> {
-        let mut removed = staged_commit
-            .remove_proposals()
-            .map(|proposal| proposal.remove_proposal().removed());
-        if removed.next() != Some(evicted) || removed.next().is_some() {
-            error!(%evicted, "Self-group resync removes another leaf than the evicted one");
-            return Err(ResyncClientError::InvalidMessage);
-        }
-        let new_leaf = staged_commit
-            .update_path_leaf_node()
-            .ok_or(ResyncClientError::InvalidMessage)?;
-        let evicted_leaf = self
-            .group()
-            .leaf(evicted)
-            .ok_or(ResyncClientError::InvalidMessage)?;
-        if new_leaf.signature_key() != evicted_leaf.signature_key() {
-            error!("Self-group resync changes the signature key of the evicted leaf");
-            return Err(ResyncClientError::InvalidMessage);
-        }
-        Ok(())
-    }
-
-    /// Refuses a commit to this self group that carries a proposal from a
-    /// non-member, see [`DsGroupState::self_group_commit_has_non_member_proposal`].
-    fn ensure_member_proposals(
-        &self,
-        staged_commit: &StagedCommit,
-    ) -> Result<(), ResyncClientError> {
-        if self.self_group_commit_has_non_member_proposal(staged_commit) {
-            error!("Self-group commit carries a proposal from a non-member");
             return Err(ResyncClientError::InvalidMessage);
         }
         Ok(())
@@ -182,12 +130,6 @@ impl DsGroupState {
         if !matches!(processed_message.sender(), Sender::NewMemberCommit) {
             return Err(ResyncClientError::InvalidMessage);
         }
-
-        if self.is_self_group() {
-            ensure_resync_aad(processed_message.tail_aad())?;
-            self.ensure_self_group_rejoin(staged_commit_message, sender_index)?;
-        }
-        self.ensure_member_proposals(staged_commit_message)?;
 
         // The resyncing sender rejoins with a fresh leaf. Its credential must match the group kind.
         let new_leaf = staged_commit_message
@@ -305,7 +247,7 @@ impl DsGroupState {
         let ApqExternalCommit {
             t_staged_commit,
             pq_staged_commit,
-            aad,
+            aad: _,
             t_new_leaf,
             pq_new_leaf: _,
             new_credential: t_new_credential,
@@ -320,14 +262,6 @@ impl DsGroupState {
         // self-remove proposal, so both have to see it committed.
         t_group_state.ensure_self_removes_committed(t_staged_commit)?;
         pq_group_state.ensure_self_removes_committed(pq_staged_commit)?;
-
-        if t_group_state.is_self_group() {
-            ensure_resync_aad(aad)?;
-            t_group_state.ensure_self_group_rejoin(t_staged_commit, t_sender_index)?;
-            pq_group_state.ensure_self_group_rejoin(pq_staged_commit, t_sender_index)?;
-        }
-        t_group_state.ensure_member_proposals(t_staged_commit)?;
-        pq_group_state.ensure_member_proposals(pq_staged_commit)?;
 
         // The resyncing sender's fresh T leaf must match the group kind. The PQ leaf is bound to it
         // by the shared signature key.
@@ -419,25 +353,5 @@ impl DsGroupState {
             },
             t_new_credential.into_user().into_iter().collect(),
         ))
-    }
-}
-
-/// Fails unless `aad` is the AAD of a resync.
-fn ensure_resync_aad(aad: &[u8]) -> Result<(), ResyncClientError> {
-    match AadMessage::tls_deserialize_exact_bytes(aad).map(AadMessage::into_payload) {
-        Ok(AadPayload::Resync) => Ok(()),
-        Ok(
-            AadPayload::GroupOperation(_)
-            | AadPayload::JoinConnectionGroup(_)
-            | AadPayload::CloseConnectionGroup(_)
-            | AadPayload::DeleteGroup,
-        ) => {
-            error!("Self-group external commit is no resync");
-            Err(ResyncClientError::InvalidMessage)
-        }
-        Err(error) => {
-            error!(%error, "Invalid AAD in self-group external commit");
-            Err(ResyncClientError::InvalidMessage)
-        }
     }
 }

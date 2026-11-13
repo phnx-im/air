@@ -349,16 +349,6 @@ impl CoreUser {
             .map(|group| (group.mls_group().epoch().as_u64(), group.own_index().u32())))
     }
 
-    /// The epoch authenticator of the chat's group, which differs between any
-    /// two group states.
-    pub async fn epoch_authenticator(&self, chat_id: ChatId) -> Result<Option<Vec<u8>>> {
-        Ok(self
-            .db()
-            .with_read_transaction(async |txn| Group::load_with_chat_id(txn, chat_id).await)
-            .await?
-            .map(|group| group.mls_group().epoch_authenticator().as_slice().to_vec()))
-    }
-
     pub async fn group_members(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
         self.db()
             .with_read_transaction(async |txn| Group::load_with_chat_id(&mut *txn, chat_id).await)
@@ -450,6 +440,7 @@ impl CoreUser {
             shares_vc_leaf: false,
             connection_contact: None,
             outgoing_request: None,
+            accepted_friendship_package: None,
             reason: ResyncReason::Manual,
             attempts: 0,
         };

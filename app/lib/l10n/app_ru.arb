@@ -462,7 +462,6 @@
   "contactRequestDialog_error_incompatibleClient": "Не удалось принять запрос на контакт. Обновите Air до последней версии и попробуйте ещё раз.",
   "errorDialog_title": "Что-то пошло не так",
   "errorDialog_confirm": "ОК",
-  "errorDialog_tryAgainLater": "Подождите немного и попробуйте ещё раз.",
   "memberSelectionList_client_not_supported": "У этого контакта устаревшая версия приложения, её нужно обновить.",
   "memberSelectionList_cantBeAddedTitle": "Нельзя добавить",
   "memberSelectionList_cantBeAddedDescription": "Этих людей нельзя добавить в группу. Возможно, их аккаунт больше не активен или у них слишком старая версия приложения.",

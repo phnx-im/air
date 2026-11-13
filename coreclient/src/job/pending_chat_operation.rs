@@ -49,7 +49,6 @@ use crate::{
     groups::{
         Group, PreparedInvitee, VerifiedGroup, client_auth_info::StorableUserCredential,
         handle_group_closed_on_ds, handle_group_not_found_on_ds, self_group::SelfGroup,
-        tear_down_group,
     },
     job::{
         Job, JobContext, JobContextReadConnection, JobError,
@@ -60,10 +59,7 @@ use crate::{
         indexed_keys::StorableIndexedKey,
         key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
     },
-    outbound_service::{
-        resync::Resync,
-        timed_tasks::{TimedTask, TimedTaskKind},
-    },
+    outbound_service::timed_tasks::{TimedTask, TimedTaskKind},
     privacy_pass, usernames,
 };
 
@@ -546,19 +542,6 @@ impl PendingChatOperation {
             return Err(JobError::Blocked);
         }
 
-        // The local group may hold the state of a resync commit the DS has not
-        // accepted. A commit on top of it would be lost if the resync has to
-        // rebuild its commit, so it waits until the resync is done.
-        if self.operation.is_commit()
-            && Resync::has_pending_commit(context.db.read().await?, self.group.group_id()).await?
-        {
-            info!(
-                group_id = ?self.group.group_id(),
-                "Deferring PendingChatOperation until the resync of its group is done",
-            );
-            return Err(JobError::Blocked);
-        }
-
         let JobContext {
             api_clients,
             db,
@@ -885,7 +868,7 @@ impl PendingChatOperation {
                     // The DS holds our self-remove (or the group is gone there),
                     // so the group is of no further use. This also drops the
                     // pending operation.
-                    tear_down_group(txn, self.group.group_id()).await?;
+                    handle_group_not_found_on_ds(txn, self.group.group_id()).await?;
                 } else if !retry_leave {
                     Self::delete(txn, self.group.group_id()).await?;
                 } else {

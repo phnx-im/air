@@ -479,7 +479,6 @@
   "contactRequestDialog_error_incompatibleClient": "Kontaktanfrage konnte nicht angenommen werden. Aktualisiere Air auf die neueste Version und versuche es dann erneut.",
   "errorDialog_title": "Etwas ist schiefgelaufen",
   "errorDialog_confirm": "Okay",
-  "errorDialog_tryAgainLater": "Warte einen Moment und versuche es dann erneut.",
   "memberSelectionList_client_not_supported": "Dieser Kontakt hat eine veraltete App, die aktualisiert werden muss.",
   "memberSelectionList_cantBeAddedTitle": "Können nicht hinzugefügt werden",
   "memberSelectionList_cantBeAddedDescription": "Diese Personen können nicht zur Gruppe hinzugefügt werden. Möglicherweise ist ihr Konto nicht mehr aktiv oder ihre App-Version ist zu alt.",

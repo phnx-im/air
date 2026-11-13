@@ -462,7 +462,6 @@
   "contactRequestDialog_error_incompatibleClient": "接受联系请求失败。请将 Air 更新到最新版本后重试。",
   "errorDialog_title": "出了点问题",
   "errorDialog_confirm": "好",
-  "errorDialog_tryAgainLater": "请稍等片刻，然后重试。",
   "memberSelectionList_client_not_supported": "此联系人的应用版本过旧，需要更新。",
   "memberSelectionList_cantBeAddedTitle": "无法添加",
   "memberSelectionList_cantBeAddedDescription": "这些人无法添加到群组。可能是因为他们的账号已不可用，或者应用版本过旧。",

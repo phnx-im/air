@@ -6,13 +6,9 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/patterns/adaptive_modal/adaptive_modal.dart';
-import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:logging/logging.dart';
-
-final _log = Logger('RemoveMemberButton');
 
 class RemoveMemberButton extends StatelessWidget {
   const RemoveMemberButton({
@@ -53,7 +49,6 @@ class RemoveMemberButton extends StatelessWidget {
   Future<void> _confirmRemoval(BuildContext context) async {
     final loc = AppLocalizations.of(context);
 
-    var failed = false;
     final confirmed = await showAdaptiveConfirm(
       context: context,
       title: loc.removeUserDialog_title,
@@ -61,24 +56,15 @@ class RemoveMemberButton extends StatelessWidget {
       primaryActionText: loc.removeUserDialog_removeUser,
       primaryTone: ButtonTone.danger,
       onPrimaryAction: (actionContext) async {
-        try {
-          await actionContext.read<UserCubit>().removeUserFromChat(
-            chatId,
-            memberId,
-          );
-        } catch (e, stackTrace) {
-          _log.severe("Failed to remove member: $e", e, stackTrace);
-          failed = true;
-        }
+        await actionContext.read<UserCubit>().removeUserFromChat(
+          chatId,
+          memberId,
+        );
       },
     );
 
-    if (!confirmed) return;
-    if (failed) {
-      if (!context.mounted) return;
-      showErrorDialog(context, message: (loc) => loc.errorDialog_tryAgainLater);
-      return;
+    if (confirmed && onRemoved != null) {
+      onRemoved!();
     }
-    onRemoved?.call();
   }
 }

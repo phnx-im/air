@@ -338,7 +338,7 @@ async fn external_delete_commit_is_rejected() {
         panic!("the forged commit deletes the self group");
     };
     assert!(
-        format!("{error:#}").contains("DeleteGroup operation must be a member commit"),
+        format!("{error:#}").contains("self-group external commit is no resync"),
         "unexpected error: {error:#}"
     );
     assert_eq!(alice.account_unlink_reason().await.unwrap(), None);
@@ -380,7 +380,7 @@ async fn connection_group_close_into_the_self_group_is_rejected() {
         panic!("the forged commit adds Mallory to Alice's self group");
     };
     assert!(
-        format!("{error:#}").contains("must not target the self group"),
+        format!("{error:#}").contains("self-group external commit is no resync"),
         "unexpected error: {error:#}"
     );
     assert_eq!(

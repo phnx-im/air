@@ -106,8 +106,7 @@ abstract class UserCubitBase implements RustOpaqueInterface {
   });
 
   /// Deletes the chat on the server and erases it on all of the user's
-  /// devices. Fails without a change if the server cannot be reached or the
-  /// chat's resync is pending.
+  /// devices. Fails without a change if the server cannot be reached.
   Future<void> deleteChat(ChatId chatId);
 
   /// Only delete the local chat data, do not delete the chat on the server or try to leave it.

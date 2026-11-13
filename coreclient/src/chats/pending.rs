@@ -41,7 +41,7 @@ use crate::{
     key_stores::indexed_keys::StorableIndexedKey,
     outbound_service::{
         error::{OutboundServiceError, is_ds_not_found_error},
-        resync::{Resync, ResyncOutcome},
+        resync::Resync,
     },
     utils::persistence::GroupIdWrapper,
 };
@@ -461,19 +461,18 @@ impl CoreUser {
         );
 
         let signer = LeafSigningKey::User(self.signing_key().clone());
-        let result = Box::pin(resync.create_and_send_commit_with_info(
-            self.db().write().await?,
-            self.api_clients(),
-            &signer,
-            self.user_id(),
-            eci,
-        ))
-        .await;
-        match result {
-            Ok(ResyncOutcome::Synced(_)) => {}
-            Ok(ResyncOutcome::Removed) => bail!("Not a member of the connection group"),
-            // A sibling accept has no queue entry that a processed commit could remove.
-            Ok(ResyncOutcome::Superseded) => bail!("Sibling accept resync was superseded"),
+        let result = resync
+            .create_and_send_commit_with_info(
+                self.db().write().await?,
+                self.api_clients(),
+                &signer,
+                self.user_id(),
+                eci,
+            )
+            .await;
+        let profile_infos = match result {
+            Ok(Some((_, profile_infos))) => profile_infos,
+            Ok(None) => bail!("Not a member of the connection group"),
             Err(OutboundServiceError::Fatal(error)) if is_ds_not_found_error(&error) => {
                 let next = self.record_unavailable_request(request_id).await?;
                 return Ok(AcceptOutcome::Unavailable { next });
@@ -485,10 +484,14 @@ impl CoreUser {
                 };
             }
             Err(error) => return Err(error.into()),
-        }
+        };
 
         self.db()
             .with_write_transaction(async move |txn| -> anyhow::Result<_> {
+                for profile_info in profile_infos.members {
+                    Self::schedule_fetch_user_profile(&mut *txn, profile_info).await?;
+                }
+
                 if let Some(hash) = connection_package_hash {
                     delete_consumed_package_key(txn, &hash)
                         .await

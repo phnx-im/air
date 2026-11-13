@@ -130,17 +130,6 @@ impl AssistedMessageIn {
             ProtocolMessage::PublicMessage(pm) => Some(pm.sender()),
         }
     }
-
-    /// Whether this is a [`PrivateMessage`] with application content.
-    ///
-    /// The content type of a [`PrivateMessage`] is in its unencrypted header,
-    /// so this needs no group state.
-    pub fn is_private_application_message(&self) -> bool {
-        match &self.mls_message {
-            ProtocolMessage::PrivateMessage(pm) => pm.content_type() == ContentType::Application,
-            ProtocolMessage::PublicMessage(_) => false,
-        }
-    }
 }
 
 #[derive(Debug, TlsSize, Clone, TlsSerialize, Serialize, Deserialize)]
@@ -196,134 +185,21 @@ mod tests {
 
     use super::*;
 
-    const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
-
-    struct Client {
-        provider: OpenMlsRustCrypto,
-        signer: SignatureKeyPair,
-        credential_with_key: CredentialWithKey,
-    }
-
-    impl Client {
-        fn new(identity: &[u8]) -> Self {
-            let signer = SignatureKeyPair::new(CIPHERSUITE.signature_algorithm()).unwrap();
-            let credential_with_key = CredentialWithKey {
-                credential: BasicCredential::new(identity.to_vec()).into(),
-                signature_key: signer.public().into(),
-            };
-            Self {
-                provider: OpenMlsRustCrypto::default(),
-                signer,
-                credential_with_key,
-            }
-        }
-
-        fn key_package(&self) -> KeyPackage {
-            KeyPackage::builder()
-                .build(
-                    CIPHERSUITE,
-                    &self.provider,
-                    &self.signer,
-                    self.credential_with_key.clone(),
-                )
-                .unwrap()
-                .into_key_package()
-        }
-
-        fn group(&self, wire_format_policy: WireFormatPolicy) -> MlsGroup {
-            MlsGroup::builder()
-                .ciphersuite(CIPHERSUITE)
-                .with_wire_format_policy(wire_format_policy)
-                .build(
-                    &self.provider,
-                    &self.signer,
-                    self.credential_with_key.clone(),
-                )
-                .unwrap()
-        }
-
-        /// A self-update commit to `group` with its group info.
-        fn commit(&self, group: &mut MlsGroup) -> (MlsMessageOut, MlsMessageOut) {
-            let (commit, _welcome, group_info) = group
-                .commit_builder()
-                .force_self_update(true)
-                .load_psks(self.provider.storage())
-                .unwrap()
-                .create_group_info(true)
-                .build(
-                    self.provider.rand(),
-                    self.provider.crypto(),
-                    &self.signer,
-                    |_| true,
-                )
-                .unwrap()
-                .stage_commit(&self.provider)
-                .unwrap()
-                .into_contents();
-            (commit, group_info.unwrap().into())
-        }
-    }
-
     fn serialized_key_package(identity: &[u8]) -> Vec<u8> {
-        MlsMessageOut::from(Client::new(identity).key_package())
+        let provider = OpenMlsRustCrypto::default();
+        let ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
+        let signer = SignatureKeyPair::new(ciphersuite.signature_algorithm()).unwrap();
+        let credential_with_key = CredentialWithKey {
+            credential: BasicCredential::new(identity.to_vec()).into(),
+            signature_key: signer.public().into(),
+        };
+        let key_package = KeyPackage::builder()
+            .build(ciphersuite, &provider, &signer, credential_with_key)
+            .unwrap()
+            .into_key_package();
+        MlsMessageOut::from(key_package)
             .tls_serialize_detached()
             .unwrap()
-    }
-
-    fn assisted(message: MlsMessageOut, group_info: Option<MlsMessageOut>) -> AssistedMessageIn {
-        let bytes = AssistedMessageOut::new(message, group_info)
-            .tls_serialize_detached()
-            .unwrap();
-        AssistedMessageIn::tls_deserialize_exact_bytes(&bytes).unwrap()
-    }
-
-    #[test]
-    fn a_private_application_message_is_one() {
-        let alice = Client::new(b"alice");
-        let mut group = alice.group(PURE_CIPHERTEXT_WIRE_FORMAT_POLICY);
-        let message = group
-            .create_unconfirmed_message(&alice.provider, &alice.signer, b"hello")
-            .unwrap()
-            .message;
-        assert!(assisted(message, None).is_private_application_message());
-    }
-
-    #[test]
-    fn a_private_commit_is_no_application_message() {
-        let alice = Client::new(b"alice");
-        let mut group = alice.group(PURE_CIPHERTEXT_WIRE_FORMAT_POLICY);
-        let (commit, _group_info) = alice.commit(&mut group);
-        assert!(matches!(
-            commit.body(),
-            MlsMessageBodyOut::PrivateMessage(_)
-        ));
-        assert!(!assisted(commit, None).is_private_application_message());
-    }
-
-    #[test]
-    fn a_public_commit_is_no_application_message() {
-        let alice = Client::new(b"alice");
-        let mut group = alice.group(PURE_PLAINTEXT_WIRE_FORMAT_POLICY);
-        let (commit, group_info) = alice.commit(&mut group);
-        assert!(!assisted(commit, Some(group_info)).is_private_application_message());
-    }
-
-    #[test]
-    fn a_new_member_proposal_is_no_application_message() {
-        let alice = Client::new(b"alice");
-        let group = alice.group(PURE_PLAINTEXT_WIRE_FORMAT_POLICY);
-        let bob = Client::new(b"bob");
-        let proposal =
-            JoinProposal::new::<<OpenMlsRustCrypto as OpenMlsProvider>::StorageProvider>(
-                bob.key_package(),
-                group.group_id().clone(),
-                group.epoch(),
-                &bob.signer,
-            )
-            .unwrap();
-        let proposal = assisted(proposal, None);
-        assert_eq!(proposal.sender(), Some(&Sender::NewMemberProposal));
-        assert!(!proposal.is_private_application_message());
     }
 
     #[test]

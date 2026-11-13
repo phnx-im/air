@@ -215,10 +215,6 @@ impl DsGroupState {
             return Err(GroupDeletionError::InvalidMessage);
         };
 
-        if self.self_group_commit_has_non_member_proposal(staged_commit) {
-            warn!("Self-group delete commit carries a proposal from a non-member");
-            return Err(GroupDeletionError::InvalidMessage);
-        }
         // Check that the commit only contains removes.
         if staged_commit.add_proposals().count() > 0 || staged_commit.update_proposals().count() > 0
         {
@@ -365,8 +361,7 @@ fn extensions_besides_tombstone(extensions: &Extensions<GroupContext>) -> Vec<Ex
 mod test {
     use aircommon::{
         credentials::{
-            LeafCredential, SelfGroupCredential, UserCredentialCsr, UserCredentialPayload,
-            VerifiableUserCredential,
+            LeafCredential, UserCredentialCsr, UserCredentialPayload, VerifiableUserCredential,
             keys::{AsIntermediateSignature, ClientVerifyingKey},
         },
         crypto::{aead::keys::EncryptedUserProfileKey, hash::Hash},
@@ -381,7 +376,7 @@ mod test {
         },
         mls_group_config::{
             QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_leaf_node_capabilities,
-            default_mls_group_join_config, self_group_leaf_node_capabilities,
+            default_mls_group_join_config,
         },
         time::TimeStamp,
     };
@@ -404,17 +399,16 @@ mod test {
             group::{ExternalCommitBuilder, GroupContext},
             prelude::{
                 AppDataUpdateProposal, Ciphersuite, Credential, CredentialWithKey, Extension,
-                Extensions, HpkeCiphertext, JoinProposal, KeyPackage, LeafNodeIndex,
-                LeafNodeParameters, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
-                OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, Proposal, RemoveProposal,
-                SignatureScheme, UnknownExtension, group_info::VerifiableGroupInfo,
+                Extensions, HpkeCiphertext, KeyPackage, LeafNodeIndex, LeafNodeParameters,
+                MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
+                PURE_PLAINTEXT_WIRE_FORMAT_POLICY, Proposal, SignatureScheme, UnknownExtension,
+                group_info::VerifiableGroupInfo,
             },
         },
         openmls_rust_crypto::OpenMlsRustCrypto,
         openmls_traits::signatures::Signer,
     };
     use tls_codec::{Deserialize, DeserializeBytes, Serialize};
-    use uuid::Uuid;
 
     use crate::{
         ds::{
@@ -425,7 +419,7 @@ mod test {
             join_connection_group::{ConnectionGroupJoin, JoinConnectionGroupError},
             process::Provider,
         },
-        errors::{GroupOperationError, ResyncClientError},
+        errors::GroupOperationError,
     };
 
     use super::*;
@@ -1546,276 +1540,5 @@ mod test {
         else {
             panic!("the close is accepted");
         };
-    }
-
-    /// A device of a self group. Its leaf carries a self-group credential.
-    fn self_group_device() -> Client {
-        let mut device = Client::new();
-        device.credential.t_credential.credential = SelfGroupCredential::new(Uuid::new_v4())
-            .to_credential()
-            .unwrap();
-        device
-    }
-
-    /// The self-group credential of `device` with a fresh signature key.
-    fn with_fresh_key(device: &Client) -> Client {
-        let mut fresh = Client::new();
-        fresh.credential.t_credential.credential =
-            device.credential.t_credential.credential.clone();
-        fresh
-    }
-
-    fn self_group_key_package(device: &Client) -> KeyPackage {
-        KeyPackage::builder()
-            .leaf_node_capabilities(self_group_leaf_node_capabilities())
-            .build(
-                T_CIPHERSUITE,
-                &device.provider,
-                device.signer.t_signer(),
-                device.credential.t_credential.clone(),
-            )
-            .unwrap()
-            .key_package()
-            .clone()
-    }
-
-    /// A T self group of `creator` and `devices`, and its DS state.
-    fn t_self_group(creator: &Client, devices: &[&Client]) -> (MlsGroup, DsGroupState) {
-        let app_data = GroupAppData {
-            is_self_group: true,
-            safe_aad_components: None,
-            profile: None,
-            tombstone: None,
-        };
-        let mut group = MlsGroup::builder()
-            .ciphersuite(T_CIPHERSUITE)
-            .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
-            .with_capabilities(self_group_leaf_node_capabilities())
-            .with_group_context_extensions(
-                Extensions::from_vec(vec![app_data.to_extension().unwrap()]).unwrap(),
-            )
-            .build(
-                &creator.provider,
-                creator.signer.t_signer(),
-                creator.credential.t_credential.clone(),
-            )
-            .unwrap();
-        let key_packages = devices
-            .iter()
-            .map(|device| self_group_key_package(device))
-            .collect();
-        t_commit(creator, &mut group, key_packages, Vec::new(), None);
-        group.merge_pending_commit(&creator.provider).unwrap();
-
-        let mut state = ds_group_state(creator, &group, creator.signer.t_signer());
-        add_joiner_profiles(&mut state);
-        (group, state)
-    }
-
-    /// The leaf of the device that rejoins in [`self_group_with_blank_leaf`].
-    fn rejoiner() -> LeafNodeIndex {
-        LeafNodeIndex::new(2)
-    }
-
-    /// A T self group of a creator, a device at [`rejoiner`] and a sibling,
-    /// behind the blank leaf of a device that left, and its DS state. Returns
-    /// the creator, the device, the creator's group and the DS state.
-    ///
-    /// An external commit puts its new leaf at the leftmost blank leaf, while
-    /// receivers put it at the removed leaf if that is further left. The blank
-    /// leaf keeps the two in agreement for a rejoin with a fresh key.
-    fn self_group_with_blank_leaf() -> (Client, Client, MlsGroup, DsGroupState) {
-        let creator = self_group_device();
-        let device = self_group_device();
-        let (mut group, _state) = t_self_group(
-            &creator,
-            &[&self_group_device(), &device, &self_group_device()],
-        );
-        t_commit(
-            &creator,
-            &mut group,
-            Vec::new(),
-            vec![LeafNodeIndex::new(1)],
-            None,
-        );
-        group.merge_pending_commit(&creator.provider).unwrap();
-
-        let mut state = ds_group_state(&creator, &group, creator.signer.t_signer());
-        add_joiner_profiles(&mut state);
-        assert!(state.is_self_group());
-        (creator, device, group, state)
-    }
-
-    fn resync_aad() -> Vec<u8> {
-        AadMessage::from(AadPayload::Resync)
-            .tls_serialize_detached()
-            .unwrap()
-    }
-
-    fn remove(index: LeafNodeIndex) -> Proposal {
-        // `RemoveProposal` has no public constructor. Its encoding is the leaf
-        // index.
-        let proposal =
-            RemoveProposal::tls_deserialize_exact_bytes(&index.u32().to_be_bytes()).unwrap();
-        Proposal::Remove(Box::new(proposal))
-    }
-
-    /// The external commit with which `device` joins the `group` of `creator`
-    /// with `aad`. OpenMLS removes the leaf with the device's signature key,
-    /// and the commit removes `removed` besides.
-    fn t_self_group_external_commit(
-        device: &Client,
-        creator: &Client,
-        group: &MlsGroup,
-        aad: Vec<u8>,
-        removed: &[LeafNodeIndex],
-    ) -> AssistedMessageIn {
-        let group_info = group
-            .export_group_info(creator.provider.crypto(), creator.signer.t_signer(), false)
-            .unwrap();
-        let (_joined, bundle) = ExternalCommitBuilder::new()
-            .with_aad(aad)
-            .with_config(default_mls_group_join_config())
-            .with_ratchet_tree(group.export_ratchet_tree().into())
-            .build_group(
-                &device.provider,
-                verifiable_group_info(group_info),
-                device.credential.t_credential.clone(),
-            )
-            .unwrap()
-            .leaf_node_parameters(
-                LeafNodeParameters::builder()
-                    .with_capabilities(self_group_leaf_node_capabilities())
-                    .build(),
-            )
-            .add_proposals(removed.iter().copied().map(remove))
-            .load_psks(device.provider.storage())
-            .unwrap()
-            .create_group_info(true)
-            .build(
-                device.provider.rand(),
-                device.provider.crypto(),
-                device.signer.t_signer(),
-                |_| true,
-            )
-            .unwrap()
-            .finalize(&device.provider)
-            .unwrap();
-        let (commit, _welcome, group_info) = bundle.into_contents();
-        assisted(commit, group_info.unwrap().into())
-    }
-
-    #[test]
-    fn a_self_group_rejoin_on_the_evicted_leaf_key_is_accepted() {
-        let (creator, device, group, mut state) = self_group_with_blank_leaf();
-        let rejoin = t_self_group_external_commit(&device, &creator, &group, resync_aad(), &[]);
-        assert!(state.resync_client(rejoin, rejoiner()).is_ok());
-    }
-
-    #[test]
-    fn a_self_group_rejoin_with_a_fresh_key_is_rejected() {
-        let (creator, device, group, mut state) = self_group_with_blank_leaf();
-        let rejoin = t_self_group_external_commit(
-            &with_fresh_key(&device),
-            &creator,
-            &group,
-            resync_aad(),
-            &[rejoiner()],
-        );
-        let Err(ResyncClientError::InvalidMessage) = state.resync_client(rejoin, rejoiner()) else {
-            panic!("the rejoin is accepted");
-        };
-    }
-
-    #[test]
-    fn a_self_group_rejoin_with_another_aad_is_rejected() {
-        let (creator, device, group, mut state) = self_group_with_blank_leaf();
-        let rejoin =
-            t_self_group_external_commit(&device, &creator, &group, group_operation_aad(0), &[]);
-        let Err(ResyncClientError::InvalidMessage) = state.resync_client(rejoin, rejoiner()) else {
-            panic!("the rejoin is accepted");
-        };
-    }
-
-    #[tokio::test]
-    async fn an_external_commit_into_a_self_group_is_rejected_as_a_group_operation() {
-        let (creator, device, group, mut state) = self_group_with_blank_leaf();
-        let params = GroupOperationParams {
-            commit: t_self_group_external_commit(
-                &device,
-                &creator,
-                &group,
-                group_operation_aad(0),
-                &[],
-            ),
-            add_users_info_option: None,
-        };
-        let Err(GroupOperationError::InvalidMessage) =
-            state.process_group_operation(params, MAX_DEVICES).await
-        else {
-            panic!("the group operation is accepted");
-        };
-    }
-
-    /// Stages a commit of the creator of `group` that carries the join
-    /// proposal of `outsider` with `key_package` by reference.
-    fn stage_commit_with_join_proposal(
-        creator: &Client,
-        group: &mut MlsGroup,
-        outsider: &Client,
-        key_package: KeyPackage,
-    ) {
-        let proposal =
-            JoinProposal::new::<<OpenMlsRustCrypto as OpenMlsProvider>::StorageProvider>(
-                key_package,
-                group.group_id().clone(),
-                group.epoch(),
-                outsider.signer.t_signer(),
-            )
-            .unwrap();
-        let proposal =
-            MlsMessageIn::tls_deserialize_exact(proposal.tls_serialize_detached().unwrap())
-                .unwrap()
-                .try_into_protocol_message()
-                .unwrap();
-        let ProcessedMessageContent::ExternalJoinProposalMessage(proposal) = group
-            .process_message(&creator.provider, proposal)
-            .unwrap()
-            .into_content()
-        else {
-            panic!("expected a join proposal");
-        };
-        group
-            .store_pending_proposal(creator.provider.storage(), *proposal)
-            .unwrap();
-        t_commit(creator, group, Vec::new(), Vec::new(), None);
-    }
-
-    #[test]
-    fn a_join_proposal_in_a_self_group_commit_is_a_non_member_proposal() {
-        let creator = self_group_device();
-        let (mut group, state) = t_self_group(&creator, &[&self_group_device()]);
-        let outsider = self_group_device();
-        let key_package = self_group_key_package(&outsider);
-        stage_commit_with_join_proposal(&creator, &mut group, &outsider, key_package);
-        let staged_commit = group.pending_commit().unwrap();
-        assert!(state.self_group_commit_has_non_member_proposal(staged_commit));
-
-        let (mut group, state) = t_self_group(&creator, &[]);
-        t_commit(&creator, &mut group, Vec::new(), Vec::new(), None);
-        let staged_commit = group.pending_commit().unwrap();
-        assert!(!state.self_group_commit_has_non_member_proposal(staged_commit));
-    }
-
-    #[test]
-    fn a_join_proposal_is_no_concern_outside_of_a_self_group() {
-        let creator = Client::new();
-        let mut group = new_t_group(&creator);
-        let state = ds_group_state(&creator, &group, creator.signer.t_signer());
-        let outsider = Client::new();
-        let key_package = key_package_with_qs_reference(&outsider);
-        stage_commit_with_join_proposal(&creator, &mut group, &outsider, key_package);
-        let staged_commit = group.pending_commit().unwrap();
-        assert!(!state.self_group_commit_has_non_member_proposal(staged_commit));
     }
 }

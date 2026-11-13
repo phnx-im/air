@@ -59,31 +59,23 @@ async fn account_deletion_found_by_self_group_operation() -> anyhow::Result<()> 
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = link_sibling(&alice).await;
-    // The sibling's self group is gone once it ends the self chat.
     let self_chat_id = self_chat_id(&alice2).await;
 
     delete_self_group(&alice).await?;
 
     // Without processing the deletion, the sibling commits a setting change
-    // to the self group, which the DS rejects as closed. The rejection alone is
-    // not authenticated, so the sibling only queues a resync.
+    // to the self group, which the DS rejects as closed.
     alice2
         .set_synced_user_setting(&ReadReceiptsSetting(true))
         .await?;
     alice2.outbound_service().run_once().await;
-    assert_eq!(alice2.account_unlink_reason().await?, None);
-
-    // The queued resync finds the tombstone and ends the self chat.
-    alice2.outbound_service().run_once().await;
-    let self_chat = alice2
-        .chat(&self_chat_id)
-        .await
-        .expect("the self chat is kept");
-    assert!(self_chat.status().is_inactive());
     assert_eq!(
         alice2.account_unlink_reason().await?,
         Some(UnlinkReason::AccountDeleted)
     );
+
+    // The self group is not resynced automatically.
+    assert!(alice2.resync_status(self_chat_id).await?.is_none());
 
     Ok(())
 }
