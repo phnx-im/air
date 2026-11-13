@@ -250,6 +250,11 @@ impl Group {
         api_clients: &ApiClients,
         processed_message: &ProcessedMessage,
     ) -> Result<UserCredential> {
+        ensure!(
+            !self.is_self_group(),
+            "connection-group commit must not target the self group"
+        );
+
         let staged_commit = expect_staged_commit(processed_message)?;
 
         let (sender_credential, sender_leaf_key) = update_path_leaf_node_info(staged_commit)?;
@@ -362,6 +367,7 @@ fn update_path_leaf_node_info(
     Ok((credential, signature_key))
 }
 
+/// Checks the shape of a commit that joins a connection group.
 fn validate_join_connection_group_commit(
     sender: &Sender,
     contains_membership_proposal: bool,

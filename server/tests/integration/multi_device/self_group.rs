@@ -7,7 +7,8 @@
 
 use aircommon::{
     credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
-    messages::client_ds::{AadPayload, GroupOperationParamsAad},
+    crypto::aead::keys::EncryptedUserProfileKey,
+    messages::client_ds::{AadPayload, CloseConnectionGroupParamsAad, GroupOperationParamsAad},
 };
 use aircoreclient::{ChatStatus, clients::MarkChatAsRead};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
@@ -341,6 +342,47 @@ async fn external_delete_commit_is_rejected() {
         "unexpected error: {error:#}"
     );
     assert_eq!(alice.account_unlink_reason().await.unwrap(), None);
+    assert_eq!(
+        alice.chat(&chat_id).await.unwrap().status(),
+        &ChatStatus::Active
+    );
+    let members_after = alice.mls_members(chat_id).await.unwrap().unwrap();
+    assert_eq!(members_after, members_before);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn connection_group_close_into_the_self_group_is_rejected() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let mallory = setup.add_user().await;
+    alice.ensure_self_group().await.unwrap();
+    alice.drain().await;
+
+    // With a single device, the self group has one member, like a connection
+    // group.
+    let chat_id = self_chat_id(&alice).await;
+    let members_before = alice.mls_members(chat_id).await.unwrap().unwrap();
+    assert_eq!(members_before.len(), 1);
+
+    // Mallory stands in for the DS, which can register an account of its own.
+    // She sends nothing.
+    let (group_id, pq_group_id, ear_key) = alice.self_group_ds_keys().await.unwrap();
+    let signer = LeafSigningKey::User(mallory.signing_key_for_test().clone());
+    let aad = AadPayload::CloseConnectionGroup(CloseConnectionGroupParamsAad {
+        encrypted_user_profile_key: EncryptedUserProfileKey::random(),
+    });
+    let commit = mallory
+        .forge_external_commit(group_id, pq_group_id, &ear_key, &signer, aad)
+        .await
+        .unwrap();
+
+    let Err(error) = alice.process_incoming_apq_mls_message(&commit).await else {
+        panic!("the forged commit adds Mallory to Alice's self group");
+    };
+    assert!(
+        format!("{error:#}").contains("must not target the self group"),
+        "unexpected error: {error:#}"
+    );
     assert_eq!(
         alice.chat(&chat_id).await.unwrap().status(),
         &ChatStatus::Active
