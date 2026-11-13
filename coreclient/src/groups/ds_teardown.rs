@@ -66,13 +66,14 @@ pub(crate) async fn handle_group_not_found_on_ds(
 /// know.
 ///
 /// A closed own self group means that the account is deleted, see
-/// [`AccountDeletion::self_group_closed`]. Its resync is not queued, see
-/// [`Resync::enqueue_or_reset`].
+/// [`AccountDeletion::self_group_closed`]. Its resync is not queued, since only
+/// a manual resync rejoins the own self group.
 pub(crate) async fn handle_group_closed_on_ds(
     txn: &mut WriteDbTransaction<'_>,
     group_id: &GroupId,
 ) -> anyhow::Result<()> {
-    if OwnClientInfo::is_own_self_group(&mut *txn, group_id).await? {
+    let own_self_group = OwnClientInfo::is_own_self_group(&mut *txn, group_id).await?;
+    if own_self_group {
         AccountDeletion::self_group_closed(&mut *txn).await?;
     }
     let Some(group) = Group::load(&mut *txn, group_id).await? else {
@@ -83,6 +84,9 @@ pub(crate) async fn handle_group_closed_on_ds(
     };
     if chat.status().is_inactive() {
         return handle_group_not_found_on_ds(txn, group_id).await;
+    }
+    if own_self_group {
+        return Ok(());
     }
     Resync::for_group(chat.id(), &group, ResyncReason::FutureEpoch)
         .enqueue_or_reset(&mut *txn)

@@ -946,8 +946,6 @@ mod persistence {
     impl Resync {
         /// Whether to skip queueing this resync, because it rejoins the own
         /// self group without the user asking for it.
-        ///
-        /// Only a manual resync rejoins the own self group.
         async fn skip_queueing(&self, connection: impl ReadConnection) -> sqlx::Result<bool> {
             let automatic = match self.reason {
                 ResyncReason::Manual => false,
@@ -960,7 +958,7 @@ mod persistence {
             if !automatic || !OwnClientInfo::is_own_self_group(connection, &self.group_id).await? {
                 return Ok(false);
             }
-            warn!(
+            debug!(
                 ?self.group_id,
                 %self.reason,
                 "Not queueing an automatic resync of the own self group"
@@ -1381,10 +1379,7 @@ struct ResyncTCommit {
 mod tests {
     use std::assert_matches;
 
-    use aircommon::{
-        crypto::aead::keys::FriendshipPackageEarKey,
-        identifiers::{QsClientId, QsUserId},
-    };
+    use aircommon::crypto::aead::keys::FriendshipPackageEarKey;
     use airprotos::client::component::{GroupTombstone, TombstoneContext};
     use chrono::{TimeDelta, TimeZone};
 
@@ -1807,24 +1802,6 @@ mod tests {
         Ok(())
     }
 
-    /// Names `self_group_id` as the own self group.
-    async fn store_own_client_info(
-        connection: impl WriteConnection,
-        self_group_id: &GroupId,
-    ) -> anyhow::Result<()> {
-        OwnClientInfo {
-            qs_user_id: QsUserId::random(),
-            qs_client_id: QsClientId::random(&mut rand::rng()),
-            user_id: UserId::random("example.com".parse()?),
-            client_id: Uuid::new_v4(),
-            self_group_id: Some(self_group_id.clone()),
-            self_group_signing_key: None,
-        }
-        .store(connection)
-        .await?;
-        Ok(())
-    }
-
     const AUTOMATIC_REASONS: [ResyncReason; 5] = [
         ResyncReason::FutureEpoch,
         ResyncReason::MissingPqGroupState,
@@ -1839,7 +1816,8 @@ mod tests {
             for reset in [false, true] {
                 let (pool, resync) = setup(reason).await?;
                 let mut connection = pool.write().await?;
-                store_own_client_info(&mut connection, &resync.group_id).await?;
+                OwnClientInfo::store_for_test(&mut connection, Some(resync.group_id.clone()))
+                    .await?;
 
                 if reset {
                     resync.enqueue_or_reset(&mut connection).await?;
@@ -1862,7 +1840,7 @@ mod tests {
     -> anyhow::Result<()> {
         let (pool, manual) = setup(ResyncReason::Manual).await?;
         let mut connection = pool.write().await?;
-        store_own_client_info(&mut connection, &manual.group_id).await?;
+        OwnClientInfo::store_for_test(&mut connection, Some(manual.group_id.clone())).await?;
         manual.enqueue(&mut connection).await?;
         Resync::mark_failed(&mut connection, &manual.group_id, "boom").await?;
 
@@ -1884,7 +1862,7 @@ mod tests {
     async fn a_manual_resync_of_the_own_self_group_is_queued() -> anyhow::Result<()> {
         let (pool, resync) = setup(ResyncReason::Manual).await?;
         let mut connection = pool.write().await?;
-        store_own_client_info(&mut connection, &resync.group_id).await?;
+        OwnClientInfo::store_for_test(&mut connection, Some(resync.group_id.clone())).await?;
 
         resync.enqueue_or_reset(&mut connection).await?;
 
@@ -1904,7 +1882,7 @@ mod tests {
                 Uuid::new_v4(),
                 "example.com".parse()?,
             ));
-            store_own_client_info(&mut connection, &self_group_id).await?;
+            OwnClientInfo::store_for_test(&mut connection, Some(self_group_id)).await?;
 
             resync.enqueue(&mut connection).await?;
 

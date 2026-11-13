@@ -236,17 +236,6 @@ impl Group {
             verify_pq_update_path_signature_key(t_leaf_key, pq_staged_commit)?;
         }
 
-        // Runs before the AAD and the self-group payload of the commit take
-        // effect.
-        if self.is_self_group() {
-            ensure_self_group_commit(
-                &self.mls_group,
-                processed_message,
-                self.pq.as_ref().map(|pq| &pq.mls_group),
-                pq_staged_commit,
-            )?;
-        }
-
         let sender_index = match processed_message.sender() {
             Sender::Member(index) => index.to_owned(),
             Sender::NewMemberCommit => self.mls_group.ext_commit_sender_index(staged_commit)?,
@@ -261,6 +250,12 @@ impl Group {
         // service can re-issue them.
         let mut connection_request_effects = ConnectionRequestEffects::default();
         if self.is_self_group() {
+            ensure_self_group_commit(
+                &self.mls_group,
+                processed_message,
+                self.pq.as_ref().map(|pq| &pq.mls_group),
+                pq_staged_commit,
+            )?;
             let payload = self.extract_self_group_messages(txn, staged_commit).await;
             if !payload.is_empty() {
                 // Own echo: the DS fanned our own commit back while our pending

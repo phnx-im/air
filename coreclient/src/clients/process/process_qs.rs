@@ -64,7 +64,7 @@ use crate::{
     },
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
-        DecryptedProfileInfos, Group, JoinSigners, NewMemberProposalRejected, VerifiedGroup,
+        DecryptedProfileInfos, Group, JoinSigners, VerifiedGroup,
         client_auth_info::StorableUserCredential,
         pending_creation::PendingGroupCreation,
         process::{ProcessMessageProcessed, ProcessMessageResult},
@@ -684,7 +684,7 @@ impl CoreUser {
                 let group_id = group.group_id().clone();
                 match Resync::status(&mut *txn, &group_id).await? {
                     None => {
-                        warn!(%chat_id, ?group_id, %reason, "Group is out of sync; scheduling resync");
+                        warn!(%chat_id, ?group_id, %reason, "Group is out of sync");
                         Resync::for_group(chat_id, group.group(), reason)
                             .enqueue(&mut *txn)
                             .await?;
@@ -1035,7 +1035,7 @@ impl CoreUser {
                 }
             }
             ProcessedMessageContent::ExternalJoinProposalMessage(_) => {
-                bail!(NewMemberProposalRejected)
+                bail!("Unexpected ExternalJoinProposalMessage, should have been rejected before")
             }
             ProcessedMessageContent::OwnPendingCommit => {
                 // Our own commit was echoed back before the matching
@@ -2244,7 +2244,7 @@ mod tests {
         use openmls_rust_crypto::OpenMlsRustCrypto;
 
         use crate::{
-            db::access::WriteConnection, groups::NewMemberProposalRejected,
+            groups::NewMemberProposalRejected,
             job::pending_chat_operation::tests::setup_group_and_chat,
         };
 
@@ -2280,14 +2280,12 @@ mod tests {
             ApiClients::new(signing_key.credential().user_id().domain().clone(), None);
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
-        let error = match group
+        let error = group
             .group_mut()
             .process_message(&mut txn, &api_clients, proposal)
             .await
-        {
-            Ok(_) => anyhow::bail!("the new member proposal is processed"),
-            Err(error) => error,
-        };
+            .err()
+            .context("the new member proposal is processed")?;
         assert!(error.is::<NewMemberProposalRejected>(), "{error:?}");
         Ok(())
     }

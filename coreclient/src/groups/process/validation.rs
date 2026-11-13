@@ -198,8 +198,6 @@ pub(super) fn ensure_self_group_commit(
         ensure_member_proposals(pq_staged_commit)?;
     }
 
-    // All following checks are only relevant to external commits, so we return here if it isn't
-    // one.
     let Sender::NewMemberCommit = processed_message.sender() else {
         return Ok(());
     };
@@ -241,8 +239,9 @@ fn ensure_resync_aad(aad: &[u8]) -> Result<()> {
     }
 }
 
-/// Checks that an external commit into the self `group` carries exactly one Remove proposal, and
-/// the removed leaf has the signature key of the new leaf. Returns the removed leaf.
+/// Checks that an external commit into the self `group` carries exactly one
+/// Remove proposal, and the removed leaf has the signature key of the new leaf.
+/// Returns the removed leaf.
 fn ensure_rejoin_on_own_leaf(
     group: &MlsGroup,
     staged_commit: &StagedCommit,
@@ -325,7 +324,7 @@ mod tests {
     use openmls::{
         group::ExternalCommitBuilder,
         prelude::{
-            BasicCredential, Ciphersuite, Credential, CredentialWithKey, JoinProposal, KeyPackage,
+            BasicCredential, Credential, CredentialWithKey, JoinProposal, KeyPackage,
             MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
             PURE_PLAINTEXT_WIRE_FORMAT_POLICY, ProcessedMessageContent, Proposal, RemoveProposal,
             tls_codec::Serialize as _,
@@ -336,6 +335,7 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
+    use crate::{clients::CIPHERSUITE, groups::process::expect_staged_commit};
 
     fn self_group_credential(client_id: u128) -> LeafCredential {
         LeafCredential::SelfGroup(SelfGroupCredential::new(Uuid::from_u128(client_id)))
@@ -386,8 +386,6 @@ mod tests {
             assert!(transition.is_err(), "{context}");
         }
     }
-
-    const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
     struct Device {
         provider: OpenMlsRustCrypto,
@@ -451,17 +449,8 @@ mod tests {
         }
     }
 
-    /// The leaf of the device that rejoins in [`group_with_blank_leaf`].
-    fn rejoiner() -> LeafNodeIndex {
-        LeafNodeIndex::new(2)
-    }
-
-    /// A group of a creator and a device at [`rejoiner`], behind the blank
-    /// leaf of a device that left. Returns the creator, the device and the
-    /// creator's group.
-    fn group_with_blank_leaf() -> (Device, Device, MlsGroup) {
-        let creator = Device::new();
-        let device = Device::new();
+    /// The group of `creator`, with `members` on the leaves after it.
+    fn new_group(creator: &Device, members: Vec<KeyPackage>) -> MlsGroup {
         let mut group = MlsGroup::builder()
             .ciphersuite(CIPHERSUITE)
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
@@ -471,27 +460,48 @@ mod tests {
                 creator.credential_with_key.clone(),
             )
             .unwrap();
-        let adds = vec![Device::new().key_package(), device.key_package()];
-        creator.commit(&mut group, adds, Vec::new());
+        creator.commit(&mut group, members, Vec::new());
         group.merge_pending_commit(&creator.provider).unwrap();
+        group
+    }
+
+    /// The group of `creator`, with the blank leaf of a device that left,
+    /// `device` at leaf 2 and a sibling at leaf 3.
+    fn group_with_blank_leaf(creator: &Device, device: &Device) -> MlsGroup {
+        let members = vec![
+            Device::new().key_package(),
+            device.key_package(),
+            Device::new().key_package(),
+        ];
+        let mut group = new_group(creator, members);
         creator.commit(&mut group, Vec::new(), vec![LeafNodeIndex::new(1)]);
         group.merge_pending_commit(&creator.provider).unwrap();
-        (creator, device, group)
+        group
     }
 
-    fn aad(payload: AadPayload) -> Vec<u8> {
-        AadMessage::from(payload).tls_serialize_detached().unwrap()
-    }
-
-    /// The external commit with which `device` joins the `group` of `creator`
-    /// with `aad`, as the creator processes it.
+    /// The external commit of `device` into the `group` of `creator`.
+    ///
+    /// The commit contains the AAD `payload`. Returns the commit as the creator
+    /// processes it.
     fn external_commit(
         device: &Device,
         creator: &Device,
         group: &mut MlsGroup,
-        aad: Vec<u8>,
+        payload: AadPayload,
         removed: Option<LeafNodeIndex>,
     ) -> ProcessedMessage {
+        try_external_commit(device, creator, group, payload, removed).unwrap()
+    }
+
+    /// Like [`external_commit`], but returns the error of the creator if it
+    /// fails to process the commit.
+    fn try_external_commit(
+        device: &Device,
+        creator: &Device,
+        group: &mut MlsGroup,
+        payload: AadPayload,
+        removed: Option<LeafNodeIndex>,
+    ) -> Result<ProcessedMessage> {
         let group_info = group
             .export_group_info(creator.provider.crypto(), &creator.signer, false)
             .unwrap();
@@ -506,7 +516,7 @@ mod tests {
             Proposal::Remove(Box::new(proposal))
         });
         let (_joined, bundle) = ExternalCommitBuilder::new()
-            .with_aad(aad)
+            .with_aad(AadMessage::from(payload).tls_serialize_detached().unwrap())
             .with_config(default_mls_group_join_config())
             .with_ratchet_tree(group.export_ratchet_tree().into())
             .build_group(
@@ -528,12 +538,8 @@ mod tests {
             .finalize(&device.provider)
             .unwrap();
         let (commit, _welcome, _group_info) = bundle.into_contents();
-        group
-            .process_message(
-                &creator.provider,
-                to_message_in(&commit).try_into_protocol_message().unwrap(),
-            )
-            .unwrap()
+        let commit = to_message_in(&commit).try_into_protocol_message().unwrap();
+        Ok(group.process_message(&creator.provider, commit)?)
     }
 
     fn to_message_in(message: &MlsMessageOut) -> MlsMessageIn {
@@ -543,23 +549,84 @@ mod tests {
 
     #[test]
     fn a_self_group_rejoin_on_the_own_leaf_is_accepted() {
-        let (creator, device, mut group) = group_with_blank_leaf();
-        let processed =
-            external_commit(&device, &creator, &mut group, aad(AadPayload::Resync), None);
+        let (creator, device) = (Device::new(), Device::new());
+        let mut group = group_with_blank_leaf(&creator, &device);
+        let processed = external_commit(&device, &creator, &mut group, AadPayload::Resync, None);
         assert!(ensure_self_group_commit(&group, &processed, None, None).is_ok());
     }
 
     #[test]
     fn a_self_group_rejoin_with_a_fresh_key_is_rejected() {
-        let (creator, device, mut group) = group_with_blank_leaf();
+        let (creator, device) = (Device::new(), Device::new());
+        let mut group = group_with_blank_leaf(&creator, &device);
         let processed = external_commit(
             &device.with_fresh_key(),
             &creator,
             &mut group,
-            aad(AadPayload::Resync),
-            Some(rejoiner()),
+            AadPayload::Resync,
+            Some(LeafNodeIndex::new(2)),
         );
         assert!(ensure_self_group_commit(&group, &processed, None, None).is_err());
+    }
+
+    /// OpenMLS rejects an external commit with more than one Remove, before
+    /// [`ensure_self_group_commit`] sees it.
+    #[test]
+    fn a_self_group_rejoin_that_also_removes_a_sibling_is_rejected() {
+        let (creator, device) = (Device::new(), Device::new());
+        let mut group = group_with_blank_leaf(&creator, &device);
+        let processed = try_external_commit(
+            &device,
+            &creator,
+            &mut group,
+            AadPayload::Resync,
+            Some(LeafNodeIndex::new(3)),
+        );
+        assert!(processed.is_err());
+    }
+
+    #[test]
+    fn a_self_group_rejoin_on_the_own_leaf_of_both_legs_is_accepted() {
+        let (creator, device) = (Device::new(), Device::new());
+        let mut group = group_with_blank_leaf(&creator, &device);
+        let mut pq_group = group_with_blank_leaf(&creator, &device);
+        let processed = external_commit(&device, &creator, &mut group, AadPayload::Resync, None);
+        let pq_processed =
+            external_commit(&device, &creator, &mut pq_group, AadPayload::Resync, None);
+        let pq_staged_commit = expect_staged_commit(&pq_processed).unwrap();
+        let checked =
+            ensure_self_group_commit(&group, &processed, Some(&pq_group), Some(pq_staged_commit));
+        assert!(checked.is_ok());
+    }
+
+    #[test]
+    fn a_self_group_rejoin_without_a_pq_leg_is_rejected() {
+        let (creator, device) = (Device::new(), Device::new());
+        let mut group = group_with_blank_leaf(&creator, &device);
+        let pq_group = group_with_blank_leaf(&creator, &device);
+        let processed = external_commit(&device, &creator, &mut group, AadPayload::Resync, None);
+        let error =
+            ensure_self_group_commit(&group, &processed, Some(&pq_group), None).unwrap_err();
+        assert_eq!(error.to_string(), "self-group resync without a PQ leg");
+    }
+
+    #[test]
+    fn a_self_group_rejoin_that_removes_different_leaves_on_the_two_legs_is_rejected() {
+        let (creator, device) = (Device::new(), Device::new());
+        let mut group = group_with_blank_leaf(&creator, &device);
+        // The device is at leaf 1 of this leg, and at leaf 2 of the other.
+        let mut pq_group = new_group(&creator, vec![device.key_package()]);
+        let processed = external_commit(&device, &creator, &mut group, AadPayload::Resync, None);
+        let pq_processed =
+            external_commit(&device, &creator, &mut pq_group, AadPayload::Resync, None);
+        let pq_staged_commit = expect_staged_commit(&pq_processed).unwrap();
+        let error =
+            ensure_self_group_commit(&group, &processed, Some(&pq_group), Some(pq_staged_commit))
+                .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "self-group resync removes different leaves on its two legs"
+        );
     }
 
     #[test]
@@ -571,20 +638,22 @@ mod tests {
             AadPayload::DeleteGroup,
         ];
         for payload in payloads {
-            let (creator, device, mut group) = group_with_blank_leaf();
-            let processed = external_commit(&device, &creator, &mut group, aad(payload), None);
+            let (creator, device) = (Device::new(), Device::new());
+            let mut group = group_with_blank_leaf(&creator, &device);
+            let processed = external_commit(&device, &creator, &mut group, payload, None);
             assert!(ensure_self_group_commit(&group, &processed, None, None).is_err());
         }
     }
 
     #[test]
     fn a_self_group_external_commit_without_a_remove_is_rejected() {
-        let (creator, _device, mut group) = group_with_blank_leaf();
+        let (creator, device) = (Device::new(), Device::new());
+        let mut group = group_with_blank_leaf(&creator, &device);
         let processed = external_commit(
             &Device::new(),
             &creator,
             &mut group,
-            aad(AadPayload::Resync),
+            AadPayload::Resync,
             None,
         );
         assert!(ensure_self_group_commit(&group, &processed, None, None).is_err());
@@ -592,7 +661,8 @@ mod tests {
 
     #[test]
     fn a_self_group_commit_with_a_join_proposal_is_rejected() {
-        let (creator, _device, mut group) = group_with_blank_leaf();
+        let creator = Device::new();
+        let mut group = group_with_blank_leaf(&creator, &Device::new());
         let outsider = Device::new();
         let proposal =
             JoinProposal::new::<<OpenMlsRustCrypto as OpenMlsProvider>::StorageProvider>(
