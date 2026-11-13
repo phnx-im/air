@@ -5,9 +5,10 @@
 import 'dart:async';
 
 import 'package:air/core/core.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/features/onboarding/multi_device_provision_screen.dart';
+import 'package:air/features/onboarding/multi_device_provision_modal.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -30,7 +31,7 @@ const _qrSvg = '''
 ''';
 
 void main() {
-  group('MultiDeviceProvisionScreen', () {
+  group('MultiDeviceProvisionModal', () {
     late MockRegistrationCubit registrationCubit;
     late MockNavigationCubit navigationCubit;
     late MockMultiDeviceProvisionedUser provisionedUser;
@@ -56,7 +57,7 @@ void main() {
                 debugShowCheckedModeBanner: false,
                 theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: MultiDeviceProvisionScreen(
+                home: MultiDeviceProvisionModal(
                   provisionClient: ({
                     required String domain,
                     required String dbPath,
@@ -165,5 +166,29 @@ void main() {
 
       verify(() => navigationCubit.pop()).called(1);
     });
+
+    testWidgets('closing leaves the linking flow', (tester) async {
+      when(() => navigationCubit.pop()).thenReturn(true);
+      final controller = setUpView(tester);
+
+      await tester.pumpWidget(buildSubject(controller.stream));
+      await tester.pump();
+      await tester.tap(find.byType(DialogHeaderAction));
+      await tester.pump();
+
+      verify(() => navigationCubit.pop()).called(1);
+    });
+
+    // A route push would cover the window whole, window chrome included, so
+    // desktop gets a card over the intro screen instead.
+    testWidgets('presents a card on desktop', (tester) async {
+      final controller = setUpView(tester);
+      sizeView(tester, desktopViewSize);
+
+      await tester.pumpWidget(buildSubject(controller.stream));
+      await tester.pump();
+
+      expectModalIsCard(tester, desktopViewSize);
+    }, variant: desktopPlatform);
   });
 }

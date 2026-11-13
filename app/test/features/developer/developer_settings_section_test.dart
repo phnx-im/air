@@ -10,6 +10,7 @@ import 'package:air/ds/components/toggle/toggle.dart';
 import 'package:air/ds/components/toggle/toggle_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart'
     show AppIcon, AppIconType, Chrome;
+import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/developer/developer_fields.dart';
 import 'package:air/features/developer/developer_settings_section.dart';
 import 'package:air/features/developer/log_entry.dart';
@@ -156,6 +157,55 @@ void main() {
         Size(ToggleTokens.compact.trackWidth, ToggleTokens.compact.trackHeight),
       );
     });
+  });
+
+  group('DeveloperSettingsModal', () {
+    late MockNavigationCubit navigationCubit;
+    late MockUserSessionCubit userSessionCubit;
+    late MockUserSettingsCubit userSettingsCubit;
+
+    setUp(() {
+      navigationCubit = MockNavigationCubit();
+      userSessionCubit = MockUserSessionCubit();
+      userSettingsCubit = MockUserSettingsCubit();
+      when(() => navigationCubit.pop()).thenReturn(true);
+      when(() => userSessionCubit.state).thenReturn(const UserSessionState());
+      when(() => userSettingsCubit.state).thenReturn(const UserSettings());
+    });
+
+    Widget buildSubject() => MultiBlocProvider(
+      providers: [
+        BlocProvider<NavigationCubit>.value(value: navigationCubit),
+        BlocProvider<UserSessionCubit>.value(value: userSessionCubit),
+        BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+      ],
+      child: Builder(
+        builder: (context) => MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const DeveloperSettingsModal(),
+        ),
+      ),
+    );
+
+    testWidgets('closing leaves developer settings', (tester) async {
+      await tester.pumpWidget(buildSubject());
+      await tester.tap(find.byType(DialogHeaderAction));
+      await tester.pumpAndSettle();
+
+      verify(() => navigationCubit.pop()).called(1);
+    });
+
+    // A route push would cover the window whole, window chrome included, so
+    // desktop gets a card over the intro screen instead.
+    testWidgets('presents a card on desktop', (tester) async {
+      sizeView(tester, desktopViewSize);
+      await tester.pumpWidget(buildSubject());
+
+      expectModalIsCard(tester, desktopViewSize);
+      expect(find.text('Developer mode'), findsOneWidget);
+    }, variant: desktopPlatform);
   });
 
   group('DeveloperInfoRow', () {
