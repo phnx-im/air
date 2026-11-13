@@ -5,6 +5,7 @@
 //! The self group: creation, resync, self update and attachments in the self
 //! chat.
 
+use aircommon::messages::client_ds::{AadPayload, GroupOperationParamsAad};
 use aircoreclient::clients::MarkChatAsRead;
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::{DateTime, Utc};
@@ -251,4 +252,55 @@ async fn resync_keeps_sibling_in_sync() {
     self_group_client_ids(&alice2).await;
     send_and_receive(&alice, &[&alice2], chat_id, "after resync").await;
     send_and_receive(&alice2, &[&alice], chat_id, "and back").await;
+}
+
+/// A malicious DS forges an external commit that gives a new leaf the
+/// self-group credential of a sibling with a fresh signature key and removes
+/// the sibling's leaf. The other devices must reject it.
+async fn sibling_leaf_takeover_is_rejected(aad: AadPayload) {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice2 = alice.add_linked_device().await;
+    let alice3 = alice.add_linked_device().await;
+    alice.drain().await;
+    alice2.drain().await;
+    alice3.drain().await;
+
+    // The forged commit needs a blank leaf left of the victim's.
+    alice
+        .unlink_device(alice2.own_client_id().await.unwrap())
+        .await
+        .unwrap();
+    alice.drain().await;
+    alice3.drain().await;
+
+    let chat_id = self_chat_id(&alice).await;
+    let members_before = alice.mls_members(chat_id).await.unwrap().unwrap();
+
+    // The victim's own device stands in for the DS. It sends nothing.
+    let commit = alice3
+        .forge_self_group_leaf_takeover(alice3.own_client_id().await.unwrap(), aad)
+        .await
+        .unwrap();
+
+    let processed = alice.process_incoming_apq_mls_message(&commit).await;
+    assert!(
+        processed.is_err(),
+        "the forged commit takes over the sibling's leaf"
+    );
+    let members_after = alice.mls_members(chat_id).await.unwrap().unwrap();
+    assert_eq!(members_after, members_before);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn sibling_leaf_takeover_by_resync_is_rejected() {
+    sibling_leaf_takeover_is_rejected(AadPayload::Resync).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn sibling_leaf_takeover_by_group_operation_is_rejected() {
+    sibling_leaf_takeover_is_rejected(AadPayload::GroupOperation(GroupOperationParamsAad {
+        new_encrypted_user_profile_keys: Vec::new(),
+    }))
+    .await;
 }

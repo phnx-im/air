@@ -11,7 +11,7 @@ use aircommon::{
         AadMessage, AadPayload, GroupOperationParamsAad, JoinConnectionGroupParamsAad,
     },
 };
-use anyhow::{Context, Result, anyhow, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use openmls::prelude::{ProcessedMessage, Sender, SignaturePublicKey, StagedCommit};
 use tls_codec::DeserializeBytes as TlsDeserializeBytes;
 
@@ -119,6 +119,13 @@ impl Group {
     ) -> Result<Vec<(UserCredential, EncryptedUserProfileKey)>> {
         let staged_commit = expect_staged_commit(processed_message)?;
 
+        // External commits carry the AAD of a resync or a connection-group join or close, and the
+        // DS only takes group operations from members. Only a malicious DS can deliver an external
+        // commit with this AAD.
+        let Sender::Member(sender_index) = *processed_message.sender() else {
+            bail!("group operation from a non-member sender");
+        };
+
         let mut encrypted_profile_infos: Vec<(UserCredential, EncryptedUserProfileKey)> =
             Vec::new();
 
@@ -181,10 +188,18 @@ impl Group {
         // Check if the client has updated its leaf credential.
         let (new_sender_credential, new_sender_leaf_key) =
             update_path_leaf_node_info(staged_commit)?;
+        let sender_leaf_key = self
+            .mls_group
+            .public_group()
+            .leaf(sender_index)
+            .context("Could not find sender leaf")?
+            .signature_key();
 
-        if let Some((new_credential, old_credential)) =
-            user_credential_transition(new_sender_credential, sender_credential, "update path")?
-        {
+        if let Some((new_credential, old_credential)) = user_credential_transition(
+            (new_sender_credential, new_sender_leaf_key),
+            (sender_credential, sender_leaf_key),
+            "update path",
+        )? {
             if new_credential == old_credential {
                 // The credential was verified when the member entered the group, but the update
                 // path can still rotate the leaf signature key.
@@ -202,11 +217,6 @@ impl Group {
                 )
                 .await?;
             }
-        }
-
-        // Process a resync if this is one
-        if matches!(processed_message.sender(), Sender::NewMemberCommit) {
-            self.process_resync(processed_message.credential(), staged_commit)?;
         }
 
         Ok(encrypted_profile_infos)
@@ -294,15 +304,18 @@ impl Group {
             .remove_proposal()
             .removed();
 
-        let old_credential = self
+        let old_leaf = self
             .mls_group
-            .member(removed_index)
-            .ok_or(anyhow!("Could not find removed member in group"))?;
-        let old_credential = LeafCredential::from_credential(old_credential)?;
+            .public_group()
+            .leaf(removed_index)
+            .context("Could not find removed member in group")?;
+        let old_credential = LeafCredential::from_credential(old_leaf.credential())?;
 
-        if let Some((sender_credential, old_credential)) =
-            user_credential_transition(sender_credential, old_credential, "resync")?
-        {
+        if let Some((sender_credential, old_credential)) = user_credential_transition(
+            (sender_credential, sender_leaf_key),
+            (old_credential, old_leaf.signature_key()),
+            "resync",
+        )? {
             verify_and_store_credential(
                 txn,
                 api_clients,

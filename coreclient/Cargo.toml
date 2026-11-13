@@ -68,7 +68,7 @@ tempfile.workspace = true
 tracing-subscriber.workspace = true
 
 [features]
-test_utils = ["tempfile", "sqlx/sqlite-deserialize"]
+test_utils = ["tempfile", "sqlx/sqlite-deserialize", "apqmls/test-utils"]
 
 [package.metadata.cargo-machete]
 ignored = [

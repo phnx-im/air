@@ -58,6 +58,7 @@ pub struct ApqExternalCommitBuilder {
     create_group_info: bool,
     t_psk_proposals: Vec<PreSharedKeyProposal>,
     t_proposals: Vec<Proposal>,
+    pq_proposals: Vec<Proposal>,
     vc_emulation_group_id: Option<GroupId>,
     emulation_group: bool,
 }
@@ -113,6 +114,14 @@ impl ApqExternalCommitBuilder {
         self
     }
 
+    /// Add a proposal by value to the PQ commit, with the same restrictions as
+    /// [`Self::add_t_proposal`].
+    #[cfg(feature = "test-utils")]
+    pub fn add_pq_proposal(mut self, proposal: Proposal) -> Self {
+        self.pq_proposals.push(proposal);
+        self
+    }
+
     /// Sets the emulation group whose newest derivation epoch the commit
     /// derives from.
     pub fn vc_emulation(mut self, emulation_group_id: GroupId) -> Self {
@@ -152,6 +161,7 @@ impl ApqExternalCommitBuilder {
             create_group_info,
             t_psk_proposals,
             t_proposals: t_own_proposals,
+            pq_proposals: pq_own_proposals,
             vc_emulation_group_id,
             emulation_group,
         } = self;
@@ -209,7 +219,7 @@ impl ApqExternalCommitBuilder {
             app_data_update_proposal.clone(),
             component_data.clone(),
             Vec::new(),
-            Vec::new(),
+            pq_own_proposals,
             create_group_info,
             vc_emulation_group_id.clone(),
             false,

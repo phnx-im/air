@@ -850,6 +850,22 @@ impl CoreUser {
             .await
     }
 
+    /// Test-only: the APQ variant of [`Self::process_incoming_mls_message`].
+    #[cfg(any(test, feature = "test_utils"))]
+    pub async fn process_incoming_apq_mls_message(
+        &self,
+        apq_mls_message_bytes: &[u8],
+    ) -> Result<QsMessageOutcome> {
+        let apq_mls_message = ApqMlsMessageIn::tls_deserialize_exact_bytes(apq_mls_message_bytes)?;
+        let ds_timestamp = TimeStamp::now();
+        self.db()
+            .with_write_transaction(async |txn| {
+                Box::pin(self.handle_apq_mls_message(txn, apq_mls_message, ds_timestamp, false))
+                    .await
+            })
+            .await
+    }
+
     async fn handle_apq_mls_message(
         &self,
         txn: &mut WriteDbTransaction<'_>,
