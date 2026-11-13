@@ -16,6 +16,8 @@ use openmls::prelude::SignaturePublicKey;
 
 pub(crate) mod persistence;
 
+pub(crate) use persistence::{PinCheck, UserCredentialKeyChanged};
+
 #[derive(Debug, Clone)]
 pub(crate) struct StorableUserCredential {
     user_credential: UserCredential,

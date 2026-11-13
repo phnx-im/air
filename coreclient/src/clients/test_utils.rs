@@ -1062,4 +1062,122 @@ impl CoreUser {
             )?;
         Ok(bundle.into_message_out().tls_serialize_detached()?)
     }
+
+    /// The number of stored user credentials for `user_id`.
+    pub async fn user_credential_count(&self, user_id: &UserId) -> anyhow::Result<i64> {
+        let count = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM user_credential WHERE user_uuid = ? AND user_domain = ?",
+        )
+        .bind(user_id.uuid())
+        .bind(user_id.domain())
+        .fetch_one(self.db().read().await?.as_mut())
+        .await?;
+        Ok(count)
+    }
+
+    /// Builds the resync commit the victim's home server can forge from the
+    /// group info, the ear key and a credential it minted for the victim's
+    /// user id. The new leaf carries `credential` and its key, the commit
+    /// removes the victim's leaf and carries the `Resync` AAD. The
+    /// application message is sent from the new leaf. Nothing is sent to the
+    /// DS. Returns the serialized commit and message.
+    pub async fn forge_credential_resync(
+        &self,
+        chat_id: ChatId,
+        victim: &UserId,
+        credential: &aircommon::credentials::UserCredential,
+        signer: &aircommon::credentials::keys::UserSigningKey,
+        text: &str,
+    ) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
+        use aircommon::{
+            credentials::LeafCredential,
+            messages::client_ds::{AadMessage, AadPayload},
+            mls_group_config::{default_leaf_node_capabilities, default_mls_group_join_config},
+        };
+        use airprotos::client::app_data::ClientAppData;
+        use mimi_content::MimiContent;
+        use openmls::{
+            messages::proposals::RemoveProposal,
+            prelude::{
+                Credential, CredentialWithKey, ExternalCommitBuilder, LeafNodeParameters,
+                OpenMlsProvider, Proposal,
+            },
+        };
+        use openmls_rust_crypto::OpenMlsRustCrypto;
+        use tls_codec::{DeserializeBytes as _, Serialize as _};
+
+        let own_user_id = self.user_id().clone();
+        let (group_id, ear_key, victim_index, leftmost_blank) = self
+            .db()
+            .with_read_transaction(async |txn| -> anyhow::Result<_> {
+                let group = Group::load_with_chat_id(txn, chat_id)
+                    .await?
+                    .context("group not found")?;
+                let victim_member = group
+                    .mls_group()
+                    .members()
+                    .find(|member| {
+                        LeafCredential::from_credential(&member.credential)
+                            .is_ok_and(|c| c.user_id(&own_user_id) == victim)
+                    })
+                    .context("victim not in group")?;
+                let occupied: HashSet<u32> = group
+                    .mls_group()
+                    .members()
+                    .map(|member| member.index.u32())
+                    .collect();
+                let leftmost_blank = (0..).find(|index| !occupied.contains(index)).unwrap_or(0);
+                Ok((
+                    group.group_id().clone(),
+                    group.group_state_ear_key().clone(),
+                    victim_member.index.u32(),
+                    leftmost_blank,
+                ))
+            })
+            .await?;
+        // The openmls builder places the new leaf at the leftmost blank leaf.
+        // Receivers place it at the removed leaf when that is further left.
+        anyhow::ensure!(
+            leftmost_blank < victim_index,
+            "the tree needs a blank leaf left of the victim's leaf"
+        );
+
+        let qgid: QualifiedGroupId = (&group_id).try_into()?;
+        let api_client = self.api_clients().get(qgid.owning_domain())?;
+        let info = api_client
+            .ds_external_commit_info(group_id.clone(), None, &ear_key)
+            .await?;
+
+        let aad: AadMessage = AadPayload::Resync.into();
+        let remove = RemoveProposal::tls_deserialize_exact_bytes(&victim_index.to_be_bytes())?;
+        let provider = OpenMlsRustCrypto::default();
+        let credential_with_key = CredentialWithKey {
+            credential: Credential::try_from(credential)?,
+            signature_key: credential.verifying_key().as_slice().into(),
+        };
+        let leaf_node_parameters = LeafNodeParameters::builder()
+            .with_capabilities(default_leaf_node_capabilities())
+            .with_extensions(ClientAppData::current().leaf_node_extensions())
+            .build();
+        let (mut mls_group, bundle) = ExternalCommitBuilder::new()
+            .with_aad(aad.tls_serialize_detached()?)
+            .with_config(default_mls_group_join_config())
+            .skip_lifetime_validation()
+            .with_ratchet_tree(info.ratchet_tree_in)
+            .build_group(&provider, info.verifiable_group_info, credential_with_key)?
+            .leaf_node_parameters(leaf_node_parameters)
+            .add_proposal(Proposal::Remove(Box::new(remove)))
+            .load_psks(provider.storage())?
+            .build(provider.rand(), provider.crypto(), signer, |_| true)?
+            .finalize(&provider)?;
+        let commit = bundle.commit().tls_serialize_detached()?;
+
+        let content = MimiContent::simple_markdown_message(text.to_owned(), [0; 16]);
+        let message = mls_group
+            .create_unconfirmed_message(&provider, signer, &content.serialize()?)?
+            .message
+            .tls_serialize_detached()?;
+
+        Ok((commit, message))
+    }
 }

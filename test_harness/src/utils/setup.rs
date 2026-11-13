@@ -396,6 +396,23 @@ impl TestBackend {
         Some(exists)
     }
 
+    /// A credential for `user_id` signed by the AS of the spawned server,
+    /// with a fresh key, as the home server of that user can mint it.
+    pub async fn mint_user_credential(
+        &self,
+        user_id: &UserId,
+    ) -> (
+        aircommon::credentials::UserCredential,
+        aircommon::credentials::keys::UserSigningKey,
+    ) {
+        self._cleanup
+            .as_ref()
+            .and_then(|app| app.downcast_ref::<super::SpawnedApp>())
+            .expect("minting needs a spawned server")
+            .mint_user_credential(user_id)
+            .await
+    }
+
     pub fn listener_control_handle(&self) -> &ControlHandle {
         self.listener_control_handle.as_ref().unwrap()
     }

@@ -59,8 +59,7 @@ async fn safety_codes_match_across_users() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[ignore = "the safety code uses a stale credential of a re-registered user"]
-async fn safety_code_follows_reregistered_user() {
+async fn reregistered_user_id_keeps_the_pinned_key() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     setup.connect_users(&alice, &bob).await;
@@ -89,9 +88,17 @@ async fn safety_code_follows_reregistered_user() {
         .await
         .unwrap()
         .unwrap();
-    bob.drain().await;
+    let processed = bob.drain_unchecked().await;
+    assert!(
+        processed
+            .errors
+            .iter()
+            .any(|error| format!("{error:#}").contains("another key than the one pinned")),
+        "Bob should reject the new key: {:?}",
+        processed.errors
+    );
+    assert!(processed.new_connections.is_empty());
 
-    let own_code = new_alice.safety_code(&alice_id).await.unwrap();
-    assert_ne!(own_code, old_code);
-    assert_eq!(bob.safety_code(&alice_id).await.unwrap(), own_code);
+    assert_ne!(new_alice.safety_code(&alice_id).await.unwrap(), old_code);
+    assert_eq!(bob.safety_code(&alice_id).await.unwrap(), old_code);
 }

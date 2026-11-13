@@ -405,7 +405,7 @@ async fn verify_and_store_credential(
         AsCredentials::fetch_for_verification(&mut *txn, api_clients, iter::once(&credential))
             .await?;
     let credential = credential.verify_and_validate(leaf_key, old_credential, &as_credentials)?;
-    credential.store(txn).await?;
+    credential.store_checked(txn).await?;
     Ok(credential)
 }
 

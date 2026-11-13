@@ -255,7 +255,7 @@ impl Group {
 
         group.store(&mut *txn).await?;
         for credential in &credentials {
-            credential.store(&mut *txn).await?;
+            credential.store_checked(&mut *txn).await?;
         }
 
         Ok(group)

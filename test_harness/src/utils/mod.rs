@@ -110,6 +110,32 @@ impl SpawnedApp {
         db_settings.connection_string()
     }
 
+    /// Has the AS sign a credential for `user_id` with a fresh key, outside
+    /// any RPC.
+    pub(crate) async fn mint_user_credential(
+        &self,
+        user_id: &aircommon::identifiers::UserId,
+    ) -> (
+        aircommon::credentials::UserCredential,
+        aircommon::credentials::keys::UserSigningKey,
+    ) {
+        use aircommon::{
+            credentials::{UserCredentialCsr, keys::UserSigningKey},
+            crypto::signatures::DEFAULT_SIGNATURE_SCHEME,
+        };
+        let mut db_settings = self.db_settings.clone();
+        db_settings.name = self.db_name.to_string();
+        let mut connection = PgConnection::connect(&db_settings.connection_string())
+            .await
+            .unwrap();
+        let (csr, prelim_key) =
+            UserCredentialCsr::new(user_id.clone(), DEFAULT_SIGNATURE_SCHEME).unwrap();
+        let credential = AuthService::sign_user_credential_csr(&mut connection, csr).await;
+        connection.close().await.unwrap();
+        let signing_key = UserSigningKey::from_prelim_key(prelim_key, credential.clone()).unwrap();
+        (credential, signing_key)
+    }
+
     async fn cleanup(&mut self) {
         let db_name = self.db_name;
         execute_without_database(&self.db_settings, format!(r#"DROP DATABASE "{db_name}""#)).await;

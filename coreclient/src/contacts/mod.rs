@@ -22,7 +22,10 @@ use crate::{
     ChatId,
     clients::api_clients::ApiClients,
     db::access::{ReadConnection, WriteConnection},
-    groups::{Group, client_auth_info::StorableUserCredential},
+    groups::{
+        Group,
+        client_auth_info::{PinCheck, StorableUserCredential, UserCredentialKeyChanged},
+    },
     key_stores::{as_credentials::AsCredentials, indexed_keys::StorableIndexedKey},
     user_profiles::IndexedUserProfile,
 };
@@ -135,15 +138,11 @@ impl Contact {
             "contact key package belongs to another user"
         );
 
-        // Check that the user credential is the same as the one we have on file.
-        let current_user_credential = StorableUserCredential::load_by_user_id(
-            &mut connection,
-            incoming_user_credential.user_id(),
-        )
-        .await?
-        .context("User credential not found")?;
-        if current_user_credential.fingerprint() != incoming_user_credential.fingerprint() {
-            bail!("User credential does not match");
+        // Check that the key package carries the key pinned for the contact.
+        match StorableUserCredential::check_pin(&mut connection, &incoming_user_credential).await? {
+            PinCheck::Matches => {}
+            PinCheck::Unpinned => bail!("User credential not found"),
+            PinCheck::Conflicts => bail!(UserCredentialKeyChanged),
         }
 
         let user_profile = IndexedUserProfile::load(&mut connection, &self.user_id)
