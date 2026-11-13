@@ -125,8 +125,8 @@
   "invitationCodesScreen_global_quota_exceeded": "Wir haben im Moment keine Einladungscodes mehr, versuch es bitte später nochmal.",
   "invitationCodesScreen_errorRequestingCode": "Etwas ist schiefgelaufen. Versuche es erneut.",
   "invitationCodesScreen_copiedToClipboard": "In Zwischenablage kopiert",
-  "invitationCodesScreen_codeClipboardMessage": "Lass uns auf Air chatten: https://air.ms/install. Verwende den Einladungscode {code}.",
-  "invitationCodesScreen_codesClipboardMessage": "Lass uns auf Air chatten: https://air.ms/install. Verwende einen dieser Einladungscodes:\n\n{codes}",
+  "invitationCodesScreen_codeClipboardMessage": "Lass uns auf Air chatten: https://air.ms/download. Verwende den Einladungscode {code}.",
+  "invitationCodesScreen_codesClipboardMessage": "Lass uns auf Air chatten: https://air.ms/download. Verwende einen dieser Einladungscodes:\n\n{codes}",
 
   "accountCreation_unsupported_header": "Aktualisierung erforderlich",
   "accountCreation_unsupported_body": "Dieser Server verlangt etwas, das diese Version von Air nicht liefern kann. Aktualisiere Air, um fortzufahren.",

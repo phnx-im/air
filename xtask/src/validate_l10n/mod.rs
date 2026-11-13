@@ -42,6 +42,14 @@ const ESTONIAN_CASE_ENDINGS: &[&str] = &[
     "i", "is", "ist", "isse", "ile", "il", "ilt", "iks", "ini", "ina", "ita", "iga",
 ];
 
+/// Finnish inflects product names too, as in "Air-tili" next to "Liity
+/// Airiin". The endings are the singular cases `GLOSSARY_fi.md` lists.
+const FINNISH_FILE: &str = "app_fi.arb";
+const FINNISH_CASE_ENDINGS: &[&str] = &[
+    // spellchecker:ignore-next-line
+    "in", "ia", "issa", "ista", "iin", "illa", "ilta", "ille", "ina", "iksi",
+];
+
 /// A description like "Label" costs a translator more than it gives.
 const MIN_DESCRIPTION_LENGTH: usize = 10;
 
@@ -496,10 +504,10 @@ fn check_choices(file: &str, key: &str, parsed: &icu::ParsedMessage, report: &mu
 }
 
 fn check_protected_terms(context: &KeyContext<'_>, report: &mut Report) {
-    let endings = if context.file == ESTONIAN_FILE {
-        ESTONIAN_CASE_ENDINGS
-    } else {
-        &[]
+    let endings = match context.file {
+        ESTONIAN_FILE => ESTONIAN_CASE_ENDINGS,
+        FINNISH_FILE => FINNISH_CASE_ENDINGS,
+        _ => &[],
     };
     for term in PROTECTED_TERMS {
         if contains_word(context.source, term, &[])
@@ -772,6 +780,16 @@ mod tests {
         assert!(contains_word("Airi konto", "Air", ESTONIAN_CASE_ENDINGS));
         assert!(!contains_word("Airport", "Air", ESTONIAN_CASE_ENDINGS));
         assert!(!contains_word("Liitu Airiga", "Air", &[]));
+    }
+
+    #[test]
+    fn word_matching_accepts_finnish_endings() {
+        assert!(contains_word("Liity Airiin", "Air", FINNISH_CASE_ENDINGS));
+        assert!(contains_word("Airissa", "Air", FINNISH_CASE_ENDINGS));
+        assert!(contains_word("Päivitä Air", "Air", FINNISH_CASE_ENDINGS));
+        assert!(contains_word("Air-tili", "Air", FINNISH_CASE_ENDINGS));
+        assert!(!contains_word("Airport", "Air", FINNISH_CASE_ENDINGS));
+        assert!(!contains_word("Liitu Airiga", "Air", FINNISH_CASE_ENDINGS));
     }
 
     #[test]
