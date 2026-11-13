@@ -21,3 +21,5 @@ application:
       expires_on: "2026-11-12"
     - older_than: "0.25.0"
       expires_on: "2026-11-26"
+    - older_than: "0.26.0"
+      expires_on: "2026-12-03"
