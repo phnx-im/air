@@ -133,6 +133,11 @@ impl DsGroupState {
         // to carry the proposal, so a commit must not leave one behind.
         self.ensure_self_removes_committed(staged_commit)?;
 
+        if self.self_group_commit_has_non_member_proposal(staged_commit) {
+            warn!("Self-group commit carries a proposal from a non-member");
+            return Err(GroupOperationError::InvalidMessage);
+        }
+
         // A traditional commit on an APQ group can only be a PARTIAL
         // self-update. Membership changes (including self-removes) must go
         // through the APQ endpoint so that both legs stay in sync. External
@@ -155,6 +160,12 @@ impl DsGroupState {
         // Perform validation depending on the type of message
         let sender_index = match processed_message.sender() {
             Sender::Member(leaf_index) => SenderIndex::Member(*leaf_index),
+            // A device rejoins its self group only through a resync, which binds
+            // the new leaf to the evicted one.
+            Sender::NewMemberCommit if is_self_group => {
+                warn!("External commit into a self group as a group operation");
+                return Err(GroupOperationError::InvalidMessage);
+            }
             Sender::NewMemberCommit => {
                 // If it's an external commit, it has to be a resync operation,
                 // which means there MUST be a remove proposal for the sender's
@@ -480,12 +491,21 @@ impl DsGroupState {
             }
             // See the T leg. Self-removes need to be committed on both legs.
             pq_group_state.ensure_self_removes_committed(pq_staged_commit)?;
+            if pq_group_state.self_group_commit_has_non_member_proposal(pq_staged_commit) {
+                warn!("PQ self-group commit carries a proposal from a non-member");
+                return Err(GroupOperationError::InvalidMessage);
+            }
             let pq_sender_index = match processed_assisted_message
                 .processed_message
                 .pq_message
                 .sender()
             {
                 Sender::Member(leaf_index) => SenderIndex::Member(*leaf_index),
+                // See the T leg.
+                Sender::NewMemberCommit if pq_group_state.is_self_group() => {
+                    warn!("PQ external commit into a self group as a group operation");
+                    return Err(GroupOperationError::InvalidMessage);
+                }
                 Sender::NewMemberCommit => {
                     let Some(remove_proposal) = pq_staged_commit.remove_proposals().next() else {
                         warn!("PQ external commit is not a resync operation");

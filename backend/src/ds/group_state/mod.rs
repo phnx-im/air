@@ -26,7 +26,7 @@ use mls_assist::{
     group::{Group, RetainedWelcomeInfo},
     openmls::{
         group::GroupId,
-        prelude::{GroupEpoch, LeafNodeIndex, Proposal, StagedCommit},
+        prelude::{GroupEpoch, LeafNodeIndex, Proposal, Sender, StagedCommit},
     },
     provider_traits::MlsAssistProvider,
 };
@@ -343,6 +343,22 @@ impl DsGroupState {
     /// self-group. The flag is fixed at group creation.
     pub(crate) fn is_self_group(&self) -> bool {
         GroupAppData::is_self_group_context(self.group().group_info().group_context().extensions())
+    }
+
+    /// Whether `staged_commit` is a commit to this self group that carries a
+    /// proposal from an external sender or from a new member asking to join.
+    /// Always `false` for other groups.
+    pub(super) fn self_group_commit_has_non_member_proposal(
+        &self,
+        staged_commit: &StagedCommit,
+    ) -> bool {
+        self.is_self_group()
+            && staged_commit
+                .queued_proposals()
+                .any(|proposal| match proposal.sender() {
+                    Sender::External(_) | Sender::NewMemberProposal => true,
+                    Sender::Member(_) | Sender::NewMemberCommit => false,
+                })
     }
 
     /// If the group context's [`GroupAppData`] marks this group
