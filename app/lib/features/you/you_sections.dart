@@ -18,7 +18,7 @@ import 'package:air/features/you/contact_us_modal.dart';
 import 'package:air/features/you/delete_account_dialog.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
 import 'package:air/features/you/invitation_codes_modal.dart';
-import 'package:air/features/you/licenses_screen.dart';
+import 'package:air/features/you/licenses_modal.dart';
 import 'package:air/features/you/linked_devices_screen.dart';
 import 'package:air/features/you/profile_actions.dart';
 import 'package:air/features/you/remove_username_dialog.dart';
@@ -581,13 +581,7 @@ class HelpSection extends HookWidget {
 
         const SizedBox(height: S.s12),
         FieldContainer(
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => const LicensesScreenView(),
-              ),
-            );
-          },
+          onTap: () => showLicenses(context),
           child: Row(
             children: [
               Text(

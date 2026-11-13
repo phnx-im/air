@@ -219,8 +219,6 @@ pub struct TestBackendParams {
     pub registration: RegistrationSettings,
     pub unredeemable_code: Option<String>,
     pub max_attachment_size: u64,
-    /// Provisions uploads as POST policies for clients that accept them.
-    pub use_post_policy: bool,
     /// Overrides the configured device limit.
     pub max_devices: Option<u32>,
     pub ds: DsSettings,
@@ -250,7 +248,6 @@ impl Default for TestBackendParams {
             },
             unredeemable_code: None,
             max_attachment_size: DEFAULT_MAX_ATTACHMENT_SIZE,
-            use_post_policy: false,
             max_devices: None,
             ds: DsSettings::default(),
         }
@@ -985,8 +982,10 @@ impl TestBackend {
             .message()
             .mimi_content()
             .unwrap()
-            .visit_attachments(|part| {
-                assert!(external_part.replace(part.clone()).is_none());
+            .visit_parts(|part| {
+                if let VisitedPart::Attachment { part, .. } = part {
+                    assert!(external_part.replace(part.clone()).is_none());
+                }
                 Ok(())
             })
             .unwrap();
@@ -1020,7 +1019,10 @@ impl TestBackend {
                 .message()
                 .mimi_content()
                 .unwrap()
-                .visit_attachments(|part| {
+                .visit_parts(|part| {
+                    let VisitedPart::Attachment { part, .. } = part else {
+                        return Ok(());
+                    };
                     assert!(!attachment_found_once);
 
                     // Removed cleared fields from the expected attachment.

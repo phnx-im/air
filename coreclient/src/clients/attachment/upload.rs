@@ -22,20 +22,16 @@ use aircommon::{
     identifiers::{RemoteAttachmentId, UserId},
 };
 use airprotos::{
-    common::v1::AttachmentTooLargeDetail,
-    delivery_service::v1::{SignedPostPolicy, StorageObjectType},
+    common::v1::AttachmentTooLargeDetail, delivery_service::v1::StorageObjectType,
     validation::MissingFieldExt,
 };
 use anyhow::{Context, bail, ensure};
-use base64::{Engine, prelude::BASE64_STANDARD};
-use chrono::{DateTime, Local, Utc};
+use chrono::{Local, Utc};
 use mimi_content::{
     MimiContent,
     content_container::{Disposition, NestedPart, PartSemantics},
 };
-use reqwest::{Body, multipart};
-use serde::Deserialize;
-use serde_json::Value;
+use reqwest::Body;
 use sha2::{Digest, Sha256};
 use tokio::task::spawn_blocking;
 use tokio_stream::StreamExt;
@@ -46,18 +42,18 @@ use url::Url;
 use crate::{
     AttachmentContent, AttachmentId, AttachmentProgressEvent, AttachmentStatus,
     AttachmentThumbnail, AttachmentUrl, Chat, ChatId, ChatMessage, ContentMessage, MessageId,
+    MimiContentExt, PartIndex,
     clients::{
         CoreUser, MarkChatAsRead,
         attachment::{
             AttachmentBytes, AttachmentRecord,
             aead::{AIR_ATTACHMENT_ENCRYPTION_ALG, AIR_ATTACHMENT_HASH_ALG},
-            content::MimiContentExt,
             progress::{AttachmentProgress, AttachmentProgressSender},
             thumbnail::store_thumbnail,
         },
     },
-    groups::Group,
-    groups::persistence::GroupRef,
+    groups::{Group, persistence::GroupRef},
+    media_type,
     utils::image::{
         ImageProcessingCancellation, ReencodedAttachmentImage, encode_source_thumbnail,
         probe_attachment_image, reencode_attachment_image,
@@ -68,6 +64,9 @@ use crate::{
 /// a local denial of service: the real limit is enforced at provisioning time
 /// by the server.
 const MAX_IMAGE_SOURCE_SIZE: u64 = 100 * 1024 * 1024;
+
+/// Part index of the external part in [`attachment_content`], after the root.
+const ATTACHMENT_PART_INDEX: PartIndex = PartIndex(1);
 
 impl CoreUser {
     /// Uploads an attachment tied to the user (signed with their signing key)
@@ -176,8 +175,8 @@ impl CoreUser {
         });
         debug!(?is_animated, "made source thumbnail");
 
-        let attachment_id = AttachmentId::random();
         let message_id = MessageId::random();
+        let attachment_id = AttachmentId::derive(message_id, ATTACHMENT_PART_INDEX);
         let content = attachment_content(probed.provisional_nested_parts(attachment_id))?;
 
         // Note: Acquire a transaction here to ensure that the attachment will be deleted from the
@@ -566,7 +565,8 @@ impl CoreUser {
 #[cfg(feature = "test_utils")]
 impl CoreUser {
     /// Provisions an attachment upload of `declared_size` bytes in the chat's
-    /// group and uploads `content` to it as is.
+    /// group and uploads `content` to it as is, with a `content-length` of
+    /// `content`'s actual size.
     ///
     /// # Errors
     ///
@@ -596,8 +596,17 @@ impl CoreUser {
                 StorageObjectType::Attachment,
             )
             .await?;
-        let (progress_tx, _progress) = AttachmentProgress::new();
-        upload_encrypted_attachment(&self.http_client(), response, progress_tx, content).await
+        let mut request = self.http_client().put(response.upload_url);
+        for header in response.upload_headers {
+            if !header
+                .key
+                .eq_ignore_ascii_case(reqwest::header::CONTENT_LENGTH.as_str())
+            {
+                request = request.header(header.key, header.value);
+            }
+        }
+        request.body(content).send().await?.error_for_status()?;
+        Ok(())
     }
 }
 
@@ -821,7 +830,7 @@ impl ProcessedAttachment {
             .image_data
             .as_ref()
             .map(|data| (data.width, data.height));
-        content.visit_attachments_mut(|part| {
+        content.visit_external_parts_mut(|part| {
             if let NestedPart::ExternalPart {
                 content_type,
                 url,
@@ -846,7 +855,7 @@ impl ProcessedAttachment {
             parts.push(NestedPart::SinglePart {
                 disposition: Disposition::Preview,
                 language: String::new(),
-                content_type: "text/blurhash".to_owned(),
+                content_type: media_type::TEXT_BLURHASH.to_owned(),
                 content: image_data.blurhash.clone().into_bytes(),
             });
         }
@@ -859,7 +868,7 @@ fn patch_provisioned_parts(
     content: &mut MimiContent,
     metadata: &AttachmentMetadata,
 ) -> anyhow::Result<()> {
-    content.visit_attachments_mut(|part| {
+    content.visit_external_parts_mut(|part| {
         if let NestedPart::ExternalPart {
             url, key, nonce, ..
         } = part
@@ -965,91 +974,12 @@ async fn upload_encrypted_attachment(
     mut progress_tx: AttachmentProgressSender,
     ciphertext: Vec<u8>,
 ) -> anyhow::Result<()> {
-    if let Some(signed_post_policy) = provision_response.post_policy {
-        multipart_upload(
-            http_client,
-            &provision_response.upload_url,
-            signed_post_policy,
-            ciphertext,
-            &progress_tx,
-        )
-        .await?;
-        progress_tx.completed();
-    } else {
-        // upload encrypted content via signed PUT url
-        let mut request = http_client.put(provision_response.upload_url);
-        for header in provision_response.upload_headers {
-            request = request.header(header.key, header.value);
-        }
-
-        let bytes_total = ciphertext.len();
-        let mut uploaded = 0;
-        let tx = progress_tx.tx();
-        let stream = ReaderStream::new(Cursor::new(ciphertext)).map(move |chunk| {
-            if let Ok(chunk) = &chunk {
-                uploaded += chunk.len();
-                if let Some(tx) = tx.as_ref() {
-                    let _ = tx.send(AttachmentProgressEvent::Progress {
-                        bytes_total,
-                        bytes_loaded: uploaded,
-                    });
-                }
-            }
-            chunk
-        });
-
-        request
-            .body(Body::wrap_stream(stream))
-            .send()
-            .await?
-            .error_for_status()?;
-
-        progress_tx.completed();
+    let mut request = http_client.put(provision_response.upload_url);
+    for header in provision_response.upload_headers {
+        request = request.header(header.key, header.value);
     }
-    Ok(())
-}
 
-#[derive(Debug, Deserialize)]
-struct PostPolicy {
-    expiration: DateTime<Utc>,
-    conditions: Vec<Value>,
-}
-
-async fn multipart_upload(
-    http_client: &reqwest::Client,
-    upload_url: &str,
-    signed_post_policy: SignedPostPolicy,
-    ciphertext: Vec<u8>,
-    progress_tx: &AttachmentProgressSender,
-) -> anyhow::Result<()> {
     let bytes_total = ciphertext.len();
-    progress_tx.report(ciphertext.len(), 0);
-
-    let post_policy = BASE64_STANDARD.decode(&signed_post_policy.base64)?;
-    let post_policy: PostPolicy = serde_json::from_slice(&post_policy)?;
-
-    ensure!(Utc::now() < post_policy.expiration, "post policy expired");
-
-    let mut form = multipart::Form::new()
-        .text("policy", signed_post_policy.base64)
-        .text("x-amz-signature", signed_post_policy.signature);
-
-    const KEYS: &[&str] = &["key", "x-amz-credential", "x-amz-algorithm", "x-amz-date"];
-    for condition in post_policy.conditions {
-        if let Value::Object(object) = condition
-            && object.len() == 1
-            && let Some((key, Value::String(value))) = object.into_iter().next()
-            && KEYS.contains(&key.as_str())
-        {
-            form = form.text(key, value);
-        }
-    }
-
-    // Stream the ciphertext so upload progress is reported incrementally
-    // instead of jumping straight to completion. The content length is set
-    // explicitly because S3 POST uploads require it and it avoids chunked
-    // transfer encoding.
-    let total_len = ciphertext.len() as u64;
     let mut uploaded = 0;
     let tx = progress_tx.tx();
     let stream = ReaderStream::new(Cursor::new(ciphertext)).map(move |chunk| {
@@ -1064,16 +994,14 @@ async fn multipart_upload(
         }
         chunk
     });
-    let file_part = multipart::Part::stream_with_length(Body::wrap_stream(stream), total_len);
-    let form = form.part("file", file_part);
 
-    http_client
-        .post(upload_url)
-        .multipart(form)
+    request
+        .body(Body::wrap_stream(stream))
         .send()
         .await?
         .error_for_status()?;
 
+    progress_tx.completed();
     Ok(())
 }
 
@@ -1084,7 +1012,8 @@ mod tests {
     use aircommon::DEFAULT_MAX_ATTACHMENT_SIZE;
     use tempfile::tempdir;
 
-    use super::ProbedAttachment;
+    use super::{ATTACHMENT_PART_INDEX, ProbedAttachment, attachment_content};
+    use crate::{AttachmentId, MessageId, MimiContentExt, VisitedPart};
 
     #[test]
     fn ordinary_file_can_exceed_the_default_server_limit() -> anyhow::Result<()> {
@@ -1094,6 +1023,28 @@ mod tests {
         file.set_len(DEFAULT_MAX_ATTACHMENT_SIZE + 1)?;
 
         assert!(ProbedAttachment::from_path(path)?.is_ok());
+        Ok(())
+    }
+
+    #[test]
+    fn attachment_part_index_matches_layout() -> anyhow::Result<()> {
+        let probed = ProbedAttachment {
+            filename: "a.png".to_owned(),
+            content_type: "image/png".to_owned(),
+            size: 1,
+            image_dimensions: Some((1, 1)),
+        };
+        let attachment_id = AttachmentId::derive(MessageId::random(), ATTACHMENT_PART_INDEX);
+        let content = attachment_content(probed.provisional_nested_parts(attachment_id))?;
+
+        let mut indices = Vec::new();
+        content.visit_parts(|part| {
+            if let VisitedPart::Attachment { index, .. } = part {
+                indices.push(index);
+            }
+            Ok(())
+        })?;
+        assert_eq!(indices, [ATTACHMENT_PART_INDEX]);
         Ok(())
     }
 }

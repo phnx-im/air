@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use crate::{
     AttachmentId, ChatId, MessageId,
-    clients::attachment::AttachmentInfo,
+    clients::attachment::{AttachmentInfo, MessageAttachments},
     db::access::{ReadConnection, WriteConnection},
 };
 
@@ -35,11 +35,12 @@ pub(crate) struct UnqueuedAttachmentMessage {
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub(crate) struct AttachmentRecord {
-    // Uniquely identifies the attachment on this local client.
-    //
-    // For incoming attachments, this is the same as the attachment ID on the server.
+    /// Uniquely identifies the attachment on this local client.
+    ///
+    /// Derived from the message id and the part index of the part, see
+    /// [`AttachmentId::derive`]. Rows stored earlier have random ids.
     pub(crate) attachment_id: AttachmentId,
-    // Uniquely identifies the attachment on the server.
+    /// Uniquely identifies the attachment on the server.
     pub(crate) remote_attachment_id: Option<RemoteAttachmentId>,
     pub(super) chat_id: ChatId,
     pub(super) message_id: MessageId,
@@ -631,24 +632,6 @@ impl AttachmentRecord {
         Ok(())
     }
 
-    /// Load all attachment IDs for a given message.
-    ///
-    /// IDs are ordered by the position in the mimi content.
-    pub(crate) async fn load_ids_by_message_id(
-        mut connection: impl ReadConnection,
-        message_id: MessageId,
-    ) -> sqlx::Result<Vec<AttachmentId>> {
-        query_scalar!(
-            r#"SELECT attachment_id AS "attachment_id: _"
-            FROM attachment
-            WHERE message_id = ?
-            ORDER BY rowid"#,
-            message_id
-        )
-        .fetch_all(connection.as_mut())
-        .await
-    }
-
     pub(crate) async fn has_content(
         mut connection: impl ReadConnection,
         attachment_id: AttachmentId,
@@ -663,21 +646,38 @@ impl AttachmentRecord {
         .await
     }
 
+    /// Returns whether an attachment with the given remote id is stored.
+    pub(crate) async fn exists_by_remote_id(
+        mut connection: impl ReadConnection,
+        remote_attachment_id: RemoteAttachmentId,
+    ) -> sqlx::Result<bool> {
+        query_scalar!(
+            r#"SELECT EXISTS(
+                SELECT 1 FROM attachment WHERE remote_attachment_id = ?
+            ) AS "exists: _""#,
+            remote_attachment_id,
+        )
+        .fetch_one(connection.as_mut())
+        .await
+    }
+
     /// Load all attachment infos for a given message.
     ///
     /// Infos are ordered by the position in the mimi content.
     pub(crate) async fn load_infos_by_message_id(
         mut connection: impl ReadConnection,
         message_id: MessageId,
-    ) -> sqlx::Result<Vec<AttachmentInfo>> {
+    ) -> sqlx::Result<MessageAttachments> {
         struct Row {
             attachment_id: AttachmentId,
+            remote_attachment_id: Option<RemoteAttachmentId>,
             is_animated: Option<bool>,
         }
         let rows = query_as!(
             Row,
             r#"SELECT
                 attachment_id AS "attachment_id: _",
+                remote_attachment_id AS "remote_attachment_id: _",
                 is_animated
             FROM attachment
             WHERE message_id = ?
@@ -686,13 +686,15 @@ impl AttachmentRecord {
         )
         .fetch_all(connection.as_mut())
         .await?;
-        Ok(rows
+        let infos = rows
             .into_iter()
             .map(|row| AttachmentInfo {
                 attachment_id: row.attachment_id,
+                remote_attachment_id: row.remote_attachment_id,
                 is_animated: row.is_animated,
             })
-            .collect())
+            .collect();
+        Ok(MessageAttachments::new(message_id, infos))
     }
 
     pub(crate) async fn load_infos_in_range_inclusive(
@@ -700,10 +702,11 @@ impl AttachmentRecord {
         chat_id: ChatId,
         mut from: (DateTime<Utc>, MessageId),
         mut to: (DateTime<Utc>, MessageId),
-    ) -> sqlx::Result<HashMap<MessageId, Vec<AttachmentInfo>>> {
+    ) -> sqlx::Result<HashMap<MessageId, MessageAttachments>> {
         struct Row {
             message_id: MessageId,
             attachment_id: AttachmentId,
+            remote_attachment_id: Option<RemoteAttachmentId>,
             is_animated: Option<bool>,
         }
 
@@ -718,6 +721,7 @@ impl AttachmentRecord {
             SELECT
                 a.message_id AS "message_id: _",
                 a.attachment_id AS "attachment_id: _",
+                a.remote_attachment_id AS "remote_attachment_id: _",
                 a.is_animated
             FROM attachment a
             JOIN message m USING (message_id)
@@ -739,6 +743,7 @@ impl AttachmentRecord {
         for Row {
             message_id,
             attachment_id,
+            remote_attachment_id,
             is_animated,
         } in rows
         {
@@ -747,11 +752,15 @@ impl AttachmentRecord {
                 .or_default()
                 .push(AttachmentInfo {
                     attachment_id,
+                    remote_attachment_id,
                     is_animated,
                 });
         }
 
-        Ok(attachment_infos)
+        Ok(attachment_infos
+            .into_iter()
+            .map(|(message_id, infos)| (message_id, MessageAttachments::new(message_id, infos)))
+            .collect())
     }
 }
 
@@ -953,6 +962,27 @@ pub(crate) mod test {
         let loaded_record =
             AttachmentRecord::load(pool.read().await?, record.attachment_id).await?;
         assert_eq!(loaded_record.as_ref(), Some(&record));
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn exists_by_remote_id_reflects_stored_records(pool: Pool<Sqlite>) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+        let message = test_chat_message(chat.id());
+        message.store(pool.write().await?).await?;
+        let record = test_attachment_record(chat.id(), message.id());
+        let remote_id = record.remote_attachment_id.unwrap();
+
+        let exists = AttachmentRecord::exists_by_remote_id(pool.read().await?, remote_id).await?;
+        assert!(!exists);
+
+        record.store(pool.write().await?, None).await?;
+
+        let exists = AttachmentRecord::exists_by_remote_id(pool.read().await?, remote_id).await?;
+        assert!(exists);
 
         Ok(())
     }
@@ -1459,9 +1489,13 @@ pub(crate) mod test {
         assert!(loaded1.is_some());
         assert!(loaded2.is_some());
 
-        // Also verify load_ids_by_message_id returns both
-        let ids =
-            AttachmentRecord::load_ids_by_message_id(pool.read().await?, message.id()).await?;
+        // Also verify load_infos_by_message_id returns both
+        let ids: Vec<_> =
+            AttachmentRecord::load_infos_by_message_id(pool.read().await?, message.id())
+                .await?
+                .iter()
+                .map(|info| info.attachment_id)
+                .collect();
         assert_eq!(ids.len(), 2);
         assert!(ids.contains(&record1.attachment_id));
         assert!(ids.contains(&record2.attachment_id));
@@ -1481,10 +1515,10 @@ pub(crate) mod test {
             "Second attachment should be deleted by delete_by_message_id"
         );
 
-        // Verify load_ids_by_message_id returns empty
-        let ids =
-            AttachmentRecord::load_ids_by_message_id(pool.read().await?, message.id()).await?;
-        assert!(ids.is_empty());
+        // Verify load_infos_by_message_id returns empty
+        let infos =
+            AttachmentRecord::load_infos_by_message_id(pool.read().await?, message.id()).await?;
+        assert!(infos.is_empty());
 
         Ok(())
     }

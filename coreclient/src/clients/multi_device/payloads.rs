@@ -5,7 +5,8 @@
 //! What the two devices hand each other inside the pairing group.
 //!
 //! These travel as CBOR blobs inside a `LinkingPayload`, whose type
-//! registry lives with the wire types in `airprotos`.
+//! registry lives with the wire types in `airprotos`. The new device's
+//! `PairingConfirmation` is a tagged map and lives in `airprotos` too.
 
 use aircommon::credentials::keys::UserSigningKey;
 use aircommon::crypto::RatchetDecryptionKey;

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::{LeafCredential, UserCredential, keys::ClientVerifyingKey},
+    credentials::{LeafCredential, VerifiableUserCredential, keys::ClientVerifyingKey},
     crypto::aead::keys::{EncryptedUserProfileKey, GroupStateEarKey},
     identifiers::{QsReference, QualifiedGroupId, UserId},
 };
@@ -25,7 +25,6 @@ use mls_assist::{
     group::Group,
     openmls::prelude::{GroupId, MlsMessageBodyIn, MlsMessageIn, RatchetTreeIn},
 };
-use tls_codec::DeserializeBytes;
 use tonic::Status;
 use tracing::{error, warn};
 use uuid::Uuid;
@@ -330,7 +329,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .map_err(|_| Status::invalid_argument("invalid group profile size"))?;
         match self
             .ds
-            .provision_object(StorageObjectType::GroupProfile, content_length, false)
+            .provision_object(StorageObjectType::GroupProfile, content_length)
             .await
         {
             Ok(response) => Ok(Some(response)),
@@ -375,10 +374,12 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     /// self-group credential, a regular-group leaf a user credential. A self-group's leaves carry
     /// no user credential, so the creator's user credential is provided out of band. A regular
     /// group takes it from the creator's leaf and must not provide one.
+    ///
+    /// The returned credential is not authenticated yet.
     pub(super) fn creator_credential(
         group: &Group,
         provided: Option<&UserCredentialProto>,
-    ) -> Result<UserCredential, Status> {
+    ) -> Result<VerifiableUserCredential, Status> {
         let mut members = group.members().fuse();
         let (Some(member), None) = (members.next(), members.next()) else {
             error!("group must have exactly one member");
@@ -404,10 +405,9 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
                     .invalid_tls("creator_user_credential")?;
                 Ok(credential)
             }
-            (None, false) => {
-                UserCredential::tls_deserialize_exact_bytes(member.credential.serialized_content())
-                    .map_err(|_| Status::invalid_argument("invalid credential"))
-            }
+            (None, false) => leaf_credential
+                .into_user()
+                .ok_or_else(|| Status::invalid_argument("invalid credential")),
             (Some(_), false) => Err(Status::invalid_argument(
                 "creator user credential requires a self-group",
             )),
@@ -509,7 +509,7 @@ fn ensure_mls_group_id(
 /// Rejects a creator credential that is not the one the stream authenticated.
 fn ensure_stream_creator(
     creator: &StreamCreator,
-    credential: &UserCredential,
+    credential: &VerifiableUserCredential,
 ) -> Result<(), Status> {
     if credential.user_id() != &creator.user_id
         || credential.verifying_key() != &creator.verifying_key

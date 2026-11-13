@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO message_draft (\n                    chat_id,\n                    message,\n                    editing_id,\n                    in_reply_to_mimi_id,\n                    updated_at,\n                    is_committed\n                )\n                SELECT ?1, ?2, ?3, ?4, ?5, ?6\n                WHERE EXISTS (\n                    SELECT 1\n                    FROM chat c\n                    LEFT JOIN blocked_contact b ON b.user_uuid = c.connection_user_uuid\n                        AND b.user_domain = c.connection_user_domain\n                    WHERE c.chat_id = ?1\n                        AND c.status = ?7\n                        AND b.user_uuid IS NULL\n                )\n                ON CONFLICT(chat_id) DO UPDATE SET\n                    message = excluded.message,\n                    editing_id = excluded.editing_id,\n                    in_reply_to_mimi_id = excluded.in_reply_to_mimi_id,\n                    updated_at = excluded.updated_at,\n                    is_committed = excluded.is_committed",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "506b2d94b7d93eb4c0562656a55d84e25891d7cd9026d1ce7dc954c0055f8a7c"
+}

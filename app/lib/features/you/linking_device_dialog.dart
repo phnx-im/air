@@ -494,14 +494,18 @@ class _LinkingPage extends HookWidget {
 
     final phase = useState(_LinkPhase.connecting);
     final maxDevices = useState(0);
+    final suggestedName = useState('');
 
     // Subscribe to the linking event stream while this page is mounted.
     useEffect(() {
       final subscription = session.events.listen((event) {
         switch (event) {
-          case MultiDeviceLinkEvent_AwaitingConfirmation():
+          case MultiDeviceLinkEvent_AwaitingConfirmation(
+            suggestedName: final name,
+          ):
             // Connected: prompt the user (unless they already confirmed).
             if (phase.value == _LinkPhase.connecting) {
+              suggestedName.value = name ?? '';
               phase.value = _LinkPhase.awaitingConfirmation;
             }
           case MultiDeviceLinkEvent_Linked():
@@ -525,6 +529,7 @@ class _LinkingPage extends HookWidget {
       ),
       _LinkPhase.awaitingConfirmation => _LinkConfirmView(
         onBack: onBack,
+        initialName: suggestedName.value,
         onConfirm: (deviceName) {
           session.confirm(deviceName);
           phase.value = _LinkPhase.linking;
@@ -656,9 +661,16 @@ class _LinkDeviceName extends StatelessWidget {
 /// Confirmation gate shown once the relay connection is up: the user must tick
 /// the checkbox before the link is completed.
 class _LinkConfirmView extends HookWidget {
-  const _LinkConfirmView({required this.onBack, required this.onConfirm});
+  const _LinkConfirmView({
+    required this.onBack,
+    required this.initialName,
+    required this.onConfirm,
+  });
 
   final VoidCallback onBack;
+
+  /// The name the field starts with, empty if there is no suggestion.
+  final String initialName;
 
   /// Called with the name the user gave the new device.
   final ValueChanged<String> onConfirm;
@@ -669,7 +681,7 @@ class _LinkConfirmView extends HookWidget {
     final palette = SemanticPalette.of(context);
     final checked = useState(false);
 
-    final deviceName = useTextEditingController();
+    final deviceName = useTextEditingController(text: initialName);
 
     return Column(
       mainAxisSize: .min,

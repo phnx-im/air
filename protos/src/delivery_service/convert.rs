@@ -160,7 +160,7 @@ impl TryFromRef<'_, credentials::UserCredential> for UserCredential {
     }
 }
 
-impl TryFromRef<'_, UserCredential> for credentials::UserCredential {
+impl TryFromRef<'_, UserCredential> for credentials::VerifiableUserCredential {
     type Error = tls_codec::Error;
 
     fn try_from_ref(proto: &UserCredential) -> Result<Self, Self::Error> {

@@ -11,6 +11,7 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/features/message_list/message_list_view.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/message_list/message_cubit.dart';
+import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
 import 'package:air/ds/patterns/message_meta/message_meta.dart';
 import 'package:air/ds/patterns/reaction_bar/reaction_bar.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -1053,35 +1054,38 @@ void main() {
 
     /// [platform] stands in for the host, which decides whether the rows carry
     /// the pointer affordances or the touch ones.
-    Widget buildSubject({TargetPlatform? platform}) =>
-        RepositoryProvider<AttachmentsRepository>.value(
-          value: attachmentsRepository,
-          child: MultiBlocProvider(
-            providers: [
-              BlocProvider<UserCubit>.value(value: userCubit),
-              BlocProvider<UsersCubit>.value(value: contactsCubit),
-              BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
-              BlocProvider<MessageListCubit>.value(value: messageListCubit),
-              BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-              BlocProvider<LinkedDevicesCubit>.value(value: linkedDevicesCubit),
-            ],
-            child: Builder(
-              builder: (context) {
-                return MaterialApp(
-                  debugShowCheckedModeBanner: false,
-                  theme: testThemeData(MediaQuery.platformBrightnessOf(context))
-                      .copyWith(platform: platform),
-                  localizationsDelegates: appLocalizationsDelegates,
-                  home: const Scaffold(
-                    body: MessageListView(
-                      createMessageCubit: createMockMessageCubit,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        );
+    Widget buildSubject({
+      TargetPlatform? platform,
+      ScrollToBottomController? scrollToBottomController,
+    }) => RepositoryProvider<AttachmentsRepository>.value(
+      value: attachmentsRepository,
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<UserCubit>.value(value: userCubit),
+          BlocProvider<UsersCubit>.value(value: contactsCubit),
+          BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
+          BlocProvider<MessageListCubit>.value(value: messageListCubit),
+          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+          BlocProvider<LinkedDevicesCubit>.value(value: linkedDevicesCubit),
+        ],
+        child: Builder(
+          builder: (context) {
+            return MaterialApp(
+              debugShowCheckedModeBanner: false,
+              theme: testThemeData(MediaQuery.platformBrightnessOf(context))
+                  .copyWith(platform: platform),
+              localizationsDelegates: appLocalizationsDelegates,
+              home: Scaffold(
+                body: MessageListView(
+                  createMessageCubit: createMockMessageCubit,
+                  scrollToBottomController: scrollToBottomController,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
 
     group('message stamps', () {
       // The reader is user 1, per the MockUiUser above.
@@ -1981,6 +1985,132 @@ void main() {
       expect(paragraph.selections.single.isCollapsed, isFalse);
       expect(find.byType(ReactionBar), findsNothing);
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    group('on send', () {
+      const tallComposer = 120.0;
+      const shortComposer = 48.0;
+
+      UiChatMessage textMessage(int id, String text, {int sender = 2}) =>
+          UiChatMessage(
+            id: id.messageId(),
+            chatId: chatId,
+            timestamp: DateTime(2023, 1, 1, 0, id),
+            message: UiMessage_Content(
+              UiContentMessage(
+                sender: sender.userId(),
+                sent: true,
+                edited: false,
+                content: UiMimiContent(
+                  plainBody: text,
+                  topicId: Uint8List(0),
+                  content: simpleMessage(text),
+                  attachments: [],
+                ),
+              ),
+            ),
+            status: UiMessageStatus.sent,
+            reactions: [],
+          );
+
+      final history = [
+        for (var i = 0; i < 20; i++) textMessage(300 + i, 'Message number $i'),
+      ];
+      // Not the newest row, which loses its stamp to the sent one.
+      final settled = find.text('Message number 15');
+      final sent = textMessage(400, 'Just sent', sender: 1);
+
+      late ScrollToBottomController controller;
+
+      Future<void> pumpChat(WidgetTester tester) async {
+        tester.view.physicalSize = const Size(400, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+        controller = ScrollToBottomController();
+        addTearDown(controller.dispose);
+        controller.composerHeight.value = tallComposer;
+        messageListCubit = MockMessageListCubit(initialMessages: history);
+        await tester.pumpWidget(
+          buildSubject(scrollToBottomController: controller),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      /// Pumps frames until settled and returns the bottom edge of [finder]
+      /// in each.
+      Future<List<double>> trackBottom(
+        WidgetTester tester,
+        Finder finder,
+      ) async {
+        final bottoms = <double>[];
+        for (var i = 0; i < 40; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+          bottoms.add(tester.getBottomLeft(finder).dy);
+        }
+        return bottoms;
+      }
+
+      testWidgets('keeps the list from sinking when the composer shrinks', (
+        tester,
+      ) async {
+        await pumpChat(tester);
+        final before = tester.getBottomLeft(settled).dy;
+
+        // What the composer does on send.
+        controller.sending.value = true;
+        controller.composerHeight.value = shortComposer;
+        await tester.pump();
+        final held = tester.getBottomLeft(settled).dy;
+
+        messageListCubit.appendNewer([sent], isIncoming: true);
+        final bottoms = [before, held, ...await trackBottom(tester, settled)];
+
+        // The freed space can exceed the new row, so the list may settle
+        // lower, but it must not dip below its rest and bounce back up.
+        for (var i = 1; i < bottoms.length; i++) {
+          expect(
+            bottoms[i],
+            lessThanOrEqualTo(bottoms.last + 1),
+            reason: 'frame $i of $bottoms',
+          );
+        }
+        expect(controller.sending.value, isFalse);
+      });
+
+      testWidgets('eases the list down when the send returns without a row', (
+        tester,
+      ) async {
+        await pumpChat(tester);
+        final before = tester.getBottomLeft(settled).dy;
+
+        controller.sending.value = true;
+        controller.composerHeight.value = shortComposer;
+        await tester.pump();
+        expect(tester.getBottomLeft(settled).dy, moreOrLessEquals(before));
+
+        controller.sending.value = false;
+        final bottoms = await trackBottom(tester, settled);
+
+        const freed = tallComposer - shortComposer;
+        expect(bottoms.first, lessThan(before + freed));
+        expect(bottoms.last, moreOrLessEquals(before + freed));
+        for (var i = 1; i < bottoms.length; i++) {
+          expect(bottoms[i], greaterThanOrEqualTo(bottoms[i - 1] - 0.5));
+        }
+      });
+
+      testWidgets('follows a growing composer at once', (tester) async {
+        await pumpChat(tester);
+        final before = tester.getBottomLeft(settled).dy;
+
+        controller.composerHeight.value = tallComposer + 40;
+        await tester.pump();
+
+        expect(tester.getBottomLeft(settled).dy, moreOrLessEquals(before - 40));
+      });
+    });
 
     group('without messages', () {
       final emptyLabel = find.text('No messages in this chat');

@@ -34,6 +34,28 @@ impl RemoteAttachmentId {
         Ok(Self { uuid })
     }
 
+    /// Whether `url` is an attachment URL in canonical form.
+    ///
+    /// Accepts `air:///attachment/<hyphenated uuid>`, optionally followed by a
+    /// query. Every URL accepted here is also accepted by [`Self::from_url`].
+    pub fn is_canonical(url: &str) -> bool {
+        let Some((scheme, rest)) = url.split_once(':') else {
+            return false;
+        };
+        if !scheme.eq_ignore_ascii_case("air") {
+            return false;
+        }
+        let Some(rest) = rest.strip_prefix("///attachment/") else {
+            return false;
+        };
+        let uuid = match rest.split_once('?') {
+            Some((uuid, _query)) => uuid,
+            None => rest,
+        };
+        // Only the hyphenated form has 36 characters
+        uuid.len() == 36 && Uuid::try_parse(uuid).is_ok()
+    }
+
     pub fn uuid(&self) -> Uuid {
         self.uuid
     }
@@ -101,5 +123,42 @@ mod test {
             remote_attachment_id.uuid,
             Uuid::parse_str("b6a42a7a-62fa-4c10-acfb-6124d80aae09").unwrap()
         );
+    }
+
+    #[test]
+    fn is_canonical() {
+        let uuid = "b6a42a7a-62fa-4c10-acfb-6124d80aae09";
+        let cases = [
+            (format!("air:///attachment/{uuid}"), true),
+            (format!("air:///attachment/{uuid}?width=1&height=2"), true),
+            (format!("AIR:///attachment/{uuid}"), true),
+            (format!("air:///attachment/{}", uuid.to_uppercase()), true),
+            (format!("air:/attachment/{uuid}"), false),
+            (format!("air://host/attachment/{uuid}"), false),
+            (format!("air:///attachment/../attachment/{uuid}"), false),
+            (format!("air:///attachment/{uuid}#fragment"), false),
+            (format!("air:///attachment/{{{uuid}}}"), false),
+            (
+                format!("air:///attachment/{}", uuid.replace('-', "")),
+                false,
+            ),
+            (format!("air:///attachment/urn:uuid:{uuid}"), false),
+            (format!(" air:///attachment/{uuid}"), false),
+            (format!("https:///attachment/{uuid}"), false),
+            ("air:///attachment/not-a-uuid".to_owned(), false),
+            ("air:///attachment/".to_owned(), false),
+            (String::new(), false),
+        ];
+        for (url, expected) in cases {
+            let canonical = super::RemoteAttachmentId::is_canonical(&url);
+            assert_eq!(canonical, expected, "{url}");
+            if canonical {
+                let parsed = url.parse::<url::Url>().unwrap();
+                assert!(
+                    super::RemoteAttachmentId::from_url(&parsed).is_ok(),
+                    "{url}"
+                );
+            }
+        }
     }
 }

@@ -5,10 +5,10 @@
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/list_row/list_row.dart';
 import 'package:air/ds/components/list_row/list_row_tokens.dart';
-import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/toggle/toggle.dart';
 import 'package:air/ds/components/toggle/toggle_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/developer/change_user_modal.dart';
 import 'package:air/features/developer/developer_fields.dart';
 import 'package:air/features/developer/logs_screen.dart';
@@ -25,15 +25,16 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
 
-/// The developer settings as a screen, for before a user is loaded.
-class DeveloperSettingsScreen extends StatelessWidget {
-  const DeveloperSettingsScreen({super.key});
+/// The developer settings as a modal, for before a user is loaded.
+class DeveloperSettingsModal extends StatelessWidget {
+  const DeveloperSettingsModal({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
+    return ModalScaffold(
       title: AppLocalizations.of(context).youSection_developer,
-      child: const DeveloperSettingsContent(),
+      onDismiss: () => context.read<NavigationCubit>().pop(),
+      child: const ModalBody(top: S.s16, child: DeveloperSettingsContent()),
     );
   }
 }

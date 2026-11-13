@@ -31,6 +31,7 @@ import 'package:air/features/message_list/message_cubit.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/message_list/message_reactions.dart';
 import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
+import 'package:air/features/message_list/shrink_eased_height.dart';
 import 'package:air/features/message_list/time_reveal.dart';
 import 'package:air/features/message_list/unread_divider.dart';
 
@@ -174,6 +175,8 @@ class _MessageListViewState extends State<MessageListView>
   /// played or the tile was never built, and either way further tracking
   /// would only grow the set for the lifetime of the view.
   void _admitIncomingAnimations(Set<MessageId> ids) {
+    // The sent message is here, let the list follow the shrunk composer.
+    widget.scrollToBottomController?.sending.value = false;
     if (!_listController.isAtBottom.value) return;
     _animatingMessages.addAll(ids);
     Future.delayed(_animationWindow, () {
@@ -538,9 +541,10 @@ class _MessageListViewState extends State<MessageListView>
     //  - The scrollbar renders above the fade (not hidden behind it)
     //  - The scrollbar track stops at the top of the fade, matching the
     //    visible content area
-    return ValueListenableBuilder<double>(
-      valueListenable: composerHeightListenable,
-      builder: (context, composerHeight, _) {
+    return ShrinkEasedHeight(
+      height: composerHeightListenable,
+      hold: widget.scrollToBottomController?.sending,
+      builder: (context, composerHeight) {
         final bottomInset = max(mediaPadding.bottom, S.s12);
         final listBottomPadding = composerHeight + bottomInset + _bottomGap;
 

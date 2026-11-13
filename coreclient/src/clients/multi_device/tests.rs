@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::collections::BTreeMap;
+
 use aircommon::credentials::keys::{UserSigningKey, UsernameSigningKey};
 use aircommon::credentials::test_utils::create_test_credentials;
 use aircommon::crypto::aead::keys::{
@@ -486,4 +488,36 @@ fn the_cpace_context_binds_the_pairing_ciphersuite() {
         u16::from(pairing::PAIRING_CIPHERSUITE),
         MDL_MLS_CIPHER_SUITE
     );
+}
+
+#[test]
+fn the_pairing_confirmation_announces_the_platform() -> anyhow::Result<()> {
+    let payload = PersistenceCodec::to_vec(&PairingConfirmation {
+        platform: LinkedDevicePlatform::Ios,
+    })?;
+    assert_eq!(
+        announced_platform(&payload),
+        Some(LinkedDevicePlatform::Ios)
+    );
+    Ok(())
+}
+
+#[test]
+fn an_older_new_device_announces_no_platform() {
+    assert_eq!(announced_platform(&[]), None);
+}
+
+#[test]
+fn an_unknown_platform_is_not_announced() -> anyhow::Result<()> {
+    let payload = PersistenceCodec::to_vec(&PairingConfirmation::default())?;
+    assert_eq!(announced_platform(&payload), None);
+    Ok(())
+}
+
+#[test]
+fn a_platform_from_a_newer_build_announces_no_platform() -> anyhow::Result<()> {
+    // The platform tag with a code this build does not know.
+    let payload = PersistenceCodec::to_vec(&BTreeMap::from([(1u8, u8::MAX)]))?;
+    assert_eq!(announced_platform(&payload), None);
+    Ok(())
 }

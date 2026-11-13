@@ -1187,7 +1187,6 @@ impl ApiClient {
                     group_id: Some(qgid.ref_into()),
                     sender: Some(sender_index.into()),
                     user_id: None,
-                    use_post_policy: true,
                     content_length,
                     object_type: object_type.into(),
                 }
@@ -1198,7 +1197,6 @@ impl ApiClient {
                 group_id: None,
                 sender: None,
                 user_id: Some(user_id.clone().into()),
-                use_post_policy: true,
                 content_length,
                 object_type: object_type.into(),
             },

@@ -3,15 +3,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/features/navigation/app_bar_back_button.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/you/license_packages.dart';
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 /// The license text of one package, one block per registered entry.
-class LicenseDetailScreenView extends HookWidget {
-  const LicenseDetailScreenView({super.key, required this.package});
+class LicenseDetailPane extends HookWidget {
+  const LicenseDetailPane({super.key, required this.package});
 
   final LicensePackage package;
 
@@ -20,8 +20,8 @@ class LicenseDetailScreenView extends HookWidget {
     final palette = SemanticPalette.of(context);
 
     // Resolving paragraphs walks the whole license text, which for the bundled
-    // NOTICES takes long enough to drop frames. Off the build so the push
-    // animation plays, and memoized so a rebuild does not redo it.
+    // NOTICES takes long enough to drop frames. Off the build so the page
+    // transition plays, and memoized so a rebuild does not redo it.
     final paragraphs = useMemoized(
       () => Future(
         () => [for (final entry in package.entries) entry.paragraphs.toList()],
@@ -29,31 +29,26 @@ class LicenseDetailScreenView extends HookWidget {
       [package],
     );
 
-    return Scaffold(
-      appBar: AppBar(
-        clipBehavior: .none,
-        title: Text(package.name),
-        leading: const AppBarBackButton(),
-      ),
-      body: SafeArea(
-        child: FutureBuilder<List<List<LicenseParagraph>>>(
-          future: paragraphs,
-          builder: (context, snapshot) => switch (snapshot.data) {
-            final entries? => _LicenseText(entries: entries),
-            null => Center(
-              child: SizedBox(
-                width: S.s16,
-                height: S.s16,
-                child: CircularProgressIndicator(
-                  strokeWidth: StrokeWidth.px2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    palette.text.primary,
-                  ),
-                ),
+    return ModalPane(
+      title: package.name,
+      // The bundled NOTICES run long, which is why the text scrolls in a lazy
+      // list of its own.
+      scrollable: false,
+      child: FutureBuilder<List<List<LicenseParagraph>>>(
+        future: paragraphs,
+        builder: (context, snapshot) => switch (snapshot.data) {
+          final entries? => _LicenseText(entries: entries),
+          null => Center(
+            child: SizedBox(
+              width: S.s16,
+              height: S.s16,
+              child: CircularProgressIndicator(
+                strokeWidth: StrokeWidth.px2,
+                valueColor: AlwaysStoppedAnimation<Color>(palette.text.primary),
               ),
             ),
-          },
-        ),
+          ),
+        },
       ),
     );
   }
@@ -69,7 +64,14 @@ class _LicenseText extends StatelessWidget {
     final palette = SemanticPalette.of(context);
 
     return ListView.separated(
-      padding: const EdgeInsets.all(S.s16),
+      // The surface runs full height, which leaves the home indicator for the
+      // padding to clear.
+      padding: EdgeInsets.fromLTRB(
+        S.s16,
+        S.s16,
+        S.s16,
+        S.s16 + MediaQuery.viewPaddingOf(context).bottom,
+      ),
       itemCount: entries.length,
       separatorBuilder: (_, _) => Divider(
         height: S.s24,
