@@ -717,6 +717,20 @@ pub(super) fn ensure_no_tombstone(group_state: &DsGroupState) -> Result<(), Stat
     Ok(())
 }
 
+/// Refuses anything but a `PrivateMessage` with application content.
+///
+/// `SendMessage` and `TargetedMessage` fan the message out without processing
+/// it, so they must not carry a handshake message.
+fn ensure_application_message(message: &AssistedMessageIn) -> Result<(), Status> {
+    if message.is_private_application_message() {
+        Ok(())
+    } else {
+        Err(Status::invalid_argument(
+            "expected a private application message",
+        ))
+    }
+}
+
 /// Resolves the PQ leg's group id from the T group's `ApqInfo`, `None` for a T group.
 fn apq_pq_qgid(group_state: &DsGroupState) -> Result<Option<QualifiedGroupId>, Status> {
     group_state
@@ -2030,6 +2044,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
 
         let ear_key = request.inner().ear_key()?;
         let message = request.inner().message()?;
+        ensure_application_message(&message)?;
         let qgid = message.validated_qgid(self.ds.own_domain())?;
 
         // No transaction needed as we do not update the group state and
@@ -2693,6 +2708,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
 
         let ear_key = request.inner().ear_key()?;
         let message = request.inner().message()?;
+        ensure_application_message(&message)?;
         let TargetedMessageType::ApplicationMessage(req) = payload
             .targeted_message_type
             .as_ref()
