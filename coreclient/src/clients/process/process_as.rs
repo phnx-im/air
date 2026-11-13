@@ -351,7 +351,7 @@ impl CoreUser {
                 // Forwarding and provisioning hand the verified credential of
                 // the sender to the siblings.
                 StorableUserCredential::new(sender_user_credential.clone())
-                    .pin(&mut *txn)
+                    .store_checked(&mut *txn)
                     .await?;
                 let request = IncomingRequest {
                     connection_info,

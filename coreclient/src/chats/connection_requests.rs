@@ -600,7 +600,7 @@ async fn store_received(
         return Ok(None);
     }
     StorableUserCredential::new(credential.clone())
-        .pin(&mut *txn)
+        .store_checked(&mut *txn)
         .await?;
     let stored = request.store(txn).await?;
     CoreUser::schedule_fetch_request_sender_profile(&mut *txn, request_id, credential).await?;
@@ -1500,7 +1500,7 @@ mod tests {
         let (_as_key, signing_key) = create_test_credentials(sender()?);
         let credential = signing_key.credential().clone();
         StorableUserCredential::new(credential.clone())
-            .pin(&mut *txn)
+            .store_checked(&mut *txn)
             .await?;
         Ok(credential)
     }

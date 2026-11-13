@@ -250,7 +250,7 @@ impl PostAsRegistrationState {
 
         // Store the own user credential in the DB
         StorableUserCredential::new(user_credential.clone())
-            .pin(db.write().await?)
+            .store_checked(db.write().await?)
             .await?;
 
         // Replace preliminary signing key in the key store

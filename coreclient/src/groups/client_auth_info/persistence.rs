@@ -29,12 +29,15 @@ impl StorableUserCredential {
         .map(|res| res.map(StorableUserCredential::new))
     }
 
-    /// Pins `self` as the user credential of its user id.
+    /// Stores `self` as the user credential of its user id.
     ///
     /// The first credential stored for a user id pins its verifying key. A later credential with
     /// the same key leaves the stored one in place. A credential with another key is rejected
     /// with [`UserCredentialKeyChanged`], since no flow changes a user's key.
-    pub(crate) async fn pin(&self, mut connection: impl WriteConnection) -> anyhow::Result<()> {
+    pub(crate) async fn store_checked(
+        &self,
+        mut connection: impl WriteConnection,
+    ) -> anyhow::Result<()> {
         match Self::check_pin(&mut connection, self).await? {
             PinCheck::Unpinned => {}
             PinCheck::Matches => return Ok(()),
@@ -139,11 +142,11 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn pin_store_load(pool: SqlitePool) -> anyhow::Result<()> {
+    async fn store_checked_load(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
         let credential = test_user_credential(Uuid::new_v4());
 
-        credential.pin(pool.write().await?).await?;
+        credential.store_checked(pool.write().await?).await?;
 
         assert_eq!(
             load(&pool, credential.user_id()).await?,
@@ -153,12 +156,12 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn pin_is_idempotent(pool: SqlitePool) -> anyhow::Result<()> {
+    async fn store_checked_is_idempotent(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
         let credential = test_user_credential(Uuid::new_v4());
 
-        credential.pin(pool.write().await?).await?;
-        credential.pin(pool.write().await?).await?;
+        credential.store_checked(pool.write().await?).await?;
+        credential.store_checked(pool.write().await?).await?;
 
         assert_eq!(
             load(&pool, credential.user_id()).await?,
@@ -168,7 +171,7 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn pin_keeps_the_first_credential_for_the_same_key(
+    async fn store_checked_keeps_the_first_credential_for_the_same_key(
         pool: SqlitePool,
     ) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
@@ -177,8 +180,8 @@ mod tests {
         let reissued = sign_for_test(csr, b"reissued");
         assert_ne!(first.fingerprint(), reissued.fingerprint());
 
-        first.pin(pool.write().await?).await?;
-        reissued.pin(pool.write().await?).await?;
+        first.store_checked(pool.write().await?).await?;
+        reissued.store_checked(pool.write().await?).await?;
 
         assert_eq!(
             load(&pool, first.user_id()).await?,
@@ -188,15 +191,17 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn pin_rejects_another_key_for_the_same_user_id(pool: SqlitePool) -> anyhow::Result<()> {
+    async fn store_checked_rejects_another_key_for_the_same_user_id(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
         let id = Uuid::new_v4();
         let first = test_user_credential(id);
         let second = test_user_credential(id);
         assert_ne!(first.verifying_key(), second.verifying_key());
 
-        first.pin(pool.write().await?).await?;
-        let error = second.pin(pool.write().await?).await.unwrap_err();
+        first.store_checked(pool.write().await?).await?;
+        let error = second.store_checked(pool.write().await?).await.unwrap_err();
 
         assert!(error.is::<UserCredentialKeyChanged>());
         assert_eq!(

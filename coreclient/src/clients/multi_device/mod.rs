@@ -1407,7 +1407,7 @@ impl CoreUser {
         let queued = client_db
             .with_write_transaction(async |txn| -> anyhow::Result<usize> {
                 StorableUserCredential::new(key_store.signing_key.credential().clone())
-                    .pin(&mut *txn)
+                    .store_checked(&mut *txn)
                     .await?;
                 StorableQsQueueRatchet::initialize(&mut *txn, qs_initial_ratchet_secret).await?;
                 user_profile_key.store_own(&mut *txn).await?;
