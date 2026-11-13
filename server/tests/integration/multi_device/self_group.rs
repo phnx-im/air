@@ -5,11 +5,15 @@
 //! The self group: creation, resync, self update and attachments in the self
 //! chat.
 
-use aircommon::messages::client_ds::{AadPayload, GroupOperationParamsAad};
-use aircoreclient::clients::MarkChatAsRead;
+use aircommon::{
+    credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
+    messages::client_ds::{AadPayload, GroupOperationParamsAad},
+};
+use aircoreclient::{ChatStatus, clients::MarkChatAsRead};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::{DateTime, Utc};
 use tempfile::TempDir;
+use uuid::Uuid;
 
 use super::{link_sibling, self_chat_id, self_group_client_ids, send_and_receive};
 
@@ -303,4 +307,44 @@ async fn sibling_leaf_takeover_by_group_operation_is_rejected() {
         new_encrypted_user_profile_keys: Vec::new(),
     }))
     .await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn external_delete_commit_is_rejected() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    alice.ensure_self_group().await.unwrap();
+    alice.drain().await;
+
+    let chat_id = self_chat_id(&alice).await;
+    let members_before = alice.mls_members(chat_id).await.unwrap().unwrap();
+
+    // Alice's own device stands in for the DS. It sends nothing.
+    let (group_id, pq_group_id, ear_key) = alice.self_group_ds_keys().await.unwrap();
+    let signer = LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(Uuid::new_v4()).unwrap());
+    let commit = alice
+        .forge_external_commit(
+            group_id,
+            pq_group_id,
+            &ear_key,
+            &signer,
+            AadPayload::DeleteGroup,
+        )
+        .await
+        .unwrap();
+
+    let Err(error) = alice.process_incoming_apq_mls_message(&commit).await else {
+        panic!("the forged commit deletes the self group");
+    };
+    assert!(
+        format!("{error:#}").contains("DeleteGroup operation must be a member commit"),
+        "unexpected error: {error:#}"
+    );
+    assert_eq!(alice.account_unlink_reason().await.unwrap(), None);
+    assert_eq!(
+        alice.chat(&chat_id).await.unwrap().status(),
+        &ChatStatus::Active
+    );
+    let members_after = alice.mls_members(chat_id).await.unwrap().unwrap();
+    assert_eq!(members_after, members_before);
 }

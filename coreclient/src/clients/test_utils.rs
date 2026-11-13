@@ -967,4 +967,99 @@ impl CoreUser {
             )?;
         Ok(bundle.into_message_out().tls_serialize_detached()?)
     }
+
+    /// The IDs and the ear key of our self group, which the DS holds too.
+    pub async fn self_group_ds_keys(&self) -> anyhow::Result<(GroupId, GroupId, GroupStateEarKey)> {
+        use anyhow::Context;
+
+        let mut read = self.db().read().await?;
+        let group_id = OwnClientInfo::load(&mut read)
+            .await?
+            .self_group_id
+            .context("no self group")?;
+        let group = Group::load(read, &group_id)
+            .await?
+            .context("self group not persisted")?;
+        let pq_group_id = group
+            .pq()
+            .context("self group without a PQ leg")?
+            .mls_group
+            .group_id()
+            .clone();
+        Ok((group_id, pq_group_id, group.group_state_ear_key().clone()))
+    }
+
+    /// Builds the external commit a malicious DS could forge from the group info and the ear key
+    /// it holds. The commit adds a leaf for `signer`, removes nothing and carries `aad`. Nothing is
+    /// sent to the DS. Returns the serialized commit.
+    pub async fn forge_external_commit(
+        &self,
+        group_id: GroupId,
+        pq_group_id: GroupId,
+        ear_key: &GroupStateEarKey,
+        signer: &LeafSigningKey,
+        aad: aircommon::messages::client_ds::AadPayload,
+    ) -> anyhow::Result<Vec<u8>> {
+        use aircommon::{
+            messages::client_ds::AadMessage,
+            mls_group_config::{default_mls_group_join_config, self_group_leaf_node_capabilities},
+        };
+        use airprotos::client::app_data::ClientAppData;
+        use anyhow::Context;
+        use apqmls::{
+            authentication::ApqCredentialWithKey,
+            external_commit_builder::ApqExternalCommitBuilder,
+            messages::{ApqRatchetTreeIn, VerifiableApqGroupInfo},
+        };
+        use openmls::prelude::{
+            Credential, CredentialType, CredentialWithKey, LeafNodeParameters,
+            tls_codec::Serialize as _,
+        };
+        use openmls_rust_crypto::OpenMlsRustCrypto;
+
+        let qgid: QualifiedGroupId = group_id.clone().try_into()?;
+        let info = self
+            .api_clients()
+            .get(qgid.owning_domain())?
+            .ds_external_commit_info(group_id, Some(pq_group_id), ear_key)
+            .await?;
+        let pq_info = info.pq.context("external commit info without a PQ leg")?;
+
+        let leaf_node_parameters = LeafNodeParameters::builder()
+            .with_capabilities(self_group_leaf_node_capabilities())
+            .with_extensions(ClientAppData::current().leaf_node_extensions())
+            .build();
+        let signature_key = signer.verifying_key().clone();
+        let credential_with_key = ApqCredentialWithKey {
+            t_credential: CredentialWithKey {
+                credential: signer.mls_credential()?,
+                signature_key: signature_key.clone().into(),
+            },
+            pq_credential: CredentialWithKey {
+                credential: Credential::new(CredentialType::Basic, Vec::new()),
+                signature_key: signature_key.into(),
+            },
+        };
+
+        let provider = OpenMlsRustCrypto::default();
+        let (_group, bundle) = ApqExternalCommitBuilder::new()
+            .with_ratchet_tree(ApqRatchetTreeIn::new(
+                info.ratchet_tree_in,
+                pq_info.ratchet_tree,
+            ))
+            .with_aad(AadMessage::from(aad).tls_serialize_detached()?)
+            .with_config(default_mls_group_join_config())
+            .skip_lifetime_validation()
+            .leaf_node_parameters(leaf_node_parameters.clone(), leaf_node_parameters)
+            .create_group_info(true)
+            .emulation_group(true)
+            .build(
+                &provider,
+                signer,
+                credential_with_key,
+                VerifiableApqGroupInfo::new(info.verifiable_group_info, pq_info.group_info),
+                |_, _| true,
+            )?;
+        Ok(bundle.into_message_out().tls_serialize_detached()?)
+    }
 }
