@@ -186,11 +186,6 @@ pub(super) fn user_credential_transition(
 }
 
 /// Performs several checks on a commit to the self group.
-///
-/// Every proposal comes from a member, or from the committer of an external commit. An external
-/// commit has to be a resync on both legs, and on each leg its only Remove proposal has to remove
-/// the leaf of the sender, i.e. the leaf with the same signature key. The self-group signature key
-/// is per device, so a device can only rejoin on its own leaf, and no other device can enter.
 pub(super) fn ensure_self_group_commit(
     group: &MlsGroup,
     processed_message: &ProcessedMessage,
@@ -246,9 +241,8 @@ fn ensure_resync_aad(aad: &[u8]) -> Result<()> {
     }
 }
 
-/// Checks one leg of an external commit into the self `group` to make sure it carries exactly one
-/// Remove proposal, and the removed leaf has the signature key of the new leaf. Returns the removed
-/// leaf.
+/// Checks that an external commit into the self `group` carries exactly one Remove proposal, and
+/// the removed leaf has the signature key of the new leaf. Returns the removed leaf.
 fn ensure_rejoin_on_own_leaf(
     group: &MlsGroup,
     staged_commit: &StagedCommit,
@@ -465,10 +459,6 @@ mod tests {
     /// A group of a creator and a device at [`rejoiner`], behind the blank
     /// leaf of a device that left. Returns the creator, the device and the
     /// creator's group.
-    ///
-    /// An external commit puts its new leaf at the leftmost blank leaf, while
-    /// receivers put it at the removed leaf if that is further left. The blank
-    /// leaf keeps the two in agreement for a rejoin with a fresh key.
     fn group_with_blank_leaf() -> (Device, Device, MlsGroup) {
         let creator = Device::new();
         let device = Device::new();
@@ -494,8 +484,7 @@ mod tests {
     }
 
     /// The external commit with which `device` joins the `group` of `creator`
-    /// with `aad`, as the creator processes it. OpenMLS removes the leaf with
-    /// the device's signature key, and the commit removes `removed` besides.
+    /// with `aad`, as the creator processes it.
     fn external_commit(
         device: &Device,
         creator: &Device,
