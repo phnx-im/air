@@ -125,8 +125,8 @@
   "invitationCodesScreen_global_quota_exceeded": "Nous n'avons plus d'invitations pour le moment, veuillez réessayer plus tard.",
   "invitationCodesScreen_errorRequestingCode": "Un problème est survenu. Veuillez réessayer.",
   "invitationCodesScreen_copiedToClipboard": "Copié dans le presse-papiers",
-  "invitationCodesScreen_codeClipboardMessage": "Téléchargez Air et rejoignez-nous : https://air.ms/install. Utilises le code d'invitation {code}.",
-  "invitationCodesScreen_codesClipboardMessage": "Téléchargez Air et rejoignez-nous : https://air.ms/install. Utilisez l'un de ces codes d'invitation pour rejoindre :\n\n{codes}",
+  "invitationCodesScreen_codeClipboardMessage": "Téléchargez Air et rejoignez-nous : https://air.ms/download. Utilises le code d'invitation {code}.",
+  "invitationCodesScreen_codesClipboardMessage": "Téléchargez Air et rejoignez-nous : https://air.ms/download. Utilisez l'un de ces codes d'invitation pour rejoindre :\n\n{codes}",
 
   "accountCreation_unsupported_header": "Mise à jour requise",
   "accountCreation_unsupported_body": "Ce serveur demande quelque chose que cette version d'Air ne peut pas fournir. Mettez Air à jour pour continuer.",
