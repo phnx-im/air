@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT muted_until AS \"muted_until: _\"\n                FROM resync_queue\n                WHERE group_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "muted_until: _",
+        "ordinal": 0,
+        "type_info": "Datetime",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "muted_until"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "103cc4d648d51c59b1a7bf7bbe7cc3aba3897c78dc916c61bda77b13acfccdd7"
+}

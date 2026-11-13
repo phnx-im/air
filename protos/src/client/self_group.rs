@@ -98,6 +98,7 @@ impl PaddedAeadDecryptable<SelfGroupMessageKey, SelfGroupMessagesCtype> for Self
 ///   4: DeletedChat
 ///   5: UsernamesUpdate
 ///   6: ConnectionRequestsUpdate
+///   7: ChatMutesUpdate
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
@@ -114,6 +115,8 @@ pub enum SelfGroupMessage {
     UsernamesUpdate(UsernamesUpdate),
     #[tag(6)]
     ConnectionRequestsUpdate(ConnectionRequestsUpdate),
+    #[tag(7)]
+    ChatMutesUpdate(ChatMutesUpdate),
     /// A message kind this client does not understand; skipped on receive.
     #[unknown]
     Unknown,
@@ -495,6 +498,93 @@ pub struct ContactUnblocked {
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct DeletedChat {
+    /// Group id of the chat's group, the T leg for APQ groups.
+    #[tag(1, with = "group_id_as_bytes")]
+    pub group_id: Option<GroupId>,
+}
+
+/// The chats whose mute state the sender just changed. This is a diff and not a
+/// snapshot.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ChatMutesUpdate = {
+///   chats: [* ChatMuteEntry] .tag 1,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ChatMutesUpdate {
+    #[tag(1)]
+    pub chats: Vec<ChatMuteEntry>,
+}
+
+/// The new mute state of one chat.
+///
+/// A receiver skips an entry without a group id.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ChatMuteEntry = {
+///   1: MutedChat //
+///   2: UnmutedChat
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedUnion, DeserializeTaggedUnion)]
+pub enum ChatMuteEntry {
+    #[tag(1)]
+    Muted(MutedChat),
+    #[tag(2)]
+    Unmuted(UnmutedChat),
+    /// A state this client does not understand. The entry is ignored on
+    /// receive.
+    #[unknown]
+    Unknown,
+}
+
+impl ChatMuteEntry {
+    pub fn group_id(&self) -> Option<&GroupId> {
+        match self {
+            ChatMuteEntry::Muted(MutedChat { group_id, .. })
+            | ChatMuteEntry::Unmuted(UnmutedChat { group_id }) => group_id.as_ref(),
+            ChatMuteEntry::Unknown => None,
+        }
+    }
+}
+
+/// The chat is muted.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// MutedChat = {
+///   group_id: bstr .tag 1,
+///   ? until: uint .tag 2,   ; unix epoch milliseconds (UTC)
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct MutedChat {
+    /// Group id of the chat's group, the T leg for APQ groups.
+    #[tag(1, with = "group_id_as_bytes")]
+    pub group_id: Option<GroupId>,
+    /// When the mute ends. Absent means the chat stays muted until the user
+    /// unmutes it.
+    #[tag(2, with = "chrono::serde::ts_milliseconds")]
+    pub until: Option<DateTime<Utc>>,
+}
+
+/// The chat is not muted.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// UnmutedChat = {
+///   group_id: bstr .tag 1,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct UnmutedChat {
     /// Group id of the chat's group, the T leg for APQ groups.
     #[tag(1, with = "group_id_as_bytes")]
     pub group_id: Option<GroupId>,
@@ -1230,6 +1320,70 @@ mod test {
             vec![
                 BlockedContactEntry::Unknown,
                 BlockedContactEntry::Unblocked(unblocked),
+            ]
+        );
+    }
+
+    // 1c'. `ChatMutesUpdate` encode/decode and forward compatibility.
+
+    fn sample_chat_mutes_update() -> ChatMutesUpdate {
+        ChatMutesUpdate {
+            chats: vec![
+                ChatMuteEntry::Muted(MutedChat {
+                    group_id: Some(GroupId::from_slice(&[1; 16])),
+                    until: DateTime::from_timestamp_millis(1_767_225_600_123),
+                }),
+                ChatMuteEntry::Muted(MutedChat {
+                    group_id: Some(GroupId::from_slice(&[2; 16])),
+                    until: None,
+                }),
+                ChatMuteEntry::Unmuted(UnmutedChat {
+                    group_id: Some(GroupId::from_slice(&[3; 16])),
+                }),
+            ],
+        }
+    }
+
+    #[test]
+    fn chat_mutes_update_roundtrip() {
+        let update = sample_chat_mutes_update();
+        let bytes = PersistenceCodec::to_vec(&update).unwrap();
+        let decoded: ChatMutesUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(update, decoded);
+    }
+
+    #[test]
+    fn chat_mutes_update_stability() {
+        let bytes = PersistenceCodec::to_vec(&sample_chat_mutes_update()).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn chat_mutes_update_is_skipped_by_an_older_client() {
+        #[derive(Debug, Clone, PartialEq, DeserializeTaggedUnion)]
+        enum SelfGroupMessageNoMutes {
+            #[tag(4)]
+            DeletedChat(DeletedChat),
+            #[unknown]
+            Unknown,
+        }
+
+        let deleted = DeletedChat {
+            group_id: Some(GroupId::from_slice(&[4; 16])),
+        };
+        let newer = vec![
+            SelfGroupMessage::ChatMutesUpdate(sample_chat_mutes_update()),
+            SelfGroupMessage::DeletedChat(deleted.clone()),
+        ];
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+
+        let decoded: Vec<SelfGroupMessageNoMutes> = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            decoded,
+            vec![
+                SelfGroupMessageNoMutes::Unknown,
+                SelfGroupMessageNoMutes::DeletedChat(deleted),
             ]
         );
     }

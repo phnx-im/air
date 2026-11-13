@@ -86,6 +86,12 @@ pub(super) async fn apply_self_group_payload(
         effects
     };
 
+    if own_echo {
+        chats::persistence::complete_sent_mutes(txn, &payload.chat_mutes).await?;
+    } else {
+        chats::persistence::apply_chat_mutes_update(txn, &payload.chat_mutes).await?;
+    }
+
     // Deletions go last, so a chat a sibling erased stays erased even if this
     // commit also carries a request for it.
     if own_echo {

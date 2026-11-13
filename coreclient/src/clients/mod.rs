@@ -879,10 +879,11 @@ impl CoreUser {
     ) -> anyhow::Result<()> {
         self.db()
             .with_write_transaction(async |txn| {
-                Chat::set_muted_until(txn, chat_id, muted_until).await?;
-                Ok(())
+                crate::chats::persistence::set_and_park_mute(txn, chat_id, muted_until).await
             })
-            .await
+            .await?;
+        self.outbound_service().notify_pending_chat_operations();
+        Ok(())
     }
 
     /// Advance the chat notification watermark.
