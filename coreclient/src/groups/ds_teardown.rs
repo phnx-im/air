@@ -86,7 +86,8 @@ pub(crate) async fn tear_down_group(
 ///
 /// A closed own self group means that the account is deleted. The DS reply is
 /// not authenticated, so for the self group too this only schedules the resync,
-/// which checks the tombstone in the signed group info and then records the
+/// which [`Resync::enqueue_or_reset`] queues as a self-group check. The check
+/// verifies the tombstone in the signed group info and then records the
 /// deletion.
 pub(crate) async fn handle_group_closed_on_ds(
     txn: &mut WriteDbTransaction<'_>,
@@ -129,6 +130,7 @@ mod tests {
         identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
     };
     use airprotos::client::group::GroupData;
+    use chrono::Utc;
     use sqlx::query;
     use uuid::Uuid;
 
@@ -239,6 +241,13 @@ mod tests {
             Resync::status(pool.read().await?, &group_id).await?,
             Some(ResyncStatus::Pending)
         );
+        let resync = pool
+            .write()
+            .await?
+            .with_transaction(async |txn| Resync::dequeue(txn, Uuid::new_v4(), Utc::now()).await)
+            .await?
+            .expect("the entry is due");
+        assert_eq!(resync.reason, ResyncReason::SelfGroupCheck);
         Ok(())
     }
 
