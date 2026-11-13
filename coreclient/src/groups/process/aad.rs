@@ -94,7 +94,7 @@ impl Group {
             }
             // The group was deleted; there is nothing else to do at this point.
             AadPayload::DeleteGroup => {
-                ensure_delete_keeps_sender_credential(processed_message)?;
+                validate_delete_commit(processed_message)?;
                 PostProcessAadResult {
                     we_were_removed: true,
                     encrypted_profile_infos: Vec::new(),
@@ -329,8 +329,9 @@ impl Group {
     }
 }
 
-/// Make sure that the sender's credential doesn't change in a delete commit.
-fn ensure_delete_keeps_sender_credential(processed_message: &ProcessedMessage) -> Result<()> {
+/// Make sure that a delete commit comes from a member and keeps the sender's credential.
+fn validate_delete_commit(processed_message: &ProcessedMessage) -> Result<()> {
+    ensure_delete_sender_is_member(processed_message.sender())?;
     let staged_commit = expect_staged_commit(processed_message)?;
     if let Some(leaf_node) = staged_commit.update_path_leaf_node() {
         ensure!(
@@ -338,6 +339,15 @@ fn ensure_delete_keeps_sender_credential(processed_message: &ProcessedMessage) -
             "delete commit changes the sender's credential"
         );
     }
+    Ok(())
+}
+
+/// Rejects a delete commit whose sender is not a current member of the group.
+fn ensure_delete_sender_is_member(sender: &Sender) -> Result<()> {
+    ensure!(
+        matches!(sender, Sender::Member(_)),
+        "DeleteGroup operation must be a member commit"
+    );
     Ok(())
 }
 
@@ -399,6 +409,16 @@ mod tests {
     use openmls::prelude::LeafNodeIndex;
 
     use super::*;
+
+    #[test]
+    fn delete_commit_must_come_from_a_member() {
+        assert!(ensure_delete_sender_is_member(&Sender::Member(LeafNodeIndex::new(0))).is_ok());
+        let error = ensure_delete_sender_is_member(&Sender::NewMemberCommit).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "DeleteGroup operation must be a member commit"
+        );
+    }
 
     #[test]
     fn join_connection_group_validation_enforces_operation_shape() {
