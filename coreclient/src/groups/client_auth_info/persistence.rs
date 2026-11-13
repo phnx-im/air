@@ -108,7 +108,7 @@ mod tests {
     use tls_codec::Serialize;
     use uuid::Uuid;
 
-    use crate::db::access::DbAccess;
+    use crate::{db::access::DbAccess, utils::persistence::open_db_in_memory_before};
 
     use super::*;
 
@@ -211,6 +211,46 @@ mod tests {
         assert_eq!(
             load(&pool, first.user_id()).await?,
             first.user_credential.tls_serialize_detached()?
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn the_migration_keeps_the_oldest_credential_per_user_id() -> anyhow::Result<()> {
+        const USER_CREDENTIAL_BY_USER_ID_MIGRATION: i64 = 20261113120000;
+        let pool = open_db_in_memory_before(USER_CREDENTIAL_BY_USER_ID_MIGRATION).await?;
+        let id = Uuid::new_v4();
+        let oldest = test_user_credential(id);
+        let newer = test_user_credential(id);
+        let other = test_user_credential(Uuid::new_v4());
+        for credential in [&oldest, &newer, &other] {
+            let user_id = credential.user_id();
+            sqlx::query(
+                "INSERT INTO user_credential
+                    (fingerprint, user_uuid, user_domain, user_credential) VALUES (?, ?, ?, ?)",
+            )
+            .bind(credential.fingerprint())
+            .bind(user_id.uuid())
+            .bind(user_id.domain())
+            .bind(&credential.user_credential)
+            .execute(&pool)
+            .await?;
+        }
+
+        sqlx::migrate!().run(&pool).await?;
+
+        let rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM user_credential")
+            .fetch_one(&pool)
+            .await?;
+        assert_eq!(rows, 2);
+        let pool = DbAccess::for_tests(pool);
+        assert_eq!(
+            load(&pool, oldest.user_id()).await?,
+            oldest.user_credential.tls_serialize_detached()?
+        );
+        assert_eq!(
+            load(&pool, other.user_id()).await?,
+            other.user_credential.tls_serialize_detached()?
         );
         Ok(())
     }
