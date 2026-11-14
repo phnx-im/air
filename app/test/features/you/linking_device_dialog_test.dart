@@ -8,7 +8,7 @@ import 'package:air/core/core.dart';
 import 'package:air/ds/components/checkbox/checkbox.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/you/linking_device_dialog.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers.dart';
@@ -54,7 +54,7 @@ void main() {
             return MaterialApp(
               debugShowCheckedModeBanner: false,
               theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               home: LinkDeviceModal(startLinkSession: fakeSession),
             );
           },
@@ -149,7 +149,7 @@ void main() {
             return MaterialApp(
               debugShowCheckedModeBanner: false,
               theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               home: Builder(
                 builder: (context) => Scaffold(
                   body: TextButton(

@@ -7,7 +7,7 @@ import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/patterns/adaptive_modal/adaptive_modal.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 Future<void> showMuteChatSheet(
   BuildContext context, {

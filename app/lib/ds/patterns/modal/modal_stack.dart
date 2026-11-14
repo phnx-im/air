@@ -5,7 +5,7 @@
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
-import 'package:flutter/material.dart' show Material;
+import 'package:material_ui/material_ui.dart' show Material;
 import 'package:flutter/widgets.dart';
 
 /// One page of a [ModalPageStack].

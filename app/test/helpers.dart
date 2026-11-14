@@ -9,7 +9,7 @@ import 'package:air/ds/material/theme_data.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/core/core.dart';
 import 'package:uuid/uuid.dart';

@@ -12,7 +12,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/list_header/list_header.dart';
 import 'package:air/ds/patterns/list_header/list_header_tokens.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class ChatListHeader extends StatelessWidget {

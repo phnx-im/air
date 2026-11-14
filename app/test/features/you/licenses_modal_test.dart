@@ -9,7 +9,7 @@ import 'package:air/features/you/license_detail_pane.dart';
 import 'package:air/features/you/licenses_modal.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers.dart';
@@ -39,7 +39,7 @@ const _licenseText =
 Widget _app(BuildContext context, Widget home) => MaterialApp(
   debugShowCheckedModeBanner: false,
   theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  localizationsDelegates: appLocalizationsDelegates,
   home: home,
 );
 

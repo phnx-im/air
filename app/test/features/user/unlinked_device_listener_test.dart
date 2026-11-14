@@ -9,7 +9,7 @@ import 'package:air/core/core.dart';
 import 'package:air/features/user/unlinked_device_listener.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -79,7 +79,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         scaffoldMessengerKey: scaffoldMessengerKey,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         home: RepositoryProvider<CoreClient>.value(
           value: coreClient,
           child: BlocProvider<UserCubit>.value(

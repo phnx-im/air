@@ -7,7 +7,7 @@ import 'package:air/ds/components/corner_dot/corner_dot_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/chat_header_bar/chat_header_bar.dart';
 import 'package:air/ds/patterns/chat_header_bar/chat_header_bar_tokens.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers.dart';

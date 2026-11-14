@@ -20,7 +20,7 @@ import 'package:air/features/developer/log_entry.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:file_selector/file_selector.dart';
-import 'package:flutter/material.dart'
+import 'package:material_ui/material_ui.dart'
     show CircularProgressIndicator, MaterialPageRoute, SelectableText;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';

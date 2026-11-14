@@ -9,7 +9,7 @@ import 'package:air/l10n/language_options.dart';
 import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 typedef LanguagePickerChildBuilder = Widget Function(

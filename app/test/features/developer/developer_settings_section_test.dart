@@ -21,7 +21,7 @@ import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/you/you_menu.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -69,7 +69,7 @@ void main() {
           builder: (context) => MaterialApp(
             debugShowCheckedModeBanner: false,
             theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             home: Scaffold(
               body: onPaneBackground
                   ? const ColoredBox(color: Color(0xFF1F1E1E), child: section)
@@ -183,7 +183,7 @@ void main() {
         builder: (context) => MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           home: const DeveloperSettingsModal(),
         ),
       ),
@@ -295,7 +295,7 @@ void main() {
       builder: (context) => MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         home: LogsScreenView(
           buffer: buffer,
           onBufferChanged: onBufferChanged ?? (_) {},
@@ -607,7 +607,7 @@ void main() {
         builder: (context) => MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           home: const Scaffold(body: SingleChildScrollView(child: YouMenu())),
         ),
       ),

@@ -10,12 +10,12 @@ import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_timestamp.dart';
-import 'package:air/l10n/app_localizations.dart';
+import 'package:air/l10n/localizations_delegates.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -391,7 +391,7 @@ void main() {
               return MaterialApp(
                 debugShowCheckedModeBanner: false,
                 theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                localizationsDelegates: appLocalizationsDelegates,
                 home: Scaffold(body: ChatListContent(shareMode: shareMode)),
               );
             },

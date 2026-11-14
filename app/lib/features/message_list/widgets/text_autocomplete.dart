@@ -7,7 +7,7 @@ import 'dart:math';
 
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/features/message_list/widgets/suggestion_overlay.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 

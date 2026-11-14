@@ -9,7 +9,7 @@ import 'package:air/features/emoji/emoji_repository.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/message_list/widgets/suggestion_overlay.dart';
 import 'package:air/features/message_list/widgets/text_autocomplete.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
   /// Returns a trigger when the caret sits after a valid colon shortcode.

@@ -15,7 +15,7 @@ import 'package:air/ds/patterns/message_text/message_text.dart';
 import 'package:air/ds/patterns/message_text/message_text_tokens.dart';
 import 'package:air/ds/patterns/reply_block/reply_block_tokens.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/features/attachments/attachment_thumbnail.dart';
 import 'package:air/features/emoji/jumbo_emoji.dart';

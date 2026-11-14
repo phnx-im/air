@@ -9,7 +9,7 @@
 /// (`linux/runner/my_application.cc`).
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 // Adwaita (GTK3) metrics.
 const _headerBarHeight = 46.0;

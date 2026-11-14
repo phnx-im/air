@@ -8,11 +8,11 @@ import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/message_bubble/message_bubble.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
-import 'package:air/l10n/app_localizations.dart';
+import 'package:air/l10n/localizations_delegates.dart';
 import 'package:air/share/share_payload.dart';
 import 'package:air/share/share_screen.dart';
 import 'package:bloc_test/bloc_test.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -126,7 +126,7 @@ void main() {
   }) => MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: testLightTheme,
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    localizationsDelegates: appLocalizationsDelegates,
     home: BlocProvider<IOSShareCubit>.value(
       value: shareCubit,
       child: ShareScreenView(payload: payload),

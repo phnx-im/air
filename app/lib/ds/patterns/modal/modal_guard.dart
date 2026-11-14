@@ -5,7 +5,7 @@
 import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:flutter/material.dart' show showDialog;
+import 'package:material_ui/material_ui.dart' show showDialog;
 import 'package:flutter/widgets.dart';
 
 /// The pages of a modal that are holding input their user has not sent yet.
