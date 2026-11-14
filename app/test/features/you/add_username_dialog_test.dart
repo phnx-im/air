@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:io';
-
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/features/you/add_username_dialog.dart';
 import 'package:flutter/material.dart';
@@ -49,8 +47,7 @@ void main() {
 
       final Size size1 = tester.getSize(buttonFinder.first);
       final Size size2 = tester.getSize(buttonFinder.last);
-      // FIXME: Windows is off by one pixel
-      expect(size1, size2, skip: Platform.isWindows);
+      expect(size1, size2);
 
       await expectLater(
         find.byType(MaterialApp),

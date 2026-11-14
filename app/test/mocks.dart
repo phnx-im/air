@@ -129,7 +129,9 @@ class MockMessageListCubit implements MessageListCubit {
   final Future<void> Function()? onLoadOlder;
 
   @override
-  AnchoredListData<UiChatMessage> messageData = AnchoredListData();
+  AnchoredListData<UiChatMessage> messageData = AnchoredListData(
+    idOf: (m) => m.id,
+  );
 
   @override
   bool get isClosed => _isClosed;
@@ -212,10 +214,9 @@ class MockMessageListCubit implements MessageListCubit {
       firstUnreadIndex: prev.firstUnreadIndex,
       revision: prev.revision + 1,
     );
-    _state = MessageListStateWrapper.test(
+    _state = MessageListStateWrapper(
       state: rustState,
       messageData: messageData,
-      loadedMessages: messageData.items.map((m) => m.id).toSet(),
     );
     if (!_controller.isClosed) {
       _controller.add(_state);
@@ -248,10 +249,9 @@ class MockMessageListCubit implements MessageListCubit {
       firstUnreadIndex: firstUnreadIndex,
       revision: revision,
     );
-    _state = MessageListStateWrapper.test(
+    _state = MessageListStateWrapper(
       state: rustState,
       messageData: messageData,
-      loadedMessages: reversed.map((m) => m.id).toSet(),
     );
   }
 
