@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ChatDetailsState {
 
- UiChatDetails? get chat; List<UiUserId> get members;
+ UiChatDetails? get chat; List<UiUserId> get members; UiComposerLinkPreview? get linkPreview;
 /// Create a copy of ChatDetailsState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -27,20 +27,20 @@ $ChatDetailsStateCopyWith<ChatDetailsState> get copyWith => _$ChatDetailsStateCo
 @override
 bool operator ==(Object other) {
   final _this = this as ChatDetailsState;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatDetailsState&&(identical(other.chat, _this.chat) || other.chat == _this.chat)&&const DeepCollectionEquality().equals(other.members, _this.members));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatDetailsState&&(identical(other.chat, _this.chat) || other.chat == _this.chat)&&const DeepCollectionEquality().equals(other.members, _this.members)&&(identical(other.linkPreview, _this.linkPreview) || other.linkPreview == _this.linkPreview));
 }
 
 
 @override
 int get hashCode {
   final _this = this as ChatDetailsState;
-  return Object.hash(runtimeType,_this.chat,const DeepCollectionEquality().hash(_this.members));
+  return Object.hash(runtimeType,_this.chat,const DeepCollectionEquality().hash(_this.members),_this.linkPreview);
 }
 
 @override
 String toString() {
   final _this = this as ChatDetailsState;
-  return 'ChatDetailsState(chat: ${_this.chat}, members: ${_this.members})';
+  return 'ChatDetailsState(chat: ${_this.chat}, members: ${_this.members}, linkPreview: ${_this.linkPreview})';
 }
 
 
@@ -51,11 +51,11 @@ abstract mixin class $ChatDetailsStateCopyWith<$Res>  {
   factory $ChatDetailsStateCopyWith(ChatDetailsState value, $Res Function(ChatDetailsState) _then) = _$ChatDetailsStateCopyWithImpl;
 @useResult
 $Res call({
- UiChatDetails? chat, List<UiUserId> members
+ UiChatDetails? chat, List<UiUserId> members, UiComposerLinkPreview? linkPreview
 });
 
 
-
+$UiComposerLinkPreviewCopyWith<$Res>? get linkPreview;
 
 }
 /// @nodoc
@@ -68,14 +68,27 @@ class _$ChatDetailsStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatDetailsState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? chat = freezed,Object? members = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? chat = freezed,Object? members = null,Object? linkPreview = freezed,}) {
   return _then(ChatDetailsState(
 chat: freezed == chat ? _self.chat : chat // ignore: cast_nullable_to_non_nullable
 as UiChatDetails?,members: null == members ? _self.members : members // ignore: cast_nullable_to_non_nullable
-as List<UiUserId>,
+as List<UiUserId>,linkPreview: freezed == linkPreview ? _self.linkPreview : linkPreview // ignore: cast_nullable_to_non_nullable
+as UiComposerLinkPreview?,
   ));
 }
+/// Create a copy of ChatDetailsState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$UiComposerLinkPreviewCopyWith<$Res>? get linkPreview {
+    if (_self.linkPreview == null) {
+    return null;
+  }
 
+  return $UiComposerLinkPreviewCopyWith<$Res>(_self.linkPreview!, (value) {
+    return _then(_self.copyWith(linkPreview: value));
+  });
+}
 }
 
 
@@ -84,7 +97,7 @@ as List<UiUserId>,
 
 
 class _ChatDetailsState extends ChatDetailsState {
-  const _ChatDetailsState({this.chat, required  List<UiUserId> members}): _members = members,super._();
+  const _ChatDetailsState({this.chat, required  List<UiUserId> members, this.linkPreview}): _members = members,super._();
   
 
 @override final  UiChatDetails? chat;
@@ -95,6 +108,7 @@ class _ChatDetailsState extends ChatDetailsState {
   return EqualUnmodifiableListView(_members);
 }
 
+@override final  UiComposerLinkPreview? linkPreview;
 
 /// Create a copy of ChatDetailsState
 /// with the given fields replaced by the non-null parameter values.
@@ -106,18 +120,18 @@ _$ChatDetailsStateCopyWith<_ChatDetailsState> get copyWith => __$ChatDetailsStat
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatDetailsState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other.members, _members));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatDetailsState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other.members, _members)&&(identical(other.linkPreview, linkPreview) || other.linkPreview == linkPreview));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(_members));
+    return Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(_members),linkPreview);
 }
 
 @override
 String toString() {
-    return 'ChatDetailsState(chat: $chat, members: $members)';
+    return 'ChatDetailsState(chat: $chat, members: $members, linkPreview: $linkPreview)';
 }
 
 
@@ -128,11 +142,11 @@ abstract mixin class _$ChatDetailsStateCopyWith<$Res> implements $ChatDetailsSta
   factory _$ChatDetailsStateCopyWith(_ChatDetailsState value, $Res Function(_ChatDetailsState) _then) = __$ChatDetailsStateCopyWithImpl;
 @override @useResult
 $Res call({
- UiChatDetails? chat, List<UiUserId> members
+ UiChatDetails? chat, List<UiUserId> members, UiComposerLinkPreview? linkPreview
 });
 
 
-
+@override $UiComposerLinkPreviewCopyWith<$Res>? get linkPreview;
 
 }
 /// @nodoc
@@ -145,15 +159,28 @@ class __$ChatDetailsStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatDetailsState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? chat = freezed,Object? members = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? chat = freezed,Object? members = null,Object? linkPreview = freezed,}) {
   return _then(_ChatDetailsState(
 chat: freezed == chat ? _self.chat : chat // ignore: cast_nullable_to_non_nullable
 as UiChatDetails?,members: null == members ? _self._members : members // ignore: cast_nullable_to_non_nullable
-as List<UiUserId>,
+as List<UiUserId>,linkPreview: freezed == linkPreview ? _self.linkPreview : linkPreview // ignore: cast_nullable_to_non_nullable
+as UiComposerLinkPreview?,
   ));
 }
 
+/// Create a copy of ChatDetailsState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$UiComposerLinkPreviewCopyWith<$Res>? get linkPreview {
+    if (_self.linkPreview == null) {
+    return null;
+  }
 
+  return $UiComposerLinkPreviewCopyWith<$Res>(_self.linkPreview!, (value) {
+    return _then(_self.copyWith(linkPreview: value));
+  });
+}
 }
 
 /// @nodoc

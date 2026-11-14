@@ -27,7 +27,7 @@ use super::user_cubit::UserCubitBase;
 
 /// State of a single message in a chat
 #[frb(dart_metadata = ("freezed"))]
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct MessageState {
     pub message: UiChatMessage,
 }

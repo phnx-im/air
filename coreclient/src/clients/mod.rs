@@ -65,6 +65,7 @@ use crate::{
     groups::{Group, self_group::SelfGroupNotJoinedYet},
     job::{Job, JobContext, JobContextDb, JobError},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
+    link_preview::LinkPreviewFetcher,
     outbound_service::{OutboundService, resync::Resync},
     utils::{
         global_lock::GlobalLock,
@@ -153,6 +154,7 @@ pub(crate) struct CoreUserInner {
     client_record_id: Uuid,
     api_clients: ApiClients,
     http_client: reqwest::Client,
+    pub(crate) link_preview_fetcher: LinkPreviewFetcher,
     qs_user_id: QsUserId,
     qs_client_id: QsClientId,
     key_store: MemoryUserKeyStore,
@@ -925,8 +927,8 @@ impl CoreUser {
         let mut stored_messages = Vec::with_capacity(group_messages.len());
         for timestamped_message in group_messages {
             let message_id = MessageId::random();
-            let mut message = ChatMessage::new(chat_id, message_id, timestamped_message);
-            let attachment_records = Self::extract_attachments(&mut message)?;
+            let message = ChatMessage::new(chat_id, message_id, timestamped_message);
+            let attachment_records = Self::extract_attachments(&message)?;
             message.store(&mut *txn).await?;
             for attachment_record in attachment_records {
                 match attachment_record {

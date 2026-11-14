@@ -828,6 +828,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiChatMuted dco_decode_box_autoadd_ui_chat_muted(dynamic raw);
 
   @protected
+  UiComposerLinkPreview dco_decode_box_autoadd_ui_composer_link_preview(
+    dynamic raw,
+  );
+
+  @protected
   UiContact dco_decode_box_autoadd_ui_contact(dynamic raw);
 
   @protected
@@ -847,6 +852,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiLastReaction dco_decode_box_autoadd_ui_last_reaction(dynamic raw);
+
+  @protected
+  UiLinkPreview dco_decode_box_autoadd_ui_link_preview(dynamic raw);
+
+  @protected
+  UiLinkPreviewCard dco_decode_box_autoadd_ui_link_preview_card(dynamic raw);
+
+  @protected
+  UiLinkPreviewImage dco_decode_box_autoadd_ui_link_preview_image(dynamic raw);
 
   @protected
   UiMessageDraft dco_decode_box_autoadd_ui_message_draft(dynamic raw);
@@ -1262,6 +1276,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiChatMuted? dco_decode_opt_box_autoadd_ui_chat_muted(dynamic raw);
 
   @protected
+  UiComposerLinkPreview? dco_decode_opt_box_autoadd_ui_composer_link_preview(
+    dynamic raw,
+  );
+
+  @protected
   UiContact? dco_decode_opt_box_autoadd_ui_contact(dynamic raw);
 
   @protected
@@ -1274,6 +1293,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiLastReaction? dco_decode_opt_box_autoadd_ui_last_reaction(dynamic raw);
+
+  @protected
+  UiLinkPreview? dco_decode_opt_box_autoadd_ui_link_preview(dynamic raw);
+
+  @protected
+  UiLinkPreviewImage? dco_decode_opt_box_autoadd_ui_link_preview_image(
+    dynamic raw,
+  );
 
   @protected
   UiMessageDraft? dco_decode_opt_box_autoadd_ui_message_draft(dynamic raw);
@@ -1414,6 +1441,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiClientRecord dco_decode_ui_client_record(dynamic raw);
 
   @protected
+  UiComposerLinkPreview dco_decode_ui_composer_link_preview(dynamic raw);
+
+  @protected
   UiContact dco_decode_ui_contact(dynamic raw);
 
   @protected
@@ -1439,6 +1469,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiLastReaction dco_decode_ui_last_reaction(dynamic raw);
+
+  @protected
+  UiLinkPreview dco_decode_ui_link_preview(dynamic raw);
+
+  @protected
+  UiLinkPreviewCard dco_decode_ui_link_preview_card(dynamic raw);
+
+  @protected
+  UiLinkPreviewImage dco_decode_ui_link_preview_image(dynamic raw);
+
+  @protected
+  UiLinkPreviewKind dco_decode_ui_link_preview_kind(dynamic raw);
 
   @protected
   UiLinkedDevice dco_decode_ui_linked_device(dynamic raw);
@@ -2250,6 +2292,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UiComposerLinkPreview sse_decode_box_autoadd_ui_composer_link_preview(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiContact sse_decode_box_autoadd_ui_contact(SseDeserializer deserializer);
 
   @protected
@@ -2279,6 +2326,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiLastReaction sse_decode_box_autoadd_ui_last_reaction(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiLinkPreview sse_decode_box_autoadd_ui_link_preview(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiLinkPreviewCard sse_decode_box_autoadd_ui_link_preview_card(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiLinkPreviewImage sse_decode_box_autoadd_ui_link_preview_image(
     SseDeserializer deserializer,
   );
 
@@ -2816,6 +2878,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UiComposerLinkPreview? sse_decode_opt_box_autoadd_ui_composer_link_preview(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiContact? sse_decode_opt_box_autoadd_ui_contact(
     SseDeserializer deserializer,
   );
@@ -2832,6 +2899,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiLastReaction? sse_decode_opt_box_autoadd_ui_last_reaction(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiLinkPreview? sse_decode_opt_box_autoadd_ui_link_preview(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiLinkPreviewImage? sse_decode_opt_box_autoadd_ui_link_preview_image(
     SseDeserializer deserializer,
   );
 
@@ -2998,6 +3075,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiClientRecord sse_decode_ui_client_record(SseDeserializer deserializer);
 
   @protected
+  UiComposerLinkPreview sse_decode_ui_composer_link_preview(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UiContact sse_decode_ui_contact(SseDeserializer deserializer);
 
   @protected
@@ -3025,6 +3107,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiLastReaction sse_decode_ui_last_reaction(SseDeserializer deserializer);
+
+  @protected
+  UiLinkPreview sse_decode_ui_link_preview(SseDeserializer deserializer);
+
+  @protected
+  UiLinkPreviewCard sse_decode_ui_link_preview_card(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiLinkPreviewImage sse_decode_ui_link_preview_image(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiLinkPreviewKind sse_decode_ui_link_preview_kind(
+    SseDeserializer deserializer,
+  );
 
   @protected
   UiLinkedDevice sse_decode_ui_linked_device(SseDeserializer deserializer);
@@ -4003,6 +4103,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_ui_composer_link_preview(
+    UiComposerLinkPreview self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_ui_contact(
     UiContact self,
     SseSerializer serializer,
@@ -4041,6 +4147,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_ui_last_reaction(
     UiLastReaction self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_ui_link_preview(
+    UiLinkPreview self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_ui_link_preview_card(
+    UiLinkPreviewCard self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_ui_link_preview_image(
+    UiLinkPreviewImage self,
     SseSerializer serializer,
   );
 
@@ -4708,6 +4832,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_ui_composer_link_preview(
+    UiComposerLinkPreview? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_ui_contact(
     UiContact? self,
     SseSerializer serializer,
@@ -4728,6 +4858,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_ui_last_reaction(
     UiLastReaction? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_ui_link_preview(
+    UiLinkPreview? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_ui_link_preview_image(
+    UiLinkPreviewImage? self,
     SseSerializer serializer,
   );
 
@@ -4939,6 +5081,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_ui_composer_link_preview(
+    UiComposerLinkPreview self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_ui_contact(UiContact self, SseSerializer serializer);
 
   @protected
@@ -4986,6 +5134,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ui_last_reaction(
     UiLastReaction self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ui_link_preview(UiLinkPreview self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ui_link_preview_card(
+    UiLinkPreviewCard self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ui_link_preview_image(
+    UiLinkPreviewImage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ui_link_preview_kind(
+    UiLinkPreviewKind self,
     SseSerializer serializer,
   );
 

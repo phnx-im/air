@@ -975,12 +975,12 @@ impl TestBackend {
         let path = tmp_dir.path().join(filename);
         std::fs::write(&path, attachment).unwrap();
 
-        let (_local_attachment_id, _progress, upload_task) = sender
+        let pending_upload = sender
             .upload_chat_attachment(chat_id, &path, MarkChatAsRead::Yes)
             .await
             .expect("fatal error")?;
 
-        let message = upload_task.await.map_err(|error| match error {
+        let message = pending_upload.task.await.map_err(|error| match error {
             UploadTaskError::Failed { message_id, error } => {
                 panic!("upload task for {message_id:?} failed: {error}")
             }
@@ -1042,25 +1042,7 @@ impl TestBackend {
                     };
                     assert!(!attachment_found_once);
 
-                    // Removed cleared fields from the expected attachment.
-                    let mut expected = external_part.clone();
-                    if let NestedPart::ExternalPart {
-                        key,
-                        nonce,
-                        aad,
-                        content_hash,
-                        ..
-                    } = &mut expected
-                    {
-                        key.clear();
-                        nonce.clear();
-                        aad.clear();
-                        content_hash.clear();
-                    } else {
-                        panic!("Unexpected attachment type")
-                    }
-
-                    assert_eq!(part, &expected);
+                    assert_eq!(part, &external_part);
                     attachment_found_once = true;
                     Ok(())
                 })
