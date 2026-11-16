@@ -107,7 +107,11 @@ async fn stream_creates_self_group() {
 
     let (reservation, creator) = prepare(&setup, signing_key).await.unwrap();
     let (params, ear_key) = alice
-        .self_group_creation_params_for_test(reservation.group_id, reservation.pq_group_id)
+        .self_group_creation_params_for_test(
+            reservation.group_id,
+            reservation.pq_group_id,
+            alice.signing_key_for_test(),
+        )
         .await
         .unwrap();
     creator.create(params, &ear_key).await.unwrap();
@@ -120,7 +124,11 @@ async fn self_group_with_another_users_credential_is_rejected() {
 
     let (reservation, creator) = prepare(&setup, bob.signing_key_for_test()).await.unwrap();
     let (params, ear_key) = alice
-        .self_group_creation_params_for_test(reservation.group_id, reservation.pq_group_id)
+        .self_group_creation_params_for_test(
+            reservation.group_id,
+            reservation.pq_group_id,
+            alice.signing_key_for_test(),
+        )
         .await
         .unwrap();
     let error = creator.create(params, &ear_key).await.unwrap_err();

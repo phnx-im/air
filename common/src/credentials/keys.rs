@@ -207,6 +207,17 @@ impl UserSigningKey {
     pub fn credential(&self) -> &UserCredential {
         &self.credential
     }
+
+    /// The same signing key paired with `credential`, which needn't certify the key.
+    ///
+    /// For tests of a client that claims another user's credential.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub fn with_credential_for_test(&self, credential: UserCredential) -> Self {
+        Self {
+            signing_key: self.signing_key.clone(),
+            credential,
+        }
+    }
 }
 
 pub type ClientVerifyingKey = VerifyingKey<ClientKeyType>;
@@ -270,7 +281,7 @@ impl SelfGroupSigningKey {
 
     /// Generates a leaf key with an unsigned credential, as stored before credentials were
     /// signed.
-    #[cfg(any(test, feature = "test_utils"))]
+    #[cfg(test)]
     pub fn generate_unsigned(client_id: Uuid) -> Result<Self, KeyGenerationError> {
         Ok(Self {
             signing_key: SigningKey::generate()?,

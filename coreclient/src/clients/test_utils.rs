@@ -605,47 +605,26 @@ impl CoreUser {
     }
 
     /// Like [`Self::group_creation_params_for_test`], for a self-group.
+    ///
+    /// The creator leaf is signed with `creator`, whose credential is also the creator
+    /// credential of the request.
     pub async fn self_group_creation_params_for_test(
         &self,
         group_id: GroupId,
         pq_group_id: GroupId,
+        creator: &UserSigningKey,
     ) -> anyhow::Result<(CreateGroupParamsOut, GroupStateEarKey)> {
         let client_id = OwnClientInfo::load(self.db().read().await?)
             .await?
             .client_id;
-        let signer = SelfGroupSigningKey::generate(client_id, self.signing_key())?;
-        self.self_group_creation_params_with(group_id, pq_group_id, &signer)
-            .await
-    }
-
-    /// Like [`Self::self_group_creation_params_for_test`], with an unsigned creator leaf as
-    /// clients created it before self-group credentials were signed.
-    pub async fn unsigned_self_group_creation_params_for_test(
-        &self,
-        group_id: GroupId,
-        pq_group_id: GroupId,
-    ) -> anyhow::Result<(CreateGroupParamsOut, GroupStateEarKey)> {
-        let client_id = OwnClientInfo::load(self.db().read().await?)
-            .await?
-            .client_id;
-        let signer = SelfGroupSigningKey::generate_unsigned(client_id)?;
-        self.self_group_creation_params_with(group_id, pq_group_id, &signer)
-            .await
-    }
-
-    async fn self_group_creation_params_with(
-        &self,
-        group_id: GroupId,
-        pq_group_id: GroupId,
-        signer: &SelfGroupSigningKey,
-    ) -> anyhow::Result<(CreateGroupParamsOut, GroupStateEarKey)> {
-        let signer = LeafSigningKeyRef::SelfGroup(signer);
+        let signing_key = SelfGroupSigningKey::generate(client_id, creator)?;
+        let signer = LeafSigningKeyRef::SelfGroup(&signing_key);
         let (mut params, ear_key) = self
             .apq_group_creation_params(group_id, pq_group_id, signer, |_| {
                 Ok(NewGroupContext::SelfGroup(GroupData::empty()))
             })
             .await?;
-        params.creator_user_credential = Some(self.signing_key().credential().clone());
+        params.creator_user_credential = Some(creator.credential().clone());
         Ok((params, ear_key))
     }
 
