@@ -325,18 +325,18 @@ pub(super) fn verify_pq_added_signature_keys(
 mod tests {
     use aircommon::{
         credentials::{
-            SELF_GROUP_CREDENTIAL_TYPE, SelfGroupCredential, keys::UserSigningKey,
-            test_utils::create_test_credentials,
+            SelfGroupCredential,
+            keys::UserSigningKey,
+            test_utils::{malformed_self_group_credential, random_user_signing_key},
         },
-        identifiers::UserId,
         messages::client_ds::GroupOperationParamsAad,
         mls_group_config::default_mls_group_join_config,
     };
     use openmls::{
         group::ExternalCommitBuilder,
         prelude::{
-            BasicCredential, Credential, CredentialType, CredentialWithKey, JoinProposal,
-            KeyPackage, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
+            BasicCredential, Credential, CredentialWithKey, JoinProposal, KeyPackage,
+            MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
             PURE_PLAINTEXT_WIRE_FORMAT_POLICY, ProcessedMessageContent, Proposal, RemoveProposal,
             tls_codec::Serialize as _,
         },
@@ -362,18 +362,11 @@ mod tests {
         )
     }
 
-    /// A credential with a payload but no signature.
     fn malformed_credential(client_id: u128) -> LeafCredential {
-        // The persistence codec version, then {1: client_id, 2: h'01'}.
-        let mut bytes = vec![0x01, 0xa2, 0x01, 0x50];
-        bytes.extend_from_slice(Uuid::from_u128(client_id).as_bytes());
-        bytes.extend_from_slice(&[0x02, 0x41, 0x01]);
-        let credential = Credential::new(CredentialType::Other(SELF_GROUP_CREDENTIAL_TYPE), bytes);
-        LeafCredential::from_credential(&credential).unwrap()
-    }
-
-    fn user_signing_key() -> UserSigningKey {
-        create_test_credentials(UserId::random("example.com".parse().unwrap())).1
+        LeafCredential::from_credential(&malformed_self_group_credential(Uuid::from_u128(
+            client_id,
+        )))
+        .unwrap()
     }
 
     fn signature_key(byte: u8) -> SignaturePublicKey {
@@ -382,7 +375,7 @@ mod tests {
 
     #[test]
     fn self_group_transition_preserves_client_id_and_key() -> anyhow::Result<()> {
-        let own = user_signing_key();
+        let own = random_user_signing_key();
         let key = signature_key(1);
         for context in ["update path", "resync"] {
             for (new, old) in [
@@ -407,11 +400,11 @@ mod tests {
 
     #[test]
     fn self_group_transition_rejects_an_invalid_new_credential() {
-        let own = user_signing_key();
+        let own = random_user_signing_key();
         let key = signature_key(1);
         for context in ["update path", "resync"] {
             for new in [
-                signed_credential(1, &key, &user_signing_key()),
+                signed_credential(1, &key, &random_user_signing_key()),
                 signed_credential(1, &signature_key(2), &own),
                 malformed_credential(1),
             ] {
@@ -432,7 +425,7 @@ mod tests {
 
     #[test]
     fn self_group_transition_rejects_client_id_change() {
-        let own = user_signing_key();
+        let own = random_user_signing_key();
         let key = signature_key(1);
         for context in ["update path", "resync"] {
             let transition = user_credential_transition(
@@ -448,7 +441,7 @@ mod tests {
 
     #[test]
     fn self_group_transition_rejects_signature_key_change() {
-        let own = user_signing_key();
+        let own = random_user_signing_key();
         for context in ["update path", "resync"] {
             let transition = user_credential_transition(
                 (self_group_credential(1), &signature_key(2)),

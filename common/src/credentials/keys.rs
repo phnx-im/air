@@ -511,19 +511,14 @@ mod test {
 
     use crate::{
         codec::PersistenceCodec,
-        credentials::test_utils::create_test_credentials,
+        credentials::test_utils::random_user_signing_key,
         crypto::signatures::{
             DEFAULT_SIGNATURE_SCHEME,
             private_keys::{SigningKey, VerifyingKeyBehaviour},
         },
-        identifiers::UserId,
     };
 
-    use super::{ClientKeyType, SelfGroupSigningKey, UserSigningKey};
-
-    fn user_signing_key() -> UserSigningKey {
-        create_test_credentials(UserId::random("example.com".parse().unwrap())).1
-    }
+    use super::{ClientKeyType, SelfGroupSigningKey};
 
     /// A copy of the key as stored before credentials were signed.
     #[derive(Serialize, Deserialize)]
@@ -541,13 +536,14 @@ mod test {
     #[test]
     fn self_group_signing_key_round_trips_client_id() {
         let client_id = Uuid::new_v4();
-        let signing_key = SelfGroupSigningKey::generate(client_id, &user_signing_key()).unwrap();
+        let signing_key =
+            SelfGroupSigningKey::generate(client_id, &random_user_signing_key()).unwrap();
         assert_eq!(signing_key.credential().client_id(), client_id);
     }
 
     #[test]
     fn generated_credential_verifies() {
-        let user_signing_key = user_signing_key();
+        let user_signing_key = random_user_signing_key();
         let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4(), &user_signing_key).unwrap();
         assert!(signing_key.credential().is_signed());
         signing_key
@@ -562,7 +558,7 @@ mod test {
 
     #[test]
     fn signing_an_unsigned_credential_keeps_the_client_id() {
-        let user_signing_key = user_signing_key();
+        let user_signing_key = random_user_signing_key();
         let client_id = Uuid::new_v4();
         let mut signing_key = SelfGroupSigningKey::generate_unsigned(client_id).unwrap();
         assert!(!signing_key.credential().is_signed());
@@ -583,7 +579,7 @@ mod test {
     #[test]
     fn self_group_signing_key_signs_and_verifies() {
         let signing_key =
-            SelfGroupSigningKey::generate(Uuid::new_v4(), &user_signing_key()).unwrap();
+            SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key()).unwrap();
         assert_eq!(signing_key.signature_scheme(), DEFAULT_SIGNATURE_SCHEME);
 
         let payload = b"payload to sign";
@@ -612,7 +608,7 @@ mod test {
     #[test]
     fn the_old_key_type_loads_a_new_stored_key() {
         let signing_key =
-            SelfGroupSigningKey::generate(Uuid::new_v4(), &user_signing_key()).unwrap();
+            SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key()).unwrap();
         let bytes = PersistenceCodec::to_vec(&signing_key).unwrap();
 
         let loaded: FrozenSelfGroupSigningKey = PersistenceCodec::from_slice(&bytes).unwrap();

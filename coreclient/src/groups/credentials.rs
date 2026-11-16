@@ -267,22 +267,15 @@ pub(super) fn verify_pq_signature_keys(
 
 #[cfg(test)]
 mod tests {
-    use aircommon::{
-        credentials::{
-            SELF_GROUP_CREDENTIAL_TYPE, SelfGroupCredential, keys::UserSigningKey,
-            test_utils::create_test_credentials,
-        },
-        identifiers::UserId,
+    use aircommon::credentials::{
+        SelfGroupCredential,
+        keys::UserSigningKey,
+        test_utils::{malformed_self_group_credential, random_user_signing_key},
     };
-    use openmls::prelude::CredentialType;
+
     use uuid::Uuid;
 
     use super::*;
-
-    fn user_signing_key() -> UserSigningKey {
-        let user_id = UserId::random("example.com".parse().unwrap());
-        create_test_credentials(user_id).1
-    }
 
     fn self_group_credential(client_id: Uuid) -> Credential {
         SelfGroupCredential::new(client_id)
@@ -301,17 +294,8 @@ mod tests {
             .unwrap()
     }
 
-    /// A credential with a payload but no signature.
-    fn malformed_credential(client_id: Uuid) -> Credential {
-        // The persistence codec version, then {1: client_id, 2: h'01'}.
-        let mut bytes = vec![0x01, 0xa2, 0x01, 0x50];
-        bytes.extend_from_slice(client_id.as_bytes());
-        bytes.extend_from_slice(&[0x02, 0x41, 0x01]);
-        Credential::new(CredentialType::Other(SELF_GROUP_CREDENTIAL_TYPE), bytes)
-    }
-
     fn user_credential() -> Credential {
-        Credential::try_from(user_signing_key().credential())
+        Credential::try_from(random_user_signing_key().credential())
             .expect("serializing a user credential")
     }
 
@@ -325,7 +309,7 @@ mod tests {
 
     #[test]
     fn self_group_members_with_unique_client_ids_is_accepted() {
-        let own = user_signing_key();
+        let own = random_user_signing_key();
         let members = [
             (self_group_credential(Uuid::from_u128(1)), signature_key()),
             (
@@ -340,7 +324,7 @@ mod tests {
 
     #[test]
     fn duplicate_client_ids_in_self_group_are_rejected() {
-        let own = user_signing_key();
+        let own = random_user_signing_key();
         let client_id = Uuid::from_u128(1);
         let members = [
             (self_group_credential(client_id), signature_key()),
@@ -356,12 +340,12 @@ mod tests {
 
     #[test]
     fn invalid_self_group_credentials_are_rejected() {
-        let own = user_signing_key();
+        let own = random_user_signing_key();
         let client_id = Uuid::from_u128(1);
         let invalid = [
             // Signed by another user.
             (
-                signed_credential(client_id, &signature_key(), &user_signing_key()),
+                signed_credential(client_id, &signature_key(), &random_user_signing_key()),
                 signature_key(),
             ),
             // Signed for another leaf key.
@@ -369,7 +353,7 @@ mod tests {
                 signed_credential(client_id, &other_signature_key(), &own),
                 signature_key(),
             ),
-            (malformed_credential(client_id), signature_key()),
+            (malformed_self_group_credential(client_id), signature_key()),
         ];
         for member in invalid {
             let members = [
@@ -398,7 +382,7 @@ mod tests {
 
     #[test]
     fn user_credential_in_self_group_is_rejected() {
-        let own = user_signing_key();
+        let own = random_user_signing_key();
         let members = [
             (user_credential(), signature_key()),
             (self_group_credential(Uuid::from_u128(1)), signature_key()),
@@ -413,7 +397,7 @@ mod tests {
 
     #[test]
     fn adding_a_fresh_client_id_is_accepted() {
-        let own = user_signing_key();
+        let own = random_user_signing_key();
         let members = [self_group_credential(Uuid::from_u128(1))];
         for added in [
             self_group_credential(Uuid::from_u128(2)),
@@ -431,12 +415,16 @@ mod tests {
 
     #[test]
     fn adding_an_invalid_self_group_credential_is_rejected() {
-        let own = user_signing_key();
+        let own = random_user_signing_key();
         let members = [self_group_credential(Uuid::from_u128(1))];
         for added in [
-            signed_credential(Uuid::from_u128(2), &signature_key(), &user_signing_key()),
+            signed_credential(
+                Uuid::from_u128(2),
+                &signature_key(),
+                &random_user_signing_key(),
+            ),
             signed_credential(Uuid::from_u128(2), &other_signature_key(), &own),
-            malformed_credential(Uuid::from_u128(2)),
+            malformed_self_group_credential(Uuid::from_u128(2)),
         ] {
             let error = validate_self_group_add_credential(
                 members.clone().into_iter(),
@@ -454,10 +442,14 @@ mod tests {
 
     #[test]
     fn a_member_with_an_invalid_credential_does_not_block_an_add() {
-        let own = user_signing_key();
+        let own = random_user_signing_key();
         let members = [
-            malformed_credential(Uuid::from_u128(1)),
-            signed_credential(Uuid::from_u128(3), &signature_key(), &user_signing_key()),
+            malformed_self_group_credential(Uuid::from_u128(1)),
+            signed_credential(
+                Uuid::from_u128(3),
+                &signature_key(),
+                &random_user_signing_key(),
+            ),
         ];
         let added = self_group_credential(Uuid::from_u128(2));
         validate_self_group_add_credential(
@@ -471,7 +463,7 @@ mod tests {
 
     #[test]
     fn adding_a_duplicate_client_id_is_rejected() {
-        let own = user_signing_key();
+        let own = random_user_signing_key();
         let client_id = Uuid::from_u128(1);
         let members = [self_group_credential(client_id)];
         let added = self_group_credential(client_id);
@@ -490,7 +482,7 @@ mod tests {
 
     #[test]
     fn adding_a_user_credential_is_rejected() {
-        let own = user_signing_key();
+        let own = random_user_signing_key();
         let members = [self_group_credential(Uuid::from_u128(1))];
         let added = user_credential();
         let error = validate_self_group_add_credential(
