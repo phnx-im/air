@@ -51,12 +51,16 @@ impl Group {
 
         let (component_data, extensions) = self.group_data_update(new_group_data)?;
 
+        let credential = match signer.as_self_group() {
+            Some(signer) => self.unpublished_self_group_credential(signer)?,
+            None => None,
+        };
         let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
         let leaf_node_parameters = Self::update_leaf_node_extensions(
             own_leaf_node.extensions(),
             self.own_leaf_capabilities(),
             self.is_self_group().then_some(own_client_reference),
-            self.unpublished_leaf_credential(signer)?,
+            credential,
         )?;
 
         // A leaf shared with sibling emulator clients must be replaced with key
@@ -159,12 +163,16 @@ impl Group {
         let (component_data, group_context_extensions) = self.group_data_update(new_group_data)?;
 
         let own_client_reference = self.is_self_group().then_some(own_client_reference);
+        let credential = match signer.as_self_group() {
+            Some(signer) => self.unpublished_self_group_credential(signer)?,
+            None => None,
+        };
         let t_own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
         let t_leaf_node_parameters = Self::update_leaf_node_extensions(
             t_own_leaf_node.extensions(),
             self.own_leaf_capabilities(),
             own_client_reference,
-            self.unpublished_leaf_credential(signer)?,
+            credential,
         )?;
         let pq_own_leaf_node = self
             .pq()
@@ -227,10 +235,10 @@ impl Group {
 
     /// The credential to publish on the own T leaf of the self group with the next commit.
     ///
-    /// Returns the credential stored with `signer` if the own leaf carries another one, e.g. an
-    /// unsigned credential from before self-group credentials were signed. Returns `None` if the
+    /// `signer` is the signing key of our leaf in the self group. Returns the credential
+    /// corresponding to the signer if it doesn't match the one in our leaf. Returns `None` if the
     /// leaf already carries it.
-    pub(crate) fn unpublished_self_group_credential(
+    fn unpublished_self_group_credential(
         &self,
         signer: &SelfGroupSigningKey,
     ) -> Result<Option<CredentialWithKey>> {
@@ -245,11 +253,11 @@ impl Group {
         }))
     }
 
-    /// Leaf node parameters for a self-group commit that publish the credential stored with
-    /// `signer`, see [`Self::unpublished_self_group_credential`].
+    /// Leaf node parameters for a self-group commit that publish the `signer`'s credential, see
+    /// [`Self::unpublished_self_group_credential`].
     ///
     /// Returns the T and the PQ parameters, or `None` if the own leaf already carries the
-    /// credential. All other leaf properties stay as they are.
+    /// credential.
     pub(crate) fn self_group_leaf_node_parameters(
         &self,
         signer: &SelfGroupSigningKey,
@@ -264,16 +272,6 @@ impl Group {
             t_leaf_node_parameters,
             LeafNodeParameters::builder().build(),
         )))
-    }
-
-    fn unpublished_leaf_credential(
-        &self,
-        signer: LeafSigningKeyRef<'_>,
-    ) -> Result<Option<CredentialWithKey>> {
-        match signer {
-            LeafSigningKeyRef::User(_) => Ok(None),
-            LeafSigningKeyRef::SelfGroup(signer) => self.unpublished_self_group_credential(signer),
-        }
     }
 
     fn update_leaf_node_extensions(
