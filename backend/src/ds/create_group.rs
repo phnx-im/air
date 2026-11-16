@@ -368,55 +368,6 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         Ok((qgid, state, ear_key))
     }
 
-    /// Return the credential that authenticates the creation of `group`.
-    ///
-    /// The creator's leaf credential must match the group kind: a self-group leaf carries a
-    /// self-group credential, a regular-group leaf a user credential. A self-group's leaves carry
-    /// no user credential, so the creator's user credential is provided out of band. A regular
-    /// group takes it from the creator's leaf and must not provide one.
-    ///
-    /// The returned credential is not authenticated yet.
-    pub(super) fn creator_credential(
-        group: &Group,
-        provided: Option<&UserCredentialProto>,
-    ) -> Result<VerifiableUserCredential, Status> {
-        let mut members = group.members().fuse();
-        let (Some(member), None) = (members.next(), members.next()) else {
-            error!("group must have exactly one member");
-            return Err(Status::invalid_argument(
-                "group must have exactly one member",
-            ));
-        };
-
-        let leaf_credential = LeafCredential::from_credential(&member.credential)
-            .map_err(|_| Status::invalid_argument("invalid credential"))?;
-        let is_self_group =
-            GroupAppData::is_self_group_context(group.group_info().group_context().extensions());
-        if !leaf_credential_is_valid(&leaf_credential, &member.signature_key, is_self_group) {
-            return Err(Status::invalid_argument(
-                "creator leaf credential does not match group kind",
-            ));
-        }
-
-        match (provided, is_self_group) {
-            (Some(credential), true) => {
-                let credential = credential
-                    .try_ref_into()
-                    .invalid_tls("creator_user_credential")?;
-                Ok(credential)
-            }
-            (None, false) => leaf_credential
-                .into_user()
-                .ok_or_else(|| Status::invalid_argument("invalid credential")),
-            (Some(_), false) => Err(Status::invalid_argument(
-                "creator user credential requires a self-group",
-            )),
-            (None, true) => Err(Status::invalid_argument(
-                "self-group requires a creator user credential",
-            )),
-        }
-    }
-
     /// Return the signature key of a group that is expected to have exactly one
     /// member (i.e. a freshly created group).
     fn sole_member_signature_key(group: &Group) -> Result<Vec<u8>, Status> {
@@ -476,6 +427,63 @@ fn build_group(
     })?;
     ensure_created_without_tombstone(&group)?;
     Ok((provider, group))
+}
+
+/// Return the credential that authenticates the creation of `group`.
+///
+/// The returned credential is not authenticated yet.
+pub(super) fn creator_credential(
+    group: &Group,
+    provided: Option<&UserCredentialProto>,
+) -> Result<VerifiableUserCredential, Status> {
+    let mut members = group.members().fuse();
+    let (Some(member), None) = (members.next(), members.next()) else {
+        error!("group must have exactly one member");
+        return Err(Status::invalid_argument(
+            "group must have exactly one member",
+        ));
+    };
+
+    let leaf_credential = LeafCredential::from_credential(&member.credential)
+        .map_err(|_| Status::invalid_argument("invalid credential"))?;
+    let is_self_group =
+        GroupAppData::is_self_group_context(group.group_info().group_context().extensions());
+    if !leaf_credential_is_valid(&leaf_credential, &member.signature_key, is_self_group) {
+        return Err(Status::invalid_argument(
+            "creator leaf credential does not match group kind",
+        ));
+    }
+
+    match (provided, is_self_group) {
+        (Some(credential), true) => {
+            let credential: VerifiableUserCredential = credential
+                .try_ref_into()
+                .invalid_tls("creator_user_credential")?;
+            let LeafCredential::SelfGroup(leaf_credential) = leaf_credential else {
+                return Err(Status::invalid_argument("invalid credential"));
+            };
+            leaf_credential
+                .verify(
+                    &member.signature_key,
+                    credential.user_id(),
+                    credential.verifying_key(),
+                )
+                .map_err(|error| {
+                    warn!(%error, "Creator leaf credential does not verify");
+                    Status::permission_denied("creator leaf credential does not verify")
+                })?;
+            Ok(credential)
+        }
+        (None, false) => leaf_credential
+            .into_user()
+            .ok_or_else(|| Status::invalid_argument("invalid credential")),
+        (Some(_), false) => Err(Status::invalid_argument(
+            "creator user credential requires a self-group",
+        )),
+        (None, true) => Err(Status::invalid_argument(
+            "self-group requires a creator user credential",
+        )),
+    }
 }
 
 fn ensure_stream_group_id(
@@ -590,7 +598,7 @@ impl<Qep: QsConnector, As: AsConnector> CreateGroupStreamBackend for GrpcDs<Qep,
         )?;
         ensure_mls_group_id(&t_group_state, &reservation.t_group_id)?;
         // For a self-group, this is the credential sent alongside the leaves
-        let t_user_credential = Self::creator_credential(
+        let t_user_credential = creator_credential(
             &t_group_state.group,
             payload.creator_user_credential.as_ref(),
         )?;
