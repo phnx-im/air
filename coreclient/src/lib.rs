@@ -84,3 +84,6 @@ pub use crate::{
 };
 
 pub use airprotos::client::self_group::LinkedDevice;
+
+#[cfg(feature = "test_utils")]
+pub use crate::groups::self_group::SelfGroup;

@@ -6,21 +6,23 @@
 //! self-group commit, and devices that sign next to devices that don't.
 
 use aircommon::credentials::{LeafCredential, SelfGroupCredential};
-use aircoreclient::{ReadReceiptsSetting, UnlinkReason, clients::CoreUser};
+use aircoreclient::{ReadReceiptsSetting, SelfGroup, UnlinkReason, clients::CoreUser};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::{DateTime, Utc};
 
 use super::{link_sibling, self_chat_id, send_and_receive};
 
-/// The credential on the own T leaf of `device`'s self group.
-async fn own_leaf_credential(device: &CoreUser) -> SelfGroupCredential {
-    let credential = device
+async fn self_group(device: &CoreUser) -> SelfGroup {
+    device
         .self_group()
         .await
         .unwrap()
         .expect("device should have a self group")
-        .own_credential()
-        .unwrap();
+}
+
+/// The credential on the own T leaf of `device`'s self group.
+async fn own_leaf_credential(device: &CoreUser) -> SelfGroupCredential {
+    let credential = self_group(device).await.own_credential().unwrap();
     let LeafCredential::SelfGroup(credential) = credential else {
         panic!("self-group leaf must carry a SelfGroupCredential");
     };
@@ -29,13 +31,7 @@ async fn own_leaf_credential(device: &CoreUser) -> SelfGroupCredential {
 
 /// The number of signed T leaves in `device`'s self group.
 async fn signed_leaves(device: &CoreUser) -> usize {
-    let credentials = device
-        .self_group()
-        .await
-        .unwrap()
-        .expect("device should have a self group")
-        .credentials()
-        .unwrap();
+    let credentials = self_group(device).await.credentials().unwrap();
     credentials
         .iter()
         .filter(|credential| match credential {
@@ -46,13 +42,7 @@ async fn signed_leaves(device: &CoreUser) -> usize {
 }
 
 async fn assert_pq_credentials_empty(device: &CoreUser) {
-    let contents = device
-        .self_group()
-        .await
-        .unwrap()
-        .expect("device should have a self group")
-        .pq_credential_contents()
-        .unwrap();
+    let contents = self_group(device).await.pq_credential_contents().unwrap();
     assert!(
         contents.iter().all(Vec::is_empty),
         "the PQ leaves must keep their empty credential"

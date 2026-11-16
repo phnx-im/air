@@ -551,22 +551,26 @@ impl CoreUser {
         Ok(self.execute_job(job).await?)
     }
 
-    /// The self-group credential stored with this device's self-group signing key.
-    pub async fn stored_self_group_credential(&self) -> anyhow::Result<SelfGroupCredential> {
-        let signing_key = OwnClientInfo::load(self.db().read().await?)
+    async fn load_self_group_signing_key(&self) -> anyhow::Result<SelfGroupSigningKey> {
+        OwnClientInfo::load(self.db().read().await?)
             .await?
             .self_group_signing_key
-            .context("no self-group signing key")?;
-        Ok(signing_key.credential().clone())
+            .context("no self-group signing key")
+    }
+
+    /// The self-group credential stored with this device's self-group signing key.
+    pub async fn stored_self_group_credential(&self) -> anyhow::Result<SelfGroupCredential> {
+        Ok(self
+            .load_self_group_signing_key()
+            .await?
+            .credential()
+            .clone())
     }
 
     /// Replaces the stored self-group credential with an unsigned one, as a device stored it
     /// before self-group credentials were signed.
     pub async fn unsign_stored_self_group_credential(&self) -> anyhow::Result<()> {
-        let mut signing_key = OwnClientInfo::load(self.db().read().await?)
-            .await?
-            .self_group_signing_key
-            .context("no self-group signing key")?;
+        let mut signing_key = self.load_self_group_signing_key().await?;
         signing_key.unsign_credential();
         OwnClientInfo::update_self_group_signing_key(self.db().write().await?, &signing_key)
             .await?;
@@ -575,11 +579,7 @@ impl CoreUser {
 
     /// Signs an unsigned stored self-group credential, as loading the client does.
     pub async fn sign_stored_self_group_credential(&self) -> anyhow::Result<()> {
-        self.db()
-            .with_write_transaction(async |txn| {
-                OwnClientInfo::sign_self_group_credential(txn, self.signing_key()).await
-            })
-            .await
+        self.sign_self_group_credential().await
     }
 
     pub fn signing_key_for_test(&self) -> &UserSigningKey {
