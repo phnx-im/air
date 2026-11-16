@@ -1111,12 +1111,7 @@ impl PendingChatOperation {
         // Room policy is keyed on the client id, so reject a credential whose id
         // is already a member of the self group before staging the add.
         group.validate_self_group_add(
-            key_package.t_credential(),
-            key_package
-                .t_key_package()
-                .leaf_node()
-                .signature_key()
-                .as_slice(),
+            key_package.t_key_package().leaf_node(),
             signer.credential(),
         )?;
 

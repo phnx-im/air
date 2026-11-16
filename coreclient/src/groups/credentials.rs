@@ -12,7 +12,7 @@ use aircommon::{
     identifiers::UserId,
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
-use openmls::prelude::{Credential, LeafNodeIndex, MlsGroup, SignaturePublicKey};
+use openmls::prelude::{Credential, LeafNode, LeafNodeIndex, MlsGroup, SignaturePublicKey};
 use tracing::error;
 
 use crate::{
@@ -26,19 +26,17 @@ use crate::{
 };
 
 impl Group {
-    /// Validate the leaf credential of a client about to be added to this self-group: it must be
-    /// a self-group credential whose client id is not yet used by any existing member, and it must
-    /// verify for the leaf's signature key `added_signature_key` and our own user.
+    /// Validate the leaf of a client about to be added to this self-group: it must carry a
+    /// self-group credential whose client id is not yet used by any existing member, and the
+    /// credential must verify for the leaf and our own user.
     pub(crate) fn validate_self_group_add(
         &self,
-        added: &Credential,
-        added_signature_key: &[u8],
+        added: &LeafNode,
         own_user_credential: &UserCredential,
     ) -> Result<()> {
         validate_self_group_add_credential(
             self.mls_group.members().map(|member| member.credential),
             added,
-            added_signature_key,
             own_user_credential,
         )
     }
@@ -191,19 +189,15 @@ fn classify_member_credentials(
     Ok(unverified_credentials)
 }
 
-/// Validate the leaf credential of a client about to be added to the self-group.
-///
-/// The credential must be a self-group credential that verifies for the added leaf's signature
-/// key and our own user, and its client id must not collide with a leaf already in the self
-/// group, since room policy is keyed on the client id. The existing members' credentials are only
-/// read for their client ids, so that a leaf with an invalid credential can't block adds.
+/// Validate the leaf of a client about to be added to the self-group.
 fn validate_self_group_add_credential(
     members: impl Iterator<Item = Credential>,
-    added: &Credential,
-    added_signature_key: &[u8],
+    added: &LeafNode,
     own_user_credential: &UserCredential,
 ) -> anyhow::Result<()> {
-    let LeafCredential::SelfGroup(added) = LeafCredential::from_credential(added)? else {
+    let added_signature_key = added.signature_key().as_slice();
+    let LeafCredential::SelfGroup(added) = LeafCredential::from_credential(added.credential())?
+    else {
         bail!("expected a self-group credential");
     };
     added
@@ -267,13 +261,20 @@ pub(super) fn verify_pq_signature_keys(
 
 #[cfg(test)]
 mod tests {
-    use aircommon::credentials::{
-        SelfGroupCredential,
-        keys::UserSigningKey,
-        test_utils::{malformed_self_group_credential, random_user_signing_key},
+    use aircommon::{
+        credentials::{
+            SelfGroupCredential,
+            keys::UserSigningKey,
+            test_utils::{malformed_self_group_credential, random_user_signing_key},
+        },
+        mls_group_config::self_group_leaf_node_capabilities,
     };
-
+    use openmls::prelude::{CredentialWithKey, KeyPackage};
+    use openmls_basic_credential::SignatureKeyPair;
+    use openmls_rust_crypto::OpenMlsRustCrypto;
     use uuid::Uuid;
+
+    use crate::clients::CIPHERSUITE;
 
     use super::*;
 
@@ -395,18 +396,36 @@ mod tests {
         );
     }
 
+    /// The leaf of a key package with a fresh signature key and the credential `credential`
+    /// builds for that key.
+    fn added_leaf(credential: impl FnOnce(&SignaturePublicKey) -> Credential) -> LeafNode {
+        let provider = OpenMlsRustCrypto::default();
+        let signer = SignatureKeyPair::new(CIPHERSUITE.signature_algorithm()).unwrap();
+        let signature_key = SignaturePublicKey::from(signer.public().to_vec());
+        let credential_with_key = CredentialWithKey {
+            credential: credential(&signature_key),
+            signature_key,
+        };
+        KeyPackage::builder()
+            .leaf_node_capabilities(self_group_leaf_node_capabilities())
+            .build(CIPHERSUITE, &provider, &signer, credential_with_key)
+            .unwrap()
+            .key_package()
+            .leaf_node()
+            .clone()
+    }
+
     #[test]
     fn adding_a_fresh_client_id_is_accepted() {
         let own = random_user_signing_key();
         let members = [self_group_credential(Uuid::from_u128(1))];
         for added in [
-            self_group_credential(Uuid::from_u128(2)),
-            signed_credential(Uuid::from_u128(2), &signature_key(), &own),
+            added_leaf(|_| self_group_credential(Uuid::from_u128(2))),
+            added_leaf(|key| signed_credential(Uuid::from_u128(2), key, &own)),
         ] {
             validate_self_group_add_credential(
                 members.clone().into_iter(),
                 &added,
-                signature_key().as_slice(),
                 own.credential(),
             )
             .expect("fresh client id should be accepted");
@@ -418,18 +437,15 @@ mod tests {
         let own = random_user_signing_key();
         let members = [self_group_credential(Uuid::from_u128(1))];
         for added in [
-            signed_credential(
-                Uuid::from_u128(2),
-                &signature_key(),
-                &random_user_signing_key(),
-            ),
-            signed_credential(Uuid::from_u128(2), &other_signature_key(), &own),
-            malformed_self_group_credential(Uuid::from_u128(2)),
+            added_leaf(|key| {
+                signed_credential(Uuid::from_u128(2), key, &random_user_signing_key())
+            }),
+            added_leaf(|_| signed_credential(Uuid::from_u128(2), &other_signature_key(), &own)),
+            added_leaf(|_| malformed_self_group_credential(Uuid::from_u128(2))),
         ] {
             let error = validate_self_group_add_credential(
                 members.clone().into_iter(),
                 &added,
-                signature_key().as_slice(),
                 own.credential(),
             )
             .expect_err("an invalid credential should be rejected");
@@ -451,14 +467,9 @@ mod tests {
                 &random_user_signing_key(),
             ),
         ];
-        let added = self_group_credential(Uuid::from_u128(2));
-        validate_self_group_add_credential(
-            members.into_iter(),
-            &added,
-            signature_key().as_slice(),
-            own.credential(),
-        )
-        .expect("an add should not depend on other members' signatures");
+        let added = added_leaf(|_| self_group_credential(Uuid::from_u128(2)));
+        validate_self_group_add_credential(members.into_iter(), &added, own.credential())
+            .expect("an add should not depend on other members' signatures");
     }
 
     #[test]
@@ -466,14 +477,10 @@ mod tests {
         let own = random_user_signing_key();
         let client_id = Uuid::from_u128(1);
         let members = [self_group_credential(client_id)];
-        let added = self_group_credential(client_id);
-        let error = validate_self_group_add_credential(
-            members.into_iter(),
-            &added,
-            signature_key().as_slice(),
-            own.credential(),
-        )
-        .expect_err("duplicate client id should be rejected");
+        let added = added_leaf(|_| self_group_credential(client_id));
+        let error =
+            validate_self_group_add_credential(members.into_iter(), &added, own.credential())
+                .expect_err("duplicate client id should be rejected");
         assert!(
             error.to_string().contains("already present"),
             "unexpected error: {error:#}"
@@ -484,14 +491,10 @@ mod tests {
     fn adding_a_user_credential_is_rejected() {
         let own = random_user_signing_key();
         let members = [self_group_credential(Uuid::from_u128(1))];
-        let added = user_credential();
-        let error = validate_self_group_add_credential(
-            members.into_iter(),
-            &added,
-            signature_key().as_slice(),
-            own.credential(),
-        )
-        .expect_err("user credential should be rejected");
+        let added = added_leaf(|_| user_credential());
+        let error =
+            validate_self_group_add_credential(members.into_iter(), &added, own.credential())
+                .expect_err("user credential should be rejected");
         assert!(
             error
                 .to_string()

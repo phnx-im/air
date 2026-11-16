@@ -138,11 +138,7 @@ impl Group {
     ) -> Result<()> {
         for proposal in staged_commit.add_proposals() {
             let leaf_node = proposal.add_proposal().key_package().leaf_node();
-            self.validate_self_group_add(
-                leaf_node.credential(),
-                leaf_node.signature_key().as_slice(),
-                own_user_credential,
-            )?;
+            self.validate_self_group_add(leaf_node, own_user_credential)?;
 
             let credential = LeafCredential::from_credential(leaf_node.credential())?;
             self.verify_role_change_identity(
