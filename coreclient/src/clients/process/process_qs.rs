@@ -2032,6 +2032,7 @@ fn log_processed_commit(group: &VerifiedGroup, sender: &Sender) {
 
 #[cfg(test)]
 mod tests {
+    use aircommon::credentials::test_utils::random_user_signing_key;
     use aircommon::{
         credentials::{
             keys::{LeafSigningKeyRef, SelfGroupSigningKey},
@@ -2161,7 +2162,8 @@ mod tests {
     async fn own_pending_commit_yields_announced_batch_id() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
-        let signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
+        let signing_key =
+            SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key())?;
         let leaf_signer = LeafSigningKeyRef::SelfGroup(&signing_key);
 
         let mut connection = pool.write().await?;

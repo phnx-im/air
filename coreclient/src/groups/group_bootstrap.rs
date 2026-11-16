@@ -256,6 +256,7 @@ fn bootstrap_key(secret: Vec<u8>) -> Result<GroupBootstrapKey> {
 
 #[cfg(test)]
 mod tests {
+    use aircommon::credentials::test_utils::random_user_signing_key;
     use aircommon::{
         credentials::{
             keys::{LeafSigningKey, SelfGroupSigningKey},
@@ -309,7 +310,10 @@ mod tests {
     ) -> anyhow::Result<Group> {
         let user_id = UserId::random("example.com".parse()?);
         let signer = if is_self_group {
-            LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?)
+            LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(
+                Uuid::new_v4(),
+                &random_user_signing_key(),
+            )?)
         } else {
             let (_as_key, client_signer) = create_test_credentials(user_id.clone());
             LeafSigningKey::User(client_signer)

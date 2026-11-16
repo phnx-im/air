@@ -459,6 +459,7 @@ fn own_client_reference_extension(
 
 #[cfg(test)]
 mod tests {
+    use aircommon::credentials::test_utils::random_user_signing_key;
     use aircommon::{
         credentials::keys::{LeafSigningKeyRef, SelfGroupSigningKey},
         crypto::aead::keys::IdentityLinkWrapperKey,
@@ -483,7 +484,10 @@ mod tests {
     }
 
     fn self_group_signer() -> anyhow::Result<SelfGroupSigningKey> {
-        Ok(SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?)
+        Ok(SelfGroupSigningKey::generate(
+            Uuid::new_v4(),
+            &random_user_signing_key(),
+        )?)
     }
 
     /// The T ratchet tree of a new self group created by `signer`.

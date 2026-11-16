@@ -517,6 +517,7 @@ pub(super) mod persistence {
 
 #[cfg(test)]
 mod derivation_tests {
+    use aircommon::credentials::test_utils::random_user_signing_key;
     use aircommon::{
         codec::PersistenceCodec,
         credentials::{
@@ -574,7 +575,10 @@ mod derivation_tests {
 
     /// Per-device self-group signer, as used by real self-group leaves.
     fn self_group_signer() -> anyhow::Result<SelfGroupSigningKey> {
-        Ok(SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?)
+        Ok(SelfGroupSigningKey::generate(
+            Uuid::new_v4(),
+            &random_user_signing_key(),
+        )?)
     }
 
     /// Creates a fresh single-member APQ group. When `is_self_group` is set,

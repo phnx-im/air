@@ -789,6 +789,7 @@ fn best_effort(
 
 #[cfg(test)]
 mod tests {
+    use aircommon::credentials::test_utils::random_user_signing_key;
     use std::assert_matches;
 
     use aircommon::{
@@ -981,7 +982,7 @@ mod tests {
         OwnClientInfo::claim_self_group(
             db.write().await?,
             &group_id,
-            &SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?,
+            &SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key())?,
         )
         .await?;
         start(&db).await?;
@@ -1009,7 +1010,7 @@ mod tests {
         OwnClientInfo::claim_self_group(
             db.write().await?,
             &group_id,
-            &SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?,
+            &SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key())?,
         )
         .await?;
         start(&db).await?;

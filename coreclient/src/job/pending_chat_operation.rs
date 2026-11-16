@@ -1990,6 +1990,7 @@ pub mod test_utils {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use aircommon::credentials::test_utils::random_user_signing_key;
 
     use std::collections::HashSet;
 
@@ -2025,7 +2026,8 @@ pub(crate) mod tests {
     -> anyhow::Result<(DbAccess, PendingChatOperation, SelfGroupSigningKey)> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
-        let signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
+        let signing_key =
+            SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key())?;
         let leaf_signer = LeafSigningKeyRef::SelfGroup(&signing_key);
 
         let mut connection = pool.write().await?;
@@ -2285,7 +2287,8 @@ pub(crate) mod tests {
         use aircommon::credentials::SELF_GROUP_CREDENTIAL_TYPE;
         use openmls::prelude::{CredentialType, SignaturePublicKey};
 
-        let self_group_signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
+        let self_group_signing_key =
+            SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key())?;
         let client_reference = random_client_reference();
         let group = stage_self_group_update(
             &self_group_signing_key,
@@ -2311,7 +2314,8 @@ pub(crate) mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn self_update_in_self_group_adds_missing_client_reference() -> anyhow::Result<()> {
-        let self_group_signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
+        let self_group_signing_key =
+            SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key())?;
         let own_client_reference = random_client_reference();
         let group =
             stage_self_group_update(&self_group_signing_key, None, &own_client_reference).await?;
@@ -2330,7 +2334,8 @@ pub(crate) mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn self_update_in_self_group_keeps_existing_client_reference() -> anyhow::Result<()> {
-        let self_group_signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
+        let self_group_signing_key =
+            SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key())?;
         let creator_client_reference = random_client_reference();
         let group = stage_self_group_update(
             &self_group_signing_key,
@@ -2353,11 +2358,12 @@ pub(crate) mod tests {
 
     /// Builds a single-member APQ self group owned by a fresh client, with the
     /// own client info and own user profile key the self-group paths expect.
-    async fn setup_self_group() -> anyhow::Result<(DbAccess, UserId, UserSigningKey, GroupId)> {
+    async fn setup_self_group() -> anyhow::Result<(DbAccess, UserSigningKey, GroupId)> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
         let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
-        let self_group_signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
+        let self_group_signing_key =
+            SelfGroupSigningKey::generate(Uuid::new_v4(), &user_signing_key)?;
         let leaf_signer = LeafSigningKeyRef::SelfGroup(&self_group_signing_key);
 
         let t_group_id = GroupId::from(QualifiedGroupId::new(
@@ -2404,16 +2410,17 @@ pub(crate) mod tests {
             })
             .await?;
 
-        Ok((pool, user_id, user_signing_key, t_group_id))
+        Ok((pool, user_signing_key, t_group_id))
     }
 
     /// An APQ key package for a second device joining the self group, shaped
     /// like the one a freshly linked device generates.
     async fn linked_device_key_package(
         txn: &mut WriteDbTransaction<'_>,
-        user_id: &UserId,
+        user_signing_key: &UserSigningKey,
         client_id: Uuid,
     ) -> anyhow::Result<ApqKeyPackage> {
+        let user_id = user_signing_key.credential().user_id();
         use aircommon::{
             crypto::hpke::{ClientIdDecryptionKey, HpkeEncryptable},
             identifiers::{ClientConfig, QsReference},
@@ -2424,7 +2431,7 @@ pub(crate) mod tests {
 
         use crate::groups::{client_reference_extension, openmls_provider::AirOpenMlsProvider};
 
-        let signer = SelfGroupSigningKey::generate_unsigned(client_id)?;
+        let signer = SelfGroupSigningKey::generate(client_id, user_signing_key)?;
         let signature_key = SignaturePublicKey::from(signer.verifying_key().clone());
         let credential = ApqCredentialWithKey {
             t_credential: CredentialWithKey {
@@ -2476,14 +2483,14 @@ pub(crate) mod tests {
     /// than an orphaned staged commit.
     #[tokio::test(flavor = "multi_thread")]
     async fn create_add_client_stores_job_with_staged_commit() -> anyhow::Result<()> {
-        let (pool, user_id, signing_key, group_id) = setup_self_group().await?;
+        let (pool, signing_key, group_id) = setup_self_group().await?;
         let wai_key = WelcomeAttributionInfoEarKey::random()?;
         let client_id = Uuid::new_v4();
 
         pool.write()
             .await?
             .with_transaction(async |txn| -> anyhow::Result<()> {
-                let key_package = linked_device_key_package(txn, &user_id, client_id).await?;
+                let key_package = linked_device_key_package(txn, &signing_key, client_id).await?;
                 PendingChatOperation::create_add_client(
                     txn,
                     &signing_key,
@@ -2522,7 +2529,7 @@ pub(crate) mod tests {
             DeviceLinkState, ProvisionedQueue, SelfGroupJoinRequest,
         };
 
-        let (pool, user_id, signing_key, _group_id) = setup_self_group().await?;
+        let (pool, signing_key, _group_id) = setup_self_group().await?;
         let wai_key = WelcomeAttributionInfoEarKey::random()?;
         let client_id = Uuid::new_v4();
         let queue = ProvisionedQueue {
@@ -2536,7 +2543,7 @@ pub(crate) mod tests {
             .await?
             .with_transaction(async |txn| -> anyhow::Result<Uuid> {
                 let link_id = DeviceLink::create(&mut *txn, queue, deadline).await?;
-                let key_package = linked_device_key_package(txn, &user_id, client_id).await?;
+                let key_package = linked_device_key_package(txn, &signing_key, client_id).await?;
                 let request = SelfGroupJoinRequest {
                     key_package: key_package.clone(),
                     device: linked_device(client_id),
@@ -2572,14 +2579,14 @@ pub(crate) mod tests {
     /// again instead of being wedged by a failed linking attempt.
     #[tokio::test(flavor = "multi_thread")]
     async fn discard_add_client_op_unwedges_self_group() -> anyhow::Result<()> {
-        let (pool, user_id, signing_key, group_id) = setup_self_group().await?;
+        let (pool, signing_key, group_id) = setup_self_group().await?;
         let wai_key = WelcomeAttributionInfoEarKey::random()?;
         let client_id = Uuid::new_v4();
 
         pool.write()
             .await?
             .with_transaction(async |txn| -> anyhow::Result<()> {
-                let key_package = linked_device_key_package(txn, &user_id, client_id).await?;
+                let key_package = linked_device_key_package(txn, &signing_key, client_id).await?;
                 let mut job = PendingChatOperation::create_add_client(
                     txn,
                     &signing_key,

@@ -66,7 +66,7 @@ impl Device {
     fn new() -> Self {
         Self {
             provider: OpenMlsRustCrypto::default(),
-            key: SelfGroupSigningKey::generate_unsigned(Uuid::new_v4()).unwrap(),
+            key: SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key()).unwrap(),
         }
     }
 

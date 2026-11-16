@@ -833,6 +833,7 @@ impl Group {
 
 #[cfg(test)]
 mod tests {
+    use aircommon::credentials::test_utils::random_user_signing_key;
     use aircommon::{
         credentials::keys::{LeafSigningKeyRef, SelfGroupSigningKey},
         crypto::aead::keys::IdentityLinkWrapperKey,
@@ -860,7 +861,8 @@ mod tests {
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
+        let signing_key =
+            SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key())?;
         let (group, _params) = Group::create_apq_group(
             &mut txn,
             LeafSigningKeyRef::SelfGroup(&signing_key),

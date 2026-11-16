@@ -283,6 +283,7 @@ impl<'r> Decode<'r, Sqlite> for UnlinkReason {
 
 #[cfg(test)]
 mod tests {
+    use aircommon::credentials::test_utils::random_user_signing_key;
     use aircommon::{
         RustCrypto,
         identifiers::{QsClientId, QsUserId, UserId},
@@ -497,7 +498,7 @@ mod tests {
 
         let first = GroupId::random(&RustCrypto::default());
         let second = GroupId::random(&RustCrypto::default());
-        let signing_key = SelfGroupSigningKey::generate_unsigned(client_id)?;
+        let signing_key = SelfGroupSigningKey::generate(client_id, &random_user_signing_key())?;
 
         assert!(OwnClientInfo::claim_self_group(pool.write().await?, &first, &signing_key).await?);
         assert!(
