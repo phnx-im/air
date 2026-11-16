@@ -239,7 +239,7 @@ impl Group {
                 .context("T and PQ membership is not bound by matching signature keys")?;
         }
 
-        let credentials = verify_member_credentials(&mut *txn, api_clients, &mls_group, false)
+        let credentials = verify_member_credentials(&mut *txn, api_clients, &mls_group, None)
             .await
             .context("failed to verify the member credentials")?;
         ensure_room_state_users_are_members(&room_state, &mls_group)?;

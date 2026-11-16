@@ -728,7 +728,12 @@ impl CoreUser {
         // MLSMessage Phase 2: Process the message
         let result = group
             .group_mut()
-            .process_message(&mut *txn, &self.inner.api_clients, protocol_message)
+            .process_message(
+                &mut *txn,
+                &self.inner.api_clients,
+                self.signing_key().credential(),
+                protocol_message,
+            )
             .await?;
         let Some(ProcessMessageProcessed {
             processed_message, ..
@@ -814,7 +819,12 @@ impl CoreUser {
         // MLSMessage Phase 2: Process the message
         let result = group
             .group_mut()
-            .process_message(&mut *txn, &self.inner.api_clients, protocol_message)
+            .process_message(
+                &mut *txn,
+                &self.inner.api_clients,
+                self.signing_key().credential(),
+                protocol_message,
+            )
             .await?;
         let Some(processed_message) =
             Self::take_processed(txn, chat.id(), &mut group, result).await?
@@ -896,7 +906,12 @@ impl CoreUser {
         // MLSMessage Phase 2: Process the message
         let result = group
             .group_mut()
-            .process_apq_message(txn, self.api_clients(), protocol_message)
+            .process_apq_message(
+                txn,
+                self.api_clients(),
+                self.signing_key().credential(),
+                protocol_message,
+            )
             .await?;
         let Some(processed_message) =
             Self::take_processed(txn, chat.id(), &mut group, result).await?
@@ -2146,7 +2161,7 @@ mod tests {
     async fn own_pending_commit_yields_announced_batch_id() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
-        let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
         let leaf_signer = LeafSigningKeyRef::SelfGroup(&signing_key);
 
         let mut connection = pool.write().await?;
@@ -2285,7 +2300,7 @@ mod tests {
         let mut txn = connection.begin().await?;
         let error = group
             .group_mut()
-            .process_message(&mut txn, &api_clients, proposal)
+            .process_message(&mut txn, &api_clients, signing_key.credential(), proposal)
             .await
             .err()
             .context("the new member proposal is processed")?;

@@ -36,6 +36,7 @@ impl Group {
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
+        own_user_credential: &UserCredential,
         processed_message: &ProcessedMessage,
         pq_staged_commit: Option<&StagedCommit>,
         sender_credential: LeafCredential,
@@ -49,6 +50,7 @@ impl Group {
                     .process_group_operation_aad(
                         txn,
                         api_clients,
+                        own_user_credential,
                         processed_message,
                         pq_staged_commit,
                         sender_credential,
@@ -85,7 +87,7 @@ impl Group {
                 }
             }
             AadPayload::Resync => {
-                self.process_resync_aad(txn, api_clients, processed_message)
+                self.process_resync_aad(txn, api_clients, own_user_credential, processed_message)
                     .await?;
                 PostProcessAadResult {
                     we_were_removed: false,
@@ -108,10 +110,12 @@ impl Group {
     /// Process a group operation AAD payload: verify and persist any added
     /// credentials and a potentially updated sender leaf credential. Returns
     /// the encrypted user profile keys of any added clients.
+    #[expect(clippy::too_many_arguments)]
     async fn process_group_operation_aad(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
+        own_user_credential: &UserCredential,
         processed_message: &ProcessedMessage,
         pq_staged_commit: Option<&StagedCommit>,
         sender_credential: LeafCredential,
@@ -154,7 +158,7 @@ impl Group {
                 // carries a self-group credential without AS material, and the
                 // own user profile needs no fetching, so there are no profile
                 // infos to collect.
-                self.process_self_group_adds(&sender_identity, staged_commit)?;
+                self.process_self_group_adds(&sender_identity, staged_commit, own_user_credential)?;
             } else {
                 // Collect the verifiable credentials
                 let mut verifiable_credentials = Vec::with_capacity(number_of_adds);
@@ -199,6 +203,7 @@ impl Group {
             (new_sender_credential, new_sender_leaf_key),
             (sender_credential, sender_leaf_key),
             "update path",
+            own_user_credential,
         )? {
             if new_credential == old_credential {
                 // The credential was verified when the member entered the group, but the update
@@ -289,6 +294,7 @@ impl Group {
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
+        own_user_credential: &UserCredential,
         processed_message: &ProcessedMessage,
     ) -> Result<()> {
         let staged_commit = expect_staged_commit(processed_message)?;
@@ -320,6 +326,7 @@ impl Group {
             (sender_credential, sender_leaf_key),
             (old_credential, old_leaf.signature_key()),
             "resync",
+            own_user_credential,
         )? {
             verify_and_store_credential(
                 txn,

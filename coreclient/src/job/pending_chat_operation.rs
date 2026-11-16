@@ -5,7 +5,7 @@
 use aircommon::{
     credentials::{
         RoomPolicyIdentity, UserCredential,
-        keys::{SelfGroupSigningKey, UserSigningKey},
+        keys::{LeafSigningKeyRef, SelfGroupSigningKey, UserSigningKey},
     },
     crypto::{aead::keys::WelcomeAttributionInfoEarKey, indexed_aead::keys::UserProfileKey},
     identifiers::{QsReference, QualifiedGroupId, UserId},
@@ -1110,7 +1110,15 @@ impl PendingChatOperation {
 
         // Room policy is keyed on the client id, so reject a credential whose id
         // is already a member of the self group before staging the add.
-        group.validate_self_group_add(key_package.t_credential())?;
+        group.validate_self_group_add(
+            key_package.t_credential(),
+            key_package
+                .t_key_package()
+                .leaf_node()
+                .signature_key()
+                .as_slice(),
+            signer.credential(),
+        )?;
 
         let user_profile_key = UserProfileKey::load_own(&mut *txn).await?;
 
@@ -1140,7 +1148,7 @@ impl PendingChatOperation {
             .group_mut()
             .stage_apq_invite(
                 &mut *txn,
-                &self_group_signer,
+                LeafSigningKeyRef::SelfGroup(&self_group_signer),
                 signer,
                 vec![invitee],
                 Some(settings_proposal),
@@ -1348,7 +1356,13 @@ impl PendingChatOperation {
                 } else {
                     let params = group
                         .group_mut()
-                        .stage_apq_invite(&mut *txn, signer, signer, invitees, None)
+                        .stage_apq_invite(
+                            &mut *txn,
+                            LeafSigningKeyRef::User(signer),
+                            signer,
+                            invitees,
+                            None,
+                        )
                         .await?
                         // Check if we got a leaf node validation error which is domain specific and should
                         // be propagated to the user.
@@ -2011,7 +2025,7 @@ pub(crate) mod tests {
     -> anyhow::Result<(DbAccess, PendingChatOperation, SelfGroupSigningKey)> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
-        let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
         let leaf_signer = LeafSigningKeyRef::SelfGroup(&signing_key);
 
         let mut connection = pool.write().await?;
@@ -2271,7 +2285,7 @@ pub(crate) mod tests {
         use aircommon::credentials::SELF_GROUP_CREDENTIAL_TYPE;
         use openmls::prelude::{CredentialType, SignaturePublicKey};
 
-        let self_group_signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let self_group_signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
         let client_reference = random_client_reference();
         let group = stage_self_group_update(
             &self_group_signing_key,
@@ -2297,7 +2311,7 @@ pub(crate) mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn self_update_in_self_group_adds_missing_client_reference() -> anyhow::Result<()> {
-        let self_group_signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let self_group_signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
         let own_client_reference = random_client_reference();
         let group =
             stage_self_group_update(&self_group_signing_key, None, &own_client_reference).await?;
@@ -2316,7 +2330,7 @@ pub(crate) mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn self_update_in_self_group_keeps_existing_client_reference() -> anyhow::Result<()> {
-        let self_group_signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let self_group_signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
         let creator_client_reference = random_client_reference();
         let group = stage_self_group_update(
             &self_group_signing_key,
@@ -2343,7 +2357,7 @@ pub(crate) mod tests {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
         let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
-        let self_group_signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let self_group_signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
         let leaf_signer = LeafSigningKeyRef::SelfGroup(&self_group_signing_key);
 
         let t_group_id = GroupId::from(QualifiedGroupId::new(
@@ -2410,7 +2424,7 @@ pub(crate) mod tests {
 
         use crate::groups::{client_reference_extension, openmls_provider::AirOpenMlsProvider};
 
-        let signer = SelfGroupSigningKey::generate(client_id)?;
+        let signer = SelfGroupSigningKey::generate_unsigned(client_id)?;
         let signature_key = SignaturePublicKey::from(signer.verifying_key().clone());
         let credential = ApqCredentialWithKey {
             t_credential: CredentialWithKey {

@@ -191,7 +191,7 @@ impl OutboundServiceContext {
                 &self.api_clients,
                 external_commit_info,
                 signer,
-                own_user_id,
+                self.signing_key().credential(),
                 info.connection_group_ear_key.clone(),
                 info.connection_group_identity_link_wrapper_key.clone(),
                 aad,

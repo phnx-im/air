@@ -129,19 +129,20 @@ impl Group {
         Ok(credentials)
     }
 
-    /// Process the add proposals of a self-group commit. Added leaves carry a
-    /// self-group credential, which holds no AS material to verify: openmls
-    /// has already checked the leaf signature, so only the credential type,
-    /// client id uniqueness, and the room policy (keyed on client ids) are
-    /// checked.
+    /// Process the add proposals of a self-group commit.
     pub(super) fn process_self_group_adds(
         &self,
         sender_identity: &RoomPolicyIdentity,
         staged_commit: &StagedCommit,
+        own_user_credential: &UserCredential,
     ) -> Result<()> {
         for proposal in staged_commit.add_proposals() {
             let leaf_node = proposal.add_proposal().key_package().leaf_node();
-            self.validate_self_group_add(leaf_node.credential())?;
+            self.validate_self_group_add(
+                leaf_node.credential(),
+                leaf_node.signature_key().as_slice(),
+                own_user_credential,
+            )?;
 
             let credential = LeafCredential::from_credential(leaf_node.credential())?;
             self.verify_role_change_identity(
@@ -157,13 +158,12 @@ impl Group {
 /// Pair the new and old leaf credential of a member transition for AS verification.
 ///
 /// Each side is a leaf credential and the leaf's signature key. Returns `None` when both are
-/// self-group credentials, since they carry no AS material to verify or store. Their client id and
-/// signature key must stay the same, because a self-group credential carries no key the leaf could
-/// be bound to. Mixed pairs are rejected.
+/// self-group credentials.
 pub(super) fn user_credential_transition(
     (new, new_key): (LeafCredential, &SignaturePublicKey),
     (old, old_key): (LeafCredential, &SignaturePublicKey),
     context: &str,
+    own_user_credential: &UserCredential,
 ) -> Result<Option<(VerifiableUserCredential, VerifiableUserCredential)>> {
     match (new, old) {
         (LeafCredential::User(new), LeafCredential::User(old)) => Ok(Some((new, old))),
@@ -176,6 +176,12 @@ pub(super) fn user_credential_transition(
                 new_key == old_key,
                 "self-group signature key changed in {context}"
             );
+            new.verify(
+                new_key.as_slice(),
+                own_user_credential.user_id(),
+                own_user_credential.verifying_key(),
+            )
+            .with_context(|| format!("invalid self-group credential in {context}"))?;
             Ok(None)
         }
         (LeafCredential::User(_), LeafCredential::SelfGroup(_))
@@ -318,14 +324,19 @@ pub(super) fn verify_pq_added_signature_keys(
 #[cfg(test)]
 mod tests {
     use aircommon::{
-        credentials::SelfGroupCredential, messages::client_ds::GroupOperationParamsAad,
+        credentials::{
+            SELF_GROUP_CREDENTIAL_TYPE, SelfGroupCredential, keys::UserSigningKey,
+            test_utils::create_test_credentials,
+        },
+        identifiers::UserId,
+        messages::client_ds::GroupOperationParamsAad,
         mls_group_config::default_mls_group_join_config,
     };
     use openmls::{
         group::ExternalCommitBuilder,
         prelude::{
-            BasicCredential, Credential, CredentialWithKey, JoinProposal, KeyPackage,
-            MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
+            BasicCredential, Credential, CredentialType, CredentialWithKey, JoinProposal,
+            KeyPackage, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
             PURE_PLAINTEXT_WIRE_FORMAT_POLICY, ProcessedMessageContent, Proposal, RemoveProposal,
             tls_codec::Serialize as _,
         },
@@ -341,33 +352,94 @@ mod tests {
         LeafCredential::SelfGroup(SelfGroupCredential::new(Uuid::from_u128(client_id)))
     }
 
+    fn signed_credential(
+        client_id: u128,
+        key: &SignaturePublicKey,
+        user: &UserSigningKey,
+    ) -> LeafCredential {
+        LeafCredential::SelfGroup(
+            SelfGroupCredential::signed(Uuid::from_u128(client_id), key.as_slice(), user).unwrap(),
+        )
+    }
+
+    /// A credential with a payload but no signature.
+    fn malformed_credential(client_id: u128) -> LeafCredential {
+        // The persistence codec version, then {1: client_id, 2: h'01'}.
+        let mut bytes = vec![0x01, 0xa2, 0x01, 0x50];
+        bytes.extend_from_slice(Uuid::from_u128(client_id).as_bytes());
+        bytes.extend_from_slice(&[0x02, 0x41, 0x01]);
+        let credential = Credential::new(CredentialType::Other(SELF_GROUP_CREDENTIAL_TYPE), bytes);
+        LeafCredential::from_credential(&credential).unwrap()
+    }
+
+    fn user_signing_key() -> UserSigningKey {
+        create_test_credentials(UserId::random("example.com".parse().unwrap())).1
+    }
+
     fn signature_key(byte: u8) -> SignaturePublicKey {
         SignaturePublicKey::from(vec![byte; 32])
     }
 
     #[test]
     fn self_group_transition_preserves_client_id_and_key() -> anyhow::Result<()> {
+        let own = user_signing_key();
         let key = signature_key(1);
         for context in ["update path", "resync"] {
-            let transition = user_credential_transition(
-                (self_group_credential(1), &key),
-                (self_group_credential(1), &key),
-                context,
-            )?;
-
-            assert!(transition.is_none(), "{context}");
+            for (new, old) in [
+                (self_group_credential(1), self_group_credential(1)),
+                (signed_credential(1, &key, &own), self_group_credential(1)),
+                (
+                    signed_credential(1, &key, &own),
+                    signed_credential(1, &key, &own),
+                ),
+            ] {
+                let transition = user_credential_transition(
+                    (new, &key),
+                    (old, &key),
+                    context,
+                    own.credential(),
+                )?;
+                assert!(transition.is_none(), "{context}");
+            }
         }
         Ok(())
     }
 
     #[test]
+    fn self_group_transition_rejects_an_invalid_new_credential() {
+        let own = user_signing_key();
+        let key = signature_key(1);
+        for context in ["update path", "resync"] {
+            for new in [
+                signed_credential(1, &key, &user_signing_key()),
+                signed_credential(1, &signature_key(2), &own),
+                malformed_credential(1),
+            ] {
+                let error = user_credential_transition(
+                    (new, &key),
+                    (self_group_credential(1), &key),
+                    context,
+                    own.credential(),
+                )
+                .expect_err("an invalid credential should be rejected");
+                assert!(
+                    error.to_string().contains("invalid self-group credential"),
+                    "{error:#}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn self_group_transition_rejects_client_id_change() {
+        let own = user_signing_key();
         let key = signature_key(1);
         for context in ["update path", "resync"] {
             let transition = user_credential_transition(
                 (self_group_credential(2), &key),
                 (self_group_credential(1), &key),
                 context,
+                own.credential(),
             );
 
             assert!(transition.is_err(), "{context}");
@@ -376,11 +448,13 @@ mod tests {
 
     #[test]
     fn self_group_transition_rejects_signature_key_change() {
+        let own = user_signing_key();
         for context in ["update path", "resync"] {
             let transition = user_credential_transition(
                 (self_group_credential(1), &signature_key(2)),
                 (self_group_credential(1), &signature_key(1)),
                 context,
+                own.credential(),
             );
 
             assert!(transition.is_err(), "{context}");

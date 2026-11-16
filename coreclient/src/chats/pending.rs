@@ -205,7 +205,7 @@ impl CoreUser {
                         self.api_clients(),
                         eci,
                         LeafSigningKeyRef::User(self.signing_key()),
-                        self.user_id(),
+                        self.signing_key().credential(),
                         connection_info.connection_group_ear_key.clone(),
                         connection_info
                             .connection_group_identity_link_wrapper_key
@@ -465,7 +465,7 @@ impl CoreUser {
                 self.db().write().await?,
                 self.api_clients(),
                 LeafSigningKeyRef::User(self.signing_key()),
-                self.user_id(),
+                self.signing_key().credential(),
                 eci,
             )
             .await;

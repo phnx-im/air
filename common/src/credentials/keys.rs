@@ -15,6 +15,7 @@ use tls_codec::{Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize};
 use uuid::Uuid;
 
 use crate::{
+    LibraryError,
     codec::{self, PersistenceCodec},
     crypto::{
         RawKey,
@@ -250,7 +251,27 @@ pub struct SelfGroupSigningKey {
 }
 
 impl SelfGroupSigningKey {
-    pub fn generate(client_id: Uuid) -> Result<Self, KeyGenerationError> {
+    /// Generates a leaf key with a credential for `client_id` signed with `user_signing_key`.
+    pub fn generate(
+        client_id: Uuid,
+        user_signing_key: &UserSigningKey,
+    ) -> Result<Self, SelfGroupSigningKeyError> {
+        let signing_key = SigningKey::generate()?;
+        let credential = SelfGroupCredential::signed(
+            client_id,
+            signing_key.verifying_key().as_slice(),
+            user_signing_key,
+        )?;
+        Ok(Self {
+            signing_key,
+            credential,
+        })
+    }
+
+    /// Generates a leaf key with an unsigned credential, as stored before credentials were
+    /// signed.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub fn generate_unsigned(client_id: Uuid) -> Result<Self, KeyGenerationError> {
         Ok(Self {
             signing_key: SigningKey::generate()?,
             credential: SelfGroupCredential::new(client_id),
@@ -260,6 +281,34 @@ impl SelfGroupSigningKey {
     pub fn credential(&self) -> &SelfGroupCredential {
         &self.credential
     }
+
+    /// Replaces the credential with an unsigned one for the same client ID, as stored before
+    /// credentials were signed.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub fn unsign_credential(&mut self) {
+        self.credential = SelfGroupCredential::new(self.credential.client_id());
+    }
+
+    /// Replaces the credential with one signed with `user_signing_key` for the same client ID.
+    pub fn sign_credential(
+        &mut self,
+        user_signing_key: &UserSigningKey,
+    ) -> Result<(), LibraryError> {
+        self.credential = SelfGroupCredential::signed(
+            self.credential.client_id(),
+            self.signing_key.verifying_key().as_slice(),
+            user_signing_key,
+        )?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum SelfGroupSigningKeyError {
+    #[error(transparent)]
+    KeyGeneration(#[from] KeyGenerationError),
+    #[error(transparent)]
+    Signing(#[from] LibraryError),
 }
 
 impl Deref for SelfGroupSigningKey {
@@ -372,7 +421,15 @@ impl Deref for LeafSigningKeyRef<'_> {
     }
 }
 
-impl LeafSigningKeyRef<'_> {
+impl<'a> LeafSigningKeyRef<'a> {
+    /// The self-group signing key, or `None` for the user signing key.
+    pub fn as_self_group(self) -> Option<&'a SelfGroupSigningKey> {
+        match self {
+            LeafSigningKeyRef::User(_) => None,
+            LeafSigningKeyRef::SelfGroup(key) => Some(key),
+        }
+    }
+
     /// The MLS credential to place in the leaf.
     pub fn mls_credential(self) -> Result<Credential, LeafSigningKeyError> {
         match self {
@@ -447,25 +504,86 @@ pub type UsernameSignature = Signature<UsernameKeyType>;
 
 #[cfg(test)]
 mod test {
+    use airmacros::{DeserializeTaggedMap, SerializeTaggedMap};
     use mls_assist::openmls_traits::signatures::Signer;
+    use serde::{Deserialize, Serialize};
     use uuid::Uuid;
 
-    use crate::crypto::signatures::{
-        DEFAULT_SIGNATURE_SCHEME, private_keys::VerifyingKeyBehaviour,
+    use crate::{
+        codec::PersistenceCodec,
+        credentials::test_utils::create_test_credentials,
+        crypto::signatures::{
+            DEFAULT_SIGNATURE_SCHEME,
+            private_keys::{SigningKey, VerifyingKeyBehaviour},
+        },
+        identifiers::UserId,
     };
 
-    use super::SelfGroupSigningKey;
+    use super::{ClientKeyType, SelfGroupSigningKey, UserSigningKey};
+
+    fn user_signing_key() -> UserSigningKey {
+        create_test_credentials(UserId::random("example.com".parse().unwrap())).1
+    }
+
+    /// A copy of the key as stored before credentials were signed.
+    #[derive(Serialize, Deserialize)]
+    struct FrozenSelfGroupSigningKey {
+        signing_key: SigningKey<ClientKeyType>,
+        credential: FrozenSelfGroupCredential,
+    }
+
+    #[derive(SerializeTaggedMap, DeserializeTaggedMap)]
+    struct FrozenSelfGroupCredential {
+        #[tag(1)]
+        client_id: Uuid,
+    }
 
     #[test]
     fn self_group_signing_key_round_trips_client_id() {
         let client_id = Uuid::new_v4();
-        let signing_key = SelfGroupSigningKey::generate(client_id).unwrap();
+        let signing_key = SelfGroupSigningKey::generate(client_id, &user_signing_key()).unwrap();
         assert_eq!(signing_key.credential().client_id(), client_id);
     }
 
     #[test]
+    fn generated_credential_verifies() {
+        let user_signing_key = user_signing_key();
+        let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4(), &user_signing_key).unwrap();
+        assert!(signing_key.credential().is_signed());
+        signing_key
+            .credential()
+            .verify(
+                signing_key.verifying_key().as_slice(),
+                user_signing_key.credential().user_id(),
+                user_signing_key.credential().verifying_key(),
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn signing_an_unsigned_credential_keeps_the_client_id() {
+        let user_signing_key = user_signing_key();
+        let client_id = Uuid::new_v4();
+        let mut signing_key = SelfGroupSigningKey::generate_unsigned(client_id).unwrap();
+        assert!(!signing_key.credential().is_signed());
+
+        signing_key.sign_credential(&user_signing_key).unwrap();
+        assert!(signing_key.credential().is_signed());
+        assert_eq!(signing_key.credential().client_id(), client_id);
+        signing_key
+            .credential()
+            .verify(
+                signing_key.verifying_key().as_slice(),
+                user_signing_key.credential().user_id(),
+                user_signing_key.credential().verifying_key(),
+            )
+            .unwrap();
+    }
+
+    #[test]
     fn self_group_signing_key_signs_and_verifies() {
-        let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4()).unwrap();
+        let signing_key =
+            SelfGroupSigningKey::generate(Uuid::new_v4(), &user_signing_key()).unwrap();
         assert_eq!(signing_key.signature_scheme(), DEFAULT_SIGNATURE_SCHEME);
 
         let payload = b"payload to sign";
@@ -474,5 +592,37 @@ mod test {
             .verifying_key()
             .verify(payload, &signature)
             .unwrap();
+    }
+
+    #[test]
+    fn an_old_stored_key_loads_as_unsigned() {
+        let client_id = Uuid::new_v4();
+        let old = FrozenSelfGroupSigningKey {
+            signing_key: SigningKey::generate().unwrap(),
+            credential: FrozenSelfGroupCredential { client_id },
+        };
+        let bytes = PersistenceCodec::to_vec(&old).unwrap();
+
+        let loaded: SelfGroupSigningKey = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(loaded.credential().client_id(), client_id);
+        assert!(!loaded.credential().is_signed());
+        assert_eq!(loaded.verifying_key(), old.signing_key.verifying_key());
+    }
+
+    #[test]
+    fn the_old_key_type_loads_a_new_stored_key() {
+        let signing_key =
+            SelfGroupSigningKey::generate(Uuid::new_v4(), &user_signing_key()).unwrap();
+        let bytes = PersistenceCodec::to_vec(&signing_key).unwrap();
+
+        let loaded: FrozenSelfGroupSigningKey = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            loaded.credential.client_id,
+            signing_key.credential().client_id()
+        );
+        assert_eq!(
+            loaded.signing_key.verifying_key(),
+            signing_key.verifying_key()
+        );
     }
 }

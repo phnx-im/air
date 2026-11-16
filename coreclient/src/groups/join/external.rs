@@ -3,7 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::{LeafSigningKeyRef, UserSigningKey},
+    credentials::{
+        UserCredential,
+        keys::{LeafSigningKeyRef, UserSigningKey},
+    },
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::UserId,
     messages::{
@@ -189,8 +192,13 @@ impl Group {
 
         // Phase 3: Verify the user credentials. Self-group leaves carry a self-group credential,
         // which is only accepted inside our own self group.
-        let credentials =
-            verify_member_credentials(&mut *txn, api_clients, &mls_group, is_self_group).await?;
+        let credentials = verify_member_credentials(
+            &mut *txn,
+            api_clients,
+            &mls_group,
+            is_self_group.then_some(signer.credential()),
+        )
+        .await?;
         if let Some(tombstone) = GroupAppData::tombstone(mls_group.extensions()) {
             let closer = closer(group_info_signer.as_ref(), signer.credential().user_id())?;
             bail!(GroupClosed { closer, tombstone });
@@ -231,7 +239,7 @@ impl Group {
         api_clients: &ApiClients,
         external_commit_info: ExternalCommitInfoIn,
         signer: LeafSigningKeyRef<'_>,
-        own_user_id: &UserId,
+        own_user_credential: &UserCredential,
         group_state_ear_key: GroupStateEarKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         aad: AadMessage,
@@ -298,6 +306,7 @@ impl Group {
         let group_info_signer = group_info_signer_credential(&t_group_info, &t_ratchet_tree);
         let group_info = VerifiableApqGroupInfo::new(t_group_info, pq_group_info);
 
+        let own_user_id = own_user_credential.user_id();
         let encrypted_profile_keys_fallback = Self::encrypted_profile_keys_fallback(
             &t_ratchet_tree,
             encrypted_user_profile_keys,
@@ -388,8 +397,13 @@ impl Group {
 
         // Verify credentials (T only). Self-group leaves carry a self-group credential, which is
         // only accepted inside our own self group.
-        let credentials =
-            verify_member_credentials(&mut *txn, api_clients, &t_group, is_self_group).await?;
+        let credentials = verify_member_credentials(
+            &mut *txn,
+            api_clients,
+            &t_group,
+            is_self_group.then_some(own_user_credential),
+        )
+        .await?;
         if let Some(tombstone) = GroupAppData::tombstone(t_group.extensions()) {
             let closer = closer(group_info_signer.as_ref(), own_user_id)?;
             bail!(GroupClosed { closer, tombstone });
@@ -469,7 +483,7 @@ mod tests {
     }
 
     fn self_group_signer() -> anyhow::Result<SelfGroupSigningKey> {
-        Ok(SelfGroupSigningKey::generate(Uuid::new_v4())?)
+        Ok(SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?)
     }
 
     /// The T ratchet tree of a new self group created by `signer`.

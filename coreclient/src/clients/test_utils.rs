@@ -7,7 +7,7 @@ use aircommon::messages::client_ds_out::SendMessageCollisionTag;
 use openmls::group::{GroupEpoch, Member};
 
 use aircommon::{
-    credentials::RoomPolicyIdentity,
+    credentials::{RoomPolicyIdentity, SelfGroupCredential},
     identifiers::{QualifiedGroupId, Username},
     messages::connection_package::ConnectionPackageHash,
 };
@@ -551,6 +551,37 @@ impl CoreUser {
         Ok(self.execute_job(job).await?)
     }
 
+    /// The self-group credential stored with this device's self-group signing key.
+    pub async fn stored_self_group_credential(&self) -> anyhow::Result<SelfGroupCredential> {
+        let signing_key = OwnClientInfo::load(self.db().read().await?)
+            .await?
+            .self_group_signing_key
+            .context("no self-group signing key")?;
+        Ok(signing_key.credential().clone())
+    }
+
+    /// Replaces the stored self-group credential with an unsigned one, as a device stored it
+    /// before self-group credentials were signed.
+    pub async fn unsign_stored_self_group_credential(&self) -> anyhow::Result<()> {
+        let mut signing_key = OwnClientInfo::load(self.db().read().await?)
+            .await?
+            .self_group_signing_key
+            .context("no self-group signing key")?;
+        signing_key.unsign_credential();
+        OwnClientInfo::update_self_group_signing_key(self.db().write().await?, &signing_key)
+            .await?;
+        Ok(())
+    }
+
+    /// Signs an unsigned stored self-group credential, as loading the client does.
+    pub async fn sign_stored_self_group_credential(&self) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| {
+                OwnClientInfo::sign_self_group_credential(txn, self.signing_key()).await
+            })
+            .await
+    }
+
     pub fn signing_key_for_test(&self) -> &UserSigningKey {
         self.signing_key()
     }
@@ -582,8 +613,33 @@ impl CoreUser {
         let client_id = OwnClientInfo::load(self.db().read().await?)
             .await?
             .client_id;
-        let signing_key = SelfGroupSigningKey::generate(client_id)?;
-        let signer = LeafSigningKeyRef::SelfGroup(&signing_key);
+        let signer = SelfGroupSigningKey::generate(client_id, self.signing_key())?;
+        self.self_group_creation_params_with(group_id, pq_group_id, &signer)
+            .await
+    }
+
+    /// Like [`Self::self_group_creation_params_for_test`], with an unsigned creator leaf as
+    /// clients created it before self-group credentials were signed.
+    pub async fn unsigned_self_group_creation_params_for_test(
+        &self,
+        group_id: GroupId,
+        pq_group_id: GroupId,
+    ) -> anyhow::Result<(CreateGroupParamsOut, GroupStateEarKey)> {
+        let client_id = OwnClientInfo::load(self.db().read().await?)
+            .await?
+            .client_id;
+        let signer = SelfGroupSigningKey::generate_unsigned(client_id)?;
+        self.self_group_creation_params_with(group_id, pq_group_id, &signer)
+            .await
+    }
+
+    async fn self_group_creation_params_with(
+        &self,
+        group_id: GroupId,
+        pq_group_id: GroupId,
+        signer: &SelfGroupSigningKey,
+    ) -> anyhow::Result<(CreateGroupParamsOut, GroupStateEarKey)> {
+        let signer = LeafSigningKeyRef::SelfGroup(signer);
         let (mut params, ear_key) = self
             .apq_group_creation_params(group_id, pq_group_id, signer, |_| {
                 Ok(NewGroupContext::SelfGroup(GroupData::empty()))
@@ -968,7 +1024,7 @@ impl CoreUser {
             .with_extensions(leaf_node_extensions)
             .build();
 
-        let signing_key = SelfGroupSigningKey::generate(victim)?;
+        let signing_key = SelfGroupSigningKey::generate(victim, self.signing_key())?;
         let signer = LeafSigningKeyRef::SelfGroup(&signing_key);
         let signature_key = signer.verifying_key().clone();
         let credential_with_key = ApqCredentialWithKey {

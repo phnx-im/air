@@ -22,6 +22,7 @@ mod read_state;
 mod requests;
 mod self_group;
 mod settings;
+mod signed_credentials;
 mod tokens;
 mod usernames;
 

@@ -1403,7 +1403,8 @@ impl CoreUser {
         // Each linked device mints its own client id and a per-device self-group signing key.
         let user_id = key_store.signing_key.credential().user_id().clone();
         let client_id = Uuid::new_v4();
-        let self_group_signing_key = SelfGroupSigningKey::generate(client_id)?;
+        let self_group_signing_key =
+            SelfGroupSigningKey::generate(client_id, &key_store.signing_key)?;
 
         let queued = client_db
             .with_write_transaction(async |txn| -> anyhow::Result<usize> {

@@ -323,6 +323,7 @@ impl CoreUser {
 
         let self_user =
             final_state.into_self_user(client_db, client_record_id, api_clients, global_lock);
+        self_user.sign_self_group_credential().await;
         self_user.publish_own_device_entry(client_created_at).await;
         self_user.spawn_ensure_self_group();
         match self_user.continue_account_deletion().await {
@@ -356,6 +357,21 @@ impl CoreUser {
                 }
             }
         });
+    }
+
+    /// Signs a self-group credential stored before credentials were signed.
+    ///
+    /// An unsigned credential stays valid, so a failure must never stop a client from starting.
+    async fn sign_self_group_credential(&self) {
+        let result = self
+            .db()
+            .with_write_transaction(async |txn| {
+                OwnClientInfo::sign_self_group_credential(txn, self.signing_key()).await
+            })
+            .await;
+        if let Err(error) = result {
+            error!(%error, "failed to sign the self-group credential");
+        }
     }
 
     /// Publishes this device's linked-devices entry.

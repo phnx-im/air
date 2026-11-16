@@ -289,7 +289,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn sweep_deletes_superseded_epochs() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
         let signer = LeafSigningKeyRef::SelfGroup(&signing_key);
 
         let mut connection = pool.write().await?;
@@ -328,7 +328,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn sweep_keeps_epochs_inside_the_window() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
         let signer = LeafSigningKeyRef::SelfGroup(&signing_key);
 
         let mut connection = pool.write().await?;
@@ -392,7 +392,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn rotation_sweeps_untracked_epoch_state() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
         let signer = LeafSigningKeyRef::SelfGroup(&signing_key);
 
         let mut connection = pool.write().await?;
@@ -415,7 +415,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn held_epoch_state_survives_until_the_hold_expires() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
         let signer = LeafSigningKeyRef::SelfGroup(&signing_key);
 
         let mut connection = pool.write().await?;
@@ -444,7 +444,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn set_keep_all_policy_rewrites_stored_join_config() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
         let signer = LeafSigningKeyRef::SelfGroup(&signing_key);
 
         let mut connection = pool.write().await?;

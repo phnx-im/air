@@ -11,20 +11,38 @@ use aircoreclient::clients::CoreUser;
 use airserver_test_harness::utils::setup::TestBackend;
 use tonic::Code;
 
+/// Whether the creator leaf of a self-group carries a signed credential.
+#[derive(Clone, Copy)]
+enum CreatorLeaf {
+    Signed,
+    Unsigned,
+}
+
 /// Creates a self-group of `creator` without a stream. The out-of-band
 /// creator credential names `claimed_user_id` but keeps the creator's key.
 async fn create_self_group_claiming(
     setup: &TestBackend,
     creator: &CoreUser,
     claimed_user_id: &UserId,
+    leaf: CreatorLeaf,
 ) -> Result<(), DsRequestError> {
     let api_client = ApiClient::with_endpoint(&setup.server_url()).unwrap();
     let (group_id, pq_group_id, _provisioning) =
         api_client.ds_request_group_id(None, true).await.unwrap();
-    let (mut params, ear_key) = creator
-        .self_group_creation_params_for_test(group_id, pq_group_id.unwrap())
-        .await
-        .unwrap();
+    let pq_group_id = pq_group_id.unwrap();
+    let (mut params, ear_key) = match leaf {
+        CreatorLeaf::Signed => {
+            creator
+                .self_group_creation_params_for_test(group_id, pq_group_id)
+                .await
+        }
+        CreatorLeaf::Unsigned => {
+            creator
+                .unsigned_self_group_creation_params_for_test(group_id, pq_group_id)
+                .await
+        }
+    }
+    .unwrap();
     let (mut payload, signature) = creator
         .signing_key_for_test()
         .credential()
@@ -53,9 +71,11 @@ async fn self_group_with_the_registered_credential_is_created() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
-    create_self_group_claiming(&setup, &alice, alice.user_id())
-        .await
-        .unwrap();
+    for leaf in [CreatorLeaf::Signed, CreatorLeaf::Unsigned] {
+        create_self_group_claiming(&setup, &alice, alice.user_id(), leaf)
+            .await
+            .unwrap();
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -63,7 +83,10 @@ async fn self_group_claiming_another_user_is_rejected() {
     let mut setup = TestBackend::single().await;
     let [mallory, alice] = setup.add_users().await;
 
-    let result = create_self_group_claiming(&setup, &mallory, alice.user_id()).await;
+    // An unsigned creator leaf reaches the AS check of the creator credential. A
+    // signed one fails the leaf check first.
+    let result =
+        create_self_group_claiming(&setup, &mallory, alice.user_id(), CreatorLeaf::Unsigned).await;
     assert_permission_denied(result, "does not match the registered user");
 }
 
@@ -73,6 +96,17 @@ async fn self_group_claiming_an_unknown_user_is_rejected() {
     let mallory = setup.add_user().await;
     let unknown = UserId::random(mallory.user_id().domain().clone());
 
-    let result = create_self_group_claiming(&setup, &mallory, &unknown).await;
+    let result =
+        create_self_group_claiming(&setup, &mallory, &unknown, CreatorLeaf::Unsigned).await;
     assert_permission_denied(result, "unknown user");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn signed_creator_leaf_claiming_another_user_is_rejected() {
+    let mut setup = TestBackend::single().await;
+    let [mallory, alice] = setup.add_users().await;
+
+    let result =
+        create_self_group_claiming(&setup, &mallory, alice.user_id(), CreatorLeaf::Signed).await;
+    assert_permission_denied(result, "creator leaf credential does not verify");
 }

@@ -981,7 +981,7 @@ mod tests {
         OwnClientInfo::claim_self_group(
             db.write().await?,
             &group_id,
-            &SelfGroupSigningKey::generate(Uuid::new_v4())?,
+            &SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?,
         )
         .await?;
         start(&db).await?;
@@ -1009,7 +1009,7 @@ mod tests {
         OwnClientInfo::claim_self_group(
             db.write().await?,
             &group_id,
-            &SelfGroupSigningKey::generate(Uuid::new_v4())?,
+            &SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?,
         )
         .await?;
         start(&db).await?;

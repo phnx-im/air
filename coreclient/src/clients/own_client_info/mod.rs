@@ -11,7 +11,7 @@ use anyhow::Context;
 use openmls::group::GroupId;
 use uuid::Uuid;
 
-use crate::db::access::{ReadConnection, WriteConnection};
+use crate::db::access::{ReadConnection, WriteConnection, WriteDbTransaction};
 
 mod persistence;
 
@@ -91,6 +91,25 @@ impl OwnClientInfo {
             }
             DsAttachmentTarget::User { .. } => Ok(LeafSigningKey::User(user_signer.clone())),
         }
+    }
+
+    /// Signs the stored self-group credential with `user_signing_key` if it is unsigned.
+    ///
+    /// Keys stored before self-group credentials were signed hold an unsigned credential. The
+    /// signed one reaches the self group with the next own commit there.
+    pub(crate) async fn sign_self_group_credential(
+        txn: &mut WriteDbTransaction<'_>,
+        user_signing_key: &UserSigningKey,
+    ) -> anyhow::Result<()> {
+        let Some(mut signing_key) = Self::load(&mut *txn).await?.self_group_signing_key else {
+            return Ok(());
+        };
+        if signing_key.credential().is_signed() {
+            return Ok(());
+        }
+        signing_key.sign_credential(user_signing_key)?;
+        Self::update_self_group_signing_key(&mut *txn, &signing_key).await?;
+        Ok(())
     }
 
     /// Un-assigns the self-group this client had.

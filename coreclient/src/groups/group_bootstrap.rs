@@ -309,7 +309,7 @@ mod tests {
     ) -> anyhow::Result<Group> {
         let user_id = UserId::random("example.com".parse()?);
         let signer = if is_self_group {
-            LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(Uuid::new_v4())?)
+            LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?)
         } else {
             let (_as_key, client_signer) = create_test_credentials(user_id.clone());
             LeafSigningKey::User(client_signer)

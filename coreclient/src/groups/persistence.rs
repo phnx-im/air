@@ -860,7 +860,7 @@ mod tests {
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let signing_key = SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?;
         let (group, _params) = Group::create_apq_group(
             &mut txn,
             LeafSigningKeyRef::SelfGroup(&signing_key),

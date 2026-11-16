@@ -329,7 +329,8 @@ async fn external_delete_commit_is_rejected() {
 
     // Alice's own device stands in for the DS. It sends nothing.
     let (group_id, pq_group_id, ear_key) = alice.self_group_ds_keys().await.unwrap();
-    let signer = SelfGroupSigningKey::generate(Uuid::new_v4()).unwrap();
+    let signer =
+        SelfGroupSigningKey::generate(Uuid::new_v4(), alice.signing_key_for_test()).unwrap();
     let commit = alice
         .forge_external_commit(
             group_id,

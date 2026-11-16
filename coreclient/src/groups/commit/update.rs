@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::LeafSigningKeyRef,
+    credentials::keys::{LeafSigningKeyRef, SelfGroupSigningKey},
     identifiers::QsReference,
     messages::{
         client_ds::AadMessage,
@@ -25,9 +25,9 @@ use openmls::{
     component::ComponentData,
     group::GroupContext,
     prelude::{
-        AppDataDictionaryExtension, AppDataUpdateProposal, Capabilities, Extension, Extensions,
-        LeafNode, LeafNodeParameters, OpenMlsProvider, Proposal, UnknownExtension,
-        tls_codec::Serialize as TlsSerializeTrait,
+        AppDataDictionaryExtension, AppDataUpdateProposal, Capabilities, CredentialWithKey,
+        Extension, Extensions, LeafNode, LeafNodeParameters, OpenMlsProvider, Proposal,
+        UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
     },
 };
 
@@ -56,6 +56,7 @@ impl Group {
             own_leaf_node.extensions(),
             self.own_leaf_capabilities(),
             self.is_self_group().then_some(own_client_reference),
+            self.unpublished_leaf_credential(signer)?,
         )?;
 
         // A leaf shared with sibling emulator clients must be replaced with key
@@ -163,6 +164,7 @@ impl Group {
             t_own_leaf_node.extensions(),
             self.own_leaf_capabilities(),
             own_client_reference,
+            self.unpublished_leaf_credential(signer)?,
         )?;
         let pq_own_leaf_node = self
             .pq()
@@ -170,10 +172,12 @@ impl Group {
             .mls_group
             .own_leaf_node()
             .context("No own PQ leaf node")?;
+        // The PQ leaf keeps its empty credential.
         let pq_leaf_node_parameters = Self::update_leaf_node_extensions(
             pq_own_leaf_node.extensions(),
             self.own_leaf_capabilities(),
             own_client_reference,
+            None,
         )?;
 
         let vc_group_id = self.resolve_vc_emulation_group(&mut *txn).await?;
@@ -221,10 +225,62 @@ impl Group {
         }
     }
 
+    /// The credential to publish on the own T leaf of the self group with the next commit.
+    ///
+    /// Returns the credential stored with `signer` if the own leaf carries another one, e.g. an
+    /// unsigned credential from before self-group credentials were signed. Returns `None` if the
+    /// leaf already carries it.
+    pub(crate) fn unpublished_self_group_credential(
+        &self,
+        signer: &SelfGroupSigningKey,
+    ) -> Result<Option<CredentialWithKey>> {
+        let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
+        let credential = signer.credential().to_credential()?;
+        if own_leaf_node.credential() == &credential {
+            return Ok(None);
+        }
+        Ok(Some(CredentialWithKey {
+            credential,
+            signature_key: own_leaf_node.signature_key().clone(),
+        }))
+    }
+
+    /// Leaf node parameters for a self-group commit that publish the credential stored with
+    /// `signer`, see [`Self::unpublished_self_group_credential`].
+    ///
+    /// Returns the T and the PQ parameters, or `None` if the own leaf already carries the
+    /// credential. All other leaf properties stay as they are.
+    pub(crate) fn self_group_leaf_node_parameters(
+        &self,
+        signer: &SelfGroupSigningKey,
+    ) -> Result<Option<(LeafNodeParameters, LeafNodeParameters)>> {
+        let Some(credential) = self.unpublished_self_group_credential(signer)? else {
+            return Ok(None);
+        };
+        let t_leaf_node_parameters = LeafNodeParameters::builder()
+            .with_credential_with_key(credential)
+            .build();
+        Ok(Some((
+            t_leaf_node_parameters,
+            LeafNodeParameters::builder().build(),
+        )))
+    }
+
+    fn unpublished_leaf_credential(
+        &self,
+        signer: LeafSigningKeyRef<'_>,
+    ) -> Result<Option<CredentialWithKey>> {
+        match signer {
+            LeafSigningKeyRef::User(_) => Ok(None),
+            LeafSigningKeyRef::SelfGroup(signer) => self.unpublished_self_group_credential(signer),
+        }
+    }
+
     fn update_leaf_node_extensions(
         leaf_node_extensions: &Extensions<LeafNode>,
         capabilities: Capabilities,
         client_reference: Option<&QsReference>,
+        credential: Option<CredentialWithKey>,
     ) -> anyhow::Result<LeafNodeParameters> {
         let mut extensions = leaf_node_extensions.clone();
 
@@ -266,6 +322,9 @@ impl Group {
         if &extensions != leaf_node_extensions {
             leaf_node_parameters = leaf_node_parameters.with_extensions(extensions);
         }
+        if let Some(credential) = credential {
+            leaf_node_parameters = leaf_node_parameters.with_credential_with_key(credential);
+        }
         Ok(leaf_node_parameters.build())
     }
 }
@@ -305,9 +364,13 @@ mod tests {
     #[test]
     fn no_app_data_dictionary() {
         let extensions = Extensions::empty();
-        let params =
-            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities(), None)
-                .unwrap();
+        let params = Group::update_leaf_node_extensions(
+            &extensions,
+            default_leaf_node_capabilities(),
+            None,
+            None,
+        )
+        .unwrap();
         assert_eq!(
             params.extensions(),
             Some(&ClientAppData::current().leaf_node_extensions())
@@ -318,9 +381,13 @@ mod tests {
     #[test]
     fn empty_app_data_dictionary() {
         let extensions = extensions_with_dict(AppDataDictionary::new());
-        let params =
-            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities(), None)
-                .unwrap();
+        let params = Group::update_leaf_node_extensions(
+            &extensions,
+            default_leaf_node_capabilities(),
+            None,
+            None,
+        )
+        .unwrap();
         assert_eq!(
             params.extensions(),
             Some(&ClientAppData::current().leaf_node_extensions())
@@ -334,9 +401,13 @@ mod tests {
             virtual_client: false,
         };
         let extensions = stale.leaf_node_extensions();
-        let params =
-            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities(), None)
-                .unwrap();
+        let params = Group::update_leaf_node_extensions(
+            &extensions,
+            default_leaf_node_capabilities(),
+            None,
+            None,
+        )
+        .unwrap();
         assert_eq!(
             params.extensions(),
             Some(&ClientAppData::current().leaf_node_extensions())
@@ -347,9 +418,13 @@ mod tests {
     #[test]
     fn up_to_date_app_data_is_left_alone() {
         let extensions = ClientAppData::current().leaf_node_extensions();
-        let params =
-            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities(), None)
-                .unwrap();
+        let params = Group::update_leaf_node_extensions(
+            &extensions,
+            default_leaf_node_capabilities(),
+            None,
+            None,
+        )
+        .unwrap();
         assert!(params.extensions().is_none());
     }
 
@@ -361,6 +436,7 @@ mod tests {
             &extensions,
             self_group_leaf_node_capabilities(),
             Some(&client_reference),
+            None,
         )
         .unwrap();
 
@@ -381,6 +457,7 @@ mod tests {
             &extensions,
             self_group_leaf_node_capabilities(),
             Some(&random_client_reference()),
+            None,
         )
         .unwrap();
         assert!(params.extensions().is_none());
@@ -394,6 +471,7 @@ mod tests {
             &extensions,
             self_group_leaf_node_capabilities(),
             Some(&client_reference),
+            None,
         )
         .unwrap();
 

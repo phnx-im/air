@@ -223,14 +223,19 @@ impl Group {
         let aad = AadMessage::empty_group_operation().tls_serialize_detached()?;
         self.mls_group.set_aad(aad);
 
+        let leaf_node_parameters = self.self_group_leaf_node_parameters(signer)?;
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
 
-        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
-            .force_self_update(true)
-            .add_t_proposal(proposal)
-            .create_group_info(true)
-            .finalize(&provider, signer, |_| true, |_| true)?;
+        let mut builder =
+            apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+                .force_self_update(true)
+                .add_t_proposal(proposal)
+                .create_group_info(true);
+        if let Some((t_parameters, pq_parameters)) = leaf_node_parameters {
+            builder = builder.leaf_node_parameters(t_parameters, pq_parameters);
+        }
+        let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
 
         debug_assert!(bundle.welcome.is_none());
         ensure!(
@@ -569,7 +574,7 @@ mod derivation_tests {
 
     /// Per-device self-group signer, as used by real self-group leaves.
     fn self_group_signer() -> anyhow::Result<SelfGroupSigningKey> {
-        Ok(SelfGroupSigningKey::generate(Uuid::new_v4())?)
+        Ok(SelfGroupSigningKey::generate_unsigned(Uuid::new_v4())?)
     }
 
     /// Creates a fresh single-member APQ group. When `is_self_group` is set,

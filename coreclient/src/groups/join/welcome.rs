@@ -184,7 +184,7 @@ impl Group {
         ensure_self_group_flag(&mls_group, None, false)?;
 
         let credentials =
-            verify_member_credentials(&mut *txn, api_clients, &mls_group, false).await?;
+            verify_member_credentials(&mut *txn, api_clients, &mls_group, None).await?;
         ensure_room_state_matches_members(&room_state, &mls_group)?;
 
         let sender_user_credential =
@@ -389,14 +389,24 @@ impl Group {
         // recorded as our own self-group. Conversely, our own self-group must carry the flag,
         // since its self-group credentials are only accepted there.
         ensure_self_group_flag(&t_mls_group, Some(&pq_mls_group), is_self_group)?;
-        let credentials =
-            verify_member_credentials(txn, api_clients, &t_mls_group, is_self_group).await?;
+        let own_user_credential = signers.client.credential();
+        let credentials = verify_member_credentials(
+            txn,
+            api_clients,
+            &t_mls_group,
+            is_self_group.then_some(own_user_credential),
+        )
+        .await?;
         ensure_room_state_matches_members(&room_state, &t_mls_group)?;
 
-        let sender_user_credential =
-            load_sender_credential(&mut *txn, &sender_user_id, &credentials).await?;
-        let welcome_attribution_info: WelcomeAttributionInfoPayload =
-            verifiable_attribution_info.verify(sender_user_credential.verifying_key())?;
+        let welcome_attribution_info: WelcomeAttributionInfoPayload = if is_self_group {
+            ensure_self_group_welcome_sender(&sender_user_id, own_user_credential.user_id())?;
+            verifiable_attribution_info.verify(own_user_credential.verifying_key())?
+        } else {
+            let sender_user_credential =
+                load_sender_credential(&mut *txn, &sender_user_id, &credentials).await?;
+            verifiable_attribution_info.verify(sender_user_credential.verifying_key())?
+        };
 
         let group = Self::new(
             welcome_attribution_info.into_identity_link_wrapper_key(),
@@ -422,6 +432,17 @@ impl Group {
 
         Ok((group, sender_user_id, member_profile_info))
     }
+}
+
+/// Rejects a self-group Welcome whose attribution info names another sender than our own user.
+///
+/// A self-group Welcome links a device of our own user, so only our own user may send it.
+fn ensure_self_group_welcome_sender(sender_user_id: &UserId, own_user_id: &UserId) -> Result<()> {
+    ensure!(
+        sender_user_id == own_user_id,
+        "self-group welcome from another user"
+    );
+    Ok(())
 }
 
 /// The stored credential of the welcome's sender.
@@ -458,4 +479,19 @@ fn profile_keys_fallback_by_credentials(
         .map(|c| c.user_id().clone())
         .zip(encrypted_user_profile_keys)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_self_group_welcome_from_another_user_is_rejected() {
+        let own = UserId::random("example.com".parse().unwrap());
+        let other = UserId::random("example.com".parse().unwrap());
+
+        ensure_self_group_welcome_sender(&own, &own).unwrap();
+        let error = ensure_self_group_welcome_sender(&other, &own).unwrap_err();
+        assert!(error.to_string().contains("from another user"), "{error:#}");
+    }
 }
