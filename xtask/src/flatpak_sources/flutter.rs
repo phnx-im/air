@@ -129,6 +129,7 @@ pub(super) fn flutter_sdk_module(
         tag: Some(tag.to_owned()),
         commit: flutter.commit.clone(),
         dest: "flutter".to_owned(),
+        disable_lfs: false,
     })];
     for &arch in arches {
         let a = arch.flutter();

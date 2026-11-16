@@ -76,6 +76,7 @@ modules:
         install -Dm644 -t /app/share/icons/hicolor/scalable/apps src/app/linux/ms.air.Air.svg
         install -Dm644 -t /app/share/icons/hicolor/256x256/apps src/app/linux/ms.air.Air.png
         install -Dm644 -t /app/share/metainfo src/app/linux/ms.air.Air.metainfo.xml
+        install -Dm644 -t /app/share/licenses/$FLATPAK_ID src/LICENSES/AGPL-3.0-or-later.txt
         # D-Bus services need an absolute Exec and the app ID as Name.
         sed -e 's|^Exec=.*|Exec=/app/bin/air --gapplication-service|' -e "s|^Name=.*|Name=$FLATPAK_ID|" \
           src/app/linux/ms.air.Air.service > air.service

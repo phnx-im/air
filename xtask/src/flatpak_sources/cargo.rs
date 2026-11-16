@@ -134,6 +134,7 @@ pub(super) fn cargo_sources(
                 tag: None,
                 commit: commit.clone(),
                 dest: repo_dir.clone(),
+                disable_lfs: false,
             })
         });
 
