@@ -7,10 +7,10 @@ import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/components/fixed_width/fixed_width.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
+import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:air/util/formatting.dart';
-import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -56,9 +56,9 @@ class _DeviceLimit extends _LinkingPhase {
   final int maxDevices;
 }
 
-/// Source of provisioning events for [MultiDeviceProvisionScreen].
+/// Source of provisioning events for [MultiDeviceProvisionModal].
 /// Defaults to the real Rust-bridge [multiDeviceProvisionClient] but made
-/// injectable so tests can drive the screen through each phase.
+/// injectable so tests can drive the modal through each phase.
 typedef MultiDeviceProvisionClientFactory =
     Stream<MultiDeviceProvisionEvent> Function({
       required String domain,
@@ -72,8 +72,8 @@ typedef MultiDeviceProvisionClientFactory =
 /// and navigates to the chat list.
 void _linkUser(User user) => CoreClient().user = user;
 
-class MultiDeviceProvisionScreen extends HookWidget {
-  const MultiDeviceProvisionScreen({
+class MultiDeviceProvisionModal extends HookWidget {
+  const MultiDeviceProvisionModal({
     super.key,
     this.provisionClient = multiDeviceProvisionClient,
     this.dbPathResolver = dbPath,
@@ -99,7 +99,6 @@ class MultiDeviceProvisionScreen extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final palette = SemanticPalette.of(context);
 
     // Can be set by the hidden input field
     final domain = context.select(
@@ -210,45 +209,31 @@ class MultiDeviceProvisionScreen extends HookWidget {
       return null;
     }, [deviceLimit]);
 
-    return Scaffold(
-      resizeToAvoidBottomInset: true,
-      appBar: AppBar(
-        clipBehavior: .none,
-        leading: AppBarBackButton(
-          backgroundColor: palette.backgroundElevated.primary,
-        ),
-        title: Text(
-          loc.linkingDeviceScreen_header,
-          style: const TextStyle(fontWeight: .bold),
-        ),
-        backgroundColor: palette.backgroundBase.secondary,
-      ),
-      backgroundColor: palette.backgroundBase.secondary,
-      body: SafeArea(
-        child: Center(
-          child: FixedWidth(
-            width: 500,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: S.s16),
-              child: switch (phase.value) {
-                _Connecting() => const _ConnectingView(),
-                _AwaitingLink(:final code, :final qrcodeSvg) =>
-                  _AwaitingLinkView(code: code, qrcodeSvg: qrcodeSvg),
-                _Linking() => const _LinkingView(),
-                _Linked() => const SizedBox.shrink(),
-                // The failure itself is shown as a modal, we want to
-                // keep the last visible view painted behind it.
-                _Failed() || _DeviceLimit() => switch (lastVisiblePhase.value) {
-                  _AwaitingLink(:final code, :final qrcodeSvg) =>
-                    _AwaitingLinkView(code: code, qrcodeSvg: qrcodeSvg),
-                  _Linking() => const _LinkingView(),
-                  _Linked() => const SizedBox.shrink(),
-                  _ => const _ConnectingView(),
-                },
-              },
-            ),
+    return ModalScaffold(
+      title: loc.linkingDeviceScreen_header,
+      onDismiss: () => context.read<NavigationCubit>().pop(),
+      child: ModalBody(
+        top: S.s16,
+        child: switch (phase.value) {
+          _Connecting() => const _ConnectingView(),
+          _AwaitingLink(:final code, :final qrcodeSvg) => _AwaitingLinkView(
+            code: code,
+            qrcodeSvg: qrcodeSvg,
           ),
-        ),
+          _Linking() => const _LinkingView(),
+          _Linked() => const SizedBox.shrink(),
+          // The failure itself is shown as a modal, we want to
+          // keep the last visible view painted behind it.
+          _Failed() || _DeviceLimit() => switch (lastVisiblePhase.value) {
+            _AwaitingLink(:final code, :final qrcodeSvg) => _AwaitingLinkView(
+              code: code,
+              qrcodeSvg: qrcodeSvg,
+            ),
+            _Linking() => const _LinkingView(),
+            _Linked() => const SizedBox.shrink(),
+            _ => const _ConnectingView(),
+          },
+        },
       ),
     );
   }
@@ -407,11 +392,16 @@ class _CountdownRing extends HookWidget {
 }
 
 /// Map colors of the QR code generated on the Rust side to the custom
-/// colors of the design system we use in Flutter.
+/// colors of the design system we use in Flutter. The light modules take the
+/// modal's [surface], which keeps the code flush with the fill around it.
 class _LinkQrCodeSvgColorMapper extends ColorMapper {
-  const _LinkQrCodeSvgColorMapper({required this.palette});
+  const _LinkQrCodeSvgColorMapper({
+    required this.palette,
+    required this.surface,
+  });
 
   final SemanticPalette palette;
+  final Color surface;
 
   @override
   Color substitute(
@@ -422,13 +412,13 @@ class _LinkQrCodeSvgColorMapper extends ColorMapper {
   ) {
     return switch (color) {
       Colors.black => palette.function.neutral.toggleBlack,
-      Colors.white => palette.backgroundBase.secondary,
+      Colors.white => surface,
       _ => color,
     };
   }
 }
 
-/// Main view of this screen, with the QR code and waiting indicator
+/// Main view of this modal, with the QR code and waiting indicator
 class _AwaitingLinkView extends StatelessWidget {
   const _AwaitingLinkView({required this.code, required this.qrcodeSvg});
 
@@ -465,7 +455,10 @@ class _AwaitingLinkView extends StatelessWidget {
                   width: 200,
                   height: 200,
                   // Easily override or set height
-                  colorMapper: _LinkQrCodeSvgColorMapper(palette: palette),
+                  colorMapper: _LinkQrCodeSvgColorMapper(
+                    palette: palette,
+                    surface: ModalShellTokens.surface(context),
+                  ),
                   placeholderBuilder: (BuildContext context) =>
                       const CircularProgressIndicator(),
                 ),

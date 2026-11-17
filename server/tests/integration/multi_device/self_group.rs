@@ -5,10 +5,16 @@
 //! The self group: creation, resync, self update and attachments in the self
 //! chat.
 
-use aircoreclient::clients::MarkChatAsRead;
+use aircommon::{
+    credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
+    crypto::aead::keys::EncryptedUserProfileKey,
+    messages::client_ds::{AadPayload, CloseConnectionGroupParamsAad, GroupOperationParamsAad},
+};
+use aircoreclient::{ChatStatus, clients::MarkChatAsRead};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::{DateTime, Utc};
 use tempfile::TempDir;
+use uuid::Uuid;
 
 use super::{link_sibling, self_chat_id, self_group_client_ids, send_and_receive};
 
@@ -252,4 +258,142 @@ async fn resync_keeps_sibling_in_sync() {
     self_group_client_ids(&alice2).await;
     send_and_receive(&alice, &[&alice2], chat_id, "after resync").await;
     send_and_receive(&alice2, &[&alice], chat_id, "and back").await;
+}
+
+/// A malicious DS forges an external commit that gives a new leaf the
+/// self-group credential of a sibling with a fresh signature key and removes
+/// the sibling's leaf. The other devices must reject it with `expected_error`.
+async fn sibling_leaf_takeover_is_rejected(aad: AadPayload, expected_error: &str) {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice2 = alice.add_linked_device().await;
+    let alice3 = alice.add_linked_device().await;
+    alice.drain().await;
+    alice2.drain().await;
+    alice3.drain().await;
+
+    // The forged commit needs a blank leaf left of the victim's.
+    alice
+        .unlink_device(alice2.own_client_id().await.unwrap())
+        .await
+        .unwrap();
+    alice.drain().await;
+    alice3.drain().await;
+
+    let chat_id = self_chat_id(&alice).await;
+    let members_before = alice.mls_members(chat_id).await.unwrap().unwrap();
+
+    // The victim's own device stands in for the DS. It sends nothing.
+    let commit = alice3
+        .forge_self_group_leaf_takeover(alice3.own_client_id().await.unwrap(), aad)
+        .await
+        .unwrap();
+
+    let Err(error) = alice.process_incoming_apq_mls_message(&commit).await else {
+        panic!("the forged commit takes over the sibling's leaf");
+    };
+    assert!(
+        format!("{error:#}").contains(expected_error),
+        "unexpected error: {error:#}"
+    );
+    let members_after = alice.mls_members(chat_id).await.unwrap().unwrap();
+    assert_eq!(members_after, members_before);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn sibling_leaf_takeover_by_resync_is_rejected() {
+    sibling_leaf_takeover_is_rejected(
+        AadPayload::Resync,
+        "self-group resync changes the signature key of the removed leaf",
+    )
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn sibling_leaf_takeover_by_group_operation_is_rejected() {
+    let aad = AadPayload::GroupOperation(GroupOperationParamsAad {
+        new_encrypted_user_profile_keys: Vec::new(),
+    });
+    sibling_leaf_takeover_is_rejected(aad, "self-group external commit is no resync").await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn external_delete_commit_is_rejected() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    alice.ensure_self_group().await.unwrap();
+    alice.drain().await;
+
+    let chat_id = self_chat_id(&alice).await;
+    let members_before = alice.mls_members(chat_id).await.unwrap().unwrap();
+
+    // Alice's own device stands in for the DS. It sends nothing.
+    let (group_id, pq_group_id, ear_key) = alice.self_group_ds_keys().await.unwrap();
+    let signer = LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(Uuid::new_v4()).unwrap());
+    let commit = alice
+        .forge_external_commit(
+            group_id,
+            pq_group_id,
+            &ear_key,
+            &signer,
+            AadPayload::DeleteGroup,
+        )
+        .await
+        .unwrap();
+
+    let Err(error) = alice.process_incoming_apq_mls_message(&commit).await else {
+        panic!("the forged commit deletes the self group");
+    };
+    assert!(
+        format!("{error:#}").contains("self-group external commit is no resync"),
+        "unexpected error: {error:#}"
+    );
+    assert_eq!(alice.account_unlink_reason().await.unwrap(), None);
+    assert_eq!(
+        alice.chat(&chat_id).await.unwrap().status(),
+        &ChatStatus::Active
+    );
+    let members_after = alice.mls_members(chat_id).await.unwrap().unwrap();
+    assert_eq!(members_after, members_before);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn connection_group_close_into_the_self_group_is_rejected() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let mallory = setup.add_user().await;
+    alice.ensure_self_group().await.unwrap();
+    alice.drain().await;
+
+    // With a single device, the self group has one member, like a connection
+    // group.
+    let chat_id = self_chat_id(&alice).await;
+    let members_before = alice.mls_members(chat_id).await.unwrap().unwrap();
+    assert_eq!(members_before.len(), 1);
+
+    // Mallory stands in for the DS, which can register an account of its own.
+    // She sends nothing.
+    let (group_id, pq_group_id, ear_key) = alice.self_group_ds_keys().await.unwrap();
+    let signer = LeafSigningKey::User(mallory.signing_key_for_test().clone());
+    let aad = AadPayload::CloseConnectionGroup(CloseConnectionGroupParamsAad {
+        encrypted_user_profile_key: EncryptedUserProfileKey::random(),
+    });
+    let commit = mallory
+        .forge_external_commit(group_id, pq_group_id, &ear_key, &signer, aad)
+        .await
+        .unwrap();
+
+    let Err(error) = alice.process_incoming_apq_mls_message(&commit).await else {
+        panic!("the forged commit adds Mallory to Alice's self group");
+    };
+    assert!(
+        format!("{error:#}").contains("self-group external commit is no resync"),
+        "unexpected error: {error:#}"
+    );
+    assert_eq!(
+        alice.chat(&chat_id).await.unwrap().status(),
+        &ChatStatus::Active
+    );
+    let members_after = alice.mls_members(chat_id).await.unwrap().unwrap();
+    assert_eq!(members_after, members_before);
 }

@@ -15,7 +15,7 @@ use aircommon::{
 use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::Utc;
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::{
     chats::{
@@ -34,7 +34,7 @@ use crate::{
         },
     },
     db::access::{WriteConnection, WriteDbTransaction},
-    groups::client_auth_info::StorableUserCredential,
+    groups::client_auth_info::{PinCheck, StorableUserCredential},
     job::{JobContext, JobContextDb},
     usernames::connection_packages::ConnectionPackageRecord,
 };
@@ -259,6 +259,16 @@ impl CoreUser {
             bail!(BlockedContactError);
         }
 
+        // A sender whose key differs from the one pinned for its user id is not
+        // the user we know.
+        if StorableUserCredential::check_pin(context.db.read().await?, &sender_user_credential)
+            .await?
+            == PinCheck::Conflicts
+        {
+            warn!("Dropping a connection offer whose sender credential changed the pinned key");
+            return Ok(OfferOutcome::Dropped);
+        }
+
         // A request that arrives after its deadline is never shown.
         if request_expiry::has_expired(*message_timestamp, context.now) {
             return Ok(OfferOutcome::Dropped);
@@ -341,7 +351,7 @@ impl CoreUser {
                 // Forwarding and provisioning hand the verified credential of
                 // the sender to the siblings.
                 StorableUserCredential::new(sender_user_credential.clone())
-                    .store(&mut *txn)
+                    .store_checked(&mut *txn)
                     .await?;
                 let request = IncomingRequest {
                     connection_info,

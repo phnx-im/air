@@ -13,7 +13,7 @@ import 'package:air/features/developer/developer_settings_section.dart';
 import 'package:air/features/home/home_screen.dart';
 import 'package:air/features/onboarding/account_creation_flow.dart';
 import 'package:air/features/onboarding/intro_screen.dart';
-import 'package:air/features/onboarding/multi_device_provision_screen.dart';
+import 'package:air/features/onboarding/multi_device_provision_modal.dart';
 import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/modal/modal_page.dart';
@@ -186,15 +186,11 @@ extension on IntroScreenType {
 
   Widget get screen => switch (this) {
     IntroScreenType.accountCreation => const AccountCreationFlow(),
-    IntroScreenType.linking => const MultiDeviceProvisionScreen(),
-    IntroScreenType.developerSettings => const DeveloperSettingsScreen(),
+    IntroScreenType.linking => const MultiDeviceProvisionModal(),
+    IntroScreenType.developerSettings => const DeveloperSettingsModal(),
   };
 
-  Page get page => switch (this) {
-    IntroScreenType.accountCreation => ModalPage(key: key, child: screen),
-    IntroScreenType.linking => MaterialPage(key: key, child: screen),
-    IntroScreenType.developerSettings => MaterialPage(key: key, child: screen),
-  };
+  Page get page => ModalPage(key: key, child: screen);
 }
 
 /// Convert [HomeNavigation] state into a list of pages.

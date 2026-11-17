@@ -722,9 +722,9 @@ fn build_deb(
 DEB repository for {s3_deb} (suite {suite})
 
 Client setup:
-  curl -fsSL {repo_url}/gpg-key.asc \
-    | sudo gpg --dearmor -o /usr/share/keyrings/air-keyring.gpg
-  echo "deb [signed-by=/usr/share/keyrings/air-keyring.gpg] {repo_url} {suite} {APT_COMPONENT}" \
+  sudo curl -fsSL {repo_url}/gpg-key.asc \
+    -o /usr/share/keyrings/air-keyring.asc
+  echo "deb [signed-by=/usr/share/keyrings/air-keyring.asc] {repo_url} {suite} {APT_COMPONENT}" \
     | sudo tee /etc/apt/sources.list.d/air.list
   sudo apt update"#
     );

@@ -62,6 +62,9 @@ class MainActivity : FlutterFragmentActivity() {
 
     private var pendingInitialNotification: Map<String, String?>? = null
 
+    // Whether Dart listens for notification taps
+    private var dartListening = false
+
     private var pendingInitialShare: Map<String, Any?>? = null
 
     @Volatile
@@ -81,9 +84,14 @@ class MainActivity : FlutterFragmentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
 
-        // Send the notification tap event to Dart directly
+        // Send the notification tap to Dart, or keep it until Dart is ready
         readNotificationPayload(intent)?.let {
-            channel?.invokeMethod("openedNotification", it)
+            val channel = channel
+            if (channel != null && dartListening) {
+                channel.invokeMethod("openedNotification", it)
+            } else {
+                pendingInitialNotification = it
+            }
             return
         }
         // Send the share handoff to Dart directly
@@ -203,6 +211,7 @@ class MainActivity : FlutterFragmentActivity() {
         channel?.setMethodCallHandler(null)
         channel = null
         activeChannelRef = null
+        dartListening = false
     }
 
     // Configures the Method Channel to communicate with Flutter
@@ -232,6 +241,7 @@ class MainActivity : FlutterFragmentActivity() {
                 }
 
                 "getInitialNotification" -> {
+                    dartListening = true
                     val payload = pendingInitialNotification
                     pendingInitialNotification = null
                     result.success(payload)

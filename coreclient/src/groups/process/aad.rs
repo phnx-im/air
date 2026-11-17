@@ -11,7 +11,7 @@ use aircommon::{
         AadMessage, AadPayload, GroupOperationParamsAad, JoinConnectionGroupParamsAad,
     },
 };
-use anyhow::{Context, Result, anyhow, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use openmls::prelude::{ProcessedMessage, Sender, SignaturePublicKey, StagedCommit};
 use tls_codec::DeserializeBytes as TlsDeserializeBytes;
 
@@ -94,7 +94,7 @@ impl Group {
             }
             // The group was deleted; there is nothing else to do at this point.
             AadPayload::DeleteGroup => {
-                ensure_delete_keeps_sender_credential(processed_message)?;
+                validate_delete_commit(processed_message)?;
                 PostProcessAadResult {
                     we_were_removed: true,
                     encrypted_profile_infos: Vec::new(),
@@ -118,6 +118,13 @@ impl Group {
         group_operation_payload: GroupOperationParamsAad,
     ) -> Result<Vec<(UserCredential, EncryptedUserProfileKey)>> {
         let staged_commit = expect_staged_commit(processed_message)?;
+
+        // External commits carry the AAD of a resync or a connection-group join or close, and the
+        // DS only takes group operations from members. Only a malicious DS can deliver an external
+        // commit with this AAD.
+        let Sender::Member(sender_index) = *processed_message.sender() else {
+            bail!("group operation from a non-member sender");
+        };
 
         let mut encrypted_profile_infos: Vec<(UserCredential, EncryptedUserProfileKey)> =
             Vec::new();
@@ -181,10 +188,18 @@ impl Group {
         // Check if the client has updated its leaf credential.
         let (new_sender_credential, new_sender_leaf_key) =
             update_path_leaf_node_info(staged_commit)?;
+        let sender_leaf_key = self
+            .mls_group
+            .public_group()
+            .leaf(sender_index)
+            .context("Could not find sender leaf")?
+            .signature_key();
 
-        if let Some((new_credential, old_credential)) =
-            user_credential_transition(new_sender_credential, sender_credential, "update path")?
-        {
+        if let Some((new_credential, old_credential)) = user_credential_transition(
+            (new_sender_credential, new_sender_leaf_key),
+            (sender_credential, sender_leaf_key),
+            "update path",
+        )? {
             if new_credential == old_credential {
                 // The credential was verified when the member entered the group, but the update
                 // path can still rotate the leaf signature key.
@@ -202,11 +217,6 @@ impl Group {
                 )
                 .await?;
             }
-        }
-
-        // Process a resync if this is one
-        if matches!(processed_message.sender(), Sender::NewMemberCommit) {
-            self.process_resync(processed_message.credential(), staged_commit)?;
         }
 
         Ok(encrypted_profile_infos)
@@ -240,6 +250,11 @@ impl Group {
         api_clients: &ApiClients,
         processed_message: &ProcessedMessage,
     ) -> Result<UserCredential> {
+        ensure!(
+            !self.is_self_group(),
+            "connection-group commit must not target the self group"
+        );
+
         let staged_commit = expect_staged_commit(processed_message)?;
 
         let (sender_credential, sender_leaf_key) = update_path_leaf_node_info(staged_commit)?;
@@ -294,15 +309,18 @@ impl Group {
             .remove_proposal()
             .removed();
 
-        let old_credential = self
+        let old_leaf = self
             .mls_group
-            .member(removed_index)
-            .ok_or(anyhow!("Could not find removed member in group"))?;
-        let old_credential = LeafCredential::from_credential(old_credential)?;
+            .public_group()
+            .leaf(removed_index)
+            .context("Could not find removed member in group")?;
+        let old_credential = LeafCredential::from_credential(old_leaf.credential())?;
 
-        if let Some((sender_credential, old_credential)) =
-            user_credential_transition(sender_credential, old_credential, "resync")?
-        {
+        if let Some((sender_credential, old_credential)) = user_credential_transition(
+            (sender_credential, sender_leaf_key),
+            (old_credential, old_leaf.signature_key()),
+            "resync",
+        )? {
             verify_and_store_credential(
                 txn,
                 api_clients,
@@ -316,8 +334,9 @@ impl Group {
     }
 }
 
-/// Make sure that the sender's credential doesn't change in a delete commit.
-fn ensure_delete_keeps_sender_credential(processed_message: &ProcessedMessage) -> Result<()> {
+/// Make sure that a delete commit comes from a member and keeps the sender's credential.
+fn validate_delete_commit(processed_message: &ProcessedMessage) -> Result<()> {
+    ensure_delete_sender_is_member(processed_message.sender())?;
     let staged_commit = expect_staged_commit(processed_message)?;
     if let Some(leaf_node) = staged_commit.update_path_leaf_node() {
         ensure!(
@@ -325,6 +344,15 @@ fn ensure_delete_keeps_sender_credential(processed_message: &ProcessedMessage) -
             "delete commit changes the sender's credential"
         );
     }
+    Ok(())
+}
+
+/// Rejects a delete commit whose sender is not a current member of the group.
+fn ensure_delete_sender_is_member(sender: &Sender) -> Result<()> {
+    ensure!(
+        matches!(sender, Sender::Member(_)),
+        "DeleteGroup operation must be a member commit"
+    );
     Ok(())
 }
 
@@ -339,6 +367,7 @@ fn update_path_leaf_node_info(
     Ok((credential, signature_key))
 }
 
+/// Checks the shape of a commit that joins a connection group.
 fn validate_join_connection_group_commit(
     sender: &Sender,
     contains_membership_proposal: bool,
@@ -376,7 +405,7 @@ async fn verify_and_store_credential(
         AsCredentials::fetch_for_verification(&mut *txn, api_clients, iter::once(&credential))
             .await?;
     let credential = credential.verify_and_validate(leaf_key, old_credential, &as_credentials)?;
-    credential.store(txn).await?;
+    credential.store_checked(txn).await?;
     Ok(credential)
 }
 
@@ -386,6 +415,16 @@ mod tests {
     use openmls::prelude::LeafNodeIndex;
 
     use super::*;
+
+    #[test]
+    fn delete_commit_must_come_from_a_member() {
+        assert!(ensure_delete_sender_is_member(&Sender::Member(LeafNodeIndex::new(0))).is_ok());
+        let error = ensure_delete_sender_is_member(&Sender::NewMemberCommit).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "DeleteGroup operation must be a member commit"
+        );
+    }
 
     #[test]
     fn join_connection_group_validation_enforces_operation_shape() {

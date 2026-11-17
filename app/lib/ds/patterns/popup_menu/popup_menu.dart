@@ -38,9 +38,14 @@ enum MenuCorner {
 /// side when the preferred one is short of room, and never crosses into the
 /// safe area.
 ///
-/// The menu closes on a tap outside it, on Escape, and on selecting an item.
-/// An item's `onPressed` runs after the menu is gone, and the returned future
-/// completes once it is.
+/// The menu closes on a tap outside it and on selecting an item. An item's
+/// `onPressed` runs after the menu is gone, and the returned future completes
+/// once it is.
+///
+/// The menu takes the focus and closes on Escape. With the soft keyboard up,
+/// the focus stays where it is. Taking it would close the keyboard and move the
+/// trigger away from the anchor. Escape then goes to the focused widget, not to
+/// the menu.
 Future<void> showOverlayMenu({
   required BuildContext context,
   required Rect anchor,
@@ -62,6 +67,7 @@ Future<void> showOverlayMenu({
     // No scrim: the barrier is here to catch the dismissing tap, not to dim the
     // app behind a menu.
     barrierColor: const Color(0x00000000),
+    requestFocus: !isSoftKeyboardShown(context),
     transitionDuration: Effect.duration(PopupMenuTokens.enter),
     transitionBuilder: (context, animation, _, child) => FadeTransition(
       opacity: animation.drive(curve),

@@ -5,8 +5,10 @@
 import 'package:air/ds/components/searchfield/searchfield.dart';
 import 'package:air/ds/components/searchfield/searchfield_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/features/navigation/app_bar_back_button.dart';
-import 'package:air/features/you/license_detail_screen.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
+import 'package:air/ds/patterns/modal/modal_route.dart';
+import 'package:air/ds/patterns/modal/modal_stack.dart';
+import 'package:air/features/you/license_detail_pane.dart';
 import 'package:air/features/you/license_packages.dart';
 import 'package:air/features/you/you_fields.dart';
 import 'package:air/l10n/l10n.dart';
@@ -14,10 +16,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
+Future<void> showLicenses(BuildContext context) =>
+    showAppModal<void>(context: context, builder: (_) => const LicensesModal());
+
 /// Lists the packages with registered licenses, both the Dart packages Flutter
-/// registers and the Rust crates the app registers at startup.
-class LicensesScreenView extends HookWidget {
-  const LicensesScreenView({super.key, this.licenses});
+/// registers and the Rust crates the app registers at startup. A package opens
+/// its license text as the page above the list.
+class LicensesModal extends HookWidget {
+  const LicensesModal({super.key, this.licenses});
 
   /// Defaults to [LicenseRegistry.licenses].
   final Stream<LicenseEntry>? licenses;
@@ -31,23 +37,36 @@ class LicensesScreenView extends HookWidget {
     );
     final packages = useFuture(packagesFuture);
     final query = useState('');
+    final opened = useState<LicensePackage?>(null);
+    final openedPackage = opened.value;
 
-    return Scaffold(
-      appBar: AppBar(
-        clipBehavior: .none,
-        title: Text(loc.licensesScreen_title),
-        leading: const AppBarBackButton(),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(S.s16),
-          child: _Body(
-            packages: packages.data,
-            query: query.value,
-            onQueryChanged: (value) => query.value = value,
+    return ModalPageStack(
+      onBack: () => opened.value = null,
+      onDismiss: () => Navigator.of(context).pop(),
+      pages: [
+        ModalStackEntry(
+          key: const ValueKey('licenses-list'),
+          child: ModalPane(
+            title: loc.licensesScreen_title,
+            // The list below the search field scrolls on its own.
+            scrollable: false,
+            child: ModalBody(
+              top: S.s16,
+              child: _Body(
+                packages: packages.data,
+                query: query.value,
+                onQueryChanged: (value) => query.value = value,
+                onOpen: (package) => opened.value = package,
+              ),
+            ),
           ),
         ),
-      ),
+        if (openedPackage != null)
+          ModalStackEntry(
+            key: ValueKey('license-${openedPackage.name}'),
+            child: LicenseDetailPane(package: openedPackage),
+          ),
+      ],
     );
   }
 }
@@ -57,12 +76,14 @@ class _Body extends StatelessWidget {
     required this.packages,
     required this.query,
     required this.onQueryChanged,
+    required this.onOpen,
   });
 
   /// Null while collecting.
   final List<LicensePackage>? packages;
   final String query;
   final ValueChanged<String> onQueryChanged;
+  final ValueChanged<LicensePackage> onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +109,7 @@ class _Body extends StatelessWidget {
                 style: typeScale.body.s.style(color: palette.text.tertiary),
               ),
             ),
-            _ => _PackageList(packages: visible),
+            _ => _PackageList(packages: visible, onOpen: onOpen),
           },
         ),
         if (visible != null) ...[
@@ -116,33 +137,32 @@ List<LicensePackage>? _filter(List<LicensePackage>? packages, String query) {
 }
 
 class _PackageList extends StatelessWidget {
-  const _PackageList({required this.packages});
+  const _PackageList({required this.packages, required this.onOpen});
 
   final List<LicensePackage> packages;
+  final ValueChanged<LicensePackage> onOpen;
 
   @override
   Widget build(BuildContext context) => ListView.separated(
     itemCount: packages.length,
     separatorBuilder: (_, _) => const SizedBox(height: S.s8),
-    itemBuilder: (_, index) => _PackageRow(package: packages[index]),
+    itemBuilder: (_, index) =>
+        _PackageRow(package: packages[index], onOpen: onOpen),
   );
 }
 
 class _PackageRow extends StatelessWidget {
-  const _PackageRow({required this.package});
+  const _PackageRow({required this.package, required this.onOpen});
 
   final LicensePackage package;
+  final ValueChanged<LicensePackage> onOpen;
 
   @override
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
 
     return FieldContainer(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => LicenseDetailScreenView(package: package),
-        ),
-      ),
+      onTap: () => onOpen(package),
       child: Row(
         children: [
           Expanded(

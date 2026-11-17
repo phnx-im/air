@@ -1,0 +1,3 @@
+CFBundleDisplayName = "Air";
+NSCameraUsageDescription = "Air käyttää kameraa kuvien ottamiseen keskusteluihisi ja QR-koodin skannaamiseen, kun linkität laitteen.";
+NSPhotoLibraryUsageDescription = "Air käyttää kuvakirjastoasi kuvien lähettämiseen keskusteluihin sekä profiili- ja ryhmäkuvien asettamiseen.";

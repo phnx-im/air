@@ -15,6 +15,7 @@ use aircoreclient::{
         multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
         store::ClientRecord,
     },
+    current_platform,
 };
 use airprotos::queue_service::v1::{SiblingClientState, sibling_client_state};
 use airserver_test_harness::utils::{
@@ -648,6 +649,38 @@ async fn link_blank_name_keeps_device_default() -> anyhow::Result<()> {
         !seen.name.trim().is_empty(),
         "a blank confirmation must not blank out the device name"
     );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn link_announces_platform_before_confirmation() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    let (code, new_device_task, _session_rx) = provision_device(&setup).await;
+    let (connected_tx, connected_rx) = tokio::sync::oneshot::channel();
+    let (confirmation_tx, confirmation_rx) = tokio::sync::oneshot::channel();
+    // The platform must come before the confirmation. On timeout we drop the
+    // confirmation, which ends the link too.
+    let confirm = async {
+        let platform = tokio::time::timeout(Duration::from_secs(30), connected_rx)
+            .await
+            .map_err(|_| {
+                anyhow::anyhow!("the platform did not arrive before the confirmation")
+            })??;
+        confirmation_tx
+            .send(String::new())
+            .map_err(|_| anyhow::anyhow!("the link dropped the confirmation channel"))?;
+        anyhow::Ok(platform)
+    };
+    let link = alice.multi_device_link_client(code, connected_tx, confirmation_rx);
+    let (linked, platform) = tokio::join!(in_foreground(&alice, link), confirm);
+    let platform = platform?;
+    linked??;
+    new_device_task.await??;
+
+    assert_eq!(platform, Some(current_platform()));
 
     Ok(())
 }

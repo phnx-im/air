@@ -2593,7 +2593,7 @@ pub(crate) mod tests {
         Ok(())
     }
 
-    async fn setup_group_and_chat()
+    pub(crate) async fn setup_group_and_chat()
     -> anyhow::Result<(DbAccess, VerifiedGroup, ChatId, UserSigningKey)> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let mut connection = pool.write().await?;

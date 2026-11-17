@@ -12,7 +12,7 @@ Bir dil varyantı kendi ARB dosyasını ve kendi sözlüğünü alır. Temel dil
 
 ## Hitap
 
-Air, kullanıcıya bütün metinlerde “siz” diye hitap eder. Android, Apple, Microsoft, Telegram ve Element de böyle yapar. Hitap metinden metne değişmez. Üslup sade ve sıcak kalır. Resmî kalıplardan (“…mektedir”, “lütfen … ediniz”) kaçının.
+Air, kullanıcıya bütün metinlerde “siz” diye hitap eder. Android, Apple ve Microsoft da böyle yapar. Hitap metinden metne değişmez. Üslup sade ve sıcak kalır. Resmî kalıplardan (“…mektedir”, “lütfen … ediniz”) kaçının.
 
 Açıklamalarda ve hata mesajlarında emir kipi “-in” ekiyle yazılır: “Tekrar deneyin.”, “Kodu girin.”, “Kopyalamak için dokunun”. “-iniz” biçimi (“deneyiniz”, “giriniz”) kullanılmaz, çünkü resmî ve mesafeli okunur.
 

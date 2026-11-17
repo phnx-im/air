@@ -86,6 +86,8 @@ void main() {
       await tester.pump();
       await tester.pump();
 
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.controller!.text, isEmpty);
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/linked_devices_link_confirm.png'),
@@ -208,6 +210,25 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/linked_devices_link_device_limit.png'),
       );
+    });
+
+    testWidgets('prefills the device name with the suggested name', (
+      tester,
+    ) async {
+      await pumpToConnecting(tester);
+
+      controller.add(
+        const MultiDeviceLinkEvent.awaitingConfirmation(suggestedName: 'macOS'),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      await tester.tap(find.byType(AppCheckbox));
+      await tester.pump();
+      await tester.tap(find.text('Confirm'));
+      await tester.pump();
+
+      expect(confirmedName, 'macOS');
     });
   });
 }

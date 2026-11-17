@@ -39,6 +39,7 @@ use aircoreclient::{
         store::ClientRecord,
     },
 };
+use airprotos::client::self_group::LinkedDevicePlatform;
 use airprotos::queue_service::v1::{SiblingClientState, sibling_client_state};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::Utc;
@@ -100,7 +101,7 @@ fn confirm_with_name(name: &str) -> tokio::sync::oneshot::Receiver<String> {
 
 /// A connected-signal sender whose receiver is dropped; the acceptor ignores the
 /// send failure, so tests don't need to observe the "connected" signal.
-fn ignore_connected() -> tokio::sync::oneshot::Sender<()> {
+fn ignore_connected() -> tokio::sync::oneshot::Sender<Option<LinkedDevicePlatform>> {
     tokio::sync::oneshot::channel().0
 }
 

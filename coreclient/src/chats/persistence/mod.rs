@@ -33,7 +33,7 @@ pub(crate) use delete::*;
 /// is derived from `blocked_contact`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Decode, sqlx::Encode)]
 #[repr(u8)]
-enum SqlChatStatus {
+pub(super) enum SqlChatStatus {
     Pending = 0,
     Active = 1,
     Inactive = 2,
@@ -365,7 +365,14 @@ impl Chat {
             LEFT OUTER JOIN message_draft d ON
                 d.chat_id = c.chat_id AND
                 d.is_committed = TRUE AND
-                NOT (TRIM(d.message) = '' AND d.editing_id IS NULL)
+                NOT (TRIM(d.message) = '' AND d.editing_id IS NULL) AND
+                c.status = ? AND
+                NOT EXISTS (
+                    SELECT 1
+                    FROM blocked_contact b
+                    WHERE b.user_uuid = c.connection_user_uuid
+                        AND b.user_domain = c.connection_user_domain
+                )
             ORDER BY
                 d.updated_at DESC,
                 (SELECT timestamp
@@ -376,6 +383,7 @@ impl Chat {
                 ) DESC,
                 c.chat_id
             "#,
+            SqlChatStatus::Active,
         )
         .fetch_all(connection.as_mut())
         .await
@@ -1450,6 +1458,68 @@ pub mod tests {
                 chat_1.id()  // No message
             ]
         );
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn drafts_of_unwritable_chats_are_ignored(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+
+        let now = Utc::now();
+        let draft = MessageDraft {
+            message: "Hello, world!".to_string(),
+            editing_id: None,
+            in_reply_to: None,
+            updated_at: now,
+            is_committed: true,
+        };
+
+        let active = test_chat();
+        active.store(&mut connection).await?;
+        test_chat_message_at(active.id(), [0; 16], (now + Duration::days(1)).into())
+            .store(&mut connection)
+            .await?;
+
+        let inactive = test_chat();
+        inactive.store(&mut connection).await?;
+        test_chat_message_at(inactive.id(), [0; 16], now.into())
+            .store(&mut connection)
+            .await?;
+        draft.store(&mut connection, inactive.id()).await?;
+        let mut txn = connection.begin().await?;
+        Chat::update_status(&mut txn, inactive.id(), &ChatStatus::inactive(Vec::new())).await?;
+        txn.commit().await?;
+
+        let blocked_user = UserId::random("localhost".parse().unwrap());
+        let mut blocked = test_chat();
+        blocked.chat_type = ChatType::Connection(blocked_user.clone());
+        blocked.store(&mut connection).await?;
+        test_chat_message_at(blocked.id(), [0; 16], (now - Duration::days(1)).into())
+            .store(&mut connection)
+            .await?;
+        draft.store(&mut connection, blocked.id()).await?;
+        BlockedContact::new(blocked_user)
+            .store(&mut connection)
+            .await?;
+
+        let loaded = Chat::load_ordered_ids(&mut connection).await?;
+        assert_eq!(loaded, [active.id(), inactive.id(), blocked.id()]);
+        let loaded = MessageDraft::load(&mut connection, inactive.id()).await?;
+        assert_eq!(loaded, None);
+        let loaded = MessageDraft::load(&mut connection, blocked.id()).await?;
+        assert_eq!(loaded, None);
+
+        // The draft is kept for when the user is added back.
+        let mut txn = connection.begin().await?;
+        Chat::update_status(&mut txn, inactive.id(), &ChatStatus::Active).await?;
+        txn.commit().await?;
+
+        let loaded = Chat::load_ordered_ids(&mut connection).await?;
+        assert_eq!(loaded, [inactive.id(), active.id(), blocked.id()]);
+        let loaded = MessageDraft::load(&mut connection, inactive.id()).await?;
+        assert_eq!(loaded.map(|draft| draft.message), Some(draft.message));
 
         Ok(())
     }

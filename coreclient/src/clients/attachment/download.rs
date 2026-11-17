@@ -41,6 +41,11 @@ use crate::{
     image_is_animated,
 };
 
+/// Upper bound of the ciphertext size over the declared plaintext size.
+///
+/// Covers the TLS length prefix of the plaintext and the AEAD tag.
+const MAX_CIPHERTEXT_OVERHEAD: usize = 64;
+
 #[derive(Debug, thiserror::Error)]
 enum AttachmentDownloadError {
     #[error("failed to initialize API client: {0}")]
@@ -63,6 +68,8 @@ enum AttachmentDownloadError {
     UnsupportedHashAlgorithm(HashAlgorithm),
     #[error("failed to decrypt attachment: {0}")]
     Decryption(#[from] DecryptionError),
+    #[error("attachment larger than declared")]
+    LargerThanDeclared,
     #[error("hash mismatch")]
     HashMismatch,
     #[error("attachment not found")]
@@ -292,11 +299,16 @@ impl CoreUser {
             },
         };
 
-        let bytes_total = size.try_into()?;
+        let bytes_total: usize = size.try_into()?;
+        // We read ciphertext, `size` is the declared plaintext size
+        let max_len = bytes_total.saturating_add(MAX_CIPHERTEXT_OVERHEAD);
         // `size` is declared by the sender, so don't trust it for preallocation.
         let capacity = size.min(DEFAULT_MAX_ATTACHMENT_SIZE).try_into()?;
         let mut bytes = Vec::with_capacity(capacity);
         while let Some(chunk) = bytes_stream.next().await.transpose()? {
+            if max_len < bytes.len() + chunk.len() {
+                return Err(AttachmentDownloadError::LargerThanDeclared);
+            }
             bytes.extend_from_slice(&chunk);
             progress_tx.report(bytes_total, bytes.len());
         }

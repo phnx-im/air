@@ -4,6 +4,9 @@
 
 import 'package:flutter/widgets.dart';
 
+bool isSoftKeyboardShown(BuildContext context) =>
+    View.of(context).viewInsets.bottom > 0;
+
 /// Keyboard focus parked while a modal is up.
 ///
 /// Makes it possible to restore the focus of a node which has the primary
@@ -20,7 +23,7 @@ class SuspendedKeyboardFocus {
 
   static SuspendedKeyboardFocus suspend(BuildContext context) {
     final node = FocusManager.instance.primaryFocus;
-    final keyboardShown = View.of(context).viewInsets.bottom > 0;
+    final keyboardShown = isSoftKeyboardShown(context);
     node?.unfocus();
     return SuspendedKeyboardFocus._(keyboardShown ? node : null);
   }
