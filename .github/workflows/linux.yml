@@ -206,7 +206,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.local/share/flatpak
-          key: flatpak-runtimes-${{ matrix.arch }}-26.08-llvm22
+          key: flatpak-runtimes-${{ matrix.arch }}-26.08-llvm23
 
       # Hashes of the Flutter and Rust artifacts and the resolved
       # flutter_tools lock.
