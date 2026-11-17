@@ -629,7 +629,7 @@ class _InlineText extends HookWidget {
       final builder = _InlineSpanBuilder(
         palette: palette,
         isSender: isSender,
-        onLinkTap: (uri, text) => _openLink(context, uri, text),
+        onLinkTap: (uri, text) => openMessageLink(context, uri, text),
       );
       final span = TextSpan(
         children: inlines.map(builder.build).toList(),
@@ -649,17 +649,24 @@ class _InlineText extends HookWidget {
 
     return Text.rich(span, textWidthBasis: textWidthBasis);
   }
+}
 
-  Future<void> _openLink(BuildContext context, Uri uri, [String? text]) async {
-    if (text == null || text != uri.toString()) {
-      final shouldOpen = await _showLinkConfirmationDialog(context, uri);
-      if (!shouldOpen) {
-        return;
-      }
+/// Opens [uri] externally.
+///
+/// Asks for confirmation unless the shown [text] is exactly the uri.
+Future<void> openMessageLink(
+  BuildContext context,
+  Uri uri, [
+  String? text,
+]) async {
+  if (text == null || text != uri.toString()) {
+    final shouldOpen = await _showLinkConfirmationDialog(context, uri);
+    if (!shouldOpen) {
+      return;
     }
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+  }
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }
 

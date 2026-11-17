@@ -12,6 +12,8 @@ import 'package:air/ds/components/hover_action/hover_action_tokens.dart';
 import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/adaptive_modal/adaptive_modal.dart';
+import 'package:air/ds/patterns/link_preview/link_preview.dart';
+import 'package:air/ds/patterns/link_preview/link_preview_tokens.dart';
 import 'package:air/ds/patterns/media_message/media_message.dart';
 import 'package:air/ds/patterns/message_bubble/message_bubble.dart';
 import 'package:air/ds/patterns/message_bubble/message_bubble_tokens.dart';
@@ -31,6 +33,7 @@ import 'package:air/features/emoji/jumbo_emoji.dart';
 import 'package:air/features/message_list/delete_for_me_dialog.dart';
 import 'package:air/features/message_list/image_viewer.dart';
 import 'package:air/features/message_list/jump_highlight.dart';
+import 'package:air/features/message_list/link_preview_data.dart';
 import 'package:air/features/message_list/message_band.dart';
 import 'package:air/features/message_list/message_details.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
@@ -1112,7 +1115,9 @@ class _MessageContent extends StatelessWidget {
 
     // An emoji-only body stands on the conversation without a bubble under it,
     // which also means without a jump highlight around it.
-    if (inReplyTo == null && isJumboEmojiMessage(content)) {
+    if (inReplyTo == null &&
+        content.linkPreview == null &&
+        isJumboEmojiMessage(content)) {
       return MessageBubble(
         isSelf: isSender,
         variant: MessageBubbleVariant.naked,
@@ -1126,16 +1131,41 @@ class _MessageContent extends StatelessWidget {
     final attachment = content.attachments.firstOrNull;
     final imageMetadata = attachment?.imageMetadata;
     final hasMedia = attachment != null && imageMetadata != null;
-    // A picture runs to the bubble's edge, so the blocks beside it carry the
-    // inset the bubble would otherwise apply to all of them.
-    final padding = hasMedia ? EdgeInsets.zero : MessageBubbleTokens.padding;
-    Widget inset(Widget child) => hasMedia
+    final linkPreview = content.linkPreview;
+    final linkData = linkPreview?.toData();
+    final linkBanner = linkData != null && linkPreviewLeadsWithBanner(linkData);
+    final hasText = blocks.isNotEmpty;
+    // A picture, a banner or the link divider runs to the bubble's edge, so
+    // the blocks beside it carry the inset the bubble would otherwise apply to
+    // all of them.
+    final bleeds = hasMedia || linkBanner;
+    final edgeToEdge = bleeds || linkPreview != null;
+    final padding = edgeToEdge ? EdgeInsets.zero : MessageBubbleTokens.padding;
+    Widget inset(Widget child) => edgeToEdge
         ? Padding(padding: MessageBubbleTokens.padding, child: child)
         : child;
 
     // Stacked blocks only share a width where they can be measured. A picture
-    // sizes itself against the available width and exposes none.
-    final stretched = inReplyTo != null && !hasMedia;
+    // or banner sizes itself against the available width and exposes none.
+    final stretched = (inReplyTo != null || linkPreview != null) && !bleeds;
+
+    // The quote already leaves its inset below it. A picture or banner in
+    // between starts a fresh run.
+    const p = MessageBubbleTokens.padding;
+    final linkTop = inReplyTo != null && !bleeds ? S.s0 : p.top;
+    final linkCard = linkPreview != null && linkData != null
+        ? _link(
+            context,
+            linkPreview,
+            linkData,
+            padding: EdgeInsets.fromLTRB(
+              p.left,
+              linkTop,
+              p.right,
+              hasText ? S.s8 : p.bottom,
+            ),
+          )
+        : null;
 
     return _highlighted(
       context,
@@ -1148,7 +1178,7 @@ class _MessageContent extends StatelessWidget {
           Column(
             mainAxisSize: .min,
             crossAxisAlignment: stretched ? .stretch : .start,
-            spacing: hasMedia ? S.s0 : S.s8,
+            spacing: edgeToEdge ? S.s0 : S.s8,
             children: [
               if (inReplyTo != null) inset(_reply(context, inReplyTo)),
               if (hasMedia)
@@ -1161,8 +1191,21 @@ class _MessageContent extends StatelessWidget {
                     child: _file(context, attachment),
                   ),
                 ),
-              if (blocks.isNotEmpty)
-                inset(_selectable(_text(blocks, jumbo: false))),
+              if (linkCard != null)
+                SelectionContainer.disabled(
+                  // Only the banner takes the full width, so a picture above
+                  // it keeps its own size.
+                  child: linkBanner
+                      ? SizedBox(width: double.infinity, child: linkCard)
+                      : linkCard,
+                ),
+              if (linkPreview != null && hasText)
+                SizedBox(
+                  width: double.infinity,
+                  height: LinkPreviewTokens.dividerWidth,
+                  child: ColoredBox(color: LinkPreview.dividerColorOf(context)),
+                ),
+              if (hasText) inset(_selectable(_text(blocks, jumbo: false))),
             ],
           ),
         ),
@@ -1241,6 +1284,40 @@ class _MessageContent extends StatelessWidget {
           : () => context.read<MessageListCubit>().jumpToMessage(
               messageId: target,
             ),
+    );
+  }
+
+  /// The card, nested in the bubble. A banner bleeds to the bubble's edges and
+  /// [padding] insets the rest.
+  Widget _link(
+    BuildContext context,
+    UiLinkPreview preview,
+    LinkPreviewData data, {
+    required EdgeInsets padding,
+  }) {
+    final image = preview.image;
+    final metadata = image?.attachment.imageMetadata;
+    return LinkPreview(
+      url: preview.card.url,
+      data: data,
+      isSelf: isSender,
+      nested: true,
+      nestedPadding: padding,
+      imageBuilder: image == null || metadata == null
+          ? null
+          : (fit) => AttachmentImage(
+              attachment: image.attachment,
+              imageMetadata: metadata,
+              isSender: isSender,
+              fit: fit,
+              // Nothing the user attached, so no upload to watch or cancel.
+              showTransfer: false,
+            ),
+      onTap: () {
+        final uri = Uri.tryParse(preview.card.url);
+        if (uri == null) return;
+        unawaited(openMessageLink(context, uri, preview.card.url));
+      },
     );
   }
 

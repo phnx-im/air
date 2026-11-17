@@ -777,6 +777,107 @@ final attachmentMessages = [
   ),
 ];
 
+UiLinkPreviewImage _linkImage(int id, int width, int height) =>
+    UiLinkPreviewImage(
+      attachment: UiAttachment(
+        attachmentId: id.attachmentId(),
+        filename: 'og.png',
+        size: 1024,
+        contentType: 'image/png',
+        imageMetadata: UiImageMetadata(
+          blurhash: 'LEHLk~WB2yk8pyo0adR*.7kCMdnj',
+          width: width,
+          height: height,
+        ),
+      ),
+    );
+
+UiChatMessage _linkMessage(
+  int id, {
+  required UiUserId sender,
+  required String text,
+  required UiLinkPreviewCard card,
+  UiLinkPreviewImage? image,
+  UiInReplyToMessage? inReplyTo,
+}) => UiChatMessage(
+  id: id.messageId(),
+  chatId: chatId,
+  timestamp: DateTime.parse('2023-01-01T00:00:00.000Z')
+      .add(Duration(minutes: id * 6)),
+  message: UiMessage_Content(
+    UiContentMessage(
+      sender: sender,
+      sent: true,
+      edited: false,
+      content: UiMimiContent(
+        topicId: Uint8List(0),
+        plainBody: text,
+        content: simpleMessage(text),
+        attachments: const [],
+        linkPreview: UiLinkPreview(card: card, image: image),
+      ),
+    ),
+  ),
+  inReplyToMessage: inReplyTo,
+  status: UiMessageStatus.sent,
+  reactions: [],
+);
+
+final linkPreviewMessages = [
+  _linkMessage(
+    30,
+    sender: 2.userId(),
+    text: 'Have a look https://air.ms/blog/link-previews',
+    card: const UiLinkPreviewCard(
+      url: 'https://air.ms/blog/link-previews',
+      title: 'Link previews in Air',
+      description: 'How a card is resolved by the sender and travels inside.',
+      kind: UiLinkPreviewKind.default_,
+    ),
+    image: _linkImage(30, 1200, 630),
+  ),
+  _linkMessage(
+    31,
+    sender: 1.userId(),
+    text: 'https://example.com',
+    card: const UiLinkPreviewCard(
+      url: 'https://example.com',
+      title: 'Example Domain',
+      description: 'This domain is for use in documentation examples.',
+      kind: UiLinkPreviewKind.default_,
+    ),
+    image: _linkImage(31, 200, 200),
+  ),
+  _linkMessage(
+    32,
+    sender: 2.userId(),
+    text: 'The docs https://example.org/docs',
+    card: const UiLinkPreviewCard(
+      url: 'https://example.org/docs',
+      title: 'Documentation without a picture',
+      description: '',
+      kind: UiLinkPreviewKind.default_,
+    ),
+  ),
+  _linkMessage(
+    33,
+    sender: 1.userId(),
+    text: 'This one https://example.com',
+    card: const UiLinkPreviewCard(
+      url: 'https://example.com',
+      title: 'Example Domain',
+      description: 'This domain is for use in documentation examples.',
+      kind: UiLinkPreviewKind.default_,
+    ),
+    image: _linkImage(33, 200, 200),
+    inReplyTo: UiInReplyToMessage.resolved(
+      messageId: 31.messageId(),
+      sender: 2.userId(),
+      mimiContent: textContent('Which link was it?'),
+    ),
+  ),
+];
+
 final replyMessages = [
   // Long reply, short message
   UiChatMessage(
@@ -1472,6 +1573,33 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/message_list_attachments.png'),
+      );
+    });
+
+    testWidgets('renders correctly with link previews', (tester) async {
+      tester.view.physicalSize = const Size(1080, 4000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      messageListCubit.setState(linkPreviewMessages);
+      when(
+        () => attachmentsRepository.isAttachmentAnimated(
+          attachmentId: any(named: 'attachmentId'),
+          retryDownloadIfFailed: any(named: 'retryDownloadIfFailed'),
+        ),
+      ).thenAnswer((_) async => Future.any([]));
+      when(
+        () => attachmentsRepository.statusStream(
+          attachmentId: any(named: 'attachmentId'),
+        ),
+      ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
+
+      await tester.pumpWidget(buildSubject());
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_link_previews.png'),
       );
     });
 

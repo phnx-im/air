@@ -27,6 +27,7 @@ ignore = [
     # There's no fix for this one yet, but it's fine to ignore because we don't
     # import databases.
     { id = "RUSTSEC-2026-0459", reason = "libsqlite3-sys 0.39 is blocked by sqlx-sqlite 0.9.0 and the openmls_sqlite_storage lock entry" },
+    { id = "RUSTSEC-2026-0543", reason = "chrono is unmaintained but used in sqlx for example" },
 ]
 
 [licenses]

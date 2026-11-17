@@ -149,3 +149,23 @@ abstract final class MessageInputQuoteTokens {
   static const double removeOffset =
       -(removeOverhang + (removeHitTarget - removeSize) / 2);
 }
+
+/// Layout tokens for the link preview staged above the field.
+abstract final class MessageInputLinkPreviewTokens {
+  /// Insets around the card, the same as the staged quote's so stacked rows
+  /// line up.
+  static const double gapAbove = MessageInputQuoteTokens.gapAbove;
+  static const double gapBelow = MessageInputQuoteTokens.gapBelow;
+  static const double gapSide = MessageInputQuoteTokens.gapSide;
+
+  /// The dismiss button, the same as the quote's.
+  static const double removeSize = MessageInputQuoteTokens.removeSize;
+  static const double removeHitTarget = MessageInputQuoteTokens.removeHitTarget;
+  static const double removeIconSize = MessageInputQuoteTokens.removeIconSize;
+
+  /// How far the dismiss circle hangs past the card's top-right corner.
+  static const double removeOverhang = MessageInputQuoteTokens.removeOverhang;
+
+  /// Offset for the button, backing out its hit target ring.
+  static const double removeOffset = MessageInputQuoteTokens.removeOffset;
+}
