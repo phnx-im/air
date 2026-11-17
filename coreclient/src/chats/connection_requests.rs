@@ -55,7 +55,10 @@ use crate::{
         self_group_outbox::{self, OutboxKind},
     },
     db::access::{ReadDbTransaction, ReadTransaction, WriteDbTransaction},
-    groups::{Group, client_auth_info::StorableUserCredential},
+    groups::{
+        Group,
+        client_auth_info::{PinCheck, StorableUserCredential},
+    },
     usernames::connection_packages::ConnectionPackageRecord,
     utils::persistence::GroupIdWrapper,
 };
@@ -571,8 +574,9 @@ fn received_entry(
 }
 
 /// Stores a request from a sibling, unless there is nothing to add: it is
-/// known or expired at `now`, its deletion is parked, or its sender is blocked
-/// or connected.
+/// known or expired at `now`, its deletion is parked, its sender is blocked
+/// or connected, or its sender credential carries another key than the one
+/// pinned for the sender.
 async fn store_received(
     txn: &mut WriteDbTransaction<'_>,
     received: &ConnectionRequestReceived,
@@ -591,8 +595,12 @@ async fn store_received(
         return Ok(None);
     }
 
+    if StorableUserCredential::check_pin(&mut *txn, &credential).await? == PinCheck::Conflicts {
+        warn!(%request_id, "Skipping a forwarded request whose sender changed the pinned key");
+        return Ok(None);
+    }
     StorableUserCredential::new(credential.clone())
-        .store(&mut *txn)
+        .store_checked(&mut *txn)
         .await?;
     let stored = request.store(txn).await?;
     CoreUser::schedule_fetch_request_sender_profile(&mut *txn, request_id, credential).await?;
@@ -1492,7 +1500,7 @@ mod tests {
         let (_as_key, signing_key) = create_test_credentials(sender()?);
         let credential = signing_key.credential().clone();
         StorableUserCredential::new(credential.clone())
-            .store(&mut *txn)
+            .store_checked(&mut *txn)
             .await?;
         Ok(credential)
     }

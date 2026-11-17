@@ -112,4 +112,59 @@ void main() {
       'Dispositius enllaçats: 1/5.',
     );
   });
+
+  test('Danish uses the singular only for exactly one', () {
+    final loc = lookupAppLocalizations(const Locale('da'));
+    expect(loc.linkedDevicesScreen_deviceCount(0), 'Ingen forbundne enheder.');
+    expect(loc.linkedDevicesScreen_deviceCount(1), '1 forbundet enhed.');
+    expect(loc.linkedDevicesScreen_deviceCount(21), '21 forbundne enheder.');
+  });
+
+  test('Finnish keeps one wording where the count stays apart', () {
+    final loc = lookupAppLocalizations(const Locale('fi'));
+    expect(loc.linkedDevicesScreen_deviceCount(1), '1 linkitetty laite.');
+    expect(loc.linkedDevicesScreen_deviceCount(5), '5 linkitettyä laitetta.');
+    expect(
+      loc.linkedDevicesScreen_deviceCountWithLimit(1, 5),
+      'Linkitettyjä laitteita 1/5.',
+    );
+    expect(
+      loc.linkedDevicesScreen_deviceCountWithLimit(5, 1),
+      'Linkitettyjä laitteita 5/1.',
+    );
+  });
+
+  test('Italian whole millions fall back to the other form', () {
+    final loc = lookupAppLocalizations(const Locale('it'));
+    expect(loc.groupDetails_memberCount(1), '1 persona');
+    expect(loc.groupDetails_memberCount(1000000), '1000000 persone');
+  });
+
+  test('Norwegian uses the singular only for exactly one', () {
+    final loc = lookupAppLocalizations(const Locale('nb'));
+    expect(loc.linkedDevicesScreen_deviceCount(0), 'Ingen tilkoblede enheter.');
+    expect(loc.linkedDevicesScreen_deviceCount(1), '1 tilkoblet enhet.');
+    expect(loc.linkedDevicesScreen_deviceCount(21), '21 tilkoblede enheter.');
+  });
+
+  test('Dutch uses the singular only for exactly one', () {
+    final loc = lookupAppLocalizations(const Locale('nl'));
+    expect(
+      loc.linkedDevicesScreen_deviceCount(0),
+      'Geen gekoppelde apparaten.',
+    );
+    expect(loc.linkedDevicesScreen_deviceCount(1), '1 apparaat gekoppeld.');
+    expect(loc.linkedDevicesScreen_deviceCount(21), '21 apparaten gekoppeld.');
+  });
+
+  test('Polish picks the one, few and many forms by the last digits', () {
+    final loc = lookupAppLocalizations(const Locale('pl'));
+    expect(loc.groupDetails_memberCount(1), '1 osoba');
+    expect(loc.groupDetails_memberCount(2), '2 osoby');
+    expect(loc.groupDetails_memberCount(5), '5 osób');
+    expect(loc.groupDetails_memberCount(12), '12 osób');
+    expect(loc.groupDetails_memberCount(21), '21 osób');
+    expect(loc.groupDetails_memberCount(22), '22 osoby');
+    expect(loc.groupDetails_memberCount(25), '25 osób');
+  });
 }

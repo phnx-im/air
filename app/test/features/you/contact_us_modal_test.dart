@@ -284,10 +284,7 @@ void main() {
       const viewSize = Size(400, 600);
       const keyboard = 300.0;
       sizeView(tester, viewSize);
-      tester.view.viewInsets = FakeViewPadding(
-        bottom: keyboard * tester.view.devicePixelRatio,
-      );
-      addTearDown(tester.view.resetViewInsets);
+      raiseKeyboard(tester, keyboard);
 
       await open(tester);
       await tester.ensureVisible(find.byType(Button));

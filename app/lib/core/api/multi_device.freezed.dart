@@ -47,33 +47,70 @@ $MultiDeviceLinkEventCopyWith(MultiDeviceLinkEvent _, $Res Function(MultiDeviceL
 
 
 class MultiDeviceLinkEvent_AwaitingConfirmation extends MultiDeviceLinkEvent {
-  const MultiDeviceLinkEvent_AwaitingConfirmation(): super._();
+  const MultiDeviceLinkEvent_AwaitingConfirmation({this.suggestedName}): super._();
   
 
+/// The name of the new device's platform, to prefill the device name.
+ final  String? suggestedName;
 
-
+/// Create a copy of MultiDeviceLinkEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MultiDeviceLinkEvent_AwaitingConfirmationCopyWith<MultiDeviceLinkEvent_AwaitingConfirmation> get copyWith => _$MultiDeviceLinkEvent_AwaitingConfirmationCopyWithImpl<MultiDeviceLinkEvent_AwaitingConfirmation>(this, _$identity);
 
 
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent_AwaitingConfirmation);
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent_AwaitingConfirmation&&(identical(other.suggestedName, suggestedName) || other.suggestedName == suggestedName));
 }
 
 
 @override
-int get hashCode => runtimeType.hashCode;
+int get hashCode {
+    return Object.hash(runtimeType,suggestedName);
+}
 
 @override
 String toString() {
-    return 'MultiDeviceLinkEvent.awaitingConfirmation()';
+    return 'MultiDeviceLinkEvent.awaitingConfirmation(suggestedName: $suggestedName)';
 }
 
 
 }
 
+/// @nodoc
+abstract mixin class $MultiDeviceLinkEvent_AwaitingConfirmationCopyWith<$Res> implements $MultiDeviceLinkEventCopyWith<$Res> {
+  factory $MultiDeviceLinkEvent_AwaitingConfirmationCopyWith(MultiDeviceLinkEvent_AwaitingConfirmation value, $Res Function(MultiDeviceLinkEvent_AwaitingConfirmation) _then) = _$MultiDeviceLinkEvent_AwaitingConfirmationCopyWithImpl;
+@useResult
+$Res call({
+ String? suggestedName
+});
 
 
+
+
+}
+/// @nodoc
+class _$MultiDeviceLinkEvent_AwaitingConfirmationCopyWithImpl<$Res>
+    implements $MultiDeviceLinkEvent_AwaitingConfirmationCopyWith<$Res> {
+  _$MultiDeviceLinkEvent_AwaitingConfirmationCopyWithImpl(this._self, this._then);
+
+  final MultiDeviceLinkEvent_AwaitingConfirmation _self;
+  final $Res Function(MultiDeviceLinkEvent_AwaitingConfirmation) _then;
+
+/// Create a copy of MultiDeviceLinkEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? suggestedName = freezed,}) {
+  return _then(MultiDeviceLinkEvent_AwaitingConfirmation(
+suggestedName: freezed == suggestedName ? _self.suggestedName : suggestedName // ignore: cast_nullable_to_non_nullable
+as String?,
+  ));
+}
+
+
+}
 
 /// @nodoc
 

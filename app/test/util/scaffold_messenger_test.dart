@@ -102,13 +102,6 @@ void main() {
       await dismiss(tester);
     });
 
-    void raiseKeyboard(WidgetTester tester, double keyboard) {
-      tester.view.viewInsets = FakeViewPadding(
-        bottom: keyboard * tester.view.devicePixelRatio,
-      );
-      addTearDown(tester.view.resetViewInsets);
-    }
-
     double pillBottom(WidgetTester tester) =>
         tester.getRect(find.byType(Snackbar)).bottom;
 

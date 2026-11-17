@@ -1,0 +1,7 @@
+---
+source: protos/src/client/linking.rs
+expression: diag
+---
+a1    # map(1)
+   01 #   unsigned(1)
+   02 #   unsigned(2)

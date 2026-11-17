@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n                    SELECT\n                        message,\n                        editing_id AS \"editing_id: _\",\n                        updated_at AS \"updated_at: _\",\n                        is_committed,\n                        in_reply_to_mimi_id AS \"in_reply_to_mimi_id: _\"\n                    FROM message_draft\n                    WHERE chat_id = ?\n                ",
+  "query": "\n                    SELECT\n                        d.message,\n                        d.editing_id AS \"editing_id: _\",\n                        d.updated_at AS \"updated_at: _\",\n                        d.is_committed,\n                        d.in_reply_to_mimi_id AS \"in_reply_to_mimi_id: _\"\n                    FROM message_draft d\n                    INNER JOIN chat c ON c.chat_id = d.chat_id\n                    LEFT JOIN blocked_contact b ON b.user_uuid = c.connection_user_uuid\n                        AND b.user_domain = c.connection_user_domain\n                    WHERE d.chat_id = ?\n                        AND c.status = ?\n                        AND b.user_uuid IS NULL\n                ",
   "describe": {
     "columns": [
       {
@@ -60,7 +60,7 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
       false,
@@ -70,5 +70,5 @@
       true
     ]
   },
-  "hash": "fb262ffb619f517d30c737429e0ff1ddcc1e62e0c999761116b83124b63e8fbd"
+  "hash": "4f17cadf998c0796dd2bcd094bd2312051d27d2ad50da0165d1ce2f85db0b440"
 }

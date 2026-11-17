@@ -11,6 +11,7 @@ use aircoreclient::clients::{
     CoreUser,
     multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
 };
+use airprotos::client::self_group::LinkedDevicePlatform;
 use anyhow::{Context, Result};
 use flutter_rust_bridge::frb;
 use qrcode::QrCode;
@@ -223,7 +224,10 @@ impl MultiDeviceLinkConfirmation {
 pub enum MultiDeviceLinkEvent {
     /// Connected to the relay; waiting for the user to approve on this device via
     /// [`MultiDeviceLinkConfirmation::confirm`].
-    AwaitingConfirmation,
+    AwaitingConfirmation {
+        /// The name of the new device's platform, to prefill the device name.
+        suggested_name: Option<String>,
+    },
     /// Linking completed successfully.
     Linked,
     /// Linking failed (e.g. the connection dropped or the session expired).
@@ -245,11 +249,13 @@ pub async fn multi_device_link_client(
     let confirmation_rx = confirmation
         .take_receiver()
         .context("multi-device link confirmation already used")?;
-    let (connected_tx, connected_rx) = oneshot::channel();
+    let (connected_tx, connected_rx) = oneshot::channel::<Option<LinkedDevicePlatform>>();
 
     let forward_connected = async {
-        if connected_rx.await.is_ok()
-            && let Err(error) = sink.add(MultiDeviceLinkEvent::AwaitingConfirmation)
+        if let Ok(platform) = connected_rx.await
+            && let Err(error) = sink.add(MultiDeviceLinkEvent::AwaitingConfirmation {
+                suggested_name: platform.map(|platform| platform.label().to_owned()),
+            })
         {
             error!(%error, "failed to forward MultiDeviceLinkEvent to the Dart side");
         }

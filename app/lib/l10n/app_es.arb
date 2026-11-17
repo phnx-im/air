@@ -125,8 +125,8 @@
   "invitationCodesScreen_global_quota_exceeded": "Nos hemos quedado sin invitaciones por ahora, inténtalo más tarde.",
   "invitationCodesScreen_errorRequestingCode": "Algo ha salido mal. Inténtalo de nuevo.",
   "invitationCodesScreen_copiedToClipboard": "Copiado al portapapeles",
-  "invitationCodesScreen_codeClipboardMessage": "Chateemos en Air: https://air.ms/install. Usa el código de invitación {code}.",
-  "invitationCodesScreen_codesClipboardMessage": "Chateemos en Air: https://air.ms/install. Usa uno de estos códigos de invitación para entrar:\n\n{codes}",
+  "invitationCodesScreen_codeClipboardMessage": "Chateemos en Air: https://air.ms/download. Usa el código de invitación {code}.",
+  "invitationCodesScreen_codesClipboardMessage": "Chateemos en Air: https://air.ms/download. Usa uno de estos códigos de invitación para entrar:\n\n{codes}",
 
   "accountCreation_unsupported_header": "Actualización necesaria",
   "accountCreation_unsupported_body": "Este servidor pide algo que esta versión de Air no puede proporcionar. Actualiza Air para continuar.",

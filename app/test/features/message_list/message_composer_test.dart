@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:air/app.dart' show scaffoldMessengerKey;
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/button_icon/button_icon.dart';
+import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
@@ -123,10 +124,11 @@ void main() {
     ),
   );
 
+  Finder buttonWith(AppIconType icon) =>
+      find.byWidgetPredicate((w) => w is ButtonIcon && w.icon == icon);
+
   group('MessageComposer send failure', () {
-    final sendButton = find.byWidgetPredicate(
-      (widget) => widget is ButtonIcon && widget.icon == AppIconType.arrowUp,
-    );
+    final sendButton = buttonWith(AppIconType.arrowUp);
 
     Finder errorSnackbar() => find.text(loc.composer_error_sendMessage);
 
@@ -259,6 +261,23 @@ void main() {
           isCommitted: false,
         ),
       );
+    });
+  });
+
+  group('MessageComposer attach menu', () {
+    testWidgets('keeps the keyboard up when opened', (tester) async {
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      await tester.showKeyboard(find.byType(TextField));
+      raiseKeyboard(tester, 336);
+      await tester.pumpAndSettle();
+
+      await tester.tap(buttonWith(AppIconType.plus));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Menu), findsOneWidget);
+      expect(tester.testTextInput.isVisible, isTrue);
     });
   });
 }

@@ -315,8 +315,9 @@ impl<'de> Deserialize<'de> for LinkedDevicePlatform {
         D: Deserializer<'de>,
     {
         let v = u8::deserialize(deserializer)?;
-        LinkedDevicePlatform::try_from(v)
-            .map_err(|_| serde::de::Error::custom(format!("invalid Status discriminant: {v}")))
+        LinkedDevicePlatform::try_from(v).map_err(|_| {
+            serde::de::Error::custom(format!("invalid LinkedDevicePlatform discriminant: {v}"))
+        })
     }
 }
 

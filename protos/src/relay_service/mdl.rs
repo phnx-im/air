@@ -209,8 +209,8 @@ impl LinkingPayload {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TlsSerialize, TlsDeserializeBytes, TlsSize)]
 #[repr(u16)]
 pub enum LinkingPayloadType {
-    /// The new device joined the pairing group. The payload is empty since this is just the
-    /// existing device's key confirmation.
+    /// The new device joined the pairing group, which confirms the key to the existing device.
+    /// The payload is a CBOR `PairingConfirmation`. Older new devices send an empty payload.
     PairingConfirmed = 1,
     /// The existing device's account material, a CBOR `ProvisioningPackage`.
     ProvisioningPackage = 2,
