@@ -300,7 +300,7 @@ impl CoreUser {
         };
 
         let bytes_total: usize = size.try_into()?;
-        // Old clients declared the ciphertext size, which is a bit larger
+        // We read ciphertext, `size` is the declared plaintext size
         let max_len = bytes_total.saturating_add(MAX_CIPHERTEXT_OVERHEAD);
         // `size` is declared by the sender, so don't trust it for preallocation.
         let capacity = size.min(DEFAULT_MAX_ATTACHMENT_SIZE).try_into()?;
