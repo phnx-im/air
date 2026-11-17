@@ -4,7 +4,7 @@
 
 use std::io::Cursor;
 
-use anyhow::Context;
+use anyhow::{Context, bail};
 use image::{DynamicImage, GenericImageView, ImageDecoder, ImageFormat, ImageReader, Limits};
 use tokio::task::spawn_blocking;
 use url::Url;
@@ -117,6 +117,10 @@ impl PreviewImage {
         let mut reader = ImageReader::with_format(Cursor::new(bytes), format);
         reader.limits(limits);
         let mut decoder = reader.into_decoder()?;
+        // Limits don't cover the output buffer size
+        if Self::MAX_ALLOC_BYTES < decoder.total_bytes() {
+            bail!("decoded image too large");
+        }
         let orientation = decoder.orientation()?;
         let mut image = DynamicImage::from_decoder(decoder)?;
 
