@@ -68,14 +68,18 @@ impl LinkPreview {
     }
 }
 
-/// Checks if `part` is a preview with an image content type.
+/// Checks if `part` is a preview image as produced by the sender.
 pub(super) fn is_preview_image(part: &NestedPart) -> bool {
     match part {
         NestedPart::ExternalPart {
             disposition: Disposition::Preview,
             content_type,
+            size,
             ..
-        } => MediaType::of(content_type).has_type("image"),
+        } => {
+            MediaType::of(content_type) == LinkPreviewImage::CONTENT_TYPE
+                && *size <= LinkPreviewImage::MAX_SIZE
+        }
         _ => false,
     }
 }
@@ -288,11 +292,27 @@ mod tests {
     }
 
     #[test]
-    fn preview_image_must_be_an_image() {
+    fn preview_image_must_be_webp() {
+        for content_type in ["application/pdf", "image/png", "image/gif"] {
+            let preview = preview(all(vec![
+                text("https://a.org"),
+                card("https://a.org", Some(3)),
+                external(Disposition::Preview, content_type),
+            ]));
+            assert!(preview.unwrap().image().is_none(), "{content_type}");
+        }
+    }
+
+    #[test]
+    fn preview_image_over_size_cap_is_dropped() {
+        let mut image = image();
+        if let NestedPart::ExternalPart { size, .. } = &mut image {
+            *size = LinkPreviewImage::MAX_SIZE + 1;
+        }
         let preview = preview(all(vec![
             text("https://a.org"),
             card("https://a.org", Some(3)),
-            external(Disposition::Preview, "application/pdf"),
+            image,
         ]));
         assert!(preview.unwrap().image().is_none());
     }

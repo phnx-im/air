@@ -4,6 +4,7 @@
 
 use std::io::Cursor;
 
+use airprotos::client::link_preview::LinkPreviewImage;
 use anyhow::{Context, bail};
 use image::{DynamicImage, GenericImageView, ImageDecoder, ImageFormat, ImageReader, Limits};
 use tokio::task::spawn_blocking;
@@ -46,13 +47,10 @@ pub(crate) struct PreviewImage {
 
 impl PreviewImage {
     const MAX_SOURCE_BYTES: usize = 2 * 1024 * 1024;
-    /// Must stay below the server attachment limit.
-    const MAX_WEBP_BYTES: usize = 512 * 1024;
 
     const MAX_SOURCE_WIDTH: u32 = 8_192;
     const MAX_SOURCE_HEIGHT: u32 = 8_192;
 
-    const WEBP_MAX_EDGE: u32 = 1024;
     const WEBP_QUALITY_PERCENT: f32 = 80.0;
 
     const MAX_ALLOC_BYTES: u64 = 64 * 1024 * 1024;
@@ -101,7 +99,7 @@ impl PreviewImage {
         limits.max_image_height = Some(Self::MAX_SOURCE_HEIGHT);
         limits.max_alloc = Some(Self::MAX_ALLOC_BYTES);
         let image = Self::reencode(bytes, format, limits, cancel)?;
-        if Self::MAX_WEBP_BYTES < image.webp.len() {
+        if LinkPreviewImage::MAX_SIZE < image.webp.len() as u64 {
             return Ok(None);
         }
         Ok(Some(image))
@@ -129,8 +127,9 @@ impl PreviewImage {
 
         // Fast area average, only when the image has to shrink
         let (width, height) = image.dimensions();
-        let image = if Self::WEBP_MAX_EDGE < width.max(height) {
-            image.thumbnail(Self::WEBP_MAX_EDGE, Self::WEBP_MAX_EDGE)
+        let max_edge = LinkPreviewImage::MAX_EDGE;
+        let image = if max_edge < width.max(height) {
+            image.thumbnail(max_edge, max_edge)
         } else {
             image
         };
