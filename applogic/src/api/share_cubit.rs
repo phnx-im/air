@@ -427,7 +427,7 @@ async fn upload_attachment(
                 UiShareSendError::Other
             })?;
 
-    let (attachment_id, progress, upload_task) = match provisioned {
+    let pending_upload = match provisioned {
         Ok(result) => result,
         Err(error) => return Err(provision_error(error)),
     };
@@ -435,7 +435,7 @@ async fn upload_attachment(
     // Forward the upload progress while the upload task runs. The stream
     // ends with a terminal event when the task finishes.
     let forward_progress = async {
-        let mut events = progress.stream();
+        let mut events = pending_upload.progress.stream();
         while let Some(event) = events.next().await {
             match event {
                 AttachmentProgressEvent::Init => {}
@@ -454,7 +454,7 @@ async fn upload_attachment(
         }
     };
 
-    let (upload_result, ()) = tokio::join!(upload_task, forward_progress);
+    let (upload_result, ()) = tokio::join!(pending_upload.task, forward_progress);
     match upload_result {
         Ok(message) => {
             core_user
@@ -469,6 +469,7 @@ async fn upload_attachment(
         }
         Err(UploadTaskError::Provision(error)) => Err(provision_error(error)),
         Err(UploadTaskError::Failed { message_id, error }) => {
+            let attachment_id = pending_upload.attachment_id;
             error!(%error, ?attachment_id, "Failed to upload shared attachment");
             if let Err(error) = core_user
                 .outbound_service()

@@ -249,7 +249,7 @@ async fn nested_attachments_have_derived_ids() {
         assert_eq!(content.as_deref(), Some(expected));
     }
 
-    // Bob's stored copy has no secrets left
+    // Bob's stored copy is kept as received
     let stored = bob.message(message.id()).await.unwrap().unwrap();
     let mut external_parts = 0;
     stored
@@ -263,17 +263,15 @@ async fn nested_attachments_have_derived_ids() {
             let NestedPart::ExternalPart {
                 key,
                 nonce,
-                aad,
                 content_hash,
                 ..
             } = part
             else {
                 panic!("unexpected attachment type");
             };
-            assert!(key.is_empty());
-            assert!(nonce.is_empty());
-            assert!(aad.is_empty());
-            assert!(content_hash.is_empty());
+            assert!(!key.is_empty());
+            assert!(!nonce.is_empty());
+            assert!(!content_hash.is_empty());
             external_parts += 1;
             Ok(())
         })

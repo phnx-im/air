@@ -27,6 +27,30 @@ pub(super) fn walk<'a>(
     .walk(part, None, &mut 0, visitor)
 }
 
+pub(super) fn part_at(root: &NestedPart, PartIndex(index): PartIndex) -> Option<&NestedPart> {
+    let mut index = index as usize;
+    let mut part = root;
+    loop {
+        if index == 0 {
+            return Some(part);
+        }
+        let NestedPart::MultiPart { parts, .. } = part else {
+            return None;
+        };
+        index -= 1;
+        let child = parts.iter().find(|child| {
+            let count = part_count(child);
+            if index < count {
+                true
+            } else {
+                index -= count;
+                false
+            }
+        })?;
+        part = child;
+    }
+}
+
 impl TextFormat {
     fn from_media_type(media_type: MediaType<'_>) -> Option<Self> {
         if media_type == TEXT_MARKDOWN {
@@ -39,12 +63,13 @@ impl TextFormat {
     }
 }
 
-const MAX_DEPTH: usize = 8;
+pub(crate) const MAX_DEPTH: usize = 8;
 
 enum Leaf<'a> {
     Text(&'a str, TextFormat),
     Attachment,
     Blurhash(&'a str),
+    LinkPreview(&'a [u8]),
     Ignored,
     Unknown,
 }
@@ -99,6 +124,10 @@ impl Ctx {
                         })?;
                     }
                     Leaf::Blurhash(_) => {}
+                    Leaf::LinkPreview(card) => visitor(VisitedPart::LinkPreview {
+                        card,
+                        index: PartIndex(u32::try_from(part_index)?),
+                    })?,
                     Leaf::Ignored => {}
                     Leaf::Unknown => {
                         visitor(VisitedPart::Unknown(part))?;
@@ -166,7 +195,7 @@ impl Ctx {
                         blurhash = Some(hash);
                     }
                 }
-                Leaf::Text(..) | Leaf::Ignored | Leaf::Unknown => {}
+                Leaf::Text(..) | Leaf::LinkPreview(_) | Leaf::Ignored | Leaf::Unknown => {}
             }
         }
         Some((attachment?, blurhash?))
@@ -210,7 +239,7 @@ impl Ctx {
                         preview: ctx.in_preview,
                         ..Coverage::default()
                     },
-                    Leaf::Blurhash(_) | Leaf::Ignored => Coverage::default(),
+                    Leaf::Blurhash(_) | Leaf::LinkPreview(_) | Leaf::Ignored => Coverage::default(),
                     Leaf::Unknown => Coverage::MISSING,
                 }
             }
@@ -290,12 +319,11 @@ impl Ctx {
                             .map(Leaf::Blurhash)
                             .unwrap_or(Leaf::Ignored)
                     } else if media_type == LinkPreviewCard::CONTENT_TYPE {
-                        // not rendered yet, and never an attachment record
-                        Leaf::Ignored
-                    } else if media_type.has_type("text") {
-                        Leaf::Ignored
-                    } else {
+                        Leaf::LinkPreview(content)
+                    } else if media_type.has_type("image") {
                         Leaf::Attachment
+                    } else {
+                        Leaf::Ignored
                     }
                 } else {
                     match TextFormat::from_media_type(media_type) {
@@ -391,6 +419,7 @@ mod tests {
             preview: bool,
             blurhash: Option<String>,
         },
+        Card(usize),
         Unknown,
     }
 
@@ -422,6 +451,7 @@ mod tests {
                         preview,
                         blurhash: blurhash.map(str::to_owned),
                     },
+                    VisitedPart::LinkPreview { index, .. } => Seen::Card(index.0 as usize),
                     VisitedPart::Unknown(_) => Seen::Unknown,
                 });
                 Ok(())
@@ -480,6 +510,10 @@ mod tests {
     fn external(disposition: Disposition, content_type: &str) -> NestedPart {
         let url = AttachmentUrl::new(RemoteAttachmentId::new(Uuid::new_v4()), None).to_string();
         external_url(disposition, content_type, url)
+    }
+
+    fn card() -> NestedPart {
+        single(Disposition::Preview, LinkPreviewCard::CONTENT_TYPE, b"\x00")
     }
 
     fn file() -> NestedPart {
@@ -554,11 +588,67 @@ mod tests {
     fn link_preview_layout() {
         let seen = visit_part(all(vec![
             text("text/markdown", "see"),
-            single(Disposition::Preview, LinkPreviewCard::CONTENT_TYPE, b"\x00"),
+            card(),
             external(Disposition::Preview, "image/webp"),
         ]));
         // root 0, text 1, card 2, image 3 as in the link preview spec
-        assert_eq!(seen, [md("see"), att(3, true, None)]);
+        assert_eq!(seen, [md("see"), Seen::Card(2), att(3, true, None)]);
+    }
+
+    #[test]
+    fn nested_link_previews_in_order() {
+        let seen = visit_part(all(vec![
+            all(vec![
+                text("text/markdown", "a"),
+                card(),
+                external(Disposition::Preview, "image/webp"),
+            ]),
+            file(),
+            all(vec![card(), text("text/markdown", "b")]),
+        ]));
+        assert_eq!(
+            seen,
+            [
+                md("a"),
+                Seen::Card(3),
+                att(4, true, None),
+                att(5, false, None),
+                Seen::Card(7),
+                md("b"),
+            ]
+        );
+    }
+
+    #[test]
+    fn link_preview_in_skipped_part_is_not_visited() {
+        let seen = visit_part(all(vec![
+            multi(
+                Disposition::Reaction,
+                PartSemantics::ProcessAll,
+                vec![card()],
+            ),
+            text("text/markdown", "a"),
+        ]));
+        assert_eq!(seen, [md("a")]);
+    }
+
+    #[test]
+    fn link_preview_alone_does_not_win_choose_one() {
+        let seen = visit_part(choose(vec![card(), text("text/markdown", "a")]));
+        assert_eq!(seen, [md("a")]);
+    }
+
+    #[test]
+    fn inline_preview_only_images() {
+        let seen = visit_part(multi(
+            Disposition::Preview,
+            PartSemantics::ProcessAll,
+            vec![
+                single(Disposition::Render, "application/pdf", b"x"),
+                single(Disposition::Render, "image/png", b"x"),
+            ],
+        ));
+        assert_eq!(seen, [att(2, true, None)]);
     }
 
     #[test]

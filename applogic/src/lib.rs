@@ -11,6 +11,7 @@ pub(crate) use frb_generated::*;
 pub mod api;
 pub mod background_execution;
 
+pub(crate) mod composer_link_preview;
 pub(crate) mod frb_generated;
 pub(crate) mod logging;
 pub(crate) mod mark_as_read;

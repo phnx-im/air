@@ -143,6 +143,14 @@ impl LinkPreviewCard {
         })
     }
 
+    /// Same card but without an image.
+    pub fn without_image(self) -> Self {
+        Self {
+            image: None,
+            ..self
+        }
+    }
+
     /// Decodes and validates a received card.
     ///
     /// Text fields are sanitised. An invalid image is dropped instead of
@@ -211,10 +219,18 @@ impl LinkPreviewCard {
 }
 
 impl LinkPreviewImage {
+    /// Content type of the image part.
+    pub const CONTENT_TYPE: &'static str = "image/webp";
+    /// Maximum size of the image part in bytes.
+    pub const MAX_SIZE: u64 = 512 * 1024;
+    /// Maximum width and height in pixels.
+    pub const MAX_EDGE: u32 = 1024;
+
     /// Builds an image on the sender side.
     ///
-    /// Returns `None` if `part_index`, `width` or `height` is 0. A blur hash
-    /// over its cap is dropped. `alt` is sanitised and truncated to its cap.
+    /// Returns `None` if `part_index` is 0, or `width` or `height` is 0 or
+    /// over [`Self::MAX_EDGE`]. A blur hash over its cap is dropped. `alt` is
+    /// sanitised and truncated to its cap.
     pub fn new(
         part_index: u32,
         width: u32,
@@ -222,7 +238,7 @@ impl LinkPreviewImage {
         blur_hash: Option<String>,
         alt: Option<&str>,
     ) -> Option<Self> {
-        if part_index == 0 || width == 0 || height == 0 {
+        if part_index == 0 || !Self::valid_edge(width) || !Self::valid_edge(height) {
             return None;
         }
         let blur_hash = blur_hash.filter(|h| !h.is_empty() && h.len() <= MAX_BLUR_HASH_LEN);
@@ -239,7 +255,7 @@ impl LinkPreviewImage {
     }
 
     fn from_raw(raw: RawImage) -> Option<Self> {
-        if raw.part_index == 0 || raw.width == 0 || raw.height == 0 {
+        if raw.part_index == 0 || !Self::valid_edge(raw.width) || !Self::valid_edge(raw.height) {
             return None;
         }
         if raw
@@ -257,6 +273,10 @@ impl LinkPreviewImage {
             blur_hash: raw.blur_hash.filter(|h| !h.is_empty()),
             alt: raw.alt.map(|a| sanitize(&a)).filter(|a| !a.is_empty()),
         })
+    }
+
+    fn valid_edge(edge: u32) -> bool {
+        (1..=Self::MAX_EDGE).contains(&edge)
     }
 
     fn to_raw(&self) -> RawImage {
@@ -647,6 +667,8 @@ mod test {
             "{1: 3, 2: 0, 3: 5}",
             "{1: 3, 2: 4, 3: 0}",
             "{1: 3, 3: 5}",
+            "{1: 3, 2: 1025, 3: 5}",
+            "{1: 3, 2: 4, 3: 1025}",
         ];
         for image in images {
             let bytes = cbor(&format!(r#"{{1: "https://air.ms", 2: "Air", 5: {image}}}"#));
@@ -656,6 +678,9 @@ mod test {
         assert_eq!(LinkPreviewImage::new(0, 4, 5, None, None), None);
         assert_eq!(LinkPreviewImage::new(3, 0, 5, None, None), None);
         assert_eq!(LinkPreviewImage::new(3, 4, 0, None, None), None);
+        assert_eq!(LinkPreviewImage::new(3, 1025, 5, None, None), None);
+        assert_eq!(LinkPreviewImage::new(3, 4, 1025, None, None), None);
+        assert!(LinkPreviewImage::new(3, 1024, 1024, None, None).is_some());
     }
 
     #[test]
