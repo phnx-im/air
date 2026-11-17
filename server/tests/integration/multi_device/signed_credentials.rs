@@ -395,3 +395,39 @@ async fn an_unsigned_device_deletes_the_account() {
         Some(UnlinkReason::AccountDeleted)
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn loading_the_client_signs_the_stored_credential() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_persisted_user().await;
+    let alice2 = link_sibling(&alice).await;
+    make_unsigned(&alice, &[&alice2]).await;
+    assert!(
+        !alice
+            .stored_self_group_credential()
+            .await
+            .unwrap()
+            .is_signed()
+    );
+
+    let restarted = CoreUser::load_with_server_url(
+        setup.temp_dir().to_str().expect("utf-8 path"),
+        alice.client_record_id(),
+        Some(setup.server_url()),
+    )
+    .await
+    .unwrap();
+    assert!(
+        restarted
+            .stored_self_group_credential()
+            .await
+            .unwrap()
+            .is_signed(),
+        "loading the client must sign the stored credential"
+    );
+
+    self_update(&restarted, true).await;
+    alice2.drain().await;
+    assert_published(&restarted).await;
+    assert_eq!(signed_leaves(&alice2).await, 2);
+}
