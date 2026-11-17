@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS(\n                SELECT 1 FROM attachment WHERE attachment_id = ?\n            ) AS \"exists: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "exists: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f0663f862da3a11fcddab55b293098a4445ec800bbb0065fbf15d5ff28add0cb"
+}

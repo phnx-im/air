@@ -27,8 +27,11 @@ use uuid::Uuid;
 use crate::{
     chats::messages::{edit::purge_stale_deleted_messages, persistence::backfill_event_ids},
     clients::{
-        attachment::persistence::move_attachment_content_to_side_table,
-        own_client_info::OwnClientInfo, store::ClientRecord,
+        attachment::{
+            migration::split_attachments, persistence::move_attachment_content_to_side_table,
+        },
+        own_client_info::OwnClientInfo,
+        store::ClientRecord,
     },
     db::{
         access::{DbAccess, WriteConnection, WriteTransaction},
@@ -348,6 +351,7 @@ enum RustMigration {
     AttachmentContentMove = 20260831123717,
     VcDerivationEpochRetention = 20260902120000,
     EventIdBackfill = 20261027120000,
+    AttachmentSplit = 20261117120000,
 }
 
 impl RustMigration {
@@ -358,6 +362,7 @@ impl RustMigration {
             20260831123717 => Some(Self::AttachmentContentMove),
             20260902120000 => Some(Self::VcDerivationEpochRetention),
             20261027120000 => Some(Self::EventIdBackfill),
+            20261117120000 => Some(Self::AttachmentSplit),
             _ => None,
         }
     }
@@ -374,6 +379,7 @@ impl RustMigration {
                 migrate_vc_derivation_epoch_retention(write).await?
             }
             RustMigration::EventIdBackfill => backfill_event_ids(write).await?,
+            RustMigration::AttachmentSplit => split_attachments(write).await?,
         }
         Ok(())
     }
@@ -385,9 +391,12 @@ impl RustMigration {
 /// Each SQL migration can have a corresponding optional code migration. After it is applied, the
 /// code migration is applied in the *same* transaction.
 ///
+/// A migration without a code migration is applied on the connection itself, so
+/// a migration starting with `-- no-transaction` runs outside of a transaction.
+///
 /// Note: This function is implemented along the lines of `sqlx::migrate::Migrator::run`, but
 /// adjusted to sqlite.
-async fn run_client_migrations(db: &DbAccess) -> anyhow::Result<()> {
+pub(crate) async fn run_client_migrations(db: &DbAccess) -> anyhow::Result<()> {
     let migrator = sqlx::migrate!();
     let table = "_sqlx_migrations";
 
@@ -865,7 +874,7 @@ mod tests {
         connection.close().await?;
 
         let db = open_client_db(db_path, client_record_id).await?;
-        let pending: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM pending_attachment")
+        let pending: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM attachment_remote")
             .fetch_one(db.read().await?.as_mut())
             .await?;
         assert_eq!(pending, 1);

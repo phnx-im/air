@@ -1,0 +1,122 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                r.remote_attachment_id AS \"remote_attachment_id: RemoteAttachmentId\",\n                r.size,\n                r.enc_alg AS \"enc_alg: u16\",\n                r.enc_key,\n                r.nonce,\n                r.aad,\n                r.hash_alg AS \"hash_alg: u8\",\n                r.hash,\n                m.chat_id AS \"chat_id: ChatId\"\n            FROM attachment_remote r\n            JOIN attachment_transfer t ON t.attachment_id = r.attachment_id\n            JOIN message_attachment ma ON ma.attachment_id = r.attachment_id\n            JOIN message m ON m.message_id = ma.message_id\n            WHERE r.attachment_id = ?1\n                AND t.direction = ?2\n                AND (t.failure IS NULL OR t.failure != ?3)\n            ORDER BY ma.rowid\n            LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "remote_attachment_id: RemoteAttachmentId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "remote_attachment_id"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "enc_alg: u16",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "enc_alg"
+          }
+        }
+      },
+      {
+        "name": "enc_key",
+        "ordinal": 3,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "enc_key"
+          }
+        }
+      },
+      {
+        "name": "nonce",
+        "ordinal": 4,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "nonce"
+          }
+        }
+      },
+      {
+        "name": "aad",
+        "ordinal": 5,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "aad"
+          }
+        }
+      },
+      {
+        "name": "hash_alg: u8",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "hash_alg"
+          }
+        }
+      },
+      {
+        "name": "hash",
+        "ordinal": 7,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "hash"
+          }
+        }
+      },
+      {
+        "name": "chat_id: ChatId",
+        "ordinal": 8,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "chat_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "9780c918ffe94ad0d62c0cc4f33c827b8a66a56497795c7702c5e2a9fe885093"
+}

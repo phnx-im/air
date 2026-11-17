@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "\n                SELECT\n                    attachment_id AS \"attachment_id: _\",\n                    remote_attachment_id AS \"remote_attachment_id: _\",\n                    chat_id AS \"chat_id: _\",\n                    message_id AS \"message_id: _\",\n                    content_type AS \"content_type: _\",\n                    status AS \"status: _\",\n                    created_at AS \"created_at: _\",\n                    is_animated\n                FROM attachment\n                WHERE attachment_id = ?",
+  "query": "SELECT\n                attachment_id AS \"attachment_id: AttachmentId\",\n                content_type,\n                size AS \"size?: i64\",\n                content_hash AS \"content_hash?\",\n                width AS \"width?: u32\",\n                height AS \"height?: u32\",\n                blurhash AS \"blurhash?\",\n                is_animated AS \"is_animated?\",\n                created_at AS \"created_at: DateTime<Utc>\"\n            FROM attachment\n            WHERE attachment_id = ?",
   "describe": {
     "columns": [
       {
-        "name": "attachment_id: _",
+        "name": "attachment_id: AttachmentId",
         "ordinal": 0,
         "type_info": "Blob",
         "origin": {
@@ -15,41 +15,8 @@
         }
       },
       {
-        "name": "remote_attachment_id: _",
+        "name": "content_type",
         "ordinal": 1,
-        "type_info": "Blob",
-        "origin": {
-          "Table": {
-            "table": "attachment",
-            "name": "remote_attachment_id"
-          }
-        }
-      },
-      {
-        "name": "chat_id: _",
-        "ordinal": 2,
-        "type_info": "Blob",
-        "origin": {
-          "Table": {
-            "table": "attachment",
-            "name": "chat_id"
-          }
-        }
-      },
-      {
-        "name": "message_id: _",
-        "ordinal": 3,
-        "type_info": "Blob",
-        "origin": {
-          "Table": {
-            "table": "attachment",
-            "name": "message_id"
-          }
-        }
-      },
-      {
-        "name": "content_type: _",
-        "ordinal": 4,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -59,35 +26,79 @@
         }
       },
       {
-        "name": "status: _",
+        "name": "size?: i64",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "content_hash?",
+        "ordinal": 3,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "content_hash"
+          }
+        }
+      },
+      {
+        "name": "width?: u32",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "width"
+          }
+        }
+      },
+      {
+        "name": "height?: u32",
         "ordinal": 5,
         "type_info": "Integer",
         "origin": {
           "Table": {
             "table": "attachment",
-            "name": "status"
+            "name": "height"
           }
         }
       },
       {
-        "name": "created_at: _",
+        "name": "blurhash?",
         "ordinal": 6,
         "type_info": "Text",
         "origin": {
           "Table": {
             "table": "attachment",
-            "name": "created_at"
+            "name": "blurhash"
           }
         }
       },
       {
-        "name": "is_animated",
+        "name": "is_animated?",
         "ordinal": 7,
         "type_info": "Bool",
         "origin": {
           "Table": {
             "table": "attachment",
             "name": "is_animated"
+          }
+        }
+      },
+      {
+        "name": "created_at: DateTime<Utc>",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "created_at"
           }
         }
       }
@@ -97,14 +108,15 @@
     },
     "nullable": [
       false,
+      false,
       true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      true
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
     ]
   },
-  "hash": "037049b567d00d95ab8e67e2fb460a465bcd7b88d7352395ba6569fc01cd4985"
+  "hash": "723c5bf7777e98408df1fac697405050a666fb05629c718777410b22cb8cbdb2"
 }

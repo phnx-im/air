@@ -28,7 +28,7 @@ use crate::{
         messages::{InReplyToMessage, edit::MessageEdit},
         reactions::Reaction,
     },
-    clients::attachment::{AttachmentRecord, MessageAttachments},
+    clients::attachment::{MessageAttachmentRecord, MessageAttachments},
     db::access::{ReadConnection, WriteConnection},
 };
 
@@ -1232,9 +1232,11 @@ impl InReplyToMessage {
             return Ok(None);
         };
 
-        in_reply_to_message.attachments =
-            AttachmentRecord::load_infos_by_message_id(connection, in_reply_to_message.message_id)
-                .await?;
+        in_reply_to_message.attachments = MessageAttachmentRecord::load_infos_by_message_id(
+            connection,
+            in_reply_to_message.message_id,
+        )
+        .await?;
 
         Ok(Some(in_reply_to_message))
     }
@@ -1406,7 +1408,7 @@ pub(crate) mod tests {
         let original = test_chat_message(chat.id());
         original.store(pool.write().await?).await?;
 
-        let record = test_attachment_record(chat.id(), original.id());
+        let record = test_attachment_record(original.id());
         record.store(pool.write().await?, None).await?;
 
         let mimi_id = *original.message().mimi_id().unwrap();

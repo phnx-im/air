@@ -47,8 +47,11 @@ use crate::{
     clients::{
         CoreUser, MarkChatAsRead,
         attachment::{
-            AttachmentBytes, AttachmentRecord,
+            AttachmentBytes, AttachmentRecord, AttachmentTransferRecord, MessageAttachmentRecord,
+            NewAttachment,
             aead::{AIR_ATTACHMENT_ENCRYPTION_ALG, AIR_ATTACHMENT_HASH_ALG},
+            persistence::{AttachmentRole, ProcessedMetadata},
+            process::AttachmentPart,
             progress::{AttachmentProgress, AttachmentProgressSender},
             thumbnail::store_thumbnail,
         },
@@ -168,7 +171,7 @@ impl CoreUser {
         debug!(?is_animated, "made source thumbnail");
 
         let message_id = MessageId::random();
-        let attachment_id = AttachmentId::derive(message_id, ATTACHMENT_PART_INDEX);
+        let attachment_id = AttachmentId::random();
         let content = attachment_content(probed.provisional_nested_parts(attachment_id))?;
 
         // Note: Acquire a transaction here to ensure that the attachment will be deleted from the
@@ -187,12 +190,17 @@ impl CoreUser {
 
                 // store attachment locally
                 // (must be done after the message is stored locally due to foreign key constraints)
-                AttachmentRecord {
+                NewAttachment {
                     attachment_id,
-                    remote_attachment_id: None,
-                    chat_id,
                     message_id,
+                    part_index: ATTACHMENT_PART_INDEX,
+                    role: AttachmentRole::Attachment,
+                    filename: Some(probed.filename.clone()),
                     content_type: probed.content_type.clone(),
+                    size: Some(probed.size),
+                    content_hash: None,
+                    dimensions: probed.image_dimensions,
+                    blurhash: None,
                     status: AttachmentStatus::Uploading,
                     is_animated,
                     created_at: Utc::now(),
@@ -227,16 +235,18 @@ impl CoreUser {
 
     /// Stores a message with an already processed attachment and returns task that sends it.
     ///
-    /// `bytes` are stored as the attachment content, so failed upload can be retried.
+    /// `record` is stored for the attachment and `bytes` as its content, so a
+    /// failed upload can be retried.
     pub(crate) async fn upload_processed_attachment(
         &self,
         chat_id: ChatId,
-        message_id: MessageId,
-        attachment_id: AttachmentId,
+        record: NewAttachment,
         content: MimiContent,
         bytes: Vec<u8>,
         mark_as_read: MarkChatAsRead,
     ) -> anyhow::Result<PendingUpload> {
+        let attachment_id = record.attachment_id;
+        let message_id = record.message_id;
         let message = self
             .db()
             .with_write_transaction(async |txn| -> anyhow::Result<ChatMessage> {
@@ -249,18 +259,7 @@ impl CoreUser {
                         mark_as_read,
                     )
                     .await?;
-                AttachmentRecord {
-                    attachment_id,
-                    remote_attachment_id: None,
-                    chat_id,
-                    message_id,
-                    content_type: WEBP_CONTENT_TYPE.to_owned(),
-                    status: AttachmentStatus::Uploading,
-                    is_animated: Some(false),
-                    created_at: Utc::now(),
-                }
-                .store(&mut *txn, Some(&bytes))
-                .await?;
+                record.store(&mut *txn, Some(&bytes)).await?;
                 Ok(message)
             })
             .await?;
@@ -289,15 +288,16 @@ impl CoreUser {
         let (message, content) = self
             .db()
             .with_read_transaction(async |txn| {
-                let attachment_record = AttachmentRecord::load(&mut *txn, attachment_id)
-                    .await?
-                    .context("Attachment not found")?;
+                let (reference, status) =
+                    MessageAttachmentRecord::load_first_with_status(&mut *txn, attachment_id)
+                        .await?
+                        .context("Attachment not found")?;
                 ensure!(
-                    matches!(attachment_record.status, AttachmentStatus::UploadFailed),
+                    matches!(status, AttachmentStatus::UploadFailed),
                     "For retrying, the attachment must be in UploadFailed status"
                 );
 
-                let message = ChatMessage::load(&mut *txn, attachment_record.message_id)
+                let message = ChatMessage::load(&mut *txn, reference.message_id)
                     .await?
                     .context("Message not found")?;
                 ensure!(!message.is_sent(), "Message is already sent");
@@ -324,7 +324,8 @@ impl CoreUser {
 
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                AttachmentRecord::restart_upload(&mut *txn, attachment_id, Utc::now()).await?;
+                AttachmentTransferRecord::restart_upload(&mut *txn, attachment_id, Utc::now())
+                    .await?;
                 Ok(())
             })
             .await?;
@@ -503,8 +504,16 @@ impl CoreUser {
             .context("Attachment message without content")?;
         processed.patch_parts(content)?;
 
-        // Stays NULL for a non-image, as it was when the probe stored it.
-        let is_animated = processed.image_data.as_ref().map(|data| data.is_animated);
+        let image_data = processed.image_data.as_ref();
+        let metadata = ProcessedMetadata {
+            content_type: &processed.content_type,
+            filename: &processed.filename,
+            content_hash: &processed.content_hash,
+            dimensions: image_data.map(|data| (data.width, data.height)),
+            blurhash: image_data.map(|data| data.blurhash.as_str()),
+            // Stays NULL for a non-image, as it was when the probe stored it.
+            is_animated: image_data.map(|data| data.is_animated),
+        };
 
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<bool> {
@@ -512,8 +521,7 @@ impl CoreUser {
                     &mut *txn,
                     attachment_id,
                     processed.content.as_ref(),
-                    &processed.content_type,
-                    is_animated,
+                    metadata,
                 )
                 .await?;
                 if !stored {
@@ -529,7 +537,7 @@ impl CoreUser {
     async fn delete_attachment_message(&self, message_id: MessageId) -> anyhow::Result<()> {
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                // The attachment record is removed by the foreign key cascade.
+                // The attachment is removed with its last reference.
                 ChatMessage::delete(&mut *txn, message_id).await?;
                 Ok(())
             })
@@ -548,7 +556,9 @@ impl CoreUser {
     ) -> anyhow::Result<()> {
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                let Some(record) = AttachmentRecord::load(&mut *txn, attachment_id).await? else {
+                let Some(reference) =
+                    MessageAttachmentRecord::load_first(&mut *txn, attachment_id).await?
+                else {
                     return Ok(());
                 };
                 if AttachmentRecord::has_content(&mut *txn, attachment_id).await? {
@@ -560,15 +570,15 @@ impl CoreUser {
                     )
                     .await?;
                 } else {
-                    ChatMessage::delete(&mut *txn, record.message_id()).await?;
+                    ChatMessage::delete(&mut *txn, reference.message_id).await?;
                 }
                 Ok(())
             })
             .await
     }
 
-    /// Uploads the ciphertext, then persists the finalized content and marks
-    /// the attachment as ready.
+    /// Uploads the ciphertext, then persists the finalized content and the
+    /// remote location, and marks the attachment as ready.
     async fn upload_and_finalize(
         &self,
         attachment_id: AttachmentId,
@@ -582,15 +592,26 @@ impl CoreUser {
         upload_encrypted_attachment(&http_client, provision_response, progress_tx, ciphertext)
             .await?;
         debug!(?attachment_id, "uploaded attachment ciphertext");
+        let content = message
+            .message()
+            .mimi_content()
+            .context("Attachment message without content")?;
+        let remote_record = AttachmentPart::collect(content)?
+            .iter()
+            .filter_map(AttachmentPart::remote)
+            .find(|remote| remote.remote_attachment_id == remote_attachment_id)
+            .context("Uploaded attachment is missing in its message")?;
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
                 message.update(&mut *txn).await?;
-                AttachmentRecord::update_remote_attachment_id(
-                    &mut *txn,
-                    attachment_id,
-                    remote_attachment_id,
-                )
-                .await?;
+                // The attachment is gone if the message was deleted mid-upload
+                if AttachmentRecord::status(&mut *txn, attachment_id)
+                    .await?
+                    .is_none()
+                {
+                    return Ok(());
+                }
+                remote_record.store(&mut *txn, attachment_id).await?;
                 AttachmentRecord::update_status(&mut *txn, attachment_id, AttachmentStatus::Ready)
                     .await?;
                 Ok(())
@@ -853,7 +874,7 @@ struct ProcessedAttachmentImageData {
     is_animated: bool,
 }
 
-const WEBP_CONTENT_TYPE: &str = "image/webp";
+pub(crate) const WEBP_CONTENT_TYPE: &str = "image/webp";
 
 impl ProcessedAttachment {
     fn from_bytes(
@@ -1108,7 +1129,7 @@ mod tests {
     use tempfile::tempdir;
 
     use super::{ATTACHMENT_PART_INDEX, ProbedAttachment, attachment_content};
-    use crate::{AttachmentId, MessageId, MimiContentExt, VisitedPart};
+    use crate::{AttachmentId, MimiContentExt, VisitedPart};
 
     #[test]
     fn ordinary_file_can_exceed_the_default_server_limit() -> anyhow::Result<()> {
@@ -1129,7 +1150,7 @@ mod tests {
             size: 1,
             image_dimensions: Some((1, 1)),
         };
-        let attachment_id = AttachmentId::derive(MessageId::random(), ATTACHMENT_PART_INDEX);
+        let attachment_id = AttachmentId::random();
         let content = attachment_content(probed.provisional_nested_parts(attachment_id))?;
 
         let mut indices = Vec::new();

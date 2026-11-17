@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                direction AS \"direction: u32\",\n                state AS \"state: u32\",\n                failure AS \"failure?: u32\",\n                started_at AS \"started_at?: DateTime<Utc>\"\n            FROM attachment_transfer\n            WHERE attachment_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "direction: u32",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment_transfer",
+            "name": "direction"
+          }
+        }
+      },
+      {
+        "name": "state: u32",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment_transfer",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "name": "failure?: u32",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment_transfer",
+            "name": "failure"
+          }
+        }
+      },
+      {
+        "name": "started_at?: DateTime<Utc>",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "attachment_transfer",
+            "name": "started_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "e11d86e764eb4488d136b69dc90fc151cbeedf041abd456d3f95abce2854987e"
+}

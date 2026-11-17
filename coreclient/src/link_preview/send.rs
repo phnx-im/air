@@ -4,13 +4,20 @@
 
 use airprotos::client::link_preview::LinkPreviewCard;
 use anyhow::ensure;
+use chrono::Utc;
 use mimi_content::{Disposition, MimiContent, NestedPart, content_container::PartSemantics};
+use sha2::{Digest, Sha256};
 
 use crate::{
-    AttachmentId, ChatId, MarkChatAsRead, MediaType, MessageId, MimiContentExt, PartIndex,
+    AttachmentId, AttachmentStatus, ChatId, MarkChatAsRead, MediaType, MessageId, MimiContentExt,
+    PartIndex,
     clients::{
         CoreUser,
-        attachment::upload::{PendingUpload, provisional_image_part},
+        attachment::{
+            NewAttachment,
+            persistence::AttachmentRole,
+            upload::{PendingUpload, WEBP_CONTENT_TYPE, provisional_image_part},
+        },
     },
     link_preview::card::is_preview_image,
     media_type::TEXT_MARKDOWN,
@@ -46,26 +53,30 @@ impl CoreUser {
         };
 
         // Card with an image
-        let message_id = MessageId::random();
-        let attachment_id = AttachmentId::derive(message_id, LINK_PREVIEW_IMAGE_PART_INDEX);
-        let image_part = provisional_image_part(
-            attachment_id,
-            Disposition::Preview,
-            &bytes,
-            (image_meta.width(), image_meta.height()),
-        );
+        let attachment_id = AttachmentId::random();
+        let dimensions = (image_meta.width(), image_meta.height());
+        let image_part =
+            provisional_image_part(attachment_id, Disposition::Preview, &bytes, dimensions);
         content.nested_part =
             link_preview_body(content.nested_part, card_part(&card)?, Some(image_part));
         debug_assert!(LinkPreview::from_content(&content).is_some_and(|p| p.image().is_some()));
+        let record = NewAttachment {
+            attachment_id,
+            message_id: MessageId::random(),
+            part_index: LINK_PREVIEW_IMAGE_PART_INDEX,
+            role: AttachmentRole::Preview,
+            filename: None,
+            content_type: WEBP_CONTENT_TYPE.to_owned(),
+            size: u64::try_from(bytes.len()).ok(),
+            content_hash: Some(Sha256::digest(&bytes).to_vec()),
+            dimensions: Some(dimensions),
+            blurhash: image_meta.blur_hash().map(str::to_owned),
+            status: AttachmentStatus::Uploading,
+            is_animated: Some(false),
+            created_at: Utc::now(),
+        };
         let upload = self
-            .upload_processed_attachment(
-                chat_id,
-                message_id,
-                attachment_id,
-                content,
-                bytes,
-                mark_as_read,
-            )
+            .upload_processed_attachment(chat_id, record, content, bytes, mark_as_read)
             .await?;
         Ok(Some(upload))
     }
