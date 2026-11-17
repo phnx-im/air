@@ -274,6 +274,8 @@ impl Group {
         )))
     }
 
+    /// Builds the leaf node parameters for a self update of our own leaf.
+    /// `leaf_node_extensions` must be the leaf's current extensions.
     fn update_leaf_node_extensions(
         leaf_node_extensions: &Extensions<LeafNode>,
         capabilities: Capabilities,
