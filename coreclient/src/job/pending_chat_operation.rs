@@ -2353,7 +2353,7 @@ pub(crate) mod tests {
 
     /// Builds a single-member APQ self group owned by a fresh client, with the
     /// own client info and own user profile key the self-group paths expect.
-    async fn setup_self_group() -> anyhow::Result<(DbAccess, UserSigningKey, GroupId)> {
+    pub(crate) async fn setup_self_group() -> anyhow::Result<(DbAccess, UserSigningKey, GroupId)> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
         let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
@@ -2415,7 +2415,18 @@ pub(crate) mod tests {
         user_signing_key: &UserSigningKey,
         client_id: Uuid,
     ) -> anyhow::Result<ApqKeyPackage> {
-        let user_id = user_signing_key.credential().user_id();
+        let signer = SelfGroupSigningKey::generate(client_id, user_signing_key)?;
+        let credential = signer.credential().to_credential()?;
+        self_group_key_package(txn, &signer, credential).await
+    }
+
+    /// An APQ key package for a self-group leaf with the key `signer` and the T credential
+    /// `t_credential`, shaped like the one a freshly linked device generates.
+    pub(crate) async fn self_group_key_package(
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &SelfGroupSigningKey,
+        t_credential: openmls::prelude::Credential,
+    ) -> anyhow::Result<ApqKeyPackage> {
         use aircommon::{
             crypto::hpke::{ClientIdDecryptionKey, HpkeEncryptable},
             identifiers::{ClientConfig, QsReference},
@@ -2426,11 +2437,10 @@ pub(crate) mod tests {
 
         use crate::groups::{client_reference_extension, openmls_provider::AirOpenMlsProvider};
 
-        let signer = SelfGroupSigningKey::generate(client_id, user_signing_key)?;
         let signature_key = SignaturePublicKey::from(signer.verifying_key().clone());
         let credential = ApqCredentialWithKey {
             t_credential: CredentialWithKey {
-                credential: signer.credential().to_credential()?,
+                credential: t_credential,
                 signature_key: signature_key.clone(),
             },
             pq_credential: CredentialWithKey {
@@ -2440,7 +2450,7 @@ pub(crate) mod tests {
         };
 
         let client_reference = QsReference {
-            client_homeserver_domain: user_id.domain().clone(),
+            client_homeserver_domain: "example.com".parse()?,
             sealed_reference: ClientConfig {
                 client_id: QsClientId::random(&mut rand::rng()),
                 push_token_ear_key: None,
@@ -2461,7 +2471,7 @@ pub(crate) mod tests {
             .key_package_extensions(key_package_extensions)
             .leaf_node_capabilities(self_group_leaf_node_capabilities())
             .leaf_node_extensions(leaf_node_extensions)
-            .build(&provider, APQ_CIPHERSUITE, &signer, credential)?;
+            .build(&provider, APQ_CIPHERSUITE, signer, credential)?;
         Ok(bundle.into_key_package())
     }
 
