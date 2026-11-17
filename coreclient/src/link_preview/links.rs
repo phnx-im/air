@@ -2,7 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{iter, ops::RangeInclusive, sync::LazyLock};
+use std::{
+    iter,
+    ops::{Range, RangeInclusive},
+    sync::LazyLock,
+};
 
 use regex::Regex;
 use unicode_security::{RestrictionLevel, RestrictionLevelDetection};
@@ -34,19 +38,18 @@ pub fn select_links(text: &str) -> impl Iterator<Item = &str> {
 }
 
 fn candidates(text: &str) -> impl Iterator<Item = &str> {
-    let mut pos = 0;
-    iter::from_fn(move || {
-        loop {
-            let found = link_regex().find_at(text, pos)?;
-            let end = found.start() + split_before_next(found.as_str());
-            // Move to end even if the candidate is rejected.
-            pos = end;
-            let link = trim_end(&text[found.start()..end]);
-            if has_boundaries(text, found.start(), end) {
-                return Some(link);
-            }
-        }
-    })
+    // Note: Each byte is scanned at most 3 times: outer regex, `split_before_next`, inner regex.
+    // This makes the search linear.
+    link_regex()
+        .find_iter(text)
+        .flat_map(move |extent| pieces(text, extent.range()))
+        .flat_map(move |piece| {
+            link_regex()
+                .find_iter(&text[piece.clone()])
+                .map(move |m| (piece.start + m.start(), piece.start + m.end()))
+        })
+        .filter(|&(start, end)| has_boundaries(text, start, end))
+        .map(|(start, end)| trim_end(&text[start..end]))
 }
 
 /// Scheme, host up to `'`, then path, query or fragment, up to a link end.
@@ -79,6 +82,20 @@ const FORMAT_CHARS: [RangeInclusive<char>; 4] = [
 
 fn is_format_char(c: char) -> bool {
     FORMAT_CHARS.iter().any(|range| range.contains(&c))
+}
+
+/// Splits `range` of `text` before each `,` or `;` that is followed by a scheme.
+fn pieces(text: &str, range: Range<usize>) -> impl Iterator<Item = Range<usize>> {
+    let mut start = range.start;
+    iter::from_fn(move || {
+        (start < range.end).then(|| {
+            let end = start + split_before_next(&text[start..range.end]);
+            let piece = start..end;
+            // Skip the ASCII separator
+            start = end + 1;
+            piece
+        })
+    })
 }
 
 fn split_before_next(link: &str) -> usize {
@@ -319,6 +336,15 @@ mod tests {
     }
 
     #[test]
+    fn many_split_links() {
+        let n = 20_000;
+        let text = "https://air.ms/x,".repeat(n);
+        let links = links(&text);
+        assert_eq!(links.len(), n);
+        assert!(links.iter().all(|&link| link == "https://air.ms/x"));
+    }
+
+    #[test]
     fn only_https() {
         assert_eq!(links("HTTPS://Air.ms/X"), ["HTTPS://Air.ms/X"]);
         assert_eq!(links("hTTpS://air.ms"), ["hTTpS://air.ms"]);
@@ -403,5 +429,12 @@ mod tests {
         let link = format!("{prefix}{}", "a".repeat(MAX_LINK_LEN - prefix.len()));
         assert_eq!(links(&link), [link.as_str()]);
         assert_no_links(&[&format!("{link}a")]);
+    }
+
+    #[test]
+    fn many_links_ending_at_apostrophe() {
+        let n = 20_000;
+        let text = format!("https://air.ms/x,{}", "https://a.bc'".repeat(n));
+        assert_eq!(links(&text).len(), n + 1);
     }
 }
