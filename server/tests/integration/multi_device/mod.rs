@@ -6,6 +6,7 @@
 //! following each other in groups.
 
 mod account_deletion;
+mod blocking;
 mod bootstrap;
 mod deletion;
 mod device_limit;
