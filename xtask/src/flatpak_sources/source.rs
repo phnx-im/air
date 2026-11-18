@@ -69,6 +69,9 @@ pub(super) struct Git {
     pub(super) tag: Option<String>,
     pub(super) commit: String,
     pub(super) dest: String,
+    /// Stops flatpak-builder from fetching the LFS objects of all refs.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub(super) disable_lfs: bool,
 }
 
 #[derive(Debug, Default, Serialize)]

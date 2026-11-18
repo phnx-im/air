@@ -166,6 +166,7 @@ pub(crate) fn run(args: FlatpakSourcesArgs) -> Result<()> {
             tag: None,
             commit: commit.clone(),
             dest: SRC_DIR.to_owned(),
+            disable_lfs: true,
         }));
         air_sources.extend(lfs_sources(&shell, &commit)?);
     }

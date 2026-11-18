@@ -206,7 +206,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.local/share/flatpak
-          key: flatpak-runtimes-${{ matrix.arch }}-26.08-llvm22
+          key: flatpak-runtimes-${{ matrix.arch }}-26.08-llvm23
 
       # Hashes of the Flutter and Rust artifacts and the resolved
       # flutter_tools lock.
@@ -221,11 +221,10 @@ jobs:
       - name: Generate Flatpak sources
         run: cargo xtask flatpak-sources --flavor production --arch ${{ matrix.arch }}
 
-      # Downloads, git mirrors and the sccache dir. The module cache is left
-      # out to stay within the cache quota, the toolchain modules rebuild in
-      # a few minutes. Keyed on the inputs, not on the generated files, which
-      # contain the commit. Only main saves, like the sccache cache in
-      # setup-buildenv.
+      # Downloads and git mirrors. The module cache is left out to stay within
+      # the cache quota, the toolchain modules rebuild in a few minutes. Keyed
+      # on the inputs, not on the generated files, which contain the commit.
+      # Only main saves, like the sccache cache in setup-buildenv.
       - name: Cache flatpak-builder state
         if: github.ref == 'refs/heads/main'
         uses: actions/cache@v5
@@ -233,7 +232,6 @@ jobs:
           path: |
             target/flatpak/.flatpak-builder/downloads
             target/flatpak/.flatpak-builder/git
-            target/flatpak/.flatpak-builder/ccache
           key: flatpak-builder-${{ matrix.arch }}-${{ hashFiles('Cargo.lock', 'app/pubspec.lock', 'app/.fvmrc', 'applogic/rust-toolchain.toml', 'app/linux/flatpak/ms.air.Air.yml.jinja') }}
           restore-keys: |
             flatpak-builder-${{ matrix.arch }}-
@@ -245,7 +243,6 @@ jobs:
           path: |
             target/flatpak/.flatpak-builder/downloads
             target/flatpak/.flatpak-builder/git
-            target/flatpak/.flatpak-builder/ccache
           key: flatpak-builder-${{ matrix.arch }}-${{ hashFiles('Cargo.lock', 'app/pubspec.lock', 'app/.fvmrc', 'applogic/rust-toolchain.toml', 'app/linux/flatpak/ms.air.Air.yml.jinja') }}
           restore-keys: |
             flatpak-builder-${{ matrix.arch }}-
