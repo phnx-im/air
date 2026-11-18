@@ -29,7 +29,6 @@ void main() {
             child: AnchoredList<int>(
               data: data,
               controller: controller,
-              idExtractor: (item) => item,
               canLoadOlder: false,
               canLoadNewer: canLoadNewer,
               paginationThreshold: 100,
@@ -61,7 +60,10 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      final data = AnchoredListData<int>(List.generate(30, (index) => index));
+      final data = AnchoredListData<int>(
+        idOf: (index) => index,
+        initial: List.generate(30, (index) => index),
+      );
       final controller = AnchoredListController();
       var loadNewerCalls = 0;
 
@@ -111,7 +113,10 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      final data = AnchoredListData<int>(List.generate(30, (index) => index));
+      final data = AnchoredListData<int>(
+        idOf: (index) => index,
+        initial: List.generate(30, (index) => index),
+      );
       final controller = AnchoredListController();
       var loadNewerCalls = 0;
 
@@ -158,7 +163,10 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      final data = AnchoredListData<int>([0, 1, 2]);
+      final data = AnchoredListData<int>(
+        idOf: (index) => index,
+        initial: [0, 1, 2],
+      );
       final controller = AnchoredListController();
 
       await tester.pumpWidget(
@@ -199,7 +207,10 @@ void main() {
 
       // Viewport 300 with a 100px bottom inset (e.g. an overlaid composer).
       // The unobscured area is [0, 200]; the bottom [200, 300] is covered.
-      final data = AnchoredListData<int>([0, 1, 2, 3, 4, 5]);
+      final data = AnchoredListData<int>(
+        idOf: (index) => index,
+        initial: [0, 1, 2, 3, 4, 5],
+      );
       final controller = AnchoredListController();
 
       await tester.pumpWidget(
@@ -244,7 +255,10 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      final data = AnchoredListData<int>(List.generate(40, (index) => index));
+      final data = AnchoredListData<int>(
+        idOf: (index) => index,
+        initial: List.generate(40, (index) => index),
+      );
       final controller = AnchoredListController();
       const topPadding = 120.0;
 
@@ -278,7 +292,10 @@ void main() {
           tester.view.resetDevicePixelRatio();
         });
 
-        final data = AnchoredListData<int>(List.generate(40, (index) => index));
+        final data = AnchoredListData<int>(
+          idOf: (index) => index,
+          initial: List.generate(40, (index) => index),
+        );
         final controller = AnchoredListController();
         const topPadding = 120.0;
 
@@ -325,7 +342,10 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      final data = AnchoredListData<int>(List.generate(40, (index) => index));
+      final data = AnchoredListData<int>(
+        idOf: (index) => index,
+        initial: List.generate(40, (index) => index),
+      );
       final controller = AnchoredListController();
       const topPadding = 120.0;
 
@@ -377,7 +397,10 @@ void main() {
               ? 200.0
               : 80.0,
       };
-      final data = AnchoredListData<int>(List.generate(40, (index) => index));
+      final data = AnchoredListData<int>(
+        idOf: (index) => index,
+        initial: List.generate(40, (index) => index),
+      );
       final controller = AnchoredListController();
       const topPadding = 100.0;
 
@@ -425,7 +448,10 @@ void main() {
       final heights = <int, double>{
         for (var i = 0; i < 40; i++) i: i.isEven ? 60.0 : 180.0,
       };
-      final data = AnchoredListData<int>(List.generate(40, (index) => index));
+      final data = AnchoredListData<int>(
+        idOf: (index) => index,
+        initial: List.generate(40, (index) => index),
+      );
       final controller = AnchoredListController();
       const topPadding = 120.0;
 
@@ -489,7 +515,6 @@ void main() {
               builder: (context, padding, _) => AnchoredList<int>(
                 data: data,
                 controller: controller,
-                idExtractor: (item) => item,
                 canLoadOlder: false,
                 canLoadNewer: false,
                 topPadding: 100,
@@ -519,7 +544,10 @@ void main() {
       for (var i = 0; i < 3000; i += 9) {
         heights[i] = 900.0;
       }
-      final data = AnchoredListData<int>(List.generate(3000, (i) => i));
+      final data = AnchoredListData<int>(
+        idOf: (index) => index,
+        initial: List.generate(3000, (i) => i),
+      );
       final controller = AnchoredListController();
       // Insets stay constant: the row's own decode is the only dimension
       // change, so nothing here depends on the composer.
@@ -575,7 +603,10 @@ void main() {
       for (var i = 0; i < 400; i += 9) {
         heights[i] = 620.0;
       }
-      final data = AnchoredListData<int>(List.generate(400, (i) => i));
+      final data = AnchoredListData<int>(
+        idOf: (index) => index,
+        initial: List.generate(400, (i) => i),
+      );
       final controller = AnchoredListController();
       final bottomPadding = ValueNotifier<double>(240);
       addTearDown(bottomPadding.dispose);
@@ -609,10 +640,8 @@ void main() {
     });
   });
 
-  group('AnchoredList duplicate ids', () {
-    // Duplicate ids violate the id contract but must render gracefully
-    // instead of corrupting the sliver's element tree.
-    Widget buildDuplicatesSubject({required AnchoredListData<int> data}) {
+  group('AnchoredList element reuse', () {
+    Widget buildReuseSubject({required AnchoredListData<int> data}) {
       return MaterialApp(
         home: Scaffold(
           body: Center(
@@ -621,7 +650,6 @@ void main() {
               height: 800,
               child: AnchoredList<int>(
                 data: data,
-                idExtractor: (item) => item,
                 canLoadOlder: false,
                 canLoadNewer: false,
                 paginationThreshold: 100,
@@ -647,52 +675,14 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      final data = AnchoredListData<int>(List.generate(30, (index) => index));
-      await tester.pumpWidget(buildDuplicatesSubject(data: data));
+      final data = AnchoredListData<int>(
+        idOf: (index) => index,
+        initial: List.generate(30, (index) => index),
+      );
+      await tester.pumpWidget(buildReuseSubject(data: data));
       await tester.pump();
       return data;
     }
-
-    testWidgets('a duplicate id survives subsequent inserts', (tester) async {
-      final data = await pumpSubject(tester);
-
-      // Item 5 is already on screen, so both copies get a live element.
-      data.insert(0, 5);
-      await tester.pump();
-      expect(tester.takeException(), isNull, reason: 'duplicate insert');
-
-      // Every following insert shifts the indices of both copies.
-      data.insert(0, 100);
-      await tester.pump();
-      expect(tester.takeException(), isNull, reason: 'first shift');
-
-      data.insert(0, 101);
-      await tester.pump();
-      expect(tester.takeException(), isNull, reason: 'second shift');
-
-      // The older copy sits in the cache region below the visible window,
-      // hence skipOffstage: false.
-      expect(find.text('item 5', skipOffstage: false), findsNWidgets(2));
-      expect(find.text('item 100'), findsOneWidget);
-      expect(find.text('item 101'), findsOneWidget);
-    });
-
-    testWidgets('an identity-colliding update survives a subsequent insert', (
-      tester,
-    ) async {
-      final data = await pumpSubject(tester);
-
-      // The row at index 3 takes on the id of the row at index 7.
-      data.update(3, 7);
-      await tester.pump();
-      expect(tester.takeException(), isNull, reason: 'identity collision');
-
-      data.insert(0, 100);
-      await tester.pump();
-      expect(tester.takeException(), isNull, reason: 'shift after collision');
-
-      expect(find.text('item 7', skipOffstage: false), findsNWidgets(2));
-    });
 
     testWidgets('unique ids keep element reuse working', (tester) async {
       final data = await pumpSubject(tester);
@@ -705,6 +695,87 @@ void main() {
       for (var item = 0; item < 7; item++) {
         expect(find.text('item $item'), findsOneWidget);
       }
+    });
+  });
+
+  group('AnchoredListData id index', () {
+    AnchoredListData<({int id, String label})> buildData(List<int> ids) =>
+        AnchoredListData(
+          idOf: (item) => item.id,
+          initial: [for (final id in ids) (id: id, label: 'v0')],
+        );
+
+    // The index resolves every item in the list, and nothing in [absent].
+    void expectIndexed(
+      AnchoredListData<({int id, String label})> data, {
+      List<int> absent = const [],
+    }) {
+      for (final item in data.items) {
+        expect(data.containsId(item.id), isTrue, reason: 'id ${item.id}');
+        expect(data.itemById(item.id), same(item), reason: 'id ${item.id}');
+      }
+      for (final id in absent) {
+        expect(data.containsId(id), isFalse, reason: 'id $id');
+        expect(data.itemById(id), isNull, reason: 'id $id');
+      }
+    }
+
+    test('initial items', () {
+      expectIndexed(buildData([0, 1, 2]), absent: [3]);
+    });
+
+    test('insert', () {
+      final data = buildData([0, 1]);
+      data.insert(1, (id: 5, label: 'v0'));
+      expectIndexed(data);
+    });
+
+    test('insertAll', () {
+      final data = buildData([0, 1]);
+      data.insertAll(0, [(id: 5, label: 'v0'), (id: 6, label: 'v0')]);
+      expectIndexed(data);
+    });
+
+    test('removeAt', () {
+      final data = buildData([0, 1, 2]);
+      data.removeAt(1);
+      expectIndexed(data, absent: [1]);
+    });
+
+    test('removeRange', () {
+      final data = buildData([0, 1, 2, 3]);
+      data.removeRange(1, 2);
+      expectIndexed(data, absent: [1, 2]);
+    });
+
+    test('update with the same id', () {
+      final data = buildData([0, 1, 2]);
+      data.update(1, (id: 1, label: 'v1'));
+      expectIndexed(data);
+      expect(data.itemById(1)?.label, 'v1');
+    });
+
+    test('update with a new id', () {
+      final data = buildData([0, 1, 2]);
+      data.update(1, (id: 5, label: 'v0'));
+      expectIndexed(data, absent: [1]);
+    });
+
+    test('reload', () {
+      final data = buildData([0, 1, 2]);
+      data.reload([(id: 2, label: 'v1'), (id: 3, label: 'v0')]);
+      expectIndexed(data, absent: [0, 1]);
+      expect(data.itemById(2)?.label, 'v1');
+    });
+
+    test('batch', () {
+      final data = buildData([0, 1, 2, 3]);
+      data.batch(() {
+        data.removeRange(0, 2);
+        data.insertAll(0, [(id: 5, label: 'v0')]);
+        data.update(1, (id: 2, label: 'v1'));
+      });
+      expectIndexed(data, absent: [0, 1]);
     });
   });
 }

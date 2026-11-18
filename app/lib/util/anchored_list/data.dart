@@ -61,12 +61,24 @@ class AnchoredListReload<T> extends AnchoredListDiff<T> {
 /// widget can apply targeted height-cache updates and scroll corrections
 /// without diffing the entire list.
 class AnchoredListData<T> extends ChangeNotifier {
-  AnchoredListData([List<T>? initial])
-    : _items = initial != null ? List<T>.of(initial) : <T>[];
+  AnchoredListData({required this.idOf, List<T>? initial})
+    : _items = List<T>.of(initial ?? const []) {
+    _items.forEach(_index);
+  }
+
+  /// Ids must be unique across the list.
+  final Object Function(T) idOf;
 
   final List<T> _items;
+  final Map<Object, T> _itemsById = {};
   final List<AnchoredListDiff<T>> _pendingDiffs = [];
   bool _batching = false;
+
+  void _index(T item) {
+    final id = idOf(item);
+    assert(!_itemsById.containsKey(id), 'Duplicate id: $id');
+    _itemsById[id] = item;
+  }
 
   void _notify() {
     if (!_batching) notifyListeners();
@@ -92,10 +104,14 @@ class AnchoredListData<T> extends ChangeNotifier {
 
   T operator [](int index) => _items[index];
 
+  bool containsId(Object id) => _itemsById.containsKey(id);
+  T? itemById(Object id) => _itemsById[id];
+
   /// Insert a single item at [index].
   void insert(int index, T item) {
     RangeError.checkValidIndex(index, _items, 'index', _items.length + 1);
     _items.insert(index, item);
+    _index(item);
     _pendingDiffs.add(
       AnchoredListInsert<T>(index: index, count: 1, insertedItems: [item]),
     );
@@ -106,6 +122,7 @@ class AnchoredListData<T> extends ChangeNotifier {
   void insertAll(int index, List<T> items) {
     RangeError.checkValidIndex(index, _items, 'index', _items.length + 1);
     _items.insertAll(index, items);
+    items.forEach(_index);
     _pendingDiffs.add(
       AnchoredListInsert<T>(
         index: index,
@@ -120,6 +137,7 @@ class AnchoredListData<T> extends ChangeNotifier {
   T removeAt(int index) {
     RangeError.checkValidIndex(index, _items);
     final removed = _items.removeAt(index);
+    _itemsById.remove(idOf(removed));
     _pendingDiffs.add(
       AnchoredListRemove<T>(index: index, count: 1, removedItems: [removed]),
     );
@@ -132,6 +150,9 @@ class AnchoredListData<T> extends ChangeNotifier {
     RangeError.checkValidRange(start, start + count, _items.length);
     final removed = _items.sublist(start, start + count);
     _items.removeRange(start, start + count);
+    for (final item in removed) {
+      _itemsById.remove(idOf(item));
+    }
     _pendingDiffs.add(
       AnchoredListRemove<T>(index: start, count: count, removedItems: removed),
     );
@@ -142,7 +163,9 @@ class AnchoredListData<T> extends ChangeNotifier {
   void update(int index, T item) {
     RangeError.checkValidIndex(index, _items);
     final old = _items[index];
+    _itemsById.remove(idOf(old));
     _items[index] = item;
+    _index(item);
     _pendingDiffs.add(AnchoredListUpdate<T>(index: index, oldItem: old));
     _notify();
   }
@@ -154,6 +177,8 @@ class AnchoredListData<T> extends ChangeNotifier {
     _items
       ..clear()
       ..addAll(newItems);
+    _itemsById.clear();
+    newItems.forEach(_index);
     _pendingDiffs.clear();
     _pendingDiffs.add(const AnchoredListReload());
     _notify();
