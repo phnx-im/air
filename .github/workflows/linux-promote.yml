@@ -27,11 +27,17 @@ jobs:
     environment: linux-packages
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
+      # Pushes the release tag.
+      contents: write
+      # Looks up the release run of the build.
+      actions: read
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
 
       - name: Setup package publishing
         uses: ./.github/actions/setup-linux-publish
@@ -40,6 +46,14 @@ jobs:
           gpg-key-id: ${{ vars.GPG_KEY_ID }}
           gpg-signing-key: ${{ secrets.GPG_SIGNING_KEY }}
           gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+      # Checked before promoting, so a build that can't be tagged is not
+      # promoted.
+      - name: Check release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: cargo xtask tag-release --version "$VERSION" --check
 
       - name: Promote packages
         env:
@@ -52,3 +66,12 @@ jobs:
           VERSION: ${{ inputs.version }}
           SKIP_FLATPAK: ${{ !inputs.flatpak && '--skip-flatpak' || '' }}
         run: cargo xtask promote-packages --from beta --to stable --version "$VERSION" $SKIP_FLATPAK
+
+      - name: Tag release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          cargo xtask tag-release --version "$VERSION"
