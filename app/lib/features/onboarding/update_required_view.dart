@@ -9,7 +9,7 @@ import 'package:air/ds/patterns/nux/nux_scaffold.dart';
 import 'package:air/ds/patterns/nux/nux_scaffold_tokens.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/platform/app_store.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 class UpdateRequiredView extends StatelessWidget {

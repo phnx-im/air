@@ -5,7 +5,6 @@
 import 'package:air/ds/components/scroll/faded_scroll_frame.dart';
 import 'package:air/ds/components/scroll/scroll_edges.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_tokens.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 /// The scrolling chat list: a floating header, the rows beneath it, and a fade

@@ -12,7 +12,7 @@ import 'package:air/features/you/you_fade_tokens.dart';
 import 'package:air/features/you/you_menu.dart';
 import 'package:air/features/you/you_sections.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// The section list of the profile tab, filling the list panel of the two-pane

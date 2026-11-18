@@ -9,7 +9,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/attachments/animated_attachment_image.dart';
 import 'package:air/features/attachments/attachment_image_overlay.dart';
 import 'package:air/features/attachments/attachment_thumbnail_provider.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';

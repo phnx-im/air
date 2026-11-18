@@ -6,7 +6,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/message_separator/message_separator.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 import 'package:air/features/message_list/date_divider.dart';
 

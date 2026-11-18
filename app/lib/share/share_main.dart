@@ -8,12 +8,13 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/material/scroll_behavior.dart';
 import 'package:air/ds/material/theme_data.dart';
 import 'package:air/l10n/app_localizations.dart';
+import 'package:air/l10n/localizations_delegates.dart';
 import 'package:air/l10n/supported_locales.dart';
 import 'package:air/platform/logging.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:air/share/share_payload.dart';
 import 'package:air/share/share_screen.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
@@ -80,7 +81,7 @@ class _ShareAppState extends State<ShareApp> {
     return MaterialApp(
       scrollBehavior: const AppScrollBehavior(),
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: supportedLocalesWithFallback(
         AppLocalizations.supportedLocales,
         const Locale('en', 'US'),

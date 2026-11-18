@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/dialog_tokens.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The centered dialog card, hosted on a [Dialog] route.
 ///

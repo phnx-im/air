@@ -7,7 +7,7 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 class UnblockContactButton extends StatelessWidget {

@@ -6,7 +6,7 @@ import 'package:air/ds/components/toggle/toggle.dart';
 import 'package:air/ds/components/toggle/toggle_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/util/debouncer.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 /// Fill for a filled module in the profile sections: a field row, a device row.

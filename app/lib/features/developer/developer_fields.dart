@@ -20,7 +20,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/features/you/you_fields.dart';
 import 'package:air/util/scaffold_messenger.dart';
-import 'package:flutter/material.dart' show Tooltip, showDialog;
+import 'package:material_ui/material_ui.dart' show Tooltip, showDialog;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 

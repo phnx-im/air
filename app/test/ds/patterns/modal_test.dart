@@ -14,7 +14,7 @@ import 'package:air/ds/patterns/modal/modal_route.dart';
 import 'package:air/ds/patterns/modal/modal_stack.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -24,7 +24,7 @@ Widget _host({required int rows, bool scrollable = true}) => Builder(
   builder: (context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    localizationsDelegates: appLocalizationsDelegates,
     home: ModalScaffold(
       title: 'Profile',
       onDismiss: () {},
@@ -50,7 +50,7 @@ Widget _host({required int rows, bool scrollable = true}) => Builder(
 Widget _routedHost(TargetPlatform platform) => MaterialApp(
   debugShowCheckedModeBanner: false,
   theme: testThemeData(.light).copyWith(platform: platform),
-  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  localizationsDelegates: appLocalizationsDelegates,
   home: Navigator(
     pages: const [
       MaterialPage(child: SizedBox.expand()),
@@ -71,7 +71,7 @@ Widget _sheetHost({required AppIconType dismissIcon}) => Builder(
   builder: (context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    localizationsDelegates: appLocalizationsDelegates,
     home: ModalSurface(
       child: ModalPane(
         title: 'Share',
@@ -93,7 +93,7 @@ Widget _actionHost({
   builder: (context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    localizationsDelegates: appLocalizationsDelegates,
     home: ModalScaffold(
       title: 'Profile',
       onDismiss: onDismiss,
@@ -109,7 +109,7 @@ Widget _footerHost({required int rows}) => Builder(
   builder: (context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    localizationsDelegates: appLocalizationsDelegates,
     home: ModalScaffold(
       title: 'Profile',
       footer: const Text('action'),
@@ -128,7 +128,7 @@ Widget _footerHost({required int rows}) => Builder(
 Widget _cardRouteHost({bool dismissible = true}) => MaterialApp(
   debugShowCheckedModeBanner: false,
   theme: testThemeData(.light),
-  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  localizationsDelegates: appLocalizationsDelegates,
   home: Builder(
     builder: (context) => TextButton(
       onPressed: () => showAppModal<void>(
@@ -150,7 +150,7 @@ Widget _cardRouteHost({bool dismissible = true}) => MaterialApp(
 Widget _guardedModalHost({bool hasUnsavedInput = true}) => MaterialApp(
   debugShowCheckedModeBanner: false,
   theme: testThemeData(.light),
-  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  localizationsDelegates: appLocalizationsDelegates,
   home: Builder(
     builder: (context) => TextButton(
       onPressed: () => showAppModal<void>(
@@ -178,7 +178,7 @@ Widget _pagedCardRouteHost({
 }) => MaterialApp(
   debugShowCheckedModeBanner: false,
   theme: testThemeData(.light),
-  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  localizationsDelegates: appLocalizationsDelegates,
   home: Builder(
     builder: (context) => TextButton(
       onPressed: () => showAppModal<void>(

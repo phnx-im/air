@@ -9,7 +9,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/mute_chat_sheet.dart';
 import 'package:air/l10n/app_localizations.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// Mute / unmute toggle for the open chat.

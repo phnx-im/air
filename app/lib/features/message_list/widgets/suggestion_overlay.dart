@@ -7,7 +7,7 @@ import 'dart:math';
 
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/effects.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Smallest gap kept between a suggestion overlay and the safe area edges.
 const suggestionOverlayViewportMargin = S.s8;

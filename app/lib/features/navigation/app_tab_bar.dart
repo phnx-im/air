@@ -10,7 +10,7 @@ import 'package:air/ds/components/nav_item/nav_item_tokens.dart';
 import 'package:air/features/navigation/tab_bar_tokens.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/features/user/avatar.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// Floating pill-shaped tab bar shown on mobile layouts.

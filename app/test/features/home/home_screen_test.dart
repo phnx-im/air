@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -70,48 +70,49 @@ void main() {
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     });
 
-    Widget buildSubject({
-      required List<UiChatDetails> chats,
-    }) => MultiRepositoryProvider(
-      providers: [
-        RepositoryProvider<AttachmentsRepository>.value(
-          value: MockAttachmentsRepository(),
-        ),
-        RepositoryProvider<chats_repository.ChatsRepository>.value(
-          value: FakeChatsRepository(chats),
-        ),
-      ],
-      child: MultiBlocProvider(
-        providers: [
-          BlocProvider<NavigationCubit>.value(value: navigationCubit),
-          BlocProvider<UserCubit>.value(value: userCubit),
-          BlocProvider<UsersCubit>.value(value: usersCubit),
-          BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
-          BlocProvider<MessageListCubit>.value(value: messageListCubit),
-          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-          RepositoryProvider<ShareTargetPublisher>.value(
-            value: MockShareTargetPublisher(),
+    Widget buildSubject({required List<UiChatDetails> chats}) =>
+        MultiRepositoryProvider(
+          providers: [
+            RepositoryProvider<AttachmentsRepository>.value(
+              value: MockAttachmentsRepository(),
+            ),
+            RepositoryProvider<chats_repository.ChatsRepository>.value(
+              value: FakeChatsRepository(chats),
+            ),
+          ],
+          child: MultiBlocProvider(
+            providers: [
+              BlocProvider<NavigationCubit>.value(value: navigationCubit),
+              BlocProvider<UserCubit>.value(value: userCubit),
+              BlocProvider<UsersCubit>.value(value: usersCubit),
+              BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
+              BlocProvider<MessageListCubit>.value(value: messageListCubit),
+              BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+              RepositoryProvider<ShareTargetPublisher>.value(
+                value: MockShareTargetPublisher(),
+              ),
+            ],
+            child: SDTFScope(
+              child: Builder(
+                builder: (context) {
+                  return MaterialApp(
+                    debugShowCheckedModeBanner: false,
+                    theme: testThemeData(
+                      MediaQuery.platformBrightnessOf(context),
+                    ),
+                    localizationsDelegates: appLocalizationsDelegates,
+                    home: const HomeScreenDesktopLayout(
+                      chatList: ChatListView(),
+                      chat: ChatScreenView(
+                        createMessageCubit: createMockMessageCubit,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
-        ],
-        child: SDTFScope(
-          child: Builder(
-            builder: (context) {
-              return MaterialApp(
-                debugShowCheckedModeBanner: false,
-                theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-                localizationsDelegates: AppLocalizations.localizationsDelegates,
-                home: const HomeScreenDesktopLayout(
-                  chatList: ChatListView(),
-                  chat: ChatScreenView(
-                    createMessageCubit: createMockMessageCubit,
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ),
-    );
+        );
 
     testWidgets('desktop layout empty', (tester) async {
       final binding = TestWidgetsFlutterBinding.ensureInitialized();

@@ -7,7 +7,7 @@ import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/you/contact_us_modal.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/l10n/l10n.dart';
@@ -37,7 +37,7 @@ void main() {
             return MaterialApp(
               debugShowCheckedModeBanner: false,
               theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               home: ContactUsModal(
                 initialSubject: initialSubject,
                 initialBody: initialBody,
@@ -111,7 +111,7 @@ void main() {
           builder: (context) => MaterialApp(
             debugShowCheckedModeBanner: false,
             theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             home: BlocProvider<UserCubit>.value(
               value: userCubit,
               child: ContactUsModal(
@@ -160,7 +160,7 @@ void main() {
             debugShowCheckedModeBanner: false,
             scaffoldMessengerKey: scaffoldMessengerKey,
             theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             builder: (context, child) => RootScaffold(child: child!),
             home: BlocProvider<UserCubit>.value(
               value: userCubit,
@@ -203,7 +203,7 @@ void main() {
       builder: (context) => MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         home: Scaffold(
           body: Builder(
             builder: (context) => ElevatedButton(

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 /// Gives a field a [TextEditingController] whether or not its host passed one,
 /// which is what lets a host that only follows the value through `onChanged`

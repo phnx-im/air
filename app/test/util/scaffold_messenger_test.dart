@@ -10,7 +10,7 @@ import 'package:air/ds/patterns/snackbar/snackbar.dart';
 import 'package:air/ds/patterns/snackbar/snackbar_tokens.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/util/scaffold_messenger.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers.dart';
@@ -25,7 +25,7 @@ void main() {
             debugShowCheckedModeBanner: false,
             scaffoldMessengerKey: scaffoldMessengerKey,
             theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             builder: rootScaffold
                 ? (context, child) => RootScaffold(child: child!)
                 : null,

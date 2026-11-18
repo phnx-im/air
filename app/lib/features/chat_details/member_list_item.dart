@@ -5,7 +5,7 @@
 import 'package:air/core/api/types.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/avatar.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class MemberListItem extends StatelessWidget {
   const MemberListItem({

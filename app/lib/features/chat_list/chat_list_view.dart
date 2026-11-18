@@ -7,7 +7,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/list_header/list_header_tokens.dart';
 import 'package:air/features/chat_list/chat_list_content.dart';
 import 'package:air/features/chat_list/chat_list_header.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Where the scrollbar track stops above the bottom edge, short of the fade so
 /// the thumb stays legible against it.

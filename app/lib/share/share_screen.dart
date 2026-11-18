@@ -18,7 +18,7 @@ import 'package:air/features/user/avatar.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/share/share_cubit.dart';
 import 'package:air/share/share_payload.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// The two steps of the share flow.

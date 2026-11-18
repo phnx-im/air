@@ -7,7 +7,7 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
 import 'package:air/features/you/invitation_codes_modal.dart';
 import 'package:bloc_test/bloc_test.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -44,7 +44,7 @@ void main() {
         builder: (context) => MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           home: const InvitationCodesModal(),
         ),
       ),
@@ -144,7 +144,7 @@ void main() {
       builder: (context) => MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         home: BlocProvider<InvitationCodesCubit>.value(
           value: cubit,
           child: Scaffold(

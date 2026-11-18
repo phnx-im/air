@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The [InputDecoration] a DS field hands the `TextField` inside it.
 abstract final class FieldChrome {

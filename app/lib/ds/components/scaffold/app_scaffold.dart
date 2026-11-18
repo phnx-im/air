@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 // Gap between the top of the content and the bottom of the app bar
 const double _contentGap = S.s40;

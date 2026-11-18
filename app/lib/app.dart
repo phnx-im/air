@@ -26,7 +26,7 @@ import 'package:air/util/interface_scale.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
@@ -189,8 +189,7 @@ class _AppState extends State<App> {
                   scaffoldMessengerKey: scaffoldMessengerKey,
                   onGenerateTitle: (context) =>
                       AppLocalizations.of(context).appTitle,
-                  localizationsDelegates:
-                      AppLocalizations.localizationsDelegates,
+                  localizationsDelegates: appLocalizationsDelegates,
                   supportedLocales: supportedLocalesWithFallback(
                     AppLocalizations.supportedLocales,
                     const Locale('en', 'US'),

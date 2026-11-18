@@ -13,7 +13,7 @@ import 'package:air/features/you/linking_device_dialog.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -140,7 +140,7 @@ void main() {
             return MaterialApp(
               debugShowCheckedModeBanner: false,
               theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: [locale],
               locale: locale,
               home: Builder(
@@ -182,7 +182,7 @@ void main() {
           builder: (context) => MaterialApp(
             debugShowCheckedModeBanner: false,
             theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             home: Builder(builder: dialogBuilder),
           ),
         ),

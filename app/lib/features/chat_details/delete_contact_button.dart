@@ -10,7 +10,7 @@ import 'package:air/features/user/user_cubit.dart';
 import 'package:air/platform/haptics.dart';
 import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/util/scaffold_messenger.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 

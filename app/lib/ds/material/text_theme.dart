@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:air/ds/foundations/foundations.dart';
 
 /// Material's text slots mapped onto the design-system typescale.

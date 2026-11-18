@@ -4,7 +4,7 @@
 import 'package:air/ds/components/searchfield/searchfield.dart';
 import 'package:air/ds/components/searchfield/searchfield_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 class MemberSearchField extends StatelessWidget {
   const MemberSearchField({

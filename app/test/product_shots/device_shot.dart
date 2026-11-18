@@ -12,10 +12,14 @@ library;
 
 import 'dart:io';
 
-import 'package:device_preview/device_preview.dart';
+// device_preview.dart re-exports a binding that doesn't compile on Flutter 3.50.
+// ignore: implementation_imports
+import 'package:device_preview/src/model/simulation.dart';
+// ignore: implementation_imports
+import 'package:device_preview/src/widgets/device_preview_frame.dart';
 import 'package:device_preview/presets.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 

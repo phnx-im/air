@@ -6,7 +6,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:air/util/time/time_labels.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 /// Keeps a message's stamp current: the elapsed minutes for the first hour, the
 /// clock time after that. See [messageStampLabel].

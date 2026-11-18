@@ -15,7 +15,7 @@ import 'package:air/features/user/user_session_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:bloc_test/bloc_test.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -111,7 +111,7 @@ void main() {
           debugShowCheckedModeBanner: false,
           scaffoldMessengerKey: scaffoldMessengerKey,
           theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           builder: scaffold
               ? (context, child) => RootScaffold(child: child!)
               : null,

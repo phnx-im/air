@@ -6,7 +6,7 @@ import 'dart:async';
 
 import 'package:air/ds/foundations/effects.dart';
 import 'package:air/features/message_list/widgets/suggestion_overlay.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _rowHeight = 20.0;

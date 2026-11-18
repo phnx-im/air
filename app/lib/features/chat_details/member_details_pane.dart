@@ -5,7 +5,7 @@
 import 'package:air/features/chat_details/contact_details_view.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

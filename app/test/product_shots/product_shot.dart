@@ -6,7 +6,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:device_preview/presets.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'product_shot_frame.dart';
 import 'product_shot_device.dart';

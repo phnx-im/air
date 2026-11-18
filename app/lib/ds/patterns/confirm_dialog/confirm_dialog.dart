@@ -7,7 +7,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/patterns/dialog/dialog_tokens.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A dialog for confirming a single action.
 class ConfirmDialog extends StatelessWidget {

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/button/button.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/foundations.dart';
@@ -78,7 +78,7 @@ void main() {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           home: Scaffold(
             body: Padding(
               padding: const EdgeInsets.all(S.s16),
@@ -118,7 +118,7 @@ void main() {
       Widget hoverSubject(Widget button) => MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: testLightTheme,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         home: Scaffold(body: Center(child: button)),
       );
 

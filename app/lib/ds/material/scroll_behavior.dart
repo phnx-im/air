@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Scroll behavior that matches Flutter's base [ScrollBehavior] physics:
 /// bouncing on Apple platforms, clamping elsewhere.

@@ -7,7 +7,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/message_meta/message_meta_tokens.dart';
 import 'package:air/ds/patterns/message_row/message_row_tokens.dart';
 import 'package:air/features/user/user_cubit.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 import 'package:air/features/message_list/display_message_tile.dart';

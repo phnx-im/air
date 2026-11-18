@@ -4,7 +4,7 @@
 
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/l10n/supported_locales.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 class LanguageOption {
   const LanguageOption({required this.locale, required this.label});

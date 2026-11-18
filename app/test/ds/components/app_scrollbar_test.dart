@@ -5,7 +5,7 @@
 import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/components/scroll/app_scrollbar_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Holds its offset where it is when the content shrinks under it, the way

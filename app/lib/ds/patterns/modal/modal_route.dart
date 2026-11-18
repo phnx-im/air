@@ -4,7 +4,7 @@
 
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Presents [builder] the way a modal takes here: pushed as a screen where it
 /// fills the viewport, floated as a card where it doesn't.

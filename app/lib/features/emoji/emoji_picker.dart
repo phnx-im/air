@@ -11,7 +11,7 @@ import 'package:air/features/emoji/emoji_data.dart' as data;
 import 'package:air/features/emoji/emoji_repository.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/platform/haptics.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 // Panel metrics. The menu inside brings its own.

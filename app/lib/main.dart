@@ -8,7 +8,7 @@ import 'package:air/features/you/rust_licenses.dart';
 import 'package:air/platform/logging.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:air/share/share.dart' as share;
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';

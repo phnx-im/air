@@ -1,5 +1,5 @@
 {
-  "flutter": "3.47.0",
+  "flutter": "3.50.0",
   "runPubGetOnSdkChanges": true,
   "updateVscodeSettings": true,
   "updateGitIgnore": true

@@ -9,7 +9,7 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/message_bubble/message_bubble.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -103,7 +103,7 @@ void main() {
               child: MaterialApp(
                 debugShowCheckedModeBanner: false,
                 theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                localizationsDelegates: appLocalizationsDelegates,
                 home: Scaffold(
                   body: Padding(
                     padding: const EdgeInsets.all(S.s16),

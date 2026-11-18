@@ -10,6 +10,7 @@ import 'package:air/features/chat/chats_repository.dart' as chats_repository;
 import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
+import 'package:air/l10n/localizations_delegates.dart';
 import 'package:air/l10n/supported_locales.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
@@ -21,7 +22,7 @@ import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/interface_scale.dart';
 import 'package:air/util/time/app_clock.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -173,7 +174,7 @@ Widget _buildProductShotSubject({
         theme: testThemeData(.light, withColorEmojis: true),
         darkTheme: testThemeData(.dark, withColorEmojis: true),
         themeMode: brightness == Brightness.dark ? .dark : .light,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: supportedLocalesWithFallback(
           AppLocalizations.supportedLocales,
           const Locale('en', 'US'),

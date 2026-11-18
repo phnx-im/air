@@ -4,7 +4,7 @@
 
 import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers.dart';
@@ -16,7 +16,7 @@ void main() {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           home: dialog,
         );
       },
@@ -89,7 +89,7 @@ void main() {
           builder: (context) => MaterialApp(
             debugShowCheckedModeBanner: false,
             theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             home: Scaffold(
               body: Builder(
                 builder: (context) => ElevatedButton(
@@ -127,7 +127,7 @@ void main() {
       builder: (context) => MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         home: Scaffold(
           body: Builder(
             builder: (context) => ElevatedButton(

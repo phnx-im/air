@@ -9,7 +9,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/patterns/adaptive_modal/bottom_sheet_tokens.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Displays [builder] on the modal surface the device calls for: a bottom
 /// sheet on a phone, a centered dialog card on desktop.
