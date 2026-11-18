@@ -26,6 +26,7 @@ use airprotos::client::self_group::{
 use apqmls::messages::ApqKeyPackage;
 use openmls::group::GroupId;
 
+use crate::chats::ChatMuted;
 use crate::chats::outgoing_requests::OutgoingRequest;
 
 /// Everything the existing device hands to the new device so the new device
@@ -106,6 +107,8 @@ pub(crate) struct HigherLevelGroup {
     /// Set if the group backs an outgoing connection request the recipient
     /// has not answered yet.
     pub(crate) outgoing_request: Option<OutgoingRequest>,
+    /// Set if the chat is muted.
+    pub(crate) muted_until: Option<ChatMuted>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

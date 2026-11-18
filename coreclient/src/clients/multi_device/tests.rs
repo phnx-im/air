@@ -31,6 +31,7 @@ use openmls::group::GroupId;
 use uuid::Uuid;
 
 use super::*;
+use crate::chats::ChatMuted;
 
 const DOMAIN: &str = "example.com";
 
@@ -230,6 +231,7 @@ fn a_full_session_carries_payloads_both_ways() -> anyhow::Result<()> {
         connection_offer_hash: ConnectionOfferHash::new_for_test(vec![0x66; 32]),
         sent_at: Some(TimeStamp::now()),
     };
+    let muted_until = ChatMuted::Until(DateTime::from_timestamp_millis(1_767_225_600_123).unwrap());
     package.groups.push(HigherLevelGroup {
         group_id: GroupId::from_slice(&[0x14; 8]),
         pq_group_id: None,
@@ -238,6 +240,7 @@ fn a_full_session_carries_payloads_both_ways() -> anyhow::Result<()> {
         vc_leaf_index: 0,
         connection: None,
         outgoing_request: Some(outgoing_request.clone()),
+        muted_until: Some(muted_until),
     });
     let user_id = package.user_signing_key.credential().user_id().clone();
 
@@ -262,6 +265,7 @@ fn a_full_session_carries_payloads_both_ways() -> anyhow::Result<()> {
         Some(outgoing_request),
         "an unanswered outgoing request travels with its group"
     );
+    assert_eq!(decoded.groups[0].muted_until, Some(muted_until));
     // The confirming user's device name rides along in the same package.
     assert_eq!(decoded.device_name, "Work laptop");
     assert_eq!(
@@ -372,10 +376,10 @@ fn a_package_without_redeemed_tokens_decodes_as_empty() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// A provisioner from before outgoing requests were handed over sends its
-/// groups without an `outgoing_request` key.
+/// A provisioner from before outgoing requests and chat mutes were handed over
+/// sends its groups without an `outgoing_request` or `muted_until` key.
 #[test]
-fn a_group_without_outgoing_request_decodes_as_none() -> anyhow::Result<()> {
+fn an_older_provisioners_group_decodes_new_fields_as_none() -> anyhow::Result<()> {
     /// The group as an older provisioner serializes it.
     #[derive(serde::Serialize)]
     struct OlderHigherLevelGroup {
@@ -400,6 +404,7 @@ fn a_group_without_outgoing_request_decodes_as_none() -> anyhow::Result<()> {
     let decoded: HigherLevelGroup = PersistenceCodec::from_slice(&bytes)?;
     assert_eq!(decoded.group_id, older.group_id);
     assert_eq!(decoded.outgoing_request, None);
+    assert_eq!(decoded.muted_until, None);
 
     Ok(())
 }

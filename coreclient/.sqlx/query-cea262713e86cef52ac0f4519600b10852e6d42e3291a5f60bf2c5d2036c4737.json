@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE resync_queue\n                SET muted_until = ?2\n                WHERE group_id = ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "cea262713e86cef52ac0f4519600b10852e6d42e3291a5f60bf2c5d2036c4737"
+}

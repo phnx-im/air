@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 mod delete;
+mod mute;
 
 use aircommon::identifiers::{Fqdn, MimiId, UserId, Username};
 use chrono::{DateTime, Utc};
@@ -25,6 +26,7 @@ use crate::{
 use super::InactiveChat;
 
 pub(crate) use delete::*;
+pub(crate) use mute::*;
 
 /// The `chat.status` column.
 ///
@@ -1817,6 +1819,29 @@ pub mod tests {
         );
 
         Ok(())
+    }
+
+    #[sqlx::test]
+    async fn a_stored_mute_loads_back_unchanged(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let until: DateTime<Utc> = "2026-01-01T08:00:00Z".parse().unwrap();
+
+        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            for muted_until in [
+                Some(ChatMuted::Forever),
+                Some(ChatMuted::Until(until)),
+                None,
+            ] {
+                let chat = test_chat();
+                chat.store(&mut *txn).await?;
+                Chat::set_muted_until(&mut *txn, chat.id(), muted_until).await?;
+
+                let loaded = Chat::load(&mut *txn, &chat.id()).await?.unwrap();
+                assert_eq!(loaded.muted_until, muted_until);
+            }
+            Ok(())
+        })
+        .await
     }
 
     /// Regression test: `mark_as_read_until_message_id` must never move
