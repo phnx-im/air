@@ -66,7 +66,7 @@
   },
   "userSettingsScreen_generateLinkPreviews": "Generate link previews",
   "@userSettingsScreen_generateLinkPreviews": {
-    "description": "Label of the preference toggle that turns off generating link previews in the composer. Only affects messages the user sends, not previews received from others."
+    "description": "Label of the preference toggle that controls whether link previews are generated in the composer. On by default. Only affects messages the user sends, not previews received from others."
   },
   "userSettingsScreen_generateLinkPreviewsDescription": "If turned on, a preview is generated when you add a link to a message.",
   "@userSettingsScreen_generateLinkPreviewsDescription": {
