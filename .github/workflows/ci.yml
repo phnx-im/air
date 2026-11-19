@@ -184,8 +184,9 @@ jobs:
             profile: unit
           - name: Rust integration tests
             profile: integration
-          - name: Rust integration tests (with APQ groups)
-            profile: integration-with-apq
+          - name: Rust integration tests (classical groups)
+            profile: integration
+            apq-groups: "false"
 
     steps:
       - name: Checkout code
@@ -209,6 +210,7 @@ jobs:
       - name: Run tests
         env:
           RUST_BACKTRACE: "1"
+          TEST_WITH_APQ_GROUPS: ${{ matrix.apq-groups || 'true' }}
         run: cargo nextest run --archive-file cargo-tests.tar.zst --profile ${{ matrix.profile }}
 
       - name: Test report
