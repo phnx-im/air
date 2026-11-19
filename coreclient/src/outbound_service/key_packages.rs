@@ -278,7 +278,6 @@ impl OutboundServiceContext {
 
                     // Non-last resort APQ key packages
                     let mut apq = Vec::with_capacity(APQ_KEY_PACKAGES + 1);
-                    #[expect(clippy::reversed_empty_ranges)]
                     for _ in 0..APQ_KEY_PACKAGES {
                         apq.push(self.key_store.generate_apq_key_package(
                             &mut *txn,
