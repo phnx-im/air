@@ -11,6 +11,8 @@
   "userSettingsScreen_sendWithEnterDescription": "Om detta är aktiverat skickar tangentbordets \"Enter\"-tangent meddelandet.",
   "userSettingsScreen_limitAnimatedImagesLoops": "Begränsa automatisk uppspelning av GIF",
   "userSettingsScreen_limitAnimatedImagesLoopsDescription": "Om detta är aktiverat loopas GIF-bilder 3 gånger när de visas och kan sedan spelas upp igen manuellt.",
+  "userSettingsScreen_generateLinkPreviews": "Skapa förhandsvisningar av länkar",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Om detta är aktiverat skapas en valfri förhandsvisning för den första länken du lägger till i ett meddelande.",
   "userSettingsScreen_readReceipts": "Läskvitton",
   "userSettingsScreen_readReceiptsDescription": "Om detta är aktiverat kan andra se om du har läst deras meddelanden och du kan se om de har läst dina.",
   "userSettingsScreen_deleteExpiredContactRequests": "Radera utgångna kontaktförfrågningar",

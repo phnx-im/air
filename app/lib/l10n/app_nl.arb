@@ -11,6 +11,8 @@
   "userSettingsScreen_sendWithEnterDescription": "Als deze optie aan staat, verzendt de toets ‘Enter’ op het toetsenbord het bericht.",
   "userSettingsScreen_limitAnimatedImagesLoops": "Automatisch afspelen van GIF's beperken",
   "userSettingsScreen_limitAnimatedImagesLoopsDescription": "Als deze optie aan staat, worden GIF's bij het bekijken 3 keer afgespeeld en kun je ze daarna handmatig opnieuw afspelen.",
+  "userSettingsScreen_generateLinkPreviews": "Linkvoorbeelden maken",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Als deze optie aan staat, wordt voor de eerste link die je aan een bericht toevoegt een voorbeeld gemaakt dat je optioneel kunt meesturen.",
   "userSettingsScreen_readReceipts": "Leesbevestigingen",
   "userSettingsScreen_readReceiptsDescription": "Als deze optie aan staat, zien anderen of je hun berichten hebt gelezen en zie jij of zij de jouwe hebben gelezen.",
   "userSettingsScreen_deleteExpiredContactRequests": "Verlopen contactverzoeken verwijderen",

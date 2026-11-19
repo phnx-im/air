@@ -48,6 +48,14 @@
   "@userSettingsScreen_limitAnimatedImagesLoopsDescription": {
     "description": "Explains the Limit GIF autoplay toggle."
   },
+  "userSettingsScreen_generateLinkPreviews": "Generate link previews",
+  "@userSettingsScreen_generateLinkPreviews": {
+    "description": "Label of the preference toggle that turns on fetching link previews for links in outgoing messages."
+  },
+  "userSettingsScreen_generateLinkPreviewsDescription": "If turned on, an optional-to-send preview is generated for the first link you add to a message.",
+  "@userSettingsScreen_generateLinkPreviewsDescription": {
+    "description": "Explains the Generate link previews toggle."
+  },
   "userSettingsScreen_readReceipts": "Read receipts",
   "@userSettingsScreen_readReceipts": {
     "description": "Label of the preference toggle that enables read receipts."

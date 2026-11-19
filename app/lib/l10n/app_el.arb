@@ -11,6 +11,8 @@
   "userSettingsScreen_sendWithEnterDescription": "Όταν είναι ενεργό, το πλήκτρο «Enter» του πληκτρολογίου στέλνει το μήνυμα.",
   "userSettingsScreen_limitAnimatedImagesLoops": "Περιορισμός αυτόματης αναπαραγωγής GIF",
   "userSettingsScreen_limitAnimatedImagesLoopsDescription": "Όταν είναι ενεργό, τα GIF παίζουν 3 φορές και μετά μπορείτε να τα ξαναπαίξετε χειροκίνητα.",
+  "userSettingsScreen_generateLinkPreviews": "Δημιουργία προεπισκοπήσεων συνδέσμων",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Όταν είναι ενεργό, δημιουργείται μια προαιρετική προεπισκόπηση για τον πρώτο σύνδεσμο που προσθέτετε σε ένα μήνυμα.",
   "userSettingsScreen_readReceipts": "Αποδεικτικά ανάγνωσης",
   "userSettingsScreen_readReceiptsDescription": "Όταν είναι ενεργό, οι άλλοι βλέπουν αν διαβάσατε τα μηνύματά τους και εσείς βλέπετε αν διάβασαν τα δικά σας.",
   "userSettingsScreen_deleteExpiredContactRequests": "Διαγραφή αιτημάτων επαφής που έληξαν",

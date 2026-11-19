@@ -11,6 +11,8 @@
   "userSettingsScreen_sendWithEnterDescription": "Se l'opzione è attiva, il tasto “Invio” della tastiera invia il messaggio.",
   "userSettingsScreen_limitAnimatedImagesLoops": "Limita la riproduzione automatica delle GIF",
   "userSettingsScreen_limitAnimatedImagesLoopsDescription": "Se l'opzione è attiva, le GIF vengono riprodotte 3 volte quando le visualizzi e poi puoi riprodurle di nuovo manualmente.",
+  "userSettingsScreen_generateLinkPreviews": "Genera anteprime dei link",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Se l'opzione è attiva, viene generata un'anteprima facoltativa per il primo link che aggiungi a un messaggio.",
   "userSettingsScreen_readReceipts": "Conferme di lettura",
   "userSettingsScreen_readReceiptsDescription": "Se l'opzione è attiva, gli altri vedranno se hai letto i loro messaggi e tu vedrai se hanno letto i tuoi.",
   "userSettingsScreen_deleteExpiredContactRequests": "Elimina le richieste di contatto scadute",

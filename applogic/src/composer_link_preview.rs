@@ -50,9 +50,15 @@ impl ComposerLinkPreview {
 
     /// Resets the state after a sent message and cancels a running fetch.
     pub(crate) fn reset(&mut self) {
+        self.clear();
+        self.dismissed.clear();
+    }
+
+    /// Drops the preview and forgets the current link, so that the next
+    /// [`Self::switch_to`] fetches again. Keeps the dismissed links.
+    pub(crate) fn clear(&mut self) {
         self.cancel();
         self.url = None;
-        self.dismissed.clear();
     }
 
     /// Makes `url` the current link.

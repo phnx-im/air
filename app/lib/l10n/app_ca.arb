@@ -11,6 +11,8 @@
   "userSettingsScreen_sendWithEnterDescription": "Si l'activeu, la tecla «Retorn» del teclat envia el missatge.",
   "userSettingsScreen_limitAnimatedImagesLoops": "Limita la reproducció automàtica dels GIF",
   "userSettingsScreen_limitAnimatedImagesLoopsDescription": "Si l'activeu, els GIF es reprodueixen 3 vegades quan els mireu, i després els podeu tornar a reproduir manualment.",
+  "userSettingsScreen_generateLinkPreviews": "Genera previsualitzacions d'enllaços",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Si l'activeu, es genera una previsualització opcional per al primer enllaç que afegiu a un missatge.",
   "userSettingsScreen_readReceipts": "Confirmacions de lectura",
   "userSettingsScreen_readReceiptsDescription": "Si l'activeu, els altres veuran si heu llegit els seus missatges i podreu veure si han llegit els vostres.",
   "userSettingsScreen_deleteExpiredContactRequests": "Suprimeix les sol·licituds de contacte caducades",

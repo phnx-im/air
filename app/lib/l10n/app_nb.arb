@@ -11,6 +11,8 @@
   "userSettingsScreen_sendWithEnterDescription": "Når dette er slått på, sender «Enter»-tasten på tastaturet meldingen.",
   "userSettingsScreen_limitAnimatedImagesLoops": "Begrens automatisk avspilling av GIF-er",
   "userSettingsScreen_limitAnimatedImagesLoopsDescription": "Når dette er slått på, spilles GIF-er av 3 ganger når de vises, og deretter kan de spilles av på nytt manuelt.",
+  "userSettingsScreen_generateLinkPreviews": "Lag forhåndsvisninger av lenker",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Når dette er slått på, lages en valgfri forhåndsvisning av den første lenken du legger til i en melding.",
   "userSettingsScreen_readReceipts": "Lesebekreftelser",
   "userSettingsScreen_readReceiptsDescription": "Når dette er slått på, ser andre om du har lest meldingene deres, og du ser om de har lest dine.",
   "userSettingsScreen_deleteExpiredContactRequests": "Slett utløpte kontaktforespørsler",

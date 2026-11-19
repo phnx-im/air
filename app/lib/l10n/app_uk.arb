@@ -11,6 +11,8 @@
   "userSettingsScreen_sendWithEnterDescription": "Якщо ввімкнено, клавіша «Enter» надсилає повідомлення.",
   "userSettingsScreen_limitAnimatedImagesLoops": "Обмежити автовідтворення GIF",
   "userSettingsScreen_limitAnimatedImagesLoopsDescription": "Якщо ввімкнено, GIF під час перегляду повторюються 3 рази, після чого їх можна відтворити вручну.",
+  "userSettingsScreen_generateLinkPreviews": "Створювати попередній перегляд посилань",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Якщо ввімкнено, для першого посилання, яке ви додаєте до повідомлення, створюється попередній перегляд, який можна не надсилати.",
   "userSettingsScreen_readReceipts": "Звіти про прочитання",
   "userSettingsScreen_readReceiptsDescription": "Якщо ввімкнено, інші бачитимуть, чи ви прочитали їхні повідомлення, а ви бачитимете, чи вони прочитали ваші.",
   "userSettingsScreen_deleteExpiredContactRequests": "Видаляти прострочені запити на контакт",

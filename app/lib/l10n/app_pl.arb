@@ -11,6 +11,8 @@
   "userSettingsScreen_sendWithEnterDescription": "Gdy opcja jest włączona, klawisz „Enter” wysyła wiadomość.",
   "userSettingsScreen_limitAnimatedImagesLoops": "Ogranicz autoodtwarzanie GIF-ów",
   "userSettingsScreen_limitAnimatedImagesLoopsDescription": "Gdy opcja jest włączona, wyświetlane GIF-y odtwarzają się 3 razy, a potem można je ręcznie odtworzyć ponownie.",
+  "userSettingsScreen_generateLinkPreviews": "Generuj podglądy linków",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Gdy opcja jest włączona, dla pierwszego linku dodanego do wiadomości generowany jest podgląd, którego wysłanie jest opcjonalne.",
   "userSettingsScreen_readReceipts": "Potwierdzenia odczytu",
   "userSettingsScreen_readReceiptsDescription": "Gdy opcja jest włączona, inne osoby widzą, czy ich wiadomości zostały przez Ciebie przeczytane, a Ty widzisz, czy one przeczytały Twoje.",
   "userSettingsScreen_deleteExpiredContactRequests": "Usuwaj wygasłe prośby o kontakt",

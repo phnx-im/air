@@ -11,6 +11,8 @@
   "userSettingsScreen_sendWithEnterDescription": "Kui see on sisse lülitatud, saadab klaviatuuri klahv „Enter“ sõnumi.",
   "userSettingsScreen_limitAnimatedImagesLoops": "Piira GIF-ide automaatset esitamist",
   "userSettingsScreen_limitAnimatedImagesLoopsDescription": "Kui see on sisse lülitatud, esitatakse GIF-e vaatamisel 3 korda. Seejärel saad neid käsitsi uuesti esitada.",
+  "userSettingsScreen_generateLinkPreviews": "Loo lingi eelvaateid",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Kui see on sisse lülitatud, luuakse sõnumisse lisatud esimesele lingile eelvaade, mille saad soovi korral saata.",
   "userSettingsScreen_readReceipts": "Lugemiskinnitused",
   "userSettingsScreen_readReceiptsDescription": "Kui see on sisse lülitatud, näevad teised, kas oled nende sõnumeid lugenud, ja sina näed, kas nemad on sinu omi lugenud.",
   "userSettingsScreen_deleteExpiredContactRequests": "Kustuta aegunud kontaktitaotlused",

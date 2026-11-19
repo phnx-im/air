@@ -4,7 +4,7 @@
 
 //! A single chat details feature
 
-use std::{collections::HashMap, path::PathBuf, time::Duration};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 
 use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
 pub use aircoreclient::{
@@ -101,7 +101,7 @@ pub struct ChatDetailsCubitBase {
     core: CubitCore<ChatDetailsState>,
     user_settings_rx: watch::Receiver<UserSettings>,
     attachment_in_progress: InProgressMap,
-    link_preview: Mutex<ComposerLinkPreview>,
+    link_preview: Arc<Mutex<ComposerLinkPreview>>,
 }
 
 impl ChatDetailsCubitBase {
@@ -152,12 +152,22 @@ impl ChatDetailsCubitBase {
             .run_until_cancelled_owned(context.clone().update_state_task());
         spawn_from_sync(update_state_task);
 
+        let link_preview: Arc<Mutex<ComposerLinkPreview>> = Default::default();
+        let clear_link_preview_task = core.cancellation_token().clone().run_until_cancelled_owned(
+            clear_link_preview_when_disabled(
+                user_settings_rx.clone(),
+                link_preview.clone(),
+                core.state_tx().clone(),
+            ),
+        );
+        spawn_from_sync(clear_link_preview_task);
+
         Self {
             context,
             core,
             user_settings_rx,
             attachment_in_progress: attachments_repository.in_progress().clone(),
-            link_preview: Default::default(),
+            link_preview,
         }
     }
 
@@ -339,7 +349,7 @@ impl ChatDetailsCubitBase {
 
         let is_edit = replaces.is_some();
         // Only reset once the message is stored, so that it survives a failed send.
-        let preview = if is_edit {
+        let preview = if is_edit || !self.link_previews_enabled() {
             None
         } else {
             self.link_preview.lock().ready_for(&text)
@@ -833,6 +843,10 @@ impl ChatDetailsCubitBase {
     }
 
     pub async fn update_link_previews(&self, text: String) -> anyhow::Result<()> {
+        if !self.link_previews_enabled() {
+            self.with_link_preview(ComposerLinkPreview::clear);
+            return Ok(());
+        }
         let url = select_links(&text).next();
         let parent = self.core.cancellation_token();
         let Some((url, token)) = self.with_link_preview(|lp| lp.switch_to(url, parent)) else {
@@ -852,19 +866,47 @@ impl ChatDetailsCubitBase {
     }
 
     fn with_link_preview<R>(&self, f: impl FnOnce(&mut ComposerLinkPreview) -> R) -> R {
-        let mut link_preview = self.link_preview.lock();
-        let result = f(&mut link_preview);
-        let ui = link_preview.ui();
-        self.core.state_tx().send_if_modified(|state| {
-            let changed = state.link_preview != ui;
-            state.link_preview = ui;
-            changed
-        });
-        result
+        with_link_preview(&self.link_preview, self.core.state_tx(), f)
+    }
+
+    fn link_previews_enabled(&self) -> bool {
+        self.user_settings_rx.borrow().generate_link_previews
     }
 
     pub fn composer_link_preview_image(&self, url: String) -> Option<Vec<u8>> {
         self.link_preview.lock().image_for(&url)
+    }
+}
+
+/// Applies `f` to the composer link preview and emits the resulting UI state.
+fn with_link_preview<R>(
+    link_preview: &Mutex<ComposerLinkPreview>,
+    state_tx: &watch::Sender<ChatDetailsState>,
+    f: impl FnOnce(&mut ComposerLinkPreview) -> R,
+) -> R {
+    let mut link_preview = link_preview.lock();
+    let result = f(&mut link_preview);
+    let ui = link_preview.ui();
+    state_tx.send_if_modified(|state| {
+        let changed = state.link_preview != ui;
+        state.link_preview = ui;
+        changed
+    });
+    result
+}
+
+/// Drops the composer link preview as soon as link previews are turned off,
+/// also when the change comes from a sibling device.
+async fn clear_link_preview_when_disabled(
+    mut user_settings_rx: watch::Receiver<UserSettings>,
+    link_preview: Arc<Mutex<ComposerLinkPreview>>,
+    state_tx: watch::Sender<ChatDetailsState>,
+) {
+    while user_settings_rx.changed().await.is_ok() {
+        let enabled = user_settings_rx.borrow_and_update().generate_link_previews;
+        if !enabled {
+            with_link_preview(&link_preview, &state_tx, ComposerLinkPreview::clear);
+        }
     }
 }
 
@@ -1254,4 +1296,45 @@ pub struct _DebugCapabilities {
     pub extensions: Vec<String>,
     pub proposals: Vec<String>,
     pub app_data: Option<AppDataDebugInfo>,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use tokio::time::timeout;
+    use tokio_util::sync::CancellationToken;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn turning_link_previews_off_clears_composer_preview() {
+        let (settings_tx, settings_rx) = watch::channel(UserSettings::default());
+        let (state_tx, mut state_rx) = watch::channel(ChatDetailsState::default());
+        let link_preview: Arc<Mutex<ComposerLinkPreview>> = Default::default();
+
+        let (_, fetch) = with_link_preview(&link_preview, &state_tx, |lp| {
+            lp.switch_to(Some("https://a.org"), &CancellationToken::new())
+        })
+        .unwrap();
+        assert!(state_rx.borrow_and_update().link_preview.is_some());
+
+        let task = tokio::spawn(clear_link_preview_when_disabled(
+            settings_rx,
+            link_preview,
+            state_tx,
+        ));
+        settings_tx.send_modify(|settings| settings.generate_link_previews = false);
+
+        timeout(
+            Duration::from_secs(5),
+            state_rx.wait_for(|state| state.link_preview.is_none()),
+        )
+        .await
+        .expect("composer preview was not cleared")
+        .unwrap();
+        assert!(fetch.is_cancelled());
+
+        task.abort();
+    }
 }

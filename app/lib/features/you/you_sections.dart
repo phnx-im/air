@@ -326,6 +326,9 @@ class PreferencesSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
+    final experimentalFeaturesActive = context.select(
+      (UserSettingsCubit cubit) => cubit.state.experimentalFeaturesActive,
+    );
 
     return Column(
       crossAxisAlignment: .start,
@@ -353,6 +356,15 @@ class PreferencesSection extends StatelessWidget {
         if (DeviceType.isPhone) const _SendOnEnterSetting(),
 
         const _LimitAnimatedImagesLoopsSetting(),
+
+        if (experimentalFeaturesActive)
+          _SyncedSettingSwitch(
+            select: (settings) => settings.generateLinkPreviews,
+            submit: (cubit, value) =>
+                cubit.setGenerateLinkPreviews(value: value),
+            label: loc.userSettingsScreen_generateLinkPreviews,
+            description: loc.userSettingsScreen_generateLinkPreviewsDescription,
+          ),
       ],
     );
   }

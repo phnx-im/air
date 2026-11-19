@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use aircoreclient::{
     DefaultEmojiSkinToneSetting, DeleteExpiredContactRequestsSetting, DeveloperModeSetting,
-    ExperimentalFeaturesSetting, LimitAnimatedImagesLoopsSetting, ReadReceiptsSetting, UserSetting,
+    ExperimentalFeaturesSetting, GenerateLinkPreviewsSetting, LimitAnimatedImagesLoopsSetting,
+    ReadReceiptsSetting, UserSetting,
     clients::CoreUser,
     db::notification::{DbEntityId, DbNotification},
 };
@@ -51,6 +52,10 @@ pub struct UserSettings {
     /// Index into the client `EmojiSkinTone` enum (0 = default/none).
     #[frb(default = 0)]
     pub default_emoji_skin_tone: u8,
+    /// Whether link previews are fetched for links in outgoing messages.
+    /// Synced across the user's devices.
+    #[frb(default = true)]
+    pub generate_link_previews: bool,
     /// The version expiry announced by the server that the user dismissed the
     /// update banner for. A different announced expiry shows the banner again.
     pub dismissed_version_expiry: Option<DateTime<Utc>>,
@@ -70,6 +75,7 @@ impl Default for UserSettings {
             developer_mode: false,
             experimental_features: false,
             default_emoji_skin_tone: 0,
+            generate_link_previews: true,
             dismissed_version_expiry: None,
         }
     }
@@ -89,6 +95,7 @@ pub async fn load_user_settings(user: &User) -> UserSettings {
     let developer_mode = core_user.user_setting().await;
     let experimental_features = core_user.user_setting().await;
     let default_emoji_skin_tone = core_user.user_setting().await;
+    let generate_link_previews = core_user.user_setting().await;
     let dismissed_version_expiry = core_user.user_setting().await;
 
     let defaults = UserSettings::default();
@@ -118,6 +125,10 @@ pub async fn load_user_settings(user: &User) -> UserSettings {
         default_emoji_skin_tone: default_emoji_skin_tone.map_or(
             defaults.default_emoji_skin_tone,
             |DefaultEmojiSkinToneSetting(value)| value,
+        ),
+        generate_link_previews: generate_link_previews.map_or(
+            defaults.generate_link_previews,
+            |GenerateLinkPreviewsSetting(value)| value,
         ),
         dismissed_version_expiry: dismissed_version_expiry
             .map(|DismissedVersionExpirySetting(value)| value),
@@ -241,6 +252,19 @@ impl UserSettingsCubitBase {
         self.core
             .state_tx()
             .send_modify(|state| state.limit_animated_images_loops = value);
+        Ok(())
+    }
+
+    pub async fn set_generate_link_previews(&self, value: bool) -> anyhow::Result<()> {
+        if self.core.state_tx().borrow().generate_link_previews == value {
+            return Ok(());
+        }
+        self.core_user
+            .set_synced_user_setting(&GenerateLinkPreviewsSetting(value))
+            .await?;
+        self.core
+            .state_tx()
+            .send_modify(|state| state.generate_link_previews = value);
         Ok(())
     }
 
@@ -378,11 +402,12 @@ async fn settings_listener(
     }
 }
 
-const SYNCED_SETTING_KEYS: [&str; 4] = [
+const SYNCED_SETTING_KEYS: [&str; 5] = [
     ReadReceiptsSetting::KEY,
     DefaultEmojiSkinToneSetting::KEY,
     LimitAnimatedImagesLoopsSetting::KEY,
     DeleteExpiredContactRequestsSetting::KEY,
+    GenerateLinkPreviewsSetting::KEY,
 ];
 
 /// Reads the synced settings from the database and emits them if any changed.
@@ -407,16 +432,22 @@ async fn reload_synced_settings(core_user: &CoreUser, state_tx: &watch::Sender<U
         defaults.delete_expired_contact_requests,
         |DeleteExpiredContactRequestsSetting(value)| value,
     );
+    let generate_link_previews = core_user.user_setting().await.map_or(
+        defaults.generate_link_previews,
+        |GenerateLinkPreviewsSetting(value)| value,
+    );
 
     state_tx.send_if_modified(|state| {
         let modified = state.read_receipts != read_receipts
             || state.default_emoji_skin_tone != default_emoji_skin_tone
             || state.limit_animated_images_loops != limit_animated_images_loops
-            || state.delete_expired_contact_requests != delete_expired_contact_requests;
+            || state.delete_expired_contact_requests != delete_expired_contact_requests
+            || state.generate_link_previews != generate_link_previews;
         state.read_receipts = read_receipts;
         state.default_emoji_skin_tone = default_emoji_skin_tone;
         state.limit_animated_images_loops = limit_animated_images_loops;
         state.delete_expired_contact_requests = delete_expired_contact_requests;
+        state.generate_link_previews = generate_link_previews;
         modified
     });
 }
@@ -511,5 +542,44 @@ impl UserSetting for SendOnEnterSetting {
             [byte] => Ok(Self(*byte != 0)),
             _ => bail!("invalid send_on_enter bytes"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
+    use tokio::time::timeout;
+
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn sibling_setting_change_reaches_cubit() {
+        let mut setup = TestBackend::single().await;
+        let alice = setup.add_user().await;
+        let alice2 = alice.add_synced_device().await;
+
+        let user2 = User::from_core_user(alice2.clone());
+        let cubit = UserSettingsCubitBase::new(&user2, load_user_settings(&user2).await);
+        let mut settings = cubit.subscribe();
+        assert!(settings.borrow().generate_link_previews);
+
+        alice
+            .set_synced_user_setting(&GenerateLinkPreviewsSetting(false))
+            .await
+            .unwrap();
+        alice.outbound_service().run_once().await;
+        alice2.drain().await;
+
+        timeout(
+            Duration::from_secs(5),
+            settings.wait_for(|settings| !settings.generate_link_previews),
+        )
+        .await
+        .expect("sibling change did not reach the cubit")
+        .unwrap();
+
+        cubit.close();
     }
 }

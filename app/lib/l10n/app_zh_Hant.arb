@@ -11,6 +11,8 @@
   "userSettingsScreen_sendWithEnterDescription": "開啟後，鍵盤上的「Enter」鍵會傳送訊息。",
   "userSettingsScreen_limitAnimatedImagesLoops": "限制 GIF 自動播放",
   "userSettingsScreen_limitAnimatedImagesLoopsDescription": "開啟後，GIF 在檢視時會循環播放 3 次，之後可以手動重播。",
+  "userSettingsScreen_generateLinkPreviews": "產生連結預覽",
+  "userSettingsScreen_generateLinkPreviewsDescription": "開啟後，會為你在訊息中加入的第一個連結產生預覽，是否傳送由你決定。",
   "userSettingsScreen_readReceipts": "已讀回條",
   "userSettingsScreen_readReceiptsDescription": "開啟後，對方能看到你是否已讀他們的訊息，你也能看到對方是否已讀你的訊息。",
   "userSettingsScreen_deleteExpiredContactRequests": "刪除已過期的聯絡請求",

@@ -11,6 +11,8 @@
   "userSettingsScreen_sendWithEnterDescription": "Kun asetus on käytössä, näppäimistön ”Enter”-näppäin lähettää viestin.",
   "userSettingsScreen_limitAnimatedImagesLoops": "Rajoita GIF-kuvien automaattista toistoa",
   "userSettingsScreen_limitAnimatedImagesLoopsDescription": "Kun asetus on käytössä, GIF-kuvat toistuvat katseltaessa 3 kertaa, minkä jälkeen voit toistaa ne uudelleen itse.",
+  "userSettingsScreen_generateLinkPreviews": "Luo linkkien esikatselut",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Kun asetus on käytössä, viestiin lisäämällesi ensimmäiselle linkille luodaan esikatselu, jonka voit halutessasi lähettää.",
   "userSettingsScreen_readReceipts": "Lukukuittaukset",
   "userSettingsScreen_readReceiptsDescription": "Kun asetus on käytössä, muut näkevät, oletko lukenut heidän viestinsä, ja sinä näet, ovatko he lukeneet sinun viestisi.",
   "userSettingsScreen_deleteExpiredContactRequests": "Poista vanhentuneet yhteyspyynnöt",

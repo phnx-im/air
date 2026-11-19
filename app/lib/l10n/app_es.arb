@@ -11,6 +11,8 @@
   "userSettingsScreen_sendWithEnterDescription": "Si se activa, la tecla \"Enter\" del teclado envía el mensaje.",
   "userSettingsScreen_limitAnimatedImagesLoops": "Limitar la reproducción automática de GIF",
   "userSettingsScreen_limitAnimatedImagesLoopsDescription": "Si se activa, los GIF se reproducen 3 veces al verlos y luego se pueden reproducir de nuevo manualmente.",
+  "userSettingsScreen_generateLinkPreviews": "Generar vistas previas de enlaces",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Si se activa, se genera una vista previa opcional para el primer enlace que añadas a un mensaje.",
   "userSettingsScreen_readReceipts": "Confirmaciones de lectura",
   "userSettingsScreen_readReceiptsDescription": "Si se activa, los demás verán si has leído sus mensajes y tú verás si han leído los tuyos.",
   "userSettingsScreen_deleteExpiredContactRequests": "Eliminar solicitudes de contacto caducadas",

@@ -11,6 +11,8 @@
   "userSettingsScreen_sendWithEnterDescription": "Açıksa klavyedeki “Enter” tuşu mesajı gönderir.",
   "userSettingsScreen_limitAnimatedImagesLoops": "GIF otomatik oynatmayı sınırla",
   "userSettingsScreen_limitAnimatedImagesLoopsDescription": "Açıksa GIF'ler görüntülendiğinde 3 kez oynatılır. Sonra elle yeniden oynatabilirsiniz.",
+  "userSettingsScreen_generateLinkPreviews": "Bağlantı önizlemeleri oluştur",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Açıksa bir mesaja eklediğiniz ilk bağlantı için önizleme oluşturulur. Önizlemeyi göndermek isteğe bağlıdır.",
   "userSettingsScreen_readReceipts": "Okundu bilgisi",
   "userSettingsScreen_readReceiptsDescription": "Açıksa mesajlarını okuyup okumadığınızı başkaları görür. Siz de onların mesajlarınızı okuyup okumadığını görürsünüz.",
   "userSettingsScreen_deleteExpiredContactRequests": "Süresi dolan kişi ekleme isteklerini sil",

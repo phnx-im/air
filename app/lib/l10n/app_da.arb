@@ -11,6 +11,8 @@
   "userSettingsScreen_sendWithEnterDescription": "Hvis indstillingen er slået til, sender »Enter«-tasten på tastaturet beskeden.",
   "userSettingsScreen_limitAnimatedImagesLoops": "Begræns automatisk afspilning af GIF'er",
   "userSettingsScreen_limitAnimatedImagesLoopsDescription": "Hvis indstillingen er slået til, afspilles GIF'er 3 gange når de vises, og derefter kan de afspilles igen manuelt.",
+  "userSettingsScreen_generateLinkPreviews": "Generér linkforhåndsvisninger",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Hvis indstillingen er slået til, oprettes en valgfri forhåndsvisning af det første link, du tilføjer i en besked.",
   "userSettingsScreen_readReceipts": "Læsekvitteringer",
   "userSettingsScreen_readReceiptsDescription": "Hvis indstillingen er slået til, kan andre se om du har læst deres beskeder, og du kan se om de har læst dine.",
   "userSettingsScreen_deleteExpiredContactRequests": "Slet udløbne kontaktanmodninger",
