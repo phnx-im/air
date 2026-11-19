@@ -146,6 +146,22 @@ impl ChatDetailsCubitBase {
                 });
         spawn_from_sync(emit_initial_state_task);
 
+        let hide_link_preview_task = core
+            .cancellation_token()
+            .clone()
+            .run_until_cancelled_owned({
+                let mut settings = user_settings_rx.clone();
+                let state = core.state_tx().clone();
+                async move {
+                    while settings.changed().await.is_ok() {
+                        if !settings.borrow().generate_link_previews {
+                            state.send_if_modified(|state| state.link_preview.take().is_some());
+                        }
+                    }
+                }
+            });
+        spawn_from_sync(hide_link_preview_task);
+
         let update_state_task = core
             .cancellation_token()
             .clone()
@@ -859,7 +875,12 @@ impl ChatDetailsCubitBase {
     fn with_link_preview<R>(&self, f: impl FnOnce(&mut ComposerLinkPreview) -> R) -> R {
         let mut link_preview = self.link_preview.lock();
         let result = f(&mut link_preview);
-        let ui = link_preview.ui();
+        let ui = self
+            .user_settings_rx
+            .borrow()
+            .generate_link_previews
+            .then(|| link_preview.ui())
+            .flatten();
         self.core.state_tx().send_if_modified(|state| {
             let changed = state.link_preview != ui;
             state.link_preview = ui;
