@@ -149,6 +149,19 @@ void main() {
         );
       });
 
+      testWidgets('renders correctly (experimental features)', (tester) async {
+        when(() => userSettingsCubit.state).thenReturn(
+          const UserSettings(developerMode: true, experimentalFeatures: true),
+        );
+
+        await pumpSection(tester, YouSection.preferences);
+
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/you_preferences_experimental.png'),
+        );
+      });
+
       testWidgets('read receipts toggle debounces into one submit', (
         tester,
       ) async {
