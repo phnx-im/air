@@ -51,6 +51,8 @@ abstract class UserSettingsCubitBase implements RustOpaqueInterface {
 
   Future<void> setExperimentalFeatures({required bool value});
 
+  Future<void> setGenerateLinkPreviews({required bool value});
+
   Future<void> setInterfaceScale({required double value});
 
   Future<void> setLimitAnimatedImagesLoops({required bool value});
@@ -81,6 +83,7 @@ sealed class UserSettings with _$UserSettings {
     @Default(false) bool developerMode,
     @Default(false) bool experimentalFeatures,
     @Default(0) int defaultEmojiSkinTone,
+    @Default(true) bool generateLinkPreviews,
     DateTime? dismissedVersionExpiry,
   }) = _UserSettings;
 }

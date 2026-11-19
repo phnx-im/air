@@ -56,8 +56,8 @@ pub use crate::{
         safety_code::SafetyCode,
         user_settings::{
             DefaultEmojiSkinToneSetting, DeleteExpiredContactRequestsSetting, DeveloperModeSetting,
-            ExperimentalFeaturesSetting, LimitAnimatedImagesLoopsSetting, ReadReceiptsSetting,
-            UserSetting,
+            ExperimentalFeaturesSetting, GenerateLinkPreviewsSetting,
+            LimitAnimatedImagesLoopsSetting, ReadReceiptsSetting, UserSetting,
         },
     },
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},

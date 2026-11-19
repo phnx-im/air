@@ -339,7 +339,7 @@ impl ChatDetailsCubitBase {
 
         let is_edit = replaces.is_some();
         // Only reset once the message is stored, so that it survives a failed send.
-        let preview = if is_edit {
+        let preview = if is_edit || !self.user_settings_rx.borrow().generate_link_previews {
             None
         } else {
             self.link_preview.lock().ready_for(&text)
@@ -833,7 +833,12 @@ impl ChatDetailsCubitBase {
     }
 
     pub async fn update_link_previews(&self, text: String) -> anyhow::Result<()> {
-        let url = select_links(&text).next();
+        let url = self
+            .user_settings_rx
+            .borrow()
+            .generate_link_previews
+            .then(|| select_links(&text).next())
+            .flatten();
         let parent = self.core.cancellation_token();
         let Some((url, token)) = self.with_link_preview(|lp| lp.switch_to(url, parent)) else {
             return Ok(());

@@ -378,6 +378,7 @@ pub struct LinkedDevice {
 ///   ? default_emoji_skin_tone: uint .size 1 .tag 3
 ///   ? limit_animated_images_loops: bool .tag 4
 ///   ? delete_expired_contact_requests: bool .tag 5
+///   ? generate_link_previews: bool .tag 6
 /// }
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
@@ -397,6 +398,9 @@ pub struct SettingsUpdate {
     /// record.
     #[tag(5)]
     pub delete_expired_contact_requests: Option<bool>,
+    /// Whether to generate a link preview for the first link in the composer.
+    #[tag(6)]
+    pub generate_link_previews: Option<bool>,
 }
 
 /// The contacts whose blocked state the sender just changed. This is a diff and
