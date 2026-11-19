@@ -1,0 +1,110 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                attachment_id AS \"attachment_id: AttachmentId\",\n                size,\n                enc_alg AS \"enc_alg: u16\",\n                enc_key,\n                nonce,\n                aad,\n                hash_alg AS \"hash_alg: u8\",\n                hash\n            FROM attachment_remote\n            WHERE remote_attachment_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "attachment_id: AttachmentId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "attachment_id"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "enc_alg: u16",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "enc_alg"
+          }
+        }
+      },
+      {
+        "name": "enc_key",
+        "ordinal": 3,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "enc_key"
+          }
+        }
+      },
+      {
+        "name": "nonce",
+        "ordinal": 4,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "nonce"
+          }
+        }
+      },
+      {
+        "name": "aad",
+        "ordinal": 5,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "aad"
+          }
+        }
+      },
+      {
+        "name": "hash_alg: u8",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "hash_alg"
+          }
+        }
+      },
+      {
+        "name": "hash",
+        "ordinal": 7,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "hash"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a81a44b0d2dd93befceb879c1126abfa8bd0e3d12651c1d686b7b8ffd16a9a2e"
+}

@@ -8,8 +8,8 @@ use std::{assert_matches, io::Cursor};
 
 use airapiclient::ds_api::DsRequestError;
 use aircoreclient::{
-    AttachmentId, AttachmentProgressEvent, AttachmentStatus, MimiContentExt,
-    ProvisionAttachmentError, VisitedPart, clients::MarkChatAsRead,
+    AttachmentProgressEvent, AttachmentStatus, MimiContentExt, ProvisionAttachmentError,
+    VisitedPart, clients::MarkChatAsRead,
 };
 use airserver_test_harness::utils::{
     core_user_ext::CoreUserExt,
@@ -155,14 +155,14 @@ async fn interrupted_attachment_download_is_resumed() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn nested_attachments_have_derived_ids() {
+async fn nested_attachments_are_referenced_by_part_index() {
     let mut setup = TestBackend::single().await;
     let [alice, bob, carol] = setup.add_users().await;
     let upload_chat_id = setup.connect_users(&alice, &carol).await;
     let chat_id = setup.connect_users(&alice, &bob).await;
 
-    // Uploaded in a chat without Bob, since a client stores each remote
-    // attachment id only once.
+    // Uploaded in a chat without Bob, so that his copies are not shared with
+    // earlier messages.
     let first = b"first attachment";
     let second = b"second attachment";
     let (_, first_part) = setup
@@ -229,14 +229,9 @@ async fn nested_attachments_have_derived_ids() {
     let [info_0, info_1] = infos.iter().collect::<Vec<_>>()[..] else {
         panic!("expected exactly two attachments, got {infos:?}");
     };
-    assert_eq!(
-        info_0.attachment_id,
-        AttachmentId::derive(message.id(), index_0)
-    );
-    assert_eq!(
-        info_1.attachment_id,
-        AttachmentId::derive(message.id(), index_1)
-    );
+    assert_eq!(info_0.part_index, index_0);
+    assert_eq!(info_1.part_index, index_1);
+    assert_ne!(info_0.attachment_id, info_1.attachment_id);
 
     for (info, expected) in [(info_0, &second[..]), (info_1, &first[..])] {
         let (_progress, download_task) = bob.download_attachment(info.attachment_id);
@@ -280,7 +275,7 @@ async fn nested_attachments_have_derived_ids() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn reused_remote_attachment_is_skipped() {
+async fn reused_remote_attachment_is_shared() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -305,7 +300,10 @@ async fn reused_remote_attachment_is_skipped() {
         }
     }
     let first = first.expect("bob has no attachment message");
-    assert_eq!(bob.attachment_infos_for_message(first.id()).await.len(), 1);
+    let first_infos = bob.attachment_infos_for_message(first.id()).await;
+    let [first_info] = first_infos.iter().collect::<Vec<_>>()[..] else {
+        panic!("expected exactly one attachment, got {first_infos:?}");
+    };
 
     // Same remote attachment id again
     let content = MimiContent {
@@ -352,11 +350,12 @@ async fn reused_remote_attachment_is_skipped() {
         })
         .unwrap();
     assert_eq!(texts, ["again"]);
-    assert!(
-        bob.attachment_infos_for_message(second.id())
-            .await
-            .is_empty()
-    );
+    // Same key and hash, so the second message references the same attachment
+    let second_infos = bob.attachment_infos_for_message(second.id()).await;
+    let [second_info] = second_infos.iter().collect::<Vec<_>>()[..] else {
+        panic!("expected exactly one attachment, got {second_infos:?}");
+    };
+    assert_eq!(second_info.attachment_id, first_info.attachment_id);
     assert_eq!(bob.attachment_infos_for_message(first.id()).await.len(), 1);
 }
 

@@ -17,7 +17,6 @@ use aircommon::{
     identifiers::RemoteAttachmentId,
 };
 use airprotos::delivery_service::v1::StorageObjectType;
-use anyhow::Context;
 use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
 use reqwest::StatusCode;
 use sha2::{Digest, Sha256};
@@ -32,7 +31,7 @@ use crate::{
         attachment::{
             AttachmentBytes, AttachmentRecord,
             aead::{AIR_ATTACHMENT_ENCRYPTION_ALG, AIR_ATTACHMENT_HASH_ALG, EncryptedAttachment},
-            persistence::{AttachmentStatus, PendingAttachmentRecord},
+            persistence::{AttachmentStatus, RemoteAttachmentRecord},
             progress::AttachmentProgressSender,
         },
     },
@@ -98,19 +97,12 @@ impl CoreUser {
     ) -> anyhow::Result<()> {
         info!(?attachment_id, "downloading attachment");
 
-        // Load the pending attachment record and update the status to `Downloading`.
-        let Some((pending_record, group, remote_attachment_id)) = self
+        // Load the remote attachment record and update the status to `Downloading`.
+        let Some((remote_record, group)) = self
             .db()
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                let Some(record) = AttachmentRecord::load(&mut *txn, attachment_id).await? else {
-                    error!(?attachment_id, "Attachment record not found");
-                    return Ok(None);
-                };
-                let remote_attachment_id = record
-                    .remote_attachment_id
-                    .context("Unprovisioned attachment for download")?;
-                let Some(pending_record) =
-                    PendingAttachmentRecord::load_pending(&mut *txn, remote_attachment_id).await?
+                let Some((remote_record, chat_id)) =
+                    RemoteAttachmentRecord::load_for_download(&mut *txn, attachment_id).await?
                 else {
                     debug!(
                         ?attachment_id,
@@ -118,10 +110,9 @@ impl CoreUser {
                     );
                     return Ok(None);
                 };
-                let bytes_total = pending_record.size.try_into()?;
+                let bytes_total = remote_record.size.try_into()?;
                 progress_tx.report(bytes_total, 0);
 
-                let chat_id = record.chat_id;
                 let Some(group) = Group::load_ref_with_chat_id(&mut *txn, chat_id).await? else {
                     error!(?chat_id, "Group not found");
                     return Ok(None);
@@ -130,7 +121,7 @@ impl CoreUser {
                 AttachmentRecord::update_status(txn, attachment_id, AttachmentStatus::Downloading)
                     .await?;
 
-                Ok(Some((pending_record, group, remote_attachment_id)))
+                Ok(Some((remote_record, group)))
             })
             .await?
         else {
@@ -138,7 +129,7 @@ impl CoreUser {
         };
 
         match self
-            .download_and_decrypt_attachment(pending_record, &group, &progress_tx)
+            .download_and_decrypt_attachment(remote_record, &group, &progress_tx)
             .await
         {
             Ok(content) => {
@@ -147,9 +138,8 @@ impl CoreUser {
                 let is_animated = image_is_animated(bytes);
                 self.db()
                     .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                        AttachmentRecord::set_content(&mut *txn, attachment_id, bytes, is_animated)
+                        AttachmentRecord::set_content(txn, attachment_id, bytes, is_animated)
                             .await?;
-                        PendingAttachmentRecord::delete(txn, remote_attachment_id).await?;
                         Ok(())
                     })
                     .await?;
@@ -161,24 +151,14 @@ impl CoreUser {
             Err(error @ AttachmentDownloadError::NotFound) => {
                 error!(?attachment_id, "attachment not found (expired?)");
 
-                // if the attachment wasn't found, we mark it as NotFound but also destroy
-                // the pending attachment, which cannot be recovered from anyways.
-                self.db()
-                    .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                        AttachmentRecord::update_status(
-                            &mut *txn,
-                            attachment_id,
-                            AttachmentStatus::NotFound,
-                        )
-                        .await?;
-                        PendingAttachmentRecord::delete(txn, remote_attachment_id).await?;
-                        Ok(())
-                    })
-                    .await
-                    .inspect_err(
-                        |e| error!(?attachment_id, %e, "failed to mark download as failed"),
-                    )
-                    .ok();
+                AttachmentRecord::update_status(
+                    self.db().write().await?,
+                    attachment_id,
+                    AttachmentStatus::NotFound,
+                )
+                .await
+                .inspect_err(|e| error!(?attachment_id, %e, "failed to mark download as failed"))
+                .ok();
 
                 progress_tx.not_found();
 
@@ -191,8 +171,7 @@ impl CoreUser {
                     "attachment download error, marking as failed"
                 );
 
-                // if this fails, the AttachmentRecord status stays in Downloading
-                // and we still have the PendingAttachmentRecord, so we can retry
+                // If this fails, the status stays in Downloading, so we can retry
                 AttachmentRecord::update_status(
                     self.db().write().await?,
                     attachment_id,
@@ -224,7 +203,7 @@ impl CoreUser {
 
     async fn download_and_decrypt_attachment(
         &self,
-        PendingAttachmentRecord {
+        RemoteAttachmentRecord {
             aad: _,
             remote_attachment_id,
             enc_alg,
@@ -233,7 +212,7 @@ impl CoreUser {
             hash_alg,
             nonce,
             size,
-        }: PendingAttachmentRecord,
+        }: RemoteAttachmentRecord,
         group: &GroupRef,
         progress_tx: &AttachmentProgressSender,
     ) -> Result<AttachmentBytes, AttachmentDownloadError> {

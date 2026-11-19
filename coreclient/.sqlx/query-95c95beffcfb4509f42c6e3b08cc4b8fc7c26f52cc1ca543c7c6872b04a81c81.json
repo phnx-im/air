@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                ac.content AS \"content?\",\n                t.direction AS \"direction?: u32\",\n                t.state AS \"state?: u32\",\n                t.failure AS \"failure?: u32\"\n            FROM attachment a\n            LEFT JOIN attachment_content ac ON ac.attachment_id = a.attachment_id\n            LEFT JOIN attachment_transfer t ON t.attachment_id = a.attachment_id\n            WHERE a.attachment_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "content?",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment_content",
+            "name": "content"
+          }
+        }
+      },
+      {
+        "name": "direction?: u32",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment_transfer",
+            "name": "direction"
+          }
+        }
+      },
+      {
+        "name": "state?: u32",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment_transfer",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "name": "failure?: u32",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment_transfer",
+            "name": "failure"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "95c95beffcfb4509f42c6e3b08cc4b8fc7c26f52cc1ca543c7c6872b04a81c81"
+}

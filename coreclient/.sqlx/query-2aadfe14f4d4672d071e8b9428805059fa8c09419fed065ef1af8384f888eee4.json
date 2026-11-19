@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                ma.attachment_id AS \"attachment_id: AttachmentId\",\n                ma.part_index AS \"part_index: PartIndex\",\n                r.remote_attachment_id AS \"remote_attachment_id?: RemoteAttachmentId\",\n                a.is_animated AS \"is_animated?\"\n            FROM message_attachment ma\n            JOIN attachment a ON a.attachment_id = ma.attachment_id\n            LEFT JOIN attachment_remote r ON r.attachment_id = ma.attachment_id\n            WHERE ma.message_id = ?\n            ORDER BY ma.part_index",
+  "describe": {
+    "columns": [
+      {
+        "name": "attachment_id: AttachmentId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message_attachment",
+            "name": "attachment_id"
+          }
+        }
+      },
+      {
+        "name": "part_index: PartIndex",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "message_attachment",
+            "name": "part_index"
+          }
+        }
+      },
+      {
+        "name": "remote_attachment_id?: RemoteAttachmentId",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "remote_attachment_id"
+          }
+        }
+      },
+      {
+        "name": "is_animated?",
+        "ordinal": 3,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "is_animated"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "2aadfe14f4d4672d071e8b9428805059fa8c09419fed065ef1af8384f888eee4"
+}

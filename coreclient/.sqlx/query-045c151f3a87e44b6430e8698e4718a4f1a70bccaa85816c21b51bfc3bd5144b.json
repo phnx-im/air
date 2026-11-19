@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO attachment_remote (\n                attachment_id,\n                remote_attachment_id,\n                size,\n                enc_alg,\n                enc_key,\n                nonce,\n                aad,\n                hash_alg,\n                hash\n            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "045c151f3a87e44b6430e8698e4718a4f1a70bccaa85816c21b51bfc3bd5144b"
+}

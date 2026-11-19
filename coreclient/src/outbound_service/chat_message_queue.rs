@@ -214,8 +214,8 @@ mod persistence {
                 persistence::tests::test_chat,
             },
             clients::attachment::persistence::{
-                PendingAttachmentRecord,
-                test::{test_attachment_record, test_pending_attachment_record},
+                RemoteAttachmentRecord,
+                test::{test_attachment_record, test_remote_attachment_record},
             },
             db::access::DbAccess,
         };
@@ -393,10 +393,9 @@ mod persistence {
 
             let inbound = test_chat_message_with_salt(first.chat_id(), [3; 16]);
             inbound.store(db.write().await?).await?;
-            let attachment = test_attachment_record(first.chat_id(), inbound.id());
+            let attachment = test_attachment_record(inbound.id());
             attachment.store(db.write().await?, None).await?;
-            let remote_attachment_id = attachment.remote_attachment_id.expect("no remote id");
-            test_pending_attachment_record(remote_attachment_id)
+            test_remote_attachment_record()
                 .store(db.write().await?, attachment.attachment_id)
                 .await?;
 
@@ -407,9 +406,12 @@ mod persistence {
             .await?;
 
             assert!(
-                PendingAttachmentRecord::load_pending(db.read().await?, remote_attachment_id)
-                    .await?
-                    .is_some(),
+                RemoteAttachmentRecord::load_for_download(
+                    db.read().await?,
+                    attachment.attachment_id
+                )
+                .await?
+                .is_some(),
                 "the pending attachment must survive an unrelated queue failure"
             );
             assert_eq!(stored_status(&db, inbound.id()).await?, inbound.status());

@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                ma.message_id AS \"message_id: MessageId\",\n                ma.attachment_id AS \"attachment_id: AttachmentId\",\n                ma.part_index AS \"part_index: PartIndex\",\n                r.remote_attachment_id AS \"remote_attachment_id?: RemoteAttachmentId\",\n                a.is_animated AS \"is_animated?\"\n            FROM message_attachment ma\n            JOIN message m ON m.message_id = ma.message_id\n            JOIN attachment a ON a.attachment_id = ma.attachment_id\n            LEFT JOIN attachment_remote r ON r.attachment_id = ma.attachment_id\n            WHERE m.chat_id = ?\n                AND (m.timestamp, m.message_id) >= (?, ?)\n                AND (m.timestamp, m.message_id) <= (?, ?)\n            ORDER BY ma.message_id, ma.part_index\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id: MessageId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message_attachment",
+            "name": "message_id"
+          }
+        }
+      },
+      {
+        "name": "attachment_id: AttachmentId",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message_attachment",
+            "name": "attachment_id"
+          }
+        }
+      },
+      {
+        "name": "part_index: PartIndex",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "message_attachment",
+            "name": "part_index"
+          }
+        }
+      },
+      {
+        "name": "remote_attachment_id?: RemoteAttachmentId",
+        "ordinal": 3,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment_remote",
+            "name": "remote_attachment_id"
+          }
+        }
+      },
+      {
+        "name": "is_animated?",
+        "ordinal": 4,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "is_animated"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "3c99f7e692609f4ad0ff45e8cf3e6109492a7615309ba9d2913993ca136a8ab8"
+}
