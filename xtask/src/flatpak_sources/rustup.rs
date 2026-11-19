@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The rustup module with an offline dist server and sccache.
+//! The rustup module with an offline dist server.
 
 use std::{collections::BTreeMap, fs};
 
@@ -13,12 +13,11 @@ use xshell::Shell;
 
 use super::{
     Arch,
-    source::{Archive, BuildOptions, File, HashCache, Module, Source, download, sha256_file},
+    source::{BuildOptions, File, HashCache, Module, Source, download, sha256_file},
 };
 
 const RUST_DIST_URL: &str = "https://static.rust-lang.org";
 const RUSTUP_VERSION: &str = "1.29.1";
-const SCCACHE_VERSION: &str = "0.15.0";
 
 // The Rust channel manifest, channel-rust-<version>.toml.
 #[derive(Deserialize)]
@@ -109,29 +108,11 @@ pub(super) fn rustup_module(
             }));
         }
     }
-    for &arch in arches {
-        let name = format!("sccache-v{SCCACHE_VERSION}-{arch}-unknown-linux-musl");
-        let url = format!(
-            "https://github.com/mozilla/sccache/releases/download/v{SCCACHE_VERSION}/{name}.tar.gz"
-        );
-        let sha256 = hashes.published_sha256(&url)?;
-        sources.push(Source::Archive(Archive {
-            url: Some(url),
-            sha256,
-            dest: "sccache".to_owned(),
-            only_arches: vec![arch.to_string()],
-            ..Default::default()
-        }));
-    }
-
     let mut module = Module::simple(
         "rustup",
-        vec![
-            format!(
-                "chmod +x rustup-init && ./rustup-init -y --no-modify-path --profile minimal --default-toolchain {channel}"
-            ),
-            "install -Dm755 sccache/sccache /var/lib/cargo/bin/sccache".to_owned(),
-        ],
+        vec![format!(
+            "chmod +x rustup-init && ./rustup-init -y --no-modify-path --profile minimal --default-toolchain {channel}"
+        )],
         sources,
     );
     module.build_options = Some(BuildOptions {

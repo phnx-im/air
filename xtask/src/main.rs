@@ -11,6 +11,7 @@ mod linux_screenshots;
 mod prune_unused_l10n;
 mod publish_flatpak;
 mod publish_linux_packages;
+mod tag_release;
 mod util;
 mod validate_l10n;
 mod version_expirations;
@@ -49,6 +50,9 @@ enum Commands {
     /// Copy a published package version from one release track to another.
     #[command(name = "promote-packages")]
     PromoteLinuxPackages(publish_linux_packages::PromoteArgs),
+    /// Tag the commit of a promoted build as v<version>.
+    #[command(name = "tag-release")]
+    TagRelease(tag_release::TagArgs),
     /// Generate the Flatpak manifest and the sources for an offline build.
     #[command(name = "flatpak-sources")]
     FlatpakSources(flatpak_sources::FlatpakSourcesArgs),
@@ -76,6 +80,7 @@ fn main() -> anyhow::Result<()> {
         Commands::ValidateL10n(args) => validate_l10n::run(args),
         Commands::PublishLinuxPackages(args) => publish_linux_packages::run(args),
         Commands::PromoteLinuxPackages(args) => publish_linux_packages::promote(args),
+        Commands::TagRelease(args) => tag_release::run(args),
         Commands::FlatpakSources(args) => flatpak_sources::run(args),
         Commands::PublishFlatpak(args) => publish_flatpak::run(args),
         Commands::GenerateEmoji(args) => generate_emoji::run(args),

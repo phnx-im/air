@@ -19,6 +19,7 @@ pub(crate) enum OutboxKind {
     DeletedEvent,
     ConnectionRequest,
     Username,
+    ChatMute,
 }
 
 impl OutboxKind {
@@ -31,6 +32,7 @@ impl OutboxKind {
             OutboxKind::DeletedEvent => "deleted_event",
             OutboxKind::ConnectionRequest => "connection_request",
             OutboxKind::Username => "username",
+            OutboxKind::ChatMute => "chat_mute",
         }
     }
 }

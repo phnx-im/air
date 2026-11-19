@@ -6,6 +6,7 @@
 //! following each other in groups.
 
 mod account_deletion;
+mod blocking;
 mod bootstrap;
 mod deletion;
 mod device_limit;
@@ -14,6 +15,7 @@ mod groups;
 mod key_packages;
 mod leave;
 mod linking;
+mod mutes;
 mod onboarding;
 mod push_tokens;
 mod read_state;

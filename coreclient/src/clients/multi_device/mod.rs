@@ -1272,6 +1272,7 @@ impl CoreUser {
                         vc_leaf_index: vc_leaf_index.u32(),
                         connection,
                         outgoing_request,
+                        muted_until: chat.muted_until,
                     });
                 }
 

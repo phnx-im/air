@@ -2,10 +2,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::io::{BufRead, IsTerminal, Write};
+use std::{
+    fs,
+    io::{BufRead, IsTerminal, Write},
+};
 
 use anyhow::{Context, Result, bail, ensure};
-use chrono::{Days, NaiveTime, Utc};
+use chrono::{Days, NaiveDate, NaiveTime, Utc};
 use semver::Version;
 use xshell::{Shell, cmd};
 
@@ -50,12 +53,13 @@ impl std::str::FromStr for NextVersion {
 }
 
 /// Cuts a `release/0.X` branch at the given commit (defaults to `origin/main`,
-/// which is fetched first) and commits the version bump on a `merge-release/0.X`
-/// branch that merges the release branch back into main via a PR, asking
-/// whether the next version is a major, minor or patch increment or a
-/// custom version. Store builds are then published from the release branch,
-/// while `main` continues to produce internal builds under the next
-/// version.
+/// which is fetched first) and commits the Linux metainfo release entry on it.
+///
+/// The version bump is committed on a `merge-release/0.X` branch that merges
+/// the release branch back into main via a PR, asking whether the next version
+/// is a major, minor or patch increment or a custom version. Store builds are
+/// then published from the release branch, while `main` continues to produce
+/// internal builds under the next version.
 pub(crate) fn run(args: CutArgs) -> Result<()> {
     let repo_root = workspace_root();
     let shell = Shell::new()?;
@@ -119,8 +123,14 @@ pub(crate) fn run(args: CutArgs) -> Result<()> {
     cmd!(shell, "git branch {release_branch} {commit}").run()?;
     println!("Created branch {release_branch} at {commit}");
 
+    cmd!(shell, "git switch {release_branch}").run()?;
+    if add_metainfo_release(&current, Utc::now().date_naive())? {
+        let message = format!("chore: add {current} to the Linux metainfo");
+        cmd!(shell, "git commit --all --message {message}").run()?;
+    }
+
     // The version bump lands via a PR that merges the release branch back into
-    // main. The bump commit sits on top of the release branch tip; merging the
+    // main. The bump commit sits on top of the release branch tip, merging the
     // PR makes the release branch an ancestor of main.
     let merge_branch = format!("merge-{release_branch}");
     cmd!(shell, "git switch --create {merge_branch} {release_branch}").run()?;
@@ -151,9 +161,6 @@ pub(crate) fn run(args: CutArgs) -> Result<()> {
     println!("main and bumps main to {next}.");
     println!("Next steps:");
     println!("  git push origin {release_branch}");
-    // The push brings no new commits, so it does not trigger the release
-    // workflow.
-    println!("  gh workflow run app-release.yml --ref {release_branch}");
     println!("  git push -u origin {merge_branch}");
     println!("  gh pr create --title {title:?}");
     println!("Merge the PR with a merge commit (not squash) so {release_branch}");
@@ -210,7 +217,7 @@ fn prompt_next(release_branch: &str, current: &Version) -> Result<Version> {
 
 /// Reads the workspace version at the given commit. All workspace members
 /// share the same version, so any member's manifest works.
-fn version_at_commit(shell: &Shell, commit: &str) -> Result<Version> {
+pub(crate) fn version_at_commit(shell: &Shell, commit: &str) -> Result<Version> {
     let spec = format!("{commit}:common/Cargo.toml");
     let manifest = cmd!(shell, "git show {spec}")
         .read()
@@ -221,4 +228,35 @@ fn version_at_commit(shell: &Shell, commit: &str) -> Result<Version> {
         .and_then(|rest| rest.strip_suffix('"'))
         .with_context(|| format!("no version found in common/Cargo.toml at {commit}"))?;
     Version::parse(version).with_context(|| format!("invalid version at {commit}: {version}"))
+}
+
+/// Adds a release entry for the version to the Linux metainfo.
+///
+/// The entry is inserted first in `<releases>`. Returns false and leaves the
+/// file unchanged if the version already has an entry.
+fn add_metainfo_release(version: &Version, date: NaiveDate) -> Result<bool> {
+    let path = workspace_root().join("app/linux/ms.air.Air.metainfo.xml");
+    let content = fs::read_to_string(&path).with_context(|| format!("Failed to read {}", path))?;
+
+    if content.contains(&format!("version=\"{version}\"")) {
+        println!("Metainfo already has a release entry for {version}");
+        return Ok(false);
+    }
+
+    let mut updated = String::with_capacity(content.len() + 64);
+    let mut inserted = false;
+    for line in content.split_inclusive('\n') {
+        updated.push_str(line);
+        if !inserted && line.trim_end() == "  <releases>" {
+            updated.push_str(&format!(
+                "    <release version=\"{version}\" date=\"{date}\"/>\n"
+            ));
+            inserted = true;
+        }
+    }
+    ensure!(inserted, "Could not locate <releases> in {}", path);
+
+    fs::write(&path, updated).with_context(|| format!("Failed to write {}", path))?;
+    println!("Added {version} ({date}) to the Linux metainfo");
+    Ok(true)
 }

@@ -277,7 +277,7 @@ build-flatpak flavor="production" *args:
     if ! command -v flatpak-builder > /dev/null; then
         builder="flatpak run org.flatpak.Builder"
     fi
-    $builder --user --sandbox --force-clean --ccache --install-deps-from=flathub \
+    $builder --user --sandbox --force-clean --install-deps-from=flathub \
         --state-dir=target/flatpak/.flatpak-builder \
         --subject="Air $(cat target/flatpak/version)" \
         "$@" target/flatpak/build-dir "target/flatpak/$id.yml"
