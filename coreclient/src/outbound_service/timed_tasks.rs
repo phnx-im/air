@@ -55,7 +55,11 @@ pub const KEY_PACKAGES: usize = 100;
 pub const KEY_PACKAGES: usize = 10; // to go faster
 
 /// Number of APQ key packages to upload (excluding the last resort key package)
+#[cfg(not(feature = "test_utils"))]
 pub const APQ_KEY_PACKAGES: usize = 20;
+
+#[cfg(feature = "test_utils")]
+pub const APQ_KEY_PACKAGES: usize = 2; // to go faster
 
 /// Packages in one upload: every package plus one last resort of each kind.
 const KEY_PACKAGES_PER_UPLOAD: usize = KEY_PACKAGES + 1 + APQ_KEY_PACKAGES + 1;
