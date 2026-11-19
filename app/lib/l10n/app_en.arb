@@ -64,6 +64,14 @@
   "@userSettingsScreen_deleteExpiredContactRequestsDescription": {
     "description": "Explains the toggle for deleting expired contact requests. Turning it on also deletes the requests that have already expired."
   },
+  "userSettingsScreen_generateLinkPreviews": "Generate link previews",
+  "@userSettingsScreen_generateLinkPreviews": {
+    "description": "Label of the preference toggle that turns off generating link previews in the composer. Only affects messages the user sends, not previews received from others."
+  },
+  "userSettingsScreen_generateLinkPreviewsDescription": "If turned on, a preview is generated when you add a link to a message.",
+  "@userSettingsScreen_generateLinkPreviewsDescription": {
+    "description": "Explains the Generate link previews toggle. A preview is generated for a link the user types, and the user can still remove it before sending."
+  },
   "userSettingsScreen_languageSettingsDescription": "Translations may contain mistakes.",
   "@userSettingsScreen_languageSettingsDescription": {
     "description": "Help text under the language picker in settings. Warns that the app's translations may contain errors."

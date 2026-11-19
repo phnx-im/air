@@ -15,6 +15,8 @@
   "userSettingsScreen_readReceiptsDescription": "開啟後，對方能看到你是否已讀他們的訊息，你也能看到對方是否已讀你的訊息。",
   "userSettingsScreen_deleteExpiredContactRequests": "刪除已過期的聯絡請求",
   "userSettingsScreen_deleteExpiredContactRequestsDescription": "開啟後，已過期的聯絡請求會自動刪除。",
+  "userSettingsScreen_generateLinkPreviews": "產生連結預覽",
+  "userSettingsScreen_generateLinkPreviewsDescription": "開啟後，你在訊息中加入連結時會產生預覽。",
   "userSettingsScreen_languageSettingsDescription": "翻譯可能有錯誤。",
   "userSettingsScreen_displayNameLabel": "顯示名稱",
   "userSettingsScreen_usernamesSection": "使用者名稱",

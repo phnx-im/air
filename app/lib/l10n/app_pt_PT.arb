@@ -15,6 +15,8 @@
   "userSettingsScreen_readReceiptsDescription": "Se estiver ativado, os outros veem se leste as mensagens deles e tu vês se eles leram as tuas.",
   "userSettingsScreen_deleteExpiredContactRequests": "Eliminar pedidos de contacto expirados",
   "userSettingsScreen_deleteExpiredContactRequestsDescription": "Se estiver ativado, os pedidos de contacto expirados são eliminados automaticamente.",
+  "userSettingsScreen_generateLinkPreviews": "Gerar pré-visualizações de ligações",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Se estiver ativado, é gerada uma pré-visualização quando adicionas uma ligação a uma mensagem.",
   "userSettingsScreen_languageSettingsDescription": "As traduções podem conter erros.",
   "userSettingsScreen_displayNameLabel": "Nome a apresentar",
   "userSettingsScreen_usernamesSection": "Nomes de utilizador",

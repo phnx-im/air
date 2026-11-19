@@ -15,6 +15,8 @@
   "userSettingsScreen_readReceiptsDescription": "Si l'activeu, els altres veuran si heu llegit els seus missatges i podreu veure si han llegit els vostres.",
   "userSettingsScreen_deleteExpiredContactRequests": "Suprimeix les sol·licituds de contacte caducades",
   "userSettingsScreen_deleteExpiredContactRequestsDescription": "Si l'activeu, les sol·licituds de contacte caducades se suprimeixen automàticament.",
+  "userSettingsScreen_generateLinkPreviews": "Genera previsualitzacions d'enllaços",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Si l'activeu, es genera una previsualització quan afegiu un enllaç a un missatge.",
   "userSettingsScreen_languageSettingsDescription": "És possible que les traduccions continguin errors.",
   "userSettingsScreen_displayNameLabel": "Nom a mostrar",
   "userSettingsScreen_usernamesSection": "Noms d'usuari",
