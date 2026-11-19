@@ -1071,13 +1071,14 @@ mod test {
         let update = SettingsUpdate {
             default_emoji_skin_tone: Some(3),
             limit_animated_images_loops: Some(false),
+            generate_link_previews: Some(true),
             ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&update).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
         assert_eq!(update, decoded);
-        // `{3: 3, 4: false}`
-        assert_eq!(&bytes[1..], &[0xA2, 0x03, 0x03, 0x04, 0xF4]);
+        // `{3: 3, 4: false, 6: true}`
+        assert_eq!(&bytes[1..], &[0xA3, 0x03, 0x03, 0x04, 0xF4, 0x06, 0xF5]);
     }
 
     #[test]

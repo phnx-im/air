@@ -543,3 +543,42 @@ impl UserSetting for SendOnEnterSetting {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
+    use tokio::time::timeout;
+
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn sibling_setting_change_reaches_cubit() {
+        let mut setup = TestBackend::single().await;
+        let alice = setup.add_user().await;
+        let alice2 = alice.add_synced_device().await;
+
+        let user2 = User::from_core_user(alice2.clone());
+        let cubit = UserSettingsCubitBase::new(&user2, load_user_settings(&user2).await);
+        let mut settings = cubit.subscribe();
+        assert!(settings.borrow().generate_link_previews);
+
+        alice
+            .set_synced_user_setting(&GenerateLinkPreviewsSetting(false))
+            .await
+            .unwrap();
+        alice.outbound_service().run_once().await;
+        alice2.drain().await;
+
+        timeout(
+            Duration::from_secs(5),
+            settings.wait_for(|settings| !settings.generate_link_previews),
+        )
+        .await
+        .expect("sibling change did not reach the cubit")
+        .unwrap();
+
+        cubit.close();
+    }
+}
