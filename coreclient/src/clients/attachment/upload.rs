@@ -39,6 +39,7 @@ use tokio_stream::StreamExt;
 use tokio_util::io::ReaderStream;
 use tracing::{debug, error, warn};
 use url::Url;
+use uuid::Uuid;
 
 use crate::{
     AttachmentContent, AttachmentId, AttachmentProgressEvent, AttachmentStatus,
@@ -647,9 +648,9 @@ impl PendingUpload {
 
 #[cfg(feature = "test_utils")]
 impl CoreUser {
-    /// Provisions an attachment upload of `declared_size` bytes in the chat's
-    /// group and uploads `content` to it as is, with a `content-length` of
-    /// `content`'s actual size.
+    /// Provisions an attachment upload of `declared_size` bytes with the id
+    /// `object_id` in the chat's group and uploads `content` to it as is, with
+    /// a `content-length` of `content`'s actual size.
     ///
     /// # Errors
     ///
@@ -659,6 +660,7 @@ impl CoreUser {
     pub async fn upload_with_declared_size(
         &self,
         chat_id: ChatId,
+        object_id: Uuid,
         declared_size: i64,
         content: Vec<u8>,
     ) -> anyhow::Result<()> {
@@ -676,6 +678,7 @@ impl CoreUser {
                 &signer,
                 target,
                 declared_size,
+                object_id,
                 StorageObjectType::Attachment,
             )
             .await?;
@@ -1055,8 +1058,15 @@ async fn encrypt_and_provision(
 
     // provision attachment
     let content_length = ciphertext.len().try_into().context("usize overflow")?;
+    let object_id = Uuid::new_v4();
     let response = match api_client
-        .ds_provision_attachment(signing_key, target.into(), content_length, object_type)
+        .ds_provision_attachment(
+            signing_key,
+            target.into(),
+            content_length,
+            object_id,
+            object_type,
+        )
         .await
     {
         Ok(response) => response,
@@ -1070,8 +1080,9 @@ async fn encrypt_and_provision(
         }
     };
 
-    let remote_attachment_id =
-        RemoteAttachmentId::new(response.object_id.context("no object id")?.into());
+    let response_object_id: Uuid = response.object_id.context("no object id")?.into();
+    ensure!(response_object_id == object_id, "unexpected object id");
+    let remote_attachment_id = RemoteAttachmentId::new(object_id);
     let attachment = ProvisionedAttachment {
         metadata: AttachmentMetadata {
             remote_attachment_id,
