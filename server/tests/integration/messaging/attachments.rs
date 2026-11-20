@@ -24,6 +24,7 @@ use mimi_content::{
 use png::Encoder;
 use sha2::{Digest, Sha256};
 use tokio_stream::StreamExt;
+use uuid::Uuid;
 
 pub(crate) fn test_picture_bytes() -> Vec<u8> {
     // Create a new ImgBuf with width: 1px and height: 1px
@@ -486,7 +487,7 @@ async fn upload_without_declared_size_is_rejected() {
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     let error = alice
-        .upload_with_declared_size(chat_id, 0, vec![0; 16])
+        .upload_with_declared_size(chat_id, Uuid::new_v4(), 0, vec![0; 16])
         .await
         .unwrap_err();
     let error = error.downcast::<DsRequestError>().unwrap();
@@ -505,12 +506,22 @@ async fn upload_larger_than_declared_is_rejected() {
     let chat_id = setup.connect_users(&alice, &bob).await;
 
     alice
-        .upload_with_declared_size(chat_id, DECLARED_SIZE as i64, vec![0; DECLARED_SIZE])
+        .upload_with_declared_size(
+            chat_id,
+            Uuid::new_v4(),
+            DECLARED_SIZE as i64,
+            vec![0; DECLARED_SIZE],
+        )
         .await
         .unwrap();
 
     let error = alice
-        .upload_with_declared_size(chat_id, DECLARED_SIZE as i64, vec![0; DECLARED_SIZE + 1])
+        .upload_with_declared_size(
+            chat_id,
+            Uuid::new_v4(),
+            DECLARED_SIZE as i64,
+            vec![0; DECLARED_SIZE + 1],
+        )
         .await
         .unwrap_err();
     let error = error.downcast::<reqwest::Error>().unwrap();
@@ -518,6 +529,32 @@ async fn upload_larger_than_declared_is_rejected() {
         error
             .status()
             .is_some_and(|status| status.is_client_error()),
+        "{error:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn upload_to_used_object_id_is_rejected() {
+    const SIZE: usize = 16;
+
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let object_id = Uuid::new_v4();
+    alice
+        .upload_with_declared_size(chat_id, object_id, SIZE as i64, vec![0; SIZE])
+        .await
+        .unwrap();
+
+    let error = alice
+        .upload_with_declared_size(chat_id, object_id, SIZE as i64, vec![1; SIZE])
+        .await
+        .unwrap_err();
+    let error = error.downcast::<reqwest::Error>().unwrap();
+    assert_eq!(
+        error.status(),
+        Some(reqwest::StatusCode::PRECONDITION_FAILED),
         "{error:?}"
     );
 }

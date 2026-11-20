@@ -63,6 +63,7 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Code, Streaming};
 use tracing::error;
+use uuid::Uuid;
 
 use crate::{ApiClient, ClassifyRequestError, RequestErrorKind, classify_status};
 
@@ -1172,6 +1173,7 @@ impl ApiClient {
         signing_key: &SigningKey<ClientKeyType>,
         target: DsAttachmentTarget<'_>,
         content_length: i64,
+        object_id: Uuid,
         object_type: StorageObjectType,
     ) -> Result<ProvisionAttachmentResponse, DsRequestError> {
         let payload = match target {
@@ -1188,6 +1190,7 @@ impl ApiClient {
                     sender: Some(sender_index.into()),
                     user_id: None,
                     content_length,
+                    object_id: Some(object_id.into()),
                     object_type: object_type.into(),
                 }
             }
@@ -1198,6 +1201,7 @@ impl ApiClient {
                 sender: None,
                 user_id: Some(user_id.clone().into()),
                 content_length,
+                object_id: Some(object_id.into()),
                 object_type: object_type.into(),
             },
         };
