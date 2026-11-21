@@ -15,6 +15,8 @@
   "userSettingsScreen_readReceiptsDescription": "Όταν είναι ενεργό, οι άλλοι βλέπουν αν διαβάσατε τα μηνύματά τους και εσείς βλέπετε αν διάβασαν τα δικά σας.",
   "userSettingsScreen_deleteExpiredContactRequests": "Διαγραφή αιτημάτων επαφής που έληξαν",
   "userSettingsScreen_deleteExpiredContactRequestsDescription": "Όταν είναι ενεργό, τα αιτήματα επαφής που έληξαν διαγράφονται αυτόματα.",
+  "userSettingsScreen_generateLinkPreviews": "Δημιουργία προεπισκοπήσεων συνδέσμων",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Όταν είναι ενεργό, δημιουργείται μια προεπισκόπηση όταν προσθέτετε έναν σύνδεσμο σε ένα μήνυμα.",
   "userSettingsScreen_languageSettingsDescription": "Οι μεταφράσεις μπορεί να περιέχουν λάθη.",
   "userSettingsScreen_displayNameLabel": "Εμφανιζόμενο όνομα",
   "userSettingsScreen_usernamesSection": "Ονόματα χρήστη",

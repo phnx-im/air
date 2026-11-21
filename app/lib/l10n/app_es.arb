@@ -15,6 +15,8 @@
   "userSettingsScreen_readReceiptsDescription": "Si se activa, los demás verán si has leído sus mensajes y tú verás si han leído los tuyos.",
   "userSettingsScreen_deleteExpiredContactRequests": "Eliminar solicitudes de contacto caducadas",
   "userSettingsScreen_deleteExpiredContactRequestsDescription": "Si se activa, las solicitudes de contacto caducadas se eliminan automáticamente.",
+  "userSettingsScreen_generateLinkPreviews": "Generar vistas previas de enlaces",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Si se activa, se genera una vista previa cuando añades un enlace a un mensaje.",
   "userSettingsScreen_languageSettingsDescription": "Las traducciones pueden contener errores.",
   "userSettingsScreen_displayNameLabel": "Nombre visible",
   "userSettingsScreen_usernamesSection": "Nombres de usuario",

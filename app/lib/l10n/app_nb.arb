@@ -15,6 +15,8 @@
   "userSettingsScreen_readReceiptsDescription": "Når dette er slått på, ser andre om du har lest meldingene deres, og du ser om de har lest dine.",
   "userSettingsScreen_deleteExpiredContactRequests": "Slett utløpte kontaktforespørsler",
   "userSettingsScreen_deleteExpiredContactRequestsDescription": "Når dette er slått på, slettes utløpte kontaktforespørsler automatisk.",
+  "userSettingsScreen_generateLinkPreviews": "Lag lenkeforhåndsvisninger",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Når dette er slått på, lages det en forhåndsvisning når du legger til en lenke i en melding.",
   "userSettingsScreen_languageSettingsDescription": "Oversettelsene kan inneholde feil.",
   "userSettingsScreen_displayNameLabel": "Visningsnavn",
   "userSettingsScreen_usernamesSection": "Brukernavn",

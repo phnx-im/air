@@ -149,6 +149,19 @@ void main() {
         );
       });
 
+      testWidgets('renders correctly (experimental features)', (tester) async {
+        when(() => userSettingsCubit.state).thenReturn(
+          const UserSettings(developerMode: true, experimentalFeatures: true),
+        );
+
+        await pumpSection(tester, YouSection.preferences);
+
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/you_preferences_experimental.png'),
+        );
+      });
+
       testWidgets('read receipts toggle debounces into one submit', (
         tester,
       ) async {
@@ -196,6 +209,33 @@ void main() {
         verifyNever(
           () => userSettingsCubit.setReadReceipts(value: any(named: 'value')),
         );
+      });
+
+      testWidgets('the link previews toggle submits the choice', (
+        tester,
+      ) async {
+        when(() => userSettingsCubit.state).thenReturn(
+          const UserSettings(developerMode: true, experimentalFeatures: true),
+        );
+        when(
+          () => userSettingsCubit.setGenerateLinkPreviews(
+            value: any(named: 'value'),
+          ),
+        ).thenAnswer((_) async {});
+
+        await pumpSection(tester, YouSection.preferences);
+        await tester.tap(find.text('Generate link previews'));
+        await tester.pump(const Duration(milliseconds: 500));
+
+        verify(() => userSettingsCubit.setGenerateLinkPreviews(value: false))
+            .called(1);
+      });
+
+      testWidgets('the link previews toggle is hidden without experimental '
+          'features', (tester) async {
+        await pumpSection(tester, YouSection.preferences);
+
+        expect(find.text('Generate link previews'), findsNothing);
       });
 
       testWidgets('pending toggle is submitted when the screen closes', (

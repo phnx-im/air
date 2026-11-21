@@ -15,6 +15,8 @@
   "userSettingsScreen_readReceiptsDescription": "开启后，对方能看到你是否已读他们的消息，你也能看到对方是否已读你的消息。",
   "userSettingsScreen_deleteExpiredContactRequests": "删除已过期的联系请求",
   "userSettingsScreen_deleteExpiredContactRequestsDescription": "开启后，已过期的联系请求将被自动删除。",
+  "userSettingsScreen_generateLinkPreviews": "生成链接预览",
+  "userSettingsScreen_generateLinkPreviewsDescription": "开启后，你在消息中添加链接时会生成预览。",
   "userSettingsScreen_languageSettingsDescription": "翻译可能存在错误。",
   "userSettingsScreen_displayNameLabel": "显示名称",
   "userSettingsScreen_usernamesSection": "用户名",
