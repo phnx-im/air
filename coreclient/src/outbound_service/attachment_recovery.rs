@@ -23,7 +23,7 @@ use tracing::info;
 use crate::{
     ChatMessage,
     clients::attachment::{
-        AttachmentRecord,
+        AttachmentRecord, AttachmentTransferRecord, MessageAttachmentRecord,
         persistence::{AttachmentStatus, UnqueuedAttachmentMessage},
     },
     db::access::DbAccess,
@@ -47,7 +47,7 @@ pub(super) async fn recover_interrupted_attachment_uploads(
 ) -> Result<(), OutboundServiceError> {
     let stale_before = Utc::now() - UPLOAD_STALE_AFTER;
     db.with_write_transaction(async |txn| -> anyhow::Result<()> {
-        let uploaded = AttachmentRecord::load_unqueued_uploaded_messages(&mut *txn).await?;
+        let uploaded = MessageAttachmentRecord::load_unqueued_uploaded_messages(&mut *txn).await?;
         for UnqueuedAttachmentMessage {
             chat_id,
             message_id,
@@ -63,13 +63,15 @@ pub(super) async fn recover_interrupted_attachment_uploads(
         }
 
         let abandoned =
-            AttachmentRecord::load_stale_uploading_attachments(&mut *txn, stale_before).await?;
+            AttachmentTransferRecord::load_stale_uploads(&mut *txn, stale_before).await?;
         for attachment_id in abandoned {
             info!(
                 ?attachment_id,
                 "Failing an attachment whose upload was abandoned"
             );
-            let Some(record) = AttachmentRecord::load(&mut *txn, attachment_id).await? else {
+            let Some(reference) =
+                MessageAttachmentRecord::load_first(&mut *txn, attachment_id).await?
+            else {
                 continue;
             };
             if AttachmentRecord::has_content(&mut *txn, attachment_id).await? {
@@ -80,7 +82,7 @@ pub(super) async fn recover_interrupted_attachment_uploads(
                 )
                 .await?;
             } else {
-                ChatMessage::delete(&mut *txn, record.message_id()).await?;
+                ChatMessage::delete(&mut *txn, reference.message_id).await?;
             }
         }
 
@@ -127,7 +129,7 @@ mod tests {
         let message = test_chat_message_with_salt(chat.id(), [1; 16]);
         message.store(db.write().await?).await?;
 
-        let record = test_attachment_record_with(chat.id(), message.id(), status, created_at);
+        let record = test_attachment_record_with(message.id(), status, created_at);
         let attachment_id = record.attachment_id;
         record.store(db.write().await?, Some(b"content")).await?;
 

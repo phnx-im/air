@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                t.direction AS \"direction?: u32\",\n                t.state AS \"state?: u32\",\n                t.failure AS \"failure?: u32\"\n            FROM attachment a\n            LEFT JOIN attachment_transfer t ON t.attachment_id = a.attachment_id\n            WHERE a.attachment_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "direction?: u32",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment_transfer",
+            "name": "direction"
+          }
+        }
+      },
+      {
+        "name": "state?: u32",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment_transfer",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "name": "failure?: u32",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment_transfer",
+            "name": "failure"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "c84ff8a56cf4b2815a27d5ac0a2b4626efb1918f1de001fbcb132cd5cbd7374e"
+}

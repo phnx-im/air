@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO attachment_transfer (\n                attachment_id,\n                direction,\n                state,\n                failure,\n                started_at\n            ) VALUES (?, ?, ?, ?, ?)\n            ON CONFLICT (attachment_id) DO UPDATE SET\n                direction = excluded.direction,\n                state = excluded.state,\n                failure = excluded.failure,\n                started_at = excluded.started_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "f182643b8f6c60930d23be126e892ed65465999dff045563183327204203d59f"
+}

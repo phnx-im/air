@@ -4,23 +4,147 @@
 
 //! Process incoming attachments.
 
-use aircommon::identifiers::RemoteAttachmentId;
+use chrono::{DateTime, Utc};
 use mimi_content::content_container::NestedPart;
-use tracing::error;
+use tracing::{error, warn};
 
-use super::persistence::PendingAttachmentRecord;
+use super::persistence::{AttachmentRole, MessageAttachmentRecord, RemoteAttachmentRecord};
 
 use crate::{
-    AttachmentId, ChatMessage, MimiContentExt, VisitedPart,
+    AttachmentId, AttachmentUrl, ChatMessage, MessageId, MimiContentExt, PartIndex, VisitedPart,
     clients::{
         CoreUser,
-        attachment::{AttachmentRecord, persistence::AttachmentStatus},
+        attachment::{NewAttachment, persistence::AttachmentStatus},
     },
+    db::access::WriteConnection,
 };
 
 pub(crate) enum ExtractedAttachment {
-    External(AttachmentRecord, PendingAttachmentRecord),
-    Inline(AttachmentRecord, Vec<u8>),
+    External(NewAttachment, RemoteAttachmentRecord),
+    Inline(NewAttachment, Vec<u8>),
+}
+
+/// An attachment part of a message body.
+pub(crate) struct AttachmentPart<'a> {
+    pub(crate) part: &'a NestedPart,
+    pub(crate) index: PartIndex,
+    pub(crate) role: AttachmentRole,
+    pub(crate) blurhash: Option<&'a str>,
+}
+
+impl<'a> AttachmentPart<'a> {
+    /// Returns the attachment part of a visited part, if it is one.
+    pub(crate) fn from_visited(part: VisitedPart<'a>) -> Option<Self> {
+        let VisitedPart::Attachment {
+            part,
+            index,
+            preview,
+            blurhash,
+        } = part
+        else {
+            return None;
+        };
+        Some(Self {
+            part,
+            index,
+            role: AttachmentRole::new(preview),
+            blurhash,
+        })
+    }
+
+    /// Collects the attachment parts of a message body.
+    pub(crate) fn collect(content: &'a impl MimiContentExt) -> anyhow::Result<Vec<Self>> {
+        let mut parts = Vec::new();
+        content.visit_parts(|part| {
+            parts.extend(Self::from_visited(part));
+            Ok(())
+        })?;
+        Ok(parts)
+    }
+
+    /// Parsed url of an external part
+    pub(crate) fn url(&self) -> Option<AttachmentUrl> {
+        match self.part {
+            NestedPart::ExternalPart { url, .. } => url.parse().ok(),
+            _ => None,
+        }
+    }
+
+    /// Remote record of an external part with a parsable url.
+    ///
+    /// The key is empty for a provisional part of an upload.
+    pub(crate) fn remote(&self) -> Option<RemoteAttachmentRecord> {
+        let NestedPart::ExternalPart {
+            size,
+            enc_alg,
+            key,
+            nonce,
+            aad,
+            hash_alg,
+            content_hash,
+            ..
+        } = self.part
+        else {
+            return None;
+        };
+        Some(RemoteAttachmentRecord {
+            remote_attachment_id: self.url()?.remote_attachment_id(),
+            size: *size,
+            enc_alg: *enc_alg,
+            enc_key: key.clone(),
+            nonce: nonce.clone(),
+            aad: aad.clone(),
+            hash_alg: *hash_alg,
+            hash: content_hash.clone(),
+        })
+    }
+
+    /// New attachment for this part.
+    ///
+    /// Returns `None` for a part that is neither a single nor an external part.
+    pub(crate) fn record(
+        &self,
+        attachment_id: AttachmentId,
+        message_id: MessageId,
+        status: AttachmentStatus,
+        created_at: DateTime<Utc>,
+    ) -> Option<NewAttachment> {
+        let (content_type, filename, size, content_hash) = match self.part {
+            NestedPart::SinglePart {
+                content_type,
+                content,
+                ..
+            } => (content_type, None, u64::try_from(content.len()).ok(), None),
+            NestedPart::ExternalPart {
+                content_type,
+                filename,
+                size,
+                content_hash,
+                ..
+            } => (
+                content_type,
+                Some(filename).filter(|filename| !filename.is_empty()),
+                Some(*size),
+                Some(content_hash).filter(|hash| !hash.is_empty()),
+            ),
+            NestedPart::NullPart { .. } | NestedPart::MultiPart { .. } => return None,
+        };
+        Some(NewAttachment {
+            attachment_id,
+            message_id,
+            part_index: self.index,
+            role: self.role,
+            filename: filename.cloned(),
+            content_type: content_type.clone(),
+            size,
+            content_hash: content_hash.cloned(),
+            dimensions: self.url().and_then(|url| url.dimensions()),
+            blurhash: self.blurhash.map(str::to_owned),
+            status,
+            is_animated: None,
+            created_at,
+        })
+    }
 }
 
 impl CoreUser {
@@ -31,7 +155,6 @@ impl CoreUser {
     pub(crate) fn extract_attachments(
         message: &ChatMessage,
     ) -> anyhow::Result<Vec<ExtractedAttachment>> {
-        let chat_id = message.chat_id();
         let message_id = message.id();
         let created_at = message.timestamp();
 
@@ -40,91 +163,111 @@ impl CoreUser {
         };
 
         let mut records: Vec<ExtractedAttachment> = Vec::new();
-        mimi_content.visit_parts(|part| {
-            let VisitedPart::Attachment { part, index, .. } = part else {
-                return Ok(());
-            };
-            match part {
-                NestedPart::SinglePart {
-                    content_type,
-                    content,
-                    ..
-                } => {
-                    let record = AttachmentRecord {
-                        attachment_id: AttachmentId::derive(message_id, index),
-                        remote_attachment_id: None,
-                        chat_id,
+        for part in AttachmentPart::collect(mimi_content)? {
+            let attachment_id = AttachmentId::random();
+            match part.part {
+                NestedPart::SinglePart { content, .. } => {
+                    let Some(record) = part.record(
+                        attachment_id,
                         message_id,
-                        content_type: content_type.clone(),
-                        status: AttachmentStatus::Ready,
-                        is_animated: None,
+                        AttachmentStatus::Ready,
                         created_at,
+                    ) else {
+                        continue;
                     };
                     records.push(ExtractedAttachment::Inline(record, content.clone()));
                 }
-                NestedPart::ExternalPart {
-                    content_type,
-                    url,
-                    size,
-                    enc_alg,
-                    key,
-                    nonce,
-                    aad,
-                    hash_alg,
-                    content_hash,
-                    ..
-                } => {
-                    let remote_attachment_id: RemoteAttachmentId = match url.parse() {
-                        Ok(id) => id,
-                        Err(error) => {
-                            error!(%url, %error, "Invalid attachment url, dropping attachment");
-                            return Ok(());
-                        }
+                NestedPart::ExternalPart { url, .. } => {
+                    let Some(remote) = part.remote() else {
+                        error!(%url, "Invalid attachment url, dropping attachment");
+                        continue;
                     };
-                    let record = AttachmentRecord {
-                        attachment_id: AttachmentId::derive(message_id, index),
-                        remote_attachment_id: Some(remote_attachment_id),
-                        chat_id,
+                    let Some(record) = part.record(
+                        attachment_id,
                         message_id,
-                        content_type: content_type.clone(),
-                        status: AttachmentStatus::Pending,
-                        is_animated: None,
+                        AttachmentStatus::Pending,
                         created_at,
+                    ) else {
+                        continue;
                     };
-                    let pending_record = PendingAttachmentRecord {
-                        remote_attachment_id,
-                        size: *size,
-                        enc_alg: *enc_alg,
-                        enc_key: key.clone(),
-                        nonce: nonce.clone(),
-                        aad: aad.clone(),
-                        hash_alg: *hash_alg,
-                        hash: content_hash.clone(),
-                    };
-                    records.push(ExtractedAttachment::External(record, pending_record));
+                    records.push(ExtractedAttachment::External(record, remote));
                 }
-                _ => {
+                NestedPart::NullPart { .. } | NestedPart::MultiPart { .. } => {
                     error!("Unexpected part visited as attachment, dropping attachment");
                 }
             }
-            Ok(())
-        })?;
+        }
 
         Ok(records)
+    }
+
+    /// Stores the attachments of a stored message.
+    ///
+    /// A part whose remote attachment is already stored with the same key and
+    /// hash references the stored attachment. A part with the remote id of a
+    /// stored attachment but another key or hash is skipped.
+    pub(crate) async fn store_attachments(
+        mut connection: impl WriteConnection,
+        message: &ChatMessage,
+    ) -> anyhow::Result<()> {
+        for attachment in Self::extract_attachments(message)? {
+            match attachment {
+                ExtractedAttachment::External(record, remote_record) => {
+                    if let Some((attachment_id, stored)) =
+                        RemoteAttachmentRecord::load_by_remote_id(
+                            &mut connection,
+                            remote_record.remote_attachment_id,
+                        )
+                        .await?
+                    {
+                        if stored.has_same_secrets(&remote_record) {
+                            MessageAttachmentRecord {
+                                attachment_id,
+                                ..record.reference()
+                            }
+                            .store(&mut connection)
+                            .await?;
+                        } else {
+                            warn!(
+                                message_id = ?message.id(),
+                                "Skipping attachment with already known remote id"
+                            );
+                        }
+                        continue;
+                    }
+                    record.store(&mut connection, None).await?;
+                    remote_record
+                        .store(&mut connection, record.attachment_id)
+                        .await?;
+                }
+                ExtractedAttachment::Inline(record, content) => {
+                    record.store(&mut connection, Some(&content)).await?;
+                }
+            }
+        }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use aircommon::{identifiers::UserId, time::TimeStamp};
+    use aircommon::{
+        identifiers::{RemoteAttachmentId, UserId},
+        time::TimeStamp,
+    };
     use mimi_content::{
         Disposition, MimiContent,
         content_container::{EncryptionAlgorithm, HashAlgorithm, PartSemantics},
     };
     use openmls::group::GroupId;
+    use sqlx::SqlitePool;
     use uuid::Uuid;
 
-    use crate::{AttachmentUrl, ChatId, MessageId, PartIndex, chats::messages::ContentMessage};
+    use crate::{
+        ChatId,
+        chats::{messages::ContentMessage, persistence::tests::test_chat},
+        db::access::DbAccess,
+    };
 
     use super::*;
 
@@ -162,8 +305,12 @@ mod tests {
     }
 
     fn message_with(content: MimiContent) -> ChatMessage {
+        message_in(ChatId::random(), content)
+    }
+
+    fn message_in(chat_id: ChatId, content: MimiContent) -> ChatMessage {
         ChatMessage::new_for_test(
-            ChatId::random(),
+            chat_id,
             MessageId::random(),
             TimeStamp::now(),
             ContentMessage::new(
@@ -194,7 +341,6 @@ mod tests {
             nested_part,
             ..Default::default()
         });
-        let chat_id = message.chat_id();
         let message_id = message.id();
 
         let extracted = CoreUser::extract_attachments(&message).unwrap();
@@ -208,15 +354,16 @@ mod tests {
             panic!("unexpected extracted attachments: {}", extracted.len());
         };
 
-        for (record, remote_id, content_type) in [
-            (png, remote_png, "image/png"),
-            (webp, remote_webp, "image/webp"),
+        for (record, content_type, index, role) in [
+            (png, "image/png", PartIndex(2), AttachmentRole::Attachment),
+            (webp, "image/webp", PartIndex(4), AttachmentRole::Preview),
         ] {
             assert_eq!(record.status, AttachmentStatus::Pending);
-            assert_eq!(record.remote_attachment_id, Some(remote_id));
             assert_eq!(record.content_type, content_type);
-            assert_eq!(record.chat_id, chat_id);
             assert_eq!(record.message_id, message_id);
+            assert_eq!(record.part_index, index);
+            assert_eq!(record.role, role);
+            assert_eq!(record.size, Some(42));
         }
         for (pending, remote_id, secret) in [
             (png_pending, remote_png, 1u8),
@@ -230,22 +377,11 @@ mod tests {
         }
 
         assert_eq!(vcard.status, AttachmentStatus::Ready);
-        assert_eq!(
-            png.attachment_id,
-            AttachmentId::derive(message_id, PartIndex(2))
-        );
-        assert_eq!(
-            vcard.attachment_id,
-            AttachmentId::derive(message_id, PartIndex(3))
-        );
-        assert_eq!(
-            webp.attachment_id,
-            AttachmentId::derive(message_id, PartIndex(4))
-        );
-        assert_eq!(vcard.remote_attachment_id, None);
+        assert_eq!(vcard.part_index, PartIndex(3));
+        assert_eq!(vcard.role, AttachmentRole::Attachment);
         assert_eq!(vcard.content_type, "text/vcard");
-        assert_eq!(vcard.chat_id, chat_id);
         assert_eq!(vcard.message_id, message_id);
+        assert_ne!(png.attachment_id, webp.attachment_id);
         assert_eq!(vcard_bytes, b"BEGIN:VCARD");
 
         let NestedPart::MultiPart { parts, .. } =
@@ -287,5 +423,63 @@ mod tests {
             [0; 16],
         ));
         assert!(CoreUser::extract_attachments(&message).unwrap().is_empty());
+    }
+
+    #[sqlx::test]
+    async fn known_remote_attachment_is_shared_only_with_same_secrets(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let db = DbAccess::for_tests(pool);
+        let chat = test_chat();
+        chat.store(db.write().await?).await?;
+        let remote_id = RemoteAttachmentId::new(Uuid::new_v4());
+        let attachment_message = |secret| {
+            message_in(
+                chat.id(),
+                MimiContent {
+                    salt: Uuid::new_v4().as_bytes().to_vec(),
+                    nested_part: NestedPart::MultiPart {
+                        disposition: Disposition::Attachment,
+                        language: String::new(),
+                        part_semantics: PartSemantics::ProcessAll,
+                        parts: vec![external(
+                            Disposition::Attachment,
+                            "image/png",
+                            remote_id,
+                            secret,
+                        )],
+                    },
+                    ..Default::default()
+                },
+            )
+        };
+        let mut stored_infos = Vec::new();
+        for secret in [1, 1, 5] {
+            let message = attachment_message(secret);
+            message.store(db.write().await?).await?;
+            CoreUser::store_attachments(db.write().await?, &message).await?;
+            let infos =
+                MessageAttachmentRecord::load_infos_by_message_id(db.read().await?, message.id())
+                    .await?;
+            stored_infos.push(
+                infos
+                    .iter()
+                    .map(|info| info.attachment_id)
+                    .collect::<Vec<_>>(),
+            );
+        }
+
+        let [first, same_secrets, other_secrets] = &stored_infos[..] else {
+            panic!("expected three messages");
+        };
+        assert_eq!(first.len(), 1);
+        assert_eq!(same_secrets, first);
+        assert!(other_secrets.is_empty());
+        let attachments: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM attachment")
+            .fetch_one(db.read().await?.as_mut())
+            .await?;
+        assert_eq!(attachments, 1);
+
+        Ok(())
     }
 }

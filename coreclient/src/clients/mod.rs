@@ -56,7 +56,6 @@ use uuid::Uuid;
 use crate::{
     Asset, ChatMuted, PartialContact, StoredRequest, UsernameRecord,
     clients::{
-        attachment::{persistence::AttachmentRecord, process::ExtractedAttachment},
         event_loop::{EventLoop, EventLoopSender},
         process::process_as::keep_failed_username_message,
     },
@@ -929,30 +928,8 @@ impl CoreUser {
         for timestamped_message in group_messages {
             let message_id = MessageId::random();
             let message = ChatMessage::new(chat_id, message_id, timestamped_message);
-            let attachment_records = Self::extract_attachments(&message)?;
             message.store(&mut *txn).await?;
-            for attachment_record in attachment_records {
-                match attachment_record {
-                    ExtractedAttachment::External(record, pending_record) => {
-                        if let Some(remote_id) = record.remote_attachment_id
-                            && AttachmentRecord::exists_by_remote_id(&mut *txn, remote_id).await?
-                        {
-                            warn!(
-                                message_id = ?message.id(),
-                                "Skipping attachment with already known remote id"
-                            );
-                            continue;
-                        }
-                        record.store(&mut *txn, None).await?;
-                        pending_record
-                            .store(&mut *txn, record.attachment_id)
-                            .await?;
-                    }
-                    ExtractedAttachment::Inline(record, content) => {
-                        record.store(&mut *txn, Some(&content)).await?;
-                    }
-                }
-            }
+            Self::store_attachments(&mut *txn, &message).await?;
             stored_messages.push(message);
         }
         Ok(stored_messages)

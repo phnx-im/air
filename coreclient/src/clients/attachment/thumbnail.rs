@@ -171,7 +171,7 @@ mod test {
     use crate::{
         MessageId,
         chats::{messages::persistence::tests::test_chat_message, persistence::tests::test_chat},
-        clients::attachment::{AttachmentRecord, persistence::test::test_attachment_record},
+        clients::attachment::{MessageAttachmentRecord, persistence::test::test_attachment_record},
         db::access::DbAccess,
     };
 
@@ -182,7 +182,7 @@ mod test {
         chat.store(pool.write().await?).await?;
         let message = test_chat_message(chat.id());
         message.store(pool.write().await?).await?;
-        let record = test_attachment_record(chat.id(), message.id());
+        let record = test_attachment_record(message.id());
         record.store(pool.write().await?, None).await?;
         Ok((record.attachment_id, message.id()))
     }
@@ -279,7 +279,7 @@ mod test {
         )
         .await?;
 
-        AttachmentRecord::delete_by_message_id(pool.write().await?, message_id).await?;
+        MessageAttachmentRecord::delete_by_message_id(pool.write().await?, message_id).await?;
 
         assert!(
             load_thumbnail(pool.read().await?, attachment_id)

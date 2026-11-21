@@ -6,9 +6,10 @@ use std::{collections::HashMap, fmt, str::FromStr};
 
 use aircommon::identifiers::{RemoteAttachmentId, RemoteAttachmentIdParseError};
 use chrono::{DateTime, Utc};
-pub(crate) use persistence::AttachmentRecord;
 pub use persistence::{AttachmentContent, AttachmentStatus};
-use sha2::{Digest, Sha256};
+pub(crate) use persistence::{
+    AttachmentRecord, AttachmentTransferRecord, MessageAttachmentRecord, NewAttachment,
+};
 use thiserror::Error;
 pub use thumbnail::AttachmentThumbnail;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
@@ -21,6 +22,7 @@ use crate::{ChatId, MessageId, PartIndex, clients::CoreUser, image_is_animated};
 
 mod aead;
 mod download;
+pub(crate) mod migration;
 pub(crate) mod persistence;
 pub(crate) mod process;
 pub(crate) mod progress;
@@ -29,13 +31,14 @@ pub(crate) mod upload;
 
 impl CoreUser {
     pub async fn pending_attachments(&self) -> anyhow::Result<Vec<AttachmentId>> {
-        Ok(AttachmentRecord::load_all_pending(self.db().read().await?).await?)
+        Ok(AttachmentTransferRecord::load_queued_downloads(self.db().read().await?).await?)
     }
 
     /// Moves downloads that a killed process left in `Downloading` back to
     /// `Pending`.
     pub async fn reset_interrupted_attachment_downloads(&self) -> anyhow::Result<()> {
-        let attachment_ids = AttachmentRecord::reset_downloading(self.db().write().await?).await?;
+        let attachment_ids =
+            AttachmentTransferRecord::reset_downloading(self.db().write().await?).await?;
         for attachment_id in attachment_ids {
             info!(
                 ?attachment_id,
@@ -110,7 +113,7 @@ impl CoreUser {
         let Ok(read) = self.db().read().await else {
             return empty();
         };
-        AttachmentRecord::load_infos_by_message_id(read, message_id)
+        MessageAttachmentRecord::load_infos_by_message_id(read, message_id)
             .await
             .unwrap_or_else(|_| empty())
     }
@@ -129,7 +132,7 @@ impl CoreUser {
         let Ok(read) = self.db().read().await else {
             return Default::default();
         };
-        AttachmentRecord::load_infos_in_range_inclusive(read, chat_id, from, to)
+        MessageAttachmentRecord::load_infos_in_range_inclusive(read, chat_id, from, to)
             .await
             .unwrap_or_default()
     }
@@ -140,6 +143,8 @@ impl CoreUser {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AttachmentInfo {
     pub attachment_id: AttachmentId,
+    /// Index of the message part referencing the attachment
+    pub part_index: PartIndex,
     pub remote_attachment_id: Option<RemoteAttachmentId>,
     /// Whether the attachment is an animated image, if already classified
     pub is_animated: Option<bool>,
@@ -161,24 +166,9 @@ impl AttachmentId {
         Self { uuid }
     }
 
-    #[cfg(test)]
     pub(crate) fn random() -> Self {
         Self {
             uuid: Uuid::new_v4(),
-        }
-    }
-
-    /// Derives the id of the attachment at the given part of the message.
-    pub fn derive(message_id: MessageId, index: PartIndex) -> Self {
-        let digest = Sha256::new()
-            .chain_update(b"air attachment id")
-            .chain_update(message_id.uuid.as_bytes())
-            .chain_update(index.0.to_be_bytes())
-            .finalize();
-        let mut bytes = [0; 16];
-        bytes.copy_from_slice(&digest[..16]);
-        Self {
-            uuid: uuid::Builder::from_custom_bytes(bytes).into_uuid(),
         }
     }
 }
@@ -196,9 +186,13 @@ impl MessageAttachments {
         Self { message_id, infos }
     }
 
+    pub fn message_id(&self) -> MessageId {
+        self.message_id
+    }
+
     /// Finds the info of the attachment stored for the given part.
     ///
-    /// Matches the derived id first, then falls back to the remote attachment
+    /// Matches the part index first, then falls back to the remote attachment
     /// id of the part, if it has one. A record of another remote attachment is
     /// never matched.
     pub fn find(
@@ -206,21 +200,17 @@ impl MessageAttachments {
         index: PartIndex,
         remote_attachment_id: Option<RemoteAttachmentId>,
     ) -> Option<&AttachmentInfo> {
-        let derived = AttachmentId::derive(self.message_id, index);
-        if let Some(info) = self.infos.iter().find(|info| info.attachment_id == derived) {
+        if let Some(info) = self.infos.iter().find(|info| info.part_index == index) {
             // An edit can put another attachment at the index of the record
             match (info.remote_attachment_id, remote_attachment_id) {
                 (Some(stored), Some(part)) if stored != part => {}
                 _ => return Some(info),
             }
         }
-        // Rows stored before attachment ids were derived. They stay in local
-        // databases, so this fallback is permanent.
         let remote_attachment_id = remote_attachment_id?;
-        self.infos.iter().find(|info| {
-            info.remote_attachment_id == Some(remote_attachment_id)
-                || info.attachment_id.uuid == remote_attachment_id.uuid()
-        })
+        self.infos
+            .iter()
+            .find(|info| info.remote_attachment_id == Some(remote_attachment_id))
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &AttachmentInfo> {
@@ -331,31 +321,14 @@ mod test {
     use uuid::uuid;
 
     #[test]
-    fn derived_attachment_ids_are_deterministic_and_distinct() {
-        let message_a = MessageId::new(uuid!("b6a42a7a-62fa-4c10-acfb-6124d80aae09"));
-        let message_b = MessageId::new(uuid!("b6a42a7a-62fa-4c10-acfb-6124d80aae0a"));
-
-        assert_eq!(
-            AttachmentId::derive(message_a, PartIndex(1)),
-            AttachmentId::derive(message_a, PartIndex(1))
-        );
-        assert_ne!(
-            AttachmentId::derive(message_a, PartIndex(0)),
-            AttachmentId::derive(message_a, PartIndex(1))
-        );
-        assert_ne!(
-            AttachmentId::derive(message_a, PartIndex(1)),
-            AttachmentId::derive(message_b, PartIndex(1))
-        );
-    }
-
-    #[test]
     fn find_skips_record_of_another_remote_attachment() {
         let message_id = MessageId::new(uuid!("b6a42a7a-62fa-4c10-acfb-6124d80aae09"));
         let stored = RemoteAttachmentId::new(uuid!("b6a42a7a-62fa-4c10-acfb-6124d80aae0a"));
         let other = RemoteAttachmentId::new(uuid!("b6a42a7a-62fa-4c10-acfb-6124d80aae0b"));
+        let attachment_id = AttachmentId::random();
         let info = |remote_attachment_id| AttachmentInfo {
-            attachment_id: AttachmentId::derive(message_id, PartIndex(3)),
+            attachment_id,
+            part_index: PartIndex(3),
             remote_attachment_id,
             is_animated: None,
         };
@@ -368,6 +341,23 @@ mod test {
         // Not uploaded yet
         let attachments = MessageAttachments::new(message_id, vec![info(None)]);
         assert!(attachments.find(PartIndex(3), Some(other)).is_some());
+    }
+
+    #[test]
+    fn find_falls_back_to_the_remote_id() {
+        let message_id = MessageId::new(uuid!("b6a42a7a-62fa-4c10-acfb-6124d80aae09"));
+        let remote = RemoteAttachmentId::new(uuid!("b6a42a7a-62fa-4c10-acfb-6124d80aae0a"));
+        let info = AttachmentInfo {
+            attachment_id: AttachmentId::random(),
+            part_index: PartIndex(1),
+            remote_attachment_id: Some(remote),
+            is_animated: None,
+        };
+        let attachments = MessageAttachments::new(message_id, vec![info]);
+
+        // An edit moved the attachment to another index
+        assert_eq!(attachments.find(PartIndex(2), Some(remote)), Some(&info));
+        assert!(attachments.find(PartIndex(2), None).is_none());
     }
 
     #[test]

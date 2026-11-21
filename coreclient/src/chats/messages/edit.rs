@@ -14,7 +14,7 @@ use openmls::group::GroupId;
 use crate::{
     ChatMessage, ContentMessage, MessageId,
     chats::{StatusRecord, reactions::Reaction},
-    clients::attachment::AttachmentRecord,
+    clients::attachment::MessageAttachmentRecord,
     db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
     outbound_service::receipt_queue::ReceiptQueue,
 };
@@ -181,6 +181,24 @@ pub(crate) async fn purge_deleted_message(
     original_mimi_id: Option<&MimiId>,
     placeholder_mimi_id: Option<&MimiId>,
 ) -> anyhow::Result<()> {
+    purge_deleted_message_except_attachments(
+        &mut connection,
+        message_id,
+        original_mimi_id,
+        placeholder_mimi_id,
+    )
+    .await?;
+    MessageAttachmentRecord::delete_by_message_id(&mut connection, message_id).await?;
+    Ok(())
+}
+
+/// [`purge_deleted_message`] without the attachments.
+async fn purge_deleted_message_except_attachments(
+    mut connection: impl WriteConnection,
+    message_id: MessageId,
+    original_mimi_id: Option<&MimiId>,
+    placeholder_mimi_id: Option<&MimiId>,
+) -> anyhow::Result<()> {
     if let Some(original_mimi_id) = original_mimi_id
         && let Some(placeholder_mimi_id) = placeholder_mimi_id
     {
@@ -198,14 +216,16 @@ pub(crate) async fn purge_deleted_message(
 
     Reaction::delete_by_message_versions(&mut connection, message_id, original_mimi_id).await?;
     MessageEdit::delete_by_message_id(&mut connection, message_id).await?;
-    AttachmentRecord::delete_by_message_id(&mut connection, message_id).await?;
     ChatMessage::clear_in_reply_to(&mut connection, message_id).await?;
 
     Ok(())
 }
 
 /// Purges what deletions processed by older client versions left behind:
-/// edit history, attachments, reply reference and edit timestamp.
+/// edit history, reply reference and edit timestamp.
+///
+/// Their attachments are dropped by the later attachment split migration,
+/// since no part of a deleted message points to them.
 ///
 /// Stale rows are found by content, not by status: a peer's status report may
 /// have overwritten the deleted status, but every deletion under those
@@ -220,13 +240,14 @@ pub(crate) async fn purge_stale_deleted_messages(
         if !message.message().is_deleted() {
             continue;
         }
-        purge_deleted_message(
+        purge_deleted_message_except_attachments(
             &mut connection,
             message.id(),
             None,
             message.message().mimi_id(),
         )
         .await?;
+        // The attachment split later drops attachments no part points to
         ChatMessage::mark_deleted(&mut connection, message.id()).await?;
     }
     Ok(())

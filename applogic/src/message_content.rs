@@ -425,11 +425,18 @@ mod tests {
         }
     }
 
-    fn attachment_info(attachment_id: AttachmentId) -> AttachmentInfo {
+    fn attachment_info(attachment_id: AttachmentId, part_index: PartIndex) -> AttachmentInfo {
         AttachmentInfo {
             attachment_id,
+            part_index,
             remote_attachment_id: None,
             is_animated: None,
+        }
+    }
+
+    fn random_attachment_id() -> AttachmentId {
+        AttachmentId {
+            uuid: Uuid::new_v4(),
         }
     }
 
@@ -485,8 +492,11 @@ mod tests {
     fn link_preview_image_is_paired_with_its_record() {
         let content = link_preview_message();
         let message_id = MessageId::new(Uuid::from_u128(0x1234));
-        let image_id = AttachmentId::derive(message_id, attachment_indices(&content)[0]);
-        let infos = MessageAttachments::new(message_id, vec![attachment_info(image_id)]);
+        let image_id = random_attachment_id();
+        let infos = MessageAttachments::new(
+            message_id,
+            vec![attachment_info(image_id, attachment_indices(&content)[0])],
+        );
 
         let resolved = UnresolvedMimiContent::from(content).resolve(Some(&infos));
         assert!(resolved.attachments.is_empty());
@@ -541,20 +551,21 @@ mod tests {
     }
 
     #[test]
-    fn attachments_are_paired_with_infos_by_derived_id() {
+    fn attachments_are_paired_with_infos_by_part_index() {
         let content = render_container(vec![
             external_part(Disposition::Preview, "image/webp", 1, "preview.webp"),
             external_part(Disposition::Attachment, "application/pdf", 2, "doc.pdf"),
         ]);
         let message_id = MessageId::new(Uuid::from_u128(0x1234));
         let indices = attachment_indices(&content);
-        let expected = AttachmentId::derive(message_id, indices[1]);
+        let expected = random_attachment_id();
+        let preview = random_attachment_id();
 
         let infos = MessageAttachments::new(
             message_id,
             vec![
-                attachment_info(AttachmentId::derive(message_id, indices[0])),
-                attachment_info(expected),
+                attachment_info(preview, indices[0]),
+                attachment_info(expected, indices[1]),
             ],
         );
         let resolved = UnresolvedMimiContent::from(content.clone()).resolve(Some(&infos));
@@ -565,8 +576,8 @@ mod tests {
         let infos = MessageAttachments::new(
             message_id,
             vec![
-                attachment_info(expected),
-                attachment_info(AttachmentId::derive(message_id, indices[0])),
+                attachment_info(expected, indices[1]),
+                attachment_info(preview, indices[0]),
             ],
         );
         let resolved = UnresolvedMimiContent::from(content).resolve(Some(&infos));
@@ -582,15 +593,14 @@ mod tests {
             external_part(Disposition::Attachment, "application/pdf", 2, "doc.pdf"),
         ]);
         let message_id = MessageId::new(Uuid::from_u128(0x1234));
-        // Not derived, like rows stored before ids were derived
-        let stored = AttachmentId {
-            uuid: Uuid::from_u128(0xb),
-        };
+        let stored = random_attachment_id();
+        // Stored for another index, like after an edit moved the attachment
+        let other_index = attachment_indices(&content)[0];
         let infos = MessageAttachments::new(
             message_id,
             vec![AttachmentInfo {
                 remote_attachment_id: Some(RemoteAttachmentId::new(Uuid::from_u128(2))),
-                ..attachment_info(stored)
+                ..attachment_info(stored, other_index)
             }],
         );
         let resolved = UnresolvedMimiContent::from(content).resolve(Some(&infos));

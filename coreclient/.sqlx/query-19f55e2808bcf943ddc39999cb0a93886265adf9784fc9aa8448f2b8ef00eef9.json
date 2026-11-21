@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE attachment SET\n                content_type = ?,\n                size = ?,\n                content_hash = ?,\n                width = ?,\n                height = ?,\n                blurhash = ?,\n                is_animated = ?\n            WHERE attachment_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "19f55e2808bcf943ddc39999cb0a93886265adf9784fc9aa8448f2b8ef00eef9"
+}
