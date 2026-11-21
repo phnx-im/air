@@ -199,9 +199,10 @@ pub struct TestBackend {
     max_devices: Option<[MaxDevices; 3]>,
     /// Present only if we spawned a local server.
     qs_database_url: Option<String>,
-    /// Whether to create APQ groups by default
+    /// Whether to create APQ groups by default.
     ///
-    /// Read from the `TEST_WITH_APQ_GROUPS` environment variable.
+    /// Read from the `TEST_WITH_APQ_GROUPS` environment variable, defaults to
+    /// `true`.
     pub apq_groups: bool,
     _cleanup: Option<Box<dyn Any>>,
 }
@@ -327,7 +328,7 @@ impl TestBackend {
             )
         };
 
-        let apq_groups = std::env::var("TEST_WITH_APQ_GROUPS").unwrap_or("false".to_string());
+        let apq_groups = std::env::var("TEST_WITH_APQ_GROUPS").unwrap_or("true".to_string());
         let apq_groups: bool = apq_groups
             .parse()
             .context(

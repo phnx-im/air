@@ -375,7 +375,6 @@ class FakeChatsRepository implements chats_repository.ChatsRepository {
   Future<AddUsernameContactError?> createContactChat({
     required UiUsername username,
     required UsernameHash hash,
-    required bool preferApq,
   }) => Future.value(null);
 
   @override
