@@ -182,9 +182,9 @@ jobs:
         include:
           - name: Rust unit tests
             profile: unit
-          - name: Rust integration tests
+          - name: Rust integration tests (with APQ groups)
             profile: integration
-          - name: Rust integration tests (classical groups)
+          - name: Rust integration tests
             profile: integration
             apq-groups: "false"
 
