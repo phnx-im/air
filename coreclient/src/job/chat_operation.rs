@@ -394,16 +394,22 @@ impl ChatOperation {
                 &key_store.signing_key,
             )
             .await?;
+            let object_id = Uuid::new_v4();
             let provision_response = api_client
                 .ds_provision_attachment(
                     &signer,
                     target,
                     content_length,
+                    object_id,
                     StorageObjectType::GroupProfile,
                 )
                 .await?;
-            let object_id = provision_response.object_id.context("no object id")?;
-            let external = external.build(object_id.into());
+            let response_object_id: Uuid =
+                provision_response.object_id.context("no object id")?.into();
+            if response_object_id != object_id {
+                return Err(anyhow!("unexpected object id").into());
+            }
+            let external = external.build(object_id);
 
             // Upload
             let mut request = http_client.put(provision_response.upload_url);

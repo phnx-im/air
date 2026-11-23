@@ -693,6 +693,8 @@ message ProvisionAttachmentPayload {
 
   reserved 4; // removed use_post_policy; uploads always use a presigned PUT
   int64 content_length = 5;
+  // Object id chosen by the client. The server picks one if unset.
+  optional common.v1.Uuid object_id = 9;
   StorageObjectType object_type = 7;
 }
 

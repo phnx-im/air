@@ -2597,9 +2597,15 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
             .try_into()
             .map_err(|_| Status::invalid_argument("invalid content length"))?;
 
+        let object_id: Option<uuid::Uuid> = payload.object_id.map(Into::into);
+        if object_id.is_some_and(|id| id.is_nil()) {
+            return Err(Status::invalid_argument("invalid object id"));
+        }
+
         let response = self
             .ds
             .provision_object(
+                object_id,
                 payload.object_type.try_into().unwrap_or_default(),
                 content_length,
             )

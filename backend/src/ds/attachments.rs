@@ -33,6 +33,7 @@ use super::{Ds, storage::Storage};
 impl Ds {
     pub(super) async fn provision_object(
         &self,
+        object_id: Option<Uuid>,
         object_type: StorageObjectType,
         content_length: u64,
     ) -> Result<ProvisionAttachmentResponse, ProvisionObjectError> {
@@ -41,7 +42,7 @@ impl Ds {
         };
         check_content_length(storage.settings(), content_length)?;
 
-        let object_id = Uuid::new_v4();
+        let object_id = object_id.unwrap_or_else(Uuid::new_v4);
         let expiration = ExpirationData::now(storage.settings().upload_expiration);
 
         create_signed_put(storage, object_id, expiration, content_length, object_type).await
@@ -147,6 +148,7 @@ async fn create_signed_put(
         .bucket(bucket)
         .key(key)
         .content_length(content_length)
+        .if_none_match("*") // refuse override
         .presigned(presigning_config)
         .await
         .map_err(Box::new)?;
