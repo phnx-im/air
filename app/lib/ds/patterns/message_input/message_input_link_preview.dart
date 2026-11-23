@@ -47,9 +47,6 @@ class MessageInputLinkPreview extends StatelessWidget {
         bottom: MessageInputLinkPreviewTokens.gapBelow,
       ),
       child: Stack(
-        // The remove button's ring reaches past the card and must not be
-        // cropped to it.
-        clipBehavior: .none,
         children: [
           LinkPreview(url: url, data: data, imageBuilder: imageBuilder),
           if (onRemove != null && data != null)
