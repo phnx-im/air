@@ -14,7 +14,7 @@ use crate::{
 };
 
 use persistence::load_thumbnail;
-pub(super) use persistence::store_thumbnail;
+pub(crate) use persistence::store_thumbnail;
 
 /// A locally generated thumbnail of an image attachment
 pub enum AttachmentThumbnail {

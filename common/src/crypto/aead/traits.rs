@@ -28,13 +28,26 @@ pub trait AeadKey: AsRef<Secret<AEAD_KEY_SIZE>> {
         &self,
         plaintext: impl Into<Payload<'msg, 'aad>>,
     ) -> Result<AeadCiphertext, EncryptionError> {
-        let key: &Key<Aead> = self.as_ref().secret().into();
-        let cipher: Aead = Aead::new(key);
         // TODO: Use a proper RNG provider instead.
         let nonce_raw = Secret::<AEAD_NONCE_SIZE>::random().map_err(|e| match e {
             RandomnessError::InsufficientRandomness => EncryptionError::RandomnessError,
         })?;
-        let nonce = Nonce::<Aead>::from(nonce_raw.into_secret());
+        self.encrypt_with_nonce(plaintext, nonce_raw.into_secret())
+    }
+
+    /// Same as [`AeadKey::encrypt`] but with a given nonce.
+    ///
+    /// Only for a caller that has to fix the nonce before it encrypts, prefer [`AeadKey::encrypt`]
+    /// otherwise. The nonce must not be used with this key for any other plaintext.
+    #[instrument(level = "trace", skip_all, fields(key_type = std::any::type_name::<Self>()))]
+    fn encrypt_with_nonce<'msg, 'aad>(
+        &self,
+        plaintext: impl Into<Payload<'msg, 'aad>>,
+        nonce: [u8; AEAD_NONCE_SIZE],
+    ) -> Result<AeadCiphertext, EncryptionError> {
+        let key: &Key<Aead> = self.as_ref().secret().into();
+        let cipher: Aead = Aead::new(key);
+        let nonce = Nonce::<Aead>::from(nonce);
         // The Aead trait surfaces an error, but it's not clear under which
         // circumstances it would actually fail.
         let ciphertext = cipher

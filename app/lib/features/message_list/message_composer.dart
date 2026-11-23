@@ -295,7 +295,7 @@ class _MessageComposerState extends State<MessageComposer>
         chat?.draft?.inReplyTo?.$1,
         chat?.isConfirmed ?? false,
         (chat?.unreadMessages ?? 0) > 0,
-        cubit.state.linkPreview != null && chat?.draft?.editingId == null,
+        cubit.state.linkPreview != null,
       );
     });
 
@@ -741,8 +741,7 @@ class _MessageComposerState extends State<MessageComposer>
 
   /// Asks Rust to resolve a preview for the first link in [text].
   ///
-  /// Experimental, and skipped while editing, since an edit keeps the original
-  /// message's preview.
+  /// Experimental.
   void _scheduleLinkPreviewUpdate(String text) {
     _linkPreviewDebouncer.run(() {
       if (!mounted) return;
@@ -750,7 +749,7 @@ class _MessageComposerState extends State<MessageComposer>
           .read<UserSettingsCubit>()
           .state
           .experimentalFeaturesActive;
-      if (!enabled || _chatDetailsCubit.state.chat?.draft?.editingId != null) {
+      if (!enabled) {
         return;
       }
       _chatDetailsCubit
@@ -844,11 +843,10 @@ class _LinkPreviewStaged extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (preview, isEditing) = context.select(
-      (ChatDetailsCubit cubit) =>
-          (cubit.state.linkPreview, cubit.state.chat?.draft?.editingId != null),
+    final preview = context.select(
+      (ChatDetailsCubit cubit) => cubit.state.linkPreview,
     );
-    if (preview == null || isEditing) return const SizedBox.shrink();
+    if (preview == null) return const SizedBox.shrink();
 
     final cubit = context.read<ChatDetailsCubit>();
     return switch (preview) {

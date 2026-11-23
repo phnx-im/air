@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT message_id\n                FROM chat_message_queue AS queued\n                WHERE (locked_by IS NULL OR locked_by != ?1)\n                    AND (retry_at IS NULL OR retry_at <= ?2)\n                    AND NOT EXISTS (\n                        SELECT 1\n                        FROM chat_message_queue AS earlier\n                        WHERE earlier.chat_id = queued.chat_id\n                            AND (earlier.created_at, earlier.rowid)\n                                < (queued.created_at, queued.rowid)\n                    )\n                    AND NOT EXISTS (\n                        SELECT 1\n                        FROM message_attachment a\n                        JOIN attachment_transfer t ON t.attachment_id = a.attachment_id\n                        WHERE a.message_id = queued.message_id\n                            AND t.direction = ?3\n                            AND t.state IN (?4, ?5)\n                    )\n                ORDER BY created_at ASC, rowid ASC\n                LIMIT 1\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "chat_message_queue",
+            "name": "message_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3f5749d96d26b2af6789f78bb8abb5f6dcc4257f170a752eb9484ae6369795c7"
+}

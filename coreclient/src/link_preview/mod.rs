@@ -4,12 +4,12 @@
 
 mod card;
 mod fetch;
+mod layout;
 mod links;
-mod send;
 
 pub use card::LinkPreview;
 pub use fetch::FetchedLinkPreview;
 pub use links::select_links;
 
 pub(crate) use fetch::LinkPreviewFetcher;
-pub(crate) use send::{carry_over_link_preview, editable_text};
+pub(crate) use layout::{CardImage, editable_text, with_fetched_card, with_original_card};

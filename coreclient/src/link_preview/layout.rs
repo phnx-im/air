@@ -3,21 +3,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use airprotos::client::link_preview::LinkPreviewCard;
-use anyhow::ensure;
+use anyhow::{Context as _, ensure};
 use chrono::Utc;
 use mimi_content::{Disposition, MimiContent, NestedPart, content_container::PartSemantics};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    AttachmentId, AttachmentStatus, ChatId, MarkChatAsRead, MediaType, MessageId, MimiContentExt,
-    PartIndex,
-    clients::{
-        CoreUser,
-        attachment::{
-            NewAttachment,
-            persistence::AttachmentRole,
-            upload::{PendingUpload, WEBP_CONTENT_TYPE, provisional_image_part},
-        },
+    AttachmentId, AttachmentStatus, MediaType, MessageId, MimiContentExt, PartIndex,
+    clients::attachment::{
+        NewAttachment,
+        persistence::AttachmentRole,
+        upload::{AttachmentMetadata, WEBP_CONTENT_TYPE, provisional_image_part},
     },
     link_preview::card::is_preview_image,
     media_type::TEXT_MARKDOWN,
@@ -27,74 +23,21 @@ use super::{card::LinkPreview, fetch::FetchedLinkPreview, links::select_links};
 
 pub(crate) const LINK_PREVIEW_IMAGE_PART_INDEX: PartIndex = PartIndex(3);
 
-impl CoreUser {
-    pub async fn send_link_preview_message(
-        &self,
-        chat_id: ChatId,
-        mut content: MimiContent,
-        preview: FetchedLinkPreview,
-        mark_as_read: MarkChatAsRead,
-    ) -> anyhow::Result<Option<PendingUpload>> {
-        ensure!(
-            markdown_text(&content.nested_part).is_some(),
-            "link preview message must have a markdown text body"
-        );
-
-        let (card, image) = preview.into_parts();
-        debug_assert_eq!(card.image().is_some(), image.is_some());
-
-        let Some((image_meta, bytes)) = card.image().zip(image) else {
-            // Card without an image
-            content.nested_part = link_preview_body(content.nested_part, card_part(&card)?, None);
-            debug_assert!(LinkPreview::from_content(&content).is_some());
-            self.send_message(chat_id, content, None, mark_as_read)
-                .await?;
-            return Ok(None);
-        };
-
-        // Card with an image
-        let attachment_id = AttachmentId::random();
-        let dimensions = (image_meta.width(), image_meta.height());
-        let image_part =
-            provisional_image_part(attachment_id, Disposition::Preview, &bytes, dimensions);
-        content.nested_part =
-            link_preview_body(content.nested_part, card_part(&card)?, Some(image_part));
-        debug_assert!(LinkPreview::from_content(&content).is_some_and(|p| p.image().is_some()));
-        let record = NewAttachment {
-            attachment_id,
-            message_id: MessageId::random(),
-            part_index: LINK_PREVIEW_IMAGE_PART_INDEX,
-            role: AttachmentRole::Preview,
-            filename: None,
-            content_type: WEBP_CONTENT_TYPE.to_owned(),
-            size: u64::try_from(bytes.len()).ok(),
-            content_hash: Some(Sha256::digest(&bytes).to_vec()),
-            dimensions: Some(dimensions),
-            blurhash: image_meta.blur_hash().map(str::to_owned),
-            status: AttachmentStatus::Uploading,
-            is_animated: Some(false),
-            created_at: Utc::now(),
-        };
-        let upload = self
-            .upload_processed_attachment(chat_id, record, content, bytes, mark_as_read)
-            .await?;
-        Ok(Some(upload))
-    }
-}
-
-pub(crate) fn carry_over_link_preview(
-    original: &MimiContent,
+/// Adds the card of `original` to a text message.
+///
+/// Fails if `original` has no card, or if its link is not the first link of
+/// the text.
+pub(crate) fn with_original_card(
     mut content: MimiContent,
-) -> MimiContent {
-    let Some(text) = markdown_text(&content.nested_part) else {
-        return content;
-    };
-    let Some(preview) = LinkPreview::from_content(original) else {
-        return content;
-    };
-    if select_links(text).next() != Some(preview.card().url()) {
-        return content;
-    }
+    original: &MimiContent,
+) -> anyhow::Result<MimiContent> {
+    let text = markdown_text(&content.nested_part).context("link preview without a text")?;
+    let preview =
+        LinkPreview::from_content(original).context("the replaced message has no link preview")?;
+    ensure!(
+        select_links(text).next() == Some(preview.card().url()),
+        "the first link is not the link of the original card"
+    );
     let image = preview
         .image()
         .filter(|&(_, index)| index == LINK_PREVIEW_IMAGE_PART_INDEX)
@@ -104,11 +47,63 @@ pub(crate) fn carry_over_link_preview(
     if image.is_none() {
         card = card.without_image();
     }
-    let Some(card) = card_part(&card).ok() else {
-        return content;
+    content.nested_part = link_preview_body(content.nested_part, card_part(&card)?, image);
+    Ok(content)
+}
+
+/// Image of a card to store and upload with its message.
+pub(crate) struct CardImage {
+    pub(crate) attachment: NewAttachment,
+    /// WebP bytes
+    pub(crate) bytes: Vec<u8>,
+}
+
+/// Adds a fetched card to a text message.
+///
+/// Returns the image of the card, if it has one.
+pub(crate) fn with_fetched_card(
+    mut content: MimiContent,
+    preview: &FetchedLinkPreview,
+    message_id: MessageId,
+) -> anyhow::Result<(MimiContent, Option<CardImage>)> {
+    ensure!(
+        markdown_text(&content.nested_part).is_some(),
+        "link preview without a text"
+    );
+    let card = preview.card();
+    let (part, image) = match card.image().zip(preview.image_bytes()) {
+        None => (None, None),
+        Some((image, bytes)) => {
+            debug_assert_eq!(image.part_index(), LINK_PREVIEW_IMAGE_PART_INDEX.0);
+            let attachment_id = AttachmentId::random();
+            let dimensions = (image.width(), image.height());
+            let mut part =
+                provisional_image_part(attachment_id, Disposition::Preview, bytes, dimensions);
+            AttachmentMetadata::random()?.write_to(&mut part)?;
+            let attachment = NewAttachment {
+                attachment_id,
+                message_id,
+                part_index: LINK_PREVIEW_IMAGE_PART_INDEX,
+                role: AttachmentRole::Preview,
+                filename: None,
+                content_type: WEBP_CONTENT_TYPE.to_owned(),
+                size: u64::try_from(bytes.len()).ok(),
+                content_hash: Some(Sha256::digest(bytes).to_vec()),
+                dimensions: Some(dimensions),
+                blurhash: image.blur_hash().map(str::to_owned),
+                status: AttachmentStatus::Uploading,
+                is_animated: Some(false),
+                created_at: Utc::now(),
+            };
+            let image = CardImage {
+                attachment,
+                bytes: bytes.to_vec(),
+            };
+            (Some(part), Some(image))
+        }
     };
-    content.nested_part = link_preview_body(content.nested_part, card, image);
-    content
+    content.nested_part = link_preview_body(content.nested_part, card_part(card)?, part);
+    Ok((content, image))
 }
 
 /// Builds link preview layout from its parts.
@@ -299,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    fn carry_over_card_and_image() {
+    fn original_card_and_image() {
         let link = "https://a.org";
         let image = external(Disposition::Preview);
         let original = content(all(vec![
@@ -307,7 +302,7 @@ mod tests {
             card(link, Some(3)),
             image.clone(),
         ]));
-        let edited = carry_over_link_preview(&original, markdown(&format!("now {link}")));
+        let edited = with_original_card(markdown(&format!("now {link}")), &original).unwrap();
 
         assert_eq!(
             editable_text(&edited.nested_part),
@@ -321,20 +316,18 @@ mod tests {
     }
 
     #[test]
-    fn carry_over_without_link_drops_card() {
+    fn original_card_without_link_fails() {
         let link = "https://a.org";
         let original = content(all(vec![
             text(link),
             card(link, Some(3)),
             external(Disposition::Preview),
         ]));
-        let edit = markdown("no link");
-        let edited = carry_over_link_preview(&original, edit.clone());
-        assert_eq!(edited, edit);
+        assert!(with_original_card(markdown("no link"), &original).is_err());
     }
 
     #[test]
-    fn carry_over_drops_image_elsewhere() {
+    fn original_card_drops_image_elsewhere() {
         // root 0, layout 1, text 2, card 3, image 4
         let link = "https://a.org";
         let original = content(all(vec![all(vec![
@@ -349,7 +342,7 @@ mod tests {
                 .is_some()
         );
 
-        let edited = carry_over_link_preview(&original, markdown(link));
+        let edited = with_original_card(markdown(link), &original).unwrap();
         let preview = LinkPreview::from_content(&edited).unwrap();
         assert!(preview.image().is_none());
         assert!(preview.card().image().is_none());
@@ -357,18 +350,16 @@ mod tests {
     }
 
     #[test]
-    fn carry_over_drops_card_of_later_link() {
+    fn original_card_of_later_link_fails() {
         let link = "https://a.org";
         let original = content(all(vec![text(link), card(link, None)]));
         let edit = markdown(&format!("https://b.org and {link}"));
-        let edited = carry_over_link_preview(&original, edit.clone());
-        assert_eq!(edited, edit);
+        assert!(with_original_card(edit, &original).is_err());
     }
 
     #[test]
-    fn carry_over_without_card() {
-        let edit = markdown("https://a.org");
-        let edited = carry_over_link_preview(&markdown("https://a.org"), edit.clone());
-        assert_eq!(edited, edit);
+    fn original_without_card_fails() {
+        let original = markdown("https://a.org");
+        assert!(with_original_card(markdown("https://a.org"), &original).is_err());
     }
 }

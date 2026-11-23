@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT t.attachment_id AS \"attachment_id: AttachmentId\"\n            FROM message_attachment ma\n            JOIN attachment_transfer t ON t.attachment_id = ma.attachment_id\n            WHERE ma.message_id = ?1\n                AND t.direction = ?2\n                AND t.state = ?3\n            ORDER BY ma.part_index",
+  "describe": {
+    "columns": [
+      {
+        "name": "attachment_id: AttachmentId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment_transfer",
+            "name": "attachment_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "33e242ca0a76ad94532a3a0e39ab79da4478581fac9384cf616b61c4f06a6308"
+}

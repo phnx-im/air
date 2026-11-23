@@ -204,7 +204,48 @@ impl MessageAttachmentRecord {
         )
         .fetch_all(connection.as_mut())
         .await?;
+        Self::notify_deleted(connection, attachment_ids).await
+    }
 
+    /// Deletes the reference of a message part.
+    ///
+    /// An attachment left without a reference is deleted by a trigger.
+    pub(crate) async fn delete(
+        mut connection: impl WriteConnection,
+        message_id: MessageId,
+        part_index: PartIndex,
+    ) -> sqlx::Result<()> {
+        let attachment_ids: Vec<AttachmentId> = query_scalar!(
+            r#"DELETE FROM message_attachment WHERE message_id = ? AND part_index = ?
+            RETURNING attachment_id AS "attachment_id: _""#,
+            message_id,
+            part_index,
+        )
+        .fetch_all(connection.as_mut())
+        .await?;
+        Self::notify_deleted(connection, attachment_ids).await
+    }
+
+    pub(crate) async fn delete_by_role(
+        mut connection: impl WriteConnection,
+        message_id: MessageId,
+        role: AttachmentRole,
+    ) -> sqlx::Result<()> {
+        let attachment_ids: Vec<AttachmentId> = query_scalar!(
+            r#"DELETE FROM message_attachment WHERE message_id = ? AND role = ?
+            RETURNING attachment_id AS "attachment_id: _""#,
+            message_id,
+            role
+        )
+        .fetch_all(connection.as_mut())
+        .await?;
+        Self::notify_deleted(connection, attachment_ids).await
+    }
+
+    async fn notify_deleted(
+        mut connection: impl WriteConnection,
+        attachment_ids: Vec<AttachmentId>,
+    ) -> sqlx::Result<()> {
         for attachment_id in attachment_ids {
             let exists = query_scalar!(
                 r#"SELECT EXISTS(
