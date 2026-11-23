@@ -51,7 +51,7 @@ mod persistence {
     use tracing::debug;
     use uuid::Uuid;
 
-    use crate::db::access::WriteConnection;
+    use crate::db::access::{ReadConnection, WriteConnection};
 
     use super::*;
 
@@ -191,6 +191,33 @@ mod persistence {
             }))
         }
 
+        /// Returns true if the receipts locked by `task_id` include a read
+        /// receipt for a message in a chat that is not muted.
+        pub(crate) async fn locks_read_in_unmuted_chat(
+            mut connection: impl ReadConnection,
+            task_id: Uuid,
+            now: TimeStamp,
+        ) -> sqlx::Result<bool> {
+            let read_status: u8 = MessageStatus::Read.into();
+            query_scalar!(
+                r#"SELECT EXISTS (
+                        SELECT 1
+                        FROM receipt_queue AS r
+                        INNER JOIN message AS m ON m.message_id = r.message_id
+                        INNER JOIN chat AS c ON c.chat_id = m.chat_id
+                        WHERE r.locked_by = ?1
+                            AND r.status = ?2
+                            AND (c.muted_until IS NULL OR c.muted_until <= ?3)
+                    ) AS "read_in_unmuted_chat: bool"
+                "#,
+                task_id,
+                read_status,
+                now,
+            )
+            .fetch_one(connection.as_mut())
+            .await
+        }
+
         /// Keeps the receipts locked by `task_id` queued until `retry_at`.
         pub(crate) async fn record_failed_attempt(
             mut connection: impl WriteConnection,
@@ -274,7 +301,7 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        ChatId,
+        Chat, ChatId, ChatMuted,
         chats::{
             messages::persistence::tests::test_chat_message_with_salt,
             persistence::tests::test_chat,
@@ -369,6 +396,65 @@ mod tests {
         let queued =
             ReceiptQueue::dequeue(db.write().await?, Uuid::new_v4(), TimeStamp::now()).await?;
         assert!(queued.is_none(), "duplicate enqueue revived a sent receipt");
+        Ok(())
+    }
+
+    /// Queues receipts with `status` for `messages` in a new chat, dequeues
+    /// them and returns whether they lock a read in an unmuted chat.
+    ///
+    /// Removes the receipts again, since a Mimi ID and status are queued only
+    /// once.
+    async fn dequeue_locks_read_in_unmuted_chat(
+        db: &DbAccess,
+        status: MessageStatus,
+        messages: &[(MessageId, MimiId)],
+    ) -> anyhow::Result<bool> {
+        let target = ChatId::random();
+        for (message_id, mimi_id) in messages {
+            ReceiptQueue::new(*message_id, status)
+                .enqueue(db.write().await?, target, mimi_id)
+                .await?;
+        }
+        let task_id = Uuid::new_v4();
+        let now = TimeStamp::now();
+        let dequeued = ReceiptQueue::dequeue(db.write().await?, task_id, now)
+            .await?
+            .expect("no receipt queued");
+        assert_eq!(dequeued.chat_id, target);
+        assert_eq!(dequeued.statuses.len(), messages.len());
+        let locks_read =
+            ReceiptQueue::locks_read_in_unmuted_chat(db.read().await?, task_id, now).await?;
+        ReceiptQueue::remove(db.write().await?, task_id).await?;
+        Ok(locks_read)
+    }
+
+    #[sqlx::test]
+    async fn locks_read_in_unmuted_chat_follows_mute_and_status(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let db = DbAccess::for_tests(pool);
+        let (muted_chat, muted_id, muted_mimi_id) = stored_message(&db).await?;
+        let (timed_chat, timed_id, timed_mimi_id) = stored_message(&db).await?;
+        let (expired_chat, expired_id, expired_mimi_id) = stored_message(&db).await?;
+        let (_, unmuted_id, unmuted_mimi_id) = stored_message(&db).await?;
+        let running = ChatMuted::Until(Utc::now() + TimeDelta::hours(1));
+        let ran_out = ChatMuted::Until(Utc::now() - TimeDelta::hours(1));
+        Chat::set_muted_until(db.write().await?, muted_chat, Some(ChatMuted::Forever)).await?;
+        Chat::set_muted_until(db.write().await?, timed_chat, Some(running)).await?;
+        Chat::set_muted_until(db.write().await?, expired_chat, Some(ran_out)).await?;
+
+        let muted = (muted_id, muted_mimi_id);
+        let timed = (timed_id, timed_mimi_id);
+        let expired = (expired_id, expired_mimi_id);
+        let unmuted = (unmuted_id, unmuted_mimi_id);
+        let read = MessageStatus::Read;
+        assert!(!dequeue_locks_read_in_unmuted_chat(&db, read, &[muted]).await?);
+        assert!(!dequeue_locks_read_in_unmuted_chat(&db, read, &[timed]).await?);
+        assert!(dequeue_locks_read_in_unmuted_chat(&db, read, &[expired]).await?);
+        assert!(dequeue_locks_read_in_unmuted_chat(&db, read, &[unmuted]).await?);
+        assert!(dequeue_locks_read_in_unmuted_chat(&db, read, &[muted, unmuted]).await?);
+        let delivered = MessageStatus::Delivered;
+        assert!(!dequeue_locks_read_in_unmuted_chat(&db, delivered, &[unmuted]).await?);
         Ok(())
     }
 

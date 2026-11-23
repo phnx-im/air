@@ -70,11 +70,12 @@ async fn mark_as_read_updates_unread_counts() {
     // Bob reads the messages
     let last_message = bob.expect_last_message(alice_bob_chat).await;
     let last_message_id = last_message.id();
-    let last_message_mimi_id = last_message.message().mimi_id().unwrap();
+    let last_message_mimi_id = *last_message.message().mimi_id().unwrap();
     bob.outbound_service()
-        .enqueue_receipts(
+        .enqueue_read_receipts(
             alice_bob_chat,
-            [(last_message_id, last_message_mimi_id, MessageStatus::Read)].into_iter(),
+            &[(last_message_id, last_message_mimi_id)],
+            true,
         )
         .await
         .unwrap();
@@ -134,21 +135,6 @@ async fn disabled_read_receipts_are_ignored() {
         sender.drain().await;
     }
 
-    async fn send_read_receipt(user: &CoreUser, chat_id: ChatId) {
-        // Enqueue a read receipt for the most recent message in the chat.
-        let last_message = user.expect_last_message(chat_id).await;
-        let last_message_id = last_message.id();
-        let last_message_mimi_id = last_message.message().mimi_id().unwrap();
-        user.outbound_service()
-            .enqueue_receipts(
-                chat_id,
-                [(last_message_id, last_message_mimi_id, MessageStatus::Read)].into_iter(),
-            )
-            .await
-            .unwrap();
-        user.outbound_service().run_once().await;
-    }
-
     // We enable read receipts
     alice
         .set_user_setting(&ReadReceiptsSetting(true))
@@ -160,7 +146,7 @@ async fn disabled_read_receipts_are_ignored() {
     let last_message = alice.expect_last_message(alice_bob_chat).await;
     assert_eq!(last_message.status(), MessageStatus::Delivered);
     // Bob sends a read receipt and Alice should receive it.
-    send_read_receipt(&bob, alice_bob_chat).await;
+    bob.read_chat(alice_bob_chat, true).await;
     alice.drain().await;
     let last_message = alice.expect_last_message(alice_bob_chat).await;
     assert_eq!(last_message.status(), MessageStatus::Read);
@@ -176,7 +162,7 @@ async fn disabled_read_receipts_are_ignored() {
     assert_eq!(last_message.status(), MessageStatus::Delivered);
     // Bob sends a read receipt but Alice should ignore it, the last message is
     // therefore still a delivery receipt.
-    send_read_receipt(&bob, alice_bob_chat).await;
+    bob.read_chat(alice_bob_chat, true).await;
     alice.drain().await;
     let last_message = alice.expect_last_message(alice_bob_chat).await;
     assert_eq!(last_message.status(), MessageStatus::Delivered);
@@ -208,14 +194,10 @@ async fn peer_read_receipt_keeps_own_unread_count() {
         .expect_message(sent.recipient_message_id(bob.user_id()))
         .await;
     bob.outbound_service()
-        .enqueue_receipts(
+        .enqueue_read_receipts(
             group_chat_id,
-            [(
-                bobs_copy.id(),
-                bobs_copy.message().mimi_id().unwrap(),
-                MessageStatus::Read,
-            )]
-            .into_iter(),
+            &[(bobs_copy.id(), *bobs_copy.message().mimi_id().unwrap())],
+            true,
         )
         .await
         .unwrap();

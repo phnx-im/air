@@ -5,7 +5,6 @@
 //! The read marker of a request chat following the device that opened it.
 
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
-use mimi_content::MessageStatus;
 
 use crate::multi_device::usernames::add_synced_username;
 
@@ -34,23 +33,8 @@ async fn opened_request_is_read_on_sibling() {
     // Device 1 opens the request. Its announcement is reported like any read
     // message. There is no group with the sender yet, so the report goes
     // through the self group.
-    let announcement = alice.expect_last_message(chat_id).await;
-    let (marked, read) = alice
-        .mark_chat_as_read(chat_id, announcement.id())
-        .await
-        .unwrap();
-    assert!(marked);
+    let read = alice.read_chat(chat_id, true).await;
     assert_eq!(read.len(), 1, "the announcement should be reported");
-    alice
-        .outbound_service()
-        .enqueue_receipts(
-            chat_id,
-            read.iter()
-                .map(|(message_id, mimi_id)| (*message_id, mimi_id, MessageStatus::Read)),
-        )
-        .await
-        .unwrap();
-    alice.outbound_service().run_once().await;
     alice2.drain().await;
     assert_eq!(
         alice2.unread_messages_count(chat_id).await,
