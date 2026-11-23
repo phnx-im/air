@@ -152,20 +152,24 @@ abstract final class MessageInputQuoteTokens {
 
 /// Layout tokens for the link preview staged above the field.
 abstract final class MessageInputLinkPreviewTokens {
-  /// Insets around the card, the same as the staged quote's so stacked rows
-  /// line up.
-  static const double gapAbove = MessageInputQuoteTokens.gapAbove;
-  static const double gapBelow = MessageInputQuoteTokens.gapBelow;
-  static const double gapSide = MessageInputQuoteTokens.gapSide;
+  /// Gap between the field chrome's top edge and the card.
+  static const double gapAbove = S.s16;
 
-  /// The dismiss button, the same as the quote's.
-  static const double removeSize = MessageInputQuoteTokens.removeSize;
-  static const double removeHitTarget = MessageInputQuoteTokens.removeHitTarget;
-  static const double removeIconSize = MessageInputQuoteTokens.removeIconSize;
+  /// Gap between the card and the text being written.
+  static const double gapBelow = S.s8;
 
-  /// How far the dismiss circle hangs past the card's top-right corner.
-  static const double removeOverhang = MessageInputQuoteTokens.removeOverhang;
+  /// Inset from the chrome's side edges, the same as the field's text.
+  static const double gapSide = S.s16;
+
+  static const double removeSize = S.s24;
+  static const double removeHitTarget = S.s32;
+  static const double removeIconSize = S.s12;
+
+  /// Inset of the dismiss circle from the card's top-right corner. It sits
+  /// inside the card, since hanging outside leaves it floating over a banner.
+  static const double removeInset = S.s4;
 
   /// Offset for the button, backing out its hit target ring.
-  static const double removeOffset = MessageInputQuoteTokens.removeOffset;
+  static const double removeOffset =
+      removeInset - (removeHitTarget - removeSize) / 2;
 }
