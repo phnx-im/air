@@ -327,6 +327,10 @@ class PreferencesSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
+    final experimentalFeatures = context.select(
+      (UserSettingsCubit cubit) => cubit.state.experimentalFeaturesActive,
+    );
+
     return Column(
       crossAxisAlignment: .start,
       spacing: S.s12,
@@ -340,6 +344,15 @@ class PreferencesSection extends StatelessWidget {
           label: loc.userSettingsScreen_readReceipts,
           description: loc.userSettingsScreen_readReceiptsDescription,
         ),
+
+        if (experimentalFeatures)
+          _SyncedSettingSwitch(
+            select: (settings) => settings.generateLinkPreviews,
+            submit: (cubit, value) =>
+                cubit.setGenerateLinkPreviews(value: value),
+            label: loc.userSettingsScreen_generateLinkPreviews,
+            description: loc.userSettingsScreen_generateLinkPreviewsDescription,
+          ),
 
         _SyncedSettingSwitch(
           select: (settings) => settings.deleteExpiredContactRequests,

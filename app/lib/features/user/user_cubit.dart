@@ -132,11 +132,10 @@ class UserCubit implements StateStreamableSource<UiUser> {
   Future<ChatId> addContactFromGroup({
     required ChatId chatId,
     required UiUserId userId,
-    required bool preferApq,
   }) => _impl.addContactFromGroup(
     chatId: chatId,
     userId: userId,
-    preferApq: preferApq,
+    preferApq: true,
   );
 
   Future<UsernameHash?> checkUsernameExists({required UiUsername username}) =>

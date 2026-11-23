@@ -120,6 +120,7 @@ macro_rules! for_each_synced_setting {
         $f::<crate::clients::linked_devices::LinkedDevicesSetting>($($args),*).await?;
         $f::<DefaultEmojiSkinToneSetting>($($args),*).await?;
         $f::<LimitAnimatedImagesLoopsSetting>($($args),*).await?;
+        $f::<GenerateLinkPreviewsSetting>($($args),*).await?;
     };
 }
 
@@ -529,6 +530,38 @@ impl UserSetting for ExperimentalFeaturesSetting {
     }
 }
 
+/// Whether to generate a link preview for the first link in the composer.
+pub struct GenerateLinkPreviewsSetting(pub bool);
+
+impl UserSetting for GenerateLinkPreviewsSetting {
+    const KEY: &'static str = "generate_link_previews";
+
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(vec![self.0 as u8])
+    }
+
+    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
+        match bytes.as_slice() {
+            [byte] => Ok(Self(*byte != 0)),
+            _ => bail!("invalid generate_link_previews bytes"),
+        }
+    }
+}
+
+impl SyncedUserSetting for GenerateLinkPreviewsSetting {
+    fn apply_to_update(&self, update: &mut SettingsUpdate) {
+        update.generate_link_previews = Some(self.0);
+    }
+
+    fn from_update(update: &SettingsUpdate) -> Option<Self> {
+        update.generate_link_previews.map(Self)
+    }
+
+    fn clear_in_update(update: &mut SettingsUpdate) {
+        update.generate_link_previews = None;
+    }
+}
+
 pub(crate) struct UserSettingRecord {}
 
 pub(crate) mod persistence {
@@ -734,6 +767,7 @@ mod tests {
             default_emoji_skin_tone: Some(4),
             limit_animated_images_loops: Some(true),
             delete_expired_contact_requests: Some(true),
+            generate_link_previews: Some(true),
         };
         let collected = pool
             .with_write_transaction(async |txn| -> anyhow::Result<SettingsUpdate> {

@@ -15,6 +15,8 @@
   "userSettingsScreen_readReceiptsDescription": "Wenn aktiviert, sehen andere, ob du ihre Nachrichten gelesen hast, und du siehst, ob sie deine gelesen haben.",
   "userSettingsScreen_deleteExpiredContactRequests": "Abgelaufene Kontaktanfragen löschen",
   "userSettingsScreen_deleteExpiredContactRequestsDescription": "Wenn aktiviert, werden abgelaufene Kontaktanfragen automatisch gelöscht.",
+  "userSettingsScreen_generateLinkPreviews": "Linkvorschauen erstellen",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Wenn aktiviert, wird eine Vorschau erstellt, wenn du einer Nachricht einen Link hinzufügst.",
   "userSettingsScreen_languageSettingsDescription": "Übersetzungen können Fehler enthalten.",
   "userSettingsScreen_displayNameLabel": "Anzeigename",
   "userSettingsScreen_usernamesSection": "Benutzernamen",

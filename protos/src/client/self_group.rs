@@ -378,6 +378,7 @@ pub struct LinkedDevice {
 ///   ? default_emoji_skin_tone: uint .size 1 .tag 3
 ///   ? limit_animated_images_loops: bool .tag 4
 ///   ? delete_expired_contact_requests: bool .tag 5
+///   ? generate_link_previews: bool .tag 6
 /// }
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
@@ -397,6 +398,9 @@ pub struct SettingsUpdate {
     /// record.
     #[tag(5)]
     pub delete_expired_contact_requests: Option<bool>,
+    /// Whether to generate a link preview for the first link in the composer.
+    #[tag(6)]
+    pub generate_link_previews: Option<bool>,
 }
 
 /// The contacts whose blocked state the sender just changed. This is a diff and
@@ -1067,13 +1071,14 @@ mod test {
         let update = SettingsUpdate {
             default_emoji_skin_tone: Some(3),
             limit_animated_images_loops: Some(false),
+            generate_link_previews: Some(true),
             ..Default::default()
         };
         let bytes = PersistenceCodec::to_vec(&update).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
         assert_eq!(update, decoded);
-        // `{3: 3, 4: false}`
-        assert_eq!(&bytes[1..], &[0xA2, 0x03, 0x03, 0x04, 0xF4]);
+        // `{3: 3, 4: false, 6: true}`
+        assert_eq!(&bytes[1..], &[0xA3, 0x03, 0x03, 0x04, 0xF4, 0x06, 0xF5]);
     }
 
     #[test]

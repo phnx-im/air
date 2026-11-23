@@ -15,6 +15,8 @@
   "userSettingsScreen_readReceiptsDescription": "Gdy opcja jest włączona, inne osoby widzą, czy ich wiadomości zostały przez Ciebie przeczytane, a Ty widzisz, czy one przeczytały Twoje.",
   "userSettingsScreen_deleteExpiredContactRequests": "Usuwaj wygasłe prośby o kontakt",
   "userSettingsScreen_deleteExpiredContactRequestsDescription": "Gdy opcja jest włączona, wygasłe prośby o kontakt są automatycznie usuwane.",
+  "userSettingsScreen_generateLinkPreviews": "Generuj podglądy linków",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Gdy opcja jest włączona, po dodaniu linku do wiadomości generowany jest podgląd.",
   "userSettingsScreen_languageSettingsDescription": "Tłumaczenia mogą zawierać błędy.",
   "userSettingsScreen_displayNameLabel": "Nazwa wyświetlana",
   "userSettingsScreen_usernamesSection": "Nazwy użytkownika",

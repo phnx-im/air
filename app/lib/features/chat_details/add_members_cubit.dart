@@ -22,7 +22,7 @@ sealed class AddMembersState with _$AddMembersState {
 class AddMembersCubit extends Cubit<AddMembersState> {
   AddMembersCubit()
     : super(
-        const AddMembersState(contacts: [], selectedContacts: {}, isApq: false),
+        const AddMembersState(contacts: [], selectedContacts: {}, isApq: true),
       );
 
   void loadContacts(Future<List<UiContact>> futureContacts) async {
@@ -38,9 +38,5 @@ class AddMembersCubit extends Cubit<AddMembersState> {
       selectedContacts.add(userId);
     }
     emit(state.copyWith(selectedContacts: selectedContacts));
-  }
-
-  void enableApq(bool isApq) {
-    emit(state.copyWith(isApq: isApq));
   }
 }

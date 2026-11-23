@@ -16,15 +16,6 @@ default-filter = "binary(integration)"
 fail-fast = false
 junit = { path = "junit.xml" }
 
-# integration tests (with APQ enabled for all tests)
-[profile.integration-with-apq]
-default-filter = "binary(integration)"
-fail-fast = false
-junit = { path = "junit.xml" }
-
-[scripts.setup.enable-apq]
-command = ["bash", "-c", "echo TEST_WITH_APQ_GROUPS=true >> $NEXTEST_ENV"]
-
 [scripts.setup.docker-compose-up]
 command = ["just", "start-docker-compose"]
 
@@ -35,7 +26,3 @@ setup = ['docker-compose-up']
 [[profile.integration.scripts]]
 platform = { host = "cfg(unix)" }
 setup = ['docker-compose-up']
-
-[[profile.integration-with-apq.scripts]]
-platform = { host = "cfg(unix)" }
-setup = ['docker-compose-up', 'enable-apq']

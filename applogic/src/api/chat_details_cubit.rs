@@ -146,6 +146,22 @@ impl ChatDetailsCubitBase {
                 });
         spawn_from_sync(emit_initial_state_task);
 
+        let hide_link_preview_task = core
+            .cancellation_token()
+            .clone()
+            .run_until_cancelled_owned({
+                let mut settings = user_settings_rx.clone();
+                let state = core.state_tx().clone();
+                async move {
+                    while settings.changed().await.is_ok() {
+                        if !settings.borrow().generate_link_previews {
+                            state.send_if_modified(|state| state.link_preview.take().is_some());
+                        }
+                    }
+                }
+            });
+        spawn_from_sync(hide_link_preview_task);
+
         let update_state_task = core
             .cancellation_token()
             .clone()
@@ -339,7 +355,7 @@ impl ChatDetailsCubitBase {
 
         let is_edit = replaces.is_some();
         // Only reset once the message is stored, so that it survives a failed send.
-        let preview = if is_edit {
+        let preview = if is_edit || !self.user_settings_rx.borrow().generate_link_previews {
             None
         } else {
             self.link_preview.lock().ready_for(&text)
@@ -833,7 +849,12 @@ impl ChatDetailsCubitBase {
     }
 
     pub async fn update_link_previews(&self, text: String) -> anyhow::Result<()> {
-        let url = select_links(&text).next();
+        let url = self
+            .user_settings_rx
+            .borrow()
+            .generate_link_previews
+            .then(|| select_links(&text).next())
+            .flatten();
         let parent = self.core.cancellation_token();
         let Some((url, token)) = self.with_link_preview(|lp| lp.switch_to(url, parent)) else {
             return Ok(());
@@ -854,7 +875,12 @@ impl ChatDetailsCubitBase {
     fn with_link_preview<R>(&self, f: impl FnOnce(&mut ComposerLinkPreview) -> R) -> R {
         let mut link_preview = self.link_preview.lock();
         let result = f(&mut link_preview);
-        let ui = link_preview.ui();
+        let ui = self
+            .user_settings_rx
+            .borrow()
+            .generate_link_previews
+            .then(|| link_preview.ui())
+            .flatten();
         self.core.state_tx().send_if_modified(|state| {
             let changed = state.link_preview != ui;
             state.link_preview = ui;

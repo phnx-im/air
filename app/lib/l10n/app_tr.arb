@@ -15,6 +15,8 @@
   "userSettingsScreen_readReceiptsDescription": "Açıksa mesajlarını okuyup okumadığınızı başkaları görür. Siz de onların mesajlarınızı okuyup okumadığını görürsünüz.",
   "userSettingsScreen_deleteExpiredContactRequests": "Süresi dolan kişi ekleme isteklerini sil",
   "userSettingsScreen_deleteExpiredContactRequestsDescription": "Açıksa süresi dolan kişi ekleme istekleri otomatik olarak silinir.",
+  "userSettingsScreen_generateLinkPreviews": "Bağlantı önizlemeleri oluştur",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Açıksa bir mesaja bağlantı eklediğinizde önizleme oluşturulur.",
   "userSettingsScreen_languageSettingsDescription": "Çeviriler hata içerebilir.",
   "userSettingsScreen_displayNameLabel": "Profil adı",
   "userSettingsScreen_usernamesSection": "Kullanıcı adları",

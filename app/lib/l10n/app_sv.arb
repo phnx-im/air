@@ -15,6 +15,8 @@
   "userSettingsScreen_readReceiptsDescription": "Om detta är aktiverat kan andra se om du har läst deras meddelanden och du kan se om de har läst dina.",
   "userSettingsScreen_deleteExpiredContactRequests": "Radera utgångna kontaktförfrågningar",
   "userSettingsScreen_deleteExpiredContactRequestsDescription": "Om detta är aktiverat raderas utgångna kontaktförfrågningar automatiskt.",
+  "userSettingsScreen_generateLinkPreviews": "Skapa länkförhandsvisningar",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Om detta är aktiverat skapas en förhandsvisning när du lägger till en länk i ett meddelande.",
   "userSettingsScreen_languageSettingsDescription": "Översättningarna kan innehålla fel.",
   "userSettingsScreen_displayNameLabel": "Visningsnamn",
   "userSettingsScreen_usernamesSection": "Användarnamn",

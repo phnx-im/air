@@ -18,10 +18,8 @@ import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/ds/patterns/modal/modal_guard.dart';
 import 'package:air/ds/patterns/modal/modal_stack.dart';
 import 'package:air/features/user/user_cubit.dart';
-import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
-import 'package:air/ds/patterns/switch_field/switch_field.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -173,10 +171,6 @@ class _CreateGroupDetailsPane extends HookWidget {
       [selectedIds, selectedProfiles],
     );
 
-    final experimentalFeatures = context.select(
-      (UserSettingsCubit cubit) => cubit.state.experimentalFeaturesActive,
-    );
-
     final groupName = useState('');
     final picture = useState<Uint8List?>(null);
     final isCreating = useState(false);
@@ -257,16 +251,6 @@ class _CreateGroupDetailsPane extends HookWidget {
                       style: Theme.of(context).textTheme.bodySmall
                           ?.copyWith(color: palette.text.tertiary),
                     ),
-                  ),
-                ],
-                if (experimentalFeatures) ...[
-                  const SizedBox(height: S.s32),
-                  SwitchField(
-                    onChanged: (value) {
-                      context.read<AddMembersCubit>().enableApq(value);
-                    },
-                    value: isApq,
-                    label: "Post-Quantum Encryption",
                   ),
                 ],
                 const SizedBox(height: S.s32),

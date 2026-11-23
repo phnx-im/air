@@ -15,6 +15,8 @@
   "userSettingsScreen_readReceiptsDescription": "Kui see on sisse lülitatud, näevad teised, kas oled nende sõnumeid lugenud, ja sina näed, kas nemad on sinu omi lugenud.",
   "userSettingsScreen_deleteExpiredContactRequests": "Kustuta aegunud kontaktitaotlused",
   "userSettingsScreen_deleteExpiredContactRequestsDescription": "Kui see on sisse lülitatud, kustutatakse aegunud kontaktitaotlused automaatselt.",
+  "userSettingsScreen_generateLinkPreviews": "Loo linkide eelvaated",
+  "userSettingsScreen_generateLinkPreviewsDescription": "Kui see on sisse lülitatud, luuakse eelvaade, kui lisad sõnumisse lingi.",
   "userSettingsScreen_languageSettingsDescription": "Tõlgetes võib esineda vigu.",
   "userSettingsScreen_displayNameLabel": "Kuvanimi",
   "userSettingsScreen_usernamesSection": "Kasutajanimed",
