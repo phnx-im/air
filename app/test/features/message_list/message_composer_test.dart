@@ -47,6 +47,9 @@ const _draftDebounce = Duration(seconds: 1);
 /// The composer's link preview debounce.
 const _linkPreviewDebounce = Duration(milliseconds: 300);
 
+/// The composer's delay before it shows a loading link preview.
+const _linkPreviewLoadingDelay = Duration(milliseconds: 150);
+
 const _linkUrl = 'https://air.ms/blog/link-previews';
 
 const _linkCard = UiLinkPreviewCard(
@@ -345,12 +348,14 @@ void main() {
           .thenAnswer((_) async => null);
     });
 
-    testWidgets('shows the url while loading', (tester) async {
+    testWidgets('shows the url while loading, after a delay', (tester) async {
       stage(const UiComposerLinkPreview.loading(url: _linkUrl));
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();
+      expect(staged(), findsNothing);
 
+      await tester.pump(_linkPreviewLoadingDelay);
       expect(staged(), findsOneWidget);
       expect(
         find.descendant(of: staged(), matching: find.text(_linkUrl)),
@@ -411,6 +416,7 @@ void main() {
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();
+      await tester.pump(_linkPreviewLoadingDelay);
 
       expect(
         find.descendant(of: staged(), matching: find.text(_linkUrl)),

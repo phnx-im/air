@@ -4,11 +4,11 @@
 
 //! Link previews in new messages and in edits, incl. failed image uploads.
 
-use std::assert_matches;
+use std::{assert_matches, time::Duration};
 
 use aircoreclient::{
-    AttachmentContent, AttachmentId, ChatId, ChatMessage, ComposedLinkPreview, ComposedMessage,
-    MessageId, MimiContentExt, UploadTaskError,
+    AttachmentContent, AttachmentId, AttachmentStatus, ChatId, ChatMessage, ComposedLinkPreview,
+    ComposedMessage, MessageId, MimiContentExt, UploadTaskError,
     clients::CoreUser,
     link_preview::{FetchedLinkPreview, LinkPreview},
 };
@@ -345,6 +345,99 @@ async fn held_edit_is_delivered_after_a_retry() {
     let (url, image) = card(&bob, received_id).await.expect("no card");
     assert_eq!(url, LINK_A);
     assert_eq!(download(&bob, image.expect("no image")).await, IMAGE_A);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn failed_upload_releases_later_messages_of_its_chat() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    alice.drain().await;
+    bob.drain().await;
+    let ComposedMessage {
+        message: first,
+        uploads,
+    } = alice
+        .compose(chat_id)
+        .text(format!("first {LINK_A}"))
+        .link_preview(fetched(LINK_A, Some(IMAGE_A)))
+        .send()
+        .await
+        .unwrap();
+    let second = alice
+        .compose(chat_id)
+        .text("second".to_owned())
+        .send()
+        .await
+        .unwrap()
+        .message;
+
+    // The service stays started and idle, so only a wake-up sends a message
+    alice.outbound_service().start_and_wait().await;
+    assert!(!alice.expect_message(second.id()).await.is_sent());
+
+    // The upload is cancelled before it ran
+    let [upload] = uploads.try_into().ok().expect("one upload");
+    let attachment_id = upload.attachment_id;
+    drop(upload);
+    alice.fail_cancelled_upload(attachment_id).await.unwrap();
+
+    let second_is_sent = async {
+        while !alice.expect_message(second.id()).await.is_sent() {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(10), second_is_sent)
+        .await
+        .expect("the second message is not sent");
+
+    let first = alice.expect_message(first.id()).await;
+    assert_eq!(first.status(), MessageStatus::Error);
+    assert!(!first.is_sent());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn message_with_failed_upload_does_not_fail_other_chats() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, carol] = setup.add_users().await;
+    let chat_bob = setup.connect_users(&alice, &bob).await;
+    let chat_carol = setup.connect_users(&alice, &carol).await;
+    alice.drain().await;
+
+    let ComposedMessage {
+        message: with_card,
+        uploads,
+    } = alice
+        .compose(chat_bob)
+        .text(format!("see {LINK_A}"))
+        .link_preview(fetched(LINK_A, Some(IMAGE_A)))
+        .send()
+        .await
+        .unwrap();
+    let plain = alice
+        .compose(chat_carol)
+        .text("hello".to_owned())
+        .send()
+        .await
+        .unwrap()
+        .message;
+
+    // The upload is failed without holding the message, so it stays queued
+    let [upload] = uploads.try_into().ok().expect("one upload");
+    let attachment_id = upload.attachment_id;
+    drop(upload);
+    alice
+        .set_attachment_status(attachment_id, AttachmentStatus::UploadFailed)
+        .await
+        .unwrap();
+
+    alice.outbound_service().run_once().await;
+
+    let with_card = alice.expect_message(with_card.id()).await;
+    assert_eq!(with_card.status(), MessageStatus::Error);
+    assert!(!with_card.is_sent());
+    assert!(alice.expect_message(plain.id()).await.is_sent());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
