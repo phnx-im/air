@@ -627,7 +627,7 @@
       "used_by": [
         {
           "name": "ml-dsa",
-          "version": "0.1.1",
+          "version": "0.1.2",
           "repository": "https://github.com/RustCrypto/signatures"
         }
       ]
@@ -2296,7 +2296,7 @@
         },
         {
           "name": "minicbor-serde",
-          "version": "0.6.2",
+          "version": "0.7.2",
           "repository": "https://github.com/twittner/minicbor"
         },
         {
@@ -3012,7 +3012,7 @@
       "used_by": [
         {
           "name": "cfb",
-          "version": "0.7.3",
+          "version": "0.14.0",
           "repository": "https://github.com/mdsteele/rust-cfb"
         }
       ]
@@ -3075,7 +3075,7 @@
       "used_by": [
         {
           "name": "infer",
-          "version": "0.19.0",
+          "version": "0.22.0",
           "repository": "https://github.com/bojand/infer"
         }
       ]
