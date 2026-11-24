@@ -73,6 +73,16 @@ class _MessageComposerState extends State<MessageComposer>
   final Debouncer _linkPreviewDebouncer = Debouncer(
     delay: const Duration(milliseconds: 300),
   );
+
+  /// Delays the pending link preview card, so a fetch that fails right away
+  /// never flashes it.
+  final Debouncer _linkPreviewLoadingDebouncer = Debouncer(
+    delay: const Duration(milliseconds: 150),
+  );
+  StreamSubscription<ChatDetailsState>? _linkPreviewSubscription;
+  String? _linkPreviewLoadingUrl;
+  bool _showLinkPreviewLoading = false;
+
   StreamSubscription<ChatDetailsState>? _draftLoadingSubscription;
   final _focusNode = FocusNode();
   late ChatDetailsCubit _chatDetailsCubit;
@@ -136,6 +146,11 @@ class _MessageComposerState extends State<MessageComposer>
     // A share can arrive for the chat that is already open.
     _navigationSubscription = _navigationCubit.stream.listen(
       (_) => _maybeApplyPendingShare(),
+    );
+
+    _onLinkPreviewChanged(_chatDetailsCubit.state.linkPreview);
+    _linkPreviewSubscription = _chatDetailsCubit.stream.listen(
+      (state) => _onLinkPreviewChanged(state.linkPreview),
     );
 
     _draftLoadingSubscription = _chatDetailsCubit.stream.listen((state) {
@@ -257,6 +272,8 @@ class _MessageComposerState extends State<MessageComposer>
 
     _storeDraftDebouncer.dispose();
     _linkPreviewDebouncer.dispose();
+    _linkPreviewLoadingDebouncer.dispose();
+    _linkPreviewSubscription?.cancel();
 
     _chatDetailsCubit.storeDraft(
       draftMessage: _inputController.text.trim(),
@@ -295,7 +312,11 @@ class _MessageComposerState extends State<MessageComposer>
         chat?.draft?.inReplyTo?.$1,
         chat?.isConfirmed ?? false,
         (chat?.unreadMessages ?? 0) > 0,
-        cubit.state.linkPreview != null,
+        switch (cubit.state.linkPreview) {
+          null => false,
+          UiComposerLinkPreview_Loading() => _showLinkPreviewLoading,
+          UiComposerLinkPreview_Ready() => true,
+        },
       );
     });
 
@@ -334,11 +355,11 @@ class _MessageComposerState extends State<MessageComposer>
           onScrollBack: () => controller?.scrollToBottom(),
           aboveField: [
             if (editingId != null) _EditBanner(editingId: editingId),
-            // Above the quote: it is attached, not part of what is replied to.
+            // In the order the sent message shows them.
+            if (inReplyToId != null) _ReplyPreview(last: !hasLinkPreview),
             // Only present while staged, an empty row would cost the field its
             // top inset.
             if (hasLinkPreview) const _LinkPreviewStaged(),
-            if (inReplyToId != null) const _ReplyPreview(),
           ],
           field: _ComposerField(
             focusNode: _focusNode,
@@ -511,8 +532,17 @@ class _MessageComposerState extends State<MessageComposer>
   }
 
   bool _resetDraft(ChatDetailsCubit cubit) {
-    // if we are replying to a message, reset only this
-    if (cubit.state.chat?.draft?.inReplyTo != null) {
+    // One thing per press: link preview, then reply, then edit.
+    final linkUrl = switch (cubit.state.linkPreview) {
+      UiComposerLinkPreview_Ready(:final card) => card.url,
+      UiComposerLinkPreview_Loading(:final url) when _showLinkPreviewLoading =>
+        url,
+      _ => null,
+    };
+    if (linkUrl != null) {
+      cubit.dismissLinkPreview(linkUrl);
+      return true;
+    } else if (cubit.state.chat?.draft?.inReplyTo != null) {
       cubit.resetDraftReply();
       return true;
     } else if (cubit.state.chat?.draft?.editingId != null) {
@@ -739,6 +769,24 @@ class _MessageComposerState extends State<MessageComposer>
     _scheduleLinkPreviewUpdate(currentText);
   }
 
+  /// Restarts the pending card's delay whenever the fetched address changes.
+  void _onLinkPreviewChanged(UiComposerLinkPreview? preview) {
+    final url = switch (preview) {
+      UiComposerLinkPreview_Loading(:final url) => url,
+      _ => null,
+    };
+    if (url == _linkPreviewLoadingUrl) return;
+    _linkPreviewLoadingUrl = url;
+    _linkPreviewLoadingDebouncer.cancel();
+    if (_showLinkPreviewLoading) {
+      setState(() => _showLinkPreviewLoading = false);
+    }
+    if (url == null) return;
+    _linkPreviewLoadingDebouncer.run(() {
+      if (mounted) setState(() => _showLinkPreviewLoading = true);
+    });
+  }
+
   /// Asks Rust to resolve a preview for the first link in [text].
   ///
   /// Experimental.
@@ -818,7 +866,10 @@ class _EditBanner extends StatelessWidget {
 
 /// The quoted message, shown above the field while a reply is staged.
 class _ReplyPreview extends StatelessWidget {
-  const _ReplyPreview();
+  const _ReplyPreview({required this.last});
+
+  /// Whether the field follows directly, see [MessageInputQuote.last].
+  final bool last;
 
   @override
   Widget build(BuildContext context) {
@@ -832,6 +883,7 @@ class _ReplyPreview extends StatelessWidget {
       preview: quote.preview,
       senderName: quote.senderName,
       thumbnail: quotedThumbnail(context, inReplyTo.$2),
+      last: last,
       onRemove: () => context.read<ChatDetailsCubit>().resetDraftReply(),
     );
   }
@@ -852,6 +904,7 @@ class _LinkPreviewStaged extends StatelessWidget {
     return switch (preview) {
       UiComposerLinkPreview_Loading(:final url) => MessageInputLinkPreview(
         url: url,
+        onRemove: () => cubit.dismissLinkPreview(url),
       ),
       UiComposerLinkPreview_Ready(:final card, :final image) =>
         MessageInputLinkPreview(
