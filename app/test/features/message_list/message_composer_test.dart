@@ -380,7 +380,7 @@ void main() {
           .called(1);
     });
 
-    testWidgets('sits above the reply quote', (tester) async {
+    testWidgets('sits below the reply quote', (tester) async {
       stage(
         const UiComposerLinkPreview.ready(card: _linkCard),
         draft: _replyDraft,
@@ -390,8 +390,8 @@ void main() {
       await tester.pump();
 
       expect(
-        tester.getRect(staged()).bottom,
-        lessThanOrEqualTo(tester.getRect(find.byType(MessageInputQuote)).top),
+        tester.getRect(find.byType(MessageInputQuote)).bottom,
+        lessThanOrEqualTo(tester.getRect(staged()).top),
       );
     });
 
@@ -429,6 +429,24 @@ void main() {
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();
+      await tester.tap(
+        find.descendant(
+          of: staged(),
+          matching: find.byWidgetPredicate(
+            (w) => w is ButtonIcon && w.icon == AppIconType.x,
+          ),
+        ),
+      );
+
+      verify(() => chatDetailsCubit.dismissLinkPreview(_linkUrl)).called(1);
+    });
+
+    testWidgets('dismissing while loading reaches the cubit', (tester) async {
+      stage(const UiComposerLinkPreview.loading(url: _linkUrl));
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+      await tester.pump(_linkPreviewLoadingDelay);
       await tester.tap(
         find.descendant(
           of: staged(),
@@ -502,7 +520,7 @@ void main() {
           .called(1);
     });
 
-    testWidgets('renders correctly above a reply', (tester) async {
+    testWidgets('renders correctly below a reply', (tester) async {
       stage(
         const UiComposerLinkPreview.ready(
           card: _linkCard,
