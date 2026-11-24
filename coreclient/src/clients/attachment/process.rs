@@ -211,38 +211,89 @@ impl CoreUser {
         message: &ChatMessage,
     ) -> anyhow::Result<()> {
         for attachment in Self::extract_attachments(message)? {
-            match attachment {
-                ExtractedAttachment::External(record, remote_record) => {
-                    if let Some((attachment_id, stored)) =
-                        RemoteAttachmentRecord::load_by_remote_id(
-                            &mut connection,
-                            remote_record.remote_attachment_id,
-                        )
-                        .await?
-                    {
-                        if stored.has_same_secrets(&remote_record) {
-                            MessageAttachmentRecord {
-                                attachment_id,
-                                ..record.reference()
-                            }
-                            .store(&mut connection)
-                            .await?;
-                        } else {
-                            warn!(
-                                message_id = ?message.id(),
-                                "Skipping attachment with already known remote id"
-                            );
+            Self::store_attachment(&mut connection, message.id(), attachment).await?;
+        }
+        Ok(())
+    }
+
+    /// Makes the stored attachments of an edited message match its content.
+    ///
+    /// An external part keeps the attachment stored at its index, if the
+    /// remote attachment is the same. The attachments of all other parts are
+    /// stored anew, and the references they replace are deleted.
+    pub(crate) async fn reconcile_attachments(
+        mut connection: impl WriteConnection,
+        message: &ChatMessage,
+    ) -> anyhow::Result<()> {
+        let stored =
+            MessageAttachmentRecord::load_infos_by_message_id(&mut connection, message.id())
+                .await?;
+
+        let mut kept = Vec::new();
+        let mut new = Vec::new();
+        for attachment in Self::extract_attachments(message)? {
+            let is_kept = match &attachment {
+                ExtractedAttachment::External(record, remote_record) => stored.iter().any(|info| {
+                    info.part_index == record.part_index
+                        && info.remote_attachment_id == Some(remote_record.remote_attachment_id)
+                }),
+                ExtractedAttachment::Inline(..) => false,
+            };
+            match (is_kept, &attachment) {
+                (true, ExtractedAttachment::External(record, _remote_record)) => {
+                    kept.push(record.part_index);
+                }
+                _ => new.push(attachment),
+            }
+        }
+
+        for info in stored.iter() {
+            if !kept.contains(&info.part_index) {
+                MessageAttachmentRecord::delete(&mut connection, message.id(), info.part_index)
+                    .await?;
+            }
+        }
+        for attachment in new {
+            Self::store_attachment(&mut connection, message.id(), attachment).await?;
+        }
+        Ok(())
+    }
+
+    async fn store_attachment(
+        mut connection: impl WriteConnection,
+        message_id: MessageId,
+        attachment: ExtractedAttachment,
+    ) -> anyhow::Result<()> {
+        match attachment {
+            ExtractedAttachment::External(record, remote_record) => {
+                if let Some((attachment_id, stored)) = RemoteAttachmentRecord::load_by_remote_id(
+                    &mut connection,
+                    remote_record.remote_attachment_id,
+                )
+                .await?
+                {
+                    if stored.has_same_secrets(&remote_record) {
+                        MessageAttachmentRecord {
+                            attachment_id,
+                            ..record.reference()
                         }
-                        continue;
-                    }
-                    record.store(&mut connection, None).await?;
-                    remote_record
-                        .store(&mut connection, record.attachment_id)
+                        .store(&mut connection)
                         .await?;
+                    } else {
+                        warn!(
+                            ?message_id,
+                            "Skipping attachment with already known remote id"
+                        );
+                    }
+                    return Ok(());
                 }
-                ExtractedAttachment::Inline(record, content) => {
-                    record.store(&mut connection, Some(&content)).await?;
-                }
+                record.store(&mut connection, None).await?;
+                remote_record
+                    .store(&mut connection, record.attachment_id)
+                    .await?;
+            }
+            ExtractedAttachment::Inline(record, content) => {
+                record.store(&mut connection, Some(&content)).await?;
             }
         }
         Ok(())

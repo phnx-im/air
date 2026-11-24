@@ -16,6 +16,12 @@ pub struct RemoteAttachmentId {
 }
 
 impl RemoteAttachmentId {
+    pub fn random() -> Self {
+        Self {
+            uuid: Uuid::new_v4(),
+        }
+    }
+
     pub fn new(uuid: Uuid) -> Self {
         Self { uuid }
     }

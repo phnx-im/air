@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT DISTINCT t.attachment_id AS \"attachment_id: AttachmentId\"\n            FROM attachment_transfer t\n            JOIN message_attachment ma ON ma.attachment_id = t.attachment_id\n            JOIN message m ON m.message_id = ma.message_id\n            WHERE t.direction = ?1\n                AND t.state IN (?2, ?3)\n                AND t.started_at < ?4\n                AND m.sent = 0",
+  "describe": {
+    "columns": [
+      {
+        "name": "attachment_id: AttachmentId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment_transfer",
+            "name": "attachment_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "adc7ffcbaeb2379fd2873b4a92500d1fcbafbb0d5258c64894c85393b0df8b86"
+}

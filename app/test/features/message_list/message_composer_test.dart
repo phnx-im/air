@@ -390,7 +390,7 @@ void main() {
       );
     });
 
-    testWidgets('is hidden while editing', (tester) async {
+    testWidgets('shows the card while editing', (tester) async {
       stage(
         const UiComposerLinkPreview.ready(card: _linkCard),
         draft: _editDraft,
@@ -399,8 +399,23 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
-      expect(staged(), findsNothing);
-      expect(find.text(_linkCard.title), findsNothing);
+      expect(staged(), findsOneWidget);
+      expect(find.text(_linkCard.title), findsOneWidget);
+    });
+
+    testWidgets('shows the url while loading in an edit', (tester) async {
+      stage(
+        const UiComposerLinkPreview.loading(url: _linkUrl),
+        draft: _editDraft,
+      );
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      expect(
+        find.descendant(of: staged(), matching: find.text(_linkUrl)),
+        findsOneWidget,
+      );
     });
 
     testWidgets('dismissing the card reaches the cubit', (tester) async {
@@ -465,7 +480,7 @@ void main() {
       verifyNever(() => chatDetailsCubit.updateLinkPreviews(any()));
     });
 
-    testWidgets('leaves links alone while editing', (tester) async {
+    testWidgets('resolves the link while editing', (tester) async {
       when(() => userSettingsCubit.state).thenReturn(experimental);
       when(() => chatDetailsCubit.state).thenReturn(
         ChatDetailsState(chat: _chatWithDraft(_editDraft), members: _members),
@@ -477,7 +492,8 @@ void main() {
       await tester.enterText(find.byType(TextField), 'See $_linkUrl');
       await tester.pump(_linkPreviewDebounce);
 
-      verifyNever(() => chatDetailsCubit.updateLinkPreviews(any()));
+      verify(() => chatDetailsCubit.updateLinkPreviews('See $_linkUrl'))
+          .called(1);
     });
 
     testWidgets('renders correctly above a reply', (tester) async {

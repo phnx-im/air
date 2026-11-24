@@ -6,23 +6,23 @@
 
 use std::{collections::HashMap, path::PathBuf, time::Duration};
 
-use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
+use aircommon::identifiers::{MimiId, UserId};
 pub use aircoreclient::{
     AcceptContactRequestError, AirComponentDebugInfo, AppDataDebugInfo, DebugCapabilities,
     EncryptedGroupTitleDebugInfo, ExternalGroupProfileDebugInfo, GroupDataDebugInfo,
     GroupDebugInfo, PqGroupDebugInfo, RequiredDebugCapabilities, ResyncDebugInfo,
 };
 use aircoreclient::{
-    AttachmentId, AttachmentStatus, Chat, ChatId, ChatMessage, MarkChatAsRead, MessageEditError,
-    MessageId, MimiContentExt as _, PendingUpload, ProvisionAttachmentError, UploadTaskError,
+    AttachmentId, AttachmentStatus, Chat, ChatId, ChatMessage, ComposedLinkPreview, MarkChatAsRead,
+    MessageEditError, MessageId, PendingUpload, ProvisionAttachmentError, UploadHandle,
+    UploadTaskError,
     clients::CoreUser,
-    link_preview::{FetchedLinkPreview, select_links},
+    link_preview::{LinkPreview, select_links},
 };
 use airprotos::client::component::AirFeatures;
 use anyhow::{Context as _, bail};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
-use mimi_content::MimiContent;
 use parking_lot::Mutex;
 use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
@@ -34,7 +34,7 @@ use crate::{
         message_content::{UiComposerLinkPreview, UiMimiId, UnresolvedMimiContent},
         types::{UiChatMessage, UiInReplyToMessage, UiMessageVersion},
     },
-    composer_link_preview::ComposerLinkPreview,
+    composer_link_preview::{ComposerLinkPreview, OriginalPreview},
     mark_as_read::MarkAsReadState,
 };
 use crate::{api::types::UiMessageDraft, message_content::MimiContentExt};
@@ -309,12 +309,15 @@ impl ChatDetailsCubitBase {
             true
         });
         if changed {
+            self.with_link_preview(|lp| lp.reset());
             self.store_draft_from_state().await?;
         }
         Ok(())
     }
 
     async fn try_send_message(&self, text: String) -> anyhow::Result<()> {
+        self.seed_link_preview_of_edit().await?;
+
         // The draft is only cleared once the message is stored, so that its
         // text and reply/edit context survive a failed send.
         let draft = {
@@ -322,10 +325,13 @@ impl ChatDetailsCubitBase {
             state.chat.as_ref().and_then(|chat| chat.draft.clone())
         };
 
-        let in_reply_to_mimi_id = draft
+        let in_reply_to = draft
             .as_ref()
             .and_then(|d| d.in_reply_to.as_ref())
             .map(|(mimi_id, _)| *mimi_id);
+
+        // Only reset once the message is stored, so that it survives a failed send.
+        let preview = self.link_preview_to_send(&text);
 
         let replaces = if let Some(replaces_id) = draft.as_ref().and_then(|d| d.editing_id) {
             // Load the original message and the Mimi ID of the original message
@@ -343,9 +349,19 @@ impl ChatDetailsCubitBase {
                 bail!("Unable to edit message with no body.");
             };
 
-            if plain_body == text {
+            let has_card = original
+                .message()
+                .mimi_content()
+                .is_some_and(|content| LinkPreview::from_content(content).is_some());
+            let keeps_card = match &preview {
+                Some(ComposedLinkPreview::Original) => has_card,
+                None => !has_card,
+                Some(ComposedLinkPreview::Fetched(_)) => false,
+            };
+            if plain_body == text && keeps_card {
                 // Nothing changed, but clearing the draft leaves edit mode.
                 self.clear_draft(draft.as_ref()).await?;
+                self.with_link_preview(|lp| lp.reset());
                 return Ok(());
             }
             Some(original)
@@ -353,36 +369,18 @@ impl ChatDetailsCubitBase {
             None
         };
 
-        let is_edit = replaces.is_some();
-        // Only reset once the message is stored, so that it survives a failed send.
-        let preview = if is_edit || !self.user_settings_rx.borrow().generate_link_previews {
-            None
-        } else {
-            self.link_preview.lock().ready_for(&text)
-        };
-
-        let salt: [u8; 16] = RustCrypto::default().random_array()?;
-        let mut content = MimiContent::simple_markdown_message(text, salt);
-        // TODO: we should have nice setters and not have to deal with encoding ourselves (in mimi_content)
-        content.in_reply_to = in_reply_to_mimi_id.map(Into::into);
-
-        let upload = match (replaces, preview) {
-            // Edit
-            (Some(original), _) => {
-                if let Some(original_content) = original.message().mimi_content() {
-                    content = content.with_link_preview_of(original_content);
-                }
-                self.send_plain(content, Some(original)).await?;
-                None
-            }
-            // Not an edit and no preview
-            (None, None) => {
-                self.send_plain(content, None).await?;
-                None
-            }
-            // Not an edit and has preview
-            (None, Some(preview)) => self.send_with_link_preview(content, preview).await?,
-        };
+        let composed = self
+            .context
+            .core_user
+            .compose(self.context.chat_id)
+            .text(text)
+            .in_reply_to(in_reply_to.map(MimiId::from))
+            .replaces(replaces)
+            .link_preview(preview)
+            .mark_as_read(MarkChatAsRead::Yes)
+            .send()
+            .await
+            .inspect_err(|error| error!(%error, "Failed to send message"))?;
 
         // We don't want to propagate the error to the UI, otherwise the user
         // might think the message was not sent and retry, which would result in
@@ -390,39 +388,24 @@ impl ChatDetailsCubitBase {
         if let Err(error) = self.clear_draft(draft.as_ref()).await {
             error!(%error, "Failed to clear the draft after sending");
         }
-        if !is_edit {
-            self.with_link_preview(|lp| lp.reset());
-        }
-        if let Some(upload) = upload {
-            self.spawn_upload(upload);
+        self.with_link_preview(|lp| lp.reset());
+        for upload in composed.uploads {
+            self.spawn_upload_handle(upload);
         }
 
         Ok(())
     }
 
-    async fn send_plain(
-        &self,
-        content: MimiContent,
-        replaces: Option<ChatMessage>,
-    ) -> anyhow::Result<()> {
-        self.context
-            .core_user
-            .send_message(self.context.chat_id, content, replaces, MarkChatAsRead::Yes)
-            .await
-            .inspect_err(|error| error!(%error, "Failed to send message"))?;
-        Ok(())
-    }
-
-    async fn send_with_link_preview(
-        &self,
-        content: MimiContent,
-        preview: FetchedLinkPreview,
-    ) -> anyhow::Result<Option<PendingUpload>> {
-        self.context
-            .core_user
-            .send_link_preview_message(self.context.chat_id, content, preview, MarkChatAsRead::Yes)
-            .await
-            .inspect_err(|error| error!(%error, "Failed to send message"))
+    /// Link preview to send with `text`.
+    ///
+    /// Without link preview generation, only the card of an edited message
+    /// is kept.
+    fn link_preview_to_send(&self, text: &str) -> Option<ComposedLinkPreview> {
+        let generate = self.user_settings_rx.borrow().generate_link_previews;
+        match self.link_preview.lock().ready_for(text) {
+            Some(ComposedLinkPreview::Fetched(_)) if !generate => None,
+            preview => preview,
+        }
     }
 
     /// Clears the draft in the state and in the store.
@@ -535,15 +518,27 @@ impl ChatDetailsCubitBase {
         .await
     }
 
-    fn spawn_upload(&self, upload: PendingUpload) {
+    fn spawn_upload_handle(&self, upload: UploadHandle) {
         let core_user = self.context.core_user.clone();
         let in_progress = self.attachment_in_progress.clone();
-        let attachment_id = upload.attachment_id;
+        let UploadHandle {
+            attachment_id,
+            progress,
+            task,
+        } = upload;
+        let handle = AttachmentTaskHandle::new(progress);
+        let cancel = handle.cancellation_token().clone();
+        in_progress.insert(attachment_id, handle);
         spawn_from_sync(async move {
-            match run_upload(core_user, in_progress, upload).await {
-                Ok(None) => {}
-                Ok(Some(error)) => warn!(?error, ?attachment_id, "Upload rejected"),
-                Err(error) => error!(%error, ?attachment_id, "Upload failed"),
+            match cancel.run_until_cancelled_owned(task).await {
+                Some(Ok(())) => {}
+                Some(Err(error)) => error!(?error, ?attachment_id, "Upload failed"),
+                None => {
+                    info!(?attachment_id, "Upload was cancelled");
+                    if let Err(error) = core_user.fail_cancelled_upload(attachment_id).await {
+                        error!(%error, ?attachment_id, "Failed to fail the upload");
+                    }
+                }
             }
         });
     }
@@ -615,12 +610,18 @@ impl ChatDetailsCubitBase {
     }
 
     pub async fn reset_draft(&self) {
+        let mut was_edit = false;
         self.core.state_tx().send_if_modified(|state| {
             let Some(chat) = state.chat.as_mut() else {
                 return false;
             };
-            chat.draft.take().is_some()
+            let draft = chat.draft.take();
+            was_edit = draft.as_ref().is_some_and(|d| d.editing_id.is_some());
+            draft.is_some()
         });
+        if was_edit {
+            self.with_link_preview(|lp| lp.reset());
+        }
     }
 
     pub async fn reset_draft_reply(&self) -> anyhow::Result<()> {
@@ -691,9 +692,66 @@ impl ChatDetailsCubitBase {
         });
 
         if changed {
+            let original = self.original_preview(&message).await;
+            self.with_link_preview(|lp| lp.start_edit(message.id(), original));
             self.store_draft_from_state().await?;
         }
 
+        Ok(())
+    }
+
+    /// Card of `message` with the stored bytes of its image.
+    async fn original_preview(&self, message: &ChatMessage) -> Option<OriginalPreview> {
+        let preview = LinkPreview::from_content(message.message().mimi_content()?)?;
+        let image = match preview.image() {
+            Some((_, part_index)) => {
+                let attachments = self
+                    .context
+                    .core_user
+                    .attachment_infos_for_message(message.id())
+                    .await;
+                attachments
+                    .find(part_index, None)
+                    .map(|info| info.attachment_id)
+            }
+            None => None,
+        };
+        let image_bytes = match image {
+            Some(attachment_id) => self
+                .context
+                .core_user
+                .load_attachment(attachment_id)
+                .await
+                .inspect_err(|error| error!(%error, "Failed to load the card image"))
+                .ok()
+                .and_then(|content| content.into_bytes()),
+            None => None,
+        };
+        Some(OriginalPreview::new(preview.card().clone(), image_bytes))
+    }
+
+    /// Seeds the link preview with the card of the edited message, if the
+    /// draft is an edit that this cubit did not start.
+    async fn seed_link_preview_of_edit(&self) -> anyhow::Result<()> {
+        let editing_id = {
+            let state = self.core.state_tx().borrow();
+            state
+                .chat
+                .as_ref()
+                .and_then(|chat| chat.draft.as_ref())
+                .and_then(|draft| draft.editing_id)
+        };
+        let Some(editing_id) = editing_id else {
+            return Ok(());
+        };
+        if self.link_preview.lock().is_editing(editing_id) {
+            return Ok(());
+        }
+        let Some(message) = self.context.core_user.message(editing_id).await? else {
+            return Ok(());
+        };
+        let original = self.original_preview(&message).await;
+        self.with_link_preview(|lp| lp.start_edit(editing_id, original));
         Ok(())
     }
 
@@ -738,6 +796,7 @@ impl ChatDetailsCubitBase {
             .await;
 
         // Update draft in state
+        let mut left_edit = false;
         let changed = self.core.state_tx().send_if_modified(|state| {
             let Some(chat) = state.chat.as_mut() else {
                 return false;
@@ -752,7 +811,7 @@ impl ChatDetailsCubitBase {
             }
 
             // if we already have a staged editing draft, reset it
-            chat.draft.take_if(|d| d.editing_id.is_some());
+            left_edit = chat.draft.take_if(|d| d.editing_id.is_some()).is_some();
 
             let draft = chat.draft.get_or_insert_with(UiMessageDraft::empty);
 
@@ -771,6 +830,9 @@ impl ChatDetailsCubitBase {
         });
 
         if changed {
+            if left_edit {
+                self.with_link_preview(|lp| lp.reset());
+            }
             self.store_draft_from_state().await?;
         }
 
@@ -849,12 +911,12 @@ impl ChatDetailsCubitBase {
     }
 
     pub async fn update_link_previews(&self, text: String) -> anyhow::Result<()> {
-        let url = self
-            .user_settings_rx
-            .borrow()
-            .generate_link_previews
-            .then(|| select_links(&text).next())
-            .flatten();
+        self.seed_link_preview_of_edit().await?;
+        let generate = self.user_settings_rx.borrow().generate_link_previews;
+        // Without generation, only the card of the edited message is shown
+        let url = select_links(&text)
+            .next()
+            .filter(|url| generate || self.link_preview.lock().is_original(url));
         let parent = self.core.cancellation_token();
         let Some((url, token)) = self.with_link_preview(|lp| lp.switch_to(url, parent)) else {
             return Ok(());

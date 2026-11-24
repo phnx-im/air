@@ -24,7 +24,8 @@ use crate::{
     ChatMessage,
     clients::attachment::{
         AttachmentRecord, AttachmentTransferRecord, MessageAttachmentRecord,
-        persistence::{AttachmentStatus, UnqueuedAttachmentMessage},
+        persistence::{TransferFailure, UnqueuedAttachmentMessage},
+        upload::hold_message_with_failed_upload,
     },
     db::access::DbAccess,
     outbound_service::{chat_message_queue::ChatMessageQueue, error::OutboundServiceError},
@@ -74,13 +75,15 @@ pub(super) async fn recover_interrupted_attachment_uploads(
             else {
                 continue;
             };
-            if AttachmentRecord::has_content(&mut *txn, attachment_id).await? {
-                AttachmentRecord::update_status(
+            let is_queued = ChatMessageQueue::is_queued(&mut *txn, reference.message_id).await?;
+            if is_queued || AttachmentRecord::has_content(&mut *txn, attachment_id).await? {
+                AttachmentTransferRecord::fail_upload(
                     &mut *txn,
                     attachment_id,
-                    AttachmentStatus::UploadFailed,
+                    TransferFailure::Unknown,
                 )
                 .await?;
+                hold_message_with_failed_upload(txn, reference.message_id).await?;
             } else {
                 ChatMessage::delete(&mut *txn, reference.message_id).await?;
             }
@@ -97,6 +100,7 @@ pub(super) async fn recover_interrupted_attachment_uploads(
 mod tests {
     use aircommon::time::TimeStamp;
     use chrono::{DateTime, Utc};
+    use mimi_content::MessageStatus;
     use sqlx::SqlitePool;
     use uuid::Uuid;
 
@@ -238,6 +242,41 @@ mod tests {
                 .is_none()
         );
         assert_eq!(stored_status(&db, attachment_id).await?, None);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn abandoned_upload_of_queued_message_holds_the_message(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let db = DbAccess::for_tests(pool);
+        let abandoned_at = Utc::now() - UPLOAD_STALE_AFTER - chrono::Duration::minutes(1);
+        let (message, attachment_id) =
+            unsent_attachment_message(&db, AttachmentStatus::Uploading, abandoned_at).await?;
+        sqlx::query("DELETE FROM attachment_content WHERE attachment_id = ?")
+            .bind(attachment_id)
+            .execute(db.write().await?.as_mut())
+            .await?;
+        db.with_write_transaction(async |txn| -> anyhow::Result<_> {
+            ChatMessageQueue::new(message.chat_id(), message.id())
+                .enqueue(&mut *txn)
+                .await?;
+            Ok(())
+        })
+        .await?;
+
+        recover_interrupted_attachment_uploads(&db).await?;
+
+        let stored = ChatMessage::load(db.read().await?, message.id())
+            .await?
+            .expect("a queued message is never removed");
+        assert_eq!(stored.status(), MessageStatus::Error);
+        assert_eq!(
+            stored_status(&db, attachment_id).await?,
+            Some(AttachmentStatus::UploadFailed)
+        );
+        assert!(queued_message_ids(&db).await?.is_empty());
 
         Ok(())
     }

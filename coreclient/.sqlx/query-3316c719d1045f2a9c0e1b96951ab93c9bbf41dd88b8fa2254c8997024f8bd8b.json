@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM message_attachment WHERE message_id = ? AND role = ?\n            RETURNING attachment_id AS \"attachment_id: _\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "attachment_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message_attachment",
+            "name": "attachment_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3316c719d1045f2a9c0e1b96951ab93c9bbf41dd88b8fa2254c8997024f8bd8b"
+}

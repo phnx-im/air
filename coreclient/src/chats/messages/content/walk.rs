@@ -51,6 +51,33 @@ pub(super) fn part_at(root: &NestedPart, PartIndex(index): PartIndex) -> Option<
     }
 }
 
+pub(super) fn part_at_mut(
+    root: &mut NestedPart,
+    PartIndex(index): PartIndex,
+) -> Option<&mut NestedPart> {
+    let mut index = index as usize;
+    let mut part = root;
+    loop {
+        if index == 0 {
+            return Some(part);
+        }
+        let NestedPart::MultiPart { parts, .. } = part else {
+            return None;
+        };
+        index -= 1;
+        let child = parts.iter_mut().find(|child| {
+            let count = part_count(child);
+            if index < count {
+                true
+            } else {
+                index -= count;
+                false
+            }
+        })?;
+        part = child;
+    }
+}
+
 impl TextFormat {
     fn from_media_type(media_type: MediaType<'_>) -> Option<Self> {
         if media_type == TEXT_MARKDOWN {
