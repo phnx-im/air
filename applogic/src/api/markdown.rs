@@ -4,9 +4,13 @@
 
 use std::{iter::Peekable, sync::LazyLock};
 
+use aircommon::identifiers::UserId;
+use aircoreclient::MARKDOWN_OPTIONS;
 use flutter_rust_bridge::frb;
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 use regex::Regex;
+
+use super::types::UiUserId;
 
 const MAX_DEPTH: usize = 50;
 
@@ -48,6 +52,12 @@ pub enum Error {
 }
 
 type ParseResult<T> = std::result::Result<T, Error>;
+
+/// Returns the mimi user URI for the given user id.
+#[frb(sync)]
+pub fn user_mention_uri(user_id: UiUserId) -> String {
+    UserId::from(user_id).uri()
+}
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[frb(dart_metadata = ("freezed"))]
@@ -122,7 +132,10 @@ pub enum InlineElement {
     Spoiler(Vec<RangedInlineElement>),
     Image(String),
     TaskListMarker(bool),
-    //UserMention(String),
+    UserMention {
+        user_id: UiUserId,
+        hint: String,
+    },
     //RoomMention(String),
     //Video,
     //Audio,
@@ -153,12 +166,7 @@ impl MessageContent {
     }
 
     fn try_parse_markdown(string: &str) -> ParseResult<Self> {
-        let parsed = Parser::new_ext(
-            string,
-            // Do not enable Options::ENABLE_GFM, it activates special blockquotes which are not part of the GFM spec https://github.com/orgs/community/discussions/16925
-            Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TABLES | Options::ENABLE_TASKLISTS,
-        )
-        .into_offset_iter();
+        let parsed = Parser::new_ext(string, MARKDOWN_OPTIONS).into_offset_iter();
         let mut result = Vec::new();
         let mut iter = parsed
             .map(|(event, range)| RangedEvent {
@@ -262,6 +270,7 @@ fn push_inline_text(inlines: &[RangedInlineElement], text: &mut String) {
             | InlineElement::Strikethrough(children)
             | InlineElement::Spoiler(children) => push_inline_text(children, text),
             InlineElement::Image(_) => text.push_str(IMAGE_PREVIEW),
+            InlineElement::UserMention { hint, .. } => text.push_str(hint),
             InlineElement::TaskListMarker(_) => (),
         }
     }
@@ -569,9 +578,16 @@ where
 
             Event::Start(Tag::Link { dest_url, .. }) => {
                 let start = iter.next().ok_or(Error::ExpectedMoreEvents)?;
-                let value = InlineElement::Link {
-                    dest_url: dest_url.to_string(),
-                    children: parse_inline_elements(iter, depth + 1)?,
+                let children = parse_inline_elements(iter, depth + 1)?;
+                let value = match UserId::parse_uri(&dest_url) {
+                    Some(user_id) => InlineElement::UserMention {
+                        user_id: user_id.into(),
+                        hint: inline_text(&children),
+                    },
+                    None => InlineElement::Link {
+                        dest_url: dest_url.to_string(),
+                        children,
+                    },
                 };
                 let end = iter.next().ok_or(Error::ExpectedMoreEvents)?;
 
@@ -1226,5 +1242,95 @@ But it ends after the paragraph"#,
             MessageContent::error("Invalid message".to_owned()).plain_text(),
             "Invalid message"
         );
+    }
+
+    const ALICE_URI: &str = "mimi://example.com/u/00000000-0000-0000-0000-000000000001";
+    const BOB_URI: &str = "mimi://example.com/u/00000000-0000-0000-0000-000000000002";
+
+    fn parse_paragraph(input: &str) -> Vec<RangedInlineElement> {
+        let content = MessageContent::try_parse_markdown(input).unwrap();
+        assert_eq!(content.elements.len(), 1);
+        match &content.elements[0].element {
+            BlockElement::Paragraph(inline_elements) => inline_elements.clone(),
+            other => panic!("Expected a Paragraph block element, got {other:?}"),
+        }
+    }
+
+    fn is_mention(elem: &RangedInlineElement, expected_uri: &str, expected_hint: &str) {
+        match &elem.element {
+            InlineElement::UserMention { user_id, hint } => {
+                let user_id: UserId = user_id.clone().into();
+                assert_eq!(user_id.uri(), expected_uri);
+                assert_eq!(hint, expected_hint);
+            }
+            other => panic!("Expected UserMention, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn mention_alone() {
+        let elems = parse_paragraph(&format!("[@Alice]({ALICE_URI})"));
+        assert_eq!(elems.len(), 1);
+        is_mention(&elems[0], ALICE_URI, "@Alice");
+    }
+
+    #[test]
+    fn mention_in_text() {
+        let elems = parse_paragraph(&format!("Kudos to [@Alice]({ALICE_URI}) for the release!"));
+        assert_eq!(elems.len(), 3);
+        is_text(&elems[0], "Kudos to ", (0, 9));
+        is_mention(&elems[1], ALICE_URI, "@Alice");
+        is_text(&elems[2], " for the release!", (76, 93));
+    }
+
+    #[test]
+    fn mention_inside_bold() {
+        let elems = parse_paragraph(&format!("**[@Alice]({ALICE_URI})**"));
+        assert_eq!(elems.len(), 1);
+        match &elems[0].element {
+            InlineElement::Bold(children) => {
+                assert_eq!(children.len(), 1);
+                is_mention(&children[0], ALICE_URI, "@Alice");
+            }
+            other => panic!("Expected Bold, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn adjacent_mentions() {
+        let elems = parse_paragraph(&format!("[@Alice]({ALICE_URI})[@Bob]({BOB_URI})"));
+        assert_eq!(elems.len(), 2);
+        is_mention(&elems[0], ALICE_URI, "@Alice");
+        is_mention(&elems[1], BOB_URI, "@Bob");
+    }
+
+    #[test]
+    fn mention_hint_with_nested_formatting() {
+        let elems = parse_paragraph(&format!("[@**Alice** ~~Smith~~]({ALICE_URI})"));
+        assert_eq!(elems.len(), 1);
+        is_mention(&elems[0], ALICE_URI, "@Alice Smith");
+    }
+
+    #[test]
+    fn mimi_link_with_non_user_path_stays_link() {
+        for uri in [
+            "mimi://example.com/attachment/x",
+            "mimi://example.com/u/not-a-uuid",
+            "mimi://example.com/u/00000000-0000-0000-0000-000000000001/extra",
+        ] {
+            let elems = parse_paragraph(&format!("[text]({uri})"));
+            assert_eq!(elems.len(), 1);
+            match &elems[0].element {
+                InlineElement::Link { dest_url, .. } => assert_eq!(dest_url, uri),
+                other => panic!("Expected Link, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn mention_in_code_stays_code() {
+        let elems = parse_paragraph(&format!("`[@Alice]({ALICE_URI})`"));
+        assert_eq!(elems.len(), 1);
+        assert!(matches!(&elems[0].element, InlineElement::Code(_)));
     }
 }

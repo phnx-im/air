@@ -21,6 +21,7 @@ class ChatListItemTokens {
     required this.trailingPadding,
     required this.separatorPadding,
     required this.highlightActive,
+    required this.mentionMarkerSize,
   });
 
   final double avatarSize;
@@ -43,6 +44,10 @@ class ChatListItemTokens {
   /// never a selected row left on screen to mark.
   final bool highlightActive;
 
+  /// Diameter of the `@` marker beside the unread counter. It equals the
+  /// counter's height, and the two read as one row of badges.
+  final double mentionMarkerSize;
+
   static const EdgeInsets avatarPadding = EdgeInsets.only(right: S.s12);
 
   static const EdgeInsets previewPadding = EdgeInsets.only(
@@ -64,6 +69,9 @@ class ChatListItemTokens {
   /// glyphs: it's the gutter's only occupant, and it reads at a glance.
   static const double statusIconSize = S.s16;
 
+  /// Gap between the `@` marker and the unread counter.
+  static const double mentionMarkerGap = S.s8;
+
   static const ChatListItemTokens phone = ChatListItemTokens(
     avatarSize: S.s48,
     containerPadding: EdgeInsets.fromLTRB(S.s16, S.s16, S.s0, S.s0),
@@ -72,6 +80,7 @@ class ChatListItemTokens {
     trailingPadding: EdgeInsets.only(right: S.s16, bottom: S.s12),
     separatorPadding: EdgeInsets.only(right: S.s16),
     highlightActive: false,
+    mentionMarkerSize: S.s24,
   );
 
   static const ChatListItemTokens desktop = ChatListItemTokens(
@@ -82,6 +91,7 @@ class ChatListItemTokens {
     trailingPadding: EdgeInsets.only(bottom: S.s8),
     separatorPadding: EdgeInsets.zero,
     highlightActive: true,
+    mentionMarkerSize: S.s20,
   );
 
   /// The two-pane layout is denser and keeps a selection.

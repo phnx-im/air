@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                message_id AS \"message_id: _\",\n                chat_id AS \"chat_id: _\",\n                mimi_id AS \"mimi_id: _\",\n                timestamp AS \"timestamp: _\",\n                sender_user_uuid AS \"sender_user_uuid: _\",\n                sender_user_domain AS \"sender_user_domain: _\",\n                content AS \"content: _\",\n                sent,\n                status,\n                edited_at AS \"edited_at: _\",\n                b.user_uuid IS NOT NULL AS \"is_blocked!: _\",\n                in_reply_to_mimi_id AS \"in_reply_to_mimi_id: _\"\n            FROM message\n            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid\n                AND b.user_domain = sender_user_domain\n            WHERE chat_id = ?\n                AND sender_user_uuid = ?\n                AND sender_user_domain = ?\n            ORDER BY timestamp DESC LIMIT 1",
+  "query": "SELECT\n                message_id AS \"message_id: _\",\n                mimi_id AS \"mimi_id: _\",\n                chat_id AS \"chat_id: _\",\n                timestamp AS \"timestamp: _\",\n                sender_user_uuid AS \"sender_user_uuid: _\",\n                sender_user_domain AS \"sender_user_domain: _\",\n                content AS \"content: _\",\n                sent,\n                status,\n                edited_at AS \"edited_at: _\",\n                b.user_uuid IS NOT NULL AS \"is_blocked!: _\",\n                in_reply_to_mimi_id AS \"in_reply_to_mimi_id: _\",\n                mentions_me\n            FROM message\n            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid\n                AND b.user_domain = sender_user_domain\n            WHERE chat_id = ?\n            ORDER BY timestamp DESC LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -15,24 +15,24 @@
         }
       },
       {
-        "name": "chat_id: _",
+        "name": "mimi_id: _",
         "ordinal": 1,
         "type_info": "Blob",
         "origin": {
           "Table": {
             "table": "message",
-            "name": "chat_id"
+            "name": "mimi_id"
           }
         }
       },
       {
-        "name": "mimi_id: _",
+        "name": "chat_id: _",
         "ordinal": 2,
         "type_info": "Blob",
         "origin": {
           "Table": {
             "table": "message",
-            "name": "mimi_id"
+            "name": "chat_id"
           }
         }
       },
@@ -129,25 +129,37 @@
             "name": "in_reply_to_mimi_id"
           }
         }
+      },
+      {
+        "name": "mentions_me",
+        "ordinal": 12,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "mentions_me"
+          }
+        }
       }
     ],
     "parameters": {
-      "Right": 3
+      "Right": 1
     },
     "nullable": [
       false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
       false,
       true,
       false,
       true,
-      true,
-      false,
-      false,
-      false,
-      true,
-      false,
-      true
+      false
     ]
   },
-  "hash": "2caf5504576c8a6d8e6bc4e21ce608624d864b56c12d3dc530f28104e534523b"
+  "hash": "158c6ed2e1d260ed066013affaf9fc5a26b779d3fdaeef75f1fc849d1bb3e965"
 }

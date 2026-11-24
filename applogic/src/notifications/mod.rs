@@ -65,6 +65,28 @@ impl User {
         Some(text)
     }
 
+    /// Text of a message in a notification. A message mentioning the local
+    /// user gets a distinct text.
+    #[cfg(not(target_os = "android"))]
+    async fn notification_text(
+        &self,
+        message: &ChatMessage,
+        chat_type: &ChatType,
+    ) -> Option<String> {
+        if message.mentions_me()
+            && let Some(sender) = message.message().sender()
+            && let Some(content) = message
+                .message()
+                .mimi_content()
+                .and_then(|content| content.preview_text())
+        {
+            let display_name = self.user.user_profile(sender).await.display_name;
+            // TODO: Localization
+            return Some(format!("{display_name} mentioned you: {content}"));
+        }
+        self.message_text(message.message(), chat_type).await
+    }
+
     /// Rebuilds and returns notifications for all chats affected by a batch of new messages,
     /// reactions, and silent-rebuild triggers.
     ///
@@ -86,6 +108,13 @@ impl User {
         // Load all chats at one to avoid multiple lookups in db
         let mut chats: HashMap<ChatId, (Chat, AlertMode)> = HashMap::new();
 
+        // Mentions of the local user break through mute.
+        let mentioned_chats: HashSet<ChatId> = messages
+            .iter()
+            .filter(|message| message.mentions_me())
+            .map(|message| message.chat_id())
+            .collect();
+
         // Chats to alert
         for chat_id in messages
             .iter()
@@ -106,7 +135,7 @@ impl User {
             }
             if let Entry::Vacant(entry) = chats.entry(chat_id)
                 && let Some(chat) = self.user.chat(&chat_id).await
-                && !chat.is_muted()
+                && (!chat.is_muted() || mentioned_chats.contains(&chat_id))
             {
                 entry.insert((chat, AlertMode::Alert));
             }
@@ -149,7 +178,8 @@ impl User {
                     continue;
                 }
                 if let Some((chat, AlertMode::Alert)) = chats.get(&message.chat_id())
-                    && let Some(body) = self.message_text(message.message(), chat.chat_type()).await
+                    && (!chat.is_muted() || message.mentions_me())
+                    && let Some(body) = self.notification_text(message, chat.chat_type()).await
                 {
                     batch.additions.push(NotificationContent {
                         identifier: NotificationId::random(),
@@ -161,7 +191,9 @@ impl User {
                 }
             }
             for reaction in reactions {
-                if let Some((chat, AlertMode::Alert)) = chats.get(&reaction.chat_id) {
+                if let Some((chat, AlertMode::Alert)) = chats.get(&reaction.chat_id)
+                    && !chat.is_muted()
+                {
                     let reactor = self.user.user_profile(&reaction.reactor).await.display_name;
                     let emoji = &reaction.emoji;
                     // TODO: Localization
@@ -199,7 +231,10 @@ impl User {
         chat: Chat,
         alert: AlertMode,
     ) -> ChatNotificationsRebuildOutcome {
-        if chat.is_muted() {
+        // A muted chat only alerts when a new message mentions the local user.
+        if let AlertMode::Silent = alert
+            && chat.is_muted()
+        {
             return ChatNotificationsRebuildOutcome::Skip;
         }
 
@@ -719,4 +754,84 @@ enum ChatNotificationsRebuildOutcome {
     /// The chat is muted, missing or its content failed to render
     /// => leave existing notification untouched
     Skip,
+}
+
+// Android rebuilds one notification per chat instead of one per message.
+#[cfg(all(test, not(target_os = "android")))]
+mod tests {
+    use aircoreclient::ChatMuted;
+    use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
+
+    use super::*;
+
+    struct Received {
+        bodies: Vec<String>,
+        alice: String,
+        bob: String,
+    }
+
+    /// Bob in a group with Alice receives a plain message, a mention of
+    /// himself and a reaction to his own message from Alice.
+    async fn receive_message_mention_and_reaction(muted_until: Option<ChatMuted>) -> Received {
+        let mut setup = TestBackend::single().await;
+        let [alice, bob] = Box::pin(setup.add_users()).await;
+        let chat_id = setup.connected_group(&alice, &[&bob]).await;
+        bob.set_chat_muted_until(chat_id, muted_until)
+            .await
+            .unwrap();
+
+        bob.send_text(chat_id, "from bob").await;
+        let processed = alice.drain().await;
+        let bob_message = processed.new_messages.last().unwrap().id();
+
+        alice.send_text(chat_id, "hello").await;
+        let mention = format!("Hi [@Bob]({})!", bob.user_id().uri());
+        alice.send_text(chat_id, &mention).await;
+        alice
+            .send_reaction(chat_id, bob_message, "👍".to_owned())
+            .await
+            .unwrap();
+        alice.outbound_service().run_once().await;
+
+        let processed = bob.drain().await;
+        let alice_name = bob.user_profile(alice.user_id()).await.display_name;
+        let bob_name = bob.user_profile(bob.user_id()).await.display_name;
+        let batch = User::from_core_user(bob)
+            .message_and_reaction_notifications(
+                &processed.new_messages,
+                &processed.reaction_notifications,
+                &processed.chats_with_changed_notifications,
+                None,
+            )
+            .await;
+        Received {
+            bodies: batch
+                .additions
+                .into_iter()
+                .map(|notification| notification.body)
+                .collect(),
+            alice: alice_name.to_string(),
+            bob: bob_name.to_string(),
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn mention_gets_distinct_text() {
+        let Received { bodies, alice, bob } = receive_message_mention_and_reaction(None).await;
+        assert_eq!(
+            bodies,
+            [
+                format!("{alice}: hello"),
+                format!("{alice} mentioned you: Hi @Bob!"),
+                format!("{alice} reacted 👍 to {bob}: from bob"),
+            ]
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn muted_chat_alerts_only_for_mention() {
+        let Received { bodies, alice, .. } =
+            receive_message_mention_and_reaction(Some(ChatMuted::Forever)).await;
+        assert_eq!(bodies, [format!("{alice} mentioned you: Hi @Bob!")]);
+    }
 }

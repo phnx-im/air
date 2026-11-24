@@ -13,7 +13,7 @@ use openmls::group::GroupId;
 
 use crate::{
     ChatMessage, ContentMessage, MessageId,
-    chats::{StatusRecord, reactions::Reaction},
+    chats::{StatusRecord, messages::mentions, reactions::Reaction},
     clients::attachment::MessageAttachmentRecord,
     db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
     outbound_service::receipt_queue::ReceiptQueue,
@@ -257,13 +257,16 @@ pub(crate) async fn purge_stale_deleted_messages(
 /// message identified by `replaces`.
 ///
 /// Returns the updated message. The caller is responsible for persisting it.
+#[expect(clippy::too_many_arguments)]
 pub(crate) async fn handle_message_edit(
     txn: &mut WriteDbTransaction<'_>,
     group_id: &GroupId,
+    members: impl IntoIterator<Item = UserId>,
     ds_timestamp: TimeStamp,
     sender: &UserId,
     replaces: MimiId,
     content: MimiContent,
+    own_user_id: &UserId,
 ) -> anyhow::Result<ChatMessage> {
     let is_delete = content.nested_part.is_null_part();
 
@@ -329,6 +332,8 @@ pub(crate) async fn handle_message_edit(
     let original_sender = original_sender.clone();
 
     // Update the original message
+    let mentions = mentions::valid_mentions(&content, members);
+    let mentions_me = &original_sender != own_user_id && mentions.contains(own_user_id);
     let is_sent = true;
     message.set_content_message(ContentMessage::new(
         original_sender,
@@ -336,6 +341,8 @@ pub(crate) async fn handle_message_edit(
         content,
         group_id,
     ));
+    message.set_mentions_me(mentions_me);
+    message.set_mentions(mentions);
     if let Some(current_mimi_id) = message.message().mimi_id() {
         ReceiptQueue::remove_superseded(&mut *txn, message.id(), current_mimi_id).await?;
     }
@@ -565,6 +572,126 @@ mod tests {
         Ok(())
     }
 
+    /// Editing a message to add or remove a mention updates `mentions_me`.
+    #[sqlx::test]
+    async fn test_handle_message_edit_recomputes_mentions_me(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+
+        let group_id = chat.group_id();
+        let alice = UserId::random("localhost".parse().unwrap());
+        let bob = UserId::random("localhost".parse().unwrap());
+
+        // Alice sends a message without a mention
+        let alice_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            ContentMessage::new(
+                alice.clone(),
+                false,
+                MimiContent::simple_markdown_message("Hello!".to_string(), [0; 16]),
+                group_id,
+            ),
+        );
+        alice_message.store(pool.write().await?).await?;
+        assert!(!alice_message.mentions_me());
+
+        // Alice edits the message to mention Bob; from Bob's perspective the
+        // flag is now set.
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+        let edited_content =
+            MimiContent::simple_markdown_message(format!("Hello [@Bob]({})!", bob.uri()), [0; 16]);
+        let edited_message = handle_message_edit(
+            &mut txn,
+            group_id,
+            [alice.clone(), bob.clone()],
+            TimeStamp::now(),
+            &alice,
+            *alice_message.message().mimi_id().unwrap(),
+            edited_content,
+            &bob,
+        )
+        .await?;
+        assert!(edited_message.mentions_me());
+        assert_eq!(edited_message.mentions(), std::slice::from_ref(&bob));
+        edited_message.update(&mut txn).await?;
+        let loaded = ChatMessage::load(&mut txn, edited_message.id())
+            .await?
+            .unwrap();
+        assert!(loaded.mentions_me());
+
+        // Deleting the message clears the flag
+        let deleted_message = handle_message_edit(
+            &mut txn,
+            group_id,
+            [alice.clone(), bob.clone()],
+            TimeStamp::now(),
+            &alice,
+            *edited_message.message().mimi_id().unwrap(),
+            edited_message.null_part_content()?,
+            &bob,
+        )
+        .await?;
+        assert!(!deleted_message.mentions_me());
+        assert_eq!(deleted_message.mentions(), []);
+
+        Ok(())
+    }
+
+    /// An edit mentioning the editing user themself does not set `mentions_me`.
+    #[sqlx::test]
+    async fn test_handle_message_edit_ignores_self_mention(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+
+        let group_id = chat.group_id();
+        let alice = UserId::random("localhost".parse().unwrap());
+
+        let alice_message = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::now(),
+            ContentMessage::new(
+                alice.clone(),
+                false,
+                MimiContent::simple_markdown_message("Hello!".to_string(), [0; 16]),
+                group_id,
+            ),
+        );
+        alice_message.store(pool.write().await?).await?;
+
+        // From Alice's own perspective, her edit mentioning herself does not
+        // set the flag.
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+        let edited_content = MimiContent::simple_markdown_message(
+            format!("Note to [@self]({})!", alice.uri()),
+            [0; 16],
+        );
+        let edited_message = handle_message_edit(
+            &mut txn,
+            group_id,
+            [alice.clone()],
+            TimeStamp::now(),
+            &alice,
+            *alice_message.message().mimi_id().unwrap(),
+            edited_content,
+            &alice,
+        )
+        .await?;
+        assert!(!edited_message.mentions_me());
+
+        Ok(())
+    }
+
     /// Editing a message (without deleting) should not update any `in_reply_to` references.
     #[sqlx::test]
     async fn test_handle_message_edit_does_not_update_reply_references(
@@ -620,10 +747,12 @@ mod tests {
         let alice_message = handle_message_edit(
             &mut txn,
             group_id,
+            [],
             TimeStamp::now(),
             &alice,
             original_alice_mimi_id,
             edited_alice_content,
+            &alice,
         )
         .await?;
         alice_message.update(&mut txn).await?;
@@ -670,10 +799,12 @@ mod tests {
         let result = handle_message_edit(
             &mut txn,
             &other_group_id,
+            [],
             TimeStamp::now(),
             &alice,
             *alice_message.message().mimi_id().unwrap(),
             MimiContent::simple_markdown_message("Edited elsewhere".to_string(), [0; 16]),
+            &alice,
         )
         .await;
         assert!(result.is_err());
@@ -718,10 +849,12 @@ mod tests {
         let alice_message = handle_message_edit(
             &mut txn,
             group_id,
+            [],
             TimeStamp::now(),
             &alice,
             *alice_message.message().mimi_id().unwrap(),
             alice_message.null_part_content()?,
+            &alice,
         )
         .await?;
         alice_message.update(&mut txn).await?;
@@ -822,10 +955,12 @@ mod tests {
         let alice_message = handle_message_edit(
             &mut txn,
             group_id,
+            [],
             TimeStamp::now(),
             &alice,
             alice_mimi_id,
             alice_message.null_part_content()?,
+            &alice,
         )
         .await?;
         alice_message.update(&mut txn).await?;
@@ -892,10 +1027,12 @@ mod tests {
         let edited = handle_message_edit(
             &mut txn,
             group_id,
+            [],
             TimeStamp::now(),
             &bob,
             original_mimi_id,
             MimiContent::simple_markdown_message("Edited by Bob".to_string(), [2; 16]),
+            &bob,
         )
         .await?;
         edited.update(&mut txn).await?;
@@ -1192,10 +1329,12 @@ mod tests {
         let alice_message = handle_message_edit(
             &mut txn,
             group_id,
+            [],
             TimeStamp::now(),
             &alice,
             *alice_message.message().mimi_id().unwrap(),
             alice_message.null_part_content()?,
+            &alice,
         )
         .await?;
         alice_message.update(&mut txn).await?;
@@ -1254,10 +1393,12 @@ mod tests {
         let alice_message = handle_message_edit(
             &mut txn,
             group_id,
+            [],
             TimeStamp::now(),
             &alice,
             *alice_message.message().mimi_id().unwrap(),
             edited_alice_content,
+            &alice,
         )
         .await?;
         alice_message.update(&mut txn).await?;
@@ -1285,10 +1426,12 @@ mod tests {
         let alice_message = handle_message_edit(
             &mut txn,
             group_id,
+            [],
             TimeStamp::now(),
             &alice,
             *alice_message.message().mimi_id().unwrap(),
             alice_message.null_part_content()?,
+            &alice,
         )
         .await?;
         alice_message.update(&mut txn).await?;
@@ -1330,13 +1473,16 @@ mod tests {
     ) -> anyhow::Result<ChatMessage> {
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
+        let own_user_id = UserId::random("localhost".parse().unwrap());
         let edited = handle_message_edit(
             &mut txn,
             chat.group_id(),
+            [],
             ds_timestamp,
             message.message().sender().unwrap(),
             *message.message().mimi_id().unwrap(),
             content,
+            &own_user_id,
         )
         .await?;
         edited.update(&mut txn).await?;

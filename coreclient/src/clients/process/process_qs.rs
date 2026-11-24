@@ -1270,10 +1270,12 @@ impl CoreUser {
             let message = handle_message_edit(
                 &mut savepoint_txn,
                 group.group_id(),
+                group.members(),
                 ds_timestamp,
                 sender,
                 mimi_id,
                 std::mem::take(content),
+                self.user_id(),
             )
             .await
             .inspect_err(|error| {

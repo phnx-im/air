@@ -40,6 +40,7 @@ final chats = [
     isSelfChat: false,
     chatType: UiChatType_Connection(userProfiles[1]),
     unreadMessages: 10,
+    unreadMentions: 0,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 1.messageId(),
@@ -58,6 +59,7 @@ final chats = [
         UiReaction(emoji: '❤️', users: [1.userId(), 3.userId()]),
         UiReaction(emoji: '🫪', users: [5.userId()]),
       ],
+      mentions: [],
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
@@ -73,6 +75,7 @@ final chats = [
       UiUsername(plaintext: 'eve_03'),
     ),
     unreadMessages: 0,
+    unreadMentions: 0,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 2.messageId(),
@@ -92,6 +95,7 @@ final chats = [
       reactions: [
         UiReaction(emoji: '❤️', users: [1.userId(), 2.userId()]),
       ],
+      mentions: [],
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
@@ -107,6 +111,7 @@ final chats = [
       UiChatAttributes(title: 'Group', picture: null),
     ),
     unreadMessages: 0,
+    unreadMentions: 0,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 3.messageId(),
@@ -122,6 +127,7 @@ final chats = [
       ),
       status: UiMessageStatus.sent,
       reactions: [],
+      mentions: [],
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
@@ -137,6 +143,7 @@ final chats = [
       UiChatAttributes(title: 'Group', picture: null),
     ),
     unreadMessages: 0,
+    unreadMentions: 0,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 3.messageId(),
@@ -152,6 +159,7 @@ final chats = [
       ),
       status: UiMessageStatus.sent,
       reactions: [],
+      mentions: [],
     ),
     draft: UiMessageDraft(
       message: 'Some draft message',
@@ -172,6 +180,7 @@ final chats = [
     isSelfChat: false,
     chatType: UiChatType_Connection(userProfiles[3]),
     unreadMessages: 0,
+    unreadMentions: 0,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: null,
     mutedUntil: null,
@@ -186,6 +195,7 @@ final chats = [
     isSelfChat: false,
     chatType: UiChatType_Connection(userProfiles[2]),
     unreadMessages: 3,
+    unreadMentions: 0,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 6.messageId(),
@@ -201,6 +211,7 @@ final chats = [
       ),
       status: UiMessageStatus.sent,
       reactions: [],
+      mentions: [],
     ),
     mutedUntil: const UiChatMuted.forever(),
     lastReaction: UiLastReaction(reactor: 1.userId(), emoji: "⏰️"),
@@ -243,9 +254,11 @@ final chats = [
       ),
       status: UiMessageStatus.sent,
       reactions: [],
+      mentions: [],
     ),
     pendingCommitFailed: false,
     resyncFailed: false,
+    unreadMentions: 0,
   ),
   // Chat where someone sent a file
   UiChatDetails(
@@ -283,9 +296,11 @@ final chats = [
       ),
       status: UiMessageStatus.sent,
       reactions: [],
+      mentions: [],
     ),
     pendingCommitFailed: false,
     resyncFailed: false,
+    unreadMentions: 0,
   ),
   // A muted group, with a reaction from someone to our own message
   UiChatDetails(
@@ -312,11 +327,13 @@ final chats = [
       ),
       status: UiMessageStatus.sent,
       reactions: [],
+      mentions: [],
     ),
     mutedUntil: const UiChatMuted.forever(),
     lastReaction: UiLastReaction(reactor: 3.userId(), emoji: "👋"),
     pendingCommitFailed: false,
     resyncFailed: false,
+    unreadMentions: 0,
   ),
 ];
 
@@ -428,6 +445,48 @@ void main() {
       );
     });
 
+    testWidgets('renders mention badge correctly', (tester) async {
+      // An unmuted chat with unread mentions
+      final mentionChat = UiChatDetails(
+        id: 7.chatId(),
+        status: const UiChatStatus.active(),
+        isApq: false,
+        isSelfChat: false,
+        chatType: UiChatType_Connection(userProfiles[1]),
+        unreadMessages: 5,
+        unreadMentions: 2,
+        lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+        lastMessage: chats[0].lastMessage,
+        mutedUntil: null,
+        pendingCommitFailed: false,
+        resyncFailed: false,
+      );
+      // A muted chat with unread mentions
+      final mutedMentionChat = UiChatDetails(
+        id: 8.chatId(),
+        status: const UiChatStatus.active(),
+        isApq: false,
+        isSelfChat: false,
+        chatType: UiChatType_Connection(userProfiles[2]),
+        unreadMessages: 3,
+        unreadMentions: 1,
+        lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+        lastMessage: chats[5].lastMessage,
+        mutedUntil: const UiChatMuted.forever(),
+        pendingCommitFailed: false,
+        resyncFailed: false,
+      );
+
+      await tester.pumpWidget(
+        buildSubject(chats: [mentionChat, mutedMentionChat, chats[0]]),
+      );
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_content_mentions.png'),
+      );
+    });
+
     group('update reminder', () {
       final expiresAt = DateTime.utc(2026, 8, 1, 12);
       final reminderTitle = find.text('Update Air');
@@ -531,6 +590,7 @@ void main() {
         mutedUntil: null,
         pendingCommitFailed: false,
         resyncFailed: false,
+        unreadMentions: 0,
       );
 
       await tester.pumpWidget(buildSubject(chats: [emptyChat, chats[0]]));
@@ -783,12 +843,14 @@ UiChatDetails contentChat(
       if (reaction != null)
         UiReaction(emoji: reaction.emoji, users: [reaction.reactor]),
     ],
+    mentions: [],
   ),
   lastReaction: reaction,
   draft: draft,
   mutedUntil: null,
   pendingCommitFailed: false,
   resyncFailed: false,
+  unreadMentions: 0,
 );
 
 /// A contact chat whose last message, "Hello Alice", carries [reaction].
@@ -808,6 +870,7 @@ UiChatDetails groupChat(ChatId id, String title) => UiChatDetails(
   isSelfChat: false,
   pendingCommitFailed: false,
   resyncFailed: false,
+  unreadMentions: 0,
 );
 
 /// The chat of Bob's pending contact request through the group chat
@@ -834,7 +897,9 @@ UiChatDetails requestChat(ChatId groupChatId) => UiChatDetails(
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   pendingCommitFailed: false,
   resyncFailed: false,
+  unreadMentions: 0,
 );

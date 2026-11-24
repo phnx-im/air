@@ -102,6 +102,7 @@ pub struct UiChatDetails {
     pub chat_type: UiChatType,
     pub last_used: Option<DateTime<Local>>,
     pub unread_messages: usize,
+    pub unread_mentions: usize,
     pub last_message: Option<UiChatMessage>,
     pub last_reaction: Option<UiLastReaction>,
     pub draft: Option<UiMessageDraft>,
@@ -408,6 +409,9 @@ pub struct UiChatMessage {
     pub in_reply_to_message: Option<UiInReplyToMessage>,
     pub status: UiMessageStatus,
     pub reactions: Vec<UiReaction>,
+    /// Mentions of chat members, captured when the message was received,
+    /// sent or edited
+    pub mentions: Vec<UiUserId>,
 }
 
 /// Aggregate raw per-user reactions into per-emoji groups, preserving the order
@@ -478,6 +482,12 @@ impl UiChatMessage {
         let timestamp = chat_message.timestamp().with_timezone(&Local);
         let reactions = aggregate_reactions(chat_message.reactions());
         let edit_allowance = EditAllowance::of(&chat_message);
+        let mentions = chat_message
+            .mentions()
+            .iter()
+            .cloned()
+            .map(From::from)
+            .collect();
         let message = chat_message.into_message();
 
         Self {
@@ -488,6 +498,7 @@ impl UiChatMessage {
             in_reply_to_message,
             status,
             reactions,
+            mentions,
         }
     }
 

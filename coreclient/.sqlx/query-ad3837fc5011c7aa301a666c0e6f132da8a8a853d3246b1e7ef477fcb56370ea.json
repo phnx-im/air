@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                message_id AS \"message_id: _\",\n                mimi_id AS \"mimi_id: _\",\n                chat_id AS \"chat_id: _\",\n                timestamp AS \"timestamp: _\",\n                sender_user_uuid AS \"sender_user_uuid: _\",\n                sender_user_domain AS \"sender_user_domain: _\",\n                content AS \"content: _\",\n                sent,\n                status,\n                edited_at AS \"edited_at: _\",\n                b.user_uuid IS NOT NULL AS \"is_blocked!: _\",\n                in_reply_to_mimi_id AS \"in_reply_to_mimi_id: _\"\n            FROM message\n            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid\n                AND b.user_domain = sender_user_domain\n            WHERE message_id = ?\n            ",
+  "query": "\n            SELECT\n                message_id AS \"message_id: _\",\n                mimi_id AS \"mimi_id: _\",\n                chat_id AS \"chat_id: _\",\n                timestamp AS \"timestamp: _\",\n                sender_user_uuid AS \"sender_user_uuid: _\",\n                sender_user_domain AS \"sender_user_domain: _\",\n                content AS \"content: _\",\n                sent,\n                status,\n                edited_at AS \"edited_at: _\",\n                b.user_uuid IS NOT NULL AS \"is_blocked!: _\",\n                in_reply_to_mimi_id AS \"in_reply_to_mimi_id: _\",\n                mentions_me\n            FROM message\n            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid\n                AND b.user_domain = sender_user_domain\n            WHERE chat_id = ?1 AND (timestamp, message_id) > (?2, ?3)\n            ORDER BY timestamp ASC, message_id ASC\n            LIMIT ?4",
   "describe": {
     "columns": [
       {
@@ -129,10 +129,21 @@
             "name": "in_reply_to_mimi_id"
           }
         }
+      },
+      {
+        "name": "mentions_me",
+        "ordinal": 12,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "mentions_me"
+          }
+        }
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 4
     },
     "nullable": [
       false,
@@ -146,8 +157,9 @@
       false,
       true,
       false,
-      true
+      true,
+      false
     ]
   },
-  "hash": "e3c21c0fe59d43227950fbdbdc789682f403121507242f4f73914c19e95d52b3"
+  "hash": "ad3837fc5011c7aa301a666c0e6f132da8a8a853d3246b1e7ef477fcb56370ea"
 }

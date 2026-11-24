@@ -14,7 +14,8 @@ pub use aircoreclient::{
 };
 use aircoreclient::{
     AttachmentId, AttachmentStatus, Chat, ChatId, ChatMessage, MarkChatAsRead, MessageEditError,
-    MessageId, MimiContentExt as _, PendingUpload, ProvisionAttachmentError, UploadTaskError,
+    MessageId, MimiContentExt as _, PendingUpload, ProvisionAttachmentError, UnreadCounts,
+    UploadTaskError,
     clients::CoreUser,
     link_preview::{FetchedLinkPreview, select_links},
 };
@@ -1020,7 +1021,10 @@ impl ChatDetailsContext {
 
 /// Loads additional details for a chat and converts it into a [`UiChatDetails`]
 pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiChatDetails {
-    let unread_messages = core_user.unread_messages_count(chat.id()).await;
+    let UnreadCounts {
+        messages: unread_messages,
+        mentions: unread_mentions,
+    } = core_user.unread_counts(chat.id()).await;
     let last_message = core_user.last_message(chat.id()).await.ok().flatten();
     let last_used = last_message
         .as_ref()
@@ -1072,6 +1076,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         chat_type,
         last_used,
         unread_messages,
+        unread_mentions,
         // The row reports on the last message but never opens its attachment,
         // so it does without the local attachment ids.
         last_message: last_message.map(UiChatMessage::from_message_without_attachments),

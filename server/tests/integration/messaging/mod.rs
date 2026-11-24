@@ -9,6 +9,7 @@ pub(crate) mod attachments;
 mod collision_tags;
 mod deletion;
 mod edit;
+mod mentions;
 mod processing;
 mod reactions;
 mod receipts;

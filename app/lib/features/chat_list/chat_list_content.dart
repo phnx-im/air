@@ -13,6 +13,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/chat_list/chat_list.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_item.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_item_tokens.dart';
+import 'package:air/ds/patterns/chat_list/chat_list_mention_marker.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_status_indicator.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_timestamp.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_tokens.dart';
@@ -455,11 +456,19 @@ class _TrailingIndicator extends StatelessWidget {
           (cubit.state.experimentalFeaturesActive, cubit.state.readReceipts),
     );
 
-    final (unreadMessages, lastMessage, pendingCommitFailed) = context.select((
-      ChatListItemCubit cubit,
-    ) {
+    final (
+      unreadMessages,
+      unreadMentions,
+      lastMessage,
+      pendingCommitFailed,
+    ) = context.select((ChatListItemCubit cubit) {
       final chat = cubit.state.chat;
-      return (chat.unreadMessages, chat.lastMessage, chat.pendingCommitFailed);
+      return (
+        chat.unreadMessages,
+        chat.unreadMentions,
+        chat.lastMessage,
+        chat.pendingCommitFailed,
+      );
     });
 
     if (experimentalFeatures && pendingCommitFailed) {
@@ -469,7 +478,19 @@ class _TrailingIndicator extends StatelessWidget {
     }
 
     if (unreadMessages > 0) {
-      return Counter(tokens: CounterTokens.current, count: unreadMessages);
+      final counter = Counter(
+        tokens: CounterTokens.current,
+        count: unreadMessages,
+      );
+      if (unreadMentions == 0) return counter;
+      return Row(
+        mainAxisSize: .min,
+        spacing: ChatListItemTokens.mentionMarkerGap,
+        children: [
+          ChatListMentionMarker(tokens: ChatListItemTokens.current),
+          counter,
+        ],
+      );
     }
 
     if (lastMessage == null) return const SizedBox.shrink();

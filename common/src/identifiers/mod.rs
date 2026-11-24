@@ -282,6 +282,34 @@ impl UserId {
     pub fn to_bytes(&self) -> Result<Vec<u8>, tls_codec::Error> {
         self.tls_serialize_detached()
     }
+
+    /// Returns the mimi user URI of this user id.
+    ///
+    /// Format: `mimi://<domain>/u/<uuid>` with a lowercase hyphenated uuid.
+    pub fn uri(&self) -> String {
+        format!("mimi://{}/u/{}", self.domain, self.uuid.0)
+    }
+
+    /// Parses a mimi user URI as produced by [`Self::uri`].
+    pub fn parse_uri(s: &str) -> Option<Self> {
+        let url = url::Url::parse(s).ok()?;
+        if url.scheme() != "mimi"
+            || url.query().is_some()
+            || url.fragment().is_some()
+            || url.port().is_some()
+            || !url.username().is_empty()
+            || url.password().is_some()
+        {
+            return None;
+        }
+        let domain: Fqdn = url.host_str()?.parse().ok()?;
+        let uuid_str = url.path().strip_prefix("/u/")?;
+        let uuid: Uuid = uuid_str.parse().ok()?;
+        if !uuid_str.eq_ignore_ascii_case(&uuid.to_string()) {
+            return None;
+        }
+        Some(Self::new(uuid, domain))
+    }
 }
 
 /// Sealed reference to a QS client
@@ -480,6 +508,106 @@ mod tests {
         let bytes = PersistenceCodec::to_vec(&client_id).unwrap();
         let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
         insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn user_id_uri_round_trip() {
+        let user_id = UserId::new(
+            uuid!("00000000-0000-0000-0000-000000000001"),
+            Fqdn::from_str("example.com").unwrap(),
+        );
+        let uri = user_id.uri();
+        assert_eq!(
+            uri,
+            "mimi://example.com/u/00000000-0000-0000-0000-000000000001"
+        );
+        assert_eq!(UserId::parse_uri(&uri), Some(user_id));
+    }
+
+    #[test]
+    fn user_id_uri_uppercase_uuid() {
+        let user_id =
+            UserId::parse_uri("mimi://example.com/u/A2C4E6A8-0000-0000-0000-000000000001").unwrap();
+        assert_eq!(
+            user_id.uri(),
+            "mimi://example.com/u/a2c4e6a8-0000-0000-0000-000000000001"
+        );
+    }
+
+    #[test]
+    fn user_id_uri_invalid() {
+        let uuid = "00000000-0000-0000-0000-000000000001";
+        // wrong scheme
+        assert_eq!(
+            UserId::parse_uri(&format!("air://example.com/u/{uuid}")),
+            None
+        );
+        assert_eq!(
+            UserId::parse_uri(&format!("https://example.com/u/{uuid}")),
+            None
+        );
+        // wrong path prefix
+        assert_eq!(
+            UserId::parse_uri(&format!("mimi://example.com/attachment/{uuid}")),
+            None
+        );
+        assert_eq!(
+            UserId::parse_uri(&format!("mimi://example.com/{uuid}")),
+            None
+        );
+        // extra path segments
+        assert_eq!(
+            UserId::parse_uri(&format!("mimi://example.com/u/{uuid}/extra")),
+            None
+        );
+        // malformed uuid
+        assert_eq!(UserId::parse_uri("mimi://example.com/u/not-a-uuid"), None);
+        // missing host
+        assert_eq!(UserId::parse_uri(&format!("mimi:///u/{uuid}")), None);
+        // not a url
+        assert_eq!(UserId::parse_uri("not a url"), None);
+        // query component
+        assert_eq!(
+            UserId::parse_uri(&format!("mimi://example.com/u/{uuid}?unexpected=true")),
+            None
+        );
+        // fragment component
+        assert_eq!(
+            UserId::parse_uri(&format!("mimi://example.com/u/{uuid}#fragment")),
+            None
+        );
+        // explicit port
+        assert_eq!(
+            UserId::parse_uri(&format!("mimi://example.com:8080/u/{uuid}")),
+            None
+        );
+        // userinfo
+        assert_eq!(
+            UserId::parse_uri(&format!("mimi://user@example.com/u/{uuid}")),
+            None
+        );
+        assert_eq!(
+            UserId::parse_uri(&format!("mimi://user:password@example.com/u/{uuid}")),
+            None
+        );
+        // trailing slash
+        assert_eq!(
+            UserId::parse_uri(&format!("mimi://example.com/u/{uuid}/")),
+            None
+        );
+        // non-hyphenated uuid forms
+        assert_eq!(
+            UserId::parse_uri("mimi://example.com/u/00000000000000000000000000000001"),
+            None
+        );
+        assert_eq!(
+            UserId::parse_uri(&format!("mimi://example.com/u/urn:uuid:{uuid}")),
+            None
+        );
+        assert_eq!(
+            UserId::parse_uri(&format!("mimi://example.com/u/{{{uuid}}}")),
+            None
+        );
     }
 
     #[test]

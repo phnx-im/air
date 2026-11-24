@@ -82,6 +82,8 @@ class TextAutocompleteController<T> {
     required TickerProvider vsync,
     required this._contextProvider,
     required this._strategy,
+    Stream<void>? refreshStream,
+    this._above,
   }) : _focusNode = focusNode,
        _overlayController = SuggestionOverlayController<T>(
          vsync: vsync,
@@ -89,11 +91,18 @@ class TextAutocompleteController<T> {
          focusNode: focusNode,
        ) {
     _overlayController.onSizeChanged = (_) {
-      final offset = _calculateOverlayOffset();
-      if (offset != null) {
-        _overlayController.updateOffset(offset);
+      final placement = _calculatePlacement();
+      if (placement != null) {
+        _overlayController.updateOffset(placement.offset);
       }
     };
+    // Re-run the active query when the suggestion sources change (e.g. user
+    // profiles finish loading while the overlay is open).
+    _refreshSubscription = refreshStream?.listen((_) {
+      if (_activeTrigger != null) {
+        handleTextChanged();
+      }
+    });
   }
 
   final TextEditingController _textController; // Source controller we watch.
@@ -103,11 +112,17 @@ class TextAutocompleteController<T> {
   final TextAutocompleteStrategy<T> _strategy; // Domain-specific behavior.
   final SuggestionOverlayController<T> _overlayController; // Overlay driver.
 
+  /// When set, the overlay sits `gap` above the top left corner of the widget
+  /// behind `key` instead of following the caret.
+  final ({GlobalKey key, double gap})? _above;
+
   AutocompleteTrigger? _activeTrigger; // Trigger currently being autocompleted.
   int _requestToken = 0; // Incremented to discard stale async results.
+  StreamSubscription<void>? _refreshSubscription; // Suggestion source changes.
 
   /// Dispose the overlay controller and any attached resources.
   void dispose() {
+    unawaited(_refreshSubscription?.cancel());
     _overlayController.dispose();
   }
 
@@ -211,8 +226,8 @@ class TextAutocompleteController<T> {
       await _overlayController.dismiss();
       return;
     }
-    final offset = _calculateOverlayOffset();
-    if (offset == null) {
+    final placement = _calculatePlacement();
+    if (placement == null) {
       // Can't position the overlay, so dismiss quietly.
       await _overlayController.dismiss();
       return;
@@ -225,7 +240,8 @@ class TextAutocompleteController<T> {
     final style = _strategy.overlayStyle(context);
     await _overlayController.show(
       context: context,
-      offset: offset,
+      offset: placement.offset,
+      maxHeight: placement.maxHeight,
       suggestions: results,
       style: style,
       itemBuilder: (ctx, item, isHighlighted) =>
@@ -251,13 +267,44 @@ class TextAutocompleteController<T> {
     unawaited(_overlayController.dismiss());
   }
 
-  /// Compute the overlay offset relative to the caret position.
-  Offset? _calculateOverlayOffset() {
+  /// Compute the overlay offset and the room above it. The offset is either
+  /// above the widget in [_above] or next to the caret.
+  ({Offset offset, double maxHeight})? _calculatePlacement() {
     final fieldContext = _inputFieldKey.currentContext;
     final fieldBox = fieldContext?.findRenderObject() as RenderBox?;
+    if (fieldBox == null) {
+      // Without the field, we cannot anchor the overlay.
+      return null;
+    }
+    final above = _above;
+    final desired = above != null
+        ? _aboveOffset(above.key, above.gap, fieldBox)
+        : _caretOffset(fieldBox);
+    if (desired == null) {
+      return null;
+    }
+    return (
+      offset: _clampIntoView(desired, fieldBox, _overlayController.overlaySize),
+      maxHeight: _roomAbove(desired, fieldBox),
+    );
+  }
+
+  /// Offset of the overlay's bottom left corner [gap] above the top left
+  /// corner of the widget behind [key].
+  Offset? _aboveOffset(GlobalKey key, double gap, RenderBox fieldBox) {
+    final box = key.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) {
+      return null;
+    }
+    final topLeft = fieldBox.globalToLocal(box.localToGlobal(Offset.zero));
+    return topLeft - Offset(0, gap);
+  }
+
+  /// Offset of the overlay's bottom left corner next to the caret.
+  Offset? _caretOffset(RenderBox fieldBox) {
     final renderEditable = _findRenderEditable();
-    if (fieldBox == null || renderEditable == null) {
-      // Without the field or editable, we cannot anchor the overlay.
+    if (renderEditable == null) {
+      // Without the editable, we cannot locate the caret.
       return null;
     }
     final selection = _textController.selection;
@@ -270,8 +317,20 @@ class TextAutocompleteController<T> {
       caretRect.topRight,
       ancestor: fieldBox,
     );
-    final desired = caretInField + const Offset(_caretGap, -_caretRise);
-    return _clampIntoView(desired, fieldBox, _overlayController.overlaySize);
+    return caretInField + const Offset(_caretGap, -_caretRise);
+  }
+
+  /// Height between the overlay's bottom edge at [desired] and the top of the
+  /// safe area. Capping the overlay to it keeps a tall list from being pushed
+  /// down over the field when the keyboard leaves little room above.
+  double _roomAbove(Offset desired, RenderBox fieldBox) {
+    final context = _contextProvider();
+    if (!context.mounted) {
+      return double.infinity;
+    }
+    final top =
+        MediaQuery.viewPaddingOf(context).top + suggestionOverlayViewportMargin;
+    return max(0.0, fieldBox.localToGlobal(desired).dy - top);
   }
 
   /// Pull [desired] back so the overlay box stays inside the safe area.

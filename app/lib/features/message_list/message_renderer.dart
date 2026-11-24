@@ -19,7 +19,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/features/attachments/attachment_thumbnail.dart';
 import 'package:air/features/emoji/jumbo_emoji.dart';
+import 'package:air/features/message_list/message_cubit.dart';
+import 'package:air/features/message_list/widgets/user_mention_pill.dart';
+import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/util/select_or_null.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -501,11 +505,18 @@ class _InlineSpanBuilder {
     required this.palette,
     required this.isSender,
     required this.onLinkTap,
+    required this.mentions,
+    required this.ownUserId,
   });
 
   final SemanticPalette palette;
   final bool isSender;
   final void Function(Uri uri, String? text) onLinkTap;
+
+  /// Mentions of chat members, captured when the message was received, sent
+  /// or edited.
+  final List<UiUserId> mentions;
+  final UiUserId? ownUserId;
   final recognizers = <GestureRecognizer>[];
 
   InlineSpan build(RangedInlineElement inline, {Uri? destUrl}) {
@@ -560,6 +571,10 @@ class _InlineSpanBuilder {
         ),
       ),
       InlineElement_Image() => const WidgetSpan(child: AppIcon.image()),
+      InlineElement_UserMention(:final userId, :final hint) => _mention(
+        userId,
+        hint,
+      ),
       // A task marker the parser did not put at the head of a list item, where
       // it would have been lifted into the marker column instead.
       InlineElement_TaskListMarker(:final field0) => WidgetSpan(
@@ -576,6 +591,26 @@ class _InlineSpanBuilder {
         ),
       ),
     };
+  }
+
+  /// A user URI link is only a mention if the target was a member of the chat
+  /// when the message was received, sent or edited. Otherwise it renders as
+  /// plain text, never as a tappable link. Historical mentions of members who
+  /// left the chat keep rendering as pills.
+  InlineSpan _mention(UiUserId userId, String hint) {
+    if (!mentions.contains(userId)) {
+      return TextSpan(text: hint);
+    }
+    return WidgetSpan(
+      alignment: .baseline,
+      baseline: TextBaseline.alphabetic,
+      child: UserMentionPill(
+        userId: userId,
+        hint: hint,
+        isSelfMention: userId == ownUserId,
+        tappable: true,
+      ),
+    );
   }
 
   TextSpan _link(String dest, List<RangedInlineElement> children) {
@@ -624,19 +659,29 @@ class _InlineText extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
+    final mentions =
+        context.selectOrNull(
+          (MessageCubit cubit) => cubit.state.message.mentions,
+        ) ??
+        const <UiUserId>[];
+    final ownUserId = context.selectOrNull(
+      (UserCubit cubit) => cubit.state.userId,
+    );
 
     final (span, recognizers) = useMemoized(() {
       final builder = _InlineSpanBuilder(
         palette: palette,
         isSender: isSender,
         onLinkTap: (uri, text) => openMessageLink(context, uri, text),
+        mentions: mentions,
+        ownUserId: ownUserId,
       );
       final span = TextSpan(
         children: inlines.map(builder.build).toList(),
         style: style,
       );
       return (span, builder.recognizers);
-    }, [isSender, palette, style, ...inlines]);
+    }, [isSender, palette, style, ownUserId, ...mentions, ...inlines]);
 
     useEffect(
       () => () {
@@ -1009,6 +1054,17 @@ class CustomTextEditingController extends TextEditingController {
         inline.start,
         inline.end,
       ),
+      InlineElement_UserMention(:final userId, :final hint) =>
+        buildCorrectWidget(
+          UserMentionPill(
+            userId: userId,
+            hint: hint,
+            isSelfMention: userId == context.read<UserCubit>().state.userId,
+          ),
+          inline.start,
+          inline.end,
+          alignment: PlaceholderAlignment.baseline,
+        ),
       InlineElement_TaskListMarker() => TextSpan(
         text: utf8.decode(raw.sublist(inline.start, inline.end)),
         style: highlightStyle(context),
@@ -1016,13 +1072,28 @@ class CustomTextEditingController extends TextEditingController {
     };
   }
 
-  InlineSpan buildCorrectWidget(Widget widget, int rangeStart, int rangeEnd) {
+  InlineSpan buildCorrectWidget(
+    Widget widget,
+    int rangeStart,
+    int rangeEnd, {
+    PlaceholderAlignment alignment = PlaceholderAlignment.bottom,
+  }) {
     widgetRanges.add((start: rangeStart, end: rangeEnd));
 
     return TextSpan(
       children: [
-        WidgetSpan(child: widget),
-        TextSpan(text: "\u200d" * (rangeEnd - rangeStart - 1)),
+        WidgetSpan(
+          child: widget,
+          alignment: alignment,
+          baseline: TextBaseline.alphabetic,
+        ),
+        TextSpan(
+          text: "\u200d" * (rangeEnd - rangeStart - 1),
+          // The filler must take no horizontal space: zero the font size
+          // for fonts giving the joiner a nonzero advance and, crucially,
+          // the inherited letter spacing, which is applied per character.
+          style: const TextStyle(fontSize: 0, letterSpacing: 0),
+        ),
       ],
     );
   }

@@ -508,14 +508,17 @@ mod persistence {
             expected.sort();
             assert_eq!(changed_chats, expected);
 
-            let n = Chat::unread_messages_count(&mut connection, chat.id(), &own_user).await?;
+            let n = Chat::unread_counts(&mut connection, chat.id(), &own_user)
+                .await?
+                .messages;
             assert_eq!(
                 n, 1,
                 "only the message the sibling did not read stays unread"
             );
 
-            let n =
-                Chat::unread_messages_count(&mut connection, other_chat.id(), &own_user).await?;
+            let n = Chat::unread_counts(&mut connection, other_chat.id(), &own_user)
+                .await?
+                .messages;
             assert_eq!(n, 0);
 
             Ok(())
@@ -548,7 +551,9 @@ mod persistence {
 
             assert!(changed_chats.is_empty());
 
-            let n = Chat::unread_messages_count(&mut connection, chat.id(), &own_user).await?;
+            let n = Chat::unread_counts(&mut connection, chat.id(), &own_user)
+                .await?
+                .messages;
             assert_eq!(n, 1, "another member must not clear our unread messages");
 
             Ok(())

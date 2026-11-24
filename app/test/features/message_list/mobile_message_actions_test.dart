@@ -47,6 +47,7 @@ final _mobileMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 2.messageId(),
@@ -67,6 +68,7 @@ final _mobileMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 3.messageId(),
@@ -87,6 +89,7 @@ final _mobileMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 4.messageId(),
@@ -107,6 +110,7 @@ final _mobileMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 5.messageId(),
@@ -129,6 +133,7 @@ final _mobileMessages = [
     ),
     status: UiMessageStatus.delivered,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 6.messageId(),
@@ -149,6 +154,7 @@ final _mobileMessages = [
     ),
     status: UiMessageStatus.read,
     reactions: [],
+    mentions: [],
   ),
 ];
 
@@ -396,6 +402,7 @@ void main() {
         ),
         status: UiMessageStatus.sent,
         reactions: [],
+        mentions: [],
       );
       messageListCubit.appendNewer([arrived], isIncoming: true);
       await tester.pumpAndSettle();

@@ -227,6 +227,7 @@ void main() {
         isSelfChat: group.isSelfChat,
         pendingCommitFailed: group.pendingCommitFailed,
         resyncFailed: group.resyncFailed,
+        unreadMentions: 0,
       );
       await tester.pumpWidget(buildSubject(chat: inactive));
 

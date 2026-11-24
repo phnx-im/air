@@ -12,11 +12,13 @@ use crate::{
         StatusRecord,
         messages::{
             edit::{MessageEdit, check_own_edit, purge_deleted_message},
+            mentions,
             persistence::{self, DeletedMessageId},
         },
     },
     clients::block_contact::BlockedContactError,
     db::access::WriteDbTransaction,
+    groups::Group,
 };
 
 use super::CoreUser;
@@ -202,6 +204,17 @@ impl UnsentContent {
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
 
+        // Loading the group is costly. We only do it when there are mentions to
+        // check against the members.
+        let group_id = chat.group_id();
+        let mut mentions = mentions::mentioned_users(&content);
+        if !mentions.is_empty() {
+            let group = Group::load_clean(&mut *txn, group_id)
+                .await?
+                .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+            mentions::retain_members(&mut mentions, group.members());
+        }
+
         let is_deletion = content.nested_part.is_null_part();
 
         let message = if let Some(replaces) = replaces {
@@ -232,6 +245,7 @@ impl UnsentContent {
             // Edit the original message and clear its status
             let is_sent = false;
             let mut updated = replaces.clone();
+            updated.set_mentions(mentions);
             updated.set_content_message(ContentMessage::new(
                 sender.clone(),
                 is_sent,
@@ -264,13 +278,14 @@ impl UnsentContent {
         } else {
             // Store the message as unsent so that we don't lose it in case
             // something goes wrong.
-            let message = ChatMessage::new_unsent_message(
+            let mut message = ChatMessage::new_unsent_message(
                 sender.clone(),
                 chat_id,
                 message_id,
                 content.clone(),
-                chat.group_id(),
+                group_id,
             );
+            message.set_mentions(mentions);
             message.store(&mut *txn).await?;
             message
         };

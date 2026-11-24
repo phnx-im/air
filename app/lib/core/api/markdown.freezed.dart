@@ -1347,6 +1347,76 @@ as bool,
 }
 
 /// @nodoc
+
+
+class InlineElement_UserMention extends InlineElement {
+  const InlineElement_UserMention({required this.userId, required this.hint}): super._();
+  
+
+ final  UiUserId userId;
+ final  String hint;
+
+/// Create a copy of InlineElement
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$InlineElement_UserMentionCopyWith<InlineElement_UserMention> get copyWith => _$InlineElement_UserMentionCopyWithImpl<InlineElement_UserMention>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is InlineElement_UserMention&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.hint, hint) || other.hint == hint));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,userId,hint);
+}
+
+@override
+String toString() {
+    return 'InlineElement.userMention(userId: $userId, hint: $hint)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $InlineElement_UserMentionCopyWith<$Res> implements $InlineElementCopyWith<$Res> {
+  factory $InlineElement_UserMentionCopyWith(InlineElement_UserMention value, $Res Function(InlineElement_UserMention) _then) = _$InlineElement_UserMentionCopyWithImpl;
+@useResult
+$Res call({
+ UiUserId userId, String hint
+});
+
+
+
+
+}
+/// @nodoc
+class _$InlineElement_UserMentionCopyWithImpl<$Res>
+    implements $InlineElement_UserMentionCopyWith<$Res> {
+  _$InlineElement_UserMentionCopyWithImpl(this._self, this._then);
+
+  final InlineElement_UserMention _self;
+  final $Res Function(InlineElement_UserMention) _then;
+
+/// Create a copy of InlineElement
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? userId = null,Object? hint = null,}) {
+  return _then(InlineElement_UserMention(
+userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
+as UiUserId,hint: null == hint ? _self.hint : hint // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$MessageContent {
 
  List<RangedBlockElement> get elements;

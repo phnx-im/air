@@ -60,6 +60,7 @@ UiChatMessage _deletedMessage({
   ),
   status: UiMessageStatus.deleted,
   reactions: [],
+  mentions: [],
 );
 
 /// Create a regular text message
@@ -86,6 +87,7 @@ UiChatMessage _textMessage({
   ),
   status: UiMessageStatus.sent,
   reactions: [],
+  mentions: [],
 );
 
 MessageCubit _createMockMessageCubit({

@@ -56,7 +56,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -561027157;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -571642129;
 
 // Section: executor
 
@@ -9913,6 +9913,36 @@ fn wire__crate__api__types__ui_username_validation_error_impl(
         },
     )
 }
+fn wire__crate__api__markdown__user_mention_uri_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "user_mention_uri",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_user_id = <crate::api::types::UiUserId>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::markdown::user_mention_uri(api_user_id))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__username_suggestions__username_from_display_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -11602,6 +11632,14 @@ impl SseDecode for crate::api::markdown::InlineElement {
             8 => {
                 let mut var_field0 = <bool>::sse_decode(deserializer);
                 return crate::api::markdown::InlineElement::TaskListMarker(var_field0);
+            }
+            9 => {
+                let mut var_userId = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                let mut var_hint = <String>::sse_decode(deserializer);
+                return crate::api::markdown::InlineElement::UserMention {
+                    user_id: var_userId,
+                    hint: var_hint,
+                };
             }
             _ => {
                 unimplemented!("");
@@ -13396,6 +13434,7 @@ impl SseDecode for crate::api::types::UiChatDetails {
         let mut var_chatType = <crate::api::types::UiChatType>::sse_decode(deserializer);
         let mut var_lastUsed = <Option<chrono::DateTime<chrono::Local>>>::sse_decode(deserializer);
         let mut var_unreadMessages = <usize>::sse_decode(deserializer);
+        let mut var_unreadMentions = <usize>::sse_decode(deserializer);
         let mut var_lastMessage =
             <Option<crate::api::types::UiChatMessage>>::sse_decode(deserializer);
         let mut var_lastReaction =
@@ -13414,6 +13453,7 @@ impl SseDecode for crate::api::types::UiChatDetails {
             chat_type: var_chatType,
             last_used: var_lastUsed,
             unread_messages: var_unreadMessages,
+            unread_mentions: var_unreadMentions,
             last_message: var_lastMessage,
             last_reaction: var_lastReaction,
             draft: var_draft,
@@ -13438,6 +13478,7 @@ impl SseDecode for crate::api::types::UiChatMessage {
             <Option<crate::api::types::UiInReplyToMessage>>::sse_decode(deserializer);
         let mut var_status = <crate::api::types::UiMessageStatus>::sse_decode(deserializer);
         let mut var_reactions = <Vec<crate::api::types::UiReaction>>::sse_decode(deserializer);
+        let mut var_mentions = <Vec<crate::api::types::UiUserId>>::sse_decode(deserializer);
         return crate::api::types::UiChatMessage {
             chat_id: var_chatId,
             id: var_id,
@@ -13446,6 +13487,7 @@ impl SseDecode for crate::api::types::UiChatMessage {
             in_reply_to_message: var_inReplyToMessage,
             status: var_status,
             reactions: var_reactions,
+            mentions: var_mentions,
         };
     }
 }
@@ -14759,7 +14801,8 @@ fn pde_ffi_dispatcher_sync_impl(
         205 => {
             wire__crate__api__types__ui_username_validation_error_impl(ptr, rust_vec_len, data_len)
         }
-        206 => wire__crate__api__username_suggestions__username_from_display_impl(
+        206 => wire__crate__api__markdown__user_mention_uri_impl(ptr, rust_vec_len, data_len),
+        207 => wire__crate__api__username_suggestions__username_from_display_impl(
             ptr,
             rust_vec_len,
             data_len,
@@ -15792,6 +15835,12 @@ impl flutter_rust_bridge::IntoDart for crate::api::markdown::InlineElement {
             crate::api::markdown::InlineElement::TaskListMarker(field0) => {
                 [8.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
+            crate::api::markdown::InlineElement::UserMention { user_id, hint } => [
+                9.into_dart(),
+                user_id.into_into_dart().into_dart(),
+                hint.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -16806,6 +16855,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiChatDetails {
             self.chat_type.into_into_dart().into_dart(),
             self.last_used.into_into_dart().into_dart(),
             self.unread_messages.into_into_dart().into_dart(),
+            self.unread_mentions.into_into_dart().into_dart(),
             self.last_message.into_into_dart().into_dart(),
             self.last_reaction.into_into_dart().into_dart(),
             self.draft.into_into_dart().into_dart(),
@@ -16841,6 +16891,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiChatMessage {
             self.in_reply_to_message.into_into_dart().into_dart(),
             self.status.into_into_dart().into_dart(),
             self.reactions.into_into_dart().into_dart(),
+            self.mentions.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -19187,6 +19238,11 @@ impl SseEncode for crate::api::markdown::InlineElement {
                 <i32>::sse_encode(8, serializer);
                 <bool>::sse_encode(field0, serializer);
             }
+            crate::api::markdown::InlineElement::UserMention { user_id, hint } => {
+                <i32>::sse_encode(9, serializer);
+                <crate::api::types::UiUserId>::sse_encode(user_id, serializer);
+                <String>::sse_encode(hint, serializer);
+            }
             _ => {
                 unimplemented!("");
             }
@@ -20643,6 +20699,7 @@ impl SseEncode for crate::api::types::UiChatDetails {
         <crate::api::types::UiChatType>::sse_encode(self.chat_type, serializer);
         <Option<chrono::DateTime<chrono::Local>>>::sse_encode(self.last_used, serializer);
         <usize>::sse_encode(self.unread_messages, serializer);
+        <usize>::sse_encode(self.unread_mentions, serializer);
         <Option<crate::api::types::UiChatMessage>>::sse_encode(self.last_message, serializer);
         <Option<crate::api::types::UiLastReaction>>::sse_encode(self.last_reaction, serializer);
         <Option<crate::api::types::UiMessageDraft>>::sse_encode(self.draft, serializer);
@@ -20671,6 +20728,7 @@ impl SseEncode for crate::api::types::UiChatMessage {
         );
         <crate::api::types::UiMessageStatus>::sse_encode(self.status, serializer);
         <Vec<crate::api::types::UiReaction>>::sse_encode(self.reactions, serializer);
+        <Vec<crate::api::types::UiUserId>>::sse_encode(self.mentions, serializer);
     }
 }
 

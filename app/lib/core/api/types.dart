@@ -144,6 +144,7 @@ class UiChatDetails {
   final UiChatType chatType;
   final DateTime? lastUsed;
   final int unreadMessages;
+  final int unreadMentions;
   final UiChatMessage? lastMessage;
   final UiLastReaction? lastReaction;
   final UiMessageDraft? draft;
@@ -163,6 +164,7 @@ class UiChatDetails {
     required this.chatType,
     this.lastUsed,
     required this.unreadMessages,
+    required this.unreadMentions,
     this.lastMessage,
     this.lastReaction,
     this.draft,
@@ -181,6 +183,7 @@ class UiChatDetails {
       chatType.hashCode ^
       lastUsed.hashCode ^
       unreadMessages.hashCode ^
+      unreadMentions.hashCode ^
       lastMessage.hashCode ^
       lastReaction.hashCode ^
       draft.hashCode ^
@@ -201,6 +204,7 @@ class UiChatDetails {
           chatType == other.chatType &&
           lastUsed == other.lastUsed &&
           unreadMessages == other.unreadMessages &&
+          unreadMentions == other.unreadMentions &&
           lastMessage == other.lastMessage &&
           lastReaction == other.lastReaction &&
           draft == other.draft &&
@@ -223,6 +227,7 @@ sealed class UiChatMessage with _$UiChatMessage {
     UiInReplyToMessage? inReplyToMessage,
     required UiMessageStatus status,
     required List<UiReaction> reactions,
+    required List<UiUserId> mentions,
   }) = _UiChatMessage;
 }
 

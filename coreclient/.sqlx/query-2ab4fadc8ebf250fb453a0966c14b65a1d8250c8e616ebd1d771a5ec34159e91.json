@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                r.reaction_mimi_id AS \"reaction_mimi_id: _\",\n                r.target_mimi_id AS \"target_mimi_id: _\",\n                r.chat_id AS \"chat_id: _\",\n                r.sender_user_uuid AS \"sender_user_uuid: _\",\n                r.sender_user_domain AS \"sender_user_domain: _\",\n                r.emoji,\n                r.created_at AS \"created_at: _\",\n                m.message_id AS \"message_id: _\",\n                m.mimi_id AS \"message_mimi_id: _\",\n                m.timestamp AS \"timestamp: _\",\n                m.sender_user_uuid AS \"message_sender_user_uuid: _\",\n                m.sender_user_domain AS \"message_sender_user_domain: _\",\n                m.content AS \"content: _\",\n                m.sent,\n                m.status,\n                m.edited_at AS \"edited_at: _\",\n                b.user_uuid IS NOT NULL AS \"is_blocked!: _\",\n                m.in_reply_to_mimi_id AS \"in_reply_to_mimi_id: _\"\n            FROM reaction r\n            INNER JOIN message m ON m.mimi_id = r.target_mimi_id\n            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid\n                AND b.user_domain = m.sender_user_domain\n            WHERE r.chat_id = ?1\n                AND (?2 IS NULL OR r.created_at > ?2)\n                AND m.sender_user_uuid = ?3\n                AND m.sender_user_domain = ?4\n                AND (r.sender_user_uuid != ?3 OR r.sender_user_domain != ?4)\n            ORDER BY r.created_at DESC, r.reaction_mimi_id DESC\n            LIMIT ?5",
+  "query": "SELECT\n                r.reaction_mimi_id AS \"reaction_mimi_id: _\",\n                r.target_mimi_id AS \"target_mimi_id: _\",\n                r.chat_id AS \"chat_id: _\",\n                r.sender_user_uuid AS \"sender_user_uuid: _\",\n                r.sender_user_domain AS \"sender_user_domain: _\",\n                r.emoji,\n                r.created_at AS \"created_at: _\",\n                m.message_id AS \"message_id: _\",\n                m.mimi_id AS \"message_mimi_id: _\",\n                m.timestamp AS \"timestamp: _\",\n                m.sender_user_uuid AS \"message_sender_user_uuid: _\",\n                m.sender_user_domain AS \"message_sender_user_domain: _\",\n                m.content AS \"content: _\",\n                m.sent,\n                m.status,\n                m.edited_at AS \"edited_at: _\",\n                b.user_uuid IS NOT NULL AS \"is_blocked!: _\",\n                m.in_reply_to_mimi_id AS \"in_reply_to_mimi_id: _\",\n                m.mentions_me\n            FROM reaction r\n            INNER JOIN message m ON m.mimi_id = r.target_mimi_id\n            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid\n                AND b.user_domain = m.sender_user_domain\n            WHERE r.chat_id = ?1\n                AND (?2 IS NULL OR r.created_at > ?2)\n                AND m.sender_user_uuid = ?3\n                AND m.sender_user_domain = ?4\n                AND (r.sender_user_uuid != ?3 OR r.sender_user_domain != ?4)\n            ORDER BY r.created_at DESC, r.reaction_mimi_id DESC\n            LIMIT ?5",
   "describe": {
     "columns": [
       {
@@ -195,6 +195,17 @@
             "name": "in_reply_to_mimi_id"
           }
         }
+      },
+      {
+        "name": "mentions_me",
+        "ordinal": 18,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "mentions_me"
+          }
+        }
       }
     ],
     "parameters": {
@@ -218,8 +229,9 @@
       false,
       true,
       false,
-      true
+      true,
+      false
     ]
   },
-  "hash": "684a7329ea5e9e42a268811df21f83b4a93a158a026856378a5be66be4cc291e"
+  "hash": "2ab4fadc8ebf250fb453a0966c14b65a1d8250c8e616ebd1d771a5ec34159e91"
 }

@@ -11,8 +11,11 @@ import 'package:air/core/lib.dart' show U8Array32;
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/mention_picker/mention_picker.dart';
+import 'package:air/ds/patterns/mention_picker/mention_picker_tokens.dart';
 import 'package:air/ds/patterns/message_input/message_input_link_preview.dart';
 import 'package:air/ds/patterns/message_input/message_input_quote.dart';
+import 'package:air/ds/patterns/message_input/message_input_tokens.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
 import 'package:air/features/chat/share_target_publisher.dart';
@@ -62,6 +65,7 @@ UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
   chatType: _chat.chatType,
   lastUsed: _chat.lastUsed,
   unreadMessages: _chat.unreadMessages,
+  unreadMentions: _chat.unreadMentions,
   lastMessage: _chat.lastMessage,
   draft: draft,
   isApq: _chat.isApq,
@@ -285,6 +289,70 @@ void main() {
 
       verifyNever(
         () => chatDetailsCubit.storeDraft(draftMessage: '', isCommitted: false),
+      );
+    });
+  });
+
+  group('MessageComposer mention picker', () {
+    // The field's chrome, keyed by the composer to place the picker.
+    final fieldChrome = find.ancestor(
+      of: find.byType(TextField),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Container && widget.key is GlobalKey,
+      ),
+    );
+
+    Future<void> typeAt(WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), '@');
+      await tester.pumpAndSettle();
+    }
+
+    void enableExperimentalFeatures() {
+      when(() => userSettingsCubit.state).thenReturn(
+        const UserSettings(developerMode: true, experimentalFeatures: true),
+      );
+      // Typing also schedules a link preview, an experimental feature too.
+      when(() => chatDetailsCubit.updateLinkPreviews(any()))
+          .thenAnswer((_) async {});
+    }
+
+    testWidgets('stays closed without experimental features', (tester) async {
+      await typeAt(tester);
+
+      expect(find.byType(MentionPickerRow), findsNothing);
+    });
+
+    testWidgets('floats above the field, flush with its left edge', (
+      tester,
+    ) async {
+      enableExperimentalFeatures();
+      await typeAt(tester);
+
+      final rows = find.byType(MentionPickerRow);
+      // Every member but the reader.
+      expect(rows, findsNWidgets(_members.length - 1));
+
+      final chrome = tester.getRect(fieldChrome);
+      final first = tester.getRect(rows.first);
+      final last = tester.getRect(rows.last);
+      const padding = MentionPickerTokens.padding;
+      expect(first.left - padding.left, chrome.left);
+      expect(
+        last.bottom + padding.bottom,
+        chrome.top - MessageInputTokens.mentionPickerGap,
+      );
+      expect(first.width + padding.horizontal, MentionPickerTokens.width);
+    });
+
+    testWidgets('renders correctly', (tester) async {
+      enableExperimentalFeatures();
+      await typeAt(tester);
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_composer_mention_picker.png'),
       );
     });
   });

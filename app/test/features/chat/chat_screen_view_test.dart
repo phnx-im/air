@@ -67,6 +67,7 @@ UiChatMessage _msg(
   ),
   status: UiMessageStatus.sent,
   reactions: [],
+  mentions: [],
 );
 
 UiChatDetails _chatWithUnread(int unreadMessages) => UiChatDetails(
@@ -82,6 +83,7 @@ UiChatDetails _chatWithUnread(int unreadMessages) => UiChatDetails(
   mutedUntil: _chat.mutedUntil,
   pendingCommitFailed: false,
   resyncFailed: false,
+  unreadMentions: 0,
 );
 
 UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
@@ -90,6 +92,7 @@ UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
   chatType: _chat.chatType,
   lastUsed: _chat.lastUsed,
   unreadMessages: _chat.unreadMessages,
+  unreadMentions: _chat.unreadMentions,
   lastMessage: _chat.lastMessage,
   draft: draft,
   isApq: _chat.isApq,
@@ -109,6 +112,7 @@ UiChatMessage _systemMsg(int id, ChatId chatId, UiSystemMessage message) =>
       message: UiMessage_Display(UiEventMessage.system(message)),
       status: UiMessageStatus.sent,
       reactions: [],
+      mentions: [],
     );
 
 /// The chat of a contact request whose sender retracted it before the user
@@ -123,6 +127,7 @@ final _unavailableRequest = UiChatDetails(
   isSelfChat: false,
   pendingCommitFailed: false,
   resyncFailed: false,
+  unreadMentions: 0,
 );
 
 /// The chat of an open contact request from Bob.
@@ -136,6 +141,7 @@ final _receivedRequest = UiChatDetails(
   isSelfChat: false,
   pendingCommitFailed: false,
   resyncFailed: false,
+  unreadMentions: 0,
 );
 
 void main() {

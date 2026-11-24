@@ -98,6 +98,7 @@ void main() {
       pendingCommitFailed: false,
       resyncFailed: false,
       contactRequestExpiresAt: expiresAt,
+      unreadMentions: 0,
     );
 
     void showChat(UiChatDetails chat) =>

@@ -72,6 +72,7 @@ final messages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 2.messageId(),
@@ -94,6 +95,7 @@ final messages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 100.messageId(),
@@ -109,6 +111,7 @@ final messages = [
     ),
     status: UiMessageStatus.delivered,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 3.messageId(),
@@ -129,6 +132,7 @@ final messages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 4.messageId(),
@@ -149,6 +153,7 @@ final messages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 5.messageId(),
@@ -164,6 +169,7 @@ final messages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 7.messageId(),
@@ -179,6 +185,7 @@ final messages = [
     ),
     status: UiMessageStatus.delivered,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 8.messageId(),
@@ -199,6 +206,7 @@ final messages = [
     ),
     status: UiMessageStatus.delivered,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 9.messageId(),
@@ -219,6 +227,7 @@ final messages = [
     ),
     status: UiMessageStatus.read,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 10.messageId(),
@@ -244,6 +253,7 @@ final messages = [
     ),
     status: UiMessageStatus.read,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 11.messageId(),
@@ -259,6 +269,7 @@ final messages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 12.messageId(),
@@ -284,6 +295,7 @@ final messages = [
     ),
     status: UiMessageStatus.read,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 13.messageId(),
@@ -307,6 +319,7 @@ final messages = [
     inReplyToMessage: const UiInReplyToMessage.notFound(),
     status: UiMessageStatus.read,
     reactions: [],
+    mentions: [],
   ),
   // Medium-sized message with three reactions (2+1)
   UiChatMessage(
@@ -331,6 +344,7 @@ final messages = [
       UiReaction(emoji: "🫪", users: [1.userId(), 3.userId()]),
       UiReaction(emoji: "💖", users: [4.userId()]),
     ],
+    mentions: [],
   ),
   // Very short message with many reactions, to show the overflow pill
   UiChatMessage(
@@ -356,6 +370,7 @@ final messages = [
       UiReaction(emoji: "🤯", users: [5.userId()]),
       UiReaction(emoji: "🤨", users: [4.userId()]),
     ],
+    mentions: [],
   ),
   // Own message with a long single line (including an unbreakable URL) that
   // must wrap inside the bubble. Guards against the bubble losing its width
@@ -386,6 +401,104 @@ final messages = [
     ),
     status: UiMessageStatus.read,
     reactions: [],
+    mentions: [],
+  ),
+];
+
+UiMimiContent mentionMimiContent({
+  required String prefix,
+  required UiUserId target,
+  required String hint,
+}) => UiMimiContent(
+  topicId: Uint8List(0),
+  plainBody: '$prefix$hint',
+  content: MessageContent(
+    elements: [
+      RangedBlockElement(
+        start: 0,
+        end: 0,
+        element: BlockElement_Paragraph([
+          RangedInlineElement(
+            start: 0,
+            end: 0,
+            element: InlineElement_Text(prefix),
+          ),
+          RangedInlineElement(
+            start: 0,
+            end: 0,
+            element: InlineElement.userMention(userId: target, hint: hint),
+          ),
+        ]),
+      ),
+    ],
+  ),
+  attachments: [],
+);
+
+final mentionMessages = [
+  // Bob mentions Eve (a member): renders a pill with the receiver-local
+  // display name, not the sender's hint
+  UiChatMessage(
+    id: 401.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 2.userId(),
+        sent: true,
+        edited: false,
+        content: mentionMimiContent(
+          prefix: 'Ping ',
+          target: 3.userId(),
+          hint: '@Eva',
+        ),
+      ),
+    ),
+    status: UiMessageStatus.sent,
+    reactions: [],
+    mentions: [3.userId()],
+  ),
+  // Bob mentions Alice (the local user): renders the self-mention pill
+  UiChatMessage(
+    id: 402.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:01:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 2.userId(),
+        sent: true,
+        edited: false,
+        content: mentionMimiContent(
+          prefix: 'Kudos to ',
+          target: 1.userId(),
+          hint: '@Alice',
+        ),
+      ),
+    ),
+    status: UiMessageStatus.sent,
+    reactions: [],
+    mentions: [1.userId()],
+  ),
+  // Bob mentions a non-member: renders the hint as plain text
+  UiChatMessage(
+    id: 403.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-01T00:02:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 2.userId(),
+        sent: true,
+        edited: false,
+        content: mentionMimiContent(
+          prefix: 'Where is ',
+          target: 9.userId(),
+          hint: '@Ghost',
+        ),
+      ),
+    ),
+    status: UiMessageStatus.sent,
+    reactions: [],
+    mentions: [],
   ),
 ];
 
@@ -521,6 +634,7 @@ final codeBlockMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   // Incoming, so the slab carries `message.otherText`.
   UiChatMessage(
@@ -537,6 +651,7 @@ final codeBlockMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   // Outgoing, so the same slab carries `message.selfText`.
   UiChatMessage(
@@ -553,6 +668,7 @@ final codeBlockMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
 ];
 
@@ -577,6 +693,7 @@ final jumboEmojiMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   // Jumbo: multiple emoji from self
   UiChatMessage(
@@ -598,6 +715,7 @@ final jumboEmojiMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   // Not jumbo: emoji + text (should keep bubble)
   UiChatMessage(
@@ -619,6 +737,7 @@ final jumboEmojiMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   // Not jumbo: edited emoji-only (should keep bubble)
   UiChatMessage(
@@ -640,6 +759,7 @@ final jumboEmojiMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   // Normal text message for contrast
   UiChatMessage(
@@ -661,6 +781,7 @@ final jumboEmojiMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
 ];
 
@@ -706,6 +827,7 @@ final attachmentMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 7.messageId(),
@@ -727,6 +849,7 @@ final attachmentMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 8.messageId(),
@@ -746,6 +869,7 @@ final attachmentMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 9.messageId(),
@@ -774,6 +898,7 @@ final attachmentMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
 ];
 
@@ -821,6 +946,7 @@ UiChatMessage _linkMessage(
   inReplyToMessage: inReplyTo,
   status: UiMessageStatus.sent,
   reactions: [],
+  mentions: [],
 );
 
 final linkPreviewMessages = [
@@ -904,6 +1030,7 @@ final replyMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   // Short reply, long message
   UiChatMessage(
@@ -925,6 +1052,7 @@ final replyMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   // Reply and a single emoji message
   UiChatMessage(
@@ -951,6 +1079,7 @@ final replyMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   // Reply containing only emoji and some message
   UiChatMessage(
@@ -977,6 +1106,7 @@ final replyMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
 ];
 
@@ -1024,6 +1154,7 @@ final selfChatMessages = [
     ),
     status: UiMessageStatus.read,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 51.messageId(),
@@ -1036,6 +1167,7 @@ final selfChatMessages = [
     ),
     status: UiMessageStatus.read,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 52.messageId(),
@@ -1056,6 +1188,7 @@ final selfChatMessages = [
     ),
     status: UiMessageStatus.read,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 53.messageId(),
@@ -1070,6 +1203,7 @@ final selfChatMessages = [
     ),
     status: UiMessageStatus.read,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 54.messageId(),
@@ -1090,6 +1224,7 @@ final selfChatMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
 ];
 
@@ -1106,6 +1241,7 @@ final selfChatDetails = UiChatDetails(
   mutedUntil: null,
   pendingCommitFailed: false,
   resyncFailed: false,
+  unreadMentions: 0,
 );
 
 class MockLinkedDevicesCubit extends MockCubit<LinkedDevicesState>
@@ -1214,6 +1350,7 @@ void main() {
         ),
         status: status,
         reactions: [],
+        mentions: [],
       );
 
       // The clock the stamp of message [id] carries. The fixtures are old
@@ -1528,6 +1665,22 @@ void main() {
       );
     });
 
+    testWidgets('renders mentions correctly', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      messageListCubit.setState(mentionMessages);
+
+      await tester.pumpWidget(buildSubject());
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_mentions.png'),
+      );
+    });
+
     testWidgets('renders correctly (dark mode)', (tester) async {
       tester.view.physicalSize = highTestSize;
       addTearDown(() {
@@ -1775,6 +1928,7 @@ void main() {
           ),
           status: UiMessageStatus.sent,
           reactions: [],
+          mentions: [],
         );
       });
 
@@ -1797,6 +1951,7 @@ void main() {
         ),
         status: UiMessageStatus.sent,
         reactions: [],
+        mentions: [],
       );
 
       MessageId? requestedMessageId;
@@ -1854,6 +2009,7 @@ void main() {
           ),
           status: UiMessageStatus.sent,
           reactions: [],
+          mentions: [],
         );
       });
 
@@ -1916,6 +2072,7 @@ void main() {
           ),
           status: UiMessageStatus.sent,
           reactions: [],
+          mentions: [],
         );
 
         final all = List.generate(80, mk);
@@ -1995,6 +2152,7 @@ void main() {
             ),
             status: UiMessageStatus.sent,
             reactions: [],
+            mentions: [],
           );
         });
 
@@ -2138,6 +2296,7 @@ void main() {
             ),
             status: UiMessageStatus.sent,
             reactions: [],
+            mentions: [],
           );
 
       final history = [
