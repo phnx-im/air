@@ -11,8 +11,7 @@ import 'package:flutter/widgets.dart';
 
 /// The link preview staged above the field, with a floating remove button.
 ///
-/// Shows the pending card while [data] is null, and no remove button then,
-/// since there is nothing to drop yet.
+/// Shows the pending card while [data] is null.
 class MessageInputLinkPreview extends StatelessWidget {
   const MessageInputLinkPreview({
     super.key,
@@ -31,7 +30,7 @@ class MessageInputLinkPreview extends StatelessWidget {
   /// Builds the card's image, see [LinkPreview.imageBuilder].
   final Widget Function(BoxFit fit)? imageBuilder;
 
-  /// Unstages the preview.
+  /// Unstages the preview, also while it is pending.
   final VoidCallback? onRemove;
 
   @override
@@ -46,24 +45,33 @@ class MessageInputLinkPreview extends StatelessWidget {
         top: MessageInputLinkPreviewTokens.gapAbove,
         bottom: MessageInputLinkPreviewTokens.gapBelow,
       ),
-      child: Stack(
-        children: [
-          LinkPreview(url: url, data: data, imageBuilder: imageBuilder),
-          if (onRemove != null && data != null)
-            Positioned(
-              top: MessageInputLinkPreviewTokens.removeOffset,
-              right: MessageInputLinkPreviewTokens.removeOffset,
-              child: ButtonIcon(
-                variant: ButtonIconVariant.solid,
-                icon: AppIconType.x,
-                size: MessageInputLinkPreviewTokens.removeSize,
-                iconSize: MessageInputLinkPreviewTokens.removeIconSize,
-                fill: palette.backgroundElevated.primary,
-                hitTargetSize: MessageInputLinkPreviewTokens.removeHitTarget,
-                onPressed: onRemove,
+      // Loose, so the stack hugs a card narrower than the chrome and the
+      // remove button stays on its corner.
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        heightFactor: 1,
+        child: Stack(
+          // The remove button hangs past the card and must not be cropped to
+          // it.
+          clipBehavior: .none,
+          children: [
+            LinkPreview(url: url, data: data, imageBuilder: imageBuilder),
+            if (onRemove != null)
+              Positioned(
+                top: MessageInputLinkPreviewTokens.removeOffset,
+                right: MessageInputLinkPreviewTokens.removeOffset,
+                child: ButtonIcon(
+                  variant: ButtonIconVariant.solid,
+                  icon: AppIconType.x,
+                  size: MessageInputLinkPreviewTokens.removeSize,
+                  iconSize: MessageInputLinkPreviewTokens.removeIconSize,
+                  fill: palette.backgroundElevated.primary,
+                  hitTargetSize: MessageInputLinkPreviewTokens.removeHitTarget,
+                  onPressed: onRemove,
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

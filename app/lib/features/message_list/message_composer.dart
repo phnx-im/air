@@ -355,11 +355,11 @@ class _MessageComposerState extends State<MessageComposer>
           onScrollBack: () => controller?.scrollToBottom(),
           aboveField: [
             if (editingId != null) _EditBanner(editingId: editingId),
-            // Above the quote: it is attached, not part of what is replied to.
+            // In the order the sent message shows them.
+            if (inReplyToId != null) _ReplyPreview(last: !hasLinkPreview),
             // Only present while staged, an empty row would cost the field its
             // top inset.
             if (hasLinkPreview) const _LinkPreviewStaged(),
-            if (inReplyToId != null) const _ReplyPreview(),
           ],
           field: _ComposerField(
             focusNode: _focusNode,
@@ -533,8 +533,14 @@ class _MessageComposerState extends State<MessageComposer>
 
   bool _resetDraft(ChatDetailsCubit cubit) {
     // One thing per press: link preview, then reply, then edit.
-    if (cubit.state.linkPreview case UiComposerLinkPreview_Ready(:final card)) {
-      cubit.dismissLinkPreview(card.url);
+    final linkUrl = switch (cubit.state.linkPreview) {
+      UiComposerLinkPreview_Ready(:final card) => card.url,
+      UiComposerLinkPreview_Loading(:final url) when _showLinkPreviewLoading =>
+        url,
+      _ => null,
+    };
+    if (linkUrl != null) {
+      cubit.dismissLinkPreview(linkUrl);
       return true;
     } else if (cubit.state.chat?.draft?.inReplyTo != null) {
       cubit.resetDraftReply();
@@ -860,7 +866,10 @@ class _EditBanner extends StatelessWidget {
 
 /// The quoted message, shown above the field while a reply is staged.
 class _ReplyPreview extends StatelessWidget {
-  const _ReplyPreview();
+  const _ReplyPreview({required this.last});
+
+  /// Whether the field follows directly, see [MessageInputQuote.last].
+  final bool last;
 
   @override
   Widget build(BuildContext context) {
@@ -874,6 +883,7 @@ class _ReplyPreview extends StatelessWidget {
       preview: quote.preview,
       senderName: quote.senderName,
       thumbnail: quotedThumbnail(context, inReplyTo.$2),
+      last: last,
       onRemove: () => context.read<ChatDetailsCubit>().resetDraftReply(),
     );
   }
@@ -894,6 +904,7 @@ class _LinkPreviewStaged extends StatelessWidget {
     return switch (preview) {
       UiComposerLinkPreview_Loading(:final url) => MessageInputLinkPreview(
         url: url,
+        onRemove: () => cubit.dismissLinkPreview(url),
       ),
       UiComposerLinkPreview_Ready(:final card, :final image) =>
         MessageInputLinkPreview(

@@ -17,6 +17,7 @@ class MessageInputQuote extends StatelessWidget {
     this.senderName,
     this.thumbnail,
     this.onRemove,
+    this.last = true,
   });
 
   /// The quoted message, one or two lines of it.
@@ -31,6 +32,10 @@ class MessageInputQuote extends StatelessWidget {
 
   /// Unstages the reply.
   final VoidCallback? onRemove;
+
+  /// Whether the field follows directly. Another staged row brings its own
+  /// gap above, so the quote drops its gap below.
+  final bool last;
 
   @override
   Widget build(BuildContext context) {
@@ -88,11 +93,11 @@ class MessageInputQuote extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(
+      padding: EdgeInsets.only(
         left: MessageInputQuoteTokens.gapSide,
         right: MessageInputQuoteTokens.gapSide,
         top: MessageInputQuoteTokens.gapAbove,
-        bottom: MessageInputQuoteTokens.gapBelow,
+        bottom: last ? MessageInputQuoteTokens.gapBelow : 0,
       ),
       child: Stack(
         // The dismiss button's hit target is wider than its circle, so the ring
