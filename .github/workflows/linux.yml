@@ -58,7 +58,7 @@ jobs:
         run: flutter build linux -v --flavor ${{ env.APP_FLAVOR }} --build-number=${{ steps.setup-buildenv.outputs.build-number }}
 
       - name: Upload app bundle
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: linux-${{ matrix.arch }}-app
           path: app/build/linux/${{ matrix.arch }}/${{ env.APP_FLAVOR }}/release/bundle
@@ -83,7 +83,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Download app bundle
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: linux-${{ matrix.arch }}-app
           path: app/build/linux/${{ matrix.arch }}/${{ env.APP_FLAVOR }}/release/bundle
@@ -100,7 +100,7 @@ jobs:
         run: RELEASE=${{ needs.linux-build.outputs.build-number }} just build-${{ matrix.format }}
 
       - name: Upload packages
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: linux-package-${{ matrix.format }}-${{ matrix.arch }}
           path: app/linux/${{ matrix.format == 'rpm' && 'air-*.rpm' || 'air_*.deb' }}
@@ -132,7 +132,7 @@ jobs:
       # All arches of one format go into a single publish run, since parallel
       # runs would overwrite each other's repository index.
       - name: Download packages
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: linux-package-${{ matrix.format }}-*
           merge-multiple: true
@@ -203,7 +203,7 @@ jobs:
 
       # Runtime and SDK, see app/linux/flatpak/ms.air.Air.yml.jinja.
       - name: Cache Flatpak runtimes
-        uses: actions/cache@v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/share/flatpak
           key: flatpak-runtimes-${{ matrix.arch }}-26.08-llvm23
@@ -211,7 +211,7 @@ jobs:
       # Hashes of the Flutter and Rust artifacts and the resolved
       # flutter_tools lock.
       - name: Cache Flatpak source metadata
-        uses: actions/cache@v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: target/flatpak/cache
           key: flatpak-sources-${{ matrix.arch }}-${{ hashFiles('app/.fvmrc', 'applogic/rust-toolchain.toml', 'Cargo.lock') }}
@@ -227,7 +227,7 @@ jobs:
       # Only main saves, like the sccache cache in setup-buildenv.
       - name: Cache flatpak-builder state
         if: github.ref == 'refs/heads/main'
-        uses: actions/cache@v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             target/flatpak/.flatpak-builder/downloads
@@ -238,7 +238,7 @@ jobs:
 
       - name: Restore flatpak-builder state
         if: github.ref != 'refs/heads/main'
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             target/flatpak/.flatpak-builder/downloads
@@ -255,7 +255,7 @@ jobs:
           flatpak build-bundle target/flatpak/repo target/flatpak/ms.air.Air-${{ matrix.arch }}.flatpak ms.air.Air build
 
       - name: Upload Flatpak bundle
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: linux-flatpak-bundle-${{ matrix.arch }}
           path: target/flatpak/ms.air.Air-${{ matrix.arch }}.flatpak
@@ -263,7 +263,7 @@ jobs:
 
       # Input of a later Flathub submission.
       - name: Upload Flatpak manifest
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: linux-flatpak-manifest-${{ matrix.arch }}
           path: |
@@ -286,7 +286,7 @@ jobs:
       # All arches go into a single publish run, since parallel runs would
       # overwrite each other's summary.
       - name: Download Flatpak bundles
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: linux-flatpak-bundle-*
           merge-multiple: true
