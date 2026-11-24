@@ -8,7 +8,7 @@ use std::{fs, io::Write, sync::Arc};
 
 use aircoreclient::{
     AttachmentContent, AttachmentId, AttachmentProgress, AttachmentProgressEvent, AttachmentStatus,
-    AttachmentThumbnail,
+    AttachmentThumbnail, UploadHandle,
     clients::CoreUser,
     db::notification::{DbEntityId, DbNotification, DbOperation},
 };
@@ -53,6 +53,11 @@ impl AttachmentsRepository {
         spawn_from_sync(cancel.clone().run_until_cancelled_owned(thumbnail_worker));
 
         spawn_attachment_downloads(core_user.clone(), cancel.clone(), in_progress.clone());
+        spawn_from_sync(
+            cancel
+                .clone()
+                .run_until_cancelled_owned(resume_uploads(core_user.clone(), in_progress.clone())),
+        );
 
         Self {
             core_user,
@@ -507,6 +512,50 @@ async fn attachment_downloads_loop(
         };
         spawn_download_task(&store, &cancel, Some(permit), &in_progress, attachment_id);
     }
+}
+
+/// Restarts the uploads that a killed app left running.
+async fn resume_uploads(core_user: CoreUser, in_progress: InProgressMap) {
+    match core_user.resume_interrupted_uploads().await {
+        Ok(uploads) => {
+            for upload in uploads {
+                info!(attachment_id = ?upload.attachment_id, "Resuming an interrupted upload");
+                spawn_upload(&core_user, &in_progress, upload);
+            }
+        }
+        Err(error) => error!(%error, "Failed to resume interrupted uploads"),
+    }
+}
+
+/// Runs the upload and registers it as in progress.
+///
+/// A cancelled upload is recorded as failed.
+pub(crate) fn spawn_upload(
+    core_user: &CoreUser,
+    in_progress: &InProgressMap,
+    upload: UploadHandle,
+) {
+    let core_user = core_user.clone();
+    let UploadHandle {
+        attachment_id,
+        progress,
+        task,
+    } = upload;
+    let handle = AttachmentTaskHandle::new(progress);
+    let cancel = handle.cancellation_token().clone();
+    in_progress.insert(attachment_id, handle);
+    spawn_from_sync(async move {
+        match cancel.run_until_cancelled_owned(task).await {
+            Some(Ok(())) => {}
+            Some(Err(error)) => error!(?error, ?attachment_id, "Upload failed"),
+            None => {
+                info!(?attachment_id, "Upload was cancelled");
+                if let Err(error) = core_user.fail_cancelled_upload(attachment_id).await {
+                    error!(%error, ?attachment_id, "Failed to fail the upload");
+                }
+            }
+        }
+    });
 }
 
 fn spawn_download_task(

@@ -348,6 +348,48 @@ async fn held_edit_is_delivered_after_a_retry() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn interrupted_upload_is_resumed() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    alice.drain().await;
+    bob.drain().await;
+    let texts_before = bob.text_messages(chat_id).await.len();
+
+    let ComposedMessage { message, uploads } = alice
+        .compose(chat_id)
+        .text(format!("see {LINK_A}"))
+        .link_preview(fetched(LINK_A, Some(IMAGE_A)))
+        .send()
+        .await
+        .unwrap();
+
+    // A killed app never runs the upload and leaves it as running
+    drop(uploads);
+    alice.outbound_service().run_once().await;
+    bob.drain().await;
+    assert_eq!(bob.text_messages(chat_id).await.len(), texts_before);
+
+    let uploads = alice.resume_interrupted_uploads().await.unwrap();
+    assert_eq!(uploads.len(), 1);
+    for upload in uploads {
+        upload.task.await.expect("upload failed");
+    }
+    alice.outbound_service().run_once().await;
+    assert!(alice.expect_message(message.id()).await.is_sent());
+
+    // Nothing is left to resume
+    assert!(alice.resume_interrupted_uploads().await.unwrap().is_empty());
+
+    bob.drain().await;
+    let received_id = bob.expect_last_message(chat_id).await.id();
+    let (url, image) = card(&bob, received_id).await.expect("no card");
+    assert_eq!(url, LINK_A);
+    assert_eq!(download(&bob, image.expect("no image")).await, IMAGE_A);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn message_waiting_for_its_upload_holds_back_its_chat() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;

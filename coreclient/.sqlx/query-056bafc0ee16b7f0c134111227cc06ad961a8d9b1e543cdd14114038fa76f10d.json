@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                q.chat_id AS \"chat_id: ChatId\",\n                t.attachment_id AS \"attachment_id: AttachmentId\"\n            FROM attachment_transfer t\n            JOIN message_attachment ma ON ma.attachment_id = t.attachment_id\n            JOIN chat_message_queue q ON q.message_id = ma.message_id\n            WHERE t.direction = ?1\n                AND t.state IN (?2, ?3)\n            ORDER BY q.created_at, ma.part_index",
+  "describe": {
+    "columns": [
+      {
+        "name": "chat_id: ChatId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "chat_message_queue",
+            "name": "chat_id"
+          }
+        }
+      },
+      {
+        "name": "attachment_id: AttachmentId",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment_transfer",
+            "name": "attachment_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "056bafc0ee16b7f0c134111227cc06ad961a8d9b1e543cdd14114038fa76f10d"
+}

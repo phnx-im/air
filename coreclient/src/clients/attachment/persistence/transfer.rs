@@ -8,7 +8,7 @@ use sqlx::{
 };
 
 use crate::{
-    AttachmentId,
+    AttachmentId, ChatId,
     db::access::{ReadConnection, WriteConnection},
 };
 
@@ -404,6 +404,33 @@ impl AttachmentTransferRecord {
         )
         .fetch_one(connection.as_mut())
         .await
+    }
+
+    /// Loads the queued or running uploads of queued messages, with the chat
+    /// of their message.
+    pub(crate) async fn load_active_uploads(
+        mut connection: impl ReadConnection,
+    ) -> sqlx::Result<Vec<(ChatId, AttachmentId)>> {
+        let rows = query!(
+            r#"SELECT
+                q.chat_id AS "chat_id: ChatId",
+                t.attachment_id AS "attachment_id: AttachmentId"
+            FROM attachment_transfer t
+            JOIN message_attachment ma ON ma.attachment_id = t.attachment_id
+            JOIN chat_message_queue q ON q.message_id = ma.message_id
+            WHERE t.direction = ?1
+                AND t.state IN (?2, ?3)
+            ORDER BY q.created_at, ma.part_index"#,
+            TransferDirection::Upload,
+            TransferState::Queued,
+            TransferState::Running,
+        )
+        .fetch_all(connection.as_mut())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.chat_id, row.attachment_id))
+            .collect())
     }
 
     /// Loads the attachments of the message whose upload failed.

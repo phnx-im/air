@@ -40,7 +40,9 @@ use crate::{
 use crate::{api::types::UiMessageDraft, message_content::MimiContentExt};
 use crate::{
     api::{
-        attachments_repository::{AttachmentTaskHandle, AttachmentsRepository, InProgressMap},
+        attachments_repository::{
+            AttachmentTaskHandle, AttachmentsRepository, InProgressMap, spawn_upload,
+        },
         types::{DeleteMode, UiChatType, UiUserId},
         user_settings_cubit::{UserSettings, UserSettingsCubitBase},
     },
@@ -519,28 +521,11 @@ impl ChatDetailsCubitBase {
     }
 
     fn spawn_upload_handle(&self, upload: UploadHandle) {
-        let core_user = self.context.core_user.clone();
-        let in_progress = self.attachment_in_progress.clone();
-        let UploadHandle {
-            attachment_id,
-            progress,
-            task,
-        } = upload;
-        let handle = AttachmentTaskHandle::new(progress);
-        let cancel = handle.cancellation_token().clone();
-        in_progress.insert(attachment_id, handle);
-        spawn_from_sync(async move {
-            match cancel.run_until_cancelled_owned(task).await {
-                Some(Ok(())) => {}
-                Some(Err(error)) => error!(?error, ?attachment_id, "Upload failed"),
-                None => {
-                    info!(?attachment_id, "Upload was cancelled");
-                    if let Err(error) = core_user.fail_cancelled_upload(attachment_id).await {
-                        error!(%error, ?attachment_id, "Failed to fail the upload");
-                    }
-                }
-            }
-        });
+        spawn_upload(
+            &self.context.core_user,
+            &self.attachment_in_progress,
+            upload,
+        );
     }
 
     /// Marks the chat as read until the given message id (including).
