@@ -183,97 +183,198 @@ impl MessageContent {
         Ok(Self { elements: result })
     }
 
-    /// Flattened markdown text.
-    pub(crate) fn plain_text(&self) -> String {
-        let mut text = String::new();
-        push_block_text(&self.elements, "\n", &mut text);
-        text
-    }
-
     /// Flattened markdown text with a fallback to the raw markdown if the text
     /// is empty.
-    pub(crate) fn preview_text(&self, markdown: &str) -> Option<String> {
-        let text = self.plain_text();
-        let text = text.trim();
-        if !text.is_empty() {
-            return Some(text.to_owned());
+    ///
+    /// Mentions stay parts of their own.
+    pub(crate) fn preview(&self, markdown: &str) -> Option<Vec<PreviewPart>> {
+        let mut preview = Preview::default();
+        preview.push_blocks(&self.elements, "\n");
+        preview.trim();
+        if !preview.parts.is_empty() {
+            return Some(preview.parts);
         }
         let markdown = markdown.trim();
-        (!markdown.is_empty()).then(|| markdown.to_owned())
+        (!markdown.is_empty()).then(|| vec![PreviewPart::Text(markdown.to_owned())])
+    }
+
+    /// [`Self::preview`] as text, with each mention as the sender's hint.
+    pub(crate) fn preview_text(&self, markdown: &str) -> Option<String> {
+        let parts = self.preview(markdown)?;
+        Some(join_preview(&parts, |_, hint| hint.to_owned()))
     }
 }
 
-/// Append the text of block elements as lines joined by `separator`.
-fn push_block_text(blocks: &[RangedBlockElement], separator: &str, text: &mut String) {
-    for block in blocks {
-        match &block.element {
-            BlockElement::Paragraph(inlines) | BlockElement::Heading(inlines) => {
-                push_line(text, &inline_text(inlines), separator);
-            }
-            BlockElement::Quote(blocks) => push_block_text(blocks, separator, text),
-            BlockElement::UnorderedList(items) | BlockElement::OrderedList(_, items) => {
-                for item in items {
-                    push_block_text(item, separator, text);
-                }
-            }
-            BlockElement::Table { head, rows } => {
-                push_line(text, &table_row_text(head), separator);
-                for row in rows {
-                    push_line(text, &table_row_text(row), separator);
-                }
-            }
-            BlockElement::HorizontalRule => (),
-            BlockElement::CodeBlock(code_lines) => {
-                for code_line in code_lines {
-                    push_line(text, &code_line.value, separator);
-                }
-            }
-            BlockElement::Error(message) => push_line(text, message, separator),
-        }
-    }
+/// A run of a message preview.
+///
+/// A mention stays apart from the text around it. The UI names a mention of a
+/// chat member by its local display name, like the message bubble does.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[frb(dart_metadata = ("freezed"))]
+pub enum PreviewPart {
+    Text(String),
+    Mention { user_id: UiUserId, hint: String },
 }
 
-fn table_row_text(cells: &[Vec<RangedBlockElement>]) -> String {
+/// Joins preview parts into text, writing each mention with `mention`.
+pub(crate) fn join_preview(
+    parts: &[PreviewPart],
+    mut mention: impl FnMut(&UiUserId, &str) -> String,
+) -> String {
     let mut text = String::new();
-    for cell in cells {
-        push_block_text(cell, " ", &mut text);
+    for part in parts {
+        match part {
+            PreviewPart::Text(value) => text.push_str(value),
+            PreviewPart::Mention { user_id, hint } => text.push_str(&mention(user_id, hint)),
+        }
     }
     text
 }
 
-fn push_line(text: &mut String, line: &str, separator: &str) {
-    if line.trim().is_empty() {
-        return;
-    }
-    if !text.is_empty() {
-        text.push_str(separator);
-    }
-    text.push_str(line);
+/// Preview parts under construction, with adjacent text merged.
+#[derive(Default)]
+#[frb(ignore)]
+struct Preview {
+    parts: Vec<PreviewPart>,
 }
 
+impl Preview {
+    fn push_text(&mut self, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+        match self.parts.last_mut() {
+            Some(PreviewPart::Text(last)) => last.push_str(text),
+            Some(PreviewPart::Mention { .. }) | None => {
+                self.parts.push(PreviewPart::Text(text.to_owned()));
+            }
+        }
+    }
+
+    fn push_part(&mut self, part: PreviewPart) {
+        match part {
+            PreviewPart::Text(text) => self.push_text(&text),
+            PreviewPart::Mention { .. } => self.parts.push(part),
+        }
+    }
+
+    /// Appends the text of block elements as lines joined by `separator`.
+    fn push_blocks(&mut self, blocks: &[RangedBlockElement], separator: &str) {
+        for block in blocks {
+            match &block.element {
+                BlockElement::Paragraph(inlines) | BlockElement::Heading(inlines) => {
+                    let mut line = Preview::default();
+                    line.push_inlines(inlines);
+                    self.push_line(line, separator);
+                }
+                BlockElement::Quote(blocks) => self.push_blocks(blocks, separator),
+                BlockElement::UnorderedList(items) | BlockElement::OrderedList(_, items) => {
+                    for item in items {
+                        self.push_blocks(item, separator);
+                    }
+                }
+                BlockElement::Table { head, rows } => {
+                    self.push_line(Preview::table_row(head), separator);
+                    for row in rows {
+                        self.push_line(Preview::table_row(row), separator);
+                    }
+                }
+                BlockElement::HorizontalRule => (),
+                BlockElement::CodeBlock(code_lines) => {
+                    for code_line in code_lines {
+                        self.push_line(Preview::text(&code_line.value), separator);
+                    }
+                }
+                BlockElement::Error(message) => self.push_line(Preview::text(message), separator),
+            }
+        }
+    }
+
+    fn push_inlines(&mut self, inlines: &[RangedInlineElement]) {
+        for inline in inlines {
+            match &inline.element {
+                InlineElement::Text(value) | InlineElement::Code(value) => self.push_text(value),
+                InlineElement::Link {
+                    dest_url: _,
+                    children,
+                }
+                | InlineElement::Bold(children)
+                | InlineElement::Italic(children)
+                | InlineElement::Strikethrough(children)
+                | InlineElement::Spoiler(children) => self.push_inlines(children),
+                InlineElement::Image(_) => self.push_text(IMAGE_PREVIEW),
+                InlineElement::UserMention { user_id, hint } => {
+                    self.parts.push(PreviewPart::Mention {
+                        user_id: user_id.clone(),
+                        hint: hint.clone(),
+                    });
+                }
+                InlineElement::TaskListMarker(_) => (),
+            }
+        }
+    }
+
+    /// Appends `line` after `separator`, unless the line is blank.
+    fn push_line(&mut self, line: Preview, separator: &str) {
+        if line.is_blank() {
+            return;
+        }
+        if !self.parts.is_empty() {
+            self.push_text(separator);
+        }
+        for part in line.parts {
+            self.push_part(part);
+        }
+    }
+
+    fn text(text: &str) -> Self {
+        let mut preview = Self::default();
+        preview.push_text(text);
+        preview
+    }
+
+    fn table_row(cells: &[Vec<RangedBlockElement>]) -> Self {
+        let mut row = Self::default();
+        for cell in cells {
+            row.push_blocks(cell, " ");
+        }
+        row
+    }
+
+    /// A mention is never blank, even with an empty hint, since the UI may
+    /// name it.
+    fn is_blank(&self) -> bool {
+        self.parts.iter().all(|part| match part {
+            PreviewPart::Text(text) => text.trim().is_empty(),
+            PreviewPart::Mention { .. } => false,
+        })
+    }
+
+    /// Trims whitespace at both ends.
+    fn trim(&mut self) {
+        if let Some(PreviewPart::Text(first)) = self.parts.first_mut() {
+            *first = first.trim_start().to_owned();
+        }
+        if let Some(PreviewPart::Text(last)) = self.parts.last_mut() {
+            *last = last.trim_end().to_owned();
+        }
+        self.parts.retain(|part| match part {
+            PreviewPart::Text(text) => !text.is_empty(),
+            PreviewPart::Mention { .. } => true,
+        });
+    }
+
+    /// The text of the preview, with each mention as the sender's hint.
+    fn into_hint_text(self) -> String {
+        join_preview(&self.parts, |_, hint| hint.to_owned())
+    }
+}
+
+/// Flattened text of inline elements, with each mention as the sender's hint.
 fn inline_text(inlines: &[RangedInlineElement]) -> String {
-    let mut text = String::new();
-    push_inline_text(inlines, &mut text);
-    text
-}
-
-fn push_inline_text(inlines: &[RangedInlineElement], text: &mut String) {
-    for inline in inlines {
-        match &inline.element {
-            InlineElement::Text(value) | InlineElement::Code(value) => text.push_str(value),
-            InlineElement::Link {
-                dest_url: _,
-                children,
-            }
-            | InlineElement::Bold(children)
-            | InlineElement::Italic(children)
-            | InlineElement::Strikethrough(children)
-            | InlineElement::Spoiler(children) => push_inline_text(children, text),
-            InlineElement::Image(_) => text.push_str(IMAGE_PREVIEW),
-            InlineElement::UserMention { hint, .. } => text.push_str(hint),
-            InlineElement::TaskListMarker(_) => (),
-        }
-    }
+    let mut preview = Preview::default();
+    preview.push_inlines(inlines);
+    preview.into_hint_text()
 }
 
 fn parse_block_element<'a, I>(
@@ -1156,10 +1257,15 @@ But it ends after the paragraph"#,
         }
     }
 
+    /// Untrimmed preview text, with each mention as its hint.
+    fn content_text(content: &MessageContent) -> String {
+        let mut preview = Preview::default();
+        preview.push_blocks(&content.elements, "\n");
+        preview.into_hint_text()
+    }
+
     fn plain_text(markdown: &str) -> String {
-        MessageContent::try_parse_markdown(markdown)
-            .unwrap()
-            .plain_text()
+        content_text(&MessageContent::try_parse_markdown(markdown).unwrap())
     }
 
     #[test]
@@ -1239,7 +1345,7 @@ But it ends after the paragraph"#,
     #[test]
     fn plain_text_of_error() {
         assert_eq!(
-            MessageContent::error("Invalid message".to_owned()).plain_text(),
+            content_text(&MessageContent::error("Invalid message".to_owned())),
             "Invalid message"
         );
     }
@@ -1332,5 +1438,96 @@ But it ends after the paragraph"#,
         let elems = parse_paragraph(&format!("`[@Alice]({ALICE_URI})`"));
         assert_eq!(elems.len(), 1);
         assert!(matches!(&elems[0].element, InlineElement::Code(_)));
+    }
+
+    fn user(uri: &str) -> UiUserId {
+        UserId::parse_uri(uri).unwrap().into()
+    }
+
+    fn mention(uri: &str, hint: &str) -> PreviewPart {
+        PreviewPart::Mention {
+            user_id: user(uri),
+            hint: hint.to_owned(),
+        }
+    }
+
+    fn text(value: &str) -> PreviewPart {
+        PreviewPart::Text(value.to_owned())
+    }
+
+    fn preview(markdown: &str) -> Option<Vec<PreviewPart>> {
+        MessageContent::try_parse_markdown(markdown)
+            .unwrap()
+            .preview(markdown)
+    }
+
+    #[test]
+    fn preview_keeps_mentions_apart() {
+        let markdown = format!("Kudos to [@Alice]({ALICE_URI})!\n\n> and **[@Bob]({BOB_URI})**");
+        assert_eq!(
+            preview(&markdown),
+            Some(vec![
+                text("Kudos to "),
+                mention(ALICE_URI, "@Alice"),
+                text("!\nand "),
+                mention(BOB_URI, "@Bob"),
+            ])
+        );
+    }
+
+    #[test]
+    fn preview_trims_text_around_mentions() {
+        let markdown = format!("\u{2003}hi [@Alice]({ALICE_URI})\u{2003}");
+        assert_eq!(
+            preview(&markdown),
+            Some(vec![text("hi "), mention(ALICE_URI, "@Alice")])
+        );
+    }
+
+    #[test]
+    fn preview_of_mention_with_empty_hint_is_not_blank() {
+        let markdown = format!("[]({ALICE_URI})");
+        assert_eq!(preview(&markdown), Some(vec![mention(ALICE_URI, "")]));
+    }
+
+    #[test]
+    fn preview_of_mention_in_table() {
+        let markdown = format!("| who | what |\n|---|---|\n| [@Bob]({BOB_URI}) | x |");
+        assert_eq!(
+            preview(&markdown),
+            Some(vec![
+                text("who what\n"),
+                mention(BOB_URI, "@Bob"),
+                text(" x"),
+            ])
+        );
+    }
+
+    #[test]
+    fn preview_text_shows_mention_hints() {
+        let markdown = format!("hi [@Alice]({ALICE_URI})");
+        let content = MessageContent::try_parse_markdown(&markdown).unwrap();
+        assert_eq!(
+            content.preview_text(&markdown).as_deref(),
+            Some("hi @Alice")
+        );
+    }
+
+    #[test]
+    fn join_preview_names_mentions() {
+        let parts = [
+            mention(ALICE_URI, "@Mallory"),
+            text(" and "),
+            mention(BOB_URI, "@Bob"),
+        ];
+        let alice = user(ALICE_URI);
+        let joined = join_preview(&parts, |user_id, hint| {
+            if *user_id == alice {
+                "@Alice".to_owned()
+            } else {
+                hint.to_owned()
+            }
+        });
+        assert_eq!(joined, "@Alice and @Bob");
     }
 }

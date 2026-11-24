@@ -1558,6 +1558,175 @@ as List<RangedBlockElement>,
 }
 
 /// @nodoc
+mixin _$PreviewPart {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is PreviewPart);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'PreviewPart()';
+}
+
+
+}
+
+/// @nodoc
+class $PreviewPartCopyWith<$Res>  {
+$PreviewPartCopyWith(PreviewPart _, $Res Function(PreviewPart) __);
+}
+
+
+
+/// @nodoc
+
+
+class PreviewPart_Text extends PreviewPart {
+  const PreviewPart_Text(this.field0): super._();
+  
+
+ final  String field0;
+
+/// Create a copy of PreviewPart
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PreviewPart_TextCopyWith<PreviewPart_Text> get copyWith => _$PreviewPart_TextCopyWithImpl<PreviewPart_Text>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is PreviewPart_Text&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,field0);
+}
+
+@override
+String toString() {
+    return 'PreviewPart.text(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PreviewPart_TextCopyWith<$Res> implements $PreviewPartCopyWith<$Res> {
+  factory $PreviewPart_TextCopyWith(PreviewPart_Text value, $Res Function(PreviewPart_Text) _then) = _$PreviewPart_TextCopyWithImpl;
+@useResult
+$Res call({
+ String field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$PreviewPart_TextCopyWithImpl<$Res>
+    implements $PreviewPart_TextCopyWith<$Res> {
+  _$PreviewPart_TextCopyWithImpl(this._self, this._then);
+
+  final PreviewPart_Text _self;
+  final $Res Function(PreviewPart_Text) _then;
+
+/// Create a copy of PreviewPart
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(PreviewPart_Text(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class PreviewPart_Mention extends PreviewPart {
+  const PreviewPart_Mention({required this.userId, required this.hint}): super._();
+  
+
+ final  UiUserId userId;
+ final  String hint;
+
+/// Create a copy of PreviewPart
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PreviewPart_MentionCopyWith<PreviewPart_Mention> get copyWith => _$PreviewPart_MentionCopyWithImpl<PreviewPart_Mention>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is PreviewPart_Mention&&(identical(other.userId, userId) || other.userId == userId)&&(identical(other.hint, hint) || other.hint == hint));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,userId,hint);
+}
+
+@override
+String toString() {
+    return 'PreviewPart.mention(userId: $userId, hint: $hint)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PreviewPart_MentionCopyWith<$Res> implements $PreviewPartCopyWith<$Res> {
+  factory $PreviewPart_MentionCopyWith(PreviewPart_Mention value, $Res Function(PreviewPart_Mention) _then) = _$PreviewPart_MentionCopyWithImpl;
+@useResult
+$Res call({
+ UiUserId userId, String hint
+});
+
+
+
+
+}
+/// @nodoc
+class _$PreviewPart_MentionCopyWithImpl<$Res>
+    implements $PreviewPart_MentionCopyWith<$Res> {
+  _$PreviewPart_MentionCopyWithImpl(this._self, this._then);
+
+  final PreviewPart_Mention _self;
+  final $Res Function(PreviewPart_Mention) _then;
+
+/// Create a copy of PreviewPart
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? userId = null,Object? hint = null,}) {
+  return _then(PreviewPart_Mention(
+userId: null == userId ? _self.userId : userId // ignore: cast_nullable_to_non_nullable
+as UiUserId,hint: null == hint ? _self.hint : hint // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$RangedBlockElement {
 
  int get start; int get end; BlockElement get element;

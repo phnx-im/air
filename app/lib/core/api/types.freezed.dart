@@ -1637,12 +1637,21 @@ String toString() {
 
 
 class UiInReplyToMessage_Resolved extends UiInReplyToMessage {
-  const UiInReplyToMessage_Resolved({required this.messageId, required this.sender, required this.mimiContent}): super._();
+  const UiInReplyToMessage_Resolved({required this.messageId, required this.sender, required this.mimiContent, required  List<UiUserId> mentions}): _mentions = mentions,super._();
   
 
  final  MessageId messageId;
  final  UiUserId sender;
  final  UiMimiContent mimiContent;
+/// Mentions of chat members in the replied-to message
+ final  List<UiUserId> _mentions;
+/// Mentions of chat members in the replied-to message
+ List<UiUserId> get mentions {
+  if (_mentions is EqualUnmodifiableListView) return _mentions;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_mentions);
+}
+
 
 /// Create a copy of UiInReplyToMessage
 /// with the given fields replaced by the non-null parameter values.
@@ -1654,18 +1663,18 @@ $UiInReplyToMessage_ResolvedCopyWith<UiInReplyToMessage_Resolved> get copyWith =
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiInReplyToMessage_Resolved&&(identical(other.messageId, messageId) || other.messageId == messageId)&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.mimiContent, mimiContent) || other.mimiContent == mimiContent));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiInReplyToMessage_Resolved&&(identical(other.messageId, messageId) || other.messageId == messageId)&&(identical(other.sender, sender) || other.sender == sender)&&(identical(other.mimiContent, mimiContent) || other.mimiContent == mimiContent)&&const DeepCollectionEquality().equals(other.mentions, _mentions));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,messageId,sender,mimiContent);
+    return Object.hash(runtimeType,messageId,sender,mimiContent,const DeepCollectionEquality().hash(_mentions));
 }
 
 @override
 String toString() {
-    return 'UiInReplyToMessage.resolved(messageId: $messageId, sender: $sender, mimiContent: $mimiContent)';
+    return 'UiInReplyToMessage.resolved(messageId: $messageId, sender: $sender, mimiContent: $mimiContent, mentions: $mentions)';
 }
 
 
@@ -1676,7 +1685,7 @@ abstract mixin class $UiInReplyToMessage_ResolvedCopyWith<$Res> implements $UiIn
   factory $UiInReplyToMessage_ResolvedCopyWith(UiInReplyToMessage_Resolved value, $Res Function(UiInReplyToMessage_Resolved) _then) = _$UiInReplyToMessage_ResolvedCopyWithImpl;
 @useResult
 $Res call({
- MessageId messageId, UiUserId sender, UiMimiContent mimiContent
+ MessageId messageId, UiUserId sender, UiMimiContent mimiContent, List<UiUserId> mentions
 });
 
 
@@ -1693,12 +1702,13 @@ class _$UiInReplyToMessage_ResolvedCopyWithImpl<$Res>
 
 /// Create a copy of UiInReplyToMessage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? messageId = null,Object? sender = null,Object? mimiContent = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? messageId = null,Object? sender = null,Object? mimiContent = null,Object? mentions = null,}) {
   return _then(UiInReplyToMessage_Resolved(
 messageId: null == messageId ? _self.messageId : messageId // ignore: cast_nullable_to_non_nullable
 as MessageId,sender: null == sender ? _self.sender : sender // ignore: cast_nullable_to_non_nullable
 as UiUserId,mimiContent: null == mimiContent ? _self.mimiContent : mimiContent // ignore: cast_nullable_to_non_nullable
-as UiMimiContent,
+as UiMimiContent,mentions: null == mentions ? _self._mentions : mentions // ignore: cast_nullable_to_non_nullable
+as List<UiUserId>,
   ));
 }
 

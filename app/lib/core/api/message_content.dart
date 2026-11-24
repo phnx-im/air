@@ -113,7 +113,7 @@ enum UiLinkPreviewKind { default_, video, music, profile }
 sealed class UiMimiContent with _$UiMimiContent {
   const factory UiMimiContent({
     String? plainBody,
-    String? previewText,
+    List<PreviewPart>? preview,
     Uint8List? replaces,
     required Uint8List topicId,
     Uint8List? inReplyTo,

@@ -433,6 +433,8 @@ pub struct InReplyToMessage {
     pub mimi_content: Option<MimiContent>,
     /// Attachment records of the replied-to message.
     pub attachments: MessageAttachments,
+    /// Mentions of chat members in the replied-to message.
+    pub mentions: Vec<UserId>,
 }
 
 // WARNING: If this type is changed, a new `VersionedMessage` variant must be

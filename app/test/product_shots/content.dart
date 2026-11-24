@@ -327,7 +327,7 @@ class _Content {
         edited: false,
         content: UiMimiContent(
           plainBody: body,
-          previewText: body,
+          preview: [PreviewPart.text(body)],
           topicId: Uint8List(0),
           content: _simpleMessage(body),
           attachments: [],
@@ -402,7 +402,7 @@ class _Content {
               ),
             ),
           ],
-          previewText: '🖼️',
+          preview: const [PreviewPart.text('🖼️')],
         ),
       ),
     ),

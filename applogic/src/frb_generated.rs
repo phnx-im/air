@@ -11853,6 +11853,20 @@ impl SseDecode for Vec<crate::notifications::NotificationId> {
     }
 }
 
+impl SseDecode for Vec<crate::api::markdown::PreviewPart> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::markdown::PreviewPart>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<u8> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -13046,6 +13060,19 @@ impl SseDecode for Option<Vec<crate::api::types::ChatId>> {
     }
 }
 
+impl SseDecode for Option<Vec<crate::api::markdown::PreviewPart>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<Vec<crate::api::markdown::PreviewPart>>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<Vec<u8>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -13096,6 +13123,30 @@ impl SseDecode for crate::api::chat_details_cubit::PqGroupDebugInfo {
             has_pending_commit: var_hasPendingCommit,
             size_bytes: var_sizeBytes,
         };
+    }
+}
+
+impl SseDecode for crate::api::markdown::PreviewPart {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                let mut var_field0 = <String>::sse_decode(deserializer);
+                return crate::api::markdown::PreviewPart::Text(var_field0);
+            }
+            1 => {
+                let mut var_userId = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                let mut var_hint = <String>::sse_decode(deserializer);
+                return crate::api::markdown::PreviewPart::Mention {
+                    user_id: var_userId,
+                    hint: var_hint,
+                };
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 
@@ -13713,10 +13764,12 @@ impl SseDecode for crate::api::types::UiInReplyToMessage {
                 let mut var_sender = <crate::api::types::UiUserId>::sse_decode(deserializer);
                 let mut var_mimiContent =
                     <crate::api::message_content::UiMimiContent>::sse_decode(deserializer);
+                let mut var_mentions = <Vec<crate::api::types::UiUserId>>::sse_decode(deserializer);
                 return crate::api::types::UiInReplyToMessage::Resolved {
                     message_id: var_messageId,
                     sender: var_sender,
                     mimi_content: var_mimiContent,
+                    mentions: var_mentions,
                 };
             }
             _ => {
@@ -13925,7 +13978,8 @@ impl SseDecode for crate::api::message_content::UiMimiContent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_plainBody = <Option<String>>::sse_decode(deserializer);
-        let mut var_previewText = <Option<String>>::sse_decode(deserializer);
+        let mut var_preview =
+            <Option<Vec<crate::api::markdown::PreviewPart>>>::sse_decode(deserializer);
         let mut var_replaces = <Option<Vec<u8>>>::sse_decode(deserializer);
         let mut var_topicId = <Vec<u8>>::sse_decode(deserializer);
         let mut var_inReplyTo = <Option<Vec<u8>>>::sse_decode(deserializer);
@@ -13937,7 +13991,7 @@ impl SseDecode for crate::api::message_content::UiMimiContent {
             <Option<crate::api::message_content::UiLinkPreview>>::sse_decode(deserializer);
         return crate::api::message_content::UiMimiContent {
             plain_body: var_plainBody,
-            preview_text: var_previewText,
+            preview: var_preview,
             replaces: var_replaces,
             topic_id: var_topicId,
             in_reply_to: var_inReplyTo,
@@ -16444,6 +16498,36 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::chat_details_cubit
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::markdown::PreviewPart {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            crate::api::markdown::PreviewPart::Text(field0) => {
+                [0.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::markdown::PreviewPart::Mention { user_id, hint } => [
+                1.into_dart(),
+                user_id.into_into_dart().into_dart(),
+                hint.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::markdown::PreviewPart
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::markdown::PreviewPart>
+    for crate::api::markdown::PreviewPart
+{
+    fn into_into_dart(self) -> crate::api::markdown::PreviewPart {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::markdown::RangedBlockElement {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -17166,11 +17250,13 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiInReplyToMessage {
                 message_id,
                 sender,
                 mimi_content,
+                mentions,
             } => [
                 1.into_dart(),
                 message_id.into_into_dart().into_dart(),
                 sender.into_into_dart().into_dart(),
                 mimi_content.into_into_dart().into_dart(),
+                mentions.into_into_dart().into_dart(),
             ]
             .into_dart(),
             _ => {
@@ -17468,7 +17554,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::message_content::UiMimiConten
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.plain_body.into_into_dart().into_dart(),
-            self.preview_text.into_into_dart().into_dart(),
+            self.preview.into_into_dart().into_dart(),
             self.replaces.into_into_dart().into_dart(),
             self.topic_id.into_into_dart().into_dart(),
             self.in_reply_to.into_into_dart().into_dart(),
@@ -19418,6 +19504,16 @@ impl SseEncode for Vec<crate::notifications::NotificationId> {
     }
 }
 
+impl SseEncode for Vec<crate::api::markdown::PreviewPart> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::markdown::PreviewPart>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<u8> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -20391,6 +20487,16 @@ impl SseEncode for Option<Vec<crate::api::types::ChatId>> {
     }
 }
 
+impl SseEncode for Option<Vec<crate::api::markdown::PreviewPart>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <Vec<crate::api::markdown::PreviewPart>>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<Vec<u8>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -20430,6 +20536,26 @@ impl SseEncode for crate::api::chat_details_cubit::PqGroupDebugInfo {
         <usize>::sse_encode(self.pending_proposals, serializer);
         <bool>::sse_encode(self.has_pending_commit, serializer);
         <u64>::sse_encode(self.size_bytes, serializer);
+    }
+}
+
+impl SseEncode for crate::api::markdown::PreviewPart {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::api::markdown::PreviewPart::Text(field0) => {
+                <i32>::sse_encode(0, serializer);
+                <String>::sse_encode(field0, serializer);
+            }
+            crate::api::markdown::PreviewPart::Mention { user_id, hint } => {
+                <i32>::sse_encode(1, serializer);
+                <crate::api::types::UiUserId>::sse_encode(user_id, serializer);
+                <String>::sse_encode(hint, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 
@@ -20906,11 +21032,13 @@ impl SseEncode for crate::api::types::UiInReplyToMessage {
                 message_id,
                 sender,
                 mimi_content,
+                mentions,
             } => {
                 <i32>::sse_encode(1, serializer);
                 <crate::api::types::MessageId>::sse_encode(message_id, serializer);
                 <crate::api::types::UiUserId>::sse_encode(sender, serializer);
                 <crate::api::message_content::UiMimiContent>::sse_encode(mimi_content, serializer);
+                <Vec<crate::api::types::UiUserId>>::sse_encode(mentions, serializer);
             }
             _ => {
                 unimplemented!("");
@@ -21082,7 +21210,7 @@ impl SseEncode for crate::api::message_content::UiMimiContent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Option<String>>::sse_encode(self.plain_body, serializer);
-        <Option<String>>::sse_encode(self.preview_text, serializer);
+        <Option<Vec<crate::api::markdown::PreviewPart>>>::sse_encode(self.preview, serializer);
         <Option<Vec<u8>>>::sse_encode(self.replaces, serializer);
         <Vec<u8>>::sse_encode(self.topic_id, serializer);
         <Option<Vec<u8>>>::sse_encode(self.in_reply_to, serializer);

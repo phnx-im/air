@@ -436,6 +436,7 @@ void main() {
                     messageId: 1.messageId(),
                     sender: 2.userId(),
                     mimiContent: replyContent,
+                    mentions: const [],
                   ),
                 ),
                 updatedAt: DateTime.parse('2023-01-01T00:00:00.000Z'),

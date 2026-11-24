@@ -730,6 +730,27 @@ impl ChatMessage {
         messages.with_loaded_in_reply_to(&mut connection).await
     }
 
+    /// Loads the mentions of a message, captured when it was received, sent or
+    /// edited, in order of first appearance.
+    async fn load_mentions(
+        mut connection: impl ReadConnection,
+        message_id: MessageId,
+    ) -> sqlx::Result<Vec<UserId>> {
+        let mentions = query_as!(
+            SqlMention,
+            r#"SELECT
+                user_uuid AS "user_uuid: _",
+                user_domain AS "user_domain: _"
+            FROM message_mention
+            WHERE message_id = ?
+            ORDER BY position"#,
+            message_id
+        )
+        .fetch_all(connection.as_mut())
+        .await?;
+        Ok(mentions.into_iter().map(From::from).collect())
+    }
+
     /// Augments a loaded chat message with lazily-loaded data: the referenced
     /// reply (if any), the reactions on this message and the mentions
     /// captured when the message was received, sent or edited.
@@ -743,21 +764,8 @@ impl ChatMessage {
             self.edit_count = MessageEdit::count_by_message_id(&mut connection, self.id()).await?;
         }
 
-        self.timestamped_message.mentions = query_as!(
-            SqlMention,
-            r#"SELECT
-                user_uuid AS "user_uuid: _",
-                user_domain AS "user_domain: _"
-            FROM message_mention
-            WHERE message_id = ?
-            ORDER BY position"#,
-            self.message_id
-        )
-        .fetch_all(connection.as_mut())
-        .await?
-        .into_iter()
-        .map(From::from)
-        .collect();
+        self.timestamped_message.mentions =
+            Self::load_mentions(&mut connection, self.message_id).await?;
 
         if let Some(mimi_id) = self.message().mimi_id().copied() {
             self.reactions = Reaction::load_by_target(&mut connection, &mimi_id)
@@ -1228,6 +1236,7 @@ impl From<SqlInReplyToMessage> for Option<InReplyToMessage> {
             sender: UserId::new(sender_user_uuid?, sender_user_domain?),
             mimi_content: content.and_then(|BlobDecoded(c)| c.to_mimi_content().ok()),
             attachments: MessageAttachments::new(message_id, Vec::new()),
+            mentions: Vec::new(),
         })
     }
 }
@@ -1329,10 +1338,12 @@ impl InReplyToMessage {
         };
 
         in_reply_to_message.attachments = MessageAttachmentRecord::load_infos_by_message_id(
-            connection,
+            &mut connection,
             in_reply_to_message.message_id,
         )
         .await?;
+        in_reply_to_message.mentions =
+            ChatMessage::load_mentions(&mut connection, in_reply_to_message.message_id).await?;
 
         Ok(Some(in_reply_to_message))
     }
@@ -1577,6 +1588,29 @@ pub(crate) mod tests {
             panic!("expected one attachment info");
         };
         assert_eq!(info.attachment_id, record.attachment_id);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn in_reply_to_carries_mentions(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+
+        let alice = UserId::random("localhost".parse().unwrap());
+        let bob = UserId::random("localhost".parse().unwrap());
+        let mut original = test_chat_message(chat.id());
+        original.set_mentions(vec![bob.clone(), alice.clone()]);
+        original.store(pool.write().await?).await?;
+
+        let mimi_id = *original.message().mimi_id().unwrap();
+        let in_reply_to = InReplyToMessage::load(pool.read().await?, &mimi_id)
+            .await?
+            .unwrap();
+
+        assert_eq!(in_reply_to.mentions, [bob, alice]);
 
         Ok(())
     }

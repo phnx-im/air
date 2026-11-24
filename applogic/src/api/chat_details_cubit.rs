@@ -737,6 +737,12 @@ impl ChatDetailsCubitBase {
             .core_user
             .attachment_infos_for_message(message_id)
             .await;
+        let mentions: Vec<UiUserId> = chat_message
+            .mentions()
+            .iter()
+            .cloned()
+            .map(From::from)
+            .collect();
 
         // Update draft in state
         let changed = self.core.state_tx().send_if_modified(|state| {
@@ -765,6 +771,7 @@ impl ChatDetailsCubitBase {
                     sender: sender.into(),
                     mimi_content: UnresolvedMimiContent::from(mimi_content)
                         .resolve(Some(&attachments)),
+                    mentions,
                 },
             ));
             draft.is_committed = false;

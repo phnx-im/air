@@ -581,14 +581,23 @@ class _LastMessage extends HookWidget {
 
     final showDraft = chat.draft?.previewText.isNotEmpty == true;
 
-    // === Reactions ===
-    final reaction = chat.lastReaction;
-    final reactedTo = switch (lastMessage?.message) {
-      UiMessage_Content(field0: final content) =>
-        content.content.plaintextPreview,
+    final contentPreview = switch (lastMessage) {
+      UiChatMessage(
+        message: UiMessage_Content(field0: final content),
+        :final mentions,
+      ) =>
+        content.content.plaintextPreview(
+          mentions: mentions,
+          nameOf: (userId) => context.select(
+            (UsersCubit cubit) => cubit.state.displayName(userId: userId),
+          ),
+        ),
       _ => null,
     };
-    if (!showDraft && reaction != null && reactedTo != null) {
+
+    // === Reactions ===
+    final reaction = chat.lastReaction;
+    if (!showDraft && reaction != null && contentPreview != null) {
       final reactor = reaction.reactor == ownClientId
           ? null
           : context.select(
@@ -597,8 +606,8 @@ class _LastMessage extends HookWidget {
             );
       return Text(
         reactor == null
-            ? loc.chatList_reactionByYou(reaction.emoji, reactedTo)
-            : loc.chatList_reaction(reactor, reaction.emoji, reactedTo),
+            ? loc.chatList_reactionByYou(reaction.emoji, contentPreview)
+            : loc.chatList_reaction(reactor, reaction.emoji, contentPreview),
         style: previewStyle,
         maxLines: 2,
         softWrap: true,
@@ -625,8 +634,7 @@ class _LastMessage extends HookWidget {
     final suffix = showDraft
         ? chat.draft?.plaintextPreview
         : switch (lastMessage?.message) {
-            UiMessage_Content(field0: final content) =>
-              content.content.plaintextPreview,
+            UiMessage_Content() => contentPreview,
             UiMessage_Display() when lastSystemMessage != null =>
               buildSystemMessageText(
                 context,

@@ -12,7 +12,7 @@ use airprotos::client::link_preview::{LinkPreviewCard, LinkPreviewKind};
 use flutter_rust_bridge::frb;
 use uuid::Uuid;
 
-use crate::api::markdown::MessageContent;
+use crate::api::markdown::{MessageContent, PreviewPart};
 
 /// Shown for a message whose attachments have no stored record.
 const ATTACHMENT_UNAVAILABLE: &str = "Attachment unavailable";
@@ -79,8 +79,9 @@ pub(crate) struct UnresolvedLinkPreview {
 pub struct UiMimiContent {
     pub plain_body: Option<String>,
     /// Plain text that stands in for the message in the chat list and in
-    /// quotes. `None` for a deleted message.
-    pub preview_text: Option<String>,
+    /// quotes, with each mention as a part of its own. `None` for a deleted
+    /// message.
+    pub preview: Option<Vec<PreviewPart>>,
     pub replaces: Option<Vec<u8>>,
     pub topic_id: Vec<u8>,
     pub in_reply_to: Option<Vec<u8>>,
@@ -217,7 +218,7 @@ impl UnresolvedMimiContent {
     /// that has neither text nor a stored attachment shows an error instead
     /// of an empty bubble.
     pub(crate) fn resolve(self, records: Option<&MessageAttachments>) -> UiMimiContent {
-        let preview_text = self.preview_text();
+        let preview = self.preview();
         let had_attachments = !self.attachments.is_empty();
         let attachments: Vec<UiAttachment> = self
             .attachments
@@ -258,7 +259,7 @@ impl UnresolvedMimiContent {
 
         UiMimiContent {
             plain_body: self.plain_body,
-            preview_text,
+            preview,
             replaces: self.replaces,
             topic_id: self.topic_id,
             in_reply_to: self.in_reply_to,

@@ -6,6 +6,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:air/app.dart' show scaffoldMessengerKey;
+import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/core/lib.dart' show U8Array32;
 import 'package:air/ds/components/button_icon/button_icon.dart';
@@ -84,6 +85,7 @@ final _replyDraft = UiMessageDraft(
       messageId: 1.messageId(),
       sender: 2.userId(),
       mimiContent: textContent('Got a link for me?'),
+      mentions: const [],
     ),
   ),
   updatedAt: DateTime.parse('2023-01-01T00:00:00.000Z'),
@@ -587,6 +589,51 @@ void main() {
 
       expect(find.byType(Menu), findsOneWidget);
       expect(tester.testTextInput.isVisible, isTrue);
+    });
+  });
+
+  group('MessageComposer reply quote', () {
+    testWidgets('names a mention of a member by the local display name', (
+      tester,
+    ) async {
+      final draft = UiMessageDraft(
+        message: '',
+        previewText: '',
+        inReplyTo: (
+          UiMimiId(field0: U8Array32(Uint8List(32))),
+          UiInReplyToMessage.resolved(
+            messageId: 1.messageId(),
+            sender: 2.userId(),
+            mimiContent: UiMimiContent(
+              topicId: Uint8List(0),
+              attachments: [],
+              preview: [
+                const PreviewPart.text('Hi '),
+                PreviewPart.mention(userId: 3.userId(), hint: '@Mallory'),
+                const PreviewPart.text(' and '),
+                PreviewPart.mention(userId: 9.userId(), hint: '@Carol'),
+              ],
+            ),
+            mentions: [3.userId()],
+          ),
+        ),
+        updatedAt: DateTime.parse('2023-01-01T00:00:00.000Z'),
+        isCommitted: true,
+      );
+      when(() => chatDetailsCubit.state).thenReturn(
+        ChatDetailsState(chat: _chatWithDraft(draft), members: _members),
+      );
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byType(MessageInputQuote),
+          matching: find.text('Hi @Eve and @Carol'),
+        ),
+        findsOneWidget,
+      );
     });
   });
 }

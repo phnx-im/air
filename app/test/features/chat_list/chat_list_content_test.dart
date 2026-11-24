@@ -248,7 +248,7 @@ final chats = [
                 size: 1024,
               ),
             ],
-            previewText: '🖼️',
+            preview: const [PreviewPart.text('🖼️')],
           ),
         ),
       ),
@@ -290,7 +290,7 @@ final chats = [
                 size: 128,
               ),
             ],
-            previewText: '📎',
+            preview: const [PreviewPart.text('📎')],
           ),
         ),
       ),
@@ -343,7 +343,7 @@ final chatIds = chats.map((chat) => chat.id).toList();
 /// preview.
 UiMimiContent textContent(String body) => UiMimiContent(
   plainBody: body,
-  previewText: body,
+  preview: [PreviewPart.text(body)],
   topicId: Uint8List(0),
   content: simpleMessage(body),
   attachments: [],
@@ -740,7 +740,7 @@ void main() {
         contentChat(
           UiMimiContent(
             plainBody: '- one\n- two',
-            previewText: 'one\ntwo',
+            preview: const [PreviewPart.text('one\ntwo')],
             topicId: Uint8List(0),
             attachments: [],
           ),
@@ -749,6 +749,30 @@ void main() {
       );
 
       expect(find.text('one two'), findsOne);
+    });
+
+    testWidgets('names a mention of a member by the local display name', (
+      tester,
+    ) async {
+      await pumpChat(
+        tester,
+        contentChat(
+          UiMimiContent(
+            topicId: Uint8List(0),
+            attachments: [],
+            preview: [
+              const PreviewPart.text('Hi '),
+              PreviewPart.mention(userId: 3.userId(), hint: '@Mallory'),
+              const PreviewPart.text(' and '),
+              PreviewPart.mention(userId: 9.userId(), hint: '@Carol'),
+            ],
+          ),
+          sender: userProfiles[1].userId,
+          mentions: [3.userId()],
+        ),
+      );
+
+      expect(find.text('Hi @Eve and @Carol'), findsOne);
     });
 
     testWidgets('shows a draft without its markdown', (tester) async {
@@ -774,7 +798,7 @@ void main() {
 final linkContent = UiMimiContent(
   plainBody:
       "I've written up an [introduction to MLS](https://ratchet.ing/mls-intro)",
-  previewText: "I've written up an introduction to MLS",
+  preview: const [PreviewPart.text("I've written up an introduction to MLS")],
   topicId: Uint8List(0),
   attachments: [],
 );
@@ -806,18 +830,19 @@ UiChatDetails attachmentChat(UiAttachment attachment, {UiUserId? sender}) =>
       UiMimiContent(
         topicId: Uint8List(0),
         attachments: [attachment],
-        previewText: attachment.isImage ? '🖼️' : '📎',
+        preview: [PreviewPart.text(attachment.isImage ? '🖼️' : '📎')],
       ),
       sender: sender,
     );
 
 /// A contact chat whose last message has [content], sent by [sender] (the
-/// reader by default) and possibly carrying [reaction].
+/// reader by default) and possibly carrying [reaction] and [mentions].
 UiChatDetails contentChat(
   UiMimiContent content, {
   UiUserId? sender,
   UiLastReaction? reaction,
   UiMessageDraft? draft,
+  List<UiUserId> mentions = const [],
 }) => UiChatDetails(
   id: 8.chatId(),
   status: const UiChatStatus.active(),
@@ -843,7 +868,7 @@ UiChatDetails contentChat(
       if (reaction != null)
         UiReaction(emoji: reaction.emoji, users: [reaction.reactor]),
     ],
-    mentions: [],
+    mentions: mentions,
   ),
   lastReaction: reaction,
   draft: draft,

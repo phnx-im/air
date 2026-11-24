@@ -43,14 +43,23 @@ import 'package:url_launcher/url_launcher.dart';
       senderName: loc.composer_reply_noaccess_message_user,
       preview: loc.composer_reply_noaccess_message_placeholder,
     ),
-    UiInReplyToMessage_Resolved(:final sender, :final mimiContent)
+    UiInReplyToMessage_Resolved(
+      :final sender,
+      :final mimiContent,
+      :final mentions,
+    )
         when !mimiContent.isDeleted =>
       (
         senderName: context.select(
           (UsersCubit cubit) => cubit.state.displayName(userId: sender),
         ),
         preview:
-            mimiContent.plaintextPreview ??
+            mimiContent.plaintextPreview(
+              mentions: mentions,
+              nameOf: (userId) => context.select(
+                (UsersCubit cubit) => cubit.state.displayName(userId: userId),
+              ),
+            ) ??
             loc.composer_reply_noaccess_message_placeholder,
       ),
     UiInReplyToMessage_Resolved() => (

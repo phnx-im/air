@@ -10944,6 +10944,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<PreviewPart> dco_decode_list_preview_part(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_preview_part).toList();
+  }
+
+  @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as List<int>;
@@ -11715,6 +11721,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<PreviewPart>? dco_decode_opt_list_preview_part(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_list_preview_part(raw);
+  }
+
+  @protected
   Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_list_prim_u_8_strict(raw);
@@ -11748,6 +11760,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       hasPendingCommit: dco_decode_bool(arr[5]),
       sizeBytes: dco_decode_u_64(arr[6]),
     );
+  }
+
+  @protected
+  PreviewPart dco_decode_preview_part(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return PreviewPart_Text(dco_decode_String(raw[1]));
+      case 1:
+        return PreviewPart_Mention(
+          userId: dco_decode_box_autoadd_ui_user_id(raw[1]),
+          hint: dco_decode_String(raw[2]),
+        );
+      default:
+        throw Exception("unreachable");
+    }
   }
 
   @protected
@@ -12250,6 +12278,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           messageId: dco_decode_box_autoadd_message_id(raw[1]),
           sender: dco_decode_box_autoadd_ui_user_id(raw[2]),
           mimiContent: dco_decode_box_autoadd_ui_mimi_content(raw[3]),
+          mentions: dco_decode_list_ui_user_id(raw[4]),
         );
       default:
         throw Exception("unreachable");
@@ -12411,7 +12440,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
     return UiMimiContent(
       plainBody: dco_decode_opt_String(arr[0]),
-      previewText: dco_decode_opt_String(arr[1]),
+      preview: dco_decode_opt_list_preview_part(arr[1]),
       replaces: dco_decode_opt_list_prim_u_8_strict(arr[2]),
       topicId: dco_decode_list_prim_u_8_strict(arr[3]),
       inReplyTo: dco_decode_opt_list_prim_u_8_strict(arr[4]),
@@ -14909,6 +14938,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<PreviewPart> sse_decode_list_preview_part(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <PreviewPart>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_preview_part(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
@@ -16099,6 +16140,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<PreviewPart>? sse_decode_opt_list_preview_part(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_preview_part(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -16149,6 +16203,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       hasPendingCommit: var_hasPendingCommit,
       sizeBytes: var_sizeBytes,
     );
+  }
+
+  @protected
+  PreviewPart sse_decode_preview_part(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        var var_field0 = sse_decode_String(deserializer);
+        return PreviewPart_Text(var_field0);
+      case 1:
+        var var_userId = sse_decode_box_autoadd_ui_user_id(deserializer);
+        var var_hint = sse_decode_String(deserializer);
+        return PreviewPart_Mention(userId: var_userId, hint: var_hint);
+      default:
+        throw UnimplementedError('');
+    }
   }
 
   @protected
@@ -16704,10 +16776,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_mimiContent = sse_decode_box_autoadd_ui_mimi_content(
           deserializer,
         );
+        var var_mentions = sse_decode_list_ui_user_id(deserializer);
         return UiInReplyToMessage_Resolved(
           messageId: var_messageId,
           sender: var_sender,
           mimiContent: var_mimiContent,
+          mentions: var_mentions,
         );
       default:
         throw UnimplementedError('');
@@ -16867,7 +16941,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiMimiContent sse_decode_ui_mimi_content(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_plainBody = sse_decode_opt_String(deserializer);
-    var var_previewText = sse_decode_opt_String(deserializer);
+    var var_preview = sse_decode_opt_list_preview_part(deserializer);
     var var_replaces = sse_decode_opt_list_prim_u_8_strict(deserializer);
     var var_topicId = sse_decode_list_prim_u_8_strict(deserializer);
     var var_inReplyTo = sse_decode_opt_list_prim_u_8_strict(deserializer);
@@ -16878,7 +16952,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
     return UiMimiContent(
       plainBody: var_plainBody,
-      previewText: var_previewText,
+      preview: var_preview,
       replaces: var_replaces,
       topicId: var_topicId,
       inReplyTo: var_inReplyTo,
@@ -19664,6 +19738,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_preview_part(
+    List<PreviewPart> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_preview_part(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_prim_u_8_loose(
     List<int> self,
     SseSerializer serializer,
@@ -20790,6 +20876,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_list_preview_part(
+    List<PreviewPart>? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_preview_part(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_list_prim_u_8_strict(
     Uint8List? self,
     SseSerializer serializer,
@@ -20831,6 +20930,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_usize(self.pendingProposals, serializer);
     sse_encode_bool(self.hasPendingCommit, serializer);
     sse_encode_u_64(self.sizeBytes, serializer);
+  }
+
+  @protected
+  void sse_encode_preview_part(PreviewPart self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case PreviewPart_Text(field0: final field0):
+        sse_encode_i_32(0, serializer);
+        sse_encode_String(field0, serializer);
+      case PreviewPart_Mention(userId: final userId, hint: final hint):
+        sse_encode_i_32(1, serializer);
+        sse_encode_box_autoadd_ui_user_id(userId, serializer);
+        sse_encode_String(hint, serializer);
+    }
   }
 
   @protected
@@ -21279,11 +21392,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         messageId: final messageId,
         sender: final sender,
         mimiContent: final mimiContent,
+        mentions: final mentions,
       ):
         sse_encode_i_32(1, serializer);
         sse_encode_box_autoadd_message_id(messageId, serializer);
         sse_encode_box_autoadd_ui_user_id(sender, serializer);
         sse_encode_box_autoadd_ui_mimi_content(mimiContent, serializer);
+        sse_encode_list_ui_user_id(mentions, serializer);
     }
   }
 
@@ -21432,7 +21547,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_opt_String(self.plainBody, serializer);
-    sse_encode_opt_String(self.previewText, serializer);
+    sse_encode_opt_list_preview_part(self.preview, serializer);
     sse_encode_opt_list_prim_u_8_strict(self.replaces, serializer);
     sse_encode_list_prim_u_8_strict(self.topicId, serializer);
     sse_encode_opt_list_prim_u_8_strict(self.inReplyTo, serializer);
