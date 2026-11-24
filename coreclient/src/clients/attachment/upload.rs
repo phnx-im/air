@@ -541,7 +541,10 @@ impl CoreUser {
                     .await?;
                 hold_message_with_failed_upload(txn, reference.message_id).await
             })
-            .await
+            .await?;
+        // A held message no longer holds back its chat
+        self.outbound_service().notify_upload_finished();
+        Ok(())
     }
 
     /// Records an upload whose task was dropped as failed.
@@ -563,7 +566,10 @@ impl CoreUser {
                 .await?;
                 hold_message_with_failed_upload(txn, reference.message_id).await
             })
-            .await
+            .await?;
+        // A held message no longer holds back its chat
+        self.outbound_service().notify_upload_finished();
+        Ok(())
     }
 
     /// Processes, provisions and uploads an attachment whose message is already
