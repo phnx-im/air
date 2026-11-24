@@ -7,8 +7,8 @@
 use std::{assert_matches, time::Duration};
 
 use aircoreclient::{
-    AttachmentContent, AttachmentId, ChatId, ChatMessage, ComposedLinkPreview, ComposedMessage,
-    MessageId, MimiContentExt, UploadTaskError,
+    AttachmentContent, AttachmentId, AttachmentStatus, ChatId, ChatMessage, ComposedLinkPreview,
+    ComposedMessage, MessageId, MimiContentExt, UploadTaskError,
     clients::CoreUser,
     link_preview::{FetchedLinkPreview, LinkPreview},
 };
@@ -395,6 +395,49 @@ async fn failed_upload_releases_later_messages_of_its_chat() {
     let first = alice.expect_message(first.id()).await;
     assert_eq!(first.status(), MessageStatus::Error);
     assert!(!first.is_sent());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn message_with_failed_upload_does_not_fail_other_chats() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob, carol] = setup.add_users().await;
+    let chat_bob = setup.connect_users(&alice, &bob).await;
+    let chat_carol = setup.connect_users(&alice, &carol).await;
+    alice.drain().await;
+
+    let ComposedMessage {
+        message: with_card,
+        uploads,
+    } = alice
+        .compose(chat_bob)
+        .text(format!("see {LINK_A}"))
+        .link_preview(fetched(LINK_A, Some(IMAGE_A)))
+        .send()
+        .await
+        .unwrap();
+    let plain = alice
+        .compose(chat_carol)
+        .text("hello".to_owned())
+        .send()
+        .await
+        .unwrap()
+        .message;
+
+    // The upload is failed without holding the message, so it stays queued
+    let [upload] = uploads.try_into().ok().expect("one upload");
+    let attachment_id = upload.attachment_id;
+    drop(upload);
+    alice
+        .set_attachment_status(attachment_id, AttachmentStatus::UploadFailed)
+        .await
+        .unwrap();
+
+    alice.outbound_service().run_once().await;
+
+    let with_card = alice.expect_message(with_card.id()).await;
+    assert_eq!(with_card.status(), MessageStatus::Error);
+    assert!(!with_card.is_sent());
+    assert!(alice.expect_message(plain.id()).await.is_sent());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
