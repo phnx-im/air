@@ -35,6 +35,33 @@ async fn mention_sets_mentions_me() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn edit_replaces_mentions() {
+    let mut setup = TestBackend::single().await;
+
+    let [alice, bob, charlie] = setup.add_users().await;
+
+    let group_chat = setup.connected_group(&alice, &[&bob, &charlie]).await;
+
+    let message = alice
+        .send_text(group_chat, &format!("Hi [@Bob]({})!", bob.user_id().uri()))
+        .await;
+    bob.drain().await;
+
+    let edited = alice
+        .send_edit(
+            &message,
+            &format!("Hi [@Charlie]({})!", charlie.user_id().uri()),
+        )
+        .await;
+    assert_eq!(edited.mentions(), [charlie.user_id().clone()]);
+
+    bob.drain().await;
+    let message = bob.last_message(group_chat).await.unwrap().unwrap();
+    assert_eq!(message.mentions(), [charlie.user_id().clone()]);
+    assert!(!message.mentions_me());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn own_mention_from_sibling_does_not_set_mentions_me() {
     let mut setup = TestBackend::single().await;
 

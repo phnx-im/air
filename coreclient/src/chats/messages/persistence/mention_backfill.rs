@@ -15,8 +15,8 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::{
-    MessageId,
-    chats::messages::{mentions, persistence::VersionedMessage},
+    MessageId, MimiContentExt,
+    chats::messages::persistence::VersionedMessage,
     db::access::{ReadConnection, WriteConnection},
 };
 
@@ -26,7 +26,7 @@ struct MentionBackfill {
     mentions_me: bool,
 }
 
-/// Stores all mentions sent in the past and whether they mentions the local
+/// Stores all mentions sent in the past and whether they mention the local
 /// user.
 pub(crate) async fn backfill_mentions(mut connection: impl WriteConnection) -> anyhow::Result<()> {
     // A fresh database has no own client info yet, and no messages either.
@@ -77,11 +77,12 @@ async fn find_mentions(
                 continue;
             }
         };
-        let mut mentions = mentions::mentioned_users(&content);
+        let mut mentions = content.extract_mentioned_users();
         if mentions.is_empty() {
             continue;
         }
-        mentions::dedup_in_order(&mut mentions);
+        mentions.sort_unstable();
+        mentions.dedup();
         let sender = UserId::new(row.sender_user_uuid, row.sender_user_domain);
         let mentions_me = own_user_id.is_some_and(|own| sender != *own && mentions.contains(own));
         backfills.push(MentionBackfill {
@@ -221,6 +222,11 @@ mod tests {
         Ok(message_id)
     }
 
+    fn sorted<const N: usize>(mut users: [UserId; N]) -> [UserId; N] {
+        users.sort();
+        users
+    }
+
     async fn load(pool: &SqlitePool, message_id: MessageId) -> anyhow::Result<ChatMessage> {
         let db = DbAccess::for_tests(pool.clone());
         let message = ChatMessage::load(db.read().await?, message_id).await?;
@@ -246,11 +252,11 @@ mod tests {
         run_client_migrations(&DbAccess::for_tests(pool.clone())).await?;
 
         let message = load(&pool, to_me).await?;
-        assert_eq!(message.mentions(), [me.clone(), bob]);
+        assert_eq!(message.mentions(), sorted([me.clone(), bob]));
         assert!(message.mentions_me());
 
         let message = load(&pool, from_me).await?;
-        assert_eq!(message.mentions(), [me, alice]);
+        assert_eq!(message.mentions(), sorted([me, alice]));
         assert!(!message.mentions_me());
 
         let message = load(&pool, without).await?;

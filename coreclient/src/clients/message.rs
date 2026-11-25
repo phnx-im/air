@@ -7,7 +7,7 @@ use anyhow::{Context, bail, ensure};
 use mimi_content::{MessageStatus, MimiContent};
 
 use crate::{
-    Chat, ChatId, ChatMessage, ContentMessage, MessageId,
+    Chat, ChatId, ChatMessage, ContentMessage, MessageId, MimiContentExt,
     chats::{
         StatusRecord,
         messages::{
@@ -207,7 +207,7 @@ impl UnsentContent {
         // Loading the group is costly. We only do it when there are mentions to
         // check against the members.
         let group_id = chat.group_id();
-        let mut mentions = mentions::mentioned_users(&content);
+        let mut mentions = content.extract_mentioned_users();
         if !mentions.is_empty() {
             let group = Group::load_clean(&mut *txn, group_id)
                 .await?
@@ -259,6 +259,7 @@ impl UnsentContent {
                 updated.set_edited_at(edit_created_at);
             }
             updated.update(&mut *txn).await?;
+            updated.replace_mentions(&mut *txn).await?;
             StatusRecord::clear(&mut *txn, updated.id()).await?;
 
             if is_deletion {

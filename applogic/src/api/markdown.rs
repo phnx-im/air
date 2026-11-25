@@ -252,9 +252,9 @@ impl Preview {
     }
 
     fn push_part(&mut self, part: PreviewPart) {
-        match part {
-            PreviewPart::Text(text) => self.push_text(&text),
-            PreviewPart::Mention { .. } => self.parts.push(part),
+        match (self.parts.last_mut(), part) {
+            (Some(PreviewPart::Text(last)), PreviewPart::Text(text)) => last.push_str(&text),
+            (_, part) => self.parts.push(part),
         }
     }
 
@@ -263,9 +263,10 @@ impl Preview {
         for block in blocks {
             match &block.element {
                 BlockElement::Paragraph(inlines) | BlockElement::Heading(inlines) => {
-                    let mut line = Preview::default();
-                    line.push_inlines(inlines);
-                    self.push_line(line, separator);
+                    if !inlines_are_blank(inlines) {
+                        self.push_separator(separator);
+                        self.push_inlines(inlines);
+                    }
                 }
                 BlockElement::Quote(blocks) => self.push_blocks(blocks, separator),
                 BlockElement::UnorderedList(items) | BlockElement::OrderedList(_, items) => {
@@ -282,10 +283,10 @@ impl Preview {
                 BlockElement::HorizontalRule => (),
                 BlockElement::CodeBlock(code_lines) => {
                     for code_line in code_lines {
-                        self.push_line(Preview::text(&code_line.value), separator);
+                        self.push_text_line(&code_line.value, separator);
                     }
                 }
-                BlockElement::Error(message) => self.push_line(Preview::text(message), separator),
+                BlockElement::Error(message) => self.push_text_line(message, separator),
             }
         }
     }
@@ -319,18 +320,26 @@ impl Preview {
         if line.is_blank() {
             return;
         }
-        if !self.parts.is_empty() {
-            self.push_text(separator);
-        }
+        self.push_separator(separator);
         for part in line.parts {
             self.push_part(part);
         }
     }
 
-    fn text(text: &str) -> Self {
-        let mut preview = Self::default();
-        preview.push_text(text);
-        preview
+    /// Appends `line` after `separator`, unless the line is blank.
+    fn push_text_line(&mut self, line: &str, separator: &str) {
+        if line.trim().is_empty() {
+            return;
+        }
+        self.push_separator(separator);
+        self.push_text(line);
+    }
+
+    /// Appends `separator`, unless this is the first line.
+    fn push_separator(&mut self, separator: &str) {
+        if !self.parts.is_empty() {
+            self.push_text(separator);
+        }
     }
 
     fn table_row(cells: &[Vec<RangedBlockElement>]) -> Self {
@@ -353,10 +362,11 @@ impl Preview {
     /// Trims whitespace at both ends.
     fn trim(&mut self) {
         if let Some(PreviewPart::Text(first)) = self.parts.first_mut() {
-            *first = first.trim_start().to_owned();
+            let leading = first.len() - first.trim_start().len();
+            first.drain(..leading);
         }
         if let Some(PreviewPart::Text(last)) = self.parts.last_mut() {
-            *last = last.trim_end().to_owned();
+            last.truncate(last.trim_end().len());
         }
         self.parts.retain(|part| match part {
             PreviewPart::Text(text) => !text.is_empty(),
@@ -368,6 +378,24 @@ impl Preview {
     fn into_hint_text(self) -> String {
         join_preview(&self.parts, |_, hint| hint.to_owned())
     }
+}
+
+/// Whether inline elements would make a blank line, as [`Preview::is_blank`]
+/// decides it.
+fn inlines_are_blank(inlines: &[RangedInlineElement]) -> bool {
+    inlines.iter().all(|inline| match &inline.element {
+        InlineElement::Text(value) | InlineElement::Code(value) => value.trim().is_empty(),
+        InlineElement::Link {
+            dest_url: _,
+            children,
+        }
+        | InlineElement::Bold(children)
+        | InlineElement::Italic(children)
+        | InlineElement::Strikethrough(children)
+        | InlineElement::Spoiler(children) => inlines_are_blank(children),
+        InlineElement::Image(_) | InlineElement::UserMention { .. } => false,
+        InlineElement::TaskListMarker(_) => true,
+    })
 }
 
 /// Flattened text of inline elements, with each mention as the sender's hint.

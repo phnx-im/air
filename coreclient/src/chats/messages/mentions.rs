@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::HashSet;
-
 use aircommon::identifiers::UserId;
 use mimi_content::MimiContent;
 use pulldown_cmark::{Event, Options, Parser, Tag};
@@ -25,7 +23,7 @@ pub const MARKDOWN_OPTIONS: Options = Options::ENABLE_STRIKETHROUGH
 /// A mention is a markdown link whose destination is a mimi user URI
 /// (`mimi://<domain>/u/<uuid>`). Code blocks and escaped links never
 /// produce link events, so they are not scanned.
-fn extract_mentions(markdown: &str) -> Vec<UserId> {
+pub(crate) fn extract_mentions(markdown: &str) -> Vec<UserId> {
     Parser::new_ext(markdown, MARKDOWN_OPTIONS)
         .filter_map(|event| match event {
             Event::Start(Tag::Link { dest_url, .. }) => UserId::parse_uri(&dest_url),
@@ -34,39 +32,27 @@ fn extract_mentions(markdown: &str) -> Vec<UserId> {
         .collect()
 }
 
-/// Returns the users that the markdown body of `content` mentions, not yet
-/// checked against the chat members.
-pub(crate) fn mentioned_users(content: &MimiContent) -> Vec<UserId> {
-    content
-        .markdown_text()
-        .map(extract_mentions)
-        .unwrap_or_default()
-}
-
-/// Keeps the first mention of each member and drops all other mentions.
-///
-/// The member set is only built when there is a mention, since most messages
-/// have none.
+/// Keeps one mention of each member and drops all other mentions.
 pub(crate) fn retain_members(
     mentions: &mut Vec<UserId>,
     members: impl IntoIterator<Item = UserId>,
 ) {
-    if mentions.is_empty() {
-        return;
+    mentions.sort_unstable();
+    mentions.dedup();
+    let mut found = 0;
+    let mut members = members.into_iter();
+    while found < mentions.len()
+        && let Some(member) = members.next()
+    {
+        if let Some(index) = mentions[found..].iter().position(|user| *user == member) {
+            mentions.swap(found, found + index);
+            found += 1;
+        }
     }
-    let members: HashSet<UserId> = members.into_iter().collect();
-    mentions.retain(|user| members.contains(user));
-    dedup_in_order(mentions);
+    mentions.truncate(found);
 }
 
-/// Keeps the first mention of each user and drops all other mentions.
-pub(crate) fn dedup_in_order(mentions: &mut Vec<UserId>) {
-    let mut seen = HashSet::new();
-    mentions.retain(|user| seen.insert(user.clone()));
-}
-
-/// Returns the mentions of `members` in `content`, deduplicated in order of
-/// first appearance.
+/// Returns the mentions of `members` in `content`, one per member.
 ///
 /// Only links to current chat members count as mentions. Callers check this
 /// at receive, send or edit time.
@@ -74,7 +60,7 @@ pub(crate) fn valid_mentions(
     content: &MimiContent,
     members: impl IntoIterator<Item = UserId>,
 ) -> Vec<UserId> {
-    let mut mentions = mentioned_users(content);
+    let mut mentions = content.extract_mentioned_users();
     retain_members(&mut mentions, members);
     mentions
 }
@@ -169,6 +155,32 @@ mod tests {
             [0; 16],
         );
         assert_eq!(valid_mentions(&content, [alice.clone()]), vec![alice]);
+    }
+
+    #[test]
+    fn retain_members_counts_a_member_with_several_devices_once() {
+        let alice = alice();
+        let bob = bob();
+        let mut mentions = vec![bob.clone(), alice.clone(), bob.clone(), alice.clone()];
+        retain_members(&mut mentions, [alice.clone(), alice.clone(), bob.clone()]);
+        assert_eq!(mentions, [alice, bob]);
+    }
+
+    #[test]
+    fn retain_members_stops_after_the_last_mention() {
+        let alice = alice();
+        let mut pulled = 0;
+        let members = [alice.clone(), bob()].into_iter().inspect(|_| pulled += 1);
+        let mut mentions = vec![alice.clone()];
+        retain_members(&mut mentions, members);
+        assert_eq!(mentions, [alice]);
+        assert_eq!(pulled, 1);
+
+        let mut pulled = 0;
+        let members = [bob()].into_iter().inspect(|_| pulled += 1);
+        let mut mentions = Vec::new();
+        retain_members(&mut mentions, members);
+        assert_eq!(pulled, 0);
     }
 
     #[test]

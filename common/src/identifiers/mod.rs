@@ -292,9 +292,11 @@ impl UserId {
 
     /// Parses a mimi user URI as produced by [`Self::uri`].
     pub fn parse_uri(s: &str) -> Option<Self> {
+        if !s.starts_with("mimi://") {
+            return None;
+        }
         let url = url::Url::parse(s).ok()?;
-        if url.scheme() != "mimi"
-            || url.query().is_some()
+        if url.query().is_some()
             || url.fragment().is_some()
             || url.port().is_some()
             || !url.username().is_empty()
@@ -566,6 +568,11 @@ mod tests {
         assert_eq!(UserId::parse_uri(&format!("mimi:///u/{uuid}")), None);
         // not a url
         assert_eq!(UserId::parse_uri("not a url"), None);
+        // Only the lowercase scheme that `uri` writes counts
+        assert_eq!(
+            UserId::parse_uri(&format!("MIMI://example.com/u/{uuid}")),
+            None
+        );
         // query component
         assert_eq!(
             UserId::parse_uri(&format!("mimi://example.com/u/{uuid}?unexpected=true")),

@@ -7,26 +7,21 @@ import 'package:air/ds/components/mention_pill/mention_pill.dart';
 import 'package:air/ds/components/mention_pill/mention_pill_tokens.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
-import 'package:air/util/select_or_null.dart';
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 
 /// [MentionPill] for a chat member.
 ///
-/// Shows the receiver-local display name of the mentioned user, falling back
-/// to the sender's rendering [hint] when there is no [UsersCubit] above the
-/// pill.
+/// Shows the receiver-local display name of the mentioned user.
 class UserMentionPill extends StatelessWidget {
   const UserMentionPill({
     super.key,
     required this.userId,
-    required this.hint,
     this.isSelfMention = false,
     this.tappable = false,
   });
 
   final UiUserId userId;
-  final String hint;
   final bool isSelfMention;
 
   /// Whether tapping the pill opens the member details.
@@ -34,11 +29,9 @@ class UserMentionPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayName =
-        context.selectOrNull(
-          (UsersCubit cubit) => cubit.state.displayName(userId: userId),
-        ) ??
-        (hint.startsWith('@') ? hint.substring(1) : hint);
+    final displayName = context.select(
+      (UsersCubit cubit) => cubit.state.displayName(userId: userId),
+    );
 
     return MentionPill(
       name: displayName,

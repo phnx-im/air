@@ -2,10 +2,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::identifiers::UserId;
 use airprotos::client::self_group::SelfGroupAppMessage;
 use mimi_content::{MimiContent, content_container::NestedPart};
 
-use crate::link_preview::{carry_over_link_preview, editable_text};
+use crate::{
+    chats::messages::mentions::extract_mentions,
+    link_preview::{carry_over_link_preview, editable_text},
+};
 
 pub mod media_type;
 pub(crate) mod walk;
@@ -44,6 +48,14 @@ pub trait MimiContentExt {
     ///
     /// Returns `None` for any other body.
     fn markdown_text(&self) -> Option<&str>;
+
+    /// Users that the markdown body links to, not yet checked against the chat
+    /// members.
+    fn extract_mentioned_users(&self) -> Vec<UserId> {
+        self.markdown_text()
+            .map(extract_mentions)
+            .unwrap_or_default()
+    }
 
     /// Copies the link preview of `original` if its url is the first link in the text.
     fn with_link_preview_of(self, original: &MimiContent) -> Self

@@ -733,7 +733,7 @@ impl ChatMessage {
     }
 
     /// Loads the mentions of a message, captured when it was received, sent or
-    /// edited, in order of first appearance.
+    /// edited.
     async fn load_mentions(
         mut connection: impl ReadConnection,
         message_id: MessageId,
@@ -932,17 +932,27 @@ impl ChatMessage {
         .execute(connection.as_mut())
         .await?;
 
+        connection.notifier().update(self.id());
+        connection.notifier().update(self.chat_id);
+        Ok(())
+    }
+
+    /// Replaces the stored mentions with the mentions of this message.
+    ///
+    /// Only edits and deletes change the mentions of a stored message. We keep
+    /// this out of [`Self::update`], which would otherwise wipe the mentions of
+    /// a message that was loaded without them.
+    pub(crate) async fn replace_mentions(
+        &self,
+        mut connection: impl WriteConnection,
+    ) -> sqlx::Result<()> {
         query!(
             "DELETE FROM message_mention WHERE message_id = ?",
             self.message_id,
         )
         .execute(connection.as_mut())
         .await?;
-        self.insert_mentions(&mut connection).await?;
-
-        connection.notifier().update(self.id());
-        connection.notifier().update(self.chat_id);
-        Ok(())
+        self.insert_mentions(connection).await
     }
 
     /// Delete a message from the database.
@@ -1557,11 +1567,35 @@ pub(crate) mod tests {
         assert_eq!(loaded.mentions(), [alice.clone(), bob.clone()]);
         assert_eq!(loaded, message);
 
-        // Mentions also round-trip through update()
         message.set_mentions(vec![bob.clone()]);
-        message.update(&mut txn).await?;
+        message.replace_mentions(&mut txn).await?;
         let loaded = ChatMessage::load(&mut txn, message.id()).await?.unwrap();
         assert_eq!(loaded.mentions(), [bob]);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn update_keeps_mentions(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+
+        let alice = UserId::random("localhost".parse().unwrap());
+        let mut message = test_chat_message(chat.id());
+        message.set_mentions(vec![alice.clone()]);
+        message.store(pool.write().await?).await?;
+
+        message.set_mentions(Vec::new());
+        message.set_status(MessageStatus::Read);
+        message.update(pool.write().await?).await?;
+
+        let loaded = ChatMessage::load(pool.read().await?, message.id())
+            .await?
+            .unwrap();
+        assert_eq!(loaded.status(), MessageStatus::Read);
+        assert_eq!(loaded.mentions(), [alice]);
 
         Ok(())
     }

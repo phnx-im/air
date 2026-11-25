@@ -19,11 +19,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/features/attachments/attachment_thumbnail.dart';
 import 'package:air/features/emoji/jumbo_emoji.dart';
-import 'package:air/features/message_list/message_cubit.dart';
 import 'package:air/features/message_list/widgets/user_mention_pill.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
-import 'package:air/util/select_or_null.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -93,34 +91,60 @@ Widget? quotedThumbnail(BuildContext context, UiInReplyToMessage inReplyTo) {
 /// markdown nests. Text colour is inherited rather than set: the body style
 /// comes from [MessageText], and a quote re-tints everything under it by
 /// overriding that inherited style once.
+///
+/// A user link renders as a pill only if [mentions] contains its user. With
+/// an empty list, every mention renders as plain text.
 Widget buildBlockElement(
   BuildContext context,
   BlockElement block,
-  bool isSender,
-) {
+  bool isSender, {
+  required List<UiUserId> mentions,
+  required UiUserId? ownUserId,
+}) {
   return switch (block) {
     BlockElement_Paragraph(:final field0) => _InlineText.paragraph(
       field0,
       isSender,
+      mentions: mentions,
+      ownUserId: ownUserId,
     ),
     BlockElement_Heading(:final field0) => _InlineText.heading(
       field0,
       isSender,
+      mentions: mentions,
+      ownUserId: ownUserId,
     ),
-    BlockElement_Quote(:final field0) => _quote(context, field0, isSender),
+    BlockElement_Quote(:final field0) => _quote(
+      context,
+      field0,
+      isSender,
+      mentions: mentions,
+      ownUserId: ownUserId,
+    ),
     BlockElement_UnorderedList(:final field0) => _list(
       context,
       field0,
       isSender,
       offset: null,
+      mentions: mentions,
+      ownUserId: ownUserId,
     ),
     BlockElement_OrderedList(field0: final offset, field1: final items) =>
-      _list(context, items, isSender, offset: offset),
+      _list(
+        context,
+        items,
+        isSender,
+        offset: offset,
+        mentions: mentions,
+        ownUserId: ownUserId,
+      ),
     BlockElement_Table(:final head, :final rows) => _table(
       context,
       head,
       rows,
       isSender,
+      mentions: mentions,
+      ownUserId: ownUserId,
     ),
     BlockElement_HorizontalRule() => _rule(context, isSender),
     BlockElement_CodeBlock(:final field0) => _codeBlock(
@@ -138,8 +162,10 @@ Widget buildBlockElement(
 Widget _quote(
   BuildContext context,
   List<RangedBlockElement> blocks,
-  bool isSender,
-) {
+  bool isSender, {
+  required List<UiUserId> mentions,
+  required UiUserId? ownUserId,
+}) {
   final palette = SemanticPalette.of(context);
   return Container(
     decoration: BoxDecoration(
@@ -159,7 +185,13 @@ Widget _quote(
         spacing: MessageTextTokens.blockGap,
         children: [
           for (final inner in blocks)
-            buildBlockElement(context, inner.element, isSender),
+            buildBlockElement(
+              context,
+              inner.element,
+              isSender,
+              mentions: mentions,
+              ownUserId: ownUserId,
+            ),
         ],
       ),
     ),
@@ -176,6 +208,8 @@ Widget _list(
   List<List<RangedBlockElement>> items,
   bool isSender, {
   required BigInt? offset,
+  required List<UiUserId> mentions,
+  required UiUserId? ownUserId,
 }) {
   // Sized to the list's last number, which is its longest.
   final markerWidth = offset == null || items.isEmpty
@@ -198,6 +232,8 @@ Widget _list(
             isSender,
             number: offset == null ? null : offset + BigInt.from(index),
             numberWidth: markerWidth,
+            mentions: mentions,
+            ownUserId: ownUserId,
           ),
       ],
     ),
@@ -210,6 +246,8 @@ Widget _listItem(
   bool isSender, {
   required BigInt? number,
   required double? numberWidth,
+  required List<UiUserId> mentions,
+  required UiUserId? ownUserId,
 }) {
   final palette = SemanticPalette.of(context);
   final ink = isSender
@@ -253,7 +291,13 @@ Widget _listItem(
           spacing: MessageTextTokens.blockGap,
           children: [
             for (final block in item.blocks)
-              buildBlockElement(context, block.element, isSender),
+              buildBlockElement(
+                context,
+                block.element,
+                isSender,
+                mentions: mentions,
+                ownUserId: ownUserId,
+              ),
           ],
         ),
       ),
@@ -283,8 +327,10 @@ Widget _table(
   BuildContext context,
   List<List<RangedBlockElement>> head,
   List<List<List<RangedBlockElement>>> rows,
-  bool isSender,
-) {
+  bool isSender, {
+  required List<UiUserId> mentions,
+  required UiUserId? ownUserId,
+}) {
   final palette = SemanticPalette.of(context);
   Widget cell(List<RangedBlockElement> blocks) => Padding(
     padding: MessageTextTokens.tableCellPadding,
@@ -294,7 +340,13 @@ Widget _table(
       spacing: MessageTextTokens.blockGap,
       children: [
         for (final block in blocks)
-          buildBlockElement(context, block.element, isSender),
+          buildBlockElement(
+            context,
+            block.element,
+            isSender,
+            mentions: mentions,
+            ownUserId: ownUserId,
+          ),
       ],
     ),
   );
@@ -615,7 +667,6 @@ class _InlineSpanBuilder {
       baseline: TextBaseline.alphabetic,
       child: UserMentionPill(
         userId: userId,
-        hint: hint,
         isSelfMention: userId == ownUserId,
         tappable: true,
       ),
@@ -650,32 +701,35 @@ class _InlineSpanBuilder {
 }
 
 class _InlineText extends HookWidget {
-  _InlineText.paragraph(this.inlines, this.isSender)
+  _InlineText.paragraph(
+    this.inlines,
+    this.isSender, {
+    required this.mentions,
+    required this.ownUserId,
+  })
     // Size only. The colour is the one the body already carries, which is
     // what lets a quote re-tint the paragraphs nested inside it.
     : style = isJumboEmoji(inlines) ? typeScale.emoji.jumbo.style() : null,
-      textWidthBasis = .longestLine;
+       textWidthBasis = .longestLine;
 
-  _InlineText.heading(this.inlines, this.isSender)
-    : style = typeScale.body.m.style(weight: Weight.emphasized),
-      textWidthBasis = .parent;
+  _InlineText.heading(
+    this.inlines,
+    this.isSender, {
+    required this.mentions,
+    required this.ownUserId,
+  }) : style = typeScale.body.m.style(weight: Weight.emphasized),
+       textWidthBasis = .parent;
 
   final List<RangedInlineElement> inlines;
   final bool isSender;
+  final List<UiUserId> mentions;
+  final UiUserId? ownUserId;
   final TextStyle? style;
   final TextWidthBasis textWidthBasis;
 
   @override
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
-    final mentions =
-        context.selectOrNull(
-          (MessageCubit cubit) => cubit.state.message.mentions,
-        ) ??
-        const <UiUserId>[];
-    final ownUserId = context.selectOrNull(
-      (UserCubit cubit) => cubit.state.userId,
-    );
 
     final (span, recognizers) = useMemoized(() {
       final builder = _InlineSpanBuilder(
@@ -1063,17 +1117,15 @@ class CustomTextEditingController extends TextEditingController {
         inline.start,
         inline.end,
       ),
-      InlineElement_UserMention(:final userId, :final hint) =>
-        buildCorrectWidget(
-          UserMentionPill(
-            userId: userId,
-            hint: hint,
-            isSelfMention: userId == context.read<UserCubit>().state.userId,
-          ),
-          inline.start,
-          inline.end,
-          alignment: PlaceholderAlignment.baseline,
+      InlineElement_UserMention(:final userId) => buildCorrectWidget(
+        UserMentionPill(
+          userId: userId,
+          isSelfMention: userId == context.read<UserCubit>().state.userId,
         ),
+        inline.start,
+        inline.end,
+        alignment: PlaceholderAlignment.baseline,
+      ),
       InlineElement_TaskListMarker() => TextSpan(
         text: utf8.decode(raw.sublist(inline.start, inline.end)),
         style: highlightStyle(context),
