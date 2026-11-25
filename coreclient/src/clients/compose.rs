@@ -19,13 +19,13 @@ use crate::{
         CoreUser,
         attachment::{
             AttachmentRecord, AttachmentTransferRecord, MessageAttachmentRecord, NewAttachment,
-            persistence::AttachmentRole,
+            persistence::{AttachmentRole, TransferFailure},
             process::AttachmentPart,
             stage::StagedAttachment,
             thumbnail::store_thumbnail,
             upload::{
                 ATTACHMENT_PART_INDEX, AttachmentMetadata, AttachmentSource, AttachmentSpec,
-                attachment_content,
+                attachment_content, hold_message_with_failed_upload,
             },
         },
         message::UnsentContent,
@@ -104,6 +104,53 @@ impl CoreUser {
         Ok(uploads
             .into_iter()
             .map(|(reference, bytes)| {
+                self.upload_handle(chat_id, reference, AttachmentSource::Processed(bytes))
+            })
+            .collect())
+    }
+
+    /// Restarts the uploads of queued messages that a killed process left
+    /// running.
+    ///
+    /// An upload without stored content cannot be restarted. It is failed,
+    /// which holds its message.
+    pub async fn resume_interrupted_uploads(&self) -> anyhow::Result<Vec<UploadHandle>> {
+        let uploads = self
+            .db()
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                let interrupted = AttachmentTransferRecord::load_active_uploads(&mut *txn).await?;
+                let now = Utc::now();
+                let mut uploads = Vec::with_capacity(interrupted.len());
+                for (chat_id, attachment_id) in interrupted {
+                    let Some(reference) =
+                        MessageAttachmentRecord::load_first(&mut *txn, attachment_id).await?
+                    else {
+                        continue;
+                    };
+                    match AttachmentRecord::load_content(&mut *txn, attachment_id).await? {
+                        AttachmentContent::Uploading(bytes) => {
+                            AttachmentTransferRecord::restart_upload(&mut *txn, attachment_id, now)
+                                .await?;
+                            uploads.push((chat_id, reference, bytes));
+                        }
+                        _ => {
+                            AttachmentTransferRecord::fail_upload(
+                                &mut *txn,
+                                attachment_id,
+                                TransferFailure::Unknown,
+                            )
+                            .await?;
+                            hold_message_with_failed_upload(txn, reference.message_id).await?;
+                        }
+                    }
+                }
+                Ok(uploads)
+            })
+            .await?;
+
+        Ok(uploads
+            .into_iter()
+            .map(|(chat_id, reference, bytes)| {
                 self.upload_handle(chat_id, reference, AttachmentSource::Processed(bytes))
             })
             .collect())
