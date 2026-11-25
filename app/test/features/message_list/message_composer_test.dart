@@ -51,6 +51,9 @@ const _draftDebounce = Duration(seconds: 1);
 /// The composer's link preview debounce.
 const _linkPreviewDebounce = Duration(milliseconds: 300);
 
+/// The composer's delay before it shows a loading link preview.
+const _linkPreviewLoadingDelay = Duration(milliseconds: 150);
+
 const _linkUrl = 'https://air.ms/blog/link-previews';
 
 const _linkCard = UiLinkPreviewCard(
@@ -415,12 +418,14 @@ void main() {
           .thenAnswer((_) async => null);
     });
 
-    testWidgets('shows the url while loading', (tester) async {
+    testWidgets('shows the url while loading, after a delay', (tester) async {
       stage(const UiComposerLinkPreview.loading(url: _linkUrl));
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();
+      expect(staged(), findsNothing);
 
+      await tester.pump(_linkPreviewLoadingDelay);
       expect(staged(), findsOneWidget);
       expect(
         find.descendant(of: staged(), matching: find.text(_linkUrl)),
@@ -445,7 +450,7 @@ void main() {
           .called(1);
     });
 
-    testWidgets('sits above the reply quote', (tester) async {
+    testWidgets('sits below the reply quote', (tester) async {
       stage(
         const UiComposerLinkPreview.ready(card: _linkCard),
         draft: _replyDraft,
@@ -455,12 +460,12 @@ void main() {
       await tester.pump();
 
       expect(
-        tester.getRect(staged()).bottom,
-        lessThanOrEqualTo(tester.getRect(find.byType(MessageInputQuote)).top),
+        tester.getRect(find.byType(MessageInputQuote)).bottom,
+        lessThanOrEqualTo(tester.getRect(staged()).top),
       );
     });
 
-    testWidgets('is hidden while editing', (tester) async {
+    testWidgets('shows the card while editing', (tester) async {
       stage(
         const UiComposerLinkPreview.ready(card: _linkCard),
         draft: _editDraft,
@@ -469,8 +474,24 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
-      expect(staged(), findsNothing);
-      expect(find.text(_linkCard.title), findsNothing);
+      expect(staged(), findsOneWidget);
+      expect(find.text(_linkCard.title), findsOneWidget);
+    });
+
+    testWidgets('shows the url while loading in an edit', (tester) async {
+      stage(
+        const UiComposerLinkPreview.loading(url: _linkUrl),
+        draft: _editDraft,
+      );
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+      await tester.pump(_linkPreviewLoadingDelay);
+
+      expect(
+        find.descendant(of: staged(), matching: find.text(_linkUrl)),
+        findsOneWidget,
+      );
     });
 
     testWidgets('dismissing the card reaches the cubit', (tester) async {
@@ -478,6 +499,24 @@ void main() {
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();
+      await tester.tap(
+        find.descendant(
+          of: staged(),
+          matching: find.byWidgetPredicate(
+            (w) => w is ButtonIcon && w.icon == AppIconType.x,
+          ),
+        ),
+      );
+
+      verify(() => chatDetailsCubit.dismissLinkPreview(_linkUrl)).called(1);
+    });
+
+    testWidgets('dismissing while loading reaches the cubit', (tester) async {
+      stage(const UiComposerLinkPreview.loading(url: _linkUrl));
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+      await tester.pump(_linkPreviewLoadingDelay);
       await tester.tap(
         find.descendant(
           of: staged(),
@@ -535,7 +574,7 @@ void main() {
       verifyNever(() => chatDetailsCubit.updateLinkPreviews(any()));
     });
 
-    testWidgets('leaves links alone while editing', (tester) async {
+    testWidgets('resolves the link while editing', (tester) async {
       when(() => userSettingsCubit.state).thenReturn(experimental);
       when(() => chatDetailsCubit.state).thenReturn(
         ChatDetailsState(chat: _chatWithDraft(_editDraft), members: _members),
@@ -547,10 +586,11 @@ void main() {
       await tester.enterText(find.byType(TextField), 'See $_linkUrl');
       await tester.pump(_linkPreviewDebounce);
 
-      verifyNever(() => chatDetailsCubit.updateLinkPreviews(any()));
+      verify(() => chatDetailsCubit.updateLinkPreviews('See $_linkUrl'))
+          .called(1);
     });
 
-    testWidgets('renders correctly above a reply', (tester) async {
+    testWidgets('renders correctly below a reply', (tester) async {
       stage(
         const UiComposerLinkPreview.ready(
           card: _linkCard,

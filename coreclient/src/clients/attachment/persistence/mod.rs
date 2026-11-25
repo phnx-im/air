@@ -18,8 +18,9 @@ pub(crate) use attachment::{
 };
 pub(crate) use reference::{AttachmentRole, MessageAttachmentRecord, UnqueuedAttachmentMessage};
 pub(crate) use remote::RemoteAttachmentRecord;
-pub(crate) use transfer::AttachmentTransferRecord;
-use transfer::{TransferDirection, TransferFailure};
+pub(crate) use transfer::{
+    AttachmentTransferRecord, TransferDirection, TransferFailure, TransferState,
+};
 
 /// A new attachment referenced by one message part, with its initial status.
 ///

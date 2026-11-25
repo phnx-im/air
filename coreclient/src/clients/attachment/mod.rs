@@ -9,6 +9,7 @@ use chrono::{DateTime, Utc};
 pub use persistence::{AttachmentContent, AttachmentStatus};
 pub(crate) use persistence::{
     AttachmentRecord, AttachmentTransferRecord, MessageAttachmentRecord, NewAttachment,
+    TransferDirection, TransferState,
 };
 use thiserror::Error;
 pub use thumbnail::AttachmentThumbnail;
@@ -26,7 +27,8 @@ pub(crate) mod migration;
 pub(crate) mod persistence;
 pub(crate) mod process;
 pub(crate) mod progress;
-mod thumbnail;
+pub(crate) mod stage;
+pub(crate) mod thumbnail;
 pub(crate) mod upload;
 
 impl CoreUser {

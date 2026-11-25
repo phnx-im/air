@@ -6,10 +6,7 @@ use aircommon::identifiers::UserId;
 use airprotos::client::self_group::SelfGroupAppMessage;
 use mimi_content::{MimiContent, content_container::NestedPart};
 
-use crate::{
-    chats::messages::mentions::extract_mentions,
-    link_preview::{carry_over_link_preview, editable_text},
-};
+use crate::{chats::messages::mentions::extract_mentions, link_preview::editable_text};
 
 pub mod media_type;
 pub(crate) mod walk;
@@ -34,6 +31,9 @@ pub trait MimiContentExt {
     /// Part at `index`
     fn part_at(&self, index: PartIndex) -> Option<&NestedPart>;
 
+    /// Mutable part at `index`
+    fn part_at_mut(&mut self, index: PartIndex) -> Option<&mut NestedPart>;
+
     /// Calls `f` on every `ExternalPart` in the tree, regardless of semantics
     /// and selection.
     fn visit_external_parts_mut(
@@ -56,11 +56,6 @@ pub trait MimiContentExt {
             .map(extract_mentions)
             .unwrap_or_default()
     }
-
-    /// Copies the link preview of `original` if its url is the first link in the text.
-    fn with_link_preview_of(self, original: &MimiContent) -> Self
-    where
-        Self: Sized;
 }
 
 /// Zero-indexed depth-first index of a part in a MIMI body.
@@ -115,6 +110,10 @@ impl MimiContentExt for MimiContent {
         walk::part_at(&self.nested_part, index)
     }
 
+    fn part_at_mut(&mut self, index: PartIndex) -> Option<&mut NestedPart> {
+        walk::part_at_mut(&mut self.nested_part, index)
+    }
+
     fn visit_external_parts_mut(
         &mut self,
         mut f: impl FnMut(&mut NestedPart) -> anyhow::Result<()>,
@@ -128,10 +127,6 @@ impl MimiContentExt for MimiContent {
 
     fn markdown_text(&self) -> Option<&str> {
         editable_text(&self.nested_part)
-    }
-
-    fn with_link_preview_of(self, original: &MimiContent) -> Self {
-        carry_over_link_preview(original, self)
     }
 }
 

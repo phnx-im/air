@@ -8,7 +8,7 @@ use sqlx::{
 };
 
 use crate::{
-    AttachmentId,
+    AttachmentId, ChatId,
     db::access::{ReadConnection, WriteConnection},
 };
 
@@ -50,6 +50,8 @@ pub(crate) enum TransferState {
 pub(crate) enum TransferFailure {
     Unknown = 1,
     NotFound = 2,
+    /// The server refused to upload
+    Rejected = 3,
 }
 
 impl TransferDirection {
@@ -78,6 +80,7 @@ impl TransferFailure {
         match value {
             1 => Some(Self::Unknown),
             2 => Some(Self::NotFound),
+            3 => Some(Self::Rejected),
             _ => None,
         }
     }
@@ -306,8 +309,7 @@ impl AttachmentTransferRecord {
         Ok(attachment_ids)
     }
 
-    /// Loads attachments of unsent, unqueued messages that have been uploading
-    /// since before `stale_before`.
+    /// Loads attachments of unsent messages that have been uploading since before `stale_before`.
     ///
     /// A running upload does not hold the global lock, so only uploads too old
     /// to still be in flight are reported.
@@ -320,12 +322,10 @@ impl AttachmentTransferRecord {
             FROM attachment_transfer t
             JOIN message_attachment ma ON ma.attachment_id = t.attachment_id
             JOIN message m ON m.message_id = ma.message_id
-            LEFT JOIN chat_message_queue q ON q.message_id = ma.message_id
             WHERE t.direction = ?1
                 AND t.state IN (?2, ?3)
                 AND t.started_at < ?4
-                AND m.sent = 0
-                AND q.message_id IS NULL"#,
+                AND m.sent = 0"#,
             TransferDirection::Upload,
             TransferState::Queued,
             TransferState::Running,
@@ -355,6 +355,125 @@ impl AttachmentTransferRecord {
         .await?;
         connection.notifier().update(attachment_id);
         Ok(())
+    }
+
+    /// Marks the upload of the attachment as failed.
+    ///
+    /// Does nothing if the attachment has no upload.
+    pub(crate) async fn fail_upload(
+        mut connection: impl WriteConnection,
+        attachment_id: AttachmentId,
+        failure: TransferFailure,
+    ) -> sqlx::Result<()> {
+        let updated = query!(
+            "UPDATE attachment_transfer
+            SET state = ?1, failure = ?2, started_at = NULL
+            WHERE attachment_id = ?3 AND direction = ?4",
+            TransferState::Failed,
+            failure,
+            attachment_id,
+            TransferDirection::Upload,
+        )
+        .execute(connection.as_mut())
+        .await?
+        .rows_affected();
+        if updated > 0 {
+            connection.notifier().update(attachment_id);
+        }
+        Ok(())
+    }
+
+    /// Whether an upload of an attachment of the message is queued or running.
+    pub(crate) async fn has_active_upload(
+        mut connection: impl ReadConnection,
+        message_id: MessageId,
+    ) -> sqlx::Result<bool> {
+        query_scalar!(
+            r#"SELECT EXISTS(
+                SELECT 1
+                FROM message_attachment ma
+                JOIN attachment_transfer t ON t.attachment_id = ma.attachment_id
+                WHERE ma.message_id = ?1
+                    AND t.direction = ?2
+                    AND t.state IN (?3, ?4)
+            ) AS "exists: bool""#,
+            message_id,
+            TransferDirection::Upload,
+            TransferState::Queued,
+            TransferState::Running,
+        )
+        .fetch_one(connection.as_mut())
+        .await
+    }
+
+    /// Loads the queued or running uploads of queued messages, with the chat
+    /// of their message.
+    pub(crate) async fn load_active_uploads(
+        mut connection: impl ReadConnection,
+    ) -> sqlx::Result<Vec<(ChatId, AttachmentId)>> {
+        let rows = query!(
+            r#"SELECT
+                q.chat_id AS "chat_id: ChatId",
+                t.attachment_id AS "attachment_id: AttachmentId"
+            FROM attachment_transfer t
+            JOIN message_attachment ma ON ma.attachment_id = t.attachment_id
+            JOIN chat_message_queue q ON q.message_id = ma.message_id
+            WHERE t.direction = ?1
+                AND t.state IN (?2, ?3)
+            ORDER BY q.created_at, ma.part_index"#,
+            TransferDirection::Upload,
+            TransferState::Queued,
+            TransferState::Running,
+        )
+        .fetch_all(connection.as_mut())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.chat_id, row.attachment_id))
+            .collect())
+    }
+
+    /// Loads the attachments of the message whose upload failed.
+    pub(crate) async fn load_failed_uploads(
+        mut connection: impl ReadConnection,
+        message_id: MessageId,
+    ) -> sqlx::Result<Vec<AttachmentId>> {
+        query_scalar!(
+            r#"SELECT t.attachment_id AS "attachment_id: AttachmentId"
+            FROM message_attachment ma
+            JOIN attachment_transfer t ON t.attachment_id = ma.attachment_id
+            WHERE ma.message_id = ?1
+                AND t.direction = ?2
+                AND t.state = ?3
+            ORDER BY ma.part_index"#,
+            message_id,
+            TransferDirection::Upload,
+            TransferState::Failed,
+        )
+        .fetch_all(connection.as_mut())
+        .await
+    }
+
+    /// Whether an upload of an attachment of the message failed.
+    pub(crate) async fn has_failed_upload(
+        mut connection: impl ReadConnection,
+        message_id: MessageId,
+    ) -> sqlx::Result<bool> {
+        query_scalar!(
+            r#"SELECT EXISTS(
+                SELECT 1
+                FROM message_attachment ma
+                JOIN attachment_transfer t ON t.attachment_id = ma.attachment_id
+                WHERE ma.message_id = ?1
+                    AND t.direction = ?2
+                    AND t.state = ?3
+            ) AS "exists: bool""#,
+            message_id,
+            TransferDirection::Upload,
+            TransferState::Failed,
+        )
+        .fetch_one(connection.as_mut())
+        .await
     }
 }
 

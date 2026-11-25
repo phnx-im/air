@@ -166,9 +166,6 @@ abstract final class MessageInputLinkPreviewTokens {
   static const double removeHitTarget = MessageInputQuoteTokens.removeHitTarget;
   static const double removeIconSize = MessageInputQuoteTokens.removeIconSize;
 
-  /// How far the dismiss circle hangs past the card's top-right corner.
-  static const double removeOverhang = MessageInputQuoteTokens.removeOverhang;
-
-  /// Offset for the button, backing out its hit target ring.
+  /// Offset for the button, which hangs past the card's top-right corner.
   static const double removeOffset = MessageInputQuoteTokens.removeOffset;
 }

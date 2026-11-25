@@ -14,7 +14,7 @@ use openmls::group::GroupId;
 use crate::{
     ChatMessage, ContentMessage, MessageId,
     chats::{StatusRecord, messages::mentions, reactions::Reaction},
-    clients::attachment::MessageAttachmentRecord,
+    clients::{CoreUser, attachment::MessageAttachmentRecord},
     db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
     outbound_service::receipt_queue::ReceiptQueue,
 };
@@ -359,6 +359,8 @@ pub(crate) async fn handle_message_edit(
     } else {
         message.set_edited_at(ds_timestamp);
         message.set_status(MessageStatus::Unread);
+        // An edit can bring, replace or drop attachments
+        CoreUser::reconcile_attachments(&mut *txn, &message).await?;
     }
 
     // Clear the status of the message

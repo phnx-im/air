@@ -47,7 +47,10 @@ mod leaf;
 mod self_group;
 
 pub use leaf::{LeafCredential, LeafCredentialError, RoomPolicyIdentity};
-pub use self_group::{SELF_GROUP_CREDENTIAL_TYPE, SelfGroupCredential, SelfGroupCredentialError};
+pub use self_group::{
+    SELF_GROUP_CREDENTIAL_TYPE, SelfGroupCredential, SelfGroupCredentialError,
+    SelfGroupCredentialVerificationError, UnverifiedSelfGroupPayload,
+};
 
 use self::keys::ClientVerifyingKey;
 
@@ -714,7 +717,7 @@ pub mod persistence {
     }
 }
 
-#[cfg(feature = "test_utils")]
+#[cfg(any(test, feature = "test_utils"))]
 pub mod test_utils {
     use super::{
         keys::{AsIntermediateSigningKey, UserSigningKey},
@@ -738,5 +741,24 @@ pub mod test_utils {
                 .unwrap();
         let client_sk = UserSigningKey::from_prelim_key(signing_key, user_credential).unwrap();
         (aic_sk, client_sk)
+    }
+
+    /// A user signing key with a user credential for a random user of `example.com`.
+    pub fn random_user_signing_key() -> UserSigningKey {
+        create_test_credentials(UserId::random("example.com".parse().unwrap())).1
+    }
+
+    /// A user signing key with a new key pair for the user of `user_signing_key`.
+    pub fn other_key_of(user_signing_key: &UserSigningKey) -> UserSigningKey {
+        create_test_credentials(user_signing_key.credential().user_id().clone()).1
+    }
+
+    /// A self-group credential for `client_id` with a payload but no signature.
+    pub fn malformed_self_group_credential(client_id: uuid::Uuid) -> Credential {
+        // The persistence codec version, then {1: client_id, 2: h'01'}.
+        let mut bytes = vec![0x01, 0xa2, 0x01, 0x50];
+        bytes.extend_from_slice(client_id.as_bytes());
+        bytes.extend_from_slice(&[0x02, 0x41, 0x01]);
+        Credential::new(CredentialType::Other(SELF_GROUP_CREDENTIAL_TYPE), bytes)
     }
 }

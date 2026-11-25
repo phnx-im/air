@@ -99,6 +99,7 @@ pub(crate) mod attachment;
 mod badge_count;
 pub(crate) mod block_contact;
 pub mod chats;
+pub(crate) mod compose;
 pub(crate) mod connection_offer;
 mod create_user;
 pub mod debug_info;

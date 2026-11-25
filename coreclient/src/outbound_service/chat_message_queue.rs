@@ -33,7 +33,10 @@ mod persistence {
     use tracing::debug;
     use uuid::Uuid;
 
-    use crate::db::access::{WriteConnection, WriteDbTransaction};
+    use crate::{
+        clients::attachment::{TransferDirection, TransferState},
+        db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
+    };
 
     use super::*;
 
@@ -62,9 +65,25 @@ mod persistence {
             Ok(())
         }
 
+        pub(crate) async fn is_queued(
+            mut connection: impl ReadConnection,
+            message_id: MessageId,
+        ) -> sqlx::Result<bool> {
+            query_scalar!(
+                r#"SELECT EXISTS (
+                    SELECT 1 FROM chat_message_queue
+                    WHERE message_id = ?
+                ) AS "exists: bool""#,
+                message_id,
+            )
+            .fetch_one(connection.as_mut())
+            .await
+        }
+
         /// Dequeues the oldest message that is due. A message is only sent once
         /// every earlier message of its chat left the queue, so a message kept
-        /// for a later run holds back the rest of its chat.
+        /// for a later run holds back the rest of its chat. A message is also
+        /// kept while one of its uploads is in flight.
         pub(crate) async fn dequeue(
             txn: &mut WriteDbTransaction<'_>,
             task_id: Uuid,
@@ -83,11 +102,22 @@ mod persistence {
                             AND (earlier.created_at, earlier.rowid)
                                 < (queued.created_at, queued.rowid)
                     )
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM message_attachment a
+                        JOIN attachment_transfer t ON t.attachment_id = a.attachment_id
+                        WHERE a.message_id = queued.message_id
+                            AND t.direction = ?3
+                            AND t.state IN (?4, ?5)
+                    )
                 ORDER BY created_at ASC, rowid ASC
                 LIMIT 1
                 "#,
                 task_id,
                 due_at,
+                TransferDirection::Upload,
+                TransferState::Queued,
+                TransferState::Running,
             )
             .fetch_optional(txn.as_mut())
             .await?
@@ -208,14 +238,20 @@ mod persistence {
         use sqlx::SqlitePool;
 
         use crate::{
-            ChatMessage,
+            AttachmentId, ChatMessage,
             chats::{
                 messages::persistence::tests::test_chat_message_with_salt,
                 persistence::tests::test_chat,
             },
-            clients::attachment::persistence::{
-                RemoteAttachmentRecord,
-                test::{test_attachment_record, test_remote_attachment_record},
+            clients::attachment::{
+                AttachmentRecord,
+                persistence::{
+                    AttachmentStatus, RemoteAttachmentRecord,
+                    test::{
+                        test_attachment_record, test_attachment_record_with,
+                        test_remote_attachment_record,
+                    },
+                },
             },
             db::access::DbAccess,
         };
@@ -378,6 +414,61 @@ mod persistence {
                 .expect("message is due again");
             assert_eq!(dequeued.message_id, first.id());
             assert_eq!(dequeued.attempts, 2);
+
+            Ok(())
+        }
+
+        /// Stores an attachment of the message in the given status.
+        async fn store_attachment(
+            db: &DbAccess,
+            message_id: MessageId,
+            status: AttachmentStatus,
+        ) -> anyhow::Result<AttachmentId> {
+            let attachment = test_attachment_record_with(message_id, status, Utc::now());
+            attachment.store(db.write().await?, None).await?;
+            Ok(attachment.attachment_id)
+        }
+
+        #[sqlx::test]
+        async fn uploading_message_is_kept_and_holds_back_its_chat(
+            pool: SqlitePool,
+        ) -> anyhow::Result<()> {
+            let db = DbAccess::for_tests(pool);
+            let (first, _second) = queued_messages(&db).await?;
+            let attachment_id =
+                store_attachment(&db, first.id(), AttachmentStatus::Uploading).await?;
+
+            assert!(drain(&db).await?.is_empty());
+
+            AttachmentRecord::update_status(
+                db.write().await?,
+                attachment_id,
+                AttachmentStatus::Ready,
+            )
+            .await?;
+            assert_eq!(drain(&db).await?, vec![first.id()]);
+
+            Ok(())
+        }
+
+        #[sqlx::test]
+        async fn message_with_failed_upload_is_dequeued(pool: SqlitePool) -> anyhow::Result<()> {
+            let db = DbAccess::for_tests(pool);
+            let (first, _second) = queued_messages(&db).await?;
+            store_attachment(&db, first.id(), AttachmentStatus::UploadFailed).await?;
+
+            assert_eq!(drain(&db).await?, vec![first.id()]);
+
+            Ok(())
+        }
+
+        #[sqlx::test]
+        async fn message_with_pending_download_is_dequeued(pool: SqlitePool) -> anyhow::Result<()> {
+            let db = DbAccess::for_tests(pool);
+            let (first, _second) = queued_messages(&db).await?;
+            store_attachment(&db, first.id(), AttachmentStatus::Pending).await?;
+
+            assert_eq!(drain(&db).await?, vec![first.id()]);
 
             Ok(())
         }

@@ -1247,6 +1247,33 @@ impl Chat {
         Ok(is_blocked.unwrap_or(false))
     }
 
+    /// Loads the group id of the chat and whether its contact is blocked.
+    pub(crate) async fn load_group_id_and_is_blocked(
+        mut connection: impl ReadConnection,
+        chat_id: ChatId,
+    ) -> sqlx::Result<Option<(GroupId, bool)>> {
+        struct Row {
+            group_id: GroupIdWrapper,
+            is_blocked: bool,
+        }
+        let row = query_as!(
+            Row,
+            r#"SELECT
+                chat.group_id AS "group_id: _",
+                c.user_uuid IS NOT NULL AS "is_blocked!: bool"
+            FROM chat
+            LEFT JOIN blocked_contact c
+                ON c.user_uuid = chat.connection_user_uuid
+                AND c.user_domain = chat.connection_user_domain
+            WHERE chat_id = ?
+            "#,
+            chat_id,
+        )
+        .fetch_optional(connection.as_mut())
+        .await?;
+        Ok(row.map(|row| (GroupId::from(row.group_id), row.is_blocked)))
+    }
+
     pub(crate) async fn load_is_apq(
         mut connection: impl ReadConnection,
         chat_id: ChatId,

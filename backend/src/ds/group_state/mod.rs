@@ -48,6 +48,7 @@ use super::{
     GROUP_STATE_EXPIRATION, ReservedGroupId,
     epoch_snapshot::{DsEpochSnapshot, EpochSnapshotOutbox},
     process::ExternalCommitInfo,
+    user_credentials::EnteringCredentials,
     welcome_info::{DsWelcomeInfo, WelcomeInfoOutbox},
 };
 
@@ -166,6 +167,36 @@ impl DsGroupState {
         LeafCredential::from_credential(leaf.credential())
             .map_err(|error| error!(%error, "Credential is invalid"))
             .ok()
+    }
+
+    /// Checks that all signed self-group credentials in the group after a commit contain the same
+    /// user ID.
+    pub(super) fn self_group_user_is_consistent(
+        &self,
+        entering: &EnteringCredentials,
+        leaving: &[LeafNodeIndex],
+    ) -> bool {
+        let staying_user_ids = self
+            .group()
+            .members()
+            .filter(|member| !leaving.contains(&member.index))
+            .filter_map(
+                |member| match LeafCredential::from_credential(&member.credential) {
+                    Ok(LeafCredential::SelfGroup(credential)) => {
+                        credential.unverified_payload().ok()?
+                    }
+                    Ok(LeafCredential::User(_)) | Err(_) => None,
+                },
+            )
+            .map(|payload| payload.user_id().clone());
+        let mut user_ids = entering
+            .unverified_self_group_user_ids()
+            .cloned()
+            .chain(staying_user_ids);
+        let Some(first) = user_ids.next() else {
+            return true;
+        };
+        user_ids.all(|user_id| user_id == first)
     }
 
     /// Returns true if the group context carries the APQMLS component, i.e. this group is a leg of
@@ -738,7 +769,7 @@ fn decode_room_state(bytes: &VLBytes) -> Option<RoomState> {
 ///
 /// A self-group leaf must carry a [`LeafCredential::SelfGroup`], a regular-group leaf a
 /// [`LeafCredential::User`]. A user credential must certify the leaf's signature key, which MLS
-/// carries separately from the credential. Self-group credentials carry no key.
+/// carries separately from the credential.
 pub(super) fn leaf_credential_is_valid(
     credential: &LeafCredential,
     signature_key: &[u8],
@@ -748,7 +779,18 @@ pub(super) fn leaf_credential_is_valid(
         LeafCredential::User(credential) => {
             !is_self_group && credential.verifying_key().as_slice() == signature_key
         }
-        LeafCredential::SelfGroup(_) => is_self_group,
+        LeafCredential::SelfGroup(credential) => {
+            is_self_group
+                && match credential.unverified_payload() {
+                    // An unsigned credential that still passes.
+                    Ok(None) => true,
+                    Ok(Some(payload)) => payload.signature_key() == signature_key,
+                    Err(error) => {
+                        warn!(%error, "Invalid self-group credential");
+                        false
+                    }
+                }
+        }
     }
 }
 

@@ -15,7 +15,7 @@ use url::Url;
 use crate::{
     MediaType,
     clients::CoreUser,
-    link_preview::{fetch::page::Page, send::LINK_PREVIEW_IMAGE_PART_INDEX},
+    link_preview::{fetch::page::Page, layout::LINK_PREVIEW_IMAGE_PART_INDEX},
 };
 
 use super::links::is_selectable;
@@ -63,10 +63,6 @@ impl FetchedLinkPreview {
 
     pub fn image_bytes(&self) -> Option<&[u8]> {
         self.image.as_deref()
-    }
-
-    pub(crate) fn into_parts(self) -> (LinkPreviewCard, Option<Vec<u8>>) {
-        (self.card, self.image)
     }
 }
 

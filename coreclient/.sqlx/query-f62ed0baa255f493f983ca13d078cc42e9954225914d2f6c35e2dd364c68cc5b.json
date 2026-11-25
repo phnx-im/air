@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE attachment_transfer\n            SET state = ?1, failure = ?2, started_at = NULL\n            WHERE attachment_id = ?3 AND direction = ?4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "f62ed0baa255f493f983ca13d078cc42e9954225914d2f6c35e2dd364c68cc5b"
+}

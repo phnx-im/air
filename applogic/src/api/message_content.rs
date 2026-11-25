@@ -177,14 +177,18 @@ pub enum UiComposerLinkPreview {
 
 impl UiComposerLinkPreview {
     pub(crate) fn ready(fetched: &FetchedLinkPreview) -> Self {
-        let image = fetched.card().image().map(|image| UiImageMetadata {
+        Self::from_card(fetched.card())
+    }
+
+    pub(crate) fn from_card(card: &LinkPreviewCard) -> Self {
+        let image = card.image().map(|image| UiImageMetadata {
             blurhash: image.blur_hash().map(str::to_owned),
             width: image.width(),
             height: image.height(),
             is_animated: Some(false),
         });
         Self::Ready {
-            card: UiLinkPreviewCard::new(fetched.card()),
+            card: UiLinkPreviewCard::new(card),
             image,
         }
     }
