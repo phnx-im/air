@@ -258,8 +258,8 @@ class _MessageComposerState extends State<MessageComposer>
         );
       }
       if (!uploaded) {
-        // An uploaded file is deleted by the preview's temp-file handling,
-        // a dropped one and the not yet previewed rest are deleted here.
+        // An uploaded file is deleted by the cubit, a dropped one and the
+        // not yet previewed rest are deleted here.
         await deleteShareFiles(attachments.sublist(index));
         return;
       }
@@ -635,7 +635,7 @@ class _MessageComposerState extends State<MessageComposer>
 
     final ext = image.mimeType.split('/').last;
     final tempDir = await getTemporaryDirectory();
-    final tempFile = File('${tempDir.path}/clipboard_paste.$ext');
+    final tempFile = File(_uniqueTempPath(tempDir, 'clipboard_paste', ext));
     await tempFile.writeAsBytes(image.bytes);
     final file = XFile(tempFile.path, mimeType: image.mimeType);
 
@@ -658,7 +658,7 @@ class _MessageComposerState extends State<MessageComposer>
 
     final ext = content.mimeType.split('/').last;
     final tempDir = await getTemporaryDirectory();
-    final tempFile = File('${tempDir.path}/keyboard_insert.$ext');
+    final tempFile = File(_uniqueTempPath(tempDir, 'keyboard_insert', ext));
     await tempFile.writeAsBytes(data);
     final file = XFile(tempFile.path, mimeType: content.mimeType);
 
@@ -691,7 +691,11 @@ class _MessageComposerState extends State<MessageComposer>
           onUpload: () async {
             uploaded = true;
             try {
-              final error = await cubit.uploadAttachment(file.path);
+              // A temp file is deleted by the cubit from here on.
+              final error = await cubit.uploadAttachment(
+                file.path,
+                isTempFile: isTempFile,
+              );
               switch (error) {
                 case UploadAttachmentError_TooLarge(
                   :final maxSizeBytes,
@@ -724,10 +728,6 @@ class _MessageComposerState extends State<MessageComposer>
                 (loc) => loc.composer_error_attachment,
                 tone: .danger,
               );
-            } finally {
-              if (isTempFile) {
-                await _deleteTempFile(file.path);
-              }
             }
           },
         ),
@@ -738,6 +738,13 @@ class _MessageComposerState extends State<MessageComposer>
       await _deleteTempFile(file.path);
     }
     return uploaded;
+  }
+
+  /// A sent file outlives the preview until it is uploaded, so each one
+  /// needs a path of its own.
+  String _uniqueTempPath(Directory dir, String prefix, String ext) {
+    final suffix = DateTime.now().microsecondsSinceEpoch;
+    return '${dir.path}/${prefix}_$suffix.$ext';
   }
 
   Future<void> _deleteTempFile(String path) async {

@@ -60,6 +60,16 @@ impl CoreUser {
         Ok(())
     }
 
+    /// Message that the attachment belongs to.
+    pub async fn attachment_message_id(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> anyhow::Result<Option<MessageId>> {
+        let reference =
+            MessageAttachmentRecord::load_first(self.db().read().await?, attachment_id).await?;
+        Ok(reference.map(|reference| reference.message_id))
+    }
+
     pub async fn load_attachment(
         &self,
         attachment_id: AttachmentId,

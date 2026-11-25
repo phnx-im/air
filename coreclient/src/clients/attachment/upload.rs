@@ -56,6 +56,7 @@ use crate::{
             persistence::{AttachmentRole, ProcessedMetadata, TransferFailure},
             process::AttachmentPart,
             progress::{AttachmentProgress, AttachmentProgressSender},
+            stage::AttachmentFile,
             thumbnail::store_thumbnail,
         },
     },
@@ -229,7 +230,7 @@ impl CoreUser {
             attachment_id,
             message,
             AttachmentSource::File {
-                path: path.to_owned(),
+                file: AttachmentFile::borrowed(path),
                 spec: probed.into_spec(),
             },
             progress_tx,
@@ -362,8 +363,9 @@ impl CoreUser {
         drop(read);
 
         let (content, metadata): (AttachmentBytes, _) = match source {
-            AttachmentSource::File { path, spec } => {
-                let bytes = tokio::fs::read(&path)
+            AttachmentSource::File { file, spec } => {
+                let path = file.path();
+                let bytes = tokio::fs::read(path)
                     .await
                     .with_context(|| format!("Failed to read file at: {}", path.display()))?;
                 let processing_cancel = ImageProcessingCancellation::new();
@@ -388,15 +390,10 @@ impl CoreUser {
                 (processed.content, metadata)
             }
             AttachmentSource::Processed(bytes) => {
-                let message = ChatMessage::load(self.db().read().await?, reference.message_id)
-                    .await?
-                    .context("Message of the attachment is gone")?;
-                let part = message
-                    .message()
-                    .mimi_content()
-                    .and_then(|content| content.part_at(reference.part_index))
-                    .context("Part of the attachment is missing")?;
-                (bytes.into(), AttachmentMetadata::from_part(part)?)
+                let metadata = self
+                    .processed_part_metadata(reference, &group.group_id)
+                    .await?;
+                (bytes.into(), metadata)
             }
         };
 
@@ -496,33 +493,108 @@ impl CoreUser {
                     return Ok(None);
                 }
 
-                let parts = AttachmentPart::collect(&*content)?;
-                let remote = parts
-                    .iter()
-                    .find(|part| part.index == reference.part_index)
-                    .and_then(AttachmentPart::remote)
-                    .context("Processed part has no remote record")?;
-                remote.store(&mut *txn, attachment_id).await?;
-
-                // A part without a hash is not processed yet
-                let is_final = parts.iter().all(|part| match part.part {
-                    NestedPart::ExternalPart { content_hash, .. } => !content_hash.is_empty(),
-                    _ => true,
-                });
-                drop(parts);
-
-                if is_final {
-                    // The content is final, so the message gets its Mimi ID
-                    let content = std::mem::take(content);
-                    message.set_content_message(ContentMessage::new(
-                        self.user_id().clone(),
-                        false,
-                        content,
-                        group_id,
-                    ));
+                // Appended, so that the index of the attachment part stays
+                if let Some(image_data) = image_data
+                    && let NestedPart::MultiPart { parts, .. } = &mut content.nested_part
+                {
+                    parts.push(NestedPart::SinglePart {
+                        disposition: Disposition::Preview,
+                        language: String::new(),
+                        content_type: media_type::TEXT_BLURHASH.to_owned(),
+                        content: image_data.blurhash.clone().into_bytes(),
+                    });
                 }
-                message.update(&mut *txn).await?;
+
+                self.finalize_processed_part(txn, &mut message, reference, group_id)
+                    .await?;
                 Ok(Some(metadata))
+            })
+            .await
+    }
+
+    /// Stores the remote record of a processed part and the message.
+    ///
+    /// The message gets its Mimi ID once none of its parts is left to process.
+    async fn finalize_processed_part(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        message: &mut ChatMessage,
+        reference: &MessageAttachmentRecord,
+        group_id: &GroupId,
+    ) -> anyhow::Result<()> {
+        let content = message
+            .message_mut()
+            .mimi_content_mut()
+            .context("Attachment message without content")?;
+        let parts = AttachmentPart::collect(&*content)?;
+        let remote = parts
+            .iter()
+            .find(|part| part.index == reference.part_index)
+            .and_then(AttachmentPart::remote)
+            .context("Processed part has no remote record")?;
+        remote.store(&mut *txn, reference.attachment_id).await?;
+
+        // A part without a hash is not processed yet
+        let is_final = parts.iter().all(|part| match part.part {
+            NestedPart::ExternalPart { content_hash, .. } => !content_hash.is_empty(),
+            _ => true,
+        });
+        drop(parts);
+
+        if is_final {
+            // The content is final, so the message gets its Mimi ID
+            let content = std::mem::take(content);
+            message.set_content_message(ContentMessage::new(
+                self.user_id().clone(),
+                false,
+                content,
+                group_id,
+            ));
+        }
+        message.update(&mut *txn).await?;
+        Ok(())
+    }
+
+    /// Remote id, key and nonce of a processed part.
+    ///
+    /// A message stored by the old upload path has none in its part yet. They
+    /// are chosen here, and the message is finalized.
+    async fn processed_part_metadata(
+        &self,
+        reference: &MessageAttachmentRecord,
+        group_id: &GroupId,
+    ) -> anyhow::Result<AttachmentMetadata> {
+        let message = ChatMessage::load(self.db().read().await?, reference.message_id)
+            .await?
+            .context("Message of the attachment is gone")?;
+        let part = message
+            .message()
+            .mimi_content()
+            .and_then(|content| content.part_at(reference.part_index))
+            .context("Part of the attachment is missing")?;
+        let has_metadata = match part {
+            NestedPart::ExternalPart { key, .. } => !key.is_empty(),
+            _ => bail!("Attachment part is not an external part"),
+        };
+        if has_metadata {
+            return AttachmentMetadata::from_part(part);
+        }
+
+        self.db()
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                let mut message = ChatMessage::load(&mut *txn, reference.message_id)
+                    .await?
+                    .context("Message of the attachment is gone")?;
+                let part = message
+                    .message_mut()
+                    .mimi_content_mut()
+                    .and_then(|content| content.part_at_mut(reference.part_index))
+                    .context("Part of the attachment is missing")?;
+                let metadata = AttachmentMetadata::random()?;
+                metadata.write_to(part)?;
+                self.finalize_processed_part(txn, &mut message, reference, group_id)
+                    .await?;
+                Ok(metadata)
             })
             .await
     }
@@ -617,8 +689,9 @@ impl CoreUser {
         progress_tx: AttachmentProgressSender,
     ) -> anyhow::Result<Result<ChatMessage, ProvisionAttachmentError>> {
         let content = match source {
-            AttachmentSource::File { path, spec } => {
-                let bytes = tokio::fs::read(&path)
+            AttachmentSource::File { file, spec } => {
+                let path = file.path();
+                let bytes = tokio::fs::read(path)
                     .await
                     .with_context(|| format!("Failed to read file at {}", path.display()))?;
                 debug!(
@@ -967,7 +1040,10 @@ pub(crate) async fn hold_message_with_failed_upload(
 /// What a send task starts from.
 pub(crate) enum AttachmentSource {
     /// First send: the file has not been read or processed yet.
-    File { path: PathBuf, spec: AttachmentSpec },
+    File {
+        file: AttachmentFile,
+        spec: AttachmentSpec,
+    },
     /// Retry: the processed bytes persisted by the first send.
     Processed(Vec<u8>),
 }
@@ -1050,7 +1126,7 @@ impl ProbedAttachment {
         }
     }
 
-    fn is_image(&self) -> bool {
+    pub(crate) fn is_image(&self) -> bool {
         self.image_dimensions.is_some()
     }
 

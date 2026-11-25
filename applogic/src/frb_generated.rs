@@ -1851,7 +1851,8 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_upload_attachment_
             let message = unsafe { flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(ptr_, rust_vec_len_, data_len_) };
             let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>>>::sse_decode(&mut deserializer);
-let api_path = <String>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
+let api_path = <String>::sse_decode(&mut deserializer);
+let api_is_temp_file = <bool>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
                     transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
                         let mut api_that_guard = None;
 let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
@@ -1862,7 +1863,7 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = crate::api::chat_details_cubit::ChatDetailsCubitBase::upload_attachment(&*api_that_guard, api_path).await?;   std::result::Result::Ok(output_ok)
+ let output_ok = crate::api::chat_details_cubit::ChatDetailsCubitBase::upload_attachment(&*api_that_guard, api_path, api_is_temp_file).await?;   std::result::Result::Ok(output_ok)
                     })().await)
                 } })
 }
