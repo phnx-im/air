@@ -37,6 +37,9 @@ class MessageInputTokens {
   /// inset comes from the type metrics, see [MessageInputTokens.fieldInsetY].
   static const double fieldPadding = S.s16;
 
+  /// Gap between the mention picker's bottom edge and the field's top edge.
+  static const double mentionPickerGap = S.s8;
+
   /// Scale the trailing buttons grow from as they fade in. Send pops harder
   /// than scroll-back, since it answers something the user just typed while
   /// scroll-back only reports where the reader is.

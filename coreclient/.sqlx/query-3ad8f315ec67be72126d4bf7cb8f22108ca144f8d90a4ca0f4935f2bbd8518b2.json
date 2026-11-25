@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                (\n                    SELECT\n                        COUNT(m.chat_id)\n                    FROM\n                        chat c\n                    LEFT JOIN\n                        message m\n                    ON\n                        c.chat_id = m.chat_id\n                        AND m.sender_user_uuid IS NOT NULL\n                        AND m.sender_user_domain IS NOT NULL\n                        AND (m.sender_user_uuid != ?3 OR m.sender_user_domain != ?4)\n                        AND m.timestamp > c.last_read\n                        AND m.status != ?1\n                    WHERE\n                        c.muted_until IS NULL OR c.muted_until <= ?2\n                ) + (\n                    SELECT\n                        COUNT(*)\n                    FROM\n                        chat c\n                    INNER JOIN\n                        message m\n                    ON\n                        c.chat_id = m.chat_id\n                        AND m.mentions_me\n                        AND m.timestamp > c.last_read\n                        AND m.status != ?1\n                    WHERE\n                        c.muted_until > ?2\n                ) AS \"count!: i64\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "count!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3ad8f315ec67be72126d4bf7cb8f22108ca144f8d90a4ca0f4935f2bbd8518b2"
+}

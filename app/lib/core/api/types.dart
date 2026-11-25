@@ -18,7 +18,7 @@ part 'types.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `aggregate_reactions`, `connection_user_id`, `empty`, `from_asset`, `from_bytes`, `from_message_without_attachments`, `from_message`, `from_message`, `from_message`, `from_profile`, `from_user_id`, `load_from_chat_type`, `of`, `preview_text_of`, `set_message`, `to_draft_without_content`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `EditAllowance`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
 
 /// Mirror of the [`AddUsernameContactError`] type
 enum AddUsernameContactError {
@@ -144,6 +144,7 @@ class UiChatDetails {
   final UiChatType chatType;
   final DateTime? lastUsed;
   final int unreadMessages;
+  final int unreadMentions;
   final UiChatMessage? lastMessage;
   final UiLastReaction? lastReaction;
   final UiMessageDraft? draft;
@@ -163,6 +164,7 @@ class UiChatDetails {
     required this.chatType,
     this.lastUsed,
     required this.unreadMessages,
+    required this.unreadMentions,
     this.lastMessage,
     this.lastReaction,
     this.draft,
@@ -181,6 +183,7 @@ class UiChatDetails {
       chatType.hashCode ^
       lastUsed.hashCode ^
       unreadMessages.hashCode ^
+      unreadMentions.hashCode ^
       lastMessage.hashCode ^
       lastReaction.hashCode ^
       draft.hashCode ^
@@ -201,6 +204,7 @@ class UiChatDetails {
           chatType == other.chatType &&
           lastUsed == other.lastUsed &&
           unreadMessages == other.unreadMessages &&
+          unreadMentions == other.unreadMentions &&
           lastMessage == other.lastMessage &&
           lastReaction == other.lastReaction &&
           draft == other.draft &&
@@ -223,6 +227,7 @@ sealed class UiChatMessage with _$UiChatMessage {
     UiInReplyToMessage? inReplyToMessage,
     required UiMessageStatus status,
     required List<UiReaction> reactions,
+    required List<UiUserId> mentions,
   }) = _UiChatMessage;
 }
 
@@ -377,6 +382,9 @@ sealed class UiInReplyToMessage with _$UiInReplyToMessage {
     required MessageId messageId,
     required UiUserId sender,
     required UiMimiContent mimiContent,
+
+    /// Mentions of chat members in the replied-to message
+    required List<UiUserId> mentions,
   }) = UiInReplyToMessage_Resolved;
 }
 

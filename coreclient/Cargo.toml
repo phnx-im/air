@@ -44,6 +44,7 @@ parking_lot.workspace = true
 percent-encoding = "2.3.2"
 pin-project.workspace = true
 privacypass.workspace = true
+pulldown-cmark.workspace = true
 rand.workspace = true                                              # TODO: Replace this with a CSPRNG
 regex.workspace = true
 reqwest = { workspace = true, features = ["stream", "brotli", "gzip"] }

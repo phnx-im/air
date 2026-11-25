@@ -15,6 +15,7 @@ import 'package:air/features/message_list/message_details.dart';
 import 'package:air/features/message_list/message_list_view.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/message_list/message_cubit.dart';
+import 'package:air/features/message_list/widgets/user_mention_pill.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
@@ -22,6 +23,7 @@ import 'package:air/features/user/users_cubit.dart';
 import '../chat_list/chat_list_content_test.dart';
 import '../../helpers.dart';
 import '../../mocks.dart';
+import 'message_list_test.dart' show mentionMessages;
 
 const Size _testSize = Size(1080, 2800);
 
@@ -47,6 +49,7 @@ final _mobileMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 2.messageId(),
@@ -67,6 +70,7 @@ final _mobileMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 3.messageId(),
@@ -87,6 +91,7 @@ final _mobileMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 4.messageId(),
@@ -107,6 +112,7 @@ final _mobileMessages = [
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 5.messageId(),
@@ -129,6 +135,7 @@ final _mobileMessages = [
     ),
     status: UiMessageStatus.delivered,
     reactions: [],
+    mentions: [],
   ),
   UiChatMessage(
     id: 6.messageId(),
@@ -149,6 +156,7 @@ final _mobileMessages = [
     ),
     status: UiMessageStatus.read,
     reactions: [],
+    mentions: [],
   ),
 ];
 
@@ -314,6 +322,40 @@ void main() {
       },
     );
 
+    testWidgets('Info shows mentions as pills only in the current message', (
+      tester,
+    ) async {
+      tester.view.physicalSize = _testSize;
+      addTearDown(tester.view.resetPhysicalSize);
+      final message = mentionMessages[0];
+      final content = (message.message as UiMessage_Content).field0.content;
+      when(() => chatDetailsCubit.messageVersions(messageId: message.id))
+          .thenAnswer(
+            (_) async => [
+              UiMessageVersion(content: content, createdAt: message.timestamp),
+              UiMessageVersion(content: content, createdAt: message.timestamp),
+            ],
+          );
+      messageListCubit.setState([message]);
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+      await tester.longPress(find.textContaining('Ping'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Info'));
+      await tester.pumpAndSettle();
+
+      final details = find.byType(MessageDetailsView);
+      expect(
+        find.descendant(of: details, matching: find.byType(UserMentionPill)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: details, matching: find.textContaining('@Eva')),
+        findsNWidgets(2),
+      );
+    });
+
     testWidgets('defers a picked reaction until the overlay is dismissed', (
       tester,
     ) async {
@@ -396,6 +438,7 @@ void main() {
         ),
         status: UiMessageStatus.sent,
         reactions: [],
+        mentions: [],
       );
       messageListCubit.appendNewer([arrived], isIncoming: true);
       await tester.pumpAndSettle();

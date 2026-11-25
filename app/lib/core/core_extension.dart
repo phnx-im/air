@@ -4,6 +4,7 @@
 
 import 'dart:typed_data';
 
+import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/platform/method_channel.dart';
@@ -249,10 +250,28 @@ extension UiAttachmentExtension on UiAttachment {
 }
 
 extension UiMimiContentExtension on UiMimiContent {
-  String? get plaintextPreview => switch (previewText) {
-    final text? => _singleLine(text),
-    null => null,
-  };
+  /// Single-line preview of the message.
+  ///
+  /// A mention of a user in [mentions] shows `@` and the name from [nameOf],
+  /// like the mention pill in the message bubble. Any other user link shows
+  /// the sender's hint.
+  String? plaintextPreview({
+    required List<UiUserId> mentions,
+    required String Function(UiUserId userId) nameOf,
+  }) {
+    final parts = preview;
+    if (parts == null) return null;
+    final text = parts
+        .map(
+          (part) => switch (part) {
+            PreviewPart_Text(:final field0) => field0,
+            PreviewPart_Mention(:final userId, :final hint) =>
+              mentions.contains(userId) ? '@${nameOf(userId)}' : hint,
+          },
+        )
+        .join();
+    return _singleLine(text);
+  }
 
   bool get isDeleted => replaces != null && content == null;
 }

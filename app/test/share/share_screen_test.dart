@@ -41,6 +41,7 @@ final chats = [
     mutedUntil: null,
     pendingCommitFailed: false,
     resyncFailed: false,
+    unreadMentions: 0,
   ),
   UiChatDetails(
     id: 2.chatId(),
@@ -54,6 +55,7 @@ final chats = [
     mutedUntil: null,
     pendingCommitFailed: false,
     resyncFailed: false,
+    unreadMentions: 0,
   ),
   UiChatDetails(
     id: 3.chatId(),
@@ -69,6 +71,7 @@ final chats = [
     mutedUntil: null,
     pendingCommitFailed: false,
     resyncFailed: false,
+    unreadMentions: 0,
   ),
 ];
 

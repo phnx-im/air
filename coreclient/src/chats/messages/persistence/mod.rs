@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 mod delete;
+mod mention_backfill;
 
 use std::fmt;
 
@@ -35,6 +36,7 @@ use crate::{
 use super::{ErrorMessage, EventMessage};
 
 pub(crate) use delete::*;
+pub(crate) use mention_backfill::backfill_mentions;
 
 const UNKNOWN_MESSAGE_VERSION: u16 = 0;
 const CURRENT_MESSAGE_VERSION: u16 = 1;
@@ -103,6 +105,22 @@ impl VersionedMessage {
 
 use super::{MessageId, TimestampedMessage};
 
+struct SqlMention {
+    user_uuid: Uuid,
+    user_domain: Fqdn,
+}
+
+impl From<SqlMention> for UserId {
+    fn from(
+        SqlMention {
+            user_uuid,
+            user_domain,
+        }: SqlMention,
+    ) -> Self {
+        UserId::new(user_uuid, user_domain)
+    }
+}
+
 pub(crate) struct SqlChatMessage {
     pub(crate) message_id: MessageId,
     pub(crate) mimi_id: Option<MimiId>,
@@ -116,6 +134,7 @@ pub(crate) struct SqlChatMessage {
     pub(crate) edited_at: Option<TimeStamp>,
     pub(crate) is_blocked: bool,
     pub(crate) in_reply_to_mimi_id: Option<MimiId>,
+    pub(crate) mentions_me: bool,
 }
 
 impl From<SqlChatMessage> for ChatMessage {
@@ -133,6 +152,7 @@ impl From<SqlChatMessage> for ChatMessage {
             edited_at,
             is_blocked,
             in_reply_to_mimi_id,
+            mentions_me,
         }: SqlChatMessage,
     ) -> Self {
         let (message, event_mimi_id) = match (sender_user_uuid, sender_user_domain) {
@@ -169,7 +189,13 @@ impl From<SqlChatMessage> for ChatMessage {
             }
         };
 
-        let timestamped_message = TimestampedMessage { timestamp, message };
+        let timestamped_message = TimestampedMessage {
+            timestamp,
+            message,
+            mentions_me,
+            // Populated by `augment` after the row is decoded.
+            mentions: Vec::new(),
+        };
         let status = if is_blocked {
             MessageStatus::Hidden
         } else {
@@ -211,7 +237,8 @@ impl ChatMessage {
                 status,
                 edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                mentions_me
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -244,7 +271,8 @@ impl ChatMessage {
                 status,
                 edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                mentions_me
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -340,7 +368,8 @@ impl ChatMessage {
                 status,
                 edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                mentions_me
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -390,7 +419,8 @@ impl ChatMessage {
                 status,
                 edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                mentions_me
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -442,7 +472,8 @@ impl ChatMessage {
                 status,
                 edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                mentions_me
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -493,7 +524,8 @@ impl ChatMessage {
                 status,
                 edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                mentions_me
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -546,7 +578,8 @@ impl ChatMessage {
                 status,
                 edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                mentions_me
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -581,7 +614,8 @@ impl ChatMessage {
                 status,
                 edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                mentions_me
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -630,7 +664,8 @@ impl ChatMessage {
                 status,
                 edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                mentions_me
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -675,7 +710,8 @@ impl ChatMessage {
                 status,
                 edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                mentions_me
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -696,8 +732,30 @@ impl ChatMessage {
         messages.with_loaded_in_reply_to(&mut connection).await
     }
 
+    /// Loads the mentions of a message, captured when it was received, sent or
+    /// edited.
+    async fn load_mentions(
+        mut connection: impl ReadConnection,
+        message_id: MessageId,
+    ) -> sqlx::Result<Vec<UserId>> {
+        let mentions = query_as!(
+            SqlMention,
+            r#"SELECT
+                user_uuid AS "user_uuid: _",
+                user_domain AS "user_domain: _"
+            FROM message_mention
+            WHERE message_id = ?
+            ORDER BY position"#,
+            message_id
+        )
+        .fetch_all(connection.as_mut())
+        .await?;
+        Ok(mentions.into_iter().map(From::from).collect())
+    }
+
     /// Augments a loaded chat message with lazily-loaded data: the referenced
-    /// reply (if any) and the reactions on this message.
+    /// reply (if any), the reactions on this message and the mentions
+    /// captured when the message was received, sent or edited.
     async fn augment(&mut self, mut connection: impl ReadConnection) -> sqlx::Result<()> {
         if let Some((mimi_id, message)) = self.in_reply_to.as_mut() {
             *message = InReplyToMessage::load(&mut connection, mimi_id).await?;
@@ -707,6 +765,9 @@ impl ChatMessage {
         if self.edited_at().is_some() {
             self.edit_count = MessageEdit::count_by_message_id(&mut connection, self.id()).await?;
         }
+
+        self.timestamped_message.mentions =
+            Self::load_mentions(&mut connection, self.message_id).await?;
 
         if let Some(mimi_id) = self.message().mimi_id().copied() {
             self.reactions = Reaction::load_by_target(&mut connection, &mimi_id)
@@ -767,6 +828,7 @@ impl ChatMessage {
             .and_then(|content| content.in_reply_to)
             .map(MimiId::from);
         let in_reply_to_mimi_id = in_reply_to_mimi_id.as_ref();
+        let mentions_me = self.timestamped_message.mentions_me;
 
         query!(
             "INSERT INTO message (
@@ -779,8 +841,9 @@ impl ChatMessage {
                 sender_user_uuid,
                 sender_user_domain,
                 content,
-                sent
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                sent,
+                mentions_me
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             self.message_id,
             mimi_id,
             event_id.as_ref(),
@@ -791,14 +854,40 @@ impl ChatMessage {
             sender_domain,
             content,
             sent,
+            mentions_me,
         )
         .execute(connection.as_mut())
         .await?;
+
+        self.insert_mentions(&mut connection).await?;
 
         connection
             .notifier()
             .add(self.message_id)
             .update(self.chat_id);
+        Ok(())
+    }
+
+    async fn insert_mentions(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
+        for (position, member) in self.timestamped_message.mentions.iter().enumerate() {
+            let position = position as i64;
+            let (uuid, domain) = member.clone().into_parts();
+            query!(
+                "INSERT INTO message_mention (
+                    message_id,
+                    position,
+                    user_uuid,
+                    user_domain
+                )
+                VALUES (?, ?, ?, ?)",
+                self.message_id,
+                position,
+                uuid,
+                domain,
+            )
+            .execute(connection.as_mut())
+            .await?;
+        }
         Ok(())
     }
 
@@ -818,6 +907,7 @@ impl ChatMessage {
         let edited_at = self.edited_at();
         let status: u8 = self.status().into();
         let message_id = self.id();
+        let mentions_me = self.timestamped_message.mentions_me;
 
         query!(
             "UPDATE message
@@ -827,7 +917,8 @@ impl ChatMessage {
                 content = ?,
                 sent = ?,
                 edited_at = ?,
-                status = ?
+                status = ?,
+                mentions_me = ?
             WHERE message_id = ?",
             mimi_id,
             self.timestamped_message.timestamp,
@@ -835,6 +926,7 @@ impl ChatMessage {
             sent,
             edited_at,
             status,
+            mentions_me,
             message_id,
         )
         .execute(connection.as_mut())
@@ -843,6 +935,24 @@ impl ChatMessage {
         connection.notifier().update(self.id());
         connection.notifier().update(self.chat_id);
         Ok(())
+    }
+
+    /// Replaces the stored mentions with the mentions of this message.
+    ///
+    /// Only edits and deletes change the mentions of a stored message. We keep
+    /// this out of [`Self::update`], which would otherwise wipe the mentions of
+    /// a message that was loaded without them.
+    pub(crate) async fn replace_mentions(
+        &self,
+        mut connection: impl WriteConnection,
+    ) -> sqlx::Result<()> {
+        query!(
+            "DELETE FROM message_mention WHERE message_id = ?",
+            self.message_id,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        self.insert_mentions(connection).await
     }
 
     /// Delete a message from the database.
@@ -927,7 +1037,8 @@ impl ChatMessage {
                 status,
                 edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                mentions_me
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -989,7 +1100,8 @@ impl ChatMessage {
                 status,
                 edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                mentions_me
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -1049,6 +1161,9 @@ impl ChatMessage {
     }
 
     /// Load all messages still carrying an edit timestamp.
+    ///
+    /// Runs as a code migration before the `mentions_me` column exists, so it
+    /// must not read that column.
     pub(crate) async fn load_all_edited(
         mut connection: impl ReadConnection,
     ) -> sqlx::Result<Vec<Self>> {
@@ -1066,7 +1181,8 @@ impl ChatMessage {
                 status,
                 edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                FALSE AS "mentions_me!: bool"
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
@@ -1132,6 +1248,7 @@ impl From<SqlInReplyToMessage> for Option<InReplyToMessage> {
             sender: UserId::new(sender_user_uuid?, sender_user_domain?),
             mimi_content: content.and_then(|BlobDecoded(c)| c.to_mimi_content().ok()),
             attachments: MessageAttachments::new(message_id, Vec::new()),
+            mentions: Vec::new(),
         })
     }
 }
@@ -1233,10 +1350,12 @@ impl InReplyToMessage {
         };
 
         in_reply_to_message.attachments = MessageAttachmentRecord::load_infos_by_message_id(
-            connection,
+            &mut connection,
             in_reply_to_message.message_id,
         )
         .await?;
+        in_reply_to_message.mentions =
+            ChatMessage::load_mentions(&mut connection, in_reply_to_message.message_id).await?;
 
         Ok(Some(in_reply_to_message))
     }
@@ -1342,7 +1461,12 @@ pub(crate) mod tests {
             MimiContent::simple_markdown_message("Hello world!".to_string(), salt),
             &GroupId::from_slice(&[0]),
         )));
-        let timestamped_message = TimestampedMessage { timestamp, message };
+        let timestamped_message = TimestampedMessage {
+            timestamp,
+            message,
+            mentions_me: false,
+            mentions: Vec::new(),
+        };
         ChatMessage {
             message_id: chat_message_id,
             chat_id,
@@ -1399,6 +1523,84 @@ pub(crate) mod tests {
     }
 
     #[sqlx::test]
+    async fn store_load_mentions_me(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+
+        let mut message = test_chat_message(chat.id());
+        message.set_mentions_me(true);
+        message.store(pool.write().await?).await?;
+
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+        let loaded = ChatMessage::load(&mut txn, message.id()).await?.unwrap();
+        assert!(loaded.mentions_me());
+        assert_eq!(loaded, message);
+
+        // The flag also round-trips through update()
+        message.set_mentions_me(false);
+        message.update(&mut txn).await?;
+        let loaded = ChatMessage::load(&mut txn, message.id()).await?.unwrap();
+        assert!(!loaded.mentions_me());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn store_load_mentions(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+
+        let alice = UserId::random("localhost".parse().unwrap());
+        let bob = UserId::random("localhost".parse().unwrap());
+        let mut message = test_chat_message(chat.id());
+        message.set_mentions(vec![alice.clone(), bob.clone()]);
+        message.store(pool.write().await?).await?;
+
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+        let loaded = ChatMessage::load(&mut txn, message.id()).await?.unwrap();
+        assert_eq!(loaded.mentions(), [alice.clone(), bob.clone()]);
+        assert_eq!(loaded, message);
+
+        message.set_mentions(vec![bob.clone()]);
+        message.replace_mentions(&mut txn).await?;
+        let loaded = ChatMessage::load(&mut txn, message.id()).await?.unwrap();
+        assert_eq!(loaded.mentions(), [bob]);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn update_keeps_mentions(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+
+        let alice = UserId::random("localhost".parse().unwrap());
+        let mut message = test_chat_message(chat.id());
+        message.set_mentions(vec![alice.clone()]);
+        message.store(pool.write().await?).await?;
+
+        message.set_mentions(Vec::new());
+        message.set_status(MessageStatus::Read);
+        message.update(pool.write().await?).await?;
+
+        let loaded = ChatMessage::load(pool.read().await?, message.id())
+            .await?
+            .unwrap();
+        assert_eq!(loaded.status(), MessageStatus::Read);
+        assert_eq!(loaded.mentions(), [alice]);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
     async fn in_reply_to_carries_attachment_infos(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
 
@@ -1422,6 +1624,29 @@ pub(crate) mod tests {
             panic!("expected one attachment info");
         };
         assert_eq!(info.attachment_id, record.attachment_id);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn in_reply_to_carries_mentions(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+
+        let alice = UserId::random("localhost".parse().unwrap());
+        let bob = UserId::random("localhost".parse().unwrap());
+        let mut original = test_chat_message(chat.id());
+        original.set_mentions(vec![bob.clone(), alice.clone()]);
+        original.store(pool.write().await?).await?;
+
+        let mimi_id = *original.message().mimi_id().unwrap();
+        let in_reply_to = InReplyToMessage::load(pool.read().await?, &mimi_id)
+            .await?
+            .unwrap();
+
+        assert_eq!(in_reply_to.mentions, [bob, alice]);
 
         Ok(())
     }

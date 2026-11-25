@@ -13,6 +13,8 @@ import 'markdown.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
+
+import 'types.dart';
 part 'message_content.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `from_card`, `new`, `ready`, `resolve`, `resolve`
@@ -111,7 +113,7 @@ enum UiLinkPreviewKind { default_, video, music, profile }
 sealed class UiMimiContent with _$UiMimiContent {
   const factory UiMimiContent({
     String? plainBody,
-    String? previewText,
+    List<PreviewPart>? preview,
     Uint8List? replaces,
     required Uint8List topicId,
     Uint8List? inReplyTo,

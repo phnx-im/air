@@ -14,8 +14,8 @@ pub use aircoreclient::{
 };
 use aircoreclient::{
     AttachmentId, AttachmentStatus, Chat, ChatId, ChatMessage, ComposedLinkPreview, MarkChatAsRead,
-    MessageEditError, MessageId, PendingUpload, ProvisionAttachmentError, UploadHandle,
-    UploadTaskError,
+    MessageEditError, MessageId, PendingUpload, ProvisionAttachmentError, UnreadCounts,
+    UploadHandle, UploadTaskError,
     clients::CoreUser,
     link_preview::{LinkPreview, select_links},
 };
@@ -779,6 +779,12 @@ impl ChatDetailsCubitBase {
             .core_user
             .attachment_infos_for_message(message_id)
             .await;
+        let mentions: Vec<UiUserId> = chat_message
+            .mentions()
+            .iter()
+            .cloned()
+            .map(From::from)
+            .collect();
 
         // Update draft in state
         let mut left_edit = false;
@@ -808,6 +814,7 @@ impl ChatDetailsCubitBase {
                     sender: sender.into(),
                     mimi_content: UnresolvedMimiContent::from(mimi_content)
                         .resolve(Some(&attachments)),
+                    mentions,
                 },
             ));
             draft.is_committed = false;
@@ -1067,7 +1074,10 @@ impl ChatDetailsContext {
 
 /// Loads additional details for a chat and converts it into a [`UiChatDetails`]
 pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiChatDetails {
-    let unread_messages = core_user.unread_messages_count(chat.id()).await;
+    let UnreadCounts {
+        messages: unread_messages,
+        mentions: unread_mentions,
+    } = core_user.unread_counts(chat.id()).await;
     let last_message = core_user.last_message(chat.id()).await.ok().flatten();
     let last_used = last_message
         .as_ref()
@@ -1119,6 +1129,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         chat_type,
         last_used,
         unread_messages,
+        unread_mentions,
         // The row reports on the last message but never opens its attachment,
         // so it does without the local attachment ids.
         last_message: last_message.map(UiChatMessage::from_message_without_attachments),

@@ -13,6 +13,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/chat_list/chat_list.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_item.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_item_tokens.dart';
+import 'package:air/ds/patterns/chat_list/chat_list_mention_marker.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_status_indicator.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_timestamp.dart';
 import 'package:air/ds/patterns/chat_list/chat_list_tokens.dart';
@@ -455,11 +456,19 @@ class _TrailingIndicator extends StatelessWidget {
           (cubit.state.experimentalFeaturesActive, cubit.state.readReceipts),
     );
 
-    final (unreadMessages, lastMessage, pendingCommitFailed) = context.select((
-      ChatListItemCubit cubit,
-    ) {
+    final (
+      unreadMessages,
+      unreadMentions,
+      lastMessage,
+      pendingCommitFailed,
+    ) = context.select((ChatListItemCubit cubit) {
       final chat = cubit.state.chat;
-      return (chat.unreadMessages, chat.lastMessage, chat.pendingCommitFailed);
+      return (
+        chat.unreadMessages,
+        chat.unreadMentions,
+        chat.lastMessage,
+        chat.pendingCommitFailed,
+      );
     });
 
     if (experimentalFeatures && pendingCommitFailed) {
@@ -469,7 +478,19 @@ class _TrailingIndicator extends StatelessWidget {
     }
 
     if (unreadMessages > 0) {
-      return Counter(tokens: CounterTokens.current, count: unreadMessages);
+      final counter = Counter(
+        tokens: CounterTokens.current,
+        count: unreadMessages,
+      );
+      if (unreadMentions == 0) return counter;
+      return Row(
+        mainAxisSize: .min,
+        spacing: ChatListItemTokens.mentionMarkerGap,
+        children: [
+          ChatListMentionMarker(tokens: ChatListItemTokens.current),
+          counter,
+        ],
+      );
     }
 
     if (lastMessage == null) return const SizedBox.shrink();
@@ -560,14 +581,23 @@ class _LastMessage extends HookWidget {
 
     final showDraft = chat.draft?.previewText.isNotEmpty == true;
 
-    // === Reactions ===
-    final reaction = chat.lastReaction;
-    final reactedTo = switch (lastMessage?.message) {
-      UiMessage_Content(field0: final content) =>
-        content.content.plaintextPreview,
+    final contentPreview = switch (lastMessage) {
+      UiChatMessage(
+        message: UiMessage_Content(field0: final content),
+        :final mentions,
+      ) =>
+        content.content.plaintextPreview(
+          mentions: mentions,
+          nameOf: (userId) => context.select(
+            (UsersCubit cubit) => cubit.state.displayName(userId: userId),
+          ),
+        ),
       _ => null,
     };
-    if (!showDraft && reaction != null && reactedTo != null) {
+
+    // === Reactions ===
+    final reaction = chat.lastReaction;
+    if (!showDraft && reaction != null && contentPreview != null) {
       final reactor = reaction.reactor == ownClientId
           ? null
           : context.select(
@@ -576,8 +606,8 @@ class _LastMessage extends HookWidget {
             );
       return Text(
         reactor == null
-            ? loc.chatList_reactionByYou(reaction.emoji, reactedTo)
-            : loc.chatList_reaction(reactor, reaction.emoji, reactedTo),
+            ? loc.chatList_reactionByYou(reaction.emoji, contentPreview)
+            : loc.chatList_reaction(reactor, reaction.emoji, contentPreview),
         style: previewStyle,
         maxLines: 2,
         softWrap: true,
@@ -604,8 +634,7 @@ class _LastMessage extends HookWidget {
     final suffix = showDraft
         ? chat.draft?.plaintextPreview
         : switch (lastMessage?.message) {
-            UiMessage_Content(field0: final content) =>
-              content.content.plaintextPreview,
+            UiMessage_Content() => contentPreview,
             UiMessage_Display() when lastSystemMessage != null =>
               buildSystemMessageText(
                 context,

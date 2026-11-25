@@ -21,7 +21,9 @@ use tracing::error;
 use uuid::Uuid;
 
 use crate::{
-    api::{notifications::DartNotificationService, user::User},
+    api::{
+        markdown::join_preview, notifications::DartNotificationService, types::UiUserId, user::User,
+    },
     message_content::MimiContentExt,
 };
 
@@ -41,16 +43,35 @@ impl User {
         message.message().actor() == Some(self.user.user_id())
     }
 
+    /// Preview of the content of a message.
+    ///
+    /// A mention of a chat member shows the local display name, like the
+    /// message bubble does. Any other user link shows the sender's hint.
+    async fn content_preview(&self, message: &ChatMessage) -> Option<String> {
+        let parts = message.message().mimi_content()?.preview()?;
+        let mut names = HashMap::new();
+        for user_id in message.mentions() {
+            let display_name = self.user.user_profile(user_id).await.display_name;
+            names.insert(UiUserId::from(user_id.clone()), display_name);
+        }
+        Some(join_preview(&parts, |user_id, hint| {
+            match names.get(user_id) {
+                Some(display_name) => format!("@{display_name}"),
+                None => hint.to_owned(),
+            }
+        }))
+    }
+
     /// Text of a message in a notification, with the sender name in front
     /// depending on the chat type.
-    async fn message_text(&self, message: &Message, chat_type: &ChatType) -> Option<String> {
-        let content_message = match message {
+    async fn message_text(&self, message: &ChatMessage, chat_type: &ChatType) -> Option<String> {
+        let content_message = match message.message() {
             Message::Content(content_message) => content_message,
             Message::Event(event_message) => {
                 return Some(event_message.string_representation(&self.user).await);
             }
         };
-        let content = content_message.content().preview_text()?;
+        let content = self.content_preview(message).await?;
         let text = match chat_type {
             ChatType::TargetedMessageConnection(_) | ChatType::Group(_) => {
                 let sender = content_message.sender();
@@ -63,6 +84,25 @@ impl User {
             ChatType::Connection(_) | ChatType::PendingConnection(_) => content,
         };
         Some(text)
+    }
+
+    /// Text of a message in a notification. A message mentioning the local
+    /// user gets a distinct text.
+    #[cfg(not(target_os = "android"))]
+    async fn notification_text(
+        &self,
+        message: &ChatMessage,
+        chat_type: &ChatType,
+    ) -> Option<String> {
+        if message.mentions_me()
+            && let Some(sender) = message.message().sender()
+            && let Some(content) = self.content_preview(message).await
+        {
+            let display_name = self.user.user_profile(sender).await.display_name;
+            // TODO: Localization
+            return Some(format!("{display_name} mentioned you: {content}"));
+        }
+        self.message_text(message, chat_type).await
     }
 
     /// Rebuilds and returns notifications for all chats affected by a batch of new messages,
@@ -86,6 +126,13 @@ impl User {
         // Load all chats at one to avoid multiple lookups in db
         let mut chats: HashMap<ChatId, (Chat, AlertMode)> = HashMap::new();
 
+        // Mentions of the local user break through mute.
+        let mentioned_chats: HashSet<ChatId> = messages
+            .iter()
+            .filter(|message| message.mentions_me())
+            .map(|message| message.chat_id())
+            .collect();
+
         // Chats to alert
         for chat_id in messages
             .iter()
@@ -106,7 +153,7 @@ impl User {
             }
             if let Entry::Vacant(entry) = chats.entry(chat_id)
                 && let Some(chat) = self.user.chat(&chat_id).await
-                && !chat.is_muted()
+                && (!chat.is_muted() || mentioned_chats.contains(&chat_id))
             {
                 entry.insert((chat, AlertMode::Alert));
             }
@@ -149,7 +196,8 @@ impl User {
                     continue;
                 }
                 if let Some((chat, AlertMode::Alert)) = chats.get(&message.chat_id())
-                    && let Some(body) = self.message_text(message.message(), chat.chat_type()).await
+                    && (!chat.is_muted() || message.mentions_me())
+                    && let Some(body) = self.notification_text(message, chat.chat_type()).await
                 {
                     batch.additions.push(NotificationContent {
                         identifier: NotificationId::random(),
@@ -161,12 +209,14 @@ impl User {
                 }
             }
             for reaction in reactions {
-                if let Some((chat, AlertMode::Alert)) = chats.get(&reaction.chat_id) {
+                if let Some((chat, AlertMode::Alert)) = chats.get(&reaction.chat_id)
+                    && !chat.is_muted()
+                {
                     let reactor = self.user.user_profile(&reaction.reactor).await.display_name;
                     let emoji = &reaction.emoji;
                     // TODO: Localization
                     let target_text = self
-                        .message_text(reaction.original_chat_message.message(), chat.chat_type())
+                        .message_text(&reaction.original_chat_message, chat.chat_type())
                         .await
                         .unwrap_or_else(|| "your message".to_string());
                     let body = format!("{reactor} reacted {emoji} to {target_text}");
@@ -199,7 +249,10 @@ impl User {
         chat: Chat,
         alert: AlertMode,
     ) -> ChatNotificationsRebuildOutcome {
-        if chat.is_muted() {
+        // A muted chat only alerts when a new message mentions the local user.
+        if let AlertMode::Silent = alert
+            && chat.is_muted()
+        {
             return ChatNotificationsRebuildOutcome::Skip;
         }
 
@@ -290,7 +343,7 @@ impl User {
     ) -> Option<String> {
         match entry {
             ChatNotificationEntry::Message(message) => {
-                self.message_text(message.message(), chat.chat_type()).await
+                self.message_text(message, chat.chat_type()).await
             }
             ChatNotificationEntry::Reaction(reaction) => {
                 let reactor = match participants.get(&reaction.reactor) {
@@ -298,7 +351,7 @@ impl User {
                     None => &UserProfile::from_user_id(&reaction.reactor).display_name,
                 };
                 let target_text = match &reaction.target {
-                    Some(message) => self.message_text(message.message(), chat.chat_type()).await,
+                    Some(message) => self.message_text(message, chat.chat_type()).await,
                     None => None,
                 };
                 let target_text = target_text.unwrap_or_else(|| "your message".to_owned());
@@ -319,9 +372,7 @@ impl User {
         match entry {
             ChatNotificationEntry::Message(message) => {
                 let text = match message.message() {
-                    Message::Content(content_message) => {
-                        content_message.content().preview_text()?
-                    }
+                    Message::Content(_) => self.content_preview(message).await?,
                     // event message: has no sender, the text is self-contained
                     Message::Event(event_message) => {
                         event_message.string_representation(&self.user).await
@@ -335,10 +386,10 @@ impl User {
                 })
             }
             ChatNotificationEntry::Reaction(reaction) => {
-                let target_text = reaction
-                    .target
-                    .as_ref()
-                    .and_then(|message| message.message().mimi_content()?.preview_text());
+                let target_text = match &reaction.target {
+                    Some(message) => self.content_preview(message).await,
+                    None => None,
+                };
                 let target_text = target_text.unwrap_or_else(|| "your message".to_owned());
                 Some(ConversationMessage {
                     sender_uuid: Some(reaction.reactor.uuid()),
@@ -719,4 +770,95 @@ enum ChatNotificationsRebuildOutcome {
     /// The chat is muted, missing or its content failed to render
     /// => leave existing notification untouched
     Skip,
+}
+
+// Android rebuilds one notification per chat instead of one per message.
+#[cfg(all(test, not(target_os = "android")))]
+mod tests {
+    use aircoreclient::ChatMuted;
+    use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
+
+    use super::*;
+
+    const NON_MEMBER_URI: &str = "mimi://localhost/u/00000000-0000-0000-0000-000000000003";
+
+    struct Received {
+        bodies: Vec<String>,
+        alice: String,
+        bob: String,
+    }
+
+    /// Bob in a group with Alice receives a plain message, a mention of
+    /// himself and a reaction to his own message from Alice.
+    ///
+    /// The mention names Bob by a hint that is not his display name, and also
+    /// links a user who is not in the group.
+    async fn receive_message_mention_and_reaction(muted_until: Option<ChatMuted>) -> Received {
+        let mut setup = TestBackend::single().await;
+        let [alice, bob] = Box::pin(setup.add_users()).await;
+        let chat_id = setup.connected_group(&alice, &[&bob]).await;
+        bob.set_chat_muted_until(chat_id, muted_until)
+            .await
+            .unwrap();
+
+        bob.send_text(chat_id, "from bob").await;
+        let processed = alice.drain().await;
+        let bob_message = processed.new_messages.last().unwrap().id();
+
+        alice.send_text(chat_id, "hello").await;
+        let mention = format!(
+            "Hi [@Bob]({}) and [@Carol]({NON_MEMBER_URI})!",
+            bob.user_id().uri()
+        );
+        alice.send_text(chat_id, &mention).await;
+        alice
+            .send_reaction(chat_id, bob_message, "👍".to_owned())
+            .await
+            .unwrap();
+        alice.outbound_service().run_once().await;
+
+        let processed = bob.drain().await;
+        let alice_name = bob.user_profile(alice.user_id()).await.display_name;
+        let bob_name = bob.user_profile(bob.user_id()).await.display_name;
+        let batch = User::from_core_user(bob)
+            .message_and_reaction_notifications(
+                &processed.new_messages,
+                &processed.reaction_notifications,
+                &processed.chats_with_changed_notifications,
+                None,
+            )
+            .await;
+        Received {
+            bodies: batch
+                .additions
+                .into_iter()
+                .map(|notification| notification.body)
+                .collect(),
+            alice: alice_name.to_string(),
+            bob: bob_name.to_string(),
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn mention_gets_distinct_text() {
+        let Received { bodies, alice, bob } = receive_message_mention_and_reaction(None).await;
+        assert_eq!(
+            bodies,
+            [
+                format!("{alice}: hello"),
+                format!("{alice} mentioned you: Hi @{bob} and @Carol!"),
+                format!("{alice} reacted 👍 to {bob}: from bob"),
+            ]
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn muted_chat_alerts_only_for_mention() {
+        let Received { bodies, alice, bob } =
+            receive_message_mention_and_reaction(Some(ChatMuted::Forever)).await;
+        assert_eq!(
+            bodies,
+            [format!("{alice} mentioned you: Hi @{bob} and @Carol!")]
+        );
+    }
 }
