@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 mod delete;
+mod mention_backfill;
 
 use std::fmt;
 
@@ -35,6 +36,7 @@ use crate::{
 use super::{ErrorMessage, EventMessage};
 
 pub(crate) use delete::*;
+pub(crate) use mention_backfill::backfill_mentions;
 
 const UNKNOWN_MESSAGE_VERSION: u16 = 0;
 const CURRENT_MESSAGE_VERSION: u16 = 1;

@@ -55,8 +55,14 @@ pub(crate) fn retain_members(
         return;
     }
     let members: HashSet<UserId> = members.into_iter().collect();
+    mentions.retain(|user| members.contains(user));
+    dedup_in_order(mentions);
+}
+
+/// Keeps the first mention of each user and drops all other mentions.
+pub(crate) fn dedup_in_order(mentions: &mut Vec<UserId>) {
     let mut seen = HashSet::new();
-    mentions.retain(|user| members.contains(user) && seen.insert(user.clone()));
+    mentions.retain(|user| seen.insert(user.clone()));
 }
 
 /// Returns the mentions of `members` in `content`, deduplicated in order of
