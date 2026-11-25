@@ -27,7 +27,7 @@ use mls_assist::{
 use apqmls::messages::ApqWelcome;
 
 use aircommon::{
-    credentials::{LeafCredential, VerifiableUserCredential},
+    credentials::LeafCredential,
     crypto::{
         aead::keys::{EncryptedUserProfileKey, GroupStateEarKey},
         hpke::{HpkeEncryptable, JoinerInfoEncryptionKey},
@@ -54,7 +54,7 @@ use crate::{
 
 use super::{
     group_state::{DsGroupState, MemberProfile, leaf_credential_is_valid},
-    user_credentials::Unauthenticated,
+    user_credentials::{EnteringCredentials, Unauthenticated},
 };
 
 #[derive(Clone, Copy)]
@@ -77,8 +77,8 @@ struct TCommitValidation {
     added_users_state: Option<AddUsersState>,
     external_sender_information: Option<(EncryptedUserProfileKey, QsReference)>,
     removed_clients: Vec<LeafNodeIndex>,
-    /// User credentials of the update-path leaf and the added leaves.
-    entering_credentials: Vec<VerifiableUserCredential>,
+    /// Credentials of the update-path leaf and the added leaves.
+    entering_credentials: EnteringCredentials,
 }
 
 pub(crate) struct ProcessedGroupOperation {
@@ -199,13 +199,18 @@ impl DsGroupState {
 
         // The room policy identifies the sender by its leaf, so the new leaf must keep the
         // owner. For an external commit, the sender is the leaf the commit replaces.
-        let mut entering_credentials = Vec::new();
-        if let Some(update_credential) = update_credential {
+        let mut entering_credentials = EnteringCredentials::default();
+        if let Some((update_credential, update_signature_key)) = update_credential {
             if update_credential.room_policy_identity() != sender_identity {
                 warn!("Update path leaf changes the owner of the sender's leaf");
                 return Err(GroupOperationError::InvalidMessage);
             }
-            entering_credentials.extend(update_credential.into_user());
+            entering_credentials
+                .push(update_credential, update_signature_key)
+                .map_err(|error| {
+                    warn!(%error, "Invalid update path leaf credential");
+                    GroupOperationError::InvalidMessage
+                })?;
         }
 
         // Check if the operation adds a user.
@@ -264,7 +269,19 @@ impl DsGroupState {
 
                 self.room_state_change_role(&sender_identity, &added_identity, RoleIndex::Regular)
                     .ok_or(GroupOperationError::InvalidMessage)?;
-                entering_credentials.extend(added_credential.into_user());
+                entering_credentials
+                    .push(
+                        added_credential,
+                        added_key_package
+                            .leaf_node()
+                            .signature_key()
+                            .as_slice()
+                            .to_vec(),
+                    )
+                    .map_err(|error| {
+                        warn!(%error, "Invalid credential of added user");
+                        GroupOperationError::InvalidMessage
+                    })?;
             }
 
             if let Some(pq_adds_sig_keys) = pq_add_proposals.as_mut()
@@ -352,6 +369,18 @@ impl DsGroupState {
 
             self.room_state_change_role(&sender_identity, &removed_identity, RoleIndex::Outsider)
                 .ok_or(GroupOperationError::InvalidMessage)?;
+        }
+
+        if is_self_group {
+            // An update path replaces the sender's leaf.
+            let mut leaving = removed_clients.clone();
+            if staged_commit.update_path_leaf_node().is_some() {
+                leaving.push(sender_index.leaf_index());
+            }
+            if !self.self_group_user_is_consistent(&entering_credentials, &leaving) {
+                warn!("Self-group credentials contain different user IDs");
+                return Err(GroupOperationError::InvalidMessage);
+            }
         }
 
         Ok(TCommitValidation {
@@ -847,13 +876,14 @@ impl DsGroupState {
     }
 }
 
-/// Returns the credential of the update-path leaf, if the commit carries an update path.
+/// Returns the credential and the signature key of the update-path leaf, if the commit carries an
+/// update path.
 ///
 /// The credential must match the group kind and bind the new leaf key.
 fn update_path_credential(
     staged_commit: &StagedCommit,
     is_self_group: bool,
-) -> Result<Option<LeafCredential>, GroupOperationError> {
+) -> Result<Option<(LeafCredential, Vec<u8>)>, GroupOperationError> {
     let Some(update_leaf) = staged_commit.update_path_leaf_node() else {
         return Ok(None);
     };
@@ -870,7 +900,10 @@ fn update_path_credential(
         warn!("Update path leaf credential is not valid for this group");
         return Err(GroupOperationError::InvalidMessage);
     }
-    Ok(Some(update_credential))
+    Ok(Some((
+        update_credential,
+        update_leaf.signature_key().as_slice().to_vec(),
+    )))
 }
 
 /// Extract the virtual client hint if present from the Safe AAD part of the message.

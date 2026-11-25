@@ -52,7 +52,9 @@ use crate::{
     auth_service::AsConnector,
     ds::{
         client_references::ClientReferencesSnapshot,
-        create_group::{GroupInsert, NewApqChatData, NewGroup, NewGroupLeg, NewGroupState},
+        create_group::{
+            GroupInsert, NewApqChatData, NewGroup, NewGroupLeg, NewGroupState, creator_credential,
+        },
         create_group_stream,
         group_operation::ProcessedApqGroupOperation,
         group_state::MemberProfile,
@@ -1012,8 +1014,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
             group,
         } = self.new_group(payload)?;
 
-        let credential =
-            Self::creator_credential(&group, payload.creator_user_credential.as_ref())?;
+        let credential = creator_credential(&group, payload.creator_user_credential.as_ref())?;
 
         // Now we can verify the payload
         let payload: CreateGroupPayload = request
@@ -1084,7 +1085,7 @@ impl<Qep: QsConnector + Clone, As: AsConnector + Clone> DeliveryService for Grpc
             &chat.creator_client_reference,
             &chat.room_state,
         )?;
-        let t_user_credential = Self::creator_credential(
+        let t_user_credential = creator_credential(
             &t_group_state.group,
             payload.creator_user_credential.as_ref(),
         )?;

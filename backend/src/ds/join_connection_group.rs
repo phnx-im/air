@@ -39,7 +39,7 @@ use crate::errors::CborMlsAssistStorage;
 use super::{
     apq::ApqExternalCommit,
     group_state::{DsGroupState, MemberProfile, SelfRemoveCheckError, leaf_credential_is_valid},
-    user_credentials::Unauthenticated,
+    user_credentials::{EnteringCredentials, Unauthenticated},
 };
 
 /// Reject any proposal an external commit joining a connection group must not
@@ -183,6 +183,13 @@ impl DsGroupState {
             &joiner_credential,
             join,
         )?;
+        let mut entering_credentials = EnteringCredentials::default();
+        entering_credentials
+            .push(
+                joiner_credential,
+                joiner_leaf.signature_key().as_slice().to_vec(),
+            )
+            .map_err(|_| JoinConnectionGroupError::InvalidMessage("invalid joiner credential"))?;
 
         // The siblings apply the commit on top of the state the joiner used, so
         // capture it before the commit is accepted.
@@ -209,7 +216,7 @@ impl DsGroupState {
                 joiner_index,
                 snapshot_epoch,
             },
-            joiner_credential.into_user().into_iter().collect(),
+            entering_credentials,
         ))
     }
 
@@ -253,6 +260,13 @@ impl DsGroupState {
             ));
         }
         let profile_key = t.admit_connection_group_joiner(aad, &joiner_credential, join)?;
+        let mut entering_credentials = EnteringCredentials::default();
+        entering_credentials
+            .push(
+                joiner_credential,
+                t_new_leaf.signature_key().as_slice().to_vec(),
+            )
+            .map_err(|_| JoinConnectionGroupError::InvalidMessage("invalid joiner credential"))?;
 
         // The siblings apply both commits on top of the state the joiner used,
         // so capture it before the commits are accepted.
@@ -297,7 +311,7 @@ impl DsGroupState {
                 joiner_index,
                 snapshot_epoch,
             },
-            joiner_credential.into_user().into_iter().collect(),
+            entering_credentials,
         ))
     }
 
