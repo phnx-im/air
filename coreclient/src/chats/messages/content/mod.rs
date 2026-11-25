@@ -50,7 +50,8 @@ pub trait MimiContentExt {
     fn markdown_text(&self) -> Option<&str>;
 
     /// Users that the markdown body links to, not yet checked against the chat
-    /// members.
+    /// members. This parses the whole markdown body and is therefore expensive.
+    /// Call it only once per message.
     fn extract_mentioned_users(&self) -> Vec<UserId> {
         self.markdown_text()
             .map(extract_mentions)

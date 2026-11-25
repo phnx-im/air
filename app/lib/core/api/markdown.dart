@@ -15,7 +15,7 @@ import 'package:uuid/uuid.dart';
 import 'types.dart';
 part 'markdown.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `collect_links`, `inline_text`, `into_hint_text`, `is_blank`, `join_preview`, `parse_block_element`, `parse_inline_elements`, `parse_list_items`, `parse_table_cells`, `parse_table_content`, `preview_text`, `preview`, `push_blocks`, `push_inlines`, `push_line`, `push_part`, `push_text`, `table_row`, `text`, `trim`, `try_parse_markdown`
+// These functions are ignored because they are not marked as `pub`: `collect_links`, `inline_text`, `inlines_are_blank`, `into_hint_text`, `is_blank`, `join_preview`, `parse_block_element`, `parse_inline_elements`, `parse_list_items`, `parse_table_cells`, `parse_table_content`, `preview_text`, `preview`, `push_blocks`, `push_inlines`, `push_line`, `push_part`, `push_separator`, `push_text_line`, `push_text`, `table_row`, `trim`, `try_parse_markdown`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Preview`, `RangedEvent`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`
 // These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
