@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                    url,\n                    card,\n                    image,\n                    fetched_at AS \"fetched_at: _\"\n                FROM message_draft_link_preview\n                WHERE chat_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "url",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "message_draft_link_preview",
+            "name": "url"
+          }
+        }
+      },
+      {
+        "name": "card",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message_draft_link_preview",
+            "name": "card"
+          }
+        }
+      },
+      {
+        "name": "image",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message_draft_link_preview",
+            "name": "image"
+          }
+        }
+      },
+      {
+        "name": "fetched_at: _",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "message_draft_link_preview",
+            "name": "fetched_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "0a1c73af22f3ac26a8231837b48a3ae0780690cf41e5f7c7745d75757633b7a3"
+}

@@ -4,11 +4,16 @@
 
 use std::{collections::HashSet, mem};
 
+mod shared;
+
+pub(crate) use shared::{SharedLinkPreview, original_preview};
+
 use aircoreclient::{
     ComposedLinkPreview, MessageId,
-    link_preview::{FetchedLinkPreview, select_links},
+    link_preview::{DraftLinkPreview, FetchedLinkPreview, select_links},
 };
 use airprotos::client::link_preview::LinkPreviewCard;
+use chrono::{DateTime, Utc};
 use tokio_util::sync::CancellationToken;
 
 use crate::api::message_content::UiComposerLinkPreview;
@@ -25,6 +30,8 @@ pub(crate) struct ComposerLinkPreview {
     /// Message being edited
     editing: Option<MessageId>,
     original: Option<OriginalPreview>,
+    /// Running refetch of a ready preview
+    refresh: Option<CancellationToken>,
 }
 
 /// Card of the message being edited.
@@ -46,8 +53,23 @@ enum Fetch {
     #[default]
     None,
     Loading(CancellationToken),
-    Ready(FetchedLinkPreview),
+    Ready {
+        fetched: FetchedLinkPreview,
+        fetched_at: DateTime<Utc>,
+    },
     Original,
+}
+
+/// Comparable key of the state stored with the draft.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum StoredKey {
+    Fetched {
+        url: String,
+        fetched_at: DateTime<Utc>,
+    },
+    Dismissed {
+        url: String,
+    },
 }
 
 impl ComposerLinkPreview {
@@ -55,7 +77,7 @@ impl ComposerLinkPreview {
     pub(crate) fn ready_for(&self, text: &str) -> Option<ComposedLinkPreview> {
         let first = select_links(text).next()?;
         match (&self.fetch, &self.original) {
-            (Fetch::Ready(fetched), _) if fetched.card().url() == first => {
+            (Fetch::Ready { fetched, .. }, _) if fetched.card().url() == first => {
                 Some(ComposedLinkPreview::Fetched(fetched.clone()))
             }
             (Fetch::Original, Some(original)) if original.card.url() == first => {
@@ -97,7 +119,7 @@ impl ComposerLinkPreview {
     /// Image bytes of the shown preview of `url`.
     pub(crate) fn image_for(&self, url: &str) -> Option<Vec<u8>> {
         match (&self.fetch, &self.original) {
-            (Fetch::Ready(fetched), _) if fetched.card().url() == url => {
+            (Fetch::Ready { fetched, .. }, _) if fetched.card().url() == url => {
                 fetched.image_bytes().map(|bytes| bytes.to_vec())
             }
             (Fetch::Original, Some(original)) if original.card.url() == url => {
@@ -159,8 +181,113 @@ impl ComposerLinkPreview {
         fetched: Option<FetchedLinkPreview>,
     ) {
         if !token.is_cancelled() {
-            self.fetch = fetched.map(Fetch::Ready).unwrap_or(Fetch::None);
+            self.fetch = match fetched {
+                Some(fetched) => Fetch::Ready {
+                    fetched,
+                    fetched_at: Utc::now(),
+                },
+                None => Fetch::None,
+            };
         }
+    }
+
+    /// Shows `fetched`, fetched at `fetched_at`, as the preview of its link.
+    pub(crate) fn restore(&mut self, fetched: FetchedLinkPreview, fetched_at: DateTime<Utc>) {
+        self.cancel();
+        self.url = Some(fetched.card().url().to_owned());
+        self.fetch = Fetch::Ready {
+            fetched,
+            fetched_at,
+        };
+    }
+
+    /// Makes the dismissed `url` the current link.
+    pub(crate) fn restore_dismissed(&mut self, url: String) {
+        self.cancel();
+        self.dismissed.insert(url.clone());
+        self.url = Some(url);
+    }
+
+    /// Starts to fetch the ready preview again.
+    ///
+    /// Returns the url to fetch and the token of the fetch, which is a child
+    /// of `parent`. Returns `None` if there is no ready preview. Cancels a
+    /// running refresh.
+    pub(crate) fn start_refresh(
+        &mut self,
+        parent: &CancellationToken,
+    ) -> Option<(String, CancellationToken)> {
+        let Fetch::Ready { fetched, .. } = &self.fetch else {
+            return None;
+        };
+        let url = fetched.card().url().to_owned();
+        self.cancel_refresh();
+        let token = parent.child_token();
+        self.refresh = Some(token.clone());
+        Some((url, token))
+    }
+
+    /// Stores the result of the refresh started with `token`.
+    ///
+    /// The result of a cancelled refresh is ignored. A failed refresh keeps
+    /// the preview.
+    pub(crate) fn finish_refresh(
+        &mut self,
+        token: &CancellationToken,
+        fetched: Option<FetchedLinkPreview>,
+    ) {
+        if token.is_cancelled() {
+            return;
+        }
+        self.refresh = None;
+        if let (Some(fetched), Fetch::Ready { .. }) = (fetched, &self.fetch) {
+            self.fetch = Fetch::Ready {
+                fetched,
+                fetched_at: Utc::now(),
+            };
+        }
+    }
+
+    /// Key of the state stored with the draft.
+    ///
+    /// Only a ready preview and the dismissal of the current link are stored.
+    pub(crate) fn stored_key(&self) -> Option<StoredKey> {
+        match &self.fetch {
+            Fetch::Ready {
+                fetched,
+                fetched_at,
+            } => Some(StoredKey::Fetched {
+                url: fetched.card().url().to_owned(),
+                fetched_at: *fetched_at,
+            }),
+            _ => self.current_dismissed().map(|url| StoredKey::Dismissed {
+                url: url.to_owned(),
+            }),
+        }
+    }
+
+    /// State to store with the draft, see [`Self::stored_key`].
+    pub(crate) fn to_stored(&self) -> Option<DraftLinkPreview> {
+        match &self.fetch {
+            Fetch::Ready {
+                fetched,
+                fetched_at,
+            } => Some(DraftLinkPreview::Fetched {
+                preview: fetched.clone(),
+                fetched_at: *fetched_at,
+            }),
+            _ => self
+                .current_dismissed()
+                .map(|url| DraftLinkPreview::Dismissed {
+                    url: url.to_owned(),
+                }),
+        }
+    }
+
+    fn current_dismissed(&self) -> Option<&str> {
+        self.url
+            .as_deref()
+            .filter(|url| self.dismissed.contains(*url))
     }
 
     pub(crate) fn ui(&self) -> Option<UiComposerLinkPreview> {
@@ -168,7 +295,7 @@ impl ComposerLinkPreview {
             (Some(url), Fetch::Loading(_)) => {
                 Some(UiComposerLinkPreview::Loading { url: url.clone() })
             }
-            (_, Fetch::Ready(fetched)) => Some(UiComposerLinkPreview::ready(fetched)),
+            (_, Fetch::Ready { fetched, .. }) => Some(UiComposerLinkPreview::ready(fetched)),
             (_, Fetch::Original) => self
                 .original
                 .as_ref()
@@ -177,9 +304,16 @@ impl ComposerLinkPreview {
         }
     }
 
-    /// Drops the preview and cancels a running fetch.
+    /// Drops the preview and cancels a running fetch or refresh.
     fn cancel(&mut self) {
         if let Fetch::Loading(token) = mem::take(&mut self.fetch) {
+            token.cancel();
+        }
+        self.cancel_refresh();
+    }
+
+    fn cancel_refresh(&mut self) {
+        if let Some(token) = self.refresh.take() {
             token.cancel();
         }
     }
@@ -501,5 +635,208 @@ mod tests {
         assert_eq!(preview.ui(), None);
         assert!(preview.ready_for(A).is_none());
         assert!(preview.switch_to(Some(A), &parent).is_some());
+    }
+
+    fn hour_ago() -> DateTime<Utc> {
+        Utc::now() - chrono::TimeDelta::hours(1)
+    }
+
+    fn restored(url: &str, fetched_at: DateTime<Utc>) -> ComposerLinkPreview {
+        let mut preview = ComposerLinkPreview::default();
+        preview.restore(fetched(url), fetched_at);
+        preview
+    }
+
+    fn fetched_key(url: &str, fetched_at: DateTime<Utc>) -> Option<StoredKey> {
+        Some(StoredKey::Fetched {
+            url: url.to_owned(),
+            fetched_at,
+        })
+    }
+
+    fn dismissed_key(url: &str) -> Option<StoredKey> {
+        Some(StoredKey::Dismissed {
+            url: url.to_owned(),
+        })
+    }
+
+    #[test]
+    fn restore_shows_the_preview_without_a_fetch() {
+        let fetched_at = hour_ago();
+        let mut preview = restored(A, fetched_at);
+        assert_eq!(preview.ui(), ready(A));
+        assert!(
+            preview
+                .switch_to(Some(A), &CancellationToken::new())
+                .is_none()
+        );
+        assert_eq!(preview.ui(), ready(A));
+        assert!(matches!(
+            preview.ready_for(A),
+            Some(ComposedLinkPreview::Fetched(_))
+        ));
+        assert_eq!(preview.stored_key(), fetched_key(A, fetched_at));
+    }
+
+    #[test]
+    fn restore_dismissed_does_not_fetch() {
+        let parent = CancellationToken::new();
+        let mut preview = ComposerLinkPreview::default();
+        preview.restore_dismissed(A.to_owned());
+        assert_eq!(preview.ui(), None);
+        assert!(preview.switch_to(Some(A), &parent).is_none());
+        assert_eq!(preview.stored_key(), dismissed_key(A));
+
+        assert!(preview.switch_to(Some(B), &parent).is_some());
+        assert!(preview.switch_to(Some(A), &parent).is_none());
+        assert_eq!(preview.ui(), None);
+    }
+
+    #[test]
+    fn stored_key_of_ready_preview_and_current_dismissal() {
+        let parent = CancellationToken::new();
+        let mut preview = ComposerLinkPreview::default();
+        assert_eq!(preview.stored_key(), None);
+
+        let (_, token) = preview.switch_to(Some(A), &parent).unwrap();
+        assert_eq!(preview.stored_key(), None);
+        preview.finish(&token, Some(fetched(A)));
+        let Some(StoredKey::Fetched { url, .. }) = preview.stored_key() else {
+            panic!("expected a fetched key");
+        };
+        assert_eq!(url, A);
+
+        // The dismissal of another link is not stored
+        let key = preview.stored_key();
+        preview.dismiss(B);
+        assert_eq!(preview.stored_key(), key);
+
+        preview.dismiss(A);
+        assert_eq!(preview.stored_key(), dismissed_key(A));
+        let _fetch = preview.switch_to(Some("https://c.org"), &parent);
+        assert_eq!(preview.stored_key(), None);
+        assert!(preview.switch_to(Some(A), &parent).is_none());
+        assert_eq!(preview.stored_key(), dismissed_key(A));
+
+        preview.reset();
+        assert_eq!(preview.stored_key(), None);
+    }
+
+    #[test]
+    fn original_is_not_stored() {
+        let mut preview = ComposerLinkPreview::default();
+        preview.start_edit(message_id(), Some(original(A)));
+        assert_eq!(preview.stored_key(), None);
+        assert!(preview.to_stored().is_none());
+    }
+
+    #[test]
+    fn to_stored_matches_the_key() {
+        let fetched_at = hour_ago();
+        let preview = restored(A, fetched_at);
+        let Some(DraftLinkPreview::Fetched {
+            preview: stored,
+            fetched_at: stored_at,
+        }) = preview.to_stored()
+        else {
+            panic!("expected a fetched preview");
+        };
+        assert_eq!(stored.card().url(), A);
+        assert_eq!(stored_at, fetched_at);
+
+        let mut preview = ComposerLinkPreview::default();
+        preview.restore_dismissed(A.to_owned());
+        let Some(DraftLinkPreview::Dismissed { url }) = preview.to_stored() else {
+            panic!("expected a dismissed preview");
+        };
+        assert_eq!(url, A);
+    }
+
+    #[test]
+    fn start_refresh_needs_a_ready_preview() {
+        let parent = CancellationToken::new();
+        let mut preview = ComposerLinkPreview::default();
+        assert!(preview.start_refresh(&parent).is_none());
+        let _fetch = preview.switch_to(Some(A), &parent);
+        assert!(preview.start_refresh(&parent).is_none());
+
+        let mut preview = restored(A, hour_ago());
+        let (url, token) = preview.start_refresh(&parent).unwrap();
+        assert_eq!(url, A);
+        assert!(!token.is_cancelled());
+        // The preview stays visible while refreshing
+        assert_eq!(preview.ui(), ready(A));
+        assert!(preview.ready_for(A).is_some());
+
+        parent.cancel();
+        assert!(token.is_cancelled());
+    }
+
+    #[test]
+    fn refresh_replaces_the_preview() {
+        let fetched_at = hour_ago();
+        let mut preview = restored(A, fetched_at);
+        let (_, token) = preview.start_refresh(&CancellationToken::new()).unwrap();
+        preview.finish_refresh(&token, Some(fetched(A)));
+        assert_eq!(preview.ui(), ready(A));
+        let Some(StoredKey::Fetched {
+            fetched_at: refreshed_at,
+            ..
+        }) = preview.stored_key()
+        else {
+            panic!("expected a fetched key");
+        };
+        assert!(refreshed_at > fetched_at);
+    }
+
+    #[test]
+    fn failed_refresh_keeps_the_preview() {
+        let fetched_at = hour_ago();
+        let mut preview = restored(A, fetched_at);
+        let (_, token) = preview.start_refresh(&CancellationToken::new()).unwrap();
+        preview.finish_refresh(&token, None);
+        assert_eq!(preview.ui(), ready(A));
+        assert_eq!(preview.stored_key(), fetched_key(A, fetched_at));
+    }
+
+    #[test]
+    fn refresh_is_cancelled_by_changes() {
+        let parent = CancellationToken::new();
+
+        let mut preview = restored(A, hour_ago());
+        let (_, token) = preview.start_refresh(&parent).unwrap();
+        let _fetch = preview.switch_to(Some(B), &parent);
+        assert!(token.is_cancelled());
+        // The late result is ignored
+        preview.finish_refresh(&token, Some(fetched(A)));
+        assert_eq!(preview.ui(), loading(B));
+
+        let mut preview = restored(A, hour_ago());
+        let (_, token) = preview.start_refresh(&parent).unwrap();
+        preview.dismiss(A);
+        assert!(token.is_cancelled());
+        preview.finish_refresh(&token, Some(fetched(A)));
+        assert_eq!(preview.ui(), None);
+
+        let mut preview = restored(A, hour_ago());
+        let (_, token) = preview.start_refresh(&parent).unwrap();
+        preview.reset();
+        assert!(token.is_cancelled());
+        preview.finish_refresh(&token, Some(fetched(A)));
+        assert_eq!(preview.ui(), None);
+    }
+
+    #[test]
+    fn refresh_survives_the_same_link() {
+        let parent = CancellationToken::new();
+        let mut preview = restored(A, hour_ago());
+        let (_, first) = preview.start_refresh(&parent).unwrap();
+        assert!(preview.switch_to(Some(A), &parent).is_none());
+        assert!(!first.is_cancelled());
+
+        // Starting another refresh cancels the first
+        let (_, second) = preview.start_refresh(&parent).unwrap();
+        assert!(first.is_cancelled());
+        assert!(!second.is_cancelled());
     }
 }

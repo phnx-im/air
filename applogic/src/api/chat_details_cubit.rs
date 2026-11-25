@@ -23,7 +23,6 @@ use airprotos::client::component::AirFeatures;
 use anyhow::{Context as _, bail};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;
-use parking_lot::Mutex;
 use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
 use tracing::{error, info, warn};
@@ -34,7 +33,7 @@ use crate::{
         message_content::{UiComposerLinkPreview, UiMimiId, UnresolvedMimiContent},
         types::{UiChatMessage, UiInReplyToMessage, UiMessageVersion},
     },
-    composer_link_preview::{ComposerLinkPreview, OriginalPreview},
+    composer_link_preview::{ComposerLinkPreview, SharedLinkPreview, original_preview},
     mark_as_read::MarkAsReadState,
 };
 use crate::{api::types::UiMessageDraft, message_content::MimiContentExt};
@@ -101,7 +100,7 @@ pub struct ChatDetailsCubitBase {
     core: CubitCore<ChatDetailsState>,
     user_settings_rx: watch::Receiver<UserSettings>,
     attachment_in_progress: InProgressMap,
-    link_preview: Mutex<ComposerLinkPreview>,
+    link_preview: SharedLinkPreview,
 }
 
 impl ChatDetailsCubitBase {
@@ -168,12 +167,28 @@ impl ChatDetailsCubitBase {
             .run_until_cancelled_owned(context.clone().update_state_task());
         spawn_from_sync(update_state_task);
 
+        let link_preview = SharedLinkPreview::new(
+            store.clone(),
+            chat_id,
+            core.state_tx().clone(),
+            user_settings_rx.clone(),
+        );
+        let restore_link_preview_task = core
+            .cancellation_token()
+            .clone()
+            .run_until_cancelled_owned({
+                let link_preview = link_preview.clone();
+                let parent = core.cancellation_token().clone();
+                async move { link_preview.restored(&parent).await }
+            });
+        spawn_from_sync(restore_link_preview_task);
+
         Self {
             context,
             core,
             user_settings_rx,
             attachment_in_progress: attachments_repository.in_progress().clone(),
-            link_preview: Default::default(),
+            link_preview,
         }
     }
 
@@ -316,6 +331,9 @@ impl ChatDetailsCubitBase {
     }
 
     async fn try_send_message(&self, text: String) -> anyhow::Result<()> {
+        self.link_preview
+            .restored(self.core.cancellation_token())
+            .await;
         self.seed_link_preview_of_edit().await?;
 
         // The draft is only cleared once the message is stored, so that its
@@ -692,42 +710,12 @@ impl ChatDetailsCubitBase {
         });
 
         if changed {
-            let original = self.original_preview(&message).await;
+            let original = original_preview(&self.context.core_user, &message).await;
             self.with_link_preview(|lp| lp.start_edit(message.id(), original));
             self.store_draft_from_state().await?;
         }
 
         Ok(())
-    }
-
-    /// Card of `message` with the stored bytes of its image.
-    async fn original_preview(&self, message: &ChatMessage) -> Option<OriginalPreview> {
-        let preview = LinkPreview::from_content(message.message().mimi_content()?)?;
-        let image = match preview.image() {
-            Some((_, part_index)) => {
-                let attachments = self
-                    .context
-                    .core_user
-                    .attachment_infos_for_message(message.id())
-                    .await;
-                attachments
-                    .find(part_index, None)
-                    .map(|info| info.attachment_id)
-            }
-            None => None,
-        };
-        let image_bytes = match image {
-            Some(attachment_id) => self
-                .context
-                .core_user
-                .load_attachment(attachment_id)
-                .await
-                .inspect_err(|error| error!(%error, "Failed to load the card image"))
-                .ok()
-                .and_then(|content| content.into_bytes()),
-            None => None,
-        };
-        Some(OriginalPreview::new(preview.card().clone(), image_bytes))
     }
 
     /// Seeds the link preview with the card of the edited message, if the
@@ -750,7 +738,7 @@ impl ChatDetailsCubitBase {
         let Some(message) = self.context.core_user.message(editing_id).await? else {
             return Ok(());
         };
-        let original = self.original_preview(&message).await;
+        let original = original_preview(&self.context.core_user, &message).await;
         self.with_link_preview(|lp| lp.start_edit(editing_id, original));
         Ok(())
     }
@@ -911,6 +899,9 @@ impl ChatDetailsCubitBase {
     }
 
     pub async fn update_link_previews(&self, text: String) -> anyhow::Result<()> {
+        self.link_preview
+            .restored(self.core.cancellation_token())
+            .await;
         self.seed_link_preview_of_edit().await?;
         let generate = self.user_settings_rx.borrow().generate_link_previews;
         // Without generation, only the card of the edited message is shown
@@ -935,20 +926,7 @@ impl ChatDetailsCubitBase {
     }
 
     fn with_link_preview<R>(&self, f: impl FnOnce(&mut ComposerLinkPreview) -> R) -> R {
-        let mut link_preview = self.link_preview.lock();
-        let result = f(&mut link_preview);
-        let ui = self
-            .user_settings_rx
-            .borrow()
-            .generate_link_previews
-            .then(|| link_preview.ui())
-            .flatten();
-        self.core.state_tx().send_if_modified(|state| {
-            let changed = state.link_preview != ui;
-            state.link_preview = ui;
-            changed
-        });
-        result
+        self.link_preview.update(f)
     }
 
     pub fn composer_link_preview_image(&self, url: String) -> Option<Vec<u8>> {

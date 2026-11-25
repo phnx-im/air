@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM message_draft_link_preview WHERE chat_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "e42e3201ce1493a4cdfc668f7ab0e0f4f2449e5815bc08b270402fdd798940cb"
+}

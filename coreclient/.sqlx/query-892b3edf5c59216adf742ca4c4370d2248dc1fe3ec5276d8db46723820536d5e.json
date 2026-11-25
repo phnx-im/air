@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO message_draft_link_preview (\n                    chat_id, url, card, image, fetched_at\n                ) VALUES (?, ?, ?, ?, ?)\n                ON CONFLICT(chat_id) DO UPDATE SET\n                    url = excluded.url,\n                    card = excluded.card,\n                    image = excluded.image,\n                    fetched_at = excluded.fetched_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "892b3edf5c59216adf742ca4c4370d2248dc1fe3ec5276d8db46723820536d5e"
+}

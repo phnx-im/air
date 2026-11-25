@@ -3,11 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 mod card;
+mod draft;
 mod fetch;
 mod layout;
 mod links;
 
 pub use card::LinkPreview;
+pub use draft::DraftLinkPreview;
 pub use fetch::FetchedLinkPreview;
 pub use links::select_links;
 

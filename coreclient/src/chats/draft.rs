@@ -48,6 +48,7 @@ mod persistence {
         ChatId,
         chats::persistence::SqlChatStatus,
         db::access::{ReadConnection, WriteConnection},
+        link_preview::DraftLinkPreview,
     };
 
     use super::*;
@@ -198,6 +199,7 @@ mod persistence {
             query!("DELETE FROM message_draft WHERE chat_id = ?", chat_id)
                 .execute(connection.as_mut())
                 .await?;
+            DraftLinkPreview::delete(&mut connection, chat_id).await?;
             connection.notifier().update(chat_id);
             Ok(())
         }
@@ -217,6 +219,7 @@ mod persistence {
             .execute(connection.as_mut())
             .await?;
             if result.rows_affected() > 0 {
+                DraftLinkPreview::delete(&mut connection, chat_id).await?;
                 connection.notifier().update(chat_id);
             }
             Ok(())
