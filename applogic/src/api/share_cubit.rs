@@ -14,15 +14,14 @@ use std::{
     sync::{Arc, OnceLock},
 };
 
-use aircommon::{OpenMlsRand, RustCrypto};
 use aircoreclient::{
-    AttachmentProgressEvent, ChatId, MarkChatAsRead, MessageId, ProvisionAttachmentError,
-    UploadTaskError, clients::CoreUser,
+    AttachmentProgressEvent, ChatId, ComposedLinkPreview, DeveloperModeSetting,
+    ExperimentalFeaturesSetting, GenerateLinkPreviewsSetting, MarkChatAsRead, MessageId,
+    ProvisionAttachmentError, UploadTaskError, clients::CoreUser, link_preview::select_links,
 };
 use anyhow::Context as _;
 use flutter_rust_bridge::frb;
 use futures_util::StreamExt;
-use mimi_content::MimiContent;
 use tokio::sync::{Mutex, watch};
 use tracing::error;
 use uuid::Uuid;
@@ -31,9 +30,11 @@ use crate::{
     StreamSink,
     api::{
         chat_details_cubit::load_chat_details,
+        message_content::UiComposerLinkPreview,
         types::{UiChatDetails, UiChatStatus, UiChatType},
         user::User,
     },
+    composer_link_preview::ComposerLinkPreview,
     util::{Cubit, CubitCore, spawn_from_sync},
 };
 
@@ -112,6 +113,7 @@ pub struct ShareState {
     pub signed_in: bool,
     pub chats: Vec<UiChatDetails>,
     pub send_status: UiShareSendStatus,
+    pub link_preview: Option<UiComposerLinkPreview>,
 }
 
 /// The cubit backing the share UI
@@ -127,6 +129,8 @@ pub struct ShareCubitBase {
     core_user: Arc<OnceLock<CoreUser>>,
     /// What each chat already received, tracked over retries.
     progress: Mutex<HashMap<ChatId, ChatSendProgress>>,
+    /// Link preview of the shared text message.
+    link_preview: parking_lot::Mutex<ComposerLinkPreview>,
 }
 
 impl ShareCubitBase {
@@ -154,6 +158,7 @@ impl ShareCubitBase {
             core,
             core_user,
             progress: Mutex::new(HashMap::new()),
+            link_preview: Default::default(),
         }
     }
 
@@ -200,6 +205,60 @@ impl ShareCubitBase {
     #[frb(sync)]
     pub fn reset_send_status(&self) {
         self.emit_send_status(UiShareSendStatus::Idle);
+    }
+
+    /// Resolves the link preview for the first link of `text`.
+    ///
+    /// Does nothing while the user is not loaded.
+    pub async fn update_link_previews(&self, text: String) -> anyhow::Result<()> {
+        let Some(core_user) = self.core_user.get() else {
+            return Ok(());
+        };
+        // The main app gates this in Dart, the extension has no settings cubit
+        let enabled = experimental_features_active(core_user).await
+            && generate_link_previews(core_user).await;
+        let url = select_links(&text).next().filter(|_| enabled);
+        let parent = self.core.cancellation_token();
+        let Some((url, token)) = self.with_link_preview(|lp| lp.switch_to(url, parent)) else {
+            return Ok(());
+        };
+        let fetched = core_user.fetch_link_preview(url, token.clone()).await;
+        self.with_link_preview(|lp| lp.finish(&token, fetched));
+        Ok(())
+    }
+
+    #[frb(sync)]
+    pub fn dismiss_link_preview(&self, url: String) {
+        self.with_link_preview(|lp| lp.dismiss(&url));
+    }
+
+    pub fn link_preview_image(&self, url: String) -> Option<Vec<u8>> {
+        self.link_preview.lock().image_for(&url)
+    }
+
+    fn with_link_preview<R>(&self, f: impl FnOnce(&mut ComposerLinkPreview) -> R) -> R {
+        let mut link_preview = self.link_preview.lock();
+        let result = f(&mut link_preview);
+        let ui = link_preview.ui();
+        self.core.state_tx().send_if_modified(|state| {
+            let changed = state.link_preview != ui;
+            state.link_preview = ui;
+            changed
+        });
+        result
+    }
+
+    /// Link preview to send with `text`.
+    async fn link_preview_to_send(
+        &self,
+        core_user: &CoreUser,
+        text: &str,
+    ) -> Option<ComposedLinkPreview> {
+        let preview = self.link_preview.lock().ready_for(text);
+        match preview {
+            Some(_) if !generate_link_previews(core_user).await => None,
+            preview => preview,
+        }
     }
 
     /// Sends the shared content to the given chats.
@@ -302,7 +361,13 @@ impl ShareCubitBase {
             if let Some(text) = &message
                 && !progress.text
             {
-                match send_text_message(core_user, chat_id, text.clone()).await {
+                // Shows progress while the card image uploads
+                if attachments.is_empty() {
+                    self.emit_send_status(UiShareSendStatus::Sending);
+                }
+                let link_preview = self.link_preview_to_send(core_user, text).await;
+                let sent = send_text_message(core_user, chat_id, text.clone(), link_preview);
+                match Box::pin(sent).await {
                     Ok(message_id) => {
                         enqueued.push(message_id);
                         progress.text = true;
@@ -497,14 +562,50 @@ async fn send_text_message(
     core_user: &CoreUser,
     chat_id: ChatId,
     text: String,
+    link_preview: Option<ComposedLinkPreview>,
 ) -> anyhow::Result<MessageId> {
-    let salt: [u8; 16] = RustCrypto::default().random_array()?;
-    let content = MimiContent::simple_markdown_message(text, salt);
     // Sharing happens without the user looking at the chat, so it must not
     // mark older messages as read.
-    let message =
-        Box::pin(core_user.send_message(chat_id, content, None, MarkChatAsRead::No)).await?;
-    Ok(message.id())
+    let composed = core_user
+        .compose(chat_id)
+        .text(text)
+        .link_preview(link_preview)
+        .mark_as_read(MarkChatAsRead::No)
+        .send()
+        .await?;
+    // The message is stored already, a failed upload holds it back
+    for upload in composed.uploads {
+        let attachment_id = upload.attachment_id;
+        if let Err(error) = upload.task.await {
+            error!(
+                ?error,
+                ?attachment_id,
+                "Failed to upload link preview image"
+            );
+        }
+    }
+    Ok(composed.message.id())
+}
+
+/// Whether experimental features are on, as the main app's
+/// `experimentalFeaturesActive`.
+async fn experimental_features_active(core_user: &CoreUser) -> bool {
+    let developer_mode = core_user
+        .user_setting()
+        .await
+        .is_some_and(|DeveloperModeSetting(value)| value);
+    let experimental_features = core_user
+        .user_setting()
+        .await
+        .is_some_and(|ExperimentalFeaturesSetting(value)| value);
+    developer_mode && experimental_features
+}
+
+async fn generate_link_previews(core_user: &CoreUser) -> bool {
+    core_user
+        .user_setting()
+        .await
+        .is_none_or(|GenerateLinkPreviewsSetting(value)| value)
 }
 
 async fn all_sent(core_user: &CoreUser, message_ids: &[MessageId]) -> bool {

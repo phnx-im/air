@@ -23,6 +23,7 @@ import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/share/pending_share.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -502,6 +503,55 @@ void main() {
       await tester.pump(_linkPreviewDebounce);
 
       verifyNever(() => chatDetailsCubit.updateLinkPreviews(any()));
+    });
+
+    testWidgets('resolves the link of a restored draft', (tester) async {
+      when(() => userSettingsCubit.state).thenReturn(experimental);
+      final draft = UiMessageDraft(
+        message: 'See $_linkUrl',
+        previewText: 'See $_linkUrl',
+        updatedAt: DateTime.parse('2023-01-01T00:00:00.000Z'),
+        isCommitted: true,
+      );
+      final state = ChatDetailsState(
+        chat: _chatWithDraft(draft),
+        members: _members,
+      );
+      when(() => chatDetailsCubit.state).thenReturn(state);
+      when(() => chatDetailsCubit.stream)
+          .thenAnswer((_) => Stream.value(state));
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+      expect(inputController.text, 'See $_linkUrl');
+
+      await tester.pump(_linkPreviewDebounce);
+      verify(() => chatDetailsCubit.updateLinkPreviews('See $_linkUrl'))
+          .called(1);
+    });
+
+    testWidgets('resolves the link of a shared text', (tester) async {
+      when(() => userSettingsCubit.state).thenReturn(experimental);
+      when(() => navigationCubit.state).thenReturn(
+        NavigationState.home(
+          home: HomeNavigationState(
+            chatId: _chat.id,
+            pendingShare: const PendingShare(text: _linkUrl),
+          ),
+        ),
+      );
+      when(() => navigationCubit.shareConsumed()).thenReturn(null);
+      final state = ChatDetailsState(chat: _chat, members: _members);
+      when(() => chatDetailsCubit.state).thenReturn(state);
+      when(() => chatDetailsCubit.stream)
+          .thenAnswer((_) => Stream.value(state));
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+      expect(inputController.text, _linkUrl);
+
+      await tester.pump(_linkPreviewDebounce);
+      verify(() => chatDetailsCubit.updateLinkPreviews(_linkUrl)).called(1);
     });
 
     testWidgets('resolves the link while editing', (tester) async {

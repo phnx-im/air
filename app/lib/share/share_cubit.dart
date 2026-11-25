@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:air/core/core.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -35,6 +36,14 @@ class IOSShareCubit implements StateStreamableSource<ShareState> {
       _impl.chatIdForShareTarget(identifier);
 
   void resetSendStatus() => _impl.resetSendStatus();
+
+  Future<void> updateLinkPreviews(String text) =>
+      _impl.updateLinkPreviews(text: text);
+
+  void dismissLinkPreview(String url) => _impl.dismissLinkPreview(url: url);
+
+  Future<Uint8List?> linkPreviewImage(String url) =>
+      _impl.linkPreviewImage(url: url);
 
   Future<void> send({
     required List<ChatId> chatIds,

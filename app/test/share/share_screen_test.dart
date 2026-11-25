@@ -5,8 +5,10 @@
 import 'dart:io';
 
 import 'package:air/core/core.dart';
+import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/message_bubble/message_bubble.dart';
+import 'package:air/ds/patterns/message_input/message_input_link_preview.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/share/share_payload.dart';
@@ -117,6 +119,9 @@ void main() {
 
   setUp(() {
     shareCubit = MockShareCubit();
+    when(() => shareCubit.updateLinkPreviews(any())).thenAnswer((_) async {});
+    when(() => shareCubit.linkPreviewImage(any()))
+        .thenAnswer((_) async => null);
   });
 
   // The share host never mounts the screen with nothing to share, so the
@@ -361,11 +366,12 @@ void main() {
       await tester.tap(sendButtonFinder);
       await tester.pumpAndSettle();
 
+      // The caption goes first, the shared text after it.
       verify(
         () => shareCubit.send(
           chatIds: [1.chatId()],
           attachments: [],
-          message: 'https://air.ms\n\nlook at this',
+          message: 'look at this\n\nhttps://air.ms',
         ),
       ).called(1);
     });
@@ -435,6 +441,83 @@ void main() {
       expect(find.text('Alice'), findsOneWidget);
       expect(isEnabled(tester, nextButtonFinder), isTrue);
     });
+
+    testWidgets('resolves the link preview once loaded', (tester) async {
+      sizeView(tester, phoneViewSize);
+      when(() => shareCubit.state).thenReturn(loadedState);
+      whenListen(
+        shareCubit,
+        Stream.fromIterable([loadedState]),
+        initialState: const ShareState(
+          loaded: false,
+          signedIn: false,
+          chats: [],
+          sendStatus: UiShareSendStatus.idle(),
+        ),
+      );
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      verify(() => shareCubit.updateLinkPreviews('https://air.ms')).called(1);
+    });
+
+    testWidgets('resolves the link preview for an edited caption', (
+      tester,
+    ) async {
+      sizeView(tester, phoneViewSize);
+      when(() => shareCubit.state).thenReturn(loadedState);
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+      await pickAndContinue(tester);
+
+      await tester.enterText(find.byType(TextField), 'look at this');
+      await tester.pump(const Duration(milliseconds: 300));
+
+      verify(
+        () => shareCubit.updateLinkPreviews('look at this\n\nhttps://air.ms'),
+      ).called(1);
+    });
+
+    for (final (name, preview) in [
+      (
+        'ready',
+        const UiComposerLinkPreview.ready(
+          card: UiLinkPreviewCard(
+            url: 'https://air.ms',
+            title: 'Air',
+            description: 'Messaging',
+            kind: UiLinkPreviewKind.default_,
+          ),
+        ),
+      ),
+      ('loading', const UiComposerLinkPreview.loading(url: 'https://air.ms')),
+    ]) {
+      testWidgets('shows and dismisses a $name link preview', (tester) async {
+        sizeView(tester, phoneViewSize);
+        when(() => shareCubit.state)
+            .thenReturn(loadedState.copyWith(linkPreview: preview));
+        when(() => shareCubit.dismissLinkPreview(any())).thenReturn(null);
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pumpAndSettle();
+        await pickAndContinue(tester);
+
+        final staged = find.byType(MessageInputLinkPreview);
+        expect(staged, findsOneWidget);
+        await tester.tap(
+          find.descendant(
+            of: staged,
+            matching: find.byWidgetPredicate(
+              (w) => w is ButtonIcon && w.icon == AppIconType.x,
+            ),
+          ),
+        );
+
+        verify(() => shareCubit.dismissLinkPreview('https://air.ms')).called(1);
+      });
+    }
 
     testWidgets('shows the upload progress', (tester) async {
       sizeView(tester, phoneViewSize);
