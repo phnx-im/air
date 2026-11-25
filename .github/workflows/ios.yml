@@ -11,6 +11,10 @@ on:
         description: "Upload the app to TestFlight"
         type: boolean
         default: false
+      release-candidate:
+        description: "Also make the build the App Store draft of its version"
+        type: boolean
+        default: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -68,8 +72,12 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          RELEASE_CANDIDATE: ${{ inputs.release-candidate }}
         working-directory: app
-        run: bundle exec fastlane ios beta_ios ${{ inputs.upload && 'upload_to_test_flight:true' || '' }} --verbose
+        run: >-
+          bundle exec fastlane ios beta_ios
+          ${{ inputs.upload && 'upload_to_test_flight:true' || '' }}
+          release_candidate:"$RELEASE_CANDIDATE" --verbose
 
       - name: Upload build logs on failure
         if: failure()

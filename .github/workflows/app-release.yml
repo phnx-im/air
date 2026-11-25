@@ -40,18 +40,24 @@ jobs:
     uses: ./.github/workflows/android.yml
     with:
       upload: true
+      # Release candidates wait as a draft on the production track.
+      release-candidate: ${{ startsWith(github.ref_name, 'release/') }}
     secrets: inherit
 
   ios:
     uses: ./.github/workflows/ios.yml
     with:
       upload: true
+      # Release candidates also become the App Store draft of their version.
+      release-candidate: ${{ startsWith(github.ref_name, 'release/') }}
     secrets: inherit
 
   macos:
     uses: ./.github/workflows/macos.yml
     with:
       upload: true
+      # Release candidates also become the App Store draft of their version.
+      release-candidate: ${{ startsWith(github.ref_name, 'release/') }}
     secrets: inherit
 
   linux:

@@ -70,9 +70,10 @@ def apple_api_key(platform_name)
   )
 end
 
-# Signs and builds the app, then ships it to TestFlight and refreshes the store
-# listing when `upload_to_test_flight` is set.
-def apple_beta(platform, api_key:, upload_to_test_flight:)
+# Signs and builds the app, then ships it to TestFlight when
+# `upload_to_test_flight` is set. A release candidate also becomes the App Store
+# draft of its version.
+def apple_beta(platform, api_key:, upload_to_test_flight:, release_candidate:)
   target = apple_platform(platform)
 
   setup_ci()
@@ -109,11 +110,9 @@ def apple_beta(platform, api_key:, upload_to_test_flight:)
     distribute_external: false,
   )
 
-  apple_upload_metadata(
-    api_key: api_key,
-    app_identifier: target[:app_identifier],
-    platform: platform,
-  )
+  # main has the listing of unreleased features, which is why its builds stay
+  # in TestFlight.
+  apple_prepare_draft(platform, api_key: api_key) if release_candidate
 end
 
 # Builds the app, signing it only when `with_signing` is set. Unsigned builds
@@ -171,41 +170,179 @@ def apple_metadata_uploadable_states
   ]
 end
 
-# Uploads store metadata and screenshots for a build that is already on App
-# Store Connect.
-def apple_upload_metadata(api_key:, app_identifier:, platform:)
-  target = apple_platform(platform)
-
-  app = Spaceship::ConnectAPI::App.find(app_identifier)
-  UI.user_error!("App not found: #{app_identifier}") unless app
+# Explains why the version cannot be the App Store draft, or returns nil when
+# it can.
+#
+# App Store Connect has one editable version per platform. deliver renames it
+# to the version it uploads, or creates it when there is none.
+def apple_draft_blocker(target, version)
+  app = Spaceship::ConnectAPI::App.find(target[:app_identifier])
+  UI.user_error!("App not found: #{target[:app_identifier]}") unless app
 
   # get_edit_app_store_version defaults to the iOS platform, so the platform is
   # always passed explicitly.
   editable = app.get_edit_app_store_version(platform: target[:spaceship_platform])
-  editable_state = editable&.app_version_state || editable&.app_store_state
+  return apple_new_version_blocker(app, target, version) if editable.nil?
 
-  if editable.nil?
-    UI.important("No editable App Store version found. Skipping metadata upload.")
+  state = editable.app_version_state || editable.app_store_state
+  unless apple_metadata_uploadable_states.include?(state)
+    return "App Store version '#{editable.version_string}' is in '#{state}' state"
+  end
+  # A build of an older release line, such as a hotfix, leaves the draft of a
+  # newer one alone.
+  if Gem::Version.new(editable.version_string) > Gem::Version.new(version)
+    return "App Store Connect prepares the newer version '#{editable.version_string}'"
+  end
+
+  nil
+end
+
+# States of a version that is neither editable nor live. App Store Connect
+# creates no new version of the platform while one is in such a state.
+def apple_in_flight_states
+  state = Spaceship::ConnectAPI::AppStoreVersion::AppVersionState
+  [
+    state::READY_FOR_REVIEW,
+    state::WAITING_FOR_EXPORT_COMPLIANCE,
+    state::IN_REVIEW,
+    state::ACCEPTED,
+    state::PENDING_APPLE_RELEASE,
+    state::PENDING_DEVELOPER_RELEASE,
+  ]
+end
+
+# Explains why deliver cannot create the version, or returns nil when it can.
+def apple_new_version_blocker(app, target, version)
+  platform = target[:spaceship_platform]
+  in_flight = app.get_app_store_versions(
+    filter: { appVersionState: apple_in_flight_states.join(","), platform: platform }
+  ).first
+  if in_flight
+    return "App Store version '#{in_flight.version_string}' is in " \
+           "'#{in_flight.app_version_state}' state"
+  end
+
+  existing = app.get_app_store_versions(
+    filter: { versionString: version, platform: platform }
+  ).first
+  return nil unless existing
+
+  state = existing.app_version_state || existing.app_store_state
+  "App Store version '#{version}' is already in '#{state}' state"
+end
+
+# Makes the version of this build the App Store draft, with the store listing
+# and release notes of this branch. Apple reviews nothing before apple_submit
+# sends the draft.
+def apple_prepare_draft(platform, api_key:)
+  target = apple_platform(platform)
+  version = app_version
+  blocker = apple_draft_blocker(target, version)
+  if blocker
+    UI.important("#{blocker}. Skipping the #{target[:name]} App Store draft.")
     return
   end
 
-  unless apple_metadata_uploadable_states.include?(editable_state)
-    UI.important("App Store version '#{editable.version_string}' is in '#{editable_state}' state. Skipping metadata upload.")
+  notes = release_notes(version)
+  unless notes
+    UI.important("No release notes for #{version} yet, expected #{release_notes_path(version)}")
+  end
+  apple_deliver(target, api_key: api_key, version: version, notes: notes)
+end
+
+# Attaches the build to the App Store draft of its version and sends the draft
+# for review, with the store listing and release notes of this branch.
+def apple_submit(platform, api_key:, options:)
+  target = apple_platform(platform)
+  UI.user_error!("App Store Connect credentials are required to submit") unless api_key
+  build_number = submitted_build_number(options)
+  version = app_version
+  notes = required_release_notes(version)
+  blocker = apple_draft_blocker(target, version)
+  UI.user_error!("#{blocker}. Build #{build_number} cannot go to review now.") if blocker
+
+  apple_deliver(
+    target, api_key: api_key, version: version, notes: notes, submit_build: build_number
+  )
+end
+
+# Publishes the approved App Store version of the build to all users.
+#
+# apple_submit turns automatic release off, which leaves an approved version
+# waiting for this. A version that is live already with the build passes, which
+# lets a partly failed `cargo xtask publish-release` run again for all
+# platforms.
+def apple_publish(platform, api_key:, options:)
+  target = apple_platform(platform)
+  UI.user_error!("App Store Connect credentials are required to publish") unless api_key
+  build_number = submitted_build_number(options)
+  app = Spaceship::ConnectAPI::App.find(target[:app_identifier])
+  UI.user_error!("App not found: #{target[:app_identifier]}") unless app
+
+  state = Spaceship::ConnectAPI::AppStoreVersion::AppVersionState
+  pending = app.get_app_store_versions(
+    filter: {
+      appVersionState: state::PENDING_DEVELOPER_RELEASE,
+      platform: target[:spaceship_platform],
+    }
+  ).first
+  if pending.nil?
+    apple_check_live(app, target, build_number)
     return
   end
 
-  UI.message("Uploading metadata and screenshots for version '#{editable.version_string}' in state '#{editable_state}'")
-  upload_to_app_store(
+  pending_build = pending.build&.version
+  unless pending_build == build_number.to_s
+    UI.user_error!("App Store version '#{pending.version_string}' waits for release with " \
+                   "build #{pending_build || 'none'}, not #{build_number}")
+  end
+  pending.create_app_store_version_release_request
+  UI.success("Published #{target[:name]} App Store version '#{pending.version_string}' " \
+             "(build #{build_number})")
+end
+
+# Passes when the live App Store version has the build, and explains otherwise
+# why no version waits for release.
+def apple_check_live(app, target, build_number)
+  live = app.get_live_app_store_version(platform: target[:spaceship_platform])
+  if live && live.build&.version == build_number.to_s
+    UI.important("#{target[:name]} App Store version '#{live.version_string}' " \
+                 "(build #{build_number}) is live already")
+    return
+  end
+
+  live_text = "Nothing is live"
+  live_text = "Live is '#{live.version_string}' (build #{live.build&.version})" if live
+  UI.user_error!("No #{target[:name]} App Store version waits for release. #{live_text}. " \
+                 "App Store Connect shows whether build #{build_number} is still in review.")
+end
+
+# Uploads the store listing and release notes to the App Store version. With
+# `submit_build`, it also attaches that build and sends the version for review.
+def apple_deliver(target, api_key:, version:, notes:, submit_build: nil)
+  options = {
     api_key: api_key,
-    app_identifier: app_identifier,
+    app_identifier: target[:app_identifier],
     platform: target[:asc_platform],
-    # Both Apple stores list the same text, so they share one metadata tree.
-    # Only the screenshots are per-platform.
+    app_version: version,
+    # Both Apple stores list the same text, which is why they share one
+    # metadata tree. Only the screenshots are per-platform.
     metadata_path: "./stores/apple/metadata",
     screenshots_path: "./stores/#{target[:screenshots_dir]}/screenshots",
+    # The notes are in English. deliver leaves them unchanged when this is nil.
+    release_notes: notes ? { "en-US" => notes } : nil,
+    # An approved version waits for a manual release, which then reaches all
+    # users at once.
+    automatic_release: false,
+    phased_release: false,
     precheck_include_in_app_purchases: false,
     overwrite_screenshots: true,
     skip_binary_upload: true,
-    force: true
-  )
+    force: true,
+  }
+  if submit_build
+    options[:build_number] = submit_build.to_s
+    options[:submit_for_review] = true
+  end
+  upload_to_app_store(**options)
 end

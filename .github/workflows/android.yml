@@ -11,6 +11,10 @@ on:
         description: "Upload the app to the Play Store"
         type: boolean
         default: false
+      release-candidate:
+        description: "Upload the app as a draft on the production track instead of internal"
+        type: boolean
+        default: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -44,8 +48,12 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_PLAYSTORE_KEY_JSON: ${{ secrets.ANDROID_PLAYSTORE_KEY_JSON }}
+          RELEASE_CANDIDATE: ${{ inputs.release-candidate }}
         working-directory: app
-        run: bundle exec fastlane android beta_android ${{ inputs.upload && 'upload_to_play_store:true' || '' }} --verbose
+        run: >-
+          bundle exec fastlane android beta_android
+          ${{ inputs.upload && 'upload_to_play_store:true' || '' }}
+          release_candidate:"$RELEASE_CANDIDATE" --verbose
 
       - name: Upload Android app APK
         if: ${{ !inputs.upload }}
