@@ -22781,9 +22781,8 @@ class ShareCubitBaseImpl extends RustOpaque implements ShareCubitBase {
 
   /// Sends the shared content to the given chats.
   ///
-  /// Each attachment is sent as its own message, matching the in-app
-  /// behavior. The shared text and the caption are sent as one trailing
-  /// text message. Every chat receives its own copy. Progress is reported
+  /// Each attachment is sent as its own message. The shared text and the
+  /// caption are sent as one trailing text message. Every chat receives its own copy. Progress is reported
   /// via the state's `send_status`.
   ///
   /// Content a chat already received in an earlier call is skipped, so
