@@ -87,7 +87,9 @@ pub struct StagedAttachment {
 }
 
 impl StagedAttachment {
-    fn from_file(file: AttachmentFile) -> anyhow::Result<Result<Self, ProvisionAttachmentError>> {
+    pub(crate) fn from_file(
+        file: AttachmentFile,
+    ) -> anyhow::Result<Result<Self, ProvisionAttachmentError>> {
         let probed = match ProbedAttachment::from_path(file.path().to_owned())? {
             Ok(probed) => probed,
             Err(error) => return Ok(Err(error)),

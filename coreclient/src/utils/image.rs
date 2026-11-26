@@ -263,11 +263,13 @@ fn source_still_thumbnail<D: ImageDecoder>(mut decoder: D) -> anyhow::Result<Sou
     if let Some(orientation) = orientation {
         image.apply_orientation(orientation);
     }
+    let blurhash = compute_blurhash(&image)?;
     let rgba = image.to_rgba8();
     let (width, height) = rgba.dimensions();
     Ok(SourceThumbnail {
         bytes: encode_thumbnail_webp(rgba.as_raw(), width, height)?,
         is_animated: false,
+        blurhash,
     })
 }
 
@@ -283,9 +285,12 @@ fn source_animated_thumbnail<'a, D: AnimationDecoder<'a>>(
         .ok_or_else(|| anyhow::anyhow!("{source:?} has no frames"))??;
     let buffer = fit_to_max(first.into_buffer(), THUMBNAIL_MAX_EDGE, THUMBNAIL_MAX_EDGE);
     let (width, height) = buffer.dimensions();
+    let bytes = encode_thumbnail_webp(buffer.as_raw(), width, height)?;
+    let blurhash = compute_blurhash(&DynamicImage::ImageRgba8(buffer))?;
     Ok(SourceThumbnail {
-        bytes: encode_thumbnail_webp(buffer.as_raw(), width, height)?,
+        bytes,
         is_animated: true,
+        blurhash,
     })
 }
 
@@ -500,6 +505,7 @@ pub(crate) enum ThumbnailImage {
 pub(crate) struct SourceThumbnail {
     pub(crate) bytes: Vec<u8>,
     pub(crate) is_animated: bool,
+    pub(crate) blurhash: String,
 }
 
 /// Produces a static thumbnail from an attachment's stored WebP bytes.

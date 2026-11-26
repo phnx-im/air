@@ -23,10 +23,7 @@ use airprotos::{
 };
 use anyhow::{Context, bail, ensure};
 use chrono::Local;
-use mimi_content::{
-    MimiContent,
-    content_container::{Disposition, NestedPart, PartSemantics},
-};
+use mimi_content::content_container::{Disposition, NestedPart};
 use openmls::group::GroupId;
 use reqwest::Body;
 use sha2::{Digest, Sha256};
@@ -66,9 +63,6 @@ use crate::{
 /// a local denial of service: the real limit is enforced at provisioning time
 /// by the server.
 const MAX_IMAGE_SOURCE_SIZE: u64 = 100 * 1024 * 1024;
-
-/// Part index of the external part in [`attachment_content`], after the root.
-pub(crate) const ATTACHMENT_PART_INDEX: PartIndex = PartIndex(1);
 
 impl CoreUser {
     /// Uploads an attachment tied to the user (signed with their signing key)
@@ -302,16 +296,17 @@ impl CoreUser {
                     return Ok(None);
                 }
 
-                // Appended, so that the index of the attachment part stays
+                // The blurhash part follows the attachment part
+                let PartIndex(attachment_index) = reference.part_index;
                 if let Some(image_data) = image_data
-                    && let NestedPart::MultiPart { parts, .. } = &mut content.nested_part
+                    && let Some(NestedPart::SinglePart {
+                        content_type,
+                        content,
+                        ..
+                    }) = content.part_at_mut(PartIndex(attachment_index + 1))
+                    && content_type == media_type::TEXT_BLURHASH
                 {
-                    parts.push(NestedPart::SinglePart {
-                        disposition: Disposition::Preview,
-                        language: String::new(),
-                        content_type: media_type::TEXT_BLURHASH.to_owned(),
-                        content: image_data.blurhash.clone().into_bytes(),
-                    });
+                    *content = image_data.blurhash.clone().into_bytes();
                 }
 
                 self.finalize_processed_part(txn, &mut message, reference, group_id)
@@ -502,23 +497,6 @@ impl CoreUser {
         request.body(content).send().await?.error_for_status()?;
         Ok(())
     }
-}
-
-/// The message content an attachment is stored with.
-///
-/// The final message is derived by patching field values into these parts, so
-/// what the UI shows first and what goes on the wire have the same shape.
-pub(crate) fn attachment_content(parts: Vec<NestedPart>) -> anyhow::Result<MimiContent> {
-    Ok(MimiContent {
-        salt: Secret::<16>::random()?.secret().to_vec(),
-        nested_part: NestedPart::MultiPart {
-            disposition: Disposition::Attachment,
-            part_semantics: PartSemantics::ProcessAll,
-            parts,
-            language: Default::default(),
-        },
-        ..Default::default()
-    })
 }
 
 /// Holds the message as failed once none of its uploads is in flight and at

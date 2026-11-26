@@ -8,8 +8,9 @@ use std::{assert_matches, io::Cursor};
 
 use airapiclient::ds_api::DsRequestError;
 use aircoreclient::{
-    AttachmentFile, AttachmentProgressEvent, AttachmentStatus, ComposedMessage, MimiContentExt,
-    ProvisionAttachmentError, UploadTaskError, VisitedPart, clients::MarkChatAsRead,
+    AttachmentFile, AttachmentProgressEvent, AttachmentStatus, ChatMessage, ComposedMessage,
+    MimiContentExt, ProvisionAttachmentError, UploadTaskError, VisitedPart,
+    clients::MarkChatAsRead,
 };
 use airserver_test_harness::utils::{
     core_user_ext::CoreUserExt,
@@ -117,6 +118,191 @@ async fn attachment_is_downloadable_by_recipient() {
         }
         _ => panic!("unexpected attachment type"),
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn attachment_and_caption_are_one_message() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("picture.png");
+    std::fs::write(&path, test_picture_bytes()).unwrap();
+
+    alice.drain().await;
+    let staged = alice
+        .stage_attachment(AttachmentFile::borrowed(path))
+        .await
+        .unwrap()
+        .unwrap();
+    let composed = alice
+        .compose(chat_id)
+        .text("look at *this*".to_owned())
+        .attachment(staged)
+        .mark_as_read(MarkChatAsRead::Yes)
+        .send();
+    let ComposedMessage { message, uploads } = Box::pin(composed).await.unwrap();
+    assert_eq!(uploads.len(), 1);
+    for upload in uploads {
+        upload.task.await.unwrap();
+    }
+    alice.outbound_service().run_once().await;
+    let sent = alice.expect_message(message.id()).await;
+    assert!(sent.is_sent());
+
+    let received = bob.drain().await;
+    let [received] = received.new_messages.as_slice() else {
+        panic!("attachment and caption must arrive as one message");
+    };
+    let content = received.message().mimi_content().unwrap();
+    assert_eq!(content, sent.message().mimi_content().unwrap());
+
+    let mut seen = Vec::new();
+    content
+        .visit_parts(|part| {
+            seen.push(match part {
+                VisitedPart::Attachment {
+                    index, blurhash, ..
+                } => format!("attachment {index:?} blurhash {}", blurhash.is_some()),
+                VisitedPart::Text { content, .. } => format!("text {content}"),
+                _ => "other".to_owned(),
+            });
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(
+        seen,
+        [
+            "text look at *this*",
+            "attachment PartIndex(3) blurhash true"
+        ]
+    );
+
+    let NestedPart::MultiPart {
+        disposition: Disposition::Render,
+        part_semantics: PartSemantics::ProcessAll,
+        parts,
+        ..
+    } = &content.nested_part
+    else {
+        panic!("caption and image item need a render container");
+    };
+    assert_matches!(
+        parts.as_slice(),
+        [
+            NestedPart::SinglePart { .. },
+            NestedPart::MultiPart {
+                disposition: Disposition::Inline,
+                part_semantics: PartSemantics::ProcessAll,
+                parts: item,
+                ..
+            },
+        ] if matches!(
+            item.as_slice(),
+            [
+                NestedPart::ExternalPart { .. },
+                NestedPart::SinglePart { disposition: Disposition::Preview, .. },
+            ]
+        )
+    );
+
+    assert_eq!(bob.pending_attachments().await.unwrap().len(), 1);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn caption_edit_keeps_the_attachment() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("picture.png");
+    std::fs::write(&path, test_picture_bytes()).unwrap();
+
+    alice.drain().await;
+    let staged = alice
+        .stage_attachment(AttachmentFile::borrowed(path))
+        .await
+        .unwrap()
+        .unwrap();
+    let composed = alice
+        .compose(chat_id)
+        .text("look at *this*".to_owned())
+        .attachment(staged)
+        .mark_as_read(MarkChatAsRead::Yes)
+        .send();
+    let ComposedMessage { message, uploads } = Box::pin(composed).await.unwrap();
+    for upload in uploads {
+        upload.task.await.unwrap();
+    }
+    alice.outbound_service().run_once().await;
+    let sent = alice.expect_message(message.id()).await;
+
+    let received = bob.drain().await;
+    let [received] = received.new_messages.as_slice() else {
+        panic!("attachment and caption must arrive as one message");
+    };
+    let received_id = received.id();
+
+    let edit = async |original: ChatMessage, text: &str, expected: &[&str]| {
+        let ComposedMessage { message, uploads } = alice
+            .compose(chat_id)
+            .text(text.to_owned())
+            .replaces(original)
+            .mark_as_read(MarkChatAsRead::Yes)
+            .send()
+            .await
+            .unwrap();
+        assert!(uploads.is_empty());
+        alice.outbound_service().run_once().await;
+        let edited = alice.expect_message(message.id()).await;
+        assert!(edited.is_sent());
+
+        bob.drain().await;
+        let received = bob.expect_message(received_id).await;
+
+        let mut contents = Vec::new();
+        for message in [&edited, &received] {
+            let content = message.message().mimi_content().unwrap();
+            let mut seen = Vec::new();
+            content
+                .visit_parts(|part| {
+                    seen.push(match part {
+                        VisitedPart::Attachment {
+                            index, blurhash, ..
+                        } => format!("attachment {index:?} blurhash {}", blurhash.is_some()),
+                        VisitedPart::Text { content, .. } => format!("text {content}"),
+                        _ => "other".to_owned(),
+                    });
+                    Ok(())
+                })
+                .unwrap();
+            assert_eq!(seen, expected);
+            contents.push(content.clone());
+        }
+        assert_eq!(contents[0], contents[1]);
+
+        assert_eq!(bob.pending_attachments().await.unwrap().len(), 1);
+        edited
+    };
+
+    let edited = edit(
+        sent,
+        "look at *that*",
+        &[
+            "text look at *that*",
+            "attachment PartIndex(3) blurhash true",
+        ],
+    )
+    .await;
+    let edited = edit(edited, "", &["attachment PartIndex(3) blurhash true"]).await;
+    edit(
+        edited,
+        "back again",
+        &["text back again", "attachment PartIndex(3) blurhash true"],
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
