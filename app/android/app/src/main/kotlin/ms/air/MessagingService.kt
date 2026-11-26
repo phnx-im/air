@@ -34,6 +34,18 @@ class BackgroundFirebaseMessagingService : FirebaseMessagingService() {
             return
         }
 
+        // FCM lowers the priority of high-priority messages when too few of
+        // them end in a visible notification. Read markers from our other
+        // devices only remove notifications. We log the change to see whether
+        // they trigger it, and it's generally agood idea to log it anyway,
+        // since it can be triggered by other notifications.
+        if (remoteMessage.priority != remoteMessage.originalPriority) {
+            Log.w(
+                TAG,
+                "FCM lowered the message priority from " +
+                        "${remoteMessage.originalPriority} to ${remoteMessage.priority}"
+            )
+        }
         val isHighPriority =
             remoteMessage.priority == RemoteMessage.PRIORITY_HIGH ||
                     remoteMessage.originalPriority == RemoteMessage.PRIORITY_HIGH

@@ -4,6 +4,7 @@
 
 use std::time::Duration;
 
+use aircommon::identifiers::MimiId;
 use aircoreclient::{
     Chat, ChatId, ChatMessage, EventMessage, MarkChatAsRead, Message, MessageId, SystemMessage,
     UsernameRecord,
@@ -42,6 +43,14 @@ pub trait CoreUserExt {
     async fn send_text(&self, chat_id: ChatId, text: &str) -> ChatMessage;
     /// Edit a message and return the edited message.
     async fn send_edit(&self, original: &ChatMessage, text: &str) -> ChatMessage;
+    /// Mark the chat as read up to its last message and send the receipts.
+    ///
+    /// Return the newly read messages.
+    async fn read_chat(
+        &self,
+        chat_id: ChatId,
+        read_receipts_enabled: bool,
+    ) -> Vec<(MessageId, MimiId)>;
 
     async fn text_messages(&self, chat_id: ChatId) -> Vec<String>;
     async fn system_messages(&self, chat_id: ChatId) -> Vec<SystemMessage>;
@@ -123,6 +132,25 @@ impl CoreUserExt for CoreUser {
             .unwrap();
         self.outbound_service().run_once().await;
         self.expect_message(message.id()).await
+    }
+
+    async fn read_chat(
+        &self,
+        chat_id: ChatId,
+        read_receipts_enabled: bool,
+    ) -> Vec<(MessageId, MimiId)> {
+        let last_message = self.expect_last_message(chat_id).await;
+        let (marked, read) = self
+            .mark_chat_as_read(chat_id, last_message.id())
+            .await
+            .unwrap();
+        assert!(marked, "the chat had nothing to mark as read");
+        self.outbound_service()
+            .enqueue_read_receipts(chat_id, &read, read_receipts_enabled)
+            .await
+            .unwrap();
+        self.outbound_service().run_once().await;
+        read
     }
 
     async fn system_messages(&self, chat_id: ChatId) -> Vec<SystemMessage> {

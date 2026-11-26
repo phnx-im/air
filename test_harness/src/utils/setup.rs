@@ -38,7 +38,8 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::utils::{
-    SentChallenges, controlled_listener::ControlHandle, core_user_ext::CoreUserExt, spawn_app,
+    SentChallenges, SentPushes, controlled_listener::ControlHandle, core_user_ext::CoreUserExt,
+    spawn_app,
 };
 
 pub use airbackend::settings::RelaySettings;
@@ -192,6 +193,7 @@ pub struct TestBackend {
     domain: Fqdn,
     invitation_codes: Vec<String>,
     sent_challenges: SentChallenges,
+    sent_pushes: SentPushes,
     temp_dir: TempDir,
     /// Present only if we spawned a local server.
     listener_control_handle: Option<ControlHandle>,
@@ -287,6 +289,7 @@ impl TestBackend {
             listener_control_handle,
             invitation_codes,
             sent_challenges,
+            sent_pushes,
             max_devices,
             qs_database_url,
             _cleanup,
@@ -300,6 +303,7 @@ impl TestBackend {
                 None,
                 Vec::new(),
                 SentChallenges::default(),
+                SentPushes::default(),
                 None,
                 None,
                 None,
@@ -312,6 +316,7 @@ impl TestBackend {
             let control_handle = app.control_handle.clone();
             let codes = app.codes.clone();
             let sent_challenges = app.sent_challenges.clone();
+            let sent_pushes = app.sent_pushes.clone();
             let max_devices = app.max_devices.clone();
             let qs_database_url = app.qs_database_url();
             info!(%listen_addr, "using spawned test server");
@@ -322,6 +327,7 @@ impl TestBackend {
                 Some(control_handle),
                 codes,
                 sent_challenges,
+                sent_pushes,
                 Some(max_devices),
                 Some(qs_database_url),
                 Some(cleanup),
@@ -348,6 +354,7 @@ impl TestBackend {
             qs_database_url,
             invitation_codes,
             sent_challenges,
+            sent_pushes,
             apq_groups,
             _cleanup,
         }
@@ -452,6 +459,14 @@ impl TestBackend {
             .expect("the challenge lock is poisoned")
             .last()
             .cloned()
+    }
+
+    /// Takes the push tokens the server sent a push to since the last call.
+    ///
+    /// Always empty against an external server, which sends its pushes to APNs
+    /// and FCM.
+    pub fn take_sent_pushes(&self) -> Vec<String> {
+        std::mem::take(&mut *self.sent_pushes.lock().expect("the push lock is poisoned"))
     }
 
     pub fn sent_challenge_count(&self) -> usize {

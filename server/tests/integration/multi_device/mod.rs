@@ -32,7 +32,11 @@ use std::{
     time::Duration,
 };
 
-use aircommon::{credentials::LeafCredential, identifiers::UserId};
+use aircommon::{
+    credentials::LeafCredential,
+    identifiers::UserId,
+    messages::push_token::{PushToken, PushTokenOperator},
+};
 use aircoreclient::{
     ChatId, ChatStatus, EventMessage, Message, ReadReceiptsSetting, SystemMessage,
     clients::{
@@ -159,6 +163,13 @@ async fn self_chat_id(user: &CoreUser) -> ChatId {
         .unwrap()
         .expect("device should have a self group");
     ChatId::try_from(self_group.group_id()).unwrap()
+}
+
+/// Registers an APNs push token on `user` and sends the change.
+async fn set_push_token(user: &CoreUser, token: &str) {
+    let push_token = PushToken::new(PushTokenOperator::Apple, token.to_owned());
+    user.update_push_token(Some(push_token)).await.unwrap();
+    user.outbound_service().run_once().await;
 }
 
 /// Runs the expiry of connection requests on `device` now.

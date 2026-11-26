@@ -4,9 +4,8 @@
 
 //! Editing messages, incl. edits racing receipts and replayed edits.
 
-use aircommon::identifiers::MimiId;
 use aircoreclient::{
-    ChatId, EDIT_WINDOW, MAX_EDITS, MessageEditError, MessageId,
+    EDIT_WINDOW, MAX_EDITS, MessageEditError, MessageId,
     clients::{CoreUser, MarkChatAsRead},
 };
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
@@ -205,7 +204,7 @@ async fn stale_read_receipt_does_not_apply_to_edited_message() {
     );
 
     // Bob reads the original. The receipt names the replaced version.
-    let read = read_chat(&bob, chat_id).await;
+    let read = bob.read_chat(chat_id, true).await;
     assert_eq!(read.len(), 1);
     alice.drain().await;
     assert_eq!(
@@ -274,25 +273,6 @@ async fn process_replayed_edit(user: &CoreUser) {
         processed.new_messages.is_empty(),
         "a replayed edit must not be stored as a new message"
     );
-}
-
-/// Marks the chat as read until its last message and sends the read receipts
-/// this produced. Returns what was newly read.
-async fn read_chat(user: &CoreUser, chat_id: ChatId) -> Vec<(MessageId, MimiId)> {
-    let last_message = user.expect_last_message(chat_id).await;
-    let (_, read) = user
-        .mark_chat_as_read(chat_id, last_message.id())
-        .await
-        .unwrap();
-    let statuses = read
-        .iter()
-        .map(|(id, mimi_id)| (*id, mimi_id, MessageStatus::Read));
-    user.outbound_service()
-        .enqueue_receipts(chat_id, statuses)
-        .await
-        .unwrap();
-    user.outbound_service().run_once().await;
-    read
 }
 
 async fn own_message_status(user: &CoreUser, message_id: MessageId) -> MessageStatus {

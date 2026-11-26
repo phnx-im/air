@@ -23,7 +23,10 @@ use uuid::Uuid;
 use crate::{
     Chat, ChatId, ChatStatus, ChatType, MessageId,
     chats::StatusRecord,
-    clients::user_settings::{ReadReceiptsSetting, UserSettingRecord},
+    clients::{
+        own_client_info::OwnClientInfo,
+        user_settings::{ReadReceiptsSetting, UserSettingRecord},
+    },
     db::access::WriteDbTransaction,
     groups::{
         Group, handle_group_gone_on_ds, openmls_provider::AirOpenMlsProvider, self_group::SelfGroup,
@@ -38,22 +41,31 @@ use crate::{
 use super::{OutboundService, OutboundServiceContext, SendOutcome, receipt_queue::ReceiptQueue};
 
 impl OutboundService {
-    pub async fn enqueue_receipts<'a>(
+    /// Enqueues read receipts for messages the user just read in `chat_id`.
+    ///
+    /// The receipts are also the read marker the user's other devices follow.
+    /// They go to the chat if `read_receipts_enabled`, and once sent there, a
+    /// copy goes to the self group to wake up the other devices. Otherwise they
+    /// only go to the self group, if other devices are linked.
+    pub async fn enqueue_read_receipts(
         &self,
         chat_id: ChatId,
-        statuses: impl Iterator<Item = (MessageId, &'a MimiId, MessageStatus)> + Send,
+        read_messages: &[(MessageId, MimiId)],
+        read_receipts_enabled: bool,
     ) -> anyhow::Result<()> {
-        self.context
+        if read_messages.is_empty() {
+            return Ok(());
+        }
+        let enqueued = self
+            .context
             .db
             .with_write_transaction(async |txn| {
-                let Some(receipts_chat_id) = receipts_target(&mut *txn, chat_id).await? else {
-                    return Ok(());
-                };
-                self.schedule_receipts(txn, receipts_chat_id, statuses)
-                    .await
+                enqueue_read_receipts_to(txn, chat_id, read_messages, read_receipts_enabled).await
             })
             .await?;
-        self.notify_work();
+        if enqueued {
+            self.notify_work();
+        }
         Ok(())
     }
 
@@ -83,8 +95,10 @@ impl OutboundService {
     }
 }
 
-/// Enqueues read receipts for messages the user just read in `chat_id`. Returns
-/// `true` if it enqueued any receipt.
+/// Enqueues read receipts for messages the user just read in `chat_id`.
+///
+/// Follows the stored read receipts setting. Returns `true` if it enqueued any
+/// receipt.
 pub(super) async fn enqueue_read_receipts(
     txn: &mut WriteDbTransaction<'_>,
     chat_id: ChatId,
@@ -97,18 +111,34 @@ pub(super) async fn enqueue_read_receipts(
         let setting = UserSettingRecord::load_decoded::<ReadReceiptsSetting>(&mut *txn).await?;
         setting.is_none_or(|ReadReceiptsSetting(enabled)| enabled)
     };
-    let receipts_chat_id = if read_receipts_enabled {
+    enqueue_read_receipts_to(txn, chat_id, read_messages, read_receipts_enabled).await
+}
+
+/// Enqueues read receipts for the chat, or for the self group if read receipts
+/// are disabled.
+///
+/// [`OutboundService::enqueue_read_receipts`] describes the targets. Returns
+/// `true` if it enqueued any receipt.
+async fn enqueue_read_receipts_to(
+    txn: &mut WriteDbTransaction<'_>,
+    chat_id: ChatId,
+    read_messages: &[(MessageId, MimiId)],
+    read_receipts_enabled: bool,
+) -> anyhow::Result<bool> {
+    let target = if read_receipts_enabled {
         receipts_target(&mut *txn, chat_id).await?
-    } else {
+    } else if SelfGroup::load_and_check_if_has_linked_device(&mut *txn).await? {
         SelfGroup::load_chat(&mut *txn).await?.map(|chat| chat.id())
+    } else {
+        None
     };
-    let Some(receipts_chat_id) = receipts_chat_id else {
+    let Some(target) = target else {
         return Ok(false);
     };
     let statuses = read_messages
         .iter()
         .map(|(message_id, mimi_id)| (*message_id, mimi_id, MessageStatus::Read));
-    enqueue_unless_blocked(txn, receipts_chat_id, statuses).await
+    enqueue_unless_blocked(txn, target, statuses).await
 }
 
 async fn receipts_target(
@@ -169,18 +199,7 @@ impl OutboundServiceContext {
                 return Ok(());
             };
 
-            // If a resync is pending or failed, we skip sending receipts for this chat
-            if let Some(status) = Resync::status_for_chat(self.db.read().await?, &chat_id).await? {
-                debug!(?chat_id, ?status, "Skipping sending receipt due to resync");
-                continue;
-            }
-
-            // If a chat operation is pending, we skip sending receipts for this chat
-            if PendingChatOperation::is_pending_for_chat(self.db.read().await?, chat_id).await? {
-                debug!(
-                    ?chat_id,
-                    "Skipping sending receipt due to pending chat operation"
-                );
+            if self.receipts_paused(chat_id).await? {
                 continue;
             }
 
@@ -188,9 +207,10 @@ impl OutboundServiceContext {
 
             let policy = RetryPolicy::REACTIONS_AND_RECEIPTS;
             match UnsentReceipt::new(statuses.iter().map(|(mimi_id, status)| (mimi_id, *status))) {
-                Ok(Some(receipt)) => match policy
-                    .fatal_when_exhausted(self.send_chat_receipt(chat_id, receipt).await, attempts)
-                {
+                Ok(Some(receipt)) => match policy.fatal_when_exhausted(
+                    self.send_chat_receipt(chat_id, receipt, task_id).await,
+                    attempts,
+                ) {
                     Ok(ReceiptSendOutcome::Sent) => {
                         ReceiptQueue::remove(self.db.write().await?, task_id).await?;
                     }
@@ -241,6 +261,7 @@ impl OutboundServiceContext {
         &self,
         chat_id: ChatId,
         unsent_receipt: UnsentReceipt,
+        task_id: Uuid,
     ) -> Result<ReceiptSendOutcome, OutboundServiceError> {
         debug!(%chat_id, ?unsent_receipt, "sending receipt");
 
@@ -255,15 +276,110 @@ impl OutboundServiceContext {
             return Ok(ReceiptSendOutcome::Sent);
         }
 
+        // Receipts queued for the self group reach only our other devices. They
+        // wake them up if they include a read in a chat that is not muted.
+        if OwnClientInfo::is_own_self_group(self.db.read().await?, chat.group_id()).await? {
+            let wake_recipients = ReceiptQueue::locks_read_in_unmuted_chat(
+                self.db.read().await?,
+                task_id,
+                TimeStamp::now(),
+            )
+            .await?;
+            return self
+                .send_receipt(&chat, unsent_receipt, wake_recipients)
+                .await;
+        }
+
+        let report = unsent_receipt.report.clone();
+        let outcome = self.send_receipt(&chat, unsent_receipt, false).await?;
+        if let ReceiptSendOutcome::Sent = outcome
+            && let Err(error) = self.copy_reads_to_self_group(&chat, report).await
+        {
+            error!(%error, %chat_id, "Failed to copy read receipts to the self group");
+        }
+        Ok(outcome)
+    }
+
+    /// Returns `true` if the receipts for `chat_id` have to wait for a resync or
+    /// a pending chat operation.
+    async fn receipts_paused(&self, chat_id: ChatId) -> Result<bool, OutboundServiceError> {
+        if let Some(status) = Resync::status_for_chat(self.db.read().await?, &chat_id).await? {
+            debug!(?chat_id, ?status, "Skipping sending receipt due to resync");
+            return Ok(true);
+        }
+        if PendingChatOperation::is_pending_for_chat(self.db.read().await?, chat_id).await? {
+            debug!(
+                ?chat_id,
+                "Skipping sending receipt due to pending chat operation"
+            );
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    /// Sends the read receipts of `report` to the self group, with a push for
+    /// our other devices.
+    async fn copy_reads_to_self_group(
+        &self,
+        chat: &Chat,
+        report: MessageStatusReport,
+    ) -> Result<(), OutboundServiceError> {
+        if chat.is_muted() {
+            return Ok(());
+        }
+        let statuses = report
+            .statuses
+            .into_iter()
+            .filter(|status| status.status == MessageStatus::Read)
+            .collect();
+        let Some(receipt) = UnsentReceipt::from_report(MessageStatusReport { statuses })
+            .map_err(OutboundServiceError::fatal)?
+        else {
+            return Ok(());
+        };
+        let self_chat = self
+            .db
+            .with_read_transaction(async |txn| {
+                if !SelfGroup::load_and_check_if_has_linked_device(&mut *txn).await? {
+                    return Ok(None);
+                }
+                SelfGroup::load_chat(txn).await
+            })
+            .await?;
+        let Some(self_chat) = self_chat else {
+            return Ok(());
+        };
+        if self.receipts_paused(self_chat.id()).await? {
+            return Ok(());
+        }
+        // A collision means a sibling already sent the same copy.
+        self.send_receipt(&self_chat, receipt, true).await?;
+        Ok(())
+    }
+
+    /// Sends `unsent_receipt` to the group of `chat` and stores its report.
+    ///
+    /// The DS sends the recipients a push only if `wake_recipients`.
+    async fn send_receipt(
+        &self,
+        chat: &Chat,
+        unsent_receipt: UnsentReceipt,
+        wake_recipients: bool,
+    ) -> Result<ReceiptSendOutcome, OutboundServiceError> {
+        let chat_id = chat.id();
+
         // load group and create MLS message
-        let (group_state_ear_key, params, signer) = self
+        let (group_state_ear_key, mut params, signer) = self
             .new_mls_message(
-                &chat,
+                chat,
                 unsent_receipt.content,
                 Some(unsent_receipt.report.clone()),
             )
             .await
             .map_err(OutboundServiceError::fatal)?;
+        if wake_recipients {
+            params.suppress_notifications = false;
+        }
         let epoch = params.epoch;
         let sent_tags = params.collision_tags.clone();
         let generation = params.generation;
@@ -318,7 +434,7 @@ impl OutboundServiceContext {
         }
 
         // message accepted by DS, confirm.
-        self.confirm_mls_message(&chat, epoch, generation)
+        self.confirm_mls_message(chat, epoch, generation)
             .await
             .inspect_err(|error| error!(%error, "failed to confirm MLS message"))
             .ok();
@@ -506,7 +622,10 @@ impl UnsentReceipt {
                 })
                 .collect(),
         };
+        Self::from_report(report)
+    }
 
+    fn from_report(report: MessageStatusReport) -> anyhow::Result<Option<Self>> {
         if report.statuses.is_empty() {
             return Ok(None);
         }

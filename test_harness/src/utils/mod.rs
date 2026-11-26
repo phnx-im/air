@@ -19,7 +19,7 @@ use airbackend::{
         admission::{ChallengeSendError, ChallengeSender},
     },
     ds::{Ds, storage::Storage},
-    qs::Qs,
+    qs::{PushNotificationError, PushNotificationProvider, Qs},
     relay_service::{RelayLimits, Rs},
     settings::{DatabaseSettings, RateLimitsSettings, RegistrationPolicy},
 };
@@ -30,7 +30,6 @@ use aircommon::{
 use airserver::{
     Addressed as _, ServerRunParams, as_connector::SimpleAsConnector,
     configurations::get_configuration_from_str, network_provider::MockNetworkProvider,
-    push_notification_provider::ProductionPushNotificationProvider,
     qs_connector::SimpleEnqueueProvider, run,
 };
 use async_trait::async_trait;
@@ -91,11 +90,32 @@ impl ChallengeSender for LoopbackChallengeSender {
     }
 }
 
+/// The push tokens the QS sent a push to, in the order it sent them.
+///
+/// The tests read them here instead of from APNs or FCM.
+pub type SentPushes = Arc<Mutex<Vec<String>>>;
+
+#[derive(Debug, Clone)]
+struct RecordingPushNotificationProvider {
+    sent: SentPushes,
+}
+
+impl PushNotificationProvider for RecordingPushNotificationProvider {
+    async fn push(&self, push_token: PushToken) -> Result<(), PushNotificationError> {
+        self.sent
+            .lock()
+            .expect("the push lock is poisoned")
+            .push(push_token.token().to_owned());
+        Ok(())
+    }
+}
+
 pub struct SpawnedApp {
     pub address: SocketAddr,
     pub control_handle: ControlHandle,
     pub codes: Vec<String>,
     pub sent_challenges: SentChallenges,
+    pub sent_pushes: SentPushes,
     pub max_devices: [MaxDevices; 3],
     db_settings: DatabaseSettings,
     db_name: Uuid,
@@ -307,7 +327,10 @@ pub(crate) async fn spawn_app(
         qs.max_devices_handle(),
     ];
 
-    let push_notification_provider = ProductionPushNotificationProvider::new(None, None).unwrap();
+    let sent_pushes = SentPushes::default();
+    let push_notification_provider = RecordingPushNotificationProvider {
+        sent: sent_pushes.clone(),
+    };
 
     let qs_connector = SimpleEnqueueProvider {
         qs: qs.clone(),
@@ -350,6 +373,7 @@ pub(crate) async fn spawn_app(
         control_handle,
         codes,
         sent_challenges,
+        sent_pushes,
         max_devices,
         db_settings: configuration.database,
         db_name,

@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS (\n                        SELECT 1\n                        FROM receipt_queue AS r\n                        INNER JOIN message AS m ON m.message_id = r.message_id\n                        INNER JOIN chat AS c ON c.chat_id = m.chat_id\n                        WHERE r.locked_by = ?1\n                            AND r.status = ?2\n                            AND (c.muted_until IS NULL OR c.muted_until <= ?3)\n                    ) AS \"read_in_unmuted_chat: bool\"\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "read_in_unmuted_chat: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "cb8d2474b96e8afc85691c112ba23add5d8d1c1a4f3f5d8ed28a287bc3f5fae5"
+}

@@ -5,17 +5,11 @@
 //! Push tokens of QS clients that no longer belong to a device of the user.
 
 use aircommon::messages::push_token::{PushToken, PushTokenOperator};
-use aircoreclient::{UnlinkReason, clients::CoreUser};
+use aircoreclient::UnlinkReason;
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::DateTime;
 
-use super::self_chat_id;
-
-async fn set_push_token(user: &CoreUser, token: &str) {
-    let push_token = PushToken::new(PushTokenOperator::Apple, token.to_owned());
-    user.update_push_token(Some(push_token)).await.unwrap();
-    user.outbound_service().run_once().await;
-}
+use super::{self_chat_id, set_push_token};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn unlinking_a_device_clears_its_push_token() -> anyhow::Result<()> {
