@@ -15,6 +15,7 @@ import 'package:air/ds/components/field/field_chrome.dart';
 import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/patterns/message_input/message_input.dart';
 import 'package:air/ds/patterns/message_input/message_input_link_preview.dart';
+import 'package:air/ds/patterns/message_input/message_input_media.dart';
 import 'package:air/ds/patterns/message_input/message_input_quote.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:air/ds/patterns/message_input/message_input_tokens.dart';
@@ -90,6 +91,8 @@ class _MessageComposerState extends State<MessageComposer>
   final _focusNode = FocusNode();
   late ChatDetailsCubit _chatDetailsCubit;
   bool _inputIsEmpty = true;
+  // A send keeps the staged attachments until the message is stored.
+  bool _isSending = false;
   late final NavigationCubit _navigationCubit;
   StreamSubscription<NavigationState>? _navigationSubscription;
   String _inputTextCache = '';
@@ -176,9 +179,17 @@ class _MessageComposerState extends State<MessageComposer>
     );
 
     _onLinkPreviewChanged(_chatDetailsCubit.state.linkPreview);
-    _linkPreviewSubscription = _chatDetailsCubit.stream.listen(
-      (state) => _onLinkPreviewChanged(state.linkPreview),
-    );
+    var hasStagedAttachments =
+        _chatDetailsCubit.state.stagedAttachments.isNotEmpty;
+    _linkPreviewSubscription = _chatDetailsCubit.stream.listen((state) {
+      _onLinkPreviewChanged(state.linkPreview);
+      // Links are not resolved while attachments are staged.
+      final hasStaged = state.stagedAttachments.isNotEmpty;
+      if (hasStaged != hasStagedAttachments) {
+        hasStagedAttachments = hasStaged;
+        _scheduleLinkPreviewUpdate(_inputController.text);
+      }
+    });
 
     _draftLoadingSubscription = _chatDetailsCubit.stream.listen((state) {
       if (state.chat == null) {
@@ -333,6 +344,8 @@ class _MessageComposerState extends State<MessageComposer>
       isConfirmedChat,
       hasUnread,
       hasLinkPreview,
+      hasStagedAttachments,
+      canAttach,
     ) = context.select((ChatDetailsCubit cubit) {
       final chat = cubit.state.chat;
       return (
@@ -346,6 +359,8 @@ class _MessageComposerState extends State<MessageComposer>
           UiComposerLinkPreview_Loading() => _showLinkPreviewLoading,
           UiComposerLinkPreview_Ready() => true,
         },
+        cubit.state.stagedAttachments.isNotEmpty,
+        cubit.state.linkPreview is! UiComposerLinkPreview_Ready,
       );
     });
 
@@ -368,27 +383,29 @@ class _MessageComposerState extends State<MessageComposer>
                   context.read<ChatDetailsCubit>().resetDraft();
                   _inputController.clear();
                 }
-              : isConfirmedChat
-              ? (buttonContext) =>
-                    _openAttachMenu(buttonContext, chatTitle: chatTitle)
+              : isConfirmedChat && canAttach
+              ? _openAttachMenu
               : null,
           sendIcon: isEditing ? AppIconType.check : AppIconType.arrowUp,
           // An edit keeps its confirm button whatever the field holds, so the way
           // out of an edit is in the same place the way in was. Send is never
           // shown disabled: the slot simply stays closed until there is something
           // to send.
-          showSend: (isEditing || !_inputIsEmpty) && isConfirmedChat,
+          showSend:
+              (isEditing || !_inputIsEmpty || hasStagedAttachments) &&
+              isConfirmedChat,
           onSend: () => _submitMessage(context.read()),
           showScrollBack: controller?.showButton.value ?? false,
           scrollBackUnread: hasUnread,
           onScrollBack: () => controller?.scrollToBottom(),
           aboveField: [
             if (editingId != null) _EditBanner(editingId: editingId),
-            // In the order the sent message shows them.
-            if (inReplyToId != null) _ReplyPreview(last: !hasLinkPreview),
+            if (inReplyToId != null)
+              _ReplyPreview(last: !hasLinkPreview && !hasStagedAttachments),
             // Only present while staged, an empty row would cost the field its
             // top inset.
-            if (hasLinkPreview) const _LinkPreviewStaged(),
+            if (hasLinkPreview) _LinkPreviewStaged(last: !hasStagedAttachments),
+            if (hasStagedAttachments) const _StagedAttachments(),
           ],
           fieldKey: _fieldChromeKey,
           field: _ComposerField(
@@ -475,16 +492,18 @@ class _MessageComposerState extends State<MessageComposer>
   void _handleKeyboardPaste() async {
     // Check for file paths first (desktop only) — prevents macOS from
     // treating a copied file's icon as a pasted image.
-    final filePaths = await getClipboardFilePaths();
-    if (filePaths != null && filePaths.isNotEmpty) {
-      _handleFilePaste(filePaths.first);
-      return;
-    }
+    if (_canAttach) {
+      final filePaths = await getClipboardFilePaths();
+      if (filePaths != null && filePaths.isNotEmpty) {
+        _handleFilePaste(filePaths.first);
+        return;
+      }
 
-    final image = await getClipboardImage();
-    if (image != null && image.bytes.isNotEmpty) {
-      _handleImagePaste(image);
-      return;
+      final image = await getClipboardImage();
+      if (image != null && image.bytes.isNotEmpty) {
+        _handleImagePaste(image);
+        return;
+      }
     }
     // No image — fall back to text paste
     final clipData = await Clipboard.getData(Clipboard.kTextPlain);
@@ -507,8 +526,17 @@ class _MessageComposerState extends State<MessageComposer>
   }
 
   void _submitMessage(ChatDetailsCubit chatDetailsCubit) async {
+    if (_isSending) {
+      return;
+    }
     final messageText = _inputController.text.trim();
-    if (messageText.isEmpty) {
+    // The staged attachments are sent with the text as their caption.
+    final isEditing = chatDetailsCubit.state.chat?.draft?.editingId != null;
+    final hasAttachments =
+        !isEditing && chatDetailsCubit.state.stagedAttachments.isNotEmpty;
+    // An empty edit removes the caption of an attachment message. The cubit
+    // ignores it for any other message.
+    if (messageText.isEmpty && !hasAttachments && !isEditing) {
       return;
     }
 
@@ -522,6 +550,7 @@ class _MessageComposerState extends State<MessageComposer>
     });
     _storeDraftDebouncer.cancel();
 
+    _isSending = true;
     try {
       await chatDetailsCubit.sendMessage(messageText);
       final chatId = chatDetailsCubit.state.chat?.id;
@@ -537,6 +566,8 @@ class _MessageComposerState extends State<MessageComposer>
             loc.composer_error_editWindowPassed,
           UiSendMessageError_EditLimitReached() =>
             loc.composer_error_editLimitReached,
+          UiSendMessageError_AttachmentDecoding() =>
+            loc.composer_error_attachment_decoding,
           _ => loc.composer_error_sendMessage,
         },
         tone: .danger,
@@ -548,6 +579,7 @@ class _MessageComposerState extends State<MessageComposer>
         });
       }
     } finally {
+      _isSending = false;
       // Normally the arriving message has released it already.
       if (mounted) widget.scrollToBottomController?.sending.value = false;
     }
@@ -567,14 +599,18 @@ class _MessageComposerState extends State<MessageComposer>
   }
 
   bool _resetDraft(ChatDetailsCubit cubit) {
-    // One thing per press: link preview, then reply, then edit.
+    // One thing per press, from the field up: the last staged attachment,
+    // then link preview, then reply, then edit.
     final linkUrl = switch (cubit.state.linkPreview) {
       UiComposerLinkPreview_Ready(:final card) => card.url,
       UiComposerLinkPreview_Loading(:final url) when _showLinkPreviewLoading =>
         url,
       _ => null,
     };
-    if (linkUrl != null) {
+    if (cubit.state.stagedAttachments.lastOrNull case final staged?) {
+      cubit.unstageAttachment(staged.attachmentId);
+      return true;
+    } else if (linkUrl != null) {
       cubit.dismissLinkPreview(linkUrl);
       return true;
     } else if (cubit.state.chat?.draft?.inReplyTo != null) {
@@ -589,17 +625,13 @@ class _MessageComposerState extends State<MessageComposer>
   }
 
   /// Opens the attach options as a floating menu growing out of the + button.
-  void _openAttachMenu(
-    BuildContext buttonContext, {
-    required String chatTitle,
-  }) {
+  void _openAttachMenu(BuildContext buttonContext) {
     final render = buttonContext.findRenderObject();
     if (render is! RenderBox || !render.hasSize) return;
     final loc = AppLocalizations.of(buttonContext);
 
-    void pick(_AttachmentCategory category) => unawaited(
-      _pickAttachment(buttonContext, category, chatTitle: chatTitle),
-    );
+    void pick(_AttachmentCategory category) =>
+        unawaited(_pickAttachment(buttonContext, category));
 
     unawaited(
       showOverlayMenu(
@@ -632,9 +664,8 @@ class _MessageComposerState extends State<MessageComposer>
 
   Future<void> _pickAttachment(
     BuildContext context,
-    _AttachmentCategory category, {
-    required String chatTitle,
-  }) async {
+    _AttachmentCategory category,
+  ) async {
     // Note: using imageQuality triggers re-encoding, which loses animation
     // properties from GIFs or other animated formats.
     final XFile? file = switch (category) {
@@ -651,22 +682,27 @@ class _MessageComposerState extends State<MessageComposer>
       return;
     }
 
-    _navigateToUploadPreview(context, file, chatTitle: chatTitle);
+    await _stageAttachment(file);
+  }
+
+  /// A message has either a link preview or attachments, so nothing can be
+  /// attached once the composer has a link preview. One that is still loading
+  /// gives way. An edit cannot add attachments either.
+  bool get _canAttach {
+    final state = _chatDetailsCubit.state;
+    return state.linkPreview is! UiComposerLinkPreview_Ready &&
+        state.chat?.draft?.editingId == null;
   }
 
   void _handleFilePaste(String filePath) {
-    final loc = AppLocalizations.of(context);
-    final chatTitle = _chatDetailsCubit.state.chat?.title(loc);
-    if (chatTitle == null) return;
+    if (!_canAttach) return;
 
     final file = XFile(filePath);
-    _navigateToUploadPreview(context, file, chatTitle: chatTitle);
+    unawaited(_stageAttachment(file));
   }
 
   void _handleImagePaste(ClipboardImage image) async {
-    final loc = AppLocalizations.of(context);
-    final chatTitle = _chatDetailsCubit.state.chat?.title(loc);
-    if (chatTitle == null) return;
+    if (!_canAttach) return;
 
     final ext = image.mimeType.split('/').last;
     final tempDir = await getTemporaryDirectory();
@@ -675,21 +711,13 @@ class _MessageComposerState extends State<MessageComposer>
     final file = XFile(tempFile.path, mimeType: image.mimeType);
 
     if (!mounted) return;
-    await _navigateToUploadPreview(
-      context,
-      file,
-      chatTitle: chatTitle,
-      isTempFile: true,
-    );
+    await _stageAttachment(file, isTempFile: true);
   }
 
   void _handleContentInserted(KeyboardInsertedContent content) async {
     final data = content.data;
     if (data == null || data.isEmpty) return;
-
-    final loc = AppLocalizations.of(context);
-    final chatTitle = _chatDetailsCubit.state.chat?.title(loc);
-    if (chatTitle == null) return;
+    if (!_canAttach) return;
 
     final ext = content.mimeType.split('/').last;
     final tempDir = await getTemporaryDirectory();
@@ -698,12 +726,49 @@ class _MessageComposerState extends State<MessageComposer>
     final file = XFile(tempFile.path, mimeType: content.mimeType);
 
     if (!mounted) return;
-    await _navigateToUploadPreview(
-      context,
-      file,
-      chatTitle: chatTitle,
-      isTempFile: true,
-    );
+    await _stageAttachment(file, isTempFile: true);
+  }
+
+  /// Stages the file in the composer.
+  Future<void> _stageAttachment(XFile file, {bool isTempFile = false}) async {
+    final cubit = _chatDetailsCubit;
+    try {
+      // A temp file is deleted by the cubit from here on.
+      final error = await cubit.stageAttachment(
+        file.path,
+        isTempFile: isTempFile,
+      );
+      _showAttachmentError(error);
+    } catch (e) {
+      _log.severe("Failed to stage attachment: $e", e);
+      showSnackBarStandalone(
+        (loc) => loc.composer_error_attachment,
+        tone: .danger,
+      );
+    }
+    if (mounted) _focusNode.requestFocus();
+  }
+
+  void _showAttachmentError(UploadAttachmentError? error) {
+    switch (error) {
+      case UploadAttachmentError_TooLarge(
+        :final maxSizeBytes,
+        :final actualSizeBytes,
+      ):
+        showSnackBarStandalone(
+          (loc) => loc.composer_error_attachment_too_large(
+            loc.bytesToHumanReadable(actualSizeBytes.toInt()),
+            loc.bytesToHumanReadable(maxSizeBytes.toInt()),
+          ),
+          tone: .danger,
+        );
+      case UploadAttachmentError_DecodingError():
+        showSnackBarStandalone(
+          (loc) => loc.composer_error_attachment_decoding,
+          tone: .danger,
+        );
+      case null:
+    }
   }
 
   /// Returns whether the user confirmed the upload, as opposed to backing
@@ -731,31 +796,12 @@ class _MessageComposerState extends State<MessageComposer>
                 file.path,
                 isTempFile: isTempFile,
               );
-              switch (error) {
-                case UploadAttachmentError_TooLarge(
-                  :final maxSizeBytes,
-                  :final actualSizeBytes,
-                ):
-                  showSnackBarStandalone(
-                    (loc) => loc.composer_error_attachment_too_large(
-                      loc.bytesToHumanReadable(actualSizeBytes.toInt()),
-                      loc.bytesToHumanReadable(maxSizeBytes.toInt()),
-                    ),
-                    tone: .danger,
-                  );
-                  break;
-                case UploadAttachmentError_DecodingError():
-                  showSnackBarStandalone(
-                    (loc) => loc.composer_error_attachment_decoding,
-                    tone: .danger,
-                  );
-                  break;
-                case null:
-                  final chatId = cubit.state.chat?.id;
-                  if (chatId != null) {
-                    shareTargetPublisher.reportUsed(chatId);
-                  }
-                  break;
+              _showAttachmentError(error);
+              if (error == null) {
+                final chatId = cubit.state.chat?.id;
+                if (chatId != null) {
+                  shareTargetPublisher.reportUsed(chatId);
+                }
               }
             } catch (e) {
               _log.severe("Failed to upload attachment: $e", e);
@@ -932,9 +978,51 @@ class _ReplyPreview extends StatelessWidget {
   }
 }
 
+/// The attachments the next message is sent with, shown above the field.
+class _StagedAttachments extends StatelessWidget {
+  const _StagedAttachments();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final staged = context.select(
+      (ChatDetailsCubit cubit) => cubit.state.stagedAttachments,
+    );
+    if (staged.isEmpty) return const SizedBox.shrink();
+
+    return MessageInputMedia(
+      items: [
+        for (final attachment in staged)
+          MessageInputMediaItem(
+            imagePath: attachment.isImage ? attachment.path : null,
+            fileName: attachment.filename,
+            fileMeta: _fileMeta(loc, attachment),
+          ),
+      ],
+      onRemove: (index) => context.read<ChatDetailsCubit>().unstageAttachment(
+        staged[index].attachmentId,
+      ),
+    );
+  }
+
+  /// "{EXT} • {size}", without the extension when the name has none.
+  String _fileMeta(AppLocalizations loc, UiStagedAttachment attachment) {
+    final name = attachment.filename;
+    final dot = name.lastIndexOf('.');
+    final hasExtension = dot > 0 && dot < name.length - 1;
+    return [
+      if (hasExtension) name.substring(dot + 1).toUpperCase(),
+      loc.bytesToHumanReadable(attachment.size.toInt()),
+    ].join(' • ');
+  }
+}
+
 /// The link preview of the draft, shown above the field once it resolves.
 class _LinkPreviewStaged extends StatelessWidget {
-  const _LinkPreviewStaged();
+  const _LinkPreviewStaged({required this.last});
+
+  /// Whether the field follows directly, see [MessageInputLinkPreview.last].
+  final bool last;
 
   @override
   Widget build(BuildContext context) {
@@ -947,6 +1035,7 @@ class _LinkPreviewStaged extends StatelessWidget {
     return switch (preview) {
       UiComposerLinkPreview_Loading(:final url) => MessageInputLinkPreview(
         url: url,
+        last: last,
         onRemove: () => cubit.dismissLinkPreview(url),
       ),
       UiComposerLinkPreview_Ready(:final card, :final image) =>
@@ -963,6 +1052,7 @@ class _LinkPreviewStaged extends StatelessWidget {
                   blurhash: image.blurhash,
                   fit: fit,
                 ),
+          last: last,
           onRemove: () => cubit.dismissLinkPreview(card.url),
         ),
     };

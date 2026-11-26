@@ -977,7 +977,7 @@ impl TestBackend {
         std::fs::write(&path, attachment).unwrap();
 
         let staged = sender
-            .stage_attachment(AttachmentFile::borrowed(path))
+            .stage_attachment(AttachmentFile::new(path))
             .await
             .expect("fatal error")?;
         let composed = sender

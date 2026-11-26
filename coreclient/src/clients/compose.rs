@@ -757,7 +757,7 @@ mod tests {
     fn staged(directory: &TempDir, name: &str, bytes: &[u8]) -> anyhow::Result<StagedAttachment> {
         let path = directory.path().join(name);
         std::fs::write(&path, bytes)?;
-        match StagedAttachment::from_file(AttachmentFile::borrowed(path))? {
+        match StagedAttachment::from_file(AttachmentFile::new(path))? {
             Ok(staged) => Ok(staged),
             Err(_error) => bail!("attachment must be accepted"),
         }

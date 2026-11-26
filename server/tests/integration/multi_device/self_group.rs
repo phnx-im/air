@@ -98,7 +98,7 @@ async fn self_chat_attachment_reaches_sibling() {
     std::fs::write(&path, &attachment).unwrap();
 
     let staged = alice
-        .stage_attachment(AttachmentFile::borrowed(&path))
+        .stage_attachment(AttachmentFile::new(&path))
         .await
         .unwrap()
         .unwrap();

@@ -1084,6 +1084,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<UiSharedAttachment> dco_decode_list_ui_shared_attachment(dynamic raw);
 
   @protected
+  List<UiStagedAttachment> dco_decode_list_ui_staged_attachment(dynamic raw);
+
+  @protected
   List<UiUserId> dco_decode_list_ui_user_id(dynamic raw);
 
   @protected
@@ -1529,6 +1532,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiSharedAttachment dco_decode_ui_shared_attachment(dynamic raw);
+
+  @protected
+  UiStagedAttachment dco_decode_ui_staged_attachment(dynamic raw);
 
   @protected
   UiSystemMessage dco_decode_ui_system_message(dynamic raw);
@@ -2641,6 +2647,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<UiStagedAttachment> sse_decode_list_ui_staged_attachment(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<UiUserId> sse_decode_list_ui_user_id(SseDeserializer deserializer);
 
   @protected
@@ -3190,6 +3201,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiSharedAttachment sse_decode_ui_shared_attachment(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiStagedAttachment sse_decode_ui_staged_attachment(
     SseDeserializer deserializer,
   );
 
@@ -4555,6 +4571,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_ui_staged_attachment(
+    List<UiStagedAttachment> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_ui_user_id(
     List<UiUserId> self,
     SseSerializer serializer,
@@ -5256,6 +5278,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ui_shared_attachment(
     UiSharedAttachment self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_ui_staged_attachment(
+    UiStagedAttachment self,
     SseSerializer serializer,
   );
 

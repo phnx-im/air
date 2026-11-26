@@ -98,7 +98,9 @@ pub enum UiShareSendStatus {
 struct ChatSendProgress {
     /// Number of leading attachments already sent.
     attachments: usize,
-    /// Whether the trailing text message was already sent.
+    /// Stored message of the next attachment, held by a failed upload.
+    held: Option<MessageId>,
+    /// Whether the text message was already sent.
     text: bool,
 }
 
@@ -202,12 +204,14 @@ impl ShareCubitBase {
 
     /// Sends the shared content to the given chats.
     ///
-    /// Each attachment is sent as its own message. The shared text and the
-    /// caption are sent as one trailing text message. Every chat receives its own copy. Progress is reported
-    /// via the state's `send_status`.
+    /// Each attachment is sent as its own message. The text is the caption of
+    /// the last attachment, or a message of its own without attachments.
+    /// Every chat receives its own copy. Progress is reported via the state's
+    /// `send_status`.
     ///
     /// Content a chat already received in an earlier call is skipped, so
-    /// that retrying after a failure does not send it twice.
+    /// that retrying after a failure does not send it twice. A message held
+    /// by a failed upload is retried instead of sent again.
     ///
     /// All messages are persisted locally before sending. When delivery
     /// fails they stay queued and the main app's outbound service retries
@@ -264,6 +268,8 @@ impl ShareCubitBase {
         let mut enqueued: Vec<MessageId> = Vec::new();
         let mut failure: Option<UiShareSendError> = None;
 
+        let last_attachment = attachments.len().checked_sub(1);
+
         'chats: for chat_id in chat_ids {
             let progress = chats_progress.entry(chat_id).or_default();
 
@@ -284,19 +290,33 @@ impl ShareCubitBase {
                     });
                 };
                 report_progress(0.0);
-                match upload_attachment(core_user, chat_id, attachment, &report_progress).await {
+                let caption = message
+                    .clone()
+                    .filter(|_text| Some(index) == last_attachment);
+                let sent = send_attachment(
+                    core_user,
+                    chat_id,
+                    attachment,
+                    caption,
+                    progress.held.take(),
+                    &report_progress,
+                )
+                .await;
+                match sent {
                     Ok(message_id) => {
                         enqueued.push(message_id);
                         progress.attachments = index + 1;
                     }
-                    Err(error) => {
+                    Err(AttachmentSendError { error, held }) => {
+                        progress.held = held;
                         failure = Some(error);
                         break 'chats;
                     }
                 }
             }
 
-            if let Some(text) = &message
+            if attachments.is_empty()
+                && let Some(text) = &message
                 && !progress.text
             {
                 match send_text_message(core_user, chat_id, text.clone()).await {
@@ -407,14 +427,75 @@ async fn load_share_chat(core_user: &CoreUser, chat_id: &ChatId) -> Option<UiCha
     (matches!(details.status, UiChatStatus::Active) && is_confirmed).then_some(details)
 }
 
-async fn upload_attachment(
+/// Failure of sending a shared attachment.
+struct AttachmentSendError {
+    error: UiShareSendError,
+    /// Stored message that is held by the failed upload
+    held: Option<MessageId>,
+}
+
+impl From<UiShareSendError> for AttachmentSendError {
+    fn from(error: UiShareSendError) -> Self {
+        Self { error, held: None }
+    }
+}
+
+/// Sends the attachment as a message and waits for its upload.
+///
+/// With `held`, the uploads of that message are retried instead.
+async fn send_attachment(
     core_user: &CoreUser,
     chat_id: ChatId,
     attachment: &UiSharedAttachment,
+    caption: Option<String>,
+    held: Option<MessageId>,
     report_progress: impl Fn(f64),
-) -> Result<MessageId, UiShareSendError> {
+) -> Result<MessageId, AttachmentSendError> {
+    let (message_id, uploads) = match held {
+        // The main app may have retried it in the meantime
+        Some(message_id) if all_sent(core_user, &[message_id]).await => return Ok(message_id),
+        Some(message_id) => match core_user.retry_message(message_id).await {
+            Ok(uploads) => (message_id, uploads),
+            Err(error) => {
+                // Not retried again, the next call sends a new message
+                error!(%error, "Failed to retry shared attachment");
+                return Err(UiShareSendError::Other.into());
+            }
+        },
+        None => store_attachment_message(core_user, chat_id, attachment, caption).await?,
+    };
+
+    // The message is stored and queued, it is sent once its upload is done.
+    for upload in uploads {
+        let attachment_id = upload.attachment_id;
+        match run_upload(upload, &report_progress).await {
+            Ok(()) => {}
+            Err(UploadTaskError::Provision(error)) => return Err(provision_error(error).into()),
+            Err(UploadTaskError::Failed {
+                message_id: _,
+                error,
+            }) => {
+                error!(%error, ?attachment_id, "Failed to upload shared attachment");
+                return Err(AttachmentSendError {
+                    error: UiShareSendError::Other,
+                    held: Some(message_id),
+                });
+            }
+        }
+    }
+
+    Ok(message_id)
+}
+
+/// Stores the message of the attachment and returns its uploads.
+async fn store_attachment_message(
+    core_user: &CoreUser,
+    chat_id: ChatId,
+    attachment: &UiSharedAttachment,
+    caption: Option<String>,
+) -> Result<(MessageId, Vec<UploadHandle>), UiShareSendError> {
     // The file stays with the native host
-    let file = AttachmentFile::borrowed(&attachment.path);
+    let file = AttachmentFile::new(&attachment.path);
     let staged = match core_user.stage_attachment(file).await {
         Ok(Ok(staged)) => staged,
         Ok(Err(error)) => return Err(provision_error(error)),
@@ -426,67 +507,57 @@ async fn upload_attachment(
 
     // Sharing happens without the user looking at the chat, so it must not
     // mark older messages as read.
-    let composed = Box::pin(
-        core_user
-            .compose(chat_id)
-            .attachment(staged)
-            .mark_as_read(MarkChatAsRead::No)
-            .send(),
-    )
-    .await
-    .map_err(
-        |error| match error.downcast_ref::<UndecodableAttachment>() {
-            Some(_undecodable) => UiShareSendError::DecodingError,
-            None => {
-                error!(%error, "Failed to store shared attachment message");
-                UiShareSendError::Other
-            }
-        },
-    )?;
+    let mut composer = core_user
+        .compose(chat_id)
+        .attachment(staged)
+        .mark_as_read(MarkChatAsRead::No);
+    if let Some(caption) = caption {
+        composer = composer.text(caption);
+    }
+    let composed = Box::pin(composer.send()).await.map_err(|error| match error
+        .downcast_ref::<UndecodableAttachment>()
+    {
+        Some(_undecodable) => UiShareSendError::DecodingError,
+        None => {
+            error!(%error, "Failed to store shared attachment message");
+            UiShareSendError::Other
+        }
+    })?;
+    Ok((composed.message.id(), composed.uploads))
+}
 
-    // The message is stored and queued, it is sent once its upload is done.
-    for UploadHandle {
-        attachment_id,
+/// Runs the upload and forwards its progress.
+async fn run_upload(
+    upload: UploadHandle,
+    report_progress: impl Fn(f64),
+) -> Result<(), UploadTaskError> {
+    let UploadHandle {
+        attachment_id: _,
         progress,
         task,
-    } in composed.uploads
-    {
-        // The stream ends with a terminal event when the task finishes.
-        let forward_progress = async {
-            let mut events = progress.stream();
-            while let Some(event) = events.next().await {
-                match event {
-                    AttachmentProgressEvent::Init => {}
-                    AttachmentProgressEvent::Progress {
-                        bytes_total,
-                        bytes_loaded,
-                    } => {
-                        if bytes_total > 0 {
-                            report_progress(bytes_loaded as f64 / bytes_total as f64);
-                        }
+    } = upload;
+    // The stream ends with a terminal event when the task finishes.
+    let forward_progress = async {
+        let mut events = progress.stream();
+        while let Some(event) = events.next().await {
+            match event {
+                AttachmentProgressEvent::Init => {}
+                AttachmentProgressEvent::Progress {
+                    bytes_total,
+                    bytes_loaded,
+                } => {
+                    if bytes_total > 0 {
+                        report_progress(bytes_loaded as f64 / bytes_total as f64);
                     }
-                    AttachmentProgressEvent::Completed
-                    | AttachmentProgressEvent::Failed
-                    | AttachmentProgressEvent::NotFound => break,
                 }
-            }
-        };
-
-        let (upload_result, ()) = tokio::join!(task, forward_progress);
-        match upload_result {
-            Ok(()) => {}
-            Err(UploadTaskError::Provision(error)) => return Err(provision_error(error)),
-            Err(UploadTaskError::Failed {
-                message_id: _,
-                error,
-            }) => {
-                error!(%error, ?attachment_id, "Failed to upload shared attachment");
-                return Err(UiShareSendError::Other);
+                AttachmentProgressEvent::Completed
+                | AttachmentProgressEvent::Failed
+                | AttachmentProgressEvent::NotFound => break,
             }
         }
-    }
-
-    Ok(composed.message.id())
+    };
+    let (result, ()) = tokio::join!(task, forward_progress);
+    result
 }
 
 fn provision_error(error: ProvisionAttachmentError) -> UiShareSendError {

@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:air/app.dart' show scaffoldMessengerKey;
 import 'package:air/core/api/markdown.dart';
@@ -15,6 +17,7 @@ import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/mention_picker/mention_picker.dart';
 import 'package:air/ds/patterns/mention_picker/mention_picker_tokens.dart';
 import 'package:air/ds/patterns/message_input/message_input_link_preview.dart';
+import 'package:air/ds/patterns/message_input/message_input_media.dart';
 import 'package:air/ds/patterns/message_input/message_input_quote.dart';
 import 'package:air/ds/patterns/message_input/message_input_tokens.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
@@ -612,6 +615,198 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/composer_link_preview.png'),
       );
+    });
+  });
+
+  group('MessageComposer staged attachments', () {
+    final staged = UiStagedAttachment(
+      attachmentId: 1.attachmentId(),
+      path: '/tmp/report.pdf',
+      filename: 'report.pdf',
+      contentType: 'application/pdf',
+      size: BigInt.from(2048),
+      isImage: false,
+    );
+
+    final sendButton = buttonWith(AppIconType.arrowUp);
+
+    void stage({
+      UiMessageDraft? draft,
+      UiComposerLinkPreview? linkPreview,
+      List<UiStagedAttachment> attachments = const [],
+    }) {
+      when(() => chatDetailsCubit.state).thenReturn(
+        ChatDetailsState(
+          chat: draft == null ? _chat : _chatWithDraft(draft),
+          members: _members,
+          linkPreview: linkPreview,
+          stagedAttachments: attachments,
+        ),
+      );
+    }
+
+    setUp(() {
+      when(() => chatDetailsCubit.updateLinkPreviews(any()))
+          .thenAnswer((_) async {});
+      when(() => chatDetailsCubit.composerLinkPreviewImage(any()))
+          .thenAnswer((_) async => null);
+      when(() => chatDetailsCubit.sendMessage(any())).thenAnswer((_) async {});
+    });
+
+    testWidgets('shows the strip and the send button without text', (
+      tester,
+    ) async {
+      stage(attachments: [staged]);
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(MessageInputMedia), findsOneWidget);
+      expect(find.text('report.pdf'), findsOneWidget);
+      expect(sendButton, findsOneWidget);
+    });
+
+    testWidgets('sends the attachments without a caption', (tester) async {
+      stage(attachments: [staged]);
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      await tester.tap(sendButton);
+      await tester.pumpAndSettle();
+
+      verify(() => chatDetailsCubit.sendMessage('')).called(1);
+    });
+
+    testWidgets('ignores a second send while the first is in flight', (
+      tester,
+    ) async {
+      final sent = Completer<void>();
+      when(() => chatDetailsCubit.sendMessage(any()))
+          .thenAnswer((_) => sent.future);
+      stage(attachments: [staged]);
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      await tester.tap(sendButton);
+      await tester.pump();
+      await tester.tap(sendButton);
+      await tester.pump();
+
+      verify(() => chatDetailsCubit.sendMessage('')).called(1);
+
+      sent.complete();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('removing an attachment reaches the cubit', (tester) async {
+      stage(attachments: [staged]);
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.descendant(
+          of: find.byType(MessageInputMedia),
+          matching: buttonWith(AppIconType.x),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      verify(() => chatDetailsCubit.unstageAttachment(staged.attachmentId))
+          .called(1);
+    });
+
+    testWidgets('an empty edit reaches the cubit', (tester) async {
+      stage(draft: _editDraft);
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), '');
+      await tester.pumpAndSettle();
+      await tester.tap(buttonWith(AppIconType.check));
+      await tester.pumpAndSettle();
+
+      verify(() => chatDetailsCubit.sendMessage('')).called(1);
+    });
+
+    testWidgets('nothing is attached next to a resolved link preview', (
+      tester,
+    ) async {
+      stage(linkPreview: const UiComposerLinkPreview.ready(card: _linkCard));
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      await tester.tap(buttonWith(AppIconType.plus), warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Menu), findsNothing);
+    });
+
+    testWidgets('renders correctly with a picture and a file', (tester) async {
+      final directory = (await tester.runAsync(
+        () => Directory.systemTemp.createTemp('staged_attachments'),
+      ))!;
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final path = '${directory.path}/picture.png';
+      await tester.runAsync(() async {
+        final recorder = ui.PictureRecorder();
+        Canvas(recorder).drawRect(
+          const Rect.fromLTWH(0, 0, 96, 64),
+          Paint()..color = const Color(0xFF607D8B),
+        );
+        final image = await recorder.endRecording().toImage(96, 64);
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        image.dispose();
+        await File(path).writeAsBytes(bytes!.buffer.asUint8List());
+      });
+      final picture = UiStagedAttachment(
+        attachmentId: 2.attachmentId(),
+        path: path,
+        filename: 'picture.png',
+        contentType: 'image/png',
+        size: BigInt.from(1024),
+        isImage: true,
+      );
+      stage(attachments: [picture, staged]);
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+      // The thumbnail decodes from the file, off the fake clock.
+      final thumbnail = find.descendant(
+        of: find.byType(MessageInputMedia),
+        matching: find.byType(RawImage),
+      );
+      for (var i = 0; i < 100 && thumbnail.evaluate().isEmpty; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+      }
+      expect(thumbnail, findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'Look at this');
+      await tester.pump(_draftDebounce);
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/composer_staged_attachments.png'),
+      );
+    });
+
+    testWidgets('a loading link preview leaves attaching on', (tester) async {
+      stage(linkPreview: const UiComposerLinkPreview.loading(url: _linkUrl));
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      await tester.tap(buttonWith(AppIconType.plus));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Menu), findsOneWidget);
     });
   });
 
