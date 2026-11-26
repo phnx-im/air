@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 mod bump_version;
+mod candidate;
 mod cut_release;
 mod flatpak_sources;
 mod generate_emoji;
@@ -11,6 +12,9 @@ mod linux_screenshots;
 mod prune_unused_l10n;
 mod publish_flatpak;
 mod publish_linux_packages;
+mod publish_release;
+mod release_notes;
+mod submit_release;
 mod tag_release;
 mod util;
 mod validate_l10n;
@@ -50,6 +54,12 @@ enum Commands {
     /// Copy a published package version from one release track to another.
     #[command(name = "promote-packages")]
     PromoteLinuxPackages(publish_linux_packages::PromoteArgs),
+    /// Submit a release candidate to the app stores for review.
+    #[command(name = "submit-release")]
+    SubmitRelease(submit_release::SubmitArgs),
+    /// Publish an approved release candidate on the app stores and Linux.
+    #[command(name = "publish-release")]
+    PublishRelease(publish_release::PublishArgs),
     /// Tag the commit of a promoted build as v<version>.
     #[command(name = "tag-release")]
     TagRelease(tag_release::TagArgs),
@@ -80,6 +90,8 @@ fn main() -> anyhow::Result<()> {
         Commands::ValidateL10n(args) => validate_l10n::run(args),
         Commands::PublishLinuxPackages(args) => publish_linux_packages::run(args),
         Commands::PromoteLinuxPackages(args) => publish_linux_packages::promote(args),
+        Commands::SubmitRelease(args) => submit_release::run(args),
+        Commands::PublishRelease(args) => publish_release::run(args),
         Commands::TagRelease(args) => tag_release::run(args),
         Commands::FlatpakSources(args) => flatpak_sources::run(args),
         Commands::PublishFlatpak(args) => publish_flatpak::run(args),

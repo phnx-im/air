@@ -1,0 +1,84 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: Submit app release for review
+# `cargo xtask publish-release` reads store and build from this title.
+run-name: Submit ${{ inputs.platform }} build ${{ inputs.build }} for review
+
+# Shares the release queue, which keeps a release run from changing the store
+# drafts while this one is open.
+concurrency:
+  group: app-release
+  queue: max
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Store to submit to"
+        required: true
+        type: choice
+        options:
+          - android
+          - ios
+          - macos
+      build:
+        description: "Build number of the release candidate (e.g. 1567)"
+        required: true
+        type: number
+
+jobs:
+  app-submit:
+    # The Apple lanes are only tested on macOS.
+    runs-on: ${{ inputs.platform == 'android' && 'ubuntu-24.04' || 'macos-26' }}
+    permissions:
+      contents: read
+
+    steps:
+      # The store listing and release notes come from the checked out branch,
+      # and main has the listing of unreleased features.
+      - name: Check branch
+        if: ${{ !startsWith(github.ref_name, 'release/') }}
+        run: |
+          echo "::error::Run this workflow on the release branch of the build"
+          exit 1
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup build environment
+        uses: ./.github/actions/setup-buildenv
+        with:
+          fastlane: true
+          flutter: false
+
+      - name: Send Android release for review
+        if: inputs.platform == 'android'
+        env:
+          ANDROID_PLAYSTORE_KEY_JSON: ${{ secrets.ANDROID_PLAYSTORE_KEY_JSON }}
+          BUILD: ${{ inputs.build }}
+        working-directory: app
+        run: bundle exec fastlane android submit_android build:"$BUILD" --verbose
+
+      - name: Send iOS release for review
+        if: inputs.platform == 'ios'
+        env:
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+          APP_STORE_KEY_P8_BASE64: ${{ secrets.APP_STORE_KEY_P8_BASE64 }}
+          BUILD: ${{ inputs.build }}
+        working-directory: app
+        run: bundle exec fastlane ios submit_ios build:"$BUILD" --verbose
+
+      - name: Send macOS release for review
+        if: inputs.platform == 'macos'
+        env:
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+          APP_STORE_KEY_P8_BASE64: ${{ secrets.APP_STORE_KEY_P8_BASE64 }}
+          BUILD: ${{ inputs.build }}
+        working-directory: app
+        run: bundle exec fastlane mac submit_macos build:"$BUILD" --verbose

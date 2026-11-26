@@ -36,7 +36,7 @@ pub(crate) fn run(args: TagArgs) -> Result<()> {
         .parse()
         .with_context(|| format!("invalid build number: {build}"))?;
 
-    let commit = release_commit(&shell, build)?;
+    let commit = release_commit(&shell, build, None)?;
     println!("Build {build} is commit {commit}");
 
     let at_commit = version_at_commit(&shell, &commit)?;
@@ -77,25 +77,38 @@ pub(crate) fn run(args: TagArgs) -> Result<()> {
 }
 
 /// Finds the commit the `app-release.yml` run of the build number built.
-fn release_commit(shell: &Shell, build: u64) -> Result<String> {
-    // Inverse of scripts/build-number.sh.
-    let offset: u64 = cmd!(shell, "bash scripts/build-number.sh")
-        .env("GITHUB_RUN_NUMBER", "0")
-        .read()?
-        .trim()
-        .parse()
-        .context("invalid build number offset")?;
+///
+/// With a branch, only the runs on that branch count.
+pub(crate) fn release_commit(shell: &Shell, build: u64, branch: Option<&str>) -> Result<String> {
+    let offset = build_number_offset(shell)?;
     let run_number = build
         .checked_sub(offset)
         .with_context(|| format!("build {build} is below the offset {offset}"))?;
 
-    let endpoint = "repos/{owner}/{repo}/actions/workflows/app-release.yml/runs?per_page=100";
+    let mut endpoint =
+        "repos/{owner}/{repo}/actions/workflows/app-release.yml/runs?per_page=100".to_owned();
+    if let Some(branch) = branch {
+        endpoint.push_str(&format!("&branch={branch}"));
+    }
     let jq = format!(".workflow_runs[] | select(.run_number == {run_number}) | .head_sha");
     let commit = cmd!(shell, "gh api --paginate {endpoint} --jq {jq}").read()?;
     let commit = commit.trim();
+    let on_branch = branch
+        .map(|branch| format!(" on {branch}"))
+        .unwrap_or_default();
     ensure!(
         !commit.is_empty(),
-        "no app-release run {run_number} (build {build})"
+        "no app-release run {run_number}{on_branch} (build {build})"
     );
     Ok(commit.to_owned())
+}
+
+/// Reads the offset that scripts/build-number.sh adds to a workflow run number.
+pub(crate) fn build_number_offset(shell: &Shell) -> Result<u64> {
+    cmd!(shell, "bash scripts/build-number.sh")
+        .env("GITHUB_RUN_NUMBER", "0")
+        .read()?
+        .trim()
+        .parse()
+        .context("invalid build number offset")
 }

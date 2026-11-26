@@ -1,0 +1,65 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: Publish approved App Store version
+run-name: Publish ${{ inputs.platform }} build ${{ inputs.build }}
+
+# No release queue here. A release run only touches the editable App Store
+# version, and an approved one is no longer editable.
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "App Store platform to publish on"
+        required: true
+        type: choice
+        options:
+          - ios
+          - macos
+      build:
+        description: "Build number of the approved release candidate (e.g. 1567)"
+        required: true
+        type: number
+
+jobs:
+  app-store-publish:
+    # The Apple lanes are only tested on macOS.
+    runs-on: macos-26
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup build environment
+        uses: ./.github/actions/setup-buildenv
+        with:
+          # The lanes only call the App Store Connect API.
+          git-lfs: false
+          fastlane: true
+          flutter: false
+
+      - name: Publish iOS version
+        if: inputs.platform == 'ios'
+        env:
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+          APP_STORE_KEY_P8_BASE64: ${{ secrets.APP_STORE_KEY_P8_BASE64 }}
+          BUILD: ${{ inputs.build }}
+        working-directory: app
+        run: bundle exec fastlane ios publish_ios build:"$BUILD" --verbose
+
+      - name: Publish macOS version
+        if: inputs.platform == 'macos'
+        env:
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+          APP_STORE_KEY_P8_BASE64: ${{ secrets.APP_STORE_KEY_P8_BASE64 }}
+          BUILD: ${{ inputs.build }}
+        working-directory: app
+        run: bundle exec fastlane mac publish_macos build:"$BUILD" --verbose

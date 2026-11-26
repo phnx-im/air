@@ -8,12 +8,14 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail, ensure};
+use camino::{Utf8Path, Utf8PathBuf};
 use chrono::{Days, NaiveDate, NaiveTime, Utc};
 use semver::Version;
 use xshell::{Shell, cmd};
 
 use crate::{
     bump_version::{self, Bump},
+    release_notes,
     util::workspace_root,
     version_expirations,
 };
@@ -28,6 +30,9 @@ pub(crate) struct CutArgs {
     /// Days until versions below the cut expire.
     #[arg(long, value_name = "days", default_value = "20")]
     expire_in_days: u16,
+    /// File with the release notes of the cut version (skips the editor).
+    #[arg(long, value_name = "file")]
+    release_notes: Option<Utf8PathBuf>,
 }
 
 /// A bump kind or an explicit version.
@@ -54,6 +59,10 @@ impl std::str::FromStr for NextVersion {
 
 /// Cuts a `release/0.X` branch at the given commit (defaults to `origin/main`,
 /// which is fetched first) and commits the Linux metainfo release entry on it.
+///
+/// The release notes for the stores are committed on the release branch as
+/// well, unless the commit already has them. They come from
+/// `--release-notes` or the git editor.
 ///
 /// The version bump is committed on a `merge-release/0.X` branch that merges
 /// the release branch back into main via a PR, asking whether the next version
@@ -119,6 +128,7 @@ pub(crate) fn run(args: CutArgs) -> Result<()> {
         next > current,
         "next version {next} must be greater than {current}"
     );
+    let notes = release_notes_to_commit(&shell, &commit, &current, args.release_notes.as_deref())?;
 
     cmd!(shell, "git branch {release_branch} {commit}").run()?;
     println!("Created branch {release_branch} at {commit}");
@@ -127,6 +137,18 @@ pub(crate) fn run(args: CutArgs) -> Result<()> {
     if add_metainfo_release(&current, Utc::now().date_naive())? {
         let message = format!("chore: add {current} to the Linux metainfo");
         cmd!(shell, "git commit --all --message {message}").run()?;
+    }
+    if let Some(notes) = notes {
+        let path = release_notes::path(&current);
+        let file = repo_root.join(&path);
+        if let Some(dir) = file.parent() {
+            fs::create_dir_all(dir).with_context(|| format!("Failed to create {dir}"))?;
+        }
+        fs::write(&file, format!("{notes}\n"))
+            .with_context(|| format!("Failed to write {file}"))?;
+        cmd!(shell, "git add {path}").run()?;
+        let message = format!("chore: add the {current} release notes");
+        cmd!(shell, "git commit --message {message}").run()?;
     }
 
     // The version bump lands via a PR that merges the release branch back into
@@ -167,6 +189,37 @@ pub(crate) fn run(args: CutArgs) -> Result<()> {
     println!("becomes an ancestor of main. Merge hotfixes on {release_branch} back");
     println!("the same way (-X ours keeps main's own version numbers on conflict).");
     Ok(())
+}
+
+/// Returns the release notes of the version to commit on the release branch,
+/// or None when the commit already has them.
+fn release_notes_to_commit(
+    shell: &Shell,
+    commit: &str,
+    version: &Version,
+    file: Option<&Utf8Path>,
+) -> Result<Option<String>> {
+    if let Some(notes) = release_notes::at_revision(shell, commit, version)? {
+        let path = release_notes::path(version);
+        ensure!(
+            file.is_none(),
+            "{path} already exists at {commit}; edit it on main instead of passing --release-notes"
+        );
+        println!("Release notes of {version} from main:\n{notes}\n");
+        return Ok(None);
+    }
+
+    let notes = match file {
+        Some(file) => {
+            let notes =
+                fs::read_to_string(file).with_context(|| format!("Failed to read {file}"))?;
+            release_notes::check(&notes)
+                .with_context(|| format!("invalid release notes in {file}"))?;
+            notes.trim().to_owned()
+        }
+        None => release_notes::write_in_editor(shell, version)?,
+    };
+    Ok(Some(notes))
 }
 
 /// Asks which version main should carry after the cut, suggesting the next

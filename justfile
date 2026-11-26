@@ -232,6 +232,14 @@ bump-version *args:
 cut-release *args:
     cargo xtask cut-release {{args}}
 
+# Submit a release candidate to the app stores for review.
+submit-release *args:
+    cargo xtask submit-release {{args}}
+
+# Publish an approved release candidate on the app stores and Linux.
+publish-release *args:
+    cargo xtask publish-release {{args}}
+
 # Build the app for the given platform (no-op in CI).
 [working-directory: 'app']
 build platform:
