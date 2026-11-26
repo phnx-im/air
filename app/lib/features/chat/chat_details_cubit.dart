@@ -72,6 +72,16 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
     required String emoji,
   }) => _impl.deleteReaction(messageId: messageId, emoji: emoji);
 
+  /// Stages the file for the next message. A temp file is taken over and
+  /// deleted by the cubit.
+  Future<UploadAttachmentError?> stageAttachment(
+    String path, {
+    required bool isTempFile,
+  }) => _impl.stageAttachment(path: path, isTempFile: isTempFile);
+
+  void unstageAttachment(AttachmentId attachmentId) =>
+      _impl.unstageAttachment(attachmentId: attachmentId);
+
   /// A temp file is taken over and deleted by the cubit.
   Future<UploadAttachmentError?> uploadAttachment(
     String path, {

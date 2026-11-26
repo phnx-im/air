@@ -7,8 +7,8 @@
 use std::{assert_matches, time::Duration};
 
 use aircoreclient::{
-    AttachmentContent, AttachmentId, AttachmentStatus, ChatId, ChatMessage, ComposedLinkPreview,
-    ComposedMessage, MessageId, MimiContentExt, UploadTaskError,
+    AttachmentContent, AttachmentFile, AttachmentId, AttachmentStatus, ChatId, ChatMessage,
+    ComposedLinkPreview, ComposedMessage, MessageId, MimiContentExt, UploadTaskError, VisitedPart,
     clients::CoreUser,
     link_preview::{FetchedLinkPreview, LinkPreview},
 };
@@ -18,6 +18,8 @@ use airserver_test_harness::utils::{
     setup::{TestBackend, TestBackendParams},
 };
 use mimi_content::MessageStatus;
+
+use crate::messaging::attachments::test_picture_bytes;
 
 const LINK_A: &str = "https://a.org";
 const LINK_B: &str = "https://b.org";
@@ -121,6 +123,67 @@ async fn message_with_card_and_image_is_received() {
     let (url, image) = card(&bob, received_id).await.expect("no card");
     assert_eq!(url, LINK_A);
     assert_eq!(download(&bob, image.expect("no image")).await, IMAGE_A);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn card_and_attachment_are_one_message() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+    alice.drain().await;
+    bob.drain().await;
+
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("picture.png");
+    std::fs::write(&path, test_picture_bytes()).unwrap();
+    let staged = alice
+        .stage_attachment(AttachmentFile::borrowed(path))
+        .await
+        .unwrap()
+        .unwrap();
+
+    let composed = alice
+        .compose(chat_id)
+        .text(format!("see {LINK_A}"))
+        .link_preview(fetched(LINK_A, Some(IMAGE_A)))
+        .attachment(staged)
+        .send();
+    let composed = Box::pin(composed).await.unwrap();
+    assert_eq!(composed.uploads.len(), 2);
+    let message = deliver(&alice, composed).await;
+    assert!(message.is_sent());
+
+    let received = bob.drain().await;
+    let [received] = received.new_messages.as_slice() else {
+        panic!("card and attachment must arrive as one message");
+    };
+    let content = received.message().mimi_content().unwrap();
+    assert_eq!(content, message.message().mimi_content().unwrap());
+
+    let (url, image) = card(&bob, received.id()).await.expect("no card");
+    assert_eq!(url, LINK_A);
+    assert_eq!(download(&bob, image.expect("no image")).await, IMAGE_A);
+
+    // The blurhash is the one of the attachment, not of the card image
+    let mut attachments = Vec::new();
+    content
+        .visit_parts(|part| {
+            if let VisitedPart::Attachment {
+                index,
+                preview,
+                blurhash,
+                ..
+            } = part
+            {
+                attachments.push(format!("{index:?} {preview} {}", blurhash.is_some()));
+            }
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(
+        attachments,
+        ["PartIndex(3) true false", "PartIndex(4) false true"]
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

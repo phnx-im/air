@@ -7,14 +7,15 @@ use std::pin::Pin;
 use aircommon::{crypto::secrets::Secret, identifiers::MimiId};
 use anyhow::{Context, bail, ensure};
 use chrono::Utc;
-use mimi_content::{MessageStatus, MimiContent};
+use mimi_content::{MessageStatus, MimiContent, NestedPart};
 use thiserror::Error;
 use tokio::task::JoinSet;
 use tracing::error;
 
 use crate::{
     AttachmentContent, AttachmentId, AttachmentProgress, AttachmentStatus, AttachmentThumbnail,
-    BlockedContactError, Chat, ChatId, ChatMessage, MarkChatAsRead, MessageId, UploadTaskError,
+    BlockedContactError, Chat, ChatId, ChatMessage, MarkChatAsRead, MessageId, PartIndex,
+    UploadTaskError,
     clients::{
         CoreUser,
         attachment::{
@@ -24,7 +25,7 @@ use crate::{
             stage::StagedAttachment,
             thumbnail::store_thumbnail,
             upload::{
-                ATTACHMENT_PART_INDEX, AttachmentMetadata, AttachmentSource, AttachmentSpec,
+AttachmentMetadata, AttachmentSource, AttachmentSpec,
                 attachment_content, hold_message_with_failed_upload,
             },
         },
@@ -361,12 +362,20 @@ impl MessageComposer<'_> {
                 );
                 Ok(Shape::Text(text))
             }
-            (None, Some(staged), None) => {
-                ensure!(self.link_preview.is_none(), "link preview without a text");
-                Ok(Shape::SingleAttachment(staged))
+            (caption, Some(staged), None) => {
+                match &self.link_preview {
+                    None => (),
+                    Some(ComposedLinkPreview::Fetched(_)) => {
+                        ensure!(caption.is_some(), "link preview without a text");
+                    }
+                    Some(ComposedLinkPreview::Original) => {
+                        bail!("the original card needs a replaced message")
+                    }
+                }
+                Ok(Shape::SingleAttachment { staged, caption })
             }
             (None, None, _) => bail!("nothing to send"),
-            _ => bail!("text with attachments and several attachments are not supported yet"),
+            _ => bail!("several attachments are not supported yet"),
         }
     }
 
@@ -378,9 +387,20 @@ impl MessageComposer<'_> {
     ) -> anyhow::Result<Layout> {
         let (mut content, uploads) = match shape {
             Shape::Text(text) => self.build_text_layout(text, message_id)?,
-            Shape::SingleAttachment(staged) => {
+            Shape::SingleAttachment { staged, caption } => {
                 let thumbnail = thumbnails.into_iter().next().flatten();
-                build_single_attachment_layout(staged, thumbnail, message_id)?
+                // The caption is laid out like a text message
+                let (body, mut uploads) = match caption {
+                    Some(text) => {
+                        let (content, uploads) = self.build_text_layout(text, message_id)?;
+                        (body_parts(content.nested_part), uploads)
+                    }
+                    None => Default::default(),
+                };
+                let (content, upload) =
+                    build_single_attachment_layout(staged, body, thumbnail, message_id)?;
+                uploads.push(upload);
+                (content, uploads)
             }
         };
         content.in_reply_to = self.in_reply_to.map(From::from);
@@ -422,22 +442,37 @@ impl MessageComposer<'_> {
     }
 }
 
-/// A single attachment without text.
+/// A single attachment after the parts of its caption.
+///
+/// ```text
+/// MultiPart  attachment, processAll    ; partIndex 0
+/// ├─ text part (optional)              ; 1
+/// ├─ card part (optional)              ; 2
+/// ├─ card image part (optional)        ; 3 = LINK_PREVIEW_IMAGE_PART_INDEX
+/// ├─ attachment part                   ; after the body
+/// └─ blurhash part (image)             ; appended when processed
+/// ```
+///
+/// The root is the attachment container that a client without captions
+/// knows. It shows the attachment and skips the other parts.
 fn build_single_attachment_layout(
     staged: StagedAttachment,
+    body: Vec<NestedPart>,
     thumbnail: Option<SourceThumbnail>,
     message_id: MessageId,
-) -> anyhow::Result<(MimiContent, Vec<PlannedUpload>)> {
+) -> anyhow::Result<(MimiContent, PlannedUpload)> {
     let mut part = staged.provisional_part();
     AttachmentMetadata::random()?.write_to(&mut part)?;
-    let content = attachment_content(vec![part])?;
+    // The body parts are leaves and the root is part 0
+    let part_index = PartIndex(u32::try_from(body.len())? + 1);
+    let content = attachment_content(body.into_iter().chain([part]).collect())?;
 
     let is_animated = thumbnail.as_ref().map(|thumbnail| thumbnail.is_animated);
     let upload = PlannedUpload {
         attachment: NewAttachment {
             attachment_id: staged.id(),
             message_id,
-            part_index: ATTACHMENT_PART_INDEX,
+            part_index,
             role: AttachmentRole::Attachment,
             filename: Some(staged.filename().to_owned()),
             content_type: staged.content_type().to_owned(),
@@ -462,7 +497,15 @@ fn build_single_attachment_layout(
         }),
     };
 
-    Ok((content, vec![upload]))
+    Ok((content, upload))
+}
+
+/// Parts of the body of a text message, with or without a card.
+fn body_parts(body: NestedPart) -> Vec<NestedPart> {
+    match body {
+        NestedPart::MultiPart { parts, .. } => parts,
+        part => vec![part],
+    }
 }
 
 pub struct ComposedMessage {
@@ -490,14 +533,17 @@ pub struct UndecodableAttachment {
 /// What a composer holds, once its parts are known to fit together.
 enum Shape {
     Text(String),
-    SingleAttachment(StagedAttachment),
+    SingleAttachment {
+        staged: StagedAttachment,
+        caption: Option<String>,
+    },
 }
 
 impl Shape {
     fn attachments(&self) -> &[StagedAttachment] {
         match self {
             Self::Text(_) => &[],
-            Self::SingleAttachment(staged) => std::slice::from_ref(staged),
+            Self::SingleAttachment { staged, .. } => std::slice::from_ref(staged),
         }
     }
 }

@@ -14,8 +14,8 @@ pub use aircoreclient::{
 };
 use aircoreclient::{
     AttachmentFile, AttachmentId, AttachmentStatus, Chat, ChatId, ChatMessage, ComposedLinkPreview,
-    MarkChatAsRead, MessageEditError, MessageId, ProvisionAttachmentError, UndecodableAttachment,
-    UploadHandle,
+    MarkChatAsRead, MessageEditError, MessageId, ProvisionAttachmentError, StagedAttachment,
+    UndecodableAttachment, UploadHandle,
     clients::CoreUser,
     link_preview::{LinkPreview, select_links},
 };
@@ -64,6 +64,8 @@ pub enum UiSendMessageError {
     EditWindowPassed,
     /// The edited message was edited the maximum number of times.
     EditLimitReached,
+    /// A staged image could not be decoded, so it can never be sent.
+    AttachmentDecoding,
     Other {
         message: String,
     },
@@ -89,7 +91,39 @@ pub struct ChatDetailsState {
     pub chat: Option<UiChatDetails>,
     pub members: Vec<UiUserId>,
     pub link_preview: Option<UiComposerLinkPreview>,
+    /// Attachments the next message is sent with, in order.
+    #[frb(default = "const []")]
+    pub staged_attachments: Vec<UiStagedAttachment>,
 }
+
+/// An attachment staged in the composer.
+#[frb(dart_metadata = ("freezed"))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UiStagedAttachment {
+    pub attachment_id: AttachmentId,
+    /// Path of the local file, for the thumbnail of an image.
+    pub path: String,
+    pub filename: String,
+    pub content_type: String,
+    pub size: u64,
+    pub is_image: bool,
+}
+
+impl From<&StagedAttachment> for UiStagedAttachment {
+    fn from(staged: &StagedAttachment) -> Self {
+        Self {
+            attachment_id: staged.id(),
+            path: staged.path().to_string_lossy().into_owned(),
+            filename: staged.filename().to_owned(),
+            content_type: staged.content_type().to_owned(),
+            size: staged.size(),
+            is_image: staged.is_image(),
+        }
+    }
+}
+
+/// Number of attachments a message can be sent with.
+const MAX_STAGED_ATTACHMENTS: usize = 1;
 
 /// The cubit responsible for a single chat
 ///
@@ -102,6 +136,8 @@ pub struct ChatDetailsCubitBase {
     user_settings_rx: watch::Receiver<UserSettings>,
     attachment_in_progress: InProgressMap,
     link_preview: Mutex<ComposerLinkPreview>,
+    /// Dropping a staged attachment deletes its temp file.
+    staged_attachments: Mutex<Vec<StagedAttachment>>,
 }
 
 impl ChatDetailsCubitBase {
@@ -124,6 +160,7 @@ impl ChatDetailsCubitBase {
             chat,
             members: Default::default(),
             link_preview: Default::default(),
+            staged_attachments: Default::default(),
         };
         let core = CubitCore::with_initial_state(initial_state);
 
@@ -174,6 +211,7 @@ impl ChatDetailsCubitBase {
             user_settings_rx,
             attachment_in_progress: attachments_repository.in_progress().clone(),
             link_preview: Default::default(),
+            staged_attachments: Default::default(),
         }
     }
 
@@ -275,7 +313,10 @@ impl ChatDetailsCubitBase {
         Ok(())
     }
 
-    /// Sends a message to the chat.
+    /// Sends a message to the chat, with the staged attachments.
+    ///
+    /// The text is the caption of the attachments and can be empty then. An
+    /// edit does not take the staged attachments.
     ///
     /// The not yet sent message is immediately stored in the local store and then the message is
     /// send to the DS.
@@ -286,6 +327,9 @@ impl ChatDetailsCubitBase {
         let Err(error) = self.try_send_message(message_text.clone()).await else {
             return Ok(());
         };
+        if error.downcast_ref::<UndecodableAttachment>().is_some() {
+            return Err(UiSendMessageError::AttachmentDecoding);
+        }
         let Some(edit_error) = error.downcast_ref::<MessageEditError>().copied() else {
             return Err(UiSendMessageError::Other {
                 message: error.to_string(),
@@ -369,16 +413,29 @@ impl ChatDetailsCubitBase {
             None
         };
 
-        let composed = self
+        // Moved into the message, a failed send drops them.
+        let mut attachments = Vec::new();
+        if replaces.is_none() {
+            self.with_staged_attachments(|staged| attachments = std::mem::take(staged));
+        }
+
+        let mut composer = self
             .context
             .core_user
             .compose(self.context.chat_id)
-            .text(text)
             .in_reply_to(in_reply_to.map(MimiId::from))
             .replaces(replaces)
-            .link_preview(preview)
-            .mark_as_read(MarkChatAsRead::Yes)
-            .send()
+            .mark_as_read(MarkChatAsRead::Yes);
+        if attachments.is_empty() {
+            composer = composer.text(text).link_preview(preview);
+        } else if !text.is_empty() {
+            // Either a link preview or attachments
+            composer = composer.text(text);
+        }
+        for staged in attachments {
+            composer = composer.attachment(staged);
+        }
+        let composed = Box::pin(composer.send())
             .await
             .inspect_err(|error| error!(%error, "Failed to send message"))?;
 
@@ -459,6 +516,58 @@ impl ChatDetailsCubitBase {
         });
 
         Ok(())
+    }
+
+    /// Stages the file at `path` for the next message.
+    ///
+    /// A temp file is taken over. It is deleted when it is not needed
+    /// anymore, also when staging fails. When the limit of staged attachments
+    /// is reached, the oldest one is replaced.
+    ///
+    /// A message has either a link preview or attachments. Nothing is staged
+    /// while the composer has a link preview.
+    pub async fn stage_attachment(
+        &self,
+        path: String,
+        is_temp_file: bool,
+    ) -> anyhow::Result<Option<UploadAttachmentError>> {
+        let file = if is_temp_file {
+            AttachmentFile::owned(path)
+        } else {
+            AttachmentFile::borrowed(path)
+        };
+        if self.core.state_tx().borrow().link_preview.is_some() {
+            return Ok(None);
+        }
+        let staged = match self.context.core_user.stage_attachment(file).await? {
+            Ok(staged) => staged,
+            Err(error) => return error.into_ui_result(),
+        };
+        self.with_staged_attachments(|attachments| {
+            if MAX_STAGED_ATTACHMENTS <= attachments.len() {
+                attachments.remove(0);
+            }
+            attachments.push(staged);
+        });
+        Ok(None)
+    }
+
+    #[frb(sync)]
+    pub fn unstage_attachment(&self, attachment_id: AttachmentId) {
+        self.with_staged_attachments(|attachments| {
+            attachments.retain(|staged| staged.id() != attachment_id);
+        });
+    }
+
+    fn with_staged_attachments(&self, f: impl FnOnce(&mut Vec<StagedAttachment>)) {
+        let mut attachments = self.staged_attachments.lock();
+        f(&mut attachments);
+        let ui: Vec<UiStagedAttachment> = attachments.iter().map(From::from).collect();
+        self.core.state_tx().send_if_modified(|state| {
+            let changed = state.staged_attachments != ui;
+            state.staged_attachments = ui;
+            changed
+        });
     }
 
     /// Sends the file at `path` as an attachment.
@@ -900,8 +1009,18 @@ impl ChatDetailsCubitBase {
         Ok(())
     }
 
+    /// Resolves the link preview of the first link in `text`.
+    ///
+    /// No link is resolved while attachments are staged.
     pub async fn update_link_previews(&self, text: String) -> anyhow::Result<()> {
         self.seed_link_preview_of_edit().await?;
+        if !self.staged_attachments.lock().is_empty() {
+            let parent = self.core.cancellation_token();
+            self.with_link_preview(|lp| {
+                lp.switch_to(None, parent);
+            });
+            return Ok(());
+        }
         let generate = self.user_settings_rx.borrow().generate_link_previews;
         // Without generation, only the card of the edited message is shown
         let url = select_links(&text)

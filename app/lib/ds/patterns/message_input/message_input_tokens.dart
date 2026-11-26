@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/widgets.dart';
 
@@ -165,4 +166,52 @@ abstract final class MessageInputLinkPreviewTokens {
 
   /// Offset for the button, which hangs past the card's top-right corner.
   static const double removeOffset = MessageInputQuoteTokens.removeOffset;
+}
+
+/// Layout tokens for the strip of staged attachments shown above the field.
+abstract final class MessageInputMediaTokens {
+  /// Gap above the strip, the same as the staged quote's.
+  static const double gapAbove = MessageInputQuoteTokens.gapAbove;
+
+  /// Gap between the strip and the line box of the text. Smaller than
+  /// [gapAbove] by the leading above the glyphs, so both gaps look the same.
+  static const double gapBelow = S.s4;
+
+  /// The side inset is the field's own, so the first item lines up with the
+  /// text under it.
+  static const double gapSide = MessageInputTokens.fieldPadding;
+
+  /// Gap between two items.
+  static const double gap = S.s8;
+
+  /// Side of a picture's thumbnail, and the height of a file chip.
+  static const double thumbnailSize = S.s64;
+  static const double radius = CornerRadius.px12;
+
+  /// The remove button, tucked into the item's top-right corner.
+  static const double removeSize = ButtonIconSize.s24;
+  static const double removeIconSize = S.s12;
+  static const double removeInset = S.s4;
+  static const double removeHitTarget = S.s32;
+
+  /// Offset for the button, which lays out at [removeHitTarget] with the circle
+  /// centred in it, so the ring has to be backed out for [removeInset] to
+  /// measure from the circle's own edge.
+  static const double removeOffset =
+      removeInset - (removeHitTarget - removeSize) / 2;
+
+  /// The file chip: icon on the left, name and size stacked on the right.
+  static const double fileMinWidth = S.s192;
+  static const double fileMaxWidth = S.s240;
+  static const EdgeInsets filePadding = EdgeInsets.symmetric(
+    horizontal: S.s12,
+    vertical: S.s8,
+  );
+  static const double fileIconSize = S.s24;
+  static const double fileIconGap = S.s8;
+  static const double fileTextGap = S.s2;
+
+  /// Trailing space kept free inside the chip, so the text never runs under
+  /// the remove button.
+  static const double fileRemoveReserve = S.s20;
 }

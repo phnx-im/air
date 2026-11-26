@@ -120,6 +120,83 @@ async fn attachment_is_downloadable_by_recipient() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn attachment_and_caption_are_one_message() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("picture.png");
+    std::fs::write(&path, test_picture_bytes()).unwrap();
+
+    alice.drain().await;
+    let staged = alice
+        .stage_attachment(AttachmentFile::borrowed(path))
+        .await
+        .unwrap()
+        .unwrap();
+    let composed = alice
+        .compose(chat_id)
+        .text("look at *this*".to_owned())
+        .attachment(staged)
+        .mark_as_read(MarkChatAsRead::Yes)
+        .send();
+    let ComposedMessage { message, uploads } = Box::pin(composed).await.unwrap();
+    assert_eq!(uploads.len(), 1);
+    for upload in uploads {
+        upload.task.await.unwrap();
+    }
+    alice.outbound_service().run_once().await;
+    let sent = alice.expect_message(message.id()).await;
+    assert!(sent.is_sent());
+
+    let received = bob.drain().await;
+    let [received] = received.new_messages.as_slice() else {
+        panic!("attachment and caption must arrive as one message");
+    };
+    let content = received.message().mimi_content().unwrap();
+    assert_eq!(content, sent.message().mimi_content().unwrap());
+
+    let mut seen = Vec::new();
+    content
+        .visit_parts(|part| {
+            seen.push(match part {
+                VisitedPart::Attachment {
+                    index, blurhash, ..
+                } => format!("attachment {index:?} blurhash {}", blurhash.is_some()),
+                VisitedPart::Text { content, .. } => format!("text {content}"),
+                _ => "other".to_owned(),
+            });
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(
+        seen,
+        [
+            "text look at *this*",
+            "attachment PartIndex(2) blurhash true"
+        ]
+    );
+
+    // A client that only knows the layout without a caption finds the
+    // attachment in an attachment container.
+    assert_matches!(
+        &content.nested_part,
+        NestedPart::MultiPart {
+            disposition: Disposition::Attachment,
+            part_semantics: PartSemantics::ProcessAll,
+            parts,
+            ..
+        } if parts.iter().any(|part| matches!(
+            part,
+            NestedPart::ExternalPart { disposition: Disposition::Attachment, .. }
+        ))
+    );
+
+    assert_eq!(bob.pending_attachments().await.unwrap().len(), 1);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn interrupted_attachment_download_is_resumed() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;

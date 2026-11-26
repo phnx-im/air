@@ -210,7 +210,10 @@ impl Ctx {
             if is_skipped(part.disposition()) {
                 continue;
             }
-            match self.enter(part).classify_leaf(part) {
+            let ctx = self.enter(part);
+            match ctx.classify_leaf(part) {
+                // The image of a card brings its blurhash in the card
+                Leaf::Attachment if ctx.in_preview && !self.in_preview => {}
                 Leaf::Attachment => {
                     if attachment.is_some() {
                         return None;
@@ -692,6 +695,30 @@ mod tests {
                 att(3, false, None),
                 att(5, false, None),
                 att(6, false, None)
+            ]
+        );
+    }
+
+    #[test]
+    fn blurhash_skips_preview_image() {
+        let seen = visit_part(multi(
+            Disposition::Attachment,
+            PartSemantics::ProcessAll,
+            vec![
+                text("text/markdown", "see"),
+                card(),
+                external(Disposition::Preview, "image/webp"),
+                file(),
+                blurhash(),
+            ],
+        ));
+        assert_eq!(
+            seen,
+            [
+                md("see"),
+                Seen::Card(2),
+                att(3, true, None),
+                att(4, false, Some("LEHV6nWB2yk8")),
             ]
         );
     }
