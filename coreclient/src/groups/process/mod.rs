@@ -87,16 +87,24 @@ impl Group {
         api_clients: &ApiClients,
         message: impl Into<ProtocolMessage>,
     ) -> Result<ProcessMessageResult> {
+        let message: ProtocolMessage = message.into();
+        let epoch_check = EpochCheck::new(
+            message.is_handshake_message(),
+            message.epoch(),
+            self.mls_group.epoch(),
+        );
+        if let Some(result) = epoch_check.into_skipped_result() {
+            return Ok(result);
+        }
+
         let processed_message = {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
-            let message = message.into();
-            let message_epoch = message.epoch();
             match self.mls_group.process_message(&provider, message) {
                 Ok(processed_message) => {
                     // Processes app data updates in the message, if any.
                     resolve_partial_commit(&self.mls_group, &provider, processed_message)?
                 }
-                Err(error) => return self.handle_process_message_error(error, message_epoch),
+                Err(error) => return self.handle_process_message_error(error),
             }
         };
         self.post_process_message(txn, api_clients, processed_message, None)
@@ -351,7 +359,7 @@ impl Group {
         api_clients: &ApiClients,
         message: impl Into<ApqProtocolMessage>,
     ) -> Result<ProcessMessageResult> {
-        if self.pq.is_none() {
+        let Some(pq_group) = self.pq.as_ref() else {
             // The local PQ group state is missing, e.g. because a legacy
             // T-only resync dropped it. We can't process any APQ message in
             // this state, but a resync restores both legs, so report the
@@ -360,10 +368,18 @@ impl Group {
             return Ok(ProcessMessageResult::ResyncRequired(
                 ResyncReason::MissingPqGroupState,
             ));
-        }
+        };
 
         let message: ApqProtocolMessage = message.into();
-        let message_t_epoch = message.t_epoch();
+        let is_handshake = message.t_protocol_message().is_handshake_message();
+        let epoch_check = EpochCheck::apq(
+            EpochCheck::new(is_handshake, message.t_epoch(), self.mls_group.epoch()),
+            EpochCheck::new(is_handshake, message.pq_epoch(), pq_group.mls_group.epoch()),
+        );
+        if let Some(result) = epoch_check.into_skipped_result() {
+            return Ok(result);
+        }
+
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
 
         let ApqProcessedMessage {
@@ -376,7 +392,7 @@ impl Group {
         ) {
             Ok(processed_message) => processed_message,
             Err(ApqProcessMessageError::Processing(error)) => {
-                return self.handle_process_message_error(error, message_t_epoch);
+                return self.handle_process_message_error(error);
             }
             Err(error) => return Err(error).context("Failed to process APQ message"),
         };
@@ -412,29 +428,8 @@ impl Group {
     fn handle_process_message_error(
         &self,
         error: ProcessMessageError<sqlx::Error>,
-        message_epoch: GroupEpoch,
     ) -> Result<ProcessMessageResult> {
         match error {
-            ProcessMessageError::ValidationError(ValidationError::WrongEpoch) => {
-                // If the message epoch is in the past, we can just
-                // ignore it: our pending commit was already merged via
-                // the `DsCommitResponse`, so a replayed or stale delivery
-                // is one epoch behind. Skip quietly rather than logging
-                // an error.
-                if self.mls_group.epoch() > message_epoch {
-                    debug!(
-                        ?message_epoch,
-                        current_epoch = ?self.mls_group.epoch(),
-                        "Ignoring past-epoch message"
-                    );
-                    return Ok(ProcessMessageResult::Ignored);
-                }
-                // If the message epoch is in the future, we need to re-join
-                // the group.
-                Ok(ProcessMessageResult::ResyncRequired(
-                    ResyncReason::FutureEpoch,
-                ))
-            }
             ProcessMessageError::InvalidCommit(StageCommitError::VirtualClientsError(
                 error @ (VirtualClientsError::MissingDerivationEpochState
                 | VirtualClientsError::MissingOperationTree
@@ -462,6 +457,55 @@ impl Group {
     }
 }
 
+/// Helper to process incoming messages, based on the message type and the epoch
+/// of the message.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EpochCheck {
+    /// Full processing.
+    Process,
+    /// Ignore commits or proposals from a past epochs.
+    Ignore,
+    /// The message is from an epoch we have not reached.
+    Resync,
+}
+
+impl EpochCheck {
+    fn new(is_handshake: bool, message_epoch: GroupEpoch, group_epoch: GroupEpoch) -> Self {
+        if message_epoch > group_epoch {
+            Self::Resync
+        } else if message_epoch < group_epoch && is_handshake {
+            // Application messages from past epochs are fine, openmls keeps
+            // their secrets for a few epochs.
+            Self::Ignore
+        } else {
+            Self::Process
+        }
+    }
+
+    /// Combines the checks of the two legs of an APQ message. A stale T leg
+    /// makes the message a duplicate. Any other mismatch means we missed a
+    /// commit or the local legs diverged.
+    fn apq(t: Self, pq: Self) -> Self {
+        match (t, pq) {
+            (Self::Ignore, Self::Process | Self::Ignore | Self::Resync) => Self::Ignore,
+            (Self::Process, Self::Process) => Self::Process,
+            (Self::Process, Self::Ignore | Self::Resync)
+            | (Self::Resync, Self::Process | Self::Ignore | Self::Resync) => Self::Resync,
+        }
+    }
+
+    /// Converts the epoch check into a processing result.
+    fn into_skipped_result(self) -> Option<ProcessMessageResult> {
+        match self {
+            Self::Process => None,
+            Self::Ignore => Some(ProcessMessageResult::Ignored),
+            Self::Resync => Some(ProcessMessageResult::ResyncRequired(
+                ResyncReason::FutureEpoch,
+            )),
+        }
+    }
+}
+
 /// Verify that merging `staged_commit` keeps the self-group flag in the group context unchanged.
 /// The flag is fixed at group creation.
 fn ensure_self_group_flag_unchanged(
@@ -484,4 +528,55 @@ fn expect_staged_commit(processed_message: &ProcessedMessage) -> Result<&StagedC
         bail!("Expected a StagedCommitMessage");
     };
     Ok(staged_commit)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const HANDSHAKE: bool = true;
+    const APPLICATION: bool = false;
+
+    fn check(is_handshake: bool, message_epoch: u64, group_epoch: u64) -> EpochCheck {
+        EpochCheck::new(
+            is_handshake,
+            GroupEpoch::from(message_epoch),
+            GroupEpoch::from(group_epoch),
+        )
+    }
+
+    #[test]
+    fn handshake_message_is_only_processed_at_the_current_epoch() {
+        assert_eq!(check(HANDSHAKE, 0, 1), EpochCheck::Ignore);
+        assert_eq!(check(HANDSHAKE, 4, 5), EpochCheck::Ignore);
+        assert_eq!(check(HANDSHAKE, 5, 5), EpochCheck::Process);
+        assert_eq!(check(HANDSHAKE, 6, 5), EpochCheck::Resync);
+    }
+
+    #[test]
+    fn application_message_from_a_past_epoch_is_processed() {
+        assert_eq!(check(APPLICATION, 0, 5), EpochCheck::Process);
+        assert_eq!(check(APPLICATION, 4, 5), EpochCheck::Process);
+        assert_eq!(check(APPLICATION, 5, 5), EpochCheck::Process);
+        assert_eq!(check(APPLICATION, 6, 5), EpochCheck::Resync);
+    }
+
+    #[test]
+    fn apq_check_follows_a_stale_t_leg_and_otherwise_needs_both_legs() {
+        use EpochCheck::{Ignore, Process, Resync};
+        let cases = [
+            (Process, Process, Process),
+            (Process, Ignore, Resync),
+            (Process, Resync, Resync),
+            (Ignore, Process, Ignore),
+            (Ignore, Ignore, Ignore),
+            (Ignore, Resync, Ignore),
+            (Resync, Process, Resync),
+            (Resync, Ignore, Resync),
+            (Resync, Resync, Resync),
+        ];
+        for (t, pq, expected) in cases {
+            assert_eq!(EpochCheck::apq(t, pq), expected, "t: {t:?}, pq: {pq:?}");
+        }
+    }
 }

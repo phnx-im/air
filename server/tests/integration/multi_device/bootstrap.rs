@@ -6,36 +6,11 @@
 //! externally joined.
 
 use aircoreclient::{
-    ChatId, ChatStatus, ChatType, EventMessage, Message, SystemMessage, clients::CoreUser,
+    ChatStatus, ChatType, EventMessage, Message, SystemMessage, clients::CoreUser,
 };
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 
-use super::send_and_receive;
-
-/// Asserts that both devices sit on the same epoch and share the virtual
-/// client's leaf in `chat_id`.
-async fn assert_same_epoch_and_leaf(
-    device_a: &CoreUser,
-    device_b: &CoreUser,
-    chat_id: ChatId,
-    context: &str,
-) {
-    let a = device_a.group_epoch_and_own_index(chat_id).await.unwrap();
-    assert!(
-        a.is_some(),
-        "{context}: the acting device has no group state"
-    );
-    assert_eq!(
-        device_b.group_epoch_and_own_index(chat_id).await.unwrap(),
-        a,
-        "{context}: the sibling is not on the acting device's epoch and leaf"
-    );
-    assert_eq!(
-        device_b.chat_is_apq(chat_id).await,
-        device_a.chat_is_apq(chat_id).await,
-        "{context}: the sibling did not install the same legs"
-    );
-}
+use super::{assert_same_epoch_and_leaf, send_and_receive};
 
 /// A sibling installs a group chat its sibling created and can use it.
 async fn sibling_follows_a_created_group_chat(apq: bool) {

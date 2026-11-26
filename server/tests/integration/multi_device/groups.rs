@@ -10,6 +10,8 @@ use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBacke
 use chrono::Utc;
 use mimi_content::MimiContent;
 
+use super::assert_same_epoch_and_leaf;
+
 #[tokio::test(flavor = "multi_thread")]
 async fn invited_group_messages_reach_both_devices() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
@@ -87,6 +89,57 @@ async fn invited_group_messages_reach_both_devices() -> anyhow::Result<()> {
     );
 
     Ok(())
+}
+
+/// The DS sends our own commit back to the device that sent it, after that
+/// device merged it already.
+async fn assert_own_commit_echo_is_ignored(apq: bool) {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice2 = alice.add_synced_device().await;
+
+    let chat_id = if apq {
+        setup.create_apq_group(&alice).await
+    } else {
+        setup.create_non_apq_group(&alice).await
+    };
+    // The sibling answers the creation with self-group traffic of its own.
+    alice.drain().await;
+    alice2.drain().await;
+    alice.drain().await;
+
+    alice.update_key(chat_id).await.unwrap();
+    let after_update = alice.group_epoch_and_own_index(chat_id).await.unwrap();
+
+    // Next to the commit response, the broadcast to the virtual-client leaf
+    // delivers the commit itself.
+    let processed = alice.drain().await;
+    assert_eq!(
+        processed.processed, 2,
+        "the updating device should receive the commit response and its own commit"
+    );
+    assert_eq!(
+        alice.group_epoch_and_own_index(chat_id).await.unwrap(),
+        after_update,
+        "the own echo must not touch the group state"
+    );
+    assert!(
+        alice.resync_status(chat_id).await.unwrap().is_none(),
+        "the own echo must not schedule a resync"
+    );
+
+    alice2.drain().await;
+    assert_same_epoch_and_leaf(&alice, &alice2, chat_id, "after the update").await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn own_commit_echo_is_ignored() {
+    assert_own_commit_echo_is_ignored(false).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn own_commit_echo_is_ignored_apq() {
+    assert_own_commit_echo_is_ignored(true).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
