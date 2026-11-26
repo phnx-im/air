@@ -19,6 +19,7 @@ class MessageInputLinkPreview extends StatelessWidget {
     this.data,
     this.imageBuilder,
     this.onRemove,
+    this.last = true,
   });
 
   /// The address, shown on the pending card.
@@ -33,17 +34,21 @@ class MessageInputLinkPreview extends StatelessWidget {
   /// Unstages the preview, also while it is pending.
   final VoidCallback? onRemove;
 
+  /// Whether the field follows directly. Another staged row brings its own
+  /// gap above, so the card drops its gap below.
+  final bool last;
+
   @override
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
     final onRemove = this.onRemove;
 
     return Padding(
-      padding: const EdgeInsets.only(
+      padding: EdgeInsets.only(
         left: MessageInputLinkPreviewTokens.gapSide,
         right: MessageInputLinkPreviewTokens.gapSide,
         top: MessageInputLinkPreviewTokens.gapAbove,
-        bottom: MessageInputLinkPreviewTokens.gapBelow,
+        bottom: last ? MessageInputLinkPreviewTokens.gapBelow : 0,
       ),
       // Loose, so the stack hugs a card narrower than the chrome and the
       // remove button stays on its corner.

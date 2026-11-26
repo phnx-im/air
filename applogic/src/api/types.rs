@@ -31,6 +31,7 @@ use crate::api::{
     markdown::MessageContent,
     message_content::{UiMimiContent, UiMimiId, UnresolvedMimiContent},
 };
+use crate::message_content::MimiContentExt as _;
 
 /// Mode for deleting a message
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -583,9 +584,14 @@ struct EditAllowance {
 
 impl EditAllowance {
     fn of(message: &ChatMessage) -> Self {
+        let has_editable_body = message
+            .message()
+            .mimi_content()
+            .is_some_and(|content| content.editable_body().is_some());
         Self {
             until: message
                 .editable_until()
+                .filter(|_| has_editable_body)
                 .map(|until| until.with_timezone(&Local)),
             edits_left: message.edits_left(),
         }

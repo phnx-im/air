@@ -21,9 +21,9 @@ import 'user_cubit.dart';
 import 'user_settings_cubit.dart';
 part 'chat_details_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `clear_draft`, `keep_as_new_message`, `link_preview_to_send`, `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `original_preview`, `seed_link_preview_of_edit`, `spawn_upload_handle`, `store_draft_from_state`, `try_send_message`, `update_state_task`, `with_link_preview`
+// These functions are ignored because they are not marked as `pub`: `can_stage`, `clear_draft`, `has_attachments`, `is_editing`, `keep_as_new_message`, `link_preview_to_send`, `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `original_preview`, `seed_link_preview_of_edit`, `spawn_upload_handle`, `store_draft_from_state`, `try_send_message`, `update_state_task`, `with_link_preview`, `with_staged_attachments`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AcceptContactRequestError`, `ChatDetailsContext`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `into_ui_result`
 // These functions are ignored (category: IgnoreBecauseNotAllowedOwner): `into_ui_result`
 
@@ -108,7 +108,10 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
     required AttachmentId attachmentId,
   });
 
-  /// Sends a message to the chat.
+  /// Sends a message to the chat, with the staged attachments.
+  ///
+  /// The text is the caption of the attachments and can be empty then. An
+  /// edit does not take the staged attachments.
   ///
   /// The not yet sent message is immediately stored in the local store and then the message is
   /// send to the DS.
@@ -132,6 +135,30 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
 
   Future<void> setChatTitle({required String title});
 
+  /// Stages the file at `path` for the next message.
+  ///
+  /// Rules of staging:
+  ///
+  /// 1. Nothing is uploaded before the message is sent.
+  /// 2. A message has either a link preview or attachments. Nothing is
+  ///    staged while the composer has a link preview. A preview that is
+  ///    still loading is dropped instead.
+  /// 3. An edit cannot add attachments. Nothing is staged while a message
+  ///    is edited, and starting an edit unstages everything.
+  /// 4. When the limit of staged attachments is reached, the oldest one is
+  ///    replaced.
+  /// 5. Staged attachments are not part of the draft. They are gone when
+  ///    the chat is left.
+  /// 6. A failed send keeps them staged, except for an image that does not
+  ///    decode.
+  ///
+  /// A temp file is taken over. It is deleted when it is not needed
+  /// anymore, also when nothing is staged.
+  Future<UploadAttachmentError?> stageAttachment({
+    required String path,
+    required bool isTempFile,
+  });
+
   ChatDetailsState get state;
 
   Future<void> storeDraft({
@@ -141,6 +168,12 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
 
   Stream<ChatDetailsState> stream();
 
+  void unstageAttachment({required AttachmentId attachmentId});
+
+  /// Resolves the link preview of the first link in `text`.
+  ///
+  /// No link is resolved while attachments are staged or if the edited
+  /// message has attachments.
   Future<void> updateLinkPreviews({required String text});
 
   /// Sends the file at `path` as an attachment.
@@ -208,6 +241,7 @@ sealed class ChatDetailsState with _$ChatDetailsState {
     UiChatDetails? chat,
     required List<UiUserId> members,
     UiComposerLinkPreview? linkPreview,
+    @Default([]) List<UiStagedAttachment> stagedAttachments,
   }) = _ChatDetailsState;
   static Future<ChatDetailsState> default_() =>
       RustLib.instance.api.crateApiChatDetailsCubitChatDetailsStateDefault();
@@ -572,8 +606,25 @@ sealed class UiSendMessageError
   /// The edited message was edited the maximum number of times.
   const factory UiSendMessageError.editLimitReached() =
       UiSendMessageError_EditLimitReached;
+
+  /// A staged image could not be decoded, so it can never be sent.
+  const factory UiSendMessageError.attachmentDecoding() =
+      UiSendMessageError_AttachmentDecoding;
   const factory UiSendMessageError.other({required String message}) =
       UiSendMessageError_Other;
+}
+
+/// An attachment staged in the composer.
+@freezed
+sealed class UiStagedAttachment with _$UiStagedAttachment {
+  const factory UiStagedAttachment({
+    required AttachmentId attachmentId,
+    required String path,
+    required String filename,
+    required String contentType,
+    required BigInt size,
+    required bool isImage,
+  }) = _UiStagedAttachment;
 }
 
 @freezed

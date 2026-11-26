@@ -34,6 +34,7 @@ class MediaMessage extends StatelessWidget {
     this.naturalWidth,
     this.naturalHeight,
     this.isSelf = false,
+    this.square = false,
     this.placeholder,
     this.error,
     this.overlay,
@@ -50,6 +51,7 @@ class MediaMessage extends StatelessWidget {
     this.naturalWidth,
     this.naturalHeight,
     this.isSelf = false,
+    this.square = false,
     this.placeholder,
     this.overlay,
     this.onTap,
@@ -72,6 +74,43 @@ class MediaMessage extends StatelessWidget {
   /// Whether the bubble is the local user's. Picks the bubble fill.
   final bool isSelf;
 
+  /// Draws the frame without corners of its own, for a picture that sits edge
+  /// to edge in a bubble with other blocks. The bubble clips it.
+  final bool square;
+
+  /// Width of the frame the rules give a picture of this size under
+  /// [maxWidth], so a host can size its bubble to the picture.
+  static double frameWidth({
+    required double naturalWidth,
+    required double naturalHeight,
+    required double maxWidth,
+  }) {
+    if (isThumbnail(naturalWidth: naturalWidth, naturalHeight: naturalHeight)) {
+      return MediaMessageTokens.thumbnailMin;
+    }
+    if (naturalWidth / naturalHeight * MediaMessageTokens.maxHeight <
+        MediaMessageTokens.minScaleWidth) {
+      return MediaMessageTokens.minScaleWidth;
+    }
+    final scale = math.min(
+      1.0,
+      math.min(
+        maxWidth / naturalWidth,
+        MediaMessageTokens.maxHeight / naturalHeight,
+      ),
+    );
+    return naturalWidth * scale;
+  }
+
+  /// Whether a picture of this size keeps its own size in the fixed thumbnail
+  /// frame.
+  static bool isThumbnail({
+    required double naturalWidth,
+    required double naturalHeight,
+  }) =>
+      naturalWidth < MediaMessageTokens.thumbnailMin &&
+      naturalHeight < MediaMessageTokens.thumbnailMin;
+
   /// Painted behind the picture, inside the bubble: a blurhash or another cheap
   /// stand-in that holds the frame while the full picture decodes.
   final Widget? placeholder;
@@ -91,6 +130,7 @@ class MediaMessage extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget content = _MediaFrame(
       fill: MessageBubble.fillOf(context, isSelf: isSelf),
+      radius: square ? 0 : MediaMessageTokens.radius,
       naturalWidth: naturalWidth,
       naturalHeight: naturalHeight,
       buildImage: _buildImage,
@@ -134,12 +174,14 @@ class MediaMessage extends StatelessWidget {
 class _MediaFrame extends StatelessWidget {
   const _MediaFrame({
     required this.fill,
+    required this.radius,
     required this.naturalWidth,
     required this.naturalHeight,
     required this.buildImage,
   });
 
   final Color fill;
+  final double radius;
   final double? naturalWidth;
   final double? naturalHeight;
   final Widget Function(BoxFit fit) buildImage;
@@ -160,8 +202,7 @@ class _MediaFrame extends StatelessWidget {
       );
     }
 
-    if (width < MediaMessageTokens.thumbnailMin &&
-        height < MediaMessageTokens.thumbnailMin) {
+    if (MediaMessage.isThumbnail(naturalWidth: width, naturalHeight: height)) {
       return _thumbnail();
     }
 
@@ -198,7 +239,7 @@ class _MediaFrame extends StatelessWidget {
         height: height,
         decoration: BoxDecoration(
           color: fill,
-          borderRadius: BorderRadius.circular(MediaMessageTokens.radius),
+          borderRadius: BorderRadius.circular(radius),
         ),
         clipBehavior: .antiAlias,
         child: child,
@@ -213,13 +254,14 @@ class _MediaFrame extends StatelessWidget {
           0.0,
           MediaMessageTokens.radius,
         );
+    // The picture inside keeps its corners, only the frame goes square.
     return Container(
       width: MediaMessageTokens.thumbnailMin,
       height: MediaMessageTokens.thumbnailMin,
       padding: const EdgeInsets.all(MediaMessageTokens.thumbnailPadding),
       decoration: BoxDecoration(
         color: fill,
-        borderRadius: BorderRadius.circular(MediaMessageTokens.radius),
+        borderRadius: BorderRadius.circular(radius),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(inner),

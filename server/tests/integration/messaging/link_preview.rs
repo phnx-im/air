@@ -137,7 +137,7 @@ async fn card_and_attachment_are_rejected() {
     let path = directory.path().join("picture.png");
     std::fs::write(&path, test_picture_bytes()).unwrap();
     let staged = alice
-        .stage_attachment(AttachmentFile::borrowed(path))
+        .stage_attachment(AttachmentFile::new(path))
         .await
         .unwrap()
         .unwrap();

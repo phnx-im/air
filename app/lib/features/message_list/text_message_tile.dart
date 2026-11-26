@@ -4,6 +4,7 @@
 
 import 'dart:async' show unawaited;
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/button/button.dart';
@@ -15,6 +16,7 @@ import 'package:air/ds/patterns/adaptive_modal/adaptive_modal.dart';
 import 'package:air/ds/patterns/link_preview/link_preview.dart';
 import 'package:air/ds/patterns/link_preview/link_preview_tokens.dart';
 import 'package:air/ds/patterns/media_message/media_message.dart';
+import 'package:air/ds/patterns/media_message/media_message_tokens.dart';
 import 'package:air/ds/patterns/message_bubble/message_bubble.dart';
 import 'package:air/ds/patterns/message_bubble/message_bubble_tokens.dart';
 import 'package:air/ds/patterns/message_meta/message_meta.dart';
@@ -983,7 +985,7 @@ List<MessageAction> _messageActions(
         leading: const AppIcon.copy(size: _menuIconSize),
         onSelected: () => Clipboard.setData(ClipboardData(text: plainBody)),
       ),
-    if (isSender && attachments.isEmpty && isEditable)
+    if (isSender && isEditable)
       MessageAction(
         label: loc.messageContextMenu_edit,
         leading: const AppIcon.pencil(size: _menuIconSize),
@@ -1172,6 +1174,32 @@ class _MessageContent extends StatelessWidget {
     // or banner sizes itself against the available width and exposes none.
     final stretched = (inReplyTo != null || linkPreview != null) && !bleeds;
 
+    // A picture drives the width of its bubble, so a quote or caption beside
+    // it wraps to the picture instead of widening the bubble past it. A small
+    // one leaves room for them.
+    final mediaIsThumbnail =
+        hasMedia &&
+        MediaMessage.isThumbnail(
+          naturalWidth: imageMetadata.width.toDouble(),
+          naturalHeight: imageMetadata.height.toDouble(),
+        );
+    final mediaWidth = hasMedia && !linkBanner
+        ? math.min(
+            maxWidth,
+            math.max(
+              MediaMessageTokens.minScaleWidth,
+              MediaMessage.frameWidth(
+                naturalWidth: imageMetadata.width.toDouble(),
+                naturalHeight: imageMetadata.height.toDouble(),
+                maxWidth: maxWidth,
+              ),
+            ),
+          )
+        : null;
+    // Alone in the bubble, the picture keeps its own frame.
+    final mediaAlone =
+        hasMedia && inReplyTo == null && linkPreview == null && !hasText;
+
     // The quote already leaves its inset below it. A picture or banner in
     // between starts a fresh run.
     const p = MessageBubbleTokens.padding;
@@ -1198,43 +1226,65 @@ class _MessageContent extends StatelessWidget {
         intrinsicWidth: stretched,
         child: _capped(
           padding,
-          Column(
-            mainAxisSize: .min,
-            crossAxisAlignment: stretched ? .stretch : .start,
-            spacing: edgeToEdge ? S.s0 : S.s8,
-            children: [
-              if (inReplyTo != null) inset(_reply(context, inReplyTo)),
-              if (hasMedia)
-                SelectionContainer.disabled(
-                  child: _media(context, attachment, imageMetadata),
-                ),
-              if (attachment != null && imageMetadata == null)
-                inset(
+          _sized(
+            mediaAlone ? null : mediaWidth,
+            Column(
+              mainAxisSize: .min,
+              crossAxisAlignment:
+                  stretched || (mediaWidth != null && !mediaAlone)
+                  ? .stretch
+                  : .start,
+              spacing: edgeToEdge ? S.s0 : S.s8,
+              children: [
+                if (inReplyTo != null) inset(_reply(context, inReplyTo)),
+                if (hasMedia)
                   SelectionContainer.disabled(
-                    child: _file(context, attachment),
+                    child: _centered(
+                      mediaIsThumbnail && !mediaAlone,
+                      _media(
+                        context,
+                        attachment,
+                        imageMetadata,
+                        square: !mediaAlone,
+                      ),
+                    ),
                   ),
-                ),
-              if (linkCard != null)
-                SelectionContainer.disabled(
-                  // Only the banner takes the full width, so a picture above
-                  // it keeps its own size.
-                  child: linkBanner
-                      ? SizedBox(width: double.infinity, child: linkCard)
-                      : linkCard,
-                ),
-              if (linkPreview != null && hasText)
-                SizedBox(
-                  width: double.infinity,
-                  height: LinkPreviewTokens.dividerWidth,
-                  child: ColoredBox(color: LinkPreview.dividerColorOf(context)),
-                ),
-              if (hasText) inset(_selectable(_text(blocks, jumbo: false))),
-            ],
+                if (attachment != null && imageMetadata == null)
+                  inset(
+                    SelectionContainer.disabled(
+                      child: _file(context, attachment),
+                    ),
+                  ),
+                if (linkCard != null)
+                  SelectionContainer.disabled(
+                    // Only the banner takes the full width, so a picture above
+                    // it keeps its own size.
+                    child: linkBanner
+                        ? SizedBox(width: double.infinity, child: linkCard)
+                        : linkCard,
+                  ),
+                if (linkPreview != null && hasText)
+                  SizedBox(
+                    width: double.infinity,
+                    height: LinkPreviewTokens.dividerWidth,
+                    child: ColoredBox(
+                      color: LinkPreview.dividerColorOf(context),
+                    ),
+                  ),
+                if (hasText) inset(_selectable(_text(blocks, jumbo: false))),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  Widget _sized(double? width, Widget child) =>
+      width == null ? child : SizedBox(width: width, child: child);
+
+  Widget _centered(bool centered, Widget child) =>
+      centered ? Center(child: child) : child;
 
   /// Caps the content rather than the bubble, so the bubble still hugs what it
   /// carries once the text wraps.
@@ -1356,8 +1406,9 @@ class _MessageContent extends StatelessWidget {
   Widget _media(
     BuildContext context,
     UiAttachment attachment,
-    UiImageMetadata metadata,
-  ) {
+    UiImageMetadata metadata, {
+    required bool square,
+  }) {
     return Hero(
       tag: imageViewerHeroTag(attachment),
       transitionOnUserGestures: true,
@@ -1365,6 +1416,7 @@ class _MessageContent extends StatelessWidget {
         naturalWidth: metadata.width.toDouble(),
         naturalHeight: metadata.height.toDouble(),
         isSelf: isSender,
+        square: square,
         // The attachment drives its own frames -- an animated picture steps
         // them one by one -- and takes the fit the chosen branch needs.
         builder: (fit) => AttachmentImage(

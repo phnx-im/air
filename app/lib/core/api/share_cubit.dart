@@ -18,9 +18,9 @@ import 'package:uuid/uuid.dart';
 import 'types.dart';
 part 'share_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `all_sent`, `emit_send_status`, `load_and_emit_state`, `load_share_chat`, `load_share_chats`, `provision_error`, `send_impl`, `send_text_message`, `share_chat_ids`, `upload_attachment`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChatSendProgress`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `all_sent`, `emit_send_status`, `load_and_emit_state`, `load_share_chat`, `load_share_chats`, `provision_error`, `run_upload`, `send_attachment`, `send_impl`, `send_text_message`, `share_chat_ids`, `store_attachment_message`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AttachmentSendError`, `ChatSendProgress`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
 // These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ShareCubitBase>>
@@ -49,12 +49,14 @@ abstract class ShareCubitBase implements RustOpaqueInterface {
 
   /// Sends the shared content to the given chats.
   ///
-  /// Each attachment is sent as its own message. The shared text and the
-  /// caption are sent as one trailing text message. Every chat receives its own copy. Progress is reported
-  /// via the state's `send_status`.
+  /// Each attachment is sent as its own message. The text is the caption of
+  /// the last attachment, or a message of its own without attachments.
+  /// Every chat receives its own copy. Progress is reported via the state's
+  /// `send_status`.
   ///
   /// Content a chat already received in an earlier call is skipped, so
-  /// that retrying after a failure does not send it twice.
+  /// that retrying after a failure does not send it twice. A message held
+  /// by a failed upload is retried instead of sent again.
   ///
   /// All messages are persisted locally before sending. When delivery
   /// fails they stay queued and the main app's outbound service retries

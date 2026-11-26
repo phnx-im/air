@@ -24,6 +24,8 @@ pub(crate) struct ComposerLinkPreview {
     dismissed: HashSet<String>,
     /// Message being edited
     editing: Option<MessageId>,
+    /// Whether the message being edited has attachments
+    edits_attachments: bool,
     original: Option<OriginalPreview>,
 }
 
@@ -70,6 +72,11 @@ impl ComposerLinkPreview {
         self.editing == Some(message_id)
     }
 
+    /// Whether the message being edited has attachments.
+    pub(crate) fn edits_attachments(&self) -> bool {
+        self.edits_attachments
+    }
+
     /// Whether `url` is the link of the card of the edited message.
     pub(crate) fn is_original(&self, url: &str) -> bool {
         self.original
@@ -81,12 +88,18 @@ impl ComposerLinkPreview {
     ///
     /// The card is shown right away, without a call to
     /// [`Self::switch_to`]. Does nothing if the edit was started already.
-    pub(crate) fn start_edit(&mut self, message_id: MessageId, original: Option<OriginalPreview>) {
+    pub(crate) fn start_edit(
+        &mut self,
+        message_id: MessageId,
+        original: Option<OriginalPreview>,
+        has_attachments: bool,
+    ) {
         if self.is_editing(message_id) {
             return;
         }
         self.reset();
         self.editing = Some(message_id);
+        self.edits_attachments = has_attachments;
         if let Some(original) = &original {
             self.url = Some(original.card.url().to_owned());
             self.fetch = Fetch::Original;
@@ -113,6 +126,7 @@ impl ComposerLinkPreview {
         self.url = None;
         self.dismissed.clear();
         self.editing = None;
+        self.edits_attachments = false;
         self.original = None;
     }
 
@@ -398,7 +412,7 @@ mod tests {
     fn unchanged_link_shows_the_original_without_a_fetch() {
         let parent = CancellationToken::new();
         let mut preview = ComposerLinkPreview::default();
-        preview.start_edit(message_id(), Some(original(A)));
+        preview.start_edit(message_id(), Some(original(A)), false);
         assert_eq!(preview.ui(), original_ui(A));
 
         assert!(preview.switch_to(Some(A), &parent).is_none());
@@ -418,6 +432,7 @@ mod tests {
         preview.start_edit(
             message_id(),
             Some(OriginalPreview::new(card, Some(vec![1, 2, 3]))),
+            false,
         );
 
         assert_eq!(preview.image_for(A), Some(vec![1, 2, 3]));
@@ -429,11 +444,11 @@ mod tests {
         let parent = CancellationToken::new();
         let message_id = message_id();
         let mut preview = ComposerLinkPreview::default();
-        preview.start_edit(message_id, Some(original(A)));
+        preview.start_edit(message_id, Some(original(A)), false);
         assert!(preview.is_editing(message_id));
         let (_, token) = preview.switch_to(Some(B), &parent).unwrap();
 
-        preview.start_edit(message_id, Some(original(A)));
+        preview.start_edit(message_id, Some(original(A)), false);
         assert!(!token.is_cancelled());
         assert_eq!(preview.ui(), loading(B));
 
@@ -445,7 +460,7 @@ mod tests {
     fn changed_link_of_an_edit_is_fetched() {
         let parent = CancellationToken::new();
         let mut preview = ComposerLinkPreview::default();
-        preview.start_edit(message_id(), Some(original(A)));
+        preview.start_edit(message_id(), Some(original(A)), false);
         assert!(preview.switch_to(Some(A), &parent).is_none());
 
         let (url, token) = preview.switch_to(Some(B), &parent).unwrap();
@@ -460,7 +475,7 @@ mod tests {
     fn changing_back_restores_the_original_without_a_fetch() {
         let parent = CancellationToken::new();
         let mut preview = ComposerLinkPreview::default();
-        preview.start_edit(message_id(), Some(original(A)));
+        preview.start_edit(message_id(), Some(original(A)), false);
         assert!(preview.switch_to(Some(A), &parent).is_none());
         let (_, token) = preview.switch_to(Some(B), &parent).unwrap();
 
@@ -477,7 +492,7 @@ mod tests {
     fn dismissing_the_original_drops_it() {
         let parent = CancellationToken::new();
         let mut preview = ComposerLinkPreview::default();
-        preview.start_edit(message_id(), Some(original(A)));
+        preview.start_edit(message_id(), Some(original(A)), false);
         assert!(preview.switch_to(Some(A), &parent).is_none());
 
         preview.dismiss(A);
@@ -494,7 +509,7 @@ mod tests {
     fn reset_clears_the_original() {
         let parent = CancellationToken::new();
         let mut preview = ComposerLinkPreview::default();
-        preview.start_edit(message_id(), Some(original(A)));
+        preview.start_edit(message_id(), Some(original(A)), false);
         assert!(preview.switch_to(Some(A), &parent).is_none());
 
         preview.reset();

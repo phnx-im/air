@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ChatDetailsState {
 
- UiChatDetails? get chat; List<UiUserId> get members; UiComposerLinkPreview? get linkPreview;
+ UiChatDetails? get chat; List<UiUserId> get members; UiComposerLinkPreview? get linkPreview; List<UiStagedAttachment> get stagedAttachments;
 /// Create a copy of ChatDetailsState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -27,20 +27,20 @@ $ChatDetailsStateCopyWith<ChatDetailsState> get copyWith => _$ChatDetailsStateCo
 @override
 bool operator ==(Object other) {
   final _this = this as ChatDetailsState;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatDetailsState&&(identical(other.chat, _this.chat) || other.chat == _this.chat)&&const DeepCollectionEquality().equals(other.members, _this.members)&&(identical(other.linkPreview, _this.linkPreview) || other.linkPreview == _this.linkPreview));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatDetailsState&&(identical(other.chat, _this.chat) || other.chat == _this.chat)&&const DeepCollectionEquality().equals(other.members, _this.members)&&(identical(other.linkPreview, _this.linkPreview) || other.linkPreview == _this.linkPreview)&&const DeepCollectionEquality().equals(other.stagedAttachments, _this.stagedAttachments));
 }
 
 
 @override
 int get hashCode {
   final _this = this as ChatDetailsState;
-  return Object.hash(runtimeType,_this.chat,const DeepCollectionEquality().hash(_this.members),_this.linkPreview);
+  return Object.hash(runtimeType,_this.chat,const DeepCollectionEquality().hash(_this.members),_this.linkPreview,const DeepCollectionEquality().hash(_this.stagedAttachments));
 }
 
 @override
 String toString() {
   final _this = this as ChatDetailsState;
-  return 'ChatDetailsState(chat: ${_this.chat}, members: ${_this.members}, linkPreview: ${_this.linkPreview})';
+  return 'ChatDetailsState(chat: ${_this.chat}, members: ${_this.members}, linkPreview: ${_this.linkPreview}, stagedAttachments: ${_this.stagedAttachments})';
 }
 
 
@@ -51,7 +51,7 @@ abstract mixin class $ChatDetailsStateCopyWith<$Res>  {
   factory $ChatDetailsStateCopyWith(ChatDetailsState value, $Res Function(ChatDetailsState) _then) = _$ChatDetailsStateCopyWithImpl;
 @useResult
 $Res call({
- UiChatDetails? chat, List<UiUserId> members, UiComposerLinkPreview? linkPreview
+ UiChatDetails? chat, List<UiUserId> members, UiComposerLinkPreview? linkPreview, List<UiStagedAttachment> stagedAttachments
 });
 
 
@@ -68,12 +68,13 @@ class _$ChatDetailsStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatDetailsState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? chat = freezed,Object? members = null,Object? linkPreview = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? chat = freezed,Object? members = null,Object? linkPreview = freezed,Object? stagedAttachments = null,}) {
   return _then(ChatDetailsState(
 chat: freezed == chat ? _self.chat : chat // ignore: cast_nullable_to_non_nullable
 as UiChatDetails?,members: null == members ? _self.members : members // ignore: cast_nullable_to_non_nullable
 as List<UiUserId>,linkPreview: freezed == linkPreview ? _self.linkPreview : linkPreview // ignore: cast_nullable_to_non_nullable
-as UiComposerLinkPreview?,
+as UiComposerLinkPreview?,stagedAttachments: null == stagedAttachments ? _self.stagedAttachments : stagedAttachments // ignore: cast_nullable_to_non_nullable
+as List<UiStagedAttachment>,
   ));
 }
 /// Create a copy of ChatDetailsState
@@ -97,7 +98,7 @@ $UiComposerLinkPreviewCopyWith<$Res>? get linkPreview {
 
 
 class _ChatDetailsState extends ChatDetailsState {
-  const _ChatDetailsState({this.chat, required  List<UiUserId> members, this.linkPreview}): _members = members,super._();
+  const _ChatDetailsState({this.chat, required  List<UiUserId> members, this.linkPreview,  List<UiStagedAttachment> stagedAttachments = const []}): _members = members,_stagedAttachments = stagedAttachments,super._();
   
 
 @override final  UiChatDetails? chat;
@@ -109,6 +110,13 @@ class _ChatDetailsState extends ChatDetailsState {
 }
 
 @override final  UiComposerLinkPreview? linkPreview;
+ final  List<UiStagedAttachment> _stagedAttachments;
+@override@JsonKey() List<UiStagedAttachment> get stagedAttachments {
+  if (_stagedAttachments is EqualUnmodifiableListView) return _stagedAttachments;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_stagedAttachments);
+}
+
 
 /// Create a copy of ChatDetailsState
 /// with the given fields replaced by the non-null parameter values.
@@ -120,18 +128,18 @@ _$ChatDetailsStateCopyWith<_ChatDetailsState> get copyWith => __$ChatDetailsStat
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatDetailsState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other.members, _members)&&(identical(other.linkPreview, linkPreview) || other.linkPreview == linkPreview));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatDetailsState&&(identical(other.chat, chat) || other.chat == chat)&&const DeepCollectionEquality().equals(other.members, _members)&&(identical(other.linkPreview, linkPreview) || other.linkPreview == linkPreview)&&const DeepCollectionEquality().equals(other.stagedAttachments, _stagedAttachments));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(_members),linkPreview);
+    return Object.hash(runtimeType,chat,const DeepCollectionEquality().hash(_members),linkPreview,const DeepCollectionEquality().hash(_stagedAttachments));
 }
 
 @override
 String toString() {
-    return 'ChatDetailsState(chat: $chat, members: $members, linkPreview: $linkPreview)';
+    return 'ChatDetailsState(chat: $chat, members: $members, linkPreview: $linkPreview, stagedAttachments: $stagedAttachments)';
 }
 
 
@@ -142,7 +150,7 @@ abstract mixin class _$ChatDetailsStateCopyWith<$Res> implements $ChatDetailsSta
   factory _$ChatDetailsStateCopyWith(_ChatDetailsState value, $Res Function(_ChatDetailsState) _then) = __$ChatDetailsStateCopyWithImpl;
 @override @useResult
 $Res call({
- UiChatDetails? chat, List<UiUserId> members, UiComposerLinkPreview? linkPreview
+ UiChatDetails? chat, List<UiUserId> members, UiComposerLinkPreview? linkPreview, List<UiStagedAttachment> stagedAttachments
 });
 
 
@@ -159,12 +167,13 @@ class __$ChatDetailsStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatDetailsState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? chat = freezed,Object? members = null,Object? linkPreview = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? chat = freezed,Object? members = null,Object? linkPreview = freezed,Object? stagedAttachments = null,}) {
   return _then(_ChatDetailsState(
 chat: freezed == chat ? _self.chat : chat // ignore: cast_nullable_to_non_nullable
 as UiChatDetails?,members: null == members ? _self._members : members // ignore: cast_nullable_to_non_nullable
 as List<UiUserId>,linkPreview: freezed == linkPreview ? _self.linkPreview : linkPreview // ignore: cast_nullable_to_non_nullable
-as UiComposerLinkPreview?,
+as UiComposerLinkPreview?,stagedAttachments: null == stagedAttachments ? _self._stagedAttachments : stagedAttachments // ignore: cast_nullable_to_non_nullable
+as List<UiStagedAttachment>,
   ));
 }
 
@@ -281,6 +290,38 @@ String toString() {
 /// @nodoc
 
 
+class UiSendMessageError_AttachmentDecoding extends UiSendMessageError {
+  const UiSendMessageError_AttachmentDecoding(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSendMessageError_AttachmentDecoding);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'UiSendMessageError.attachmentDecoding()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
 class UiSendMessageError_Other extends UiSendMessageError {
   const UiSendMessageError_Other({required this.message}): super._();
   
@@ -340,6 +381,156 @@ class _$UiSendMessageError_OtherCopyWithImpl<$Res>
   return _then(UiSendMessageError_Other(
 message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
 as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$UiStagedAttachment {
+
+ AttachmentId get attachmentId; String get path; String get filename; String get contentType; BigInt get size; bool get isImage;
+/// Create a copy of UiStagedAttachment
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiStagedAttachmentCopyWith<UiStagedAttachment> get copyWith => _$UiStagedAttachmentCopyWithImpl<UiStagedAttachment>(this as UiStagedAttachment, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  final _this = this as UiStagedAttachment;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiStagedAttachment&&(identical(other.attachmentId, _this.attachmentId) || other.attachmentId == _this.attachmentId)&&(identical(other.path, _this.path) || other.path == _this.path)&&(identical(other.filename, _this.filename) || other.filename == _this.filename)&&(identical(other.contentType, _this.contentType) || other.contentType == _this.contentType)&&(identical(other.size, _this.size) || other.size == _this.size)&&(identical(other.isImage, _this.isImage) || other.isImage == _this.isImage));
+}
+
+
+@override
+int get hashCode {
+  final _this = this as UiStagedAttachment;
+  return Object.hash(runtimeType,_this.attachmentId,_this.path,_this.filename,_this.contentType,_this.size,_this.isImage);
+}
+
+@override
+String toString() {
+  final _this = this as UiStagedAttachment;
+  return 'UiStagedAttachment(attachmentId: ${_this.attachmentId}, path: ${_this.path}, filename: ${_this.filename}, contentType: ${_this.contentType}, size: ${_this.size}, isImage: ${_this.isImage})';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiStagedAttachmentCopyWith<$Res>  {
+  factory $UiStagedAttachmentCopyWith(UiStagedAttachment value, $Res Function(UiStagedAttachment) _then) = _$UiStagedAttachmentCopyWithImpl;
+@useResult
+$Res call({
+ AttachmentId attachmentId, String path, String filename, String contentType, BigInt size, bool isImage
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiStagedAttachmentCopyWithImpl<$Res>
+    implements $UiStagedAttachmentCopyWith<$Res> {
+  _$UiStagedAttachmentCopyWithImpl(this._self, this._then);
+
+  final UiStagedAttachment _self;
+  final $Res Function(UiStagedAttachment) _then;
+
+/// Create a copy of UiStagedAttachment
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? attachmentId = null,Object? path = null,Object? filename = null,Object? contentType = null,Object? size = null,Object? isImage = null,}) {
+  return _then(UiStagedAttachment(
+attachmentId: null == attachmentId ? _self.attachmentId : attachmentId // ignore: cast_nullable_to_non_nullable
+as AttachmentId,path: null == path ? _self.path : path // ignore: cast_nullable_to_non_nullable
+as String,filename: null == filename ? _self.filename : filename // ignore: cast_nullable_to_non_nullable
+as String,contentType: null == contentType ? _self.contentType : contentType // ignore: cast_nullable_to_non_nullable
+as String,size: null == size ? _self.size : size // ignore: cast_nullable_to_non_nullable
+as BigInt,isImage: null == isImage ? _self.isImage : isImage // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+}
+
+
+
+/// @nodoc
+
+
+class _UiStagedAttachment implements UiStagedAttachment {
+  const _UiStagedAttachment({required this.attachmentId, required this.path, required this.filename, required this.contentType, required this.size, required this.isImage});
+  
+
+@override final  AttachmentId attachmentId;
+@override final  String path;
+@override final  String filename;
+@override final  String contentType;
+@override final  BigInt size;
+@override final  bool isImage;
+
+/// Create a copy of UiStagedAttachment
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$UiStagedAttachmentCopyWith<_UiStagedAttachment> get copyWith => __$UiStagedAttachmentCopyWithImpl<_UiStagedAttachment>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiStagedAttachment&&(identical(other.attachmentId, attachmentId) || other.attachmentId == attachmentId)&&(identical(other.path, path) || other.path == path)&&(identical(other.filename, filename) || other.filename == filename)&&(identical(other.contentType, contentType) || other.contentType == contentType)&&(identical(other.size, size) || other.size == size)&&(identical(other.isImage, isImage) || other.isImage == isImage));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,attachmentId,path,filename,contentType,size,isImage);
+}
+
+@override
+String toString() {
+    return 'UiStagedAttachment(attachmentId: $attachmentId, path: $path, filename: $filename, contentType: $contentType, size: $size, isImage: $isImage)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$UiStagedAttachmentCopyWith<$Res> implements $UiStagedAttachmentCopyWith<$Res> {
+  factory _$UiStagedAttachmentCopyWith(_UiStagedAttachment value, $Res Function(_UiStagedAttachment) _then) = __$UiStagedAttachmentCopyWithImpl;
+@override @useResult
+$Res call({
+ AttachmentId attachmentId, String path, String filename, String contentType, BigInt size, bool isImage
+});
+
+
+
+
+}
+/// @nodoc
+class __$UiStagedAttachmentCopyWithImpl<$Res>
+    implements _$UiStagedAttachmentCopyWith<$Res> {
+  __$UiStagedAttachmentCopyWithImpl(this._self, this._then);
+
+  final _UiStagedAttachment _self;
+  final $Res Function(_UiStagedAttachment) _then;
+
+/// Create a copy of UiStagedAttachment
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? attachmentId = null,Object? path = null,Object? filename = null,Object? contentType = null,Object? size = null,Object? isImage = null,}) {
+  return _then(_UiStagedAttachment(
+attachmentId: null == attachmentId ? _self.attachmentId : attachmentId // ignore: cast_nullable_to_non_nullable
+as AttachmentId,path: null == path ? _self.path : path // ignore: cast_nullable_to_non_nullable
+as String,filename: null == filename ? _self.filename : filename // ignore: cast_nullable_to_non_nullable
+as String,contentType: null == contentType ? _self.contentType : contentType // ignore: cast_nullable_to_non_nullable
+as String,size: null == size ? _self.size : size // ignore: cast_nullable_to_non_nullable
+as BigInt,isImage: null == isImage ? _self.isImage : isImage // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 

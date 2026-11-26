@@ -132,7 +132,7 @@ async fn attachment_and_caption_are_one_message() {
 
     alice.drain().await;
     let staged = alice
-        .stage_attachment(AttachmentFile::borrowed(path))
+        .stage_attachment(AttachmentFile::new(path))
         .await
         .unwrap()
         .unwrap();
@@ -222,7 +222,7 @@ async fn caption_edit_keeps_the_attachment() {
 
     alice.drain().await;
     let staged = alice
-        .stage_attachment(AttachmentFile::borrowed(path))
+        .stage_attachment(AttachmentFile::new(path))
         .await
         .unwrap()
         .unwrap();
@@ -700,7 +700,7 @@ async fn rejected_attachment_upload_holds_the_message() {
     let path = setup.temp_dir().join("test.bin");
     std::fs::write(&path, vec![0; MAX_ATTACHMENT_SIZE as usize + 1]).unwrap();
     let staged = alice
-        .stage_attachment(AttachmentFile::borrowed(path))
+        .stage_attachment(AttachmentFile::new(path))
         .await
         .unwrap()
         .unwrap();
@@ -738,7 +738,7 @@ async fn failed_upload_is_retried() {
     let path = setup.temp_dir().join("test.bin");
     std::fs::write(&path, &attachment).unwrap();
     let staged = alice
-        .stage_attachment(AttachmentFile::borrowed(path))
+        .stage_attachment(AttachmentFile::new(path))
         .await
         .unwrap()
         .unwrap();

@@ -21,6 +21,12 @@ use crate::api::{
 pub(crate) trait MimiContentExt {
     fn plain_body(&self) -> Option<&str>;
 
+    /// Text an edit of the message starts with.
+    ///
+    /// It is empty for attachments without a caption. Returns `None` if the
+    /// message cannot be edited.
+    fn editable_body(&self) -> Option<&str>;
+
     /// Plain text preview of the message, with each mention as a part of its
     /// own.
     fn preview(&self) -> Option<Vec<PreviewPart>>;
@@ -29,6 +35,10 @@ pub(crate) trait MimiContentExt {
 impl MimiContentExt for MimiContent {
     fn plain_body(&self) -> Option<&str> {
         aircoreclient::MimiContentExt::markdown_text(self)
+    }
+
+    fn editable_body(&self) -> Option<&str> {
+        self.plain_body().or_else(|| self.caption())
     }
 
     fn preview(&self) -> Option<Vec<PreviewPart>> {
@@ -319,6 +329,51 @@ mod tests {
             },
             ..Default::default()
         }
+    }
+
+    fn caption_slot_message(slot: NestedPart) -> MimiContent {
+        let mut content = attachment_message(None);
+        let NestedPart::MultiPart {
+            disposition, parts, ..
+        } = &mut content.nested_part
+        else {
+            unreachable!("attachment_message builds a multi part");
+        };
+        *disposition = Disposition::Render;
+        parts.insert(0, slot);
+        content
+    }
+
+    #[test]
+    fn editable_body_of_markdown_message_is_its_text() {
+        assert_eq!(markdown_message("hi").editable_body(), Some("hi"));
+    }
+
+    #[test]
+    fn editable_body_of_captioned_attachment_is_its_caption() {
+        let slot = markdown_message("look").nested_part;
+        assert_eq!(caption_slot_message(slot).editable_body(), Some("look"));
+    }
+
+    #[test]
+    fn editable_body_of_null_caption_slot_is_empty() {
+        let slot = NestedPart::NullPart {
+            disposition: Disposition::Render,
+            language: String::new(),
+        };
+        assert_eq!(caption_slot_message(slot).editable_body(), Some(""));
+    }
+
+    #[test]
+    fn editable_body_of_flat_attachment_is_none() {
+        let content = MimiContent {
+            nested_part: match attachment_message(None).nested_part {
+                NestedPart::MultiPart { mut parts, .. } => parts.remove(0),
+                part => part,
+            },
+            ..Default::default()
+        };
+        assert_eq!(content.editable_body(), None);
     }
 
     #[test]
