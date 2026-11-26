@@ -227,7 +227,7 @@ impl MessageComposer<'_> {
         self
     }
 
-    pub async fn send(self) -> anyhow::Result<ComposedMessage> {
+    pub async fn send(mut self) -> anyhow::Result<ComposedMessage> {
         let core_user = self.core_user;
         let message_id = match &self.replaces {
             Some(original) => original.id(),
@@ -238,7 +238,7 @@ impl MessageComposer<'_> {
         let shape = self.verify_shape()?;
 
         // one entry per staged attachment, None for a non-image
-        let thumbnails = decode_thumbnails(&self.attachments).await?;
+        let thumbnails = decode_thumbnails(shape.attachments()).await?;
 
         // pure, fails before anything is stored
         let Layout { content, uploads } = self.build_layout(shape, message_id, thumbnails)?;
@@ -344,13 +344,16 @@ impl MessageComposer<'_> {
     }
 
     /// Checks that the parts of the composer fit together.
-    fn verify_shape(&self) -> anyhow::Result<Shape<'_>> {
+    ///
+    /// Moves the text and the attachments into the shape.
+    fn verify_shape(&mut self) -> anyhow::Result<Shape> {
         ensure!(
             self.replaces.is_none() || self.attachments.is_empty(),
             "an edit cannot add attachments"
         );
-        match (&self.text, self.attachments.as_slice()) {
-            (Some(text), []) => {
+        let mut attachments = std::mem::take(&mut self.attachments).into_iter();
+        match (self.text.take(), attachments.next(), attachments.next()) {
+            (Some(text), None, _) => {
                 let keeps_card = matches!(self.link_preview, Some(ComposedLinkPreview::Original));
                 ensure!(
                     !keeps_card || self.replaces.is_some(),
@@ -358,18 +361,18 @@ impl MessageComposer<'_> {
                 );
                 Ok(Shape::Text(text))
             }
-            (None, [staged]) => {
+            (None, Some(staged), None) => {
                 ensure!(self.link_preview.is_none(), "link preview without a text");
                 Ok(Shape::SingleAttachment(staged))
             }
-            (None, []) => bail!("nothing to send"),
+            (None, None, _) => bail!("nothing to send"),
             _ => bail!("text with attachments and several attachments are not supported yet"),
         }
     }
 
     fn build_layout(
         &self,
-        shape: Shape<'_>,
+        shape: Shape,
         message_id: MessageId,
         thumbnails: Vec<Option<SourceThumbnail>>,
     ) -> anyhow::Result<Layout> {
@@ -386,11 +389,11 @@ impl MessageComposer<'_> {
 
     fn build_text_layout(
         &self,
-        text: &str,
+        text: String,
         message_id: MessageId,
     ) -> anyhow::Result<(MimiContent, Vec<PlannedUpload>)> {
         let salt = *Secret::<16>::random()?.secret();
-        let mut content = MimiContent::simple_markdown_message(text.to_owned(), salt);
+        let mut content = MimiContent::simple_markdown_message(text, salt);
         let mut uploads = Vec::new();
 
         match &self.link_preview {
@@ -421,7 +424,7 @@ impl MessageComposer<'_> {
 
 /// A single attachment without text.
 fn build_single_attachment_layout(
-    staged: &StagedAttachment,
+    staged: StagedAttachment,
     thumbnail: Option<SourceThumbnail>,
     message_id: MessageId,
 ) -> anyhow::Result<(MimiContent, Vec<PlannedUpload>)> {
@@ -447,12 +450,12 @@ fn build_single_attachment_layout(
             created_at: Utc::now(),
         },
         source: AttachmentSource::File {
-            path: staged.path().to_owned(),
             spec: AttachmentSpec {
                 filename: staged.filename().to_owned(),
                 content_type: staged.content_type().to_owned(),
                 is_image: staged.is_image(),
             },
+            file: staged.into_file(),
         },
         thumbnail: thumbnail.map(|thumbnail| AttachmentThumbnail::Ready {
             bytes: thumbnail.bytes,
@@ -485,9 +488,18 @@ pub struct UndecodableAttachment {
 }
 
 /// What a composer holds, once its parts are known to fit together.
-enum Shape<'a> {
-    Text(&'a str),
-    SingleAttachment(&'a StagedAttachment),
+enum Shape {
+    Text(String),
+    SingleAttachment(StagedAttachment),
+}
+
+impl Shape {
+    fn attachments(&self) -> &[StagedAttachment] {
+        match self {
+            Self::Text(_) => &[],
+            Self::SingleAttachment(staged) => std::slice::from_ref(staged),
+        }
+    }
 }
 
 /// Content of a message to store and the uploads it depends on.

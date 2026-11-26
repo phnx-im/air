@@ -4,7 +4,7 @@
 
 //! A single chat details feature
 
-use std::{collections::HashMap, path::PathBuf, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
 use aircommon::identifiers::{MimiId, UserId};
 pub use aircoreclient::{
@@ -13,9 +13,9 @@ pub use aircoreclient::{
     GroupDebugInfo, PqGroupDebugInfo, RequiredDebugCapabilities, ResyncDebugInfo,
 };
 use aircoreclient::{
-    AttachmentId, AttachmentStatus, Chat, ChatId, ChatMessage, ComposedLinkPreview, MarkChatAsRead,
-    MessageEditError, MessageId, PendingUpload, ProvisionAttachmentError, UnreadCounts,
-    UploadHandle, UploadTaskError,
+    AttachmentFile, AttachmentId, AttachmentStatus, Chat, ChatId, ChatMessage, ComposedLinkPreview,
+    MarkChatAsRead, MessageEditError, MessageId, ProvisionAttachmentError, UndecodableAttachment,
+    UnreadCounts, UploadHandle,
     clients::CoreUser,
     link_preview::{LinkPreview, select_links},
 };
@@ -26,7 +26,7 @@ use flutter_rust_bridge::frb;
 use parking_lot::Mutex;
 use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
-use tracing::{error, info, warn};
+use tracing::{error, warn};
 
 use crate::{
     StreamSink,
@@ -40,9 +40,7 @@ use crate::{
 use crate::{api::types::UiMessageDraft, message_content::MimiContentExt};
 use crate::{
     api::{
-        attachments_repository::{
-            AttachmentTaskHandle, AttachmentsRepository, InProgressMap, spawn_upload,
-        },
+        attachments_repository::{AttachmentsRepository, InProgressMap, spawn_upload},
         types::{DeleteMode, UiChatType, UiUserId},
         user_settings_cubit::{UserSettings, UserSettingsCubitBase},
     },
@@ -285,7 +283,7 @@ impl ChatDetailsCubitBase {
     /// When the draft edits a message that cannot be edited anymore, the draft
     /// becomes a new message with the same text.
     pub async fn send_message(&self, message_text: String) -> Result<(), UiSendMessageError> {
-        let Err(error) = self.try_send_message(message_text.clone()).await else {
+        let Err(error) = Box::pin(self.try_send_message(message_text.clone())).await else {
             return Ok(());
         };
         let Some(edit_error) = error.downcast_ref::<MessageEditError>().copied() else {
@@ -463,61 +461,68 @@ impl ChatDetailsCubitBase {
         Ok(())
     }
 
+    /// Sends the file at `path` as an attachment.
+    ///
+    /// A temp file is taken over. It is deleted when it is not needed
+    /// anymore, also when sending fails.
     pub async fn upload_attachment(
         &self,
         path: String,
+        is_temp_file: bool,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
-        let path = PathBuf::from(path);
-        let pending_upload = match Box::pin(self.context.core_user.upload_chat_attachment(
-            self.context.chat_id,
-            &path,
-            MarkChatAsRead::Yes,
-        ))
-        .await?
-        {
-            Ok(result) => result,
+        let core_user = &self.context.core_user;
+        let file = if is_temp_file {
+            AttachmentFile::owned(path)
+        } else {
+            AttachmentFile::borrowed(path)
+        };
+        let staged = match core_user.stage_attachment(file).await? {
+            Ok(staged) => staged,
             Err(error) => return error.into_ui_result(),
         };
-        run_upload(
-            self.context.core_user.clone(),
-            self.attachment_in_progress.clone(),
-            pending_upload,
+        let composed = Box::pin(
+            core_user
+                .compose(self.context.chat_id)
+                .attachment(staged)
+                .mark_as_read(MarkChatAsRead::Yes)
+                .send(),
         )
-        .await
+        .await;
+        let composed = match composed {
+            Ok(composed) => composed,
+            Err(error) => {
+                return match error.downcast_ref::<UndecodableAttachment>() {
+                    Some(_undecodable) => Ok(Some(UploadAttachmentError::DecodingError)),
+                    None => Err(error),
+                };
+            }
+        };
+        // The message is stored, its upload goes on in the background.
+        for upload in composed.uploads {
+            self.spawn_upload_handle(upload);
+        }
+        Ok(None)
     }
 
     pub async fn retry_upload_attachment(
         &self,
         attachment_id: AttachmentId,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
+        let core_user = &self.context.core_user;
         // The attachment may have uploaded successfully and only be
         // displayed as failed (e.g. shared from the iOS share extension).
         // There is nothing to upload again; the outbound service's recovery
         // pass hands the message over for sending.
-        if let Some(AttachmentStatus::Ready) = self
-            .context
-            .core_user
-            .attachment_status(attachment_id)
-            .await?
-        {
+        if let Some(AttachmentStatus::Ready) = core_user.attachment_status(attachment_id).await? {
             return Ok(None);
         }
-        let Some(pending_upload) = self
-            .context
-            .core_user
-            .retry_upload_chat_attachment(attachment_id)
-            .await?
-        else {
-            // Nothing to retry from. The message is gone, which is what the
-            // user sees.
+        let Some(message_id) = core_user.attachment_message_id(attachment_id).await? else {
             return Ok(None);
         };
-        run_upload(
-            self.context.core_user.clone(),
-            self.attachment_in_progress.clone(),
-            pending_upload,
-        )
-        .await
+        for upload in core_user.retry_message(message_id).await? {
+            self.spawn_upload_handle(upload);
+        }
+        Ok(None)
     }
 
     fn spawn_upload_handle(&self, upload: UploadHandle) {
@@ -1168,46 +1173,6 @@ impl IntoUiResult for ProvisionAttachmentError {
             }
         }
     }
-}
-
-async fn run_upload(
-    core_user: CoreUser,
-    in_progress: InProgressMap,
-    PendingUpload {
-        attachment_id,
-        progress,
-        task,
-    }: PendingUpload,
-) -> anyhow::Result<Option<UploadAttachmentError>> {
-    let handle = AttachmentTaskHandle::new(progress);
-    let cancel = handle.cancellation_token().clone();
-    in_progress.insert(attachment_id, handle);
-    match cancel.run_until_cancelled_owned(task).await {
-        Some(Ok(message)) => {
-            core_user
-                .outbound_service()
-                .enqueue_chat_message(message.id())
-                .await?;
-        }
-        // The message is already gone, only the reason is left to report.
-        Some(Err(UploadTaskError::Provision(error))) => return error.into_ui_result(),
-        Some(Err(UploadTaskError::Failed { message_id, error })) => {
-            error!(%error, ?attachment_id, "Failed to upload attachment");
-            core_user
-                .outbound_service()
-                .fail_enqueued_chat_message(message_id)
-                .await?;
-        }
-        None => {
-            info!(?attachment_id, "Upload was cancelled");
-            // The task was dropped before it could record an outcome, so
-            // the attachment would otherwise be stuck uploading.
-            core_user
-                .fail_interrupted_attachment_upload(attachment_id)
-                .await?;
-        }
-    }
-    Ok(None)
 }
 
 /// Error which can occur when uploading an attachment

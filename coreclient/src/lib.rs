@@ -47,7 +47,7 @@ pub use crate::{
             AttachmentUrl, AttachmentUrlParseError, MessageAttachments, ProvisionAttachmentError,
             UploadTaskError,
             progress::{AttachmentProgress, AttachmentProgressEvent},
-            stage::StagedAttachment,
+            stage::{AttachmentFile, StagedAttachment},
             upload::PendingUpload,
         },
         block_contact::BlockedContactError,

@@ -8,8 +8,8 @@ use std::{assert_matches, io::Cursor};
 
 use airapiclient::ds_api::DsRequestError;
 use aircoreclient::{
-    AttachmentProgressEvent, AttachmentStatus, MimiContentExt, ProvisionAttachmentError,
-    VisitedPart, clients::MarkChatAsRead,
+    AttachmentFile, AttachmentProgressEvent, AttachmentStatus, ComposedMessage, MimiContentExt,
+    ProvisionAttachmentError, UploadTaskError, VisitedPart, clients::MarkChatAsRead,
 };
 use airserver_test_harness::utils::{
     core_user_ext::CoreUserExt,
@@ -18,7 +18,7 @@ use airserver_test_harness::utils::{
 use base64::{Engine, prelude::BASE64_STANDARD};
 use image::{ImageBuffer, Rgba};
 use mimi_content::{
-    Disposition, MimiContent,
+    Disposition, MessageStatus, MimiContent,
     content_container::{NestedPart, PartSemantics},
 };
 use png::Encoder;
@@ -385,6 +385,22 @@ async fn image_attachment_is_converted_to_webp() {
 
     alice.outbound_service().run_once().await;
 
+    // The blurhash travels with the image
+    let received = bob.expect_last_message(chat_id).await;
+    let mut blurhashes = Vec::new();
+    received
+        .message()
+        .mimi_content()
+        .unwrap()
+        .visit_parts(|part| {
+            if let VisitedPart::Attachment { blurhash, .. } = part {
+                blurhashes.push(blurhash.map(str::to_owned));
+            }
+            Ok(())
+        })
+        .unwrap();
+    assert_matches!(blurhashes.as_slice(), [Some(_)]);
+
     match &external_part {
         NestedPart::ExternalPart {
             content_type,
@@ -478,6 +494,94 @@ async fn oversized_attachment_is_rejected() {
             panic!("wrong error");
         }
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn rejected_attachment_upload_holds_the_message() {
+    const MAX_ATTACHMENT_SIZE: u64 = 1023;
+
+    let mut setup = TestBackend::single_with_params(TestBackendParams {
+        max_attachment_size: MAX_ATTACHMENT_SIZE,
+        ..Default::default()
+    })
+    .await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+    alice.drain().await;
+    bob.drain().await;
+    let messages_before = bob.messages(chat_id, 10).await.unwrap().len();
+
+    let path = setup.temp_dir().join("test.bin");
+    std::fs::write(&path, vec![0; MAX_ATTACHMENT_SIZE as usize + 1]).unwrap();
+    let staged = alice
+        .stage_attachment(AttachmentFile::borrowed(path))
+        .await
+        .unwrap()
+        .unwrap();
+    let composed = alice.compose(chat_id).attachment(staged).send();
+    let ComposedMessage { message, uploads } = Box::pin(composed).await.unwrap();
+    let [upload] = uploads.try_into().ok().expect("one upload");
+    assert_matches!(
+        upload.task.await,
+        Err(UploadTaskError::Provision(
+            ProvisionAttachmentError::TooLarge(_)
+        ))
+    );
+
+    let stored = alice.expect_message(message.id()).await;
+    assert_eq!(stored.status(), MessageStatus::Error);
+    assert!(!stored.is_sent());
+
+    alice.outbound_service().run_once().await;
+    bob.drain().await;
+    assert_eq!(
+        bob.messages(chat_id, 10).await.unwrap().len(),
+        messages_before
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn failed_upload_of_the_old_path_is_retried() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+    alice.drain().await;
+    bob.drain().await;
+
+    let attachment = vec![0x00, 0x01, 0x02, 0x03];
+    let path = setup.temp_dir().join("test.bin");
+    std::fs::write(&path, &attachment).unwrap();
+    let upload = alice
+        .upload_chat_attachment(chat_id, &path, MarkChatAsRead::Yes)
+        .await
+        .unwrap()
+        .unwrap();
+    setup
+        .listener_control_handle()
+        .set_reject_next_request_to("ProvisionAttachment");
+    let Err(UploadTaskError::Failed { message_id, .. }) = upload.task.await else {
+        panic!("an upload the DS rejects should fail");
+    };
+    alice
+        .outbound_service()
+        .fail_enqueued_chat_message(message_id)
+        .await
+        .unwrap();
+
+    for upload in alice.retry_message(message_id).await.unwrap() {
+        upload.task.await.expect("upload failed");
+    }
+    alice.outbound_service().run_once().await;
+    assert!(alice.expect_message(message_id).await.is_sent());
+
+    bob.drain().await;
+    let [attachment_id] = bob.pending_attachments().await.unwrap()[..] else {
+        panic!("expected exactly one pending attachment");
+    };
+    let (_progress, download_task) = bob.download_attachment(attachment_id);
+    download_task.await.expect("download failed");
+    let content = bob.load_attachment(attachment_id).await.unwrap();
+    assert_eq!(content.into_bytes(), Some(attachment));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

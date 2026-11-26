@@ -310,6 +310,7 @@ abstract class RustLibApi extends BaseApi {
   crateApiChatDetailsCubitChatDetailsCubitBaseUploadAttachment({
     required ChatDetailsCubitBase that,
     required String path,
+    required bool isTempFile,
   });
 
   Future<void> crateApiChatsDataSourceChatsDataSourceClose({
@@ -2718,6 +2719,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   crateApiChatDetailsCubitChatDetailsCubitBaseUploadAttachment({
     required ChatDetailsCubitBase that,
     required String path,
+    required bool isTempFile,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -2728,6 +2730,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             serializer,
           );
           sse_encode_String(path, serializer);
+          sse_encode_bool(isTempFile, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -2741,7 +2744,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiChatDetailsCubitChatDetailsCubitBaseUploadAttachmentConstMeta,
-        argValues: [that, path],
+        argValues: [that, path, isTempFile],
         apiImpl: this,
       ),
     );
@@ -2751,7 +2754,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiChatDetailsCubitChatDetailsCubitBaseUploadAttachmentConstMeta =>
       const TaskConstMeta(
         debugName: "ChatDetailsCubitBase_upload_attachment",
-        argNames: ["that", "path"],
+        argNames: ["that", "path", "isTempFile"],
       );
 
   @override
@@ -22224,12 +22227,19 @@ class ChatDetailsCubitBaseImpl extends RustOpaque
         text: text,
       );
 
-  Future<UploadAttachmentError?> uploadAttachment({required String path}) =>
-      RustLib.instance.api
-          .crateApiChatDetailsCubitChatDetailsCubitBaseUploadAttachment(
-            that: this,
-            path: path,
-          );
+  /// Sends the file at `path` as an attachment.
+  ///
+  /// A temp file is taken over. It is deleted when it is not needed
+  /// anymore, also when sending fails.
+  Future<UploadAttachmentError?> uploadAttachment({
+    required String path,
+    required bool isTempFile,
+  }) => RustLib.instance.api
+      .crateApiChatDetailsCubitChatDetailsCubitBaseUploadAttachment(
+        that: this,
+        path: path,
+        isTempFile: isTempFile,
+      );
 }
 
 @sealed

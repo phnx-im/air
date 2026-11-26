@@ -976,24 +976,28 @@ impl TestBackend {
         let path = tmp_dir.path().join(filename);
         std::fs::write(&path, attachment).unwrap();
 
-        let pending_upload = sender
-            .upload_chat_attachment(chat_id, &path, MarkChatAsRead::Yes)
+        let staged = sender
+            .stage_attachment(AttachmentFile::borrowed(path))
             .await
             .expect("fatal error")?;
-
-        let message = pending_upload.task.await.map_err(|error| match error {
-            UploadTaskError::Failed { message_id, error } => {
-                panic!("upload task for {message_id:?} failed: {error}")
-            }
-            UploadTaskError::Provision(error) => error,
-        })?;
-
-        sender
-            .outbound_service()
-            .enqueue_chat_message(message.id())
-            .await
-            .unwrap();
+        let composed = sender
+            .compose(chat_id)
+            .attachment(staged)
+            .mark_as_read(MarkChatAsRead::Yes)
+            .send();
+        let ComposedMessage { message, uploads } = Box::pin(composed).await.expect("fatal error");
+        for upload in uploads {
+            upload.task.await.map_err(|error| match error {
+                UploadTaskError::Failed { message_id, error } => {
+                    panic!("upload task for {message_id:?} failed: {error}")
+                }
+                UploadTaskError::Provision(error) => error,
+            })?;
+        }
         sender.outbound_service().run_once().await;
+        // Processing the file changed the stored content
+        let message = sender.expect_message(message.id()).await;
+        assert!(message.is_sent());
 
         let mut external_part = None;
         message
