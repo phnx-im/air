@@ -184,6 +184,8 @@ void main() {
           isCommitted: any(named: "isCommitted"),
         ),
       ).thenAnswer((_) async => Future.value());
+      when(() => chatDetailsCubit.updateLinkPreviews(any()))
+          .thenAnswer((_) async {});
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
       when(() => navigationCubit.state).thenReturn(_navState);
     });
