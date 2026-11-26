@@ -16,10 +16,11 @@ enum MentionPillVariant {
 
 /// The look of each [MentionPillVariant], resolved against the palette.
 abstract final class MentionPillTokens {
-  static const EdgeInsets padding = EdgeInsets.symmetric(
-    horizontal: S.s2,
-    vertical: S.s1,
-  );
+  static const EdgeInsets padding = EdgeInsets.symmetric(horizontal: S.s2);
+
+  /// A pill sets the height of its line. Its vertical space sits outside the
+  /// fill, which leaves a gap between pills on consecutive lines.
+  static const EdgeInsets margin = EdgeInsets.symmetric(vertical: S.s1);
 
   static const double radius = CornerRadius.px4;
 

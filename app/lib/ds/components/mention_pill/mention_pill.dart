@@ -39,7 +39,11 @@ class MentionPill extends StatelessWidget {
       ),
     );
     final onTap = this.onTap;
-    if (onTap == null) return pill;
-    return GestureDetector(behavior: .opaque, onTap: onTap, child: pill);
+    return Padding(
+      padding: MentionPillTokens.margin,
+      child: onTap == null
+          ? pill
+          : GestureDetector(behavior: .opaque, onTap: onTap, child: pill),
+    );
   }
 }
