@@ -46,6 +46,9 @@
   "safetyCodeScreen_copyHint_desktop": "Klicka för att kopiera",
   "safetyCodeScreen_copiedToClipboard": "Kopierat till urklipp",
   "safetyCodeScreen_safetyCodeExplanation": "Jämför säkerhetskoden du ser med den {displayName} ser. Om koderna matchar vet du att du skickar och tar emot totalsträckskrypterade meddelanden med rätt person.",
+  "safetyCodeScreen_markAsVerified": "Markera som verifierad",
+  "contactVerification_verified": "Verifierad",
+  "contactVerification_unverified": "Inte verifierad",
   "chatDetailsScreen_unknownChat": "Okänd chatt",
   "selfChatTitle": "Anteckningar till mig själv",
 
@@ -251,6 +254,8 @@
   "systemMessage_connectionRequestExpired": "Kontaktförfrågan har gått ut.",
   "systemMessage_sentConnectionRequestExpired": "Din kontaktförfrågan har gått ut. Om du fortfarande vill lägga till personen som kontakt, skicka en ny förfrågan.",
   "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} är redan din kontakt. Den här förfrågan har stängts.",
+  "systemMessage_contactVerified": "Du markerade {displayName} som verifierad.",
+  "systemMessage_contactUnverified": "Du markerade {displayName} som inte verifierad.",
   "sentContactRequest_title": "Du har skickat en kontaktförfrågan",
   "sentContactRequest_titleWithName": "Du har skickat en kontaktförfrågan till {displayName}",
   "sentContactRequest_toUsername": "till användarnamnet {username}",

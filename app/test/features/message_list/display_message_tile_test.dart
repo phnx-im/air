@@ -598,6 +598,26 @@ void main() {
       );
     });
 
+    testWidgets('renders a contact marked as verified', (tester) async {
+      await tester.pumpWidget(
+        buildSubject(UiSystemMessage.contactVerified(contact: 1.userId())),
+      );
+      expect(
+        find.text('You marked Alice as verified.', findRichText: true),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('renders a contact marked as unverified', (tester) async {
+      await tester.pumpWidget(
+        buildSubject(UiSystemMessage.contactUnverified(contact: 1.userId())),
+      );
+      expect(
+        find.text('You marked Alice as unverified.', findRichText: true),
+        findsOneWidget,
+      );
+    });
+
     group('delete', () {
       final deleteButton = find.text('Delete');
 

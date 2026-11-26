@@ -6,8 +6,8 @@ use std::collections::HashSet;
 
 use aircommon::credentials::keys::SelfGroupSigningKey;
 use airprotos::client::self_group::{
-    BlockedContactsUpdate, ChatMutesUpdate, ConnectionRequestsUpdate, SelfGroupMessage,
-    SettingsUpdate, UsernamesUpdate,
+    BlockedContactsUpdate, ChatMutesUpdate, ConnectionRequestsUpdate, ContactVerificationsUpdate,
+    SelfGroupMessage, SettingsUpdate, UsernamesUpdate,
 };
 use anyhow::Context as _;
 use openmls::group::GroupId;
@@ -18,7 +18,7 @@ use uuid::Uuid;
 use crate::{
     chats::{self, connection_requests},
     clients::{
-        block_contact,
+        block_contact, contact_verification,
         own_client_info::OwnClientInfo,
         user_settings::{SettingChanges, SettingsUpdateExt},
     },
@@ -228,6 +228,15 @@ async fn drain_outbox(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<Vec<Se
         messages.push(SelfGroupMessage::ChatMutesUpdate(ChatMutesUpdate {
             chats: mutes,
         }));
+    }
+
+    let verifications = contact_verification::sync::staged_entries(&mut *txn).await?;
+    if !verifications.is_empty() {
+        messages.push(SelfGroupMessage::ContactVerificationsUpdate(
+            ContactVerificationsUpdate {
+                contacts: verifications,
+            },
+        ));
     }
 
     messages.extend(

@@ -101,6 +101,7 @@ pub(crate) mod block_contact;
 pub mod chats;
 pub(crate) mod compose;
 pub(crate) mod connection_offer;
+pub(crate) mod contact_verification;
 mod create_user;
 pub mod debug_info;
 mod delete_account;

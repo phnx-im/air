@@ -239,7 +239,9 @@ extension UiEventMessageExtension on UiEventMessage {
       UiSystemMessage_ConnectionRequestUnavailable() ||
       UiSystemMessage_ConnectionRequestExpired() ||
       UiSystemMessage_SentConnectionRequestExpired() ||
-      UiSystemMessage_SentConnectionRequestAlreadyConnected() => true,
+      UiSystemMessage_SentConnectionRequestAlreadyConnected() ||
+      UiSystemMessage_ContactVerified() ||
+      UiSystemMessage_ContactUnverified() => true,
     },
     UiEventMessage_Error() => true,
   };

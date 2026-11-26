@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT fingerprint AS \"fingerprint: _\"\n                FROM user_credential\n                WHERE user_uuid = ?1 AND user_domain = ?2",
+  "describe": {
+    "columns": [
+      {
+        "name": "fingerprint: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "user_credential",
+            "name": "fingerprint"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e762b13bc4662e4f30ffb8582743692d96840f829e90137814216bf7470d7dc9"
+}

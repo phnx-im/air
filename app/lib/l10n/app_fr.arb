@@ -46,6 +46,9 @@
   "safetyCodeScreen_copyHint_desktop": "Cliquez pour copier",
   "safetyCodeScreen_copiedToClipboard": "Copié dans le presse-papiers",
   "safetyCodeScreen_safetyCodeExplanation": "Comparez le code de sécurité affiché avec celui de {displayName}. S'ils correspondent, vous savez que vous échangez des messages chiffrés de bout en bout avec la bonne personne.",
+  "safetyCodeScreen_markAsVerified": "Marquer comme vérifié",
+  "contactVerification_verified": "Vérifié",
+  "contactVerification_unverified": "Non vérifié",
   "chatDetailsScreen_unknownChat": "Discussion inconnue",
   "selfChatTitle": "Notes personnelles",
 
@@ -251,6 +254,8 @@
   "systemMessage_connectionRequestExpired": "Demande de contact expirée.",
   "systemMessage_sentConnectionRequestExpired": "Votre demande de contact a expiré. Si vous voulez toujours ajouter cette personne à vos contacts, envoyez-lui une nouvelle demande.",
   "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} fait déjà partie de vos contacts. Cette demande a été fermée.",
+  "systemMessage_contactVerified": "Vous avez marqué {displayName} comme vérifié.",
+  "systemMessage_contactUnverified": "Vous avez marqué {displayName} comme non vérifié.",
   "sentContactRequest_title": "Vous avez envoyé une demande de contact",
   "sentContactRequest_titleWithName": "Vous avez envoyé une demande de contact à {displayName}",
   "sentContactRequest_toUsername": "au nom d'utilisateur {username}",

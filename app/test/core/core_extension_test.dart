@@ -92,6 +92,12 @@ void main() {
             contact: 1.userId(),
           ),
         ),
+        UiEventMessage.system(
+          UiSystemMessage.contactVerified(contact: 1.userId()),
+        ),
+        UiEventMessage.system(
+          UiSystemMessage.contactUnverified(contact: 1.userId()),
+        ),
         const UiEventMessage.system(UiSystemMessage.onboarded()),
         const UiEventMessage.error(UiErrorMessage(message: 'error')),
       ]) {

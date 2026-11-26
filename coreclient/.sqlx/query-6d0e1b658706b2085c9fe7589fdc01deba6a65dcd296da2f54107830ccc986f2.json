@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO contact_verification (\n                    user_uuid,\n                    user_domain,\n                    credential_fingerprint,\n                    verified_at\n                ) VALUES (?1, ?2, ?3, ?4)\n                ON CONFLICT (user_uuid, user_domain) DO UPDATE SET\n                    credential_fingerprint = excluded.credential_fingerprint,\n                    verified_at = excluded.verified_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "6d0e1b658706b2085c9fe7589fdc01deba6a65dcd296da2f54107830ccc986f2"
+}

@@ -19,13 +19,17 @@
 //! them.
 
 use aircommon::{
-    credentials::keys::{UsernameSigningKey, UsernameVerifyingKey},
+    credentials::{
+        UserCredential,
+        keys::{UsernameSigningKey, UsernameVerifyingKey},
+    },
     crypto::{
         ConnectionDecryptionKey,
         aead::{
             Ciphertext, PaddedAeadDecryptable, PaddedAeadEncryptable, keys::SelfGroupMessageKey,
         },
         errors::RandomnessError,
+        hash::Hash,
         secrets::Secret,
     },
     identifiers::{EventId, MimiId, UsernameHash},
@@ -99,6 +103,7 @@ impl PaddedAeadDecryptable<SelfGroupMessageKey, SelfGroupMessagesCtype> for Self
 ///   5: UsernamesUpdate
 ///   6: ConnectionRequestsUpdate
 ///   7: ChatMutesUpdate
+///   8: ContactVerificationsUpdate
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
@@ -117,6 +122,8 @@ pub enum SelfGroupMessage {
     ConnectionRequestsUpdate(ConnectionRequestsUpdate),
     #[tag(7)]
     ChatMutesUpdate(ChatMutesUpdate),
+    #[tag(8)]
+    ContactVerificationsUpdate(ContactVerificationsUpdate),
     /// A message kind this client does not understand; skipped on receive.
     #[unknown]
     Unknown,
@@ -592,6 +599,101 @@ pub struct UnmutedChat {
     /// Group id of the chat's group, the T leg for APQ groups.
     #[tag(1, with = "group_id_as_bytes")]
     pub group_id: Option<GroupId>,
+}
+
+/// The contacts whose verification the sender just changed. This is a diff and
+/// not a snapshot.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ContactVerificationsUpdate = {
+///   contacts: [* ContactVerificationEntry] .tag 1,
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ContactVerificationsUpdate {
+    #[tag(1)]
+    pub contacts: Vec<ContactVerificationEntry>,
+}
+
+/// The new verification of one contact.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ContactVerificationEntry = {
+///   1: ContactVerified //
+///   2: ContactUnverified
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedUnion, DeserializeTaggedUnion)]
+pub enum ContactVerificationEntry {
+    #[tag(1)]
+    Verified(ContactVerified),
+    #[tag(2)]
+    Unverified(ContactUnverified),
+    /// A state this client does not understand. The entry is ignored on
+    /// receive.
+    #[unknown]
+    Unknown,
+}
+
+impl ContactVerificationEntry {
+    pub fn user_id(&self) -> Option<&PeerUserId> {
+        match self {
+            ContactVerificationEntry::Verified(ContactVerified { user_id, .. })
+            | ContactVerificationEntry::Unverified(ContactUnverified { user_id, .. }) => {
+                Some(user_id)
+            }
+            ContactVerificationEntry::Unknown => None,
+        }
+    }
+}
+
+/// The user compared the safety code of the contact and marked it as verified.
+///
+/// `credential_fingerprint` names the credential the sender compared. It keeps
+/// the serde encoding of its type. It is an option only because a tagged map
+/// needs a default for each field. A receiver skips an entry without it.
+/// Siblings record `verified_at` as-is, so all devices hold the same time.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ContactVerified = {
+///   user_id: PeerUserId .tag 1,
+///   credential_fingerprint: bstr .size 32 .tag 2,
+///   verified_at: uint .tag 3,              ; unix epoch milliseconds (UTC)
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ContactVerified {
+    #[tag(1)]
+    pub user_id: PeerUserId,
+    #[tag(2)]
+    pub credential_fingerprint: Option<Hash<UserCredential>>,
+    #[tag(3, with = "chrono::serde::ts_milliseconds")]
+    pub verified_at: DateTime<Utc>,
+}
+
+/// The user removed the verification mark of the contact. Siblings record
+/// `unverified_at` as-is, so all devices hold the same time.
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// ContactUnverified = {
+///   user_id: PeerUserId .tag 1,
+///   unverified_at: uint .tag 2,            ; unix epoch milliseconds (UTC)
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct ContactUnverified {
+    #[tag(1)]
+    pub user_id: PeerUserId,
+    #[tag(2, with = "chrono::serde::ts_milliseconds")]
+    pub unverified_at: DateTime<Utc>,
 }
 
 /// The usernames the sender changed. This is a diff and not a snapshot.
@@ -1389,6 +1491,68 @@ mod test {
             vec![
                 SelfGroupMessageNoMutes::Unknown,
                 SelfGroupMessageNoMutes::DeletedChat(deleted),
+            ]
+        );
+    }
+
+    // 1c''. `ContactVerificationsUpdate` encode/decode and forward
+    // compatibility.
+
+    fn sample_contact_verifications_update() -> ContactVerificationsUpdate {
+        ContactVerificationsUpdate {
+            contacts: vec![
+                ContactVerificationEntry::Verified(ContactVerified {
+                    user_id: sample_peer_user_id(1),
+                    credential_fingerprint: Some(Hash::from_bytes([7; 32])),
+                    verified_at: DateTime::from_timestamp_millis(1_767_225_600_123).unwrap(),
+                }),
+                ContactVerificationEntry::Unverified(ContactUnverified {
+                    user_id: sample_peer_user_id(2),
+                    unverified_at: DateTime::from_timestamp_millis(1_767_225_600_456).unwrap(),
+                }),
+            ],
+        }
+    }
+
+    #[test]
+    fn contact_verifications_update_roundtrip() {
+        let update = sample_contact_verifications_update();
+        let bytes = PersistenceCodec::to_vec(&update).unwrap();
+        let decoded: ContactVerificationsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(update, decoded);
+    }
+
+    #[test]
+    fn contact_verifications_update_stability() {
+        let bytes = PersistenceCodec::to_vec(&sample_contact_verifications_update()).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn contact_verifications_update_is_skipped_by_an_older_client() {
+        #[derive(Debug, Clone, PartialEq, DeserializeTaggedUnion)]
+        enum SelfGroupMessageNoVerifications {
+            #[tag(7)]
+            ChatMutesUpdate(ChatMutesUpdate),
+            #[unknown]
+            Unknown,
+        }
+
+        let mutes = sample_chat_mutes_update();
+        let newer = vec![
+            SelfGroupMessage::ContactVerificationsUpdate(sample_contact_verifications_update()),
+            SelfGroupMessage::ChatMutesUpdate(mutes.clone()),
+        ];
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+
+        let decoded: Vec<SelfGroupMessageNoVerifications> =
+            PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            decoded,
+            vec![
+                SelfGroupMessageNoVerifications::Unknown,
+                SelfGroupMessageNoVerifications::ChatMutesUpdate(mutes),
             ]
         );
     }

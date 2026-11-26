@@ -75,11 +75,13 @@ class MockUsersState implements UsersState {
   MockUsersState({
     UiUserId? defaultUserId,
     required List<UiUserProfile> profiles,
+    this._verified = const {},
   }) : _defaultUserId = defaultUserId ?? 1.userId(),
        _profiles = {for (final profile in profiles) profile.userId: profile};
 
   final UiUserId _defaultUserId;
   final Map<UiUserId, UiUserProfile> _profiles;
+  final Set<UiUserId> _verified;
 
   @override
   UiUserProfile profile({UiUserId? userId}) {
@@ -93,6 +95,12 @@ class MockUsersState implements UsersState {
   @override
   ImageData? profilePicture({UiUserId? userId}) =>
       profile(userId: userId).profilePicture;
+
+  @override
+  UiContactVerification verification({required UiUserId userId}) =>
+      _verified.contains(userId)
+      ? UiContactVerification.verified
+      : UiContactVerification.unverified;
 
   @override
   void dispose() {}

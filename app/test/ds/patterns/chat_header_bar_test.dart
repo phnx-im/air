@@ -17,7 +17,8 @@ const _name = 'Alice Anderson';
 void main() {
   group('ChatHeaderBar', () {
     Widget buildSubject({
-      String? subtitle,
+      String? statusLabel,
+      AppIconType? statusIcon,
       VoidCallback? onTap,
       VoidCallback? onBack,
       bool backEmphasized = false,
@@ -28,7 +29,8 @@ void main() {
         body: ChatHeaderBar(
           tokens: ChatHeaderBarTokens.phone,
           name: _name,
-          subtitle: subtitle,
+          statusLabel: statusLabel,
+          statusIcon: statusIcon,
           avatar: const SizedBox.square(dimension: S.s32),
           onTap: onTap,
           onBack: onBack,
@@ -110,12 +112,19 @@ void main() {
       );
     });
 
-    testWidgets('subtitle renders only when provided', (tester) async {
+    testWidgets('status line renders only when provided', (tester) async {
       await tester.pumpWidget(buildSubject());
-      expect(find.text('Verified contact'), findsNothing);
+      expect(find.text('Verified'), findsNothing);
+      expect(find.byType(AppIcon), findsNothing);
 
-      await tester.pumpWidget(buildSubject(subtitle: 'Verified contact'));
-      expect(find.text('Verified contact'), findsOneWidget);
+      await tester.pumpWidget(
+        buildSubject(statusLabel: 'Verified', statusIcon: AppIconType.shield),
+      );
+      expect(find.text('Verified'), findsOneWidget);
+      expect(
+        tester.widget<AppIcon>(find.byType(AppIcon)).type,
+        AppIconType.shield,
+      );
     });
   });
 }

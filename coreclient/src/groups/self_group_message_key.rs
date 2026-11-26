@@ -38,7 +38,8 @@ use airprotos::client::{
     component::AIR_COMPONENT_ID,
     self_group::{
         AppEphemeralPayload, BlockedContactEntry, ChatMuteEntry, ConnectionRequestEntry,
-        DeletedChat, SelfGroupMessage, SelfGroupMessages, SettingsUpdate, TokenSeed, UsernameEntry,
+        ContactVerificationEntry, DeletedChat, SelfGroupMessage, SelfGroupMessages, SettingsUpdate,
+        TokenSeed, UsernameEntry,
     },
 };
 use anyhow::{Result, anyhow, ensure};
@@ -334,6 +335,9 @@ impl Group {
                     SelfGroupMessage::ChatMutesUpdate(update) => {
                         extracted.chat_mutes.extend(update.chats);
                     }
+                    SelfGroupMessage::ContactVerificationsUpdate(update) => {
+                        extracted.contact_verifications.extend(update.contacts);
+                    }
                     // A message kind added by a newer client.
                     SelfGroupMessage::Unknown => debug!("Skipping unknown self-group message"),
                 }
@@ -361,6 +365,8 @@ pub(crate) struct SelfGroupPayload {
     pub(crate) connection_requests: Vec<ConnectionRequestEntry>,
     /// Chat mute changes.
     pub(crate) chat_mutes: Vec<ChatMuteEntry>,
+    /// Contact verification changes.
+    pub(crate) contact_verifications: Vec<ContactVerificationEntry>,
 }
 
 impl SelfGroupPayload {
@@ -372,6 +378,7 @@ impl SelfGroupPayload {
             && self.usernames.is_empty()
             && self.connection_requests.is_empty()
             && self.chat_mutes.is_empty()
+            && self.contact_verifications.is_empty()
     }
 }
 

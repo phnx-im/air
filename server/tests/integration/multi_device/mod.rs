@@ -24,6 +24,7 @@ mod self_group;
 mod settings;
 mod tokens;
 mod usernames;
+mod verification;
 
 use std::{
     assert_matches,

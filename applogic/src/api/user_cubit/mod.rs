@@ -531,6 +531,18 @@ impl UserCubitBase {
         self.context.core_user.unblock_contact(user_id.into()).await
     }
 
+    /// Marks the user as verified or removes the mark.
+    pub async fn set_contact_verified(
+        &self,
+        user_id: UiUserId,
+        verified: bool,
+    ) -> anyhow::Result<()> {
+        self.context
+            .core_user
+            .set_contact_verified(user_id.into(), verified)
+            .await
+    }
+
     /// Records that the user was told that the account deletion was aborted.
     pub async fn account_deletion_abort_reported(&self) -> anyhow::Result<()> {
         self.context

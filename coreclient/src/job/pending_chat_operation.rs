@@ -37,7 +37,7 @@ use crate::{
     clients::{
         CoreUser,
         api_clients::ApiClients,
-        block_contact,
+        block_contact, contact_verification,
         linked_devices::merge_device_entry_locally,
         multi_device::device_link::{DeviceLink, DeviceLinkFailure},
         own_client_info::OwnClientInfo,
@@ -224,7 +224,7 @@ impl OperationType {
 ///
 /// A change re-parked with a different value while the commit was in flight
 /// stays parked and is re-issued by the outbound service.
-async fn complete_sent_messages(
+pub(crate) async fn complete_sent_messages(
     txn: &mut WriteDbTransaction<'_>,
     messages: &[SelfGroupMessage],
 ) -> anyhow::Result<()> {
@@ -247,6 +247,9 @@ async fn complete_sent_messages(
             }
             SelfGroupMessage::ChatMutesUpdate(update) => {
                 chats::persistence::complete_sent_mutes(txn, &update.chats).await?
+            }
+            SelfGroupMessage::ContactVerificationsUpdate(update) => {
+                contact_verification::sync::complete_sent_entries(txn, &update.contacts).await?
             }
             // Seeds stage their own commit, so they never travel in a drained
             // outbox.

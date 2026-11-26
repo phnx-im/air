@@ -17,6 +17,9 @@
 //!   group, so they only take the group ID. Their times differ between devices.
 //! - The announcement of a received request may be stored in a different chat
 //!   on each device. It takes the sender and the time the request arrived.
+//! - A change of the verification mark takes the group ID, the time of the
+//!   change and the contact. The siblings get that time with the self-group
+//!   entry.
 
 use aircommon::{
     crypto::{Labeled, hash::Hashable},
@@ -45,6 +48,8 @@ enum Kind {
     RequestExpired = 12,
     SentRequestExpired = 13,
     SentRequestAlreadyConnected = 14,
+    ContactVerified = 15,
+    ContactUnverified = 16,
 }
 
 impl SystemMessage {
@@ -97,6 +102,12 @@ impl SystemMessage {
             }
             SystemMessage::SentConnectionRequestAlreadyConnected { .. } => {
                 derive(Kind::SentRequestAlreadyConnected, group, None, &[])
+            }
+            SystemMessage::ContactVerified { contact } => {
+                derive(Kind::ContactVerified, group, at, &[contact])
+            }
+            SystemMessage::ContactUnverified { contact } => {
+                derive(Kind::ContactUnverified, group, at, &[contact])
             }
             SystemMessage::Add(None, _)
             | SystemMessage::Remove(None, _)
@@ -329,6 +340,32 @@ mod tests {
         ] {
             assert_eq!(message.event_id(&group(1), at(0)), None, "{message:?}");
         }
+    }
+
+    #[test]
+    fn a_verification_change_depends_on_group_time_and_contact() {
+        let verified = SystemMessage::ContactVerified { contact: user(1) };
+        let base = id(&verified, &group(1), at(0));
+
+        assert_eq!(id(&verified, &group(1), at(0)), base);
+        assert_ne!(id(&verified, &group(2), at(0)), base);
+        assert_ne!(id(&verified, &group(1), at(1)), base);
+        assert_ne!(
+            id(
+                &SystemMessage::ContactVerified { contact: user(2) },
+                &group(1),
+                at(0)
+            ),
+            base
+        );
+        assert_ne!(
+            id(
+                &SystemMessage::ContactUnverified { contact: user(1) },
+                &group(1),
+                at(0)
+            ),
+            base
+        );
     }
 
     /// Devices on different versions must derive the same ID.

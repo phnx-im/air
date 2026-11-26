@@ -5,13 +5,14 @@
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/ds/components/corner_dot/corner_dot.dart';
+import 'package:air/ds/components/status_label/status_label.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/chat_header_bar/chat_header_bar_tokens.dart';
 import 'package:flutter/widgets.dart';
 
 /// The header of a chat-depth screen: an avatar plus the name (and an optional
-/// subtitle) centered in a tappable pill, with an optional back button leading
-/// and a matching trailing spacer.
+/// status line) centered in a tappable pill, with an optional back button
+/// leading and a matching trailing spacer.
 ///
 /// A pure view: it renders what it's handed and reports gestures back, so the
 /// host owns the chat state.
@@ -20,7 +21,8 @@ class ChatHeaderBar extends StatelessWidget {
     super.key,
     required this.tokens,
     required this.name,
-    this.subtitle,
+    this.statusLabel,
+    this.statusIcon,
     this.avatar,
     this.onTap,
     this.onBack,
@@ -30,9 +32,13 @@ class ChatHeaderBar extends StatelessWidget {
   final ChatHeaderBarTokens tokens;
   final String name;
 
-  /// Second line under the name. Rendered only when non-null, and already
-  /// localized: the pattern never resolves copy itself.
-  final String? subtitle;
+  /// A state line under the name, such as the contact's verification.
+  /// Rendered only when non-null, and already localized. The pattern never
+  /// resolves copy itself.
+  final String? statusLabel;
+
+  /// Glyph leading [statusLabel].
+  final AppIconType? statusIcon;
 
   /// Rendered inside the pill. The host sizes it to
   /// [ChatHeaderBarTokens.avatarSize].
@@ -89,7 +95,8 @@ class ChatHeaderBar extends StatelessWidget {
                 child: _TitlePill(
                   tokens: t,
                   name: name,
-                  subtitle: subtitle,
+                  statusLabel: statusLabel,
+                  statusIcon: statusIcon,
                   avatar: avatar,
                   onTap: onTap,
                 ),
@@ -111,14 +118,16 @@ class _TitlePill extends StatelessWidget {
   const _TitlePill({
     required this.tokens,
     required this.name,
-    required this.subtitle,
+    required this.statusLabel,
+    required this.statusIcon,
     required this.avatar,
     required this.onTap,
   });
 
   final ChatHeaderBarTokens tokens;
   final String name;
-  final String? subtitle;
+  final String? statusLabel;
+  final AppIconType? statusIcon;
   final Widget? avatar;
   final VoidCallback? onTap;
 
@@ -126,7 +135,7 @@ class _TitlePill extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
     final avatarWidget = avatar;
-    final subtitleText = subtitle;
+    final statusText = statusLabel;
 
     return MouseRegion(
       cursor: onTap != null ? SystemMouseCursors.click : MouseCursor.defer,
@@ -166,17 +175,15 @@ class _TitlePill extends StatelessWidget {
                         tight: true,
                       ),
                     ),
-                    if (subtitleText != null)
+                    if (statusText != null)
                       Padding(
                         padding: const EdgeInsets.only(
                           top: ChatHeaderBarTokens.titleGap,
                         ),
-                        child: Text(
-                          subtitleText,
-                          style: typeScale.body.xs.style(
-                            color: palette.text.tertiary,
-                            tight: true,
-                          ),
+                        child: StatusLabel(
+                          tokens: ChatHeaderBarTokens.status,
+                          label: statusText,
+                          icon: statusIcon,
                         ),
                       ),
                   ],

@@ -4181,6 +4181,142 @@ as UiUserId,
 }
 
 /// @nodoc
+
+
+class UiSystemMessage_ContactVerified extends UiSystemMessage {
+  const UiSystemMessage_ContactVerified({required this.contact}): super._();
+  
+
+ final  UiUserId contact;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiSystemMessage_ContactVerifiedCopyWith<UiSystemMessage_ContactVerified> get copyWith => _$UiSystemMessage_ContactVerifiedCopyWithImpl<UiSystemMessage_ContactVerified>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ContactVerified&&(identical(other.contact, contact) || other.contact == contact));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,contact);
+}
+
+@override
+String toString() {
+    return 'UiSystemMessage.contactVerified(contact: $contact)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiSystemMessage_ContactVerifiedCopyWith<$Res> implements $UiSystemMessageCopyWith<$Res> {
+  factory $UiSystemMessage_ContactVerifiedCopyWith(UiSystemMessage_ContactVerified value, $Res Function(UiSystemMessage_ContactVerified) _then) = _$UiSystemMessage_ContactVerifiedCopyWithImpl;
+@useResult
+$Res call({
+ UiUserId contact
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiSystemMessage_ContactVerifiedCopyWithImpl<$Res>
+    implements $UiSystemMessage_ContactVerifiedCopyWith<$Res> {
+  _$UiSystemMessage_ContactVerifiedCopyWithImpl(this._self, this._then);
+
+  final UiSystemMessage_ContactVerified _self;
+  final $Res Function(UiSystemMessage_ContactVerified) _then;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? contact = null,}) {
+  return _then(UiSystemMessage_ContactVerified(
+contact: null == contact ? _self.contact : contact // ignore: cast_nullable_to_non_nullable
+as UiUserId,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class UiSystemMessage_ContactUnverified extends UiSystemMessage {
+  const UiSystemMessage_ContactUnverified({required this.contact}): super._();
+  
+
+ final  UiUserId contact;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiSystemMessage_ContactUnverifiedCopyWith<UiSystemMessage_ContactUnverified> get copyWith => _$UiSystemMessage_ContactUnverifiedCopyWithImpl<UiSystemMessage_ContactUnverified>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_ContactUnverified&&(identical(other.contact, contact) || other.contact == contact));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,contact);
+}
+
+@override
+String toString() {
+    return 'UiSystemMessage.contactUnverified(contact: $contact)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiSystemMessage_ContactUnverifiedCopyWith<$Res> implements $UiSystemMessageCopyWith<$Res> {
+  factory $UiSystemMessage_ContactUnverifiedCopyWith(UiSystemMessage_ContactUnverified value, $Res Function(UiSystemMessage_ContactUnverified) _then) = _$UiSystemMessage_ContactUnverifiedCopyWithImpl;
+@useResult
+$Res call({
+ UiUserId contact
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiSystemMessage_ContactUnverifiedCopyWithImpl<$Res>
+    implements $UiSystemMessage_ContactUnverifiedCopyWith<$Res> {
+  _$UiSystemMessage_ContactUnverifiedCopyWithImpl(this._self, this._then);
+
+  final UiSystemMessage_ContactUnverified _self;
+  final $Res Function(UiSystemMessage_ContactUnverified) _then;
+
+/// Create a copy of UiSystemMessage
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? contact = null,}) {
+  return _then(UiSystemMessage_ContactUnverified(
+contact: null == contact ? _self.contact : contact // ignore: cast_nullable_to_non_nullable
+as UiUserId,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$UiUsername {
 
  String get plaintext;

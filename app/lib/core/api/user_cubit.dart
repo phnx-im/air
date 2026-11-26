@@ -147,6 +147,12 @@ abstract class UserCubitBase implements RustOpaqueInterface {
 
   Future<void> setAppState({required AppState appState});
 
+  /// Marks the user as verified or removes the mark.
+  Future<void> setContactVerified({
+    required UiUserId userId,
+    required bool verified,
+  });
+
   /// Set the display name and/or profile picture of the user.
   Future<void> setProfile({String? displayName, Uint8List? profilePicture});
 
