@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::{LeafCredential, keys::LeafSigningKey},
+    credentials::{LeafCredential, keys::LeafSigningKeyRef},
     crypto::{aead::AeadEncryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{QualifiedGroupId, UserId, Username},
     messages::{
@@ -204,7 +204,7 @@ impl CoreUser {
                         txn,
                         self.api_clients(),
                         eci,
-                        &LeafSigningKey::User(self.signing_key().clone()),
+                        LeafSigningKeyRef::User(self.signing_key()),
                         self.user_id(),
                         connection_info.connection_group_ear_key.clone(),
                         connection_info
@@ -460,12 +460,11 @@ impl CoreUser {
             original_leaf_index,
         );
 
-        let signer = LeafSigningKey::User(self.signing_key().clone());
         let result = resync
             .create_and_send_commit_with_info(
                 self.db().write().await?,
                 self.api_clients(),
-                &signer,
+                LeafSigningKeyRef::User(self.signing_key()),
                 self.user_id(),
                 eci,
             )
@@ -521,8 +520,8 @@ impl CoreUser {
         &self,
         eci: &ExternalCommitInfoIn,
     ) -> anyhow::Result<Option<LeafNodeIndex>> {
-        let signer = LeafSigningKey::User(self.signing_key().clone());
-        let Some(leaf_index) = Resync::find_own_leaf(eci, &signer) else {
+        let signer = LeafSigningKeyRef::User(self.signing_key());
+        let Some(leaf_index) = Resync::find_own_leaf(eci, signer) else {
             return Ok(None);
         };
         let has_linked_devices = SelfGroup::load(self.db().read().await?)

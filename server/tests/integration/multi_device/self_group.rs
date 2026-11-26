@@ -6,7 +6,7 @@
 //! chat.
 
 use aircommon::{
-    credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
+    credentials::keys::{LeafSigningKeyRef, SelfGroupSigningKey},
     crypto::aead::keys::EncryptedUserProfileKey,
     messages::client_ds::{AadPayload, CloseConnectionGroupParamsAad, GroupOperationParamsAad},
 };
@@ -329,13 +329,13 @@ async fn external_delete_commit_is_rejected() {
 
     // Alice's own device stands in for the DS. It sends nothing.
     let (group_id, pq_group_id, ear_key) = alice.self_group_ds_keys().await.unwrap();
-    let signer = LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(Uuid::new_v4()).unwrap());
+    let signer = SelfGroupSigningKey::generate(Uuid::new_v4()).unwrap();
     let commit = alice
         .forge_external_commit(
             group_id,
             pq_group_id,
             &ear_key,
-            &signer,
+            LeafSigningKeyRef::SelfGroup(&signer),
             AadPayload::DeleteGroup,
         )
         .await
@@ -374,12 +374,12 @@ async fn connection_group_close_into_the_self_group_is_rejected() {
     // Mallory stands in for the DS, which can register an account of its own.
     // She sends nothing.
     let (group_id, pq_group_id, ear_key) = alice.self_group_ds_keys().await.unwrap();
-    let signer = LeafSigningKey::User(mallory.signing_key_for_test().clone());
+    let signer = LeafSigningKeyRef::User(mallory.signing_key_for_test());
     let aad = AadPayload::CloseConnectionGroup(CloseConnectionGroupParamsAad {
         encrypted_user_profile_key: EncryptedUserProfileKey::random(),
     });
     let commit = mallory
-        .forge_external_commit(group_id, pq_group_id, &ear_key, &signer, aad)
+        .forge_external_commit(group_id, pq_group_id, &ear_key, signer, aad)
         .await
         .unwrap();
 

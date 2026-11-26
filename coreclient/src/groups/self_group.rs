@@ -7,7 +7,7 @@ use aircommon::credentials::LeafCredentialError;
 use aircommon::{
     credentials::{
         LeafCredential,
-        keys::{LeafSigningKey, SelfGroupSigningKey},
+        keys::{LeafSigningKeyRef, SelfGroupSigningKey},
     },
     crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
     messages::{client_ds::AadMessage, client_ds_out::ApqGroupOperationParamsOut},
@@ -313,7 +313,7 @@ impl CoreUser {
             .client_id;
         let self_group_signing_key = SelfGroupSigningKey::generate(client_id)?;
 
-        let group_signer = LeafSigningKey::SelfGroup(self_group_signing_key.clone());
+        let group_signer = LeafSigningKeyRef::SelfGroup(&self_group_signing_key);
         let own_user_id = self.user_id().clone();
         let client_reference = self.create_own_client_reference();
         let (group, partial_params, user_profile_key) = self
@@ -321,7 +321,7 @@ impl CoreUser {
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 let (group, partial_params) = Group::create_apq_group(
                     &mut *txn,
-                    &group_signer,
+                    group_signer,
                     own_user_id,
                     identity_link_wrapper_key,
                     group_id,

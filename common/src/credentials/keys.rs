@@ -324,10 +324,33 @@ impl ApqSigner for SelfGroupSigningKey {
 ///
 /// Regular groups use the user-level [`UserSigningKey`]. The self-group uses the per-device
 /// [`SelfGroupSigningKey`].
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum LeafSigningKey {
     User(UserSigningKey),
     SelfGroup(SelfGroupSigningKey),
+}
+
+impl LeafSigningKey {
+    /// A borrowed view of this key.
+    pub fn as_ref(&self) -> LeafSigningKeyRef<'_> {
+        match self {
+            LeafSigningKey::User(key) => LeafSigningKeyRef::User(key),
+            LeafSigningKey::SelfGroup(key) => LeafSigningKeyRef::SelfGroup(key),
+        }
+    }
+}
+
+/// A borrowed [`LeafSigningKey`].
+#[derive(Clone, Copy, Debug)]
+pub enum LeafSigningKeyRef<'a> {
+    User(&'a UserSigningKey),
+    SelfGroup(&'a SelfGroupSigningKey),
+}
+
+impl<'a> From<&'a SelfGroupSigningKey> for LeafSigningKeyRef<'a> {
+    fn from(key: &'a SelfGroupSigningKey) -> Self {
+        LeafSigningKeyRef::SelfGroup(key)
+    }
 }
 
 #[derive(Debug, Error)]
@@ -338,57 +361,57 @@ pub enum LeafSigningKeyError {
     Codec(#[from] codec::Error),
 }
 
-impl Deref for LeafSigningKey {
+impl Deref for LeafSigningKeyRef<'_> {
     type Target = SigningKey<ClientKeyType>;
 
     fn deref(&self) -> &Self::Target {
-        match self {
-            LeafSigningKey::User(key) => key,
-            LeafSigningKey::SelfGroup(key) => key,
+        match *self {
+            LeafSigningKeyRef::User(key) => key,
+            LeafSigningKeyRef::SelfGroup(key) => key,
         }
     }
 }
 
-impl LeafSigningKey {
+impl LeafSigningKeyRef<'_> {
     /// The MLS credential to place in the leaf.
-    pub fn mls_credential(&self) -> Result<Credential, LeafSigningKeyError> {
+    pub fn mls_credential(self) -> Result<Credential, LeafSigningKeyError> {
         match self {
-            LeafSigningKey::User(key) => Ok(Credential::try_from(key.credential())?),
-            LeafSigningKey::SelfGroup(key) => Ok(key.credential().to_credential()?),
+            LeafSigningKeyRef::User(key) => Ok(Credential::try_from(key.credential())?),
+            LeafSigningKeyRef::SelfGroup(key) => Ok(key.credential().to_credential()?),
         }
     }
 
     /// Room-policy identity of the leaf's owner, see
     /// [`LeafCredential::room_policy_identity`](super::LeafCredential::room_policy_identity).
-    pub fn room_policy_identity(&self) -> RoomPolicyIdentity {
+    pub fn room_policy_identity(self) -> RoomPolicyIdentity {
         match self {
-            LeafSigningKey::User(key) => {
+            LeafSigningKeyRef::User(key) => {
                 RoomPolicyIdentity::User(key.credential().user_id().clone())
             }
-            LeafSigningKey::SelfGroup(key) => {
+            LeafSigningKeyRef::SelfGroup(key) => {
                 RoomPolicyIdentity::Client(key.credential().client_id())
             }
         }
     }
 }
 
-impl Signer for LeafSigningKey {
+impl Signer for LeafSigningKeyRef<'_> {
     fn sign(&self, payload: &[u8]) -> Result<Vec<u8>, SignerError> {
         match self {
-            LeafSigningKey::User(key) => key.sign(payload),
-            LeafSigningKey::SelfGroup(key) => key.sign(payload),
+            LeafSigningKeyRef::User(key) => key.sign(payload),
+            LeafSigningKeyRef::SelfGroup(key) => key.sign(payload),
         }
     }
 
     fn signature_scheme(&self) -> SignatureScheme {
         match self {
-            LeafSigningKey::User(key) => key.signature_scheme(),
-            LeafSigningKey::SelfGroup(key) => key.signature_scheme(),
+            LeafSigningKeyRef::User(key) => key.signature_scheme(),
+            LeafSigningKeyRef::SelfGroup(key) => key.signature_scheme(),
         }
     }
 }
 
-impl ApqSigner for LeafSigningKey {
+impl ApqSigner for LeafSigningKeyRef<'_> {
     type TSigner = Self;
     type PqSigner = Self;
 

@@ -387,6 +387,7 @@ impl OutboundServiceContext {
             .new_mls_message(&chat, content.content().clone(), None)
             .await
             .map_err(OutboundServiceError::fatal)?;
+        let signer = signer.as_ref();
         let epoch = params.epoch;
         let sent_tags = params.collision_tags.clone();
         let generation = params.generation;

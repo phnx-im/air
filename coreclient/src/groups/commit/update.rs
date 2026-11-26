@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::LeafSigningKey,
+    credentials::keys::LeafSigningKeyRef,
     identifiers::QsReference,
     messages::{
         client_ds::AadMessage,
@@ -42,7 +42,7 @@ impl Group {
     pub(crate) async fn update(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
-        signer: &LeafSigningKey,
+        signer: LeafSigningKeyRef<'_>,
         new_group_data: Option<GroupData>,
         derivation_epoch: DerivationEpoch,
         own_client_reference: &QsReference,
@@ -99,7 +99,7 @@ impl Group {
 
             let (mls_message, _welcome_option, group_info_option) = builder
                 .create_group_info(true)
-                .build(provider.rand(), provider.crypto(), signer, |_| true)?
+                .build(provider.rand(), provider.crypto(), &signer, |_| true)?
                 .stage_commit(&provider)?
                 .into_contents();
 
@@ -147,7 +147,7 @@ impl Group {
     pub(crate) async fn apq_update(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
-        signer: &LeafSigningKey,
+        signer: LeafSigningKeyRef<'_>,
         new_group_data: Option<GroupData>,
         derivation_epoch: DerivationEpoch,
         own_client_reference: &QsReference,
@@ -195,7 +195,7 @@ impl Group {
         if let Some(component_data) = component_data {
             builder = builder.update_t_app_data(component_data);
         }
-        let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
+        let bundle = builder.finalize(&provider, &signer, |_| true, |_| true)?;
 
         debug_assert!(bundle.welcome.is_none());
         ensure!(

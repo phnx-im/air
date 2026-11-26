@@ -2019,7 +2019,7 @@ fn log_processed_commit(group: &VerifiedGroup, sender: &Sender) {
 mod tests {
     use aircommon::{
         credentials::{
-            keys::{LeafSigningKey, SelfGroupSigningKey},
+            keys::{LeafSigningKeyRef, SelfGroupSigningKey},
             test_utils::create_test_credentials,
         },
         crypto::{
@@ -2147,7 +2147,7 @@ mod tests {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
         let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
-        let leaf_signer = LeafSigningKey::SelfGroup(signing_key.clone());
+        let leaf_signer = LeafSigningKeyRef::SelfGroup(&signing_key);
 
         let mut connection = pool.write().await?;
         connection
@@ -2173,7 +2173,7 @@ mod tests {
                 ));
                 let (group, _params) = Group::create_apq_group(
                     &mut *txn,
-                    &leaf_signer,
+                    leaf_signer,
                     user_id.clone(),
                     IdentityLinkWrapperKey::random()?,
                     t_group_id,

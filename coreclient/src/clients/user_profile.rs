@@ -96,6 +96,7 @@ impl CoreUser {
                 self.signing_key(),
             )
             .await?;
+            let signer = signer.as_ref();
 
             let user_profile_key =
                 user_profile_key.encrypt(&group.identity_link_wrapper_key, own_user_id)?;

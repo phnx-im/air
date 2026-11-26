@@ -9,7 +9,7 @@ use std::{
 };
 
 use aircommon::{
-    credentials::{LeafCredential, keys::LeafSigningKey},
+    credentials::{LeafCredential, keys::LeafSigningKeyRef},
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::{QualifiedGroupId, UserId},
     messages::{
@@ -392,7 +392,12 @@ impl OutboundServiceContext {
         let result = {
             let mut connection = self.db.write().await?;
             let result = resync
-                .create_and_send_commit(&mut connection, &self.api_clients, &signer, self.user_id())
+                .create_and_send_commit(
+                    &mut connection,
+                    &self.api_clients,
+                    signer.as_ref(),
+                    self.user_id(),
+                )
                 .await;
             if let Ok(Some((chat_id, _))) = &result {
                 Resync::remove(&mut connection, &group_id).await?;
@@ -501,7 +506,7 @@ impl Resync {
         self,
         mut connection: impl WriteConnection,
         api_clients: &ApiClients,
-        signer: &LeafSigningKey,
+        signer: LeafSigningKeyRef<'_>,
         own_user_id: &UserId,
     ) -> Result<Option<(ChatId, DecryptedProfileInfos)>, OutboundServiceError> {
         let shares_vc_leaf = self.shares_vc_leaf;
@@ -529,7 +534,7 @@ impl Resync {
         mut self,
         mut connection: impl WriteConnection,
         api_clients: &ApiClients,
-        signer: &LeafSigningKey,
+        signer: LeafSigningKeyRef<'_>,
         own_user_id: &UserId,
         external_commit_info: ExternalCommitInfoIn,
     ) -> Result<Option<(ChatId, DecryptedProfileInfos)>, OutboundServiceError> {
@@ -716,7 +721,7 @@ impl Resync {
 
     pub(crate) fn find_own_leaf(
         external_commit_info: &ExternalCommitInfoIn,
-        signer: &LeafSigningKey,
+        signer: LeafSigningKeyRef<'_>,
     ) -> Option<LeafNodeIndex> {
         let signature_key_bytes = signer.verifying_key().as_slice();
         external_commit_info
@@ -729,7 +734,7 @@ impl Resync {
     fn resolve_original_leaf_index(
         &self,
         external_commit_info: &ExternalCommitInfoIn,
-        signer: &LeafSigningKey,
+        signer: LeafSigningKeyRef<'_>,
     ) -> Option<LeafNodeIndex> {
         Self::find_own_leaf(external_commit_info, signer).inspect(|&index| {
             if index != self.original_leaf_index {
@@ -770,7 +775,7 @@ impl Resync {
         txn: &mut WriteDbTransaction<'_>,
         // Needs api clients until we can schedule group member authentication
         api_clients: &ApiClients,
-        signer: &LeafSigningKey,
+        signer: LeafSigningKeyRef<'_>,
         own_user_id: &UserId,
         external_commit_info: ExternalCommitInfoIn,
     ) -> Result<(Group, ResyncCommit, DecryptedProfileInfos, MembersDiff)> {
@@ -825,7 +830,7 @@ impl Resync {
         } else {
             // The self group is always an APQ group, so a T-only resync can never
             // concern it.
-            let LeafSigningKey::User(signer) = signer else {
+            let LeafSigningKeyRef::User(signer) = signer else {
                 bail!("self-group signer in a non-APQ resync");
             };
             let (group, commit, group_info, member_profile_infos) = Group::join_group_externally(
@@ -861,7 +866,7 @@ impl Resync {
 
     async fn send_commit(
         api_clients: &ApiClients,
-        signer: &LeafSigningKey,
+        signer: LeafSigningKeyRef<'_>,
         group: &Group,
         commit: ResyncCommit,
         original_leaf_index: LeafNodeIndex,
@@ -880,7 +885,7 @@ impl Resync {
                     .ds_resync(
                         commit.commit,
                         commit.group_info,
-                        signer,
+                        &signer,
                         group.group_state_ear_key(),
                         original_leaf_index,
                     )
@@ -890,7 +895,7 @@ impl Resync {
                 api_client
                     .ds_apq_resync(
                         *bundle,
-                        signer,
+                        &signer,
                         group.group_state_ear_key(),
                         original_leaf_index,
                     )

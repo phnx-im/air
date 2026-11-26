@@ -561,6 +561,7 @@ impl PendingChatOperation {
         let leaf_signer =
             OwnClientInfo::signer_for_group(db.read().await?, self.group.group_id(), signer)
                 .await?;
+        let leaf_signer = leaf_signer.as_ref();
 
         let qgid = QualifiedGroupId::try_from(self.group.group_id())?;
 
@@ -983,9 +984,10 @@ impl PendingChatOperation {
             .await?
             .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
         let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
+        let signer = signer.as_ref();
         let params = group
             .group_mut()
-            .apq_update(txn, &signer, None, derivation_epoch, own_client_reference)
+            .apq_update(txn, signer, None, derivation_epoch, own_client_reference)
             .await?;
         let job = Self::new(group, OperationType::apq_other(params));
         job.store(txn).await?;
@@ -1171,6 +1173,7 @@ impl PendingChatOperation {
             .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
 
         let signer = OwnClientInfo::signer_for_group(&mut *txn, group.group_id(), signer).await?;
+        let signer = signer.as_ref();
 
         // If there is a pending proposal, we have to do a full APQ update.
         let operation_type = if group.is_apq() && group.group().has_pending_proposals() {
@@ -1178,7 +1181,7 @@ impl PendingChatOperation {
                 .group_mut()
                 .apq_update(
                     &mut *txn,
-                    &signer,
+                    signer,
                     new_group_data,
                     derivation_epoch,
                     own_client_reference,
@@ -1190,7 +1193,7 @@ impl PendingChatOperation {
                 .group_mut()
                 .update(
                     &mut *txn,
-                    &signer,
+                    signer,
                     new_group_data,
                     derivation_epoch,
                     own_client_reference,
@@ -1223,6 +1226,7 @@ impl PendingChatOperation {
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
         let signer = OwnClientInfo::signer_for_group(&mut *txn, group_id, signer).await?;
+        let signer = signer.as_ref();
 
         let operation_type = if group.is_apq() {
             let bundle = group
@@ -1977,7 +1981,7 @@ pub(crate) mod tests {
 
     use aircommon::{
         credentials::{
-            keys::{LeafSigningKey, SelfGroupSigningKey, UserSigningKey},
+            keys::{LeafSigningKeyRef, SelfGroupSigningKey, UserSigningKey},
             test_utils::create_test_credentials,
         },
         crypto::aead::keys::IdentityLinkWrapperKey,
@@ -2008,7 +2012,7 @@ pub(crate) mod tests {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
         let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
-        let leaf_signer = LeafSigningKey::SelfGroup(signing_key.clone());
+        let leaf_signer = LeafSigningKeyRef::SelfGroup(&signing_key);
 
         let mut connection = pool.write().await?;
         let job = connection
@@ -2035,7 +2039,7 @@ pub(crate) mod tests {
                 ));
                 let (group, _params) = Group::create_apq_group(
                     &mut *txn,
-                    &leaf_signer,
+                    leaf_signer,
                     user_id.clone(),
                     IdentityLinkWrapperKey::random()?,
                     t_group_id,
@@ -2189,7 +2193,7 @@ pub(crate) mod tests {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
         let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
-        let leaf_signer = LeafSigningKey::SelfGroup(self_group_signing_key.clone());
+        let leaf_signer = LeafSigningKeyRef::SelfGroup(self_group_signing_key);
 
         let mut connection = pool.write().await?;
         connection
@@ -2214,7 +2218,7 @@ pub(crate) mod tests {
                 .await?;
                 let (group, _params) = Group::create_apq_group(
                     &mut *txn,
-                    &leaf_signer,
+                    leaf_signer,
                     user_id.clone(),
                     IdentityLinkWrapperKey::random()?,
                     t_group_id.clone(),
@@ -2340,7 +2344,7 @@ pub(crate) mod tests {
         let user_id = UserId::random("example.com".parse()?);
         let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
         let self_group_signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
-        let leaf_signer = LeafSigningKey::SelfGroup(self_group_signing_key.clone());
+        let leaf_signer = LeafSigningKeyRef::SelfGroup(&self_group_signing_key);
 
         let t_group_id = GroupId::from(QualifiedGroupId::new(
             Uuid::new_v4(),
@@ -2367,7 +2371,7 @@ pub(crate) mod tests {
 
                 let (group, _params) = Group::create_apq_group(
                     &mut *txn,
-                    &leaf_signer,
+                    leaf_signer,
                     user_id.clone(),
                     IdentityLinkWrapperKey::random()?,
                     t_group_id.clone(),
@@ -2799,7 +2803,7 @@ pub(crate) mod tests {
         let domain = user_id.domain().clone();
         let (group, _params) = Group::create_apq_group(
             &mut connection,
-            &LeafSigningKey::User(signing_key.clone()),
+            LeafSigningKeyRef::User(&signing_key),
             user_id,
             IdentityLinkWrapperKey::random()?,
             GroupId::from(QualifiedGroupId::new(Uuid::new_v4(), domain.clone())),

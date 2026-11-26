@@ -394,6 +394,7 @@ impl ChatOperation {
                 &key_store.signing_key,
             )
             .await?;
+            let signer = signer.as_ref();
             let object_id = Uuid::new_v4();
             let provision_response = api_client
                 .ds_provision_attachment(

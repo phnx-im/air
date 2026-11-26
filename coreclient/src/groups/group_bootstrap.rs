@@ -321,7 +321,7 @@ mod tests {
         };
         let (group, _params) = Group::create_apq_group(
             &mut *txn,
-            &signer,
+            signer.as_ref(),
             user_id,
             IdentityLinkWrapperKey::random()?,
             random_group_id(),

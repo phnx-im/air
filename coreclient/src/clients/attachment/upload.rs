@@ -402,6 +402,7 @@ impl CoreUser {
 
         // The part is final from here on
         let signer = self.attachment_signer(&group.attachment_target()).await?;
+        let signer = signer.as_ref();
         let provisioned = encrypt_and_provision_with(
             &self.api_client()?,
             &signer,
@@ -666,6 +667,7 @@ impl CoreUser {
         drop(connection);
 
         let signer = self.attachment_signer(&group.attachment_target()).await?;
+        let signer = signer.as_ref();
         let provisioned = encrypt_and_provision(
             &self.api_client()?,
             &signer,
@@ -903,6 +905,7 @@ impl CoreUser {
 
         let target = group.attachment_target();
         let signer = self.attachment_signer(&target).await?;
+        let signer = signer.as_ref();
         let response = self
             .api_client()?
             .ds_provision_attachment(
