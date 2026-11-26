@@ -10,19 +10,17 @@
 
 use std::{
     collections::HashMap,
-    path::PathBuf,
     sync::{Arc, OnceLock},
 };
 
-use aircommon::{OpenMlsRand, RustCrypto};
 use aircoreclient::{
-    AttachmentProgressEvent, ChatId, MarkChatAsRead, MessageId, ProvisionAttachmentError,
-    UploadTaskError, clients::CoreUser,
+    AttachmentFile, AttachmentProgressEvent, ChatId, MarkChatAsRead, MessageId,
+    ProvisionAttachmentError, UndecodableAttachment, UploadHandle, UploadTaskError,
+    clients::CoreUser,
 };
 use anyhow::Context as _;
 use flutter_rust_bridge::frb;
 use futures_util::StreamExt;
-use mimi_content::MimiContent;
 use tokio::sync::{Mutex, watch};
 use tracing::error;
 use uuid::Uuid;
@@ -204,9 +202,8 @@ impl ShareCubitBase {
 
     /// Sends the shared content to the given chats.
     ///
-    /// Each attachment is sent as its own message, matching the in-app
-    /// behavior. The shared text and the caption are sent as one trailing
-    /// text message. Every chat receives its own copy. Progress is reported
+    /// Each attachment is sent as its own message. The shared text and the
+    /// caption are sent as one trailing text message. Every chat receives its own copy. Progress is reported
     /// via the state's `send_status`.
     ///
     /// Content a chat already received in an earlier call is skipped, so
@@ -416,71 +413,80 @@ async fn upload_attachment(
     attachment: &UiSharedAttachment,
     report_progress: impl Fn(f64),
 ) -> Result<MessageId, UiShareSendError> {
-    let path = PathBuf::from(&attachment.path);
+    // The file stays with the native host
+    let file = AttachmentFile::borrowed(&attachment.path);
+    let staged = match core_user.stage_attachment(file).await {
+        Ok(Ok(staged)) => staged,
+        Ok(Err(error)) => return Err(provision_error(error)),
+        Err(error) => {
+            error!(%error, "Failed to stage shared attachment");
+            return Err(UiShareSendError::Other);
+        }
+    };
+
     // Sharing happens without the user looking at the chat, so it must not
     // mark older messages as read.
-    let provisioned =
-        Box::pin(core_user.upload_chat_attachment(chat_id, &path, MarkChatAsRead::No))
-            .await
-            .map_err(|error| {
-                error!(%error, "Failed to provision shared attachment");
+    let composed = Box::pin(
+        core_user
+            .compose(chat_id)
+            .attachment(staged)
+            .mark_as_read(MarkChatAsRead::No)
+            .send(),
+    )
+    .await
+    .map_err(
+        |error| match error.downcast_ref::<UndecodableAttachment>() {
+            Some(_undecodable) => UiShareSendError::DecodingError,
+            None => {
+                error!(%error, "Failed to store shared attachment message");
                 UiShareSendError::Other
-            })?;
+            }
+        },
+    )?;
 
-    let pending_upload = match provisioned {
-        Ok(result) => result,
-        Err(error) => return Err(provision_error(error)),
-    };
-
-    // Forward the upload progress while the upload task runs. The stream
-    // ends with a terminal event when the task finishes.
-    let forward_progress = async {
-        let mut events = pending_upload.progress.stream();
-        while let Some(event) = events.next().await {
-            match event {
-                AttachmentProgressEvent::Init => {}
-                AttachmentProgressEvent::Progress {
-                    bytes_total,
-                    bytes_loaded,
-                } => {
-                    if bytes_total > 0 {
-                        report_progress(bytes_loaded as f64 / bytes_total as f64);
+    // The message is stored and queued, it is sent once its upload is done.
+    for UploadHandle {
+        attachment_id,
+        progress,
+        task,
+    } in composed.uploads
+    {
+        // The stream ends with a terminal event when the task finishes.
+        let forward_progress = async {
+            let mut events = progress.stream();
+            while let Some(event) = events.next().await {
+                match event {
+                    AttachmentProgressEvent::Init => {}
+                    AttachmentProgressEvent::Progress {
+                        bytes_total,
+                        bytes_loaded,
+                    } => {
+                        if bytes_total > 0 {
+                            report_progress(bytes_loaded as f64 / bytes_total as f64);
+                        }
                     }
+                    AttachmentProgressEvent::Completed
+                    | AttachmentProgressEvent::Failed
+                    | AttachmentProgressEvent::NotFound => break,
                 }
-                AttachmentProgressEvent::Completed
-                | AttachmentProgressEvent::Failed
-                | AttachmentProgressEvent::NotFound => break,
             }
-        }
-    };
+        };
 
-    let (upload_result, ()) = tokio::join!(pending_upload.task, forward_progress);
-    match upload_result {
-        Ok(message) => {
-            core_user
-                .outbound_service()
-                .enqueue_chat_message(message.id())
-                .await
-                .map_err(|error| {
-                    error!(%error, "Failed to enqueue shared attachment message");
-                    UiShareSendError::Other
-                })?;
-            Ok(message.id())
-        }
-        Err(UploadTaskError::Provision(error)) => Err(provision_error(error)),
-        Err(UploadTaskError::Failed { message_id, error }) => {
-            let attachment_id = pending_upload.attachment_id;
-            error!(%error, ?attachment_id, "Failed to upload shared attachment");
-            if let Err(error) = core_user
-                .outbound_service()
-                .fail_enqueued_chat_message(message_id)
-                .await
-            {
-                error!(%error, "Failed to mark attachment message as failed");
+        let (upload_result, ()) = tokio::join!(task, forward_progress);
+        match upload_result {
+            Ok(()) => {}
+            Err(UploadTaskError::Provision(error)) => return Err(provision_error(error)),
+            Err(UploadTaskError::Failed {
+                message_id: _,
+                error,
+            }) => {
+                error!(%error, ?attachment_id, "Failed to upload shared attachment");
+                return Err(UiShareSendError::Other);
             }
-            Err(UiShareSendError::Other)
         }
     }
+
+    Ok(composed.message.id())
 }
 
 fn provision_error(error: ProvisionAttachmentError) -> UiShareSendError {
@@ -498,13 +504,17 @@ async fn send_text_message(
     chat_id: ChatId,
     text: String,
 ) -> anyhow::Result<MessageId> {
-    let salt: [u8; 16] = RustCrypto::default().random_array()?;
-    let content = MimiContent::simple_markdown_message(text, salt);
     // Sharing happens without the user looking at the chat, so it must not
     // mark older messages as read.
-    let message =
-        Box::pin(core_user.send_message(chat_id, content, None, MarkChatAsRead::No)).await?;
-    Ok(message.id())
+    let composed = Box::pin(
+        core_user
+            .compose(chat_id)
+            .text(text)
+            .mark_as_read(MarkChatAsRead::No)
+            .send(),
+    )
+    .await?;
+    Ok(composed.message.id())
 }
 
 async fn all_sent(core_user: &CoreUser, message_ids: &[MessageId]) -> bool {

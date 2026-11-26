@@ -17,8 +17,6 @@ use crate::{
     db::access::{ReadConnection, WriteConnection},
 };
 
-use super::*;
-
 /// An own message with fully uploaded attachments that never reached the
 /// outbound service.
 pub(crate) struct UnqueuedAttachmentMessage {
@@ -145,45 +143,6 @@ impl MessageAttachmentRecord {
             attachment_id: record.attachment_id,
             role: record.role,
             filename: record.filename,
-        }))
-    }
-
-    /// Loads the first reference to the attachment and the attachment's
-    /// status.
-    pub(crate) async fn load_first_with_status(
-        mut connection: impl ReadConnection,
-        attachment_id: AttachmentId,
-    ) -> sqlx::Result<Option<(Self, AttachmentStatus)>> {
-        let record = query!(
-            r#"SELECT
-                ma.message_id AS "message_id: MessageId",
-                ma.part_index AS "part_index: PartIndex",
-                ma.attachment_id AS "attachment_id: AttachmentId",
-                ma.role AS "role: AttachmentRole",
-                ma.filename AS "filename?",
-                t.direction AS "direction?: u32",
-                t.state AS "state?: u32",
-                t.failure AS "failure?: u32"
-            FROM message_attachment ma
-            LEFT JOIN attachment_transfer t ON t.attachment_id = ma.attachment_id
-            WHERE ma.attachment_id = ?
-            ORDER BY ma.rowid
-            LIMIT 1"#,
-            attachment_id
-        )
-        .fetch_optional(connection.as_mut())
-        .await?;
-        Ok(record.map(|record| {
-            let reference = Self {
-                message_id: record.message_id,
-                part_index: record.part_index,
-                attachment_id: record.attachment_id,
-                role: record.role,
-                filename: record.filename,
-            };
-            let status =
-                AttachmentStatus::from_transfer(record.direction, record.state, record.failure);
-            (reference, status)
         }))
     }
 
@@ -402,8 +361,9 @@ mod tests {
     use crate::{
         ChatMessage,
         chats::messages::persistence::tests::test_chat_message_with_salt,
-        clients::attachment::persistence::test::{
-            count, stored_message, test_attachment_record, test_remote_attachment_record,
+        clients::attachment::persistence::{
+            AttachmentRecord,
+            test::{count, stored_message, test_attachment_record, test_remote_attachment_record},
         },
         db::access::DbAccess,
     };
