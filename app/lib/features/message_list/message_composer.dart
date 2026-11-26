@@ -831,18 +831,9 @@ class _MessageComposerState extends State<MessageComposer>
   }
 
   /// Asks Rust to resolve a preview for the first link in [text].
-  ///
-  /// Experimental.
   void _scheduleLinkPreviewUpdate(String text) {
     _linkPreviewDebouncer.run(() {
       if (!mounted) return;
-      final enabled = context
-          .read<UserSettingsCubit>()
-          .state
-          .experimentalFeaturesActive;
-      if (!enabled) {
-        return;
-      }
       _chatDetailsCubit
           .updateLinkPreviews(text)
           .catchError(
