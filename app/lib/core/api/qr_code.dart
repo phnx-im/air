@@ -10,7 +10,7 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `decode_qr_code`, `packed_luma`
+// These functions are ignored because they are not marked as `pub`: `decode_image`, `decode_qr_code`, `packed_luma`
 
 /// One camera frame, luma plane only.
 ///
