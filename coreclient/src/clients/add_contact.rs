@@ -4,7 +4,7 @@
 
 use airapiclient::{ApiClient, as_api::AsConnectionOfferResponder};
 use aircommon::{
-    credentials::keys::{LeafSigningKey, UserSigningKey},
+    credentials::keys::{LeafSigningKeyRef, UserSigningKey},
     crypto::{
         aead::keys::{FriendshipPackageEarKey, GroupStateEarKey, IdentityLinkWrapperKey},
         hash::Hashable as _,
@@ -393,7 +393,7 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
         let (group, partial_params) = if let Some(pq_group_id) = pq_group_id {
             Group::create_apq_group(
                 &mut *txn,
-                &LeafSigningKey::User(signing_key.clone()),
+                LeafSigningKeyRef::User(signing_key),
                 signing_key.credential().user_id().clone(),
                 identity_link_wrapper_key,
                 group_id,

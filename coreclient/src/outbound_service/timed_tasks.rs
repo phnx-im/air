@@ -235,6 +235,20 @@ mod test_utils {
                 .await
         }
 
+        pub async fn schedule_token_replenishment(
+            &self,
+            due_at: DateTime<Utc>,
+        ) -> sqlx::Result<()> {
+            for operation_type in OperationType::all() {
+                TimedTask::new(TimedTaskKind::TokenReplenishment { operation_type })
+                    .into_operation()
+                    .schedule_at(due_at)
+                    .enqueue(self.context.db.write().await?)
+                    .await?;
+            }
+            Ok(())
+        }
+
         pub async fn schedule_self_update(&self, due_at: DateTime<Utc>) -> sqlx::Result<()> {
             TimedTask::new(TimedTaskKind::SelfUpdate)
                 .into_operation()

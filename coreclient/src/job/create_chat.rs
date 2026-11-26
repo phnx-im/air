@@ -5,7 +5,7 @@
 use std::convert::Infallible;
 
 use aircommon::{
-    credentials::keys::LeafSigningKey,
+    credentials::keys::LeafSigningKeyRef,
     crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
     identifiers::QsReference,
     time::TimeStamp,
@@ -167,7 +167,7 @@ impl CreateChat {
                 let (group, partial_params) = if is_apq {
                     Group::create_apq_group(
                         &mut *txn,
-                        &LeafSigningKey::User(key_store.signing_key.clone()),
+                        LeafSigningKeyRef::User(&key_store.signing_key),
                         own_user_id.clone(),
                         identity_link_wrapper_key,
                         group_id,

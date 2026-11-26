@@ -129,19 +129,16 @@ impl Group {
         Ok(credentials)
     }
 
-    /// Process the add proposals of a self-group commit. Added leaves carry a
-    /// self-group credential, which holds no AS material to verify: openmls
-    /// has already checked the leaf signature, so only the credential type,
-    /// client id uniqueness, and the room policy (keyed on client ids) are
-    /// checked.
+    /// Process the add proposals of a self-group commit.
     pub(super) fn process_self_group_adds(
         &self,
         sender_identity: &RoomPolicyIdentity,
         staged_commit: &StagedCommit,
+        own_user_credential: &UserCredential,
     ) -> Result<()> {
         for proposal in staged_commit.add_proposals() {
             let leaf_node = proposal.add_proposal().key_package().leaf_node();
-            self.validate_self_group_add(leaf_node.credential())?;
+            self.validate_self_group_add(leaf_node, own_user_credential)?;
 
             let credential = LeafCredential::from_credential(leaf_node.credential())?;
             self.verify_role_change_identity(
@@ -157,13 +154,12 @@ impl Group {
 /// Pair the new and old leaf credential of a member transition for AS verification.
 ///
 /// Each side is a leaf credential and the leaf's signature key. Returns `None` when both are
-/// self-group credentials, since they carry no AS material to verify or store. Their client id and
-/// signature key must stay the same, because a self-group credential carries no key the leaf could
-/// be bound to. Mixed pairs are rejected.
+/// self-group credentials.
 pub(super) fn user_credential_transition(
     (new, new_key): (LeafCredential, &SignaturePublicKey),
     (old, old_key): (LeafCredential, &SignaturePublicKey),
     context: &str,
+    own_user_credential: &UserCredential,
 ) -> Result<Option<(VerifiableUserCredential, VerifiableUserCredential)>> {
     match (new, old) {
         (LeafCredential::User(new), LeafCredential::User(old)) => Ok(Some((new, old))),
@@ -176,6 +172,12 @@ pub(super) fn user_credential_transition(
                 new_key == old_key,
                 "self-group signature key changed in {context}"
             );
+            new.verify(
+                new_key.as_slice(),
+                own_user_credential.user_id(),
+                own_user_credential.verifying_key(),
+            )
+            .with_context(|| format!("invalid self-group credential in {context}"))?;
             Ok(None)
         }
         (LeafCredential::User(_), LeafCredential::SelfGroup(_))
@@ -318,8 +320,15 @@ pub(super) fn verify_pq_added_signature_keys(
 #[cfg(test)]
 mod tests {
     use aircommon::{
-        credentials::SelfGroupCredential, messages::client_ds::GroupOperationParamsAad,
+        credentials::{
+            SelfGroupCredential,
+            keys::{LeafSigningKeyRef, SelfGroupSigningKey, UserSigningKey},
+            test_utils::{malformed_self_group_credential, random_user_signing_key},
+        },
+        crypto::{aead::keys::WelcomeAttributionInfoEarKey, indexed_aead::keys::UserProfileKey},
+        messages::client_ds::GroupOperationParamsAad,
         mls_group_config::default_mls_group_join_config,
+        time::TimeStamp,
     };
     use openmls::{
         group::ExternalCommitBuilder,
@@ -335,10 +344,36 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
-    use crate::{clients::CIPHERSUITE, groups::process::expect_staged_commit};
+    use crate::{
+        clients::{CIPHERSUITE, own_client_info::OwnClientInfo},
+        contacts::{ContactAddInfos, ContactKeyPackage},
+        db::access::WriteConnection,
+        groups::{
+            commit::invite::PreparedInvitee, process::expect_staged_commit, self_group::SelfGroup,
+        },
+        job::pending_chat_operation::tests::{self_group_key_package, setup_self_group},
+        key_stores::indexed_keys::StorableIndexedKey,
+    };
 
     fn self_group_credential(client_id: u128) -> LeafCredential {
         LeafCredential::SelfGroup(SelfGroupCredential::new(Uuid::from_u128(client_id)))
+    }
+
+    fn signed_credential(
+        client_id: u128,
+        key: &SignaturePublicKey,
+        user: &UserSigningKey,
+    ) -> LeafCredential {
+        LeafCredential::SelfGroup(
+            SelfGroupCredential::signed(Uuid::from_u128(client_id), key.as_slice(), user).unwrap(),
+        )
+    }
+
+    fn malformed_credential(client_id: u128) -> LeafCredential {
+        LeafCredential::from_credential(&malformed_self_group_credential(Uuid::from_u128(
+            client_id,
+        )))
+        .unwrap()
     }
 
     fn signature_key(byte: u8) -> SignaturePublicKey {
@@ -347,27 +382,64 @@ mod tests {
 
     #[test]
     fn self_group_transition_preserves_client_id_and_key() -> anyhow::Result<()> {
+        let own = random_user_signing_key();
         let key = signature_key(1);
         for context in ["update path", "resync"] {
-            let transition = user_credential_transition(
-                (self_group_credential(1), &key),
-                (self_group_credential(1), &key),
-                context,
-            )?;
-
-            assert!(transition.is_none(), "{context}");
+            for (new, old) in [
+                (self_group_credential(1), self_group_credential(1)),
+                (signed_credential(1, &key, &own), self_group_credential(1)),
+                (
+                    signed_credential(1, &key, &own),
+                    signed_credential(1, &key, &own),
+                ),
+            ] {
+                let transition = user_credential_transition(
+                    (new, &key),
+                    (old, &key),
+                    context,
+                    own.credential(),
+                )?;
+                assert!(transition.is_none(), "{context}");
+            }
         }
         Ok(())
     }
 
     #[test]
+    fn self_group_transition_rejects_an_invalid_new_credential() {
+        let own = random_user_signing_key();
+        let key = signature_key(1);
+        for context in ["update path", "resync"] {
+            for new in [
+                signed_credential(1, &key, &random_user_signing_key()),
+                signed_credential(1, &signature_key(2), &own),
+                malformed_credential(1),
+            ] {
+                let error = user_credential_transition(
+                    (new, &key),
+                    (self_group_credential(1), &key),
+                    context,
+                    own.credential(),
+                )
+                .expect_err("an invalid credential should be rejected");
+                assert!(
+                    error.to_string().contains("invalid self-group credential"),
+                    "{error:#}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn self_group_transition_rejects_client_id_change() {
+        let own = random_user_signing_key();
         let key = signature_key(1);
         for context in ["update path", "resync"] {
             let transition = user_credential_transition(
                 (self_group_credential(2), &key),
                 (self_group_credential(1), &key),
                 context,
+                own.credential(),
             );
 
             assert!(transition.is_err(), "{context}");
@@ -376,15 +448,104 @@ mod tests {
 
     #[test]
     fn self_group_transition_rejects_signature_key_change() {
+        let own = random_user_signing_key();
         for context in ["update path", "resync"] {
             let transition = user_credential_transition(
                 (self_group_credential(1), &signature_key(2)),
                 (self_group_credential(1), &signature_key(1)),
                 context,
+                own.credential(),
             );
 
             assert!(transition.is_err(), "{context}");
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_leaf_with_an_invalid_credential_can_be_removed() -> anyhow::Result<()> {
+        let (pool, user_signing_key, group_id) = setup_self_group().await?;
+        let malformed = Uuid::new_v4();
+        let unverifiable = Uuid::new_v4();
+
+        pool.write()
+            .await?
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                let signer = OwnClientInfo::load(&mut *txn)
+                    .await?
+                    .self_group_signing_key
+                    .context("no self-group signing key")?;
+
+                // Add leaves the add check rejects, as a malicious DS can plant before the
+                // cut-off.
+                let malformed_key = SelfGroupSigningKey::generate(malformed, &user_signing_key)?;
+                let unverifiable_key =
+                    SelfGroupSigningKey::generate(unverifiable, &random_user_signing_key())?;
+                let key_packages = [
+                    self_group_key_package(
+                        txn,
+                        &malformed_key,
+                        malformed_self_group_credential(malformed),
+                    )
+                    .await?,
+                    self_group_key_package(
+                        txn,
+                        &unverifiable_key,
+                        unverifiable_key.credential().to_credential()?,
+                    )
+                    .await?,
+                ];
+                let mut invitees = Vec::new();
+                for key_package in key_packages {
+                    invitees.push(PreparedInvitee {
+                        add_info: ContactAddInfos {
+                            key_package: ContactKeyPackage::Apq(Box::new(key_package)),
+                            user_profile_key: UserProfileKey::load_own(&mut *txn).await?,
+                        },
+                        wai_key: WelcomeAttributionInfoEarKey::random()?,
+                        user_credential: user_signing_key.credential().clone(),
+                    });
+                }
+                let mut group = Group::load_clean_verified(&mut *txn, &group_id)
+                    .await?
+                    .context("no self group")?;
+                group
+                    .group_mut()
+                    .stage_apq_invite(
+                        &mut *txn,
+                        LeafSigningKeyRef::SelfGroup(&signer),
+                        &user_signing_key,
+                        invitees,
+                        None,
+                    )
+                    .await?
+                    .map_err(|error| anyhow::anyhow!("{error:?}"))?;
+                group
+                    .merge_pending_commit(&mut *txn, None, TimeStamp::now())
+                    .await?;
+                group
+                    .group_mut()
+                    .store_update(&mut *txn, None, None)
+                    .await?;
+
+                // The device that removes the leaves.
+                let mut self_group = SelfGroup::load(&mut *txn).await?.context("no self group")?;
+                self_group
+                    .stage_apq_remove_clients(&mut *txn, &signer, vec![malformed, unverifiable])
+                    .await?;
+
+                // A sibling processes the removal of the leaves in the commit.
+                let group = self_group.group();
+                let staged_commit = group
+                    .mls_group()
+                    .pending_commit()
+                    .context("no staged removal")?;
+                let sender = group
+                    .unverified_credential_at(group.mls_group().own_leaf_index())?
+                    .context("no own leaf")?;
+                assert!(!group.process_remove_proposals(staged_commit, &sender)?);
+                Ok(())
+            })
+            .await
     }
 
     struct Device {

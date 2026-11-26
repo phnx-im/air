@@ -200,8 +200,9 @@ fn set_keep_all_policy(
 
 #[cfg(test)]
 mod tests {
+    use aircommon::credentials::test_utils::random_user_signing_key;
     use aircommon::{
-        credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
+        credentials::keys::{LeafSigningKeyRef, SelfGroupSigningKey},
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QualifiedGroupId, UserId},
     };
@@ -227,7 +228,7 @@ mod tests {
 
     fn create_self_group(
         txn: &mut WriteDbTransaction<'_>,
-        signer: &LeafSigningKey,
+        signer: LeafSigningKeyRef<'_>,
     ) -> anyhow::Result<Group> {
         let (group, _params) = Group::create_apq_group(
             &mut *txn,
@@ -246,7 +247,7 @@ mod tests {
     fn rotate_derivation_epoch(
         group: &mut Group,
         txn: &mut WriteDbTransaction<'_>,
-        signer: &LeafSigningKey,
+        signer: LeafSigningKeyRef<'_>,
     ) -> anyhow::Result<()> {
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         let (t_mls_group, pq_mls_group) = group.apq_mls_groups_mut()?;
@@ -256,7 +257,7 @@ mod tests {
         )
         .force_self_update(true)
         .derivation_epoch(true)
-        .finalize(&provider, signer, |_| true, |_| true)?;
+        .finalize(&provider, &signer, |_| true, |_| true)?;
         t_mls_group.merge_pending_commit(&provider)?;
         pq_mls_group.merge_pending_commit(&provider)?;
         Ok(())
@@ -289,16 +290,18 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn sweep_deletes_superseded_epochs() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let signer = LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(Uuid::new_v4())?);
+        let signing_key =
+            SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key())?;
+        let signer = LeafSigningKeyRef::SelfGroup(&signing_key);
 
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let mut group = create_self_group(&mut txn, &signer)?;
+        let mut group = create_self_group(&mut txn, signer)?;
         let first = newest_epoch(&group, &mut txn)?;
-        rotate_derivation_epoch(&mut group, &mut txn, &signer)?;
+        rotate_derivation_epoch(&mut group, &mut txn, signer)?;
         let second = newest_epoch(&group, &mut txn)?;
-        rotate_derivation_epoch(&mut group, &mut txn, &signer)?;
+        rotate_derivation_epoch(&mut group, &mut txn, signer)?;
         let third = newest_epoch(&group, &mut txn)?;
 
         assert_ne!(first, second);
@@ -327,14 +330,16 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn sweep_keeps_epochs_inside_the_window() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let signer = LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(Uuid::new_v4())?);
+        let signing_key =
+            SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key())?;
+        let signer = LeafSigningKeyRef::SelfGroup(&signing_key);
 
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let mut group = create_self_group(&mut txn, &signer)?;
+        let mut group = create_self_group(&mut txn, signer)?;
         let first = newest_epoch(&group, &mut txn)?;
-        rotate_derivation_epoch(&mut group, &mut txn, &signer)?;
+        rotate_derivation_epoch(&mut group, &mut txn, signer)?;
         let second = newest_epoch(&group, &mut txn)?;
 
         sweep_vc_derivation_epochs(&mut txn, &mut group, VC_DERIVATION_EPOCH_RETENTION_WINDOW)?;
@@ -390,16 +395,18 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn rotation_sweeps_untracked_epoch_state() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let signer = LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(Uuid::new_v4())?);
+        let signing_key =
+            SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key())?;
+        let signer = LeafSigningKeyRef::SelfGroup(&signing_key);
 
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let mut group = create_self_group(&mut txn, &signer)?;
+        let mut group = create_self_group(&mut txn, signer)?;
         store_untracked_epoch_state(&mut txn).await?;
         assert!(epoch_state_exists(&mut txn, &untracked_epoch()).await?);
 
-        rotate_derivation_epoch(&mut group, &mut txn, &signer)?;
+        rotate_derivation_epoch(&mut group, &mut txn, signer)?;
 
         assert!(!epoch_state_exists(&mut txn, &untracked_epoch()).await?);
         let newest = newest_epoch(&group, &mut txn)?;
@@ -412,16 +419,18 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn held_epoch_state_survives_until_the_hold_expires() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let signer = LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(Uuid::new_v4())?);
+        let signing_key =
+            SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key())?;
+        let signer = LeafSigningKeyRef::SelfGroup(&signing_key);
 
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let mut group = create_self_group(&mut txn, &signer)?;
+        let mut group = create_self_group(&mut txn, signer)?;
         store_untracked_epoch_state(&mut txn).await?;
         hold_untracked_epoch(&mut txn, Utc::now() + chrono::Duration::days(1)).await?;
 
-        rotate_derivation_epoch(&mut group, &mut txn, &signer)?;
+        rotate_derivation_epoch(&mut group, &mut txn, signer)?;
         sweep_vc_derivation_epochs(&mut txn, &mut group, VC_DERIVATION_EPOCH_RETENTION_WINDOW)?;
 
         assert!(epoch_state_exists(&mut txn, &untracked_epoch()).await?);
@@ -440,12 +449,14 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn set_keep_all_policy_rewrites_stored_join_config() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let signer = LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(Uuid::new_v4())?);
+        let signing_key =
+            SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key())?;
+        let signer = LeafSigningKeyRef::SelfGroup(&signing_key);
 
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let mut group = create_self_group(&mut txn, &signer)?;
+        let mut group = create_self_group(&mut txn, signer)?;
         let group_id = group.mls_group().group_id().clone();
         {
             let provider = AirOpenMlsProvider::new(txn.as_mut());

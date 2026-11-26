@@ -403,6 +403,7 @@ impl Job for FetchGroupProfileOperation {
             &context.key_store.signing_key,
         )
         .await?;
+        let signer = signer.as_ref();
         let url = api_client
             .ds_get_attachment_url(
                 StorageObjectType::GroupProfile,

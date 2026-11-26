@@ -3,7 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::{UserCredential, keys::UserSigningKey},
+    credentials::{
+        UserCredential,
+        keys::{LeafSigningKeyRef, UserSigningKey},
+    },
     crypto::{
         aead::{AeadEncryptable, keys::WelcomeAttributionInfoEarKey},
         signatures::signable::Signable,
@@ -18,7 +21,6 @@ use aircommon::{
     },
 };
 use anyhow::{Context, Result, ensure};
-use apqmls::authentication::ApqSigner;
 use mls_assist::messages::AssistedMessageOut;
 use openmls::{
     prelude::{
@@ -117,16 +119,22 @@ impl Group {
     /// signed with the real user credential key so the joiner can verify it
     /// against the sender's user credential.
     ///
-    /// `app_ephemeral` rides along on the same commit when set.
+    /// `app_ephemeral` rides along on the same commit when set. If `signer` is a self-group key
+    /// and the corresponding credential is not in the leaf already, the new credential is put into
+    /// the leaf carried by the commit.
     pub(crate) async fn stage_apq_invite(
         &mut self,
         mut connection: impl WriteConnection,
-        signer: &impl ApqSigner,
+        signer: LeafSigningKeyRef<'_>,
         wai_signer: &UserSigningKey,
         invitees: Vec<PreparedInvitee>,
         app_ephemeral: Option<Proposal>,
     ) -> anyhow::Result<Result<ApqGroupOperationParamsOut, LeafNodeValidationError>> {
         debug_assert!(self.is_apq(), "Non-APQ group in APQ stage_invite");
+        let leaf_node_parameters = match signer.as_self_group() {
+            Some(signer) => self.self_group_leaf_node_parameters(signer)?,
+            None => None,
+        };
         let (key_packages, wai_keys, aad_message) = self.prepare_invitees(invitees)?;
         let key_packages = key_packages
             .into_iter()
@@ -150,10 +158,13 @@ impl Group {
         if let Some(proposal) = app_ephemeral {
             builder = builder.add_t_proposal(proposal);
         }
+        if let Some((t_parameters, pq_parameters)) = leaf_node_parameters {
+            builder = builder.leaf_node_parameters(t_parameters, pq_parameters);
+        }
         if let Some(group_id) = vc_group_id {
             builder = builder.vc_emulation(group_id);
         }
-        let bundle = match builder.finalize(&provider, signer, |_| true, |_| true) {
+        let bundle = match builder.finalize(&provider, &signer, |_| true, |_| true) {
             Ok(bundle) => bundle,
             // Extract leaf node validation error if any
             Err(apqmls::commit_builder::CreateCommitError::BuildCommit(error)) => {

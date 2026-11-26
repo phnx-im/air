@@ -10,7 +10,7 @@
 //! The DS applies the first close and finds the group closed for the others.
 
 use aircommon::{
-    credentials::keys::LeafSigningKey,
+    credentials::keys::LeafSigningKeyRef,
     crypto::indexed_aead::keys::UserProfileKey,
     identifiers::QualifiedGroupId,
     messages::{
@@ -182,7 +182,7 @@ impl OutboundServiceContext {
             inviter: &request.sender,
             connection_offer_hash: Some(request.connection_offer_hash),
         });
-        let signer = LeafSigningKey::User(self.signing_key().clone());
+        let signer = LeafSigningKeyRef::User(self.signing_key());
         let tombstone = Some(GroupTombstone::already_connected(TimeStamp::now()));
 
         if external_commit_info.is_apq()? {
@@ -190,8 +190,8 @@ impl OutboundServiceContext {
                 txn,
                 &self.api_clients,
                 external_commit_info,
-                &signer,
-                own_user_id,
+                signer,
+                self.signing_key().credential(),
                 info.connection_group_ear_key.clone(),
                 info.connection_group_identity_link_wrapper_key.clone(),
                 aad,

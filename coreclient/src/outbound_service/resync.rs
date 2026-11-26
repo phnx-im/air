@@ -9,7 +9,7 @@ use std::{
 };
 
 use aircommon::{
-    credentials::{LeafCredential, keys::LeafSigningKey},
+    credentials::{LeafCredential, UserCredential, keys::LeafSigningKeyRef},
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::{QualifiedGroupId, UserId},
     messages::{
@@ -392,7 +392,12 @@ impl OutboundServiceContext {
         let result = {
             let mut connection = self.db.write().await?;
             let result = resync
-                .create_and_send_commit(&mut connection, &self.api_clients, &signer, self.user_id())
+                .create_and_send_commit(
+                    &mut connection,
+                    &self.api_clients,
+                    signer.as_ref(),
+                    self.signing_key().credential(),
+                )
                 .await;
             if let Ok(Some((chat_id, _))) = &result {
                 Resync::remove(&mut connection, &group_id).await?;
@@ -501,8 +506,8 @@ impl Resync {
         self,
         mut connection: impl WriteConnection,
         api_clients: &ApiClients,
-        signer: &LeafSigningKey,
-        own_user_id: &UserId,
+        signer: LeafSigningKeyRef<'_>,
+        own_user_credential: &UserCredential,
     ) -> Result<Option<(ChatId, DecryptedProfileInfos)>, OutboundServiceError> {
         let shares_vc_leaf = self.shares_vc_leaf;
         if shares_vc_leaf && SelfGroup::load(&mut connection).await?.is_none() {
@@ -518,7 +523,7 @@ impl Resync {
             connection,
             api_clients,
             signer,
-            own_user_id,
+            own_user_credential,
             external_commit_info,
         ))
         .await
@@ -529,8 +534,8 @@ impl Resync {
         mut self,
         mut connection: impl WriteConnection,
         api_clients: &ApiClients,
-        signer: &LeafSigningKey,
-        own_user_id: &UserId,
+        signer: LeafSigningKeyRef<'_>,
+        own_user_credential: &UserCredential,
         external_commit_info: ExternalCommitInfoIn,
     ) -> Result<Option<(ChatId, DecryptedProfileInfos)>, OutboundServiceError> {
         let shares_vc_leaf = self.shares_vc_leaf;
@@ -547,7 +552,7 @@ impl Resync {
             &mut txn,
             api_clients,
             signer,
-            own_user_id,
+            own_user_credential,
             external_commit_info,
         ))
         .await;
@@ -597,9 +602,14 @@ impl Resync {
                     .await
                     .map_err(OutboundServiceError::fatal)?
                 } else {
-                    Self::create_group_chat(&mut txn, &group, own_user_id, ds_timestamp)
-                        .await
-                        .map_err(OutboundServiceError::fatal)?
+                    Self::create_group_chat(
+                        &mut txn,
+                        &group,
+                        own_user_credential.user_id(),
+                        ds_timestamp,
+                    )
+                    .await
+                    .map_err(OutboundServiceError::fatal)?
                 },
                 true,
             ),
@@ -716,7 +726,7 @@ impl Resync {
 
     pub(crate) fn find_own_leaf(
         external_commit_info: &ExternalCommitInfoIn,
-        signer: &LeafSigningKey,
+        signer: LeafSigningKeyRef<'_>,
     ) -> Option<LeafNodeIndex> {
         let signature_key_bytes = signer.verifying_key().as_slice();
         external_commit_info
@@ -729,7 +739,7 @@ impl Resync {
     fn resolve_original_leaf_index(
         &self,
         external_commit_info: &ExternalCommitInfoIn,
-        signer: &LeafSigningKey,
+        signer: LeafSigningKeyRef<'_>,
     ) -> Option<LeafNodeIndex> {
         Self::find_own_leaf(external_commit_info, signer).inspect(|&index| {
             if index != self.original_leaf_index {
@@ -770,8 +780,8 @@ impl Resync {
         txn: &mut WriteDbTransaction<'_>,
         // Needs api clients until we can schedule group member authentication
         api_clients: &ApiClients,
-        signer: &LeafSigningKey,
-        own_user_id: &UserId,
+        signer: LeafSigningKeyRef<'_>,
+        own_user_credential: &UserCredential,
         external_commit_info: ExternalCommitInfoIn,
     ) -> Result<(Group, ResyncCommit, DecryptedProfileInfos, MembersDiff)> {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
@@ -809,7 +819,7 @@ impl Resync {
                 api_clients,
                 external_commit_info,
                 signer,
-                own_user_id,
+                own_user_credential,
                 self.group_state_ear_key,
                 self.identity_link_wrapper_key,
                 aad,
@@ -825,7 +835,7 @@ impl Resync {
         } else {
             // The self group is always an APQ group, so a T-only resync can never
             // concern it.
-            let LeafSigningKey::User(signer) = signer else {
+            let LeafSigningKeyRef::User(signer) = signer else {
                 bail!("self-group signer in a non-APQ resync");
             };
             let (group, commit, group_info, member_profile_infos) = Group::join_group_externally(
@@ -861,7 +871,7 @@ impl Resync {
 
     async fn send_commit(
         api_clients: &ApiClients,
-        signer: &LeafSigningKey,
+        signer: LeafSigningKeyRef<'_>,
         group: &Group,
         commit: ResyncCommit,
         original_leaf_index: LeafNodeIndex,
@@ -880,7 +890,7 @@ impl Resync {
                     .ds_resync(
                         commit.commit,
                         commit.group_info,
-                        signer,
+                        &signer,
                         group.group_state_ear_key(),
                         original_leaf_index,
                     )
@@ -890,7 +900,7 @@ impl Resync {
                 api_client
                     .ds_apq_resync(
                         *bundle,
-                        signer,
+                        &signer,
                         group.group_state_ear_key(),
                         original_leaf_index,
                     )

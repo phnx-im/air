@@ -194,6 +194,7 @@ impl CoreUser {
     ) -> anyhow::Result<Url> {
         let api_client = self.api_clients().default_client()?;
         let signer = self.attachment_signer(&target).await?;
+        let signer = signer.as_ref();
         let download_url = api_client
             .ds_get_attachment_url(object_type, &signer, target, remote_attachment_id)
             .await?
@@ -249,6 +250,7 @@ impl CoreUser {
             .attachment_signer(&target)
             .await
             .map_err(AttachmentDownloadError::Signer)?;
+        let signer = signer.as_ref();
         let download_url = api_client
             .ds_get_attachment_url(
                 StorageObjectType::Attachment,

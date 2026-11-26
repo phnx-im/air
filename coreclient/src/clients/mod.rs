@@ -323,6 +323,11 @@ impl CoreUser {
 
         let self_user =
             final_state.into_self_user(client_db, client_record_id, api_clients, global_lock);
+        // An unsigned credential stays valid, so a failure must not stop the client from
+        // starting.
+        if let Err(error) = self_user.sign_self_group_credential().await {
+            error!(%error, "failed to sign the self-group credential");
+        }
         self_user.publish_own_device_entry(client_created_at).await;
         self_user.spawn_ensure_self_group();
         match self_user.continue_account_deletion().await {
@@ -356,6 +361,35 @@ impl CoreUser {
                 }
             }
         });
+    }
+
+    /// Signs the stored self-group credential if it is unsigned.
+    pub(crate) async fn sign_self_group_credential(&self) -> anyhow::Result<()> {
+        // Most loads find a signed credential, so check it without taking the write lock.
+        let unsigned = OwnClientInfo::load(self.db().read().await?)
+            .await?
+            .self_group_signing_key
+            .is_some_and(|signing_key| !signing_key.credential().is_signed());
+        if !unsigned {
+            return Ok(());
+        }
+        // Read the key again under the write lock, so that a key another process stored in the
+        // meantime isn't overwritten.
+        self.db()
+            .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                let Some(mut signing_key) =
+                    OwnClientInfo::load(&mut *txn).await?.self_group_signing_key
+                else {
+                    return Ok(());
+                };
+                if signing_key.credential().is_signed() {
+                    return Ok(());
+                }
+                signing_key.sign_credential(self.signing_key())?;
+                OwnClientInfo::update_self_group_signing_key(&mut *txn, &signing_key).await?;
+                Ok(())
+            })
+            .await
     }
 
     /// Publishes this device's linked-devices entry.

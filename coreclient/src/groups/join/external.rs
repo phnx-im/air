@@ -3,7 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::{LeafSigningKey, UserSigningKey},
+    credentials::{
+        UserCredential,
+        keys::{LeafSigningKeyRef, UserSigningKey},
+    },
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::UserId,
     messages::{
@@ -189,8 +192,13 @@ impl Group {
 
         // Phase 3: Verify the user credentials. Self-group leaves carry a self-group credential,
         // which is only accepted inside our own self group.
-        let credentials =
-            verify_member_credentials(&mut *txn, api_clients, &mls_group, is_self_group).await?;
+        let credentials = verify_member_credentials(
+            &mut *txn,
+            api_clients,
+            &mls_group,
+            is_self_group.then_some(signer.credential()),
+        )
+        .await?;
         if let Some(tombstone) = GroupAppData::tombstone(mls_group.extensions()) {
             let closer = closer(group_info_signer.as_ref(), signer.credential().user_id())?;
             bail!(GroupClosed { closer, tombstone });
@@ -230,8 +238,8 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         external_commit_info: ExternalCommitInfoIn,
-        signer: &LeafSigningKey,
-        own_user_id: &UserId,
+        signer: LeafSigningKeyRef<'_>,
+        own_user_credential: &UserCredential,
         group_state_ear_key: GroupStateEarKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         aad: AadMessage,
@@ -298,6 +306,7 @@ impl Group {
         let group_info_signer = group_info_signer_credential(&t_group_info, &t_ratchet_tree);
         let group_info = VerifiableApqGroupInfo::new(t_group_info, pq_group_info);
 
+        let own_user_id = own_user_credential.user_id();
         let encrypted_profile_keys_fallback = Self::encrypted_profile_keys_fallback(
             &t_ratchet_tree,
             encrypted_user_profile_keys,
@@ -309,8 +318,10 @@ impl Group {
         // device. We need to make sure the reference is preserved during a
         // resync. The DS rejects a resync that changes the client references.
         let replaced_client_reference = match signer {
-            LeafSigningKey::User(_) => None,
-            LeafSigningKey::SelfGroup(_) => own_client_reference_extension(&t_ratchet_tree, signer),
+            LeafSigningKeyRef::User(_) => None,
+            LeafSigningKeyRef::SelfGroup(_) => {
+                own_client_reference_extension(&t_ratchet_tree, signer)
+            }
         };
 
         let ratchet_tree = ApqRatchetTreeIn::new(t_ratchet_tree, pq_ratchet_tree);
@@ -323,8 +334,8 @@ impl Group {
             leaf_node_extensions.add(extension)?;
         }
         let capabilities = match signer {
-            LeafSigningKey::User(_) => default_leaf_node_capabilities(),
-            LeafSigningKey::SelfGroup(_) => self_group_leaf_node_capabilities(),
+            LeafSigningKeyRef::User(_) => default_leaf_node_capabilities(),
+            LeafSigningKeyRef::SelfGroup(_) => self_group_leaf_node_capabilities(),
         };
         let leaf_node_params = LeafNodeParameters::builder()
             .with_capabilities(capabilities)
@@ -342,7 +353,7 @@ impl Group {
             .create_group_info(true)
             // The self group is the emulation group, so rejoining it has to
             // re-register the derivation epoch the external commit creates.
-            .emulation_group(matches!(signer, LeafSigningKey::SelfGroup(_)));
+            .emulation_group(matches!(signer, LeafSigningKeyRef::SelfGroup(_)));
         if let Some(group_id) = vc_group_id {
             builder = builder.vc_emulation(group_id);
         }
@@ -356,7 +367,7 @@ impl Group {
         // As in the welcome path, the PQ leaf carries an empty credential.
         let res = builder.build(
             &provider,
-            signer,
+            &signer,
             credential_with_key,
             group_info,
             |_, _| true,
@@ -380,14 +391,19 @@ impl Group {
         // The self group must be rejoined with the per-device self-group key, other groups with
         // the user key. A mismatch means the caller resolved the signer for the wrong group.
         ensure!(
-            is_self_group == matches!(signer, LeafSigningKey::SelfGroup(_)),
+            is_self_group == matches!(signer, LeafSigningKeyRef::SelfGroup(_)),
             "signer does not match the group's self-group status"
         );
 
         // Verify credentials (T only). Self-group leaves carry a self-group credential, which is
         // only accepted inside our own self group.
-        let credentials =
-            verify_member_credentials(&mut *txn, api_clients, &t_group, is_self_group).await?;
+        let credentials = verify_member_credentials(
+            &mut *txn,
+            api_clients,
+            &t_group,
+            is_self_group.then_some(own_user_credential),
+        )
+        .await?;
         if let Some(tombstone) = GroupAppData::tombstone(t_group.extensions()) {
             let closer = closer(group_info_signer.as_ref(), own_user_id)?;
             bail!(GroupClosed { closer, tombstone });
@@ -423,7 +439,7 @@ impl Group {
 
 fn own_client_reference_extension(
     ratchet_tree: &RatchetTreeIn,
-    signer: &LeafSigningKey,
+    signer: LeafSigningKeyRef<'_>,
 ) -> Option<Extension> {
     let signature_key = SignaturePublicKey::from(signer.verifying_key().clone());
     let leaf = ratchet_tree
@@ -443,8 +459,9 @@ fn own_client_reference_extension(
 
 #[cfg(test)]
 mod tests {
+    use aircommon::credentials::test_utils::random_user_signing_key;
     use aircommon::{
-        credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
+        credentials::keys::{LeafSigningKeyRef, SelfGroupSigningKey},
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QsReference, QualifiedGroupId, UserId},
     };
@@ -466,15 +483,16 @@ mod tests {
         ))
     }
 
-    fn self_group_signer() -> anyhow::Result<LeafSigningKey> {
-        Ok(LeafSigningKey::SelfGroup(SelfGroupSigningKey::generate(
+    fn self_group_signer() -> anyhow::Result<SelfGroupSigningKey> {
+        Ok(SelfGroupSigningKey::generate(
             Uuid::new_v4(),
-        )?))
+            &random_user_signing_key(),
+        )?)
     }
 
     /// The T ratchet tree of a new self group created by `signer`.
     async fn self_group_ratchet_tree(
-        signer: &LeafSigningKey,
+        signer: LeafSigningKeyRef<'_>,
         creator_client_reference: Option<&QsReference>,
     ) -> anyhow::Result<RatchetTreeIn> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
@@ -501,9 +519,10 @@ mod tests {
     async fn own_client_reference_is_read_from_own_leaf() -> anyhow::Result<()> {
         let signer = self_group_signer()?;
         let client_reference = random_client_reference();
-        let ratchet_tree = self_group_ratchet_tree(&signer, Some(&client_reference)).await?;
+        let ratchet_tree =
+            self_group_ratchet_tree((&signer).into(), Some(&client_reference)).await?;
         assert_eq!(
-            own_client_reference_extension(&ratchet_tree, &signer),
+            own_client_reference_extension(&ratchet_tree, (&signer).into()),
             Some(client_reference_extension(&client_reference)?)
         );
         Ok(())
@@ -512,8 +531,11 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn own_leaf_without_client_reference() -> anyhow::Result<()> {
         let signer = self_group_signer()?;
-        let ratchet_tree = self_group_ratchet_tree(&signer, None).await?;
-        assert_eq!(own_client_reference_extension(&ratchet_tree, &signer), None);
+        let ratchet_tree = self_group_ratchet_tree((&signer).into(), None).await?;
+        assert_eq!(
+            own_client_reference_extension(&ratchet_tree, (&signer).into()),
+            None
+        );
         Ok(())
     }
 
@@ -521,9 +543,9 @@ mod tests {
     async fn client_reference_of_another_leaf_is_ignored() -> anyhow::Result<()> {
         let creator = self_group_signer()?;
         let ratchet_tree =
-            self_group_ratchet_tree(&creator, Some(&random_client_reference())).await?;
+            self_group_ratchet_tree((&creator).into(), Some(&random_client_reference())).await?;
         assert_eq!(
-            own_client_reference_extension(&ratchet_tree, &self_group_signer()?),
+            own_client_reference_extension(&ratchet_tree, (&self_group_signer()?).into()),
             None
         );
         Ok(())

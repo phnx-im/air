@@ -165,6 +165,21 @@ impl OwnClientInfo {
         Ok(result.rows_affected() == 1)
     }
 
+    /// Replaces the stored self-group signing key, if there is one.
+    pub(crate) async fn update_self_group_signing_key(
+        mut write: impl WriteConnection,
+        self_group_signing_key: &SelfGroupSigningKey,
+    ) -> sqlx::Result<()> {
+        query!(
+            "UPDATE own_client_info SET self_group_signing_key = ?
+            WHERE self_group_signing_key IS NOT NULL",
+            self_group_signing_key,
+        )
+        .execute(write.as_mut())
+        .await?;
+        Ok(())
+    }
+
     pub(crate) async fn load_max_devices(mut read: impl ReadConnection) -> sqlx::Result<u32> {
         query_scalar!(
             r#"SELECT max_devices AS "max_devices: _"
@@ -268,6 +283,7 @@ impl<'r> Decode<'r, Sqlite> for UnlinkReason {
 
 #[cfg(test)]
 mod tests {
+    use aircommon::credentials::test_utils::random_user_signing_key;
     use aircommon::{
         RustCrypto,
         identifiers::{QsClientId, QsUserId, UserId},
@@ -482,7 +498,7 @@ mod tests {
 
         let first = GroupId::random(&RustCrypto::default());
         let second = GroupId::random(&RustCrypto::default());
-        let signing_key = SelfGroupSigningKey::generate(client_id)?;
+        let signing_key = SelfGroupSigningKey::generate(client_id, &random_user_signing_key())?;
 
         assert!(OwnClientInfo::claim_self_group(pool.write().await?, &first, &signing_key).await?);
         assert!(

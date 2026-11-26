@@ -5,7 +5,7 @@
 use aircommon::{
     credentials::{
         RoomPolicyIdentity,
-        keys::{LeafSigningKey, UserSigningKey},
+        keys::{LeafSigningKeyRef, UserSigningKey},
     },
     crypto::aead::keys::{EncryptedUserProfileKey, GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::{QsReference, UserId},
@@ -210,7 +210,7 @@ impl Group {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_apq_group(
         mut connection: impl WriteConnection,
-        signer: &LeafSigningKey,
+        signer: LeafSigningKeyRef<'_>,
         own_user_id: UserId,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         t_group_id: GroupId,
@@ -252,8 +252,8 @@ impl Group {
         };
 
         let capabilities = match signer {
-            LeafSigningKey::User(_) => default_leaf_node_capabilities(),
-            LeafSigningKey::SelfGroup(_) => self_group_leaf_node_capabilities(),
+            LeafSigningKeyRef::User(_) => default_leaf_node_capabilities(),
+            LeafSigningKeyRef::SelfGroup(_) => self_group_leaf_node_capabilities(),
         };
 
         // Both leaves carry the virtual-client marker, as they do on the external-commit join path.
@@ -276,13 +276,13 @@ impl Group {
             .vc_derivation_epoch_retention_policy(VcDerivationEpochRetentionPolicy::KeepAll)
             // The self group is the emulation group of the virtual client, so its
             // initial epoch already has to be a derivation epoch.
-            .emulation_group(matches!(signer, LeafSigningKey::SelfGroup(_)))
+            .emulation_group(matches!(signer, LeafSigningKeyRef::SelfGroup(_)))
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY);
         if let Some(vc_group_id) = vc_group_id {
             builder = builder.vc_emulation(vc_group_id);
         }
         let (t_group, pq_group) = builder
-            .build(&provider, signer, apq_credential_with_key)?
+            .build(&provider, &signer, apq_credential_with_key)?
             .into_groups();
 
         let room_state = VerifiedRoomState::new(
@@ -293,12 +293,12 @@ impl Group {
         let params = PartialCreateGroupParams {
             group_id: t_group.group_id().clone(),
             ratchet_tree: t_group.export_ratchet_tree(),
-            group_info: t_group.export_group_info(provider.crypto(), signer, true)?,
+            group_info: t_group.export_group_info(provider.crypto(), &signer, true)?,
             room_state: room_state.clone(),
             pq: Some(PartialPqCreateGroupParams {
                 group_id: pq_group.group_id().clone(),
                 ratchet_tree: pq_group.export_ratchet_tree(),
-                group_info: pq_group.export_group_info(provider.crypto(), signer, true)?,
+                group_info: pq_group.export_group_info(provider.crypto(), &signer, true)?,
             }),
         };
 

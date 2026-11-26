@@ -223,14 +223,19 @@ impl Group {
         let aad = AadMessage::empty_group_operation().tls_serialize_detached()?;
         self.mls_group.set_aad(aad);
 
+        let leaf_node_parameters = self.self_group_leaf_node_parameters(signer)?;
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
 
-        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
-            .force_self_update(true)
-            .add_t_proposal(proposal)
-            .create_group_info(true)
-            .finalize(&provider, signer, |_| true, |_| true)?;
+        let mut builder =
+            apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+                .force_self_update(true)
+                .add_t_proposal(proposal)
+                .create_group_info(true);
+        if let Some((t_parameters, pq_parameters)) = leaf_node_parameters {
+            builder = builder.leaf_node_parameters(t_parameters, pq_parameters);
+        }
+        let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
 
         debug_assert!(bundle.welcome.is_none());
         ensure!(
@@ -512,10 +517,11 @@ pub(super) mod persistence {
 
 #[cfg(test)]
 mod derivation_tests {
+    use aircommon::credentials::test_utils::random_user_signing_key;
     use aircommon::{
         codec::PersistenceCodec,
         credentials::{
-            keys::{LeafSigningKey, SelfGroupSigningKey},
+            keys::{LeafSigningKeyRef, SelfGroupSigningKey},
             test_utils::create_test_credentials,
         },
         crypto::{
@@ -567,12 +573,12 @@ mod derivation_tests {
         }
     }
 
-    /// Per-device self-group signer and its leaf wrapper, as used by real
-    /// self-group leaves.
-    fn self_group_signer() -> anyhow::Result<(SelfGroupSigningKey, LeafSigningKey)> {
-        let sg_signer = SelfGroupSigningKey::generate(Uuid::new_v4())?;
-        let leaf_signer = LeafSigningKey::SelfGroup(sg_signer.clone());
-        Ok((sg_signer, leaf_signer))
+    /// Per-device self-group signer, as used by real self-group leaves.
+    fn self_group_signer() -> anyhow::Result<SelfGroupSigningKey> {
+        Ok(SelfGroupSigningKey::generate(
+            Uuid::new_v4(),
+            &random_user_signing_key(),
+        )?)
     }
 
     /// Creates a fresh single-member APQ group. When `is_self_group` is set,
@@ -580,7 +586,7 @@ mod derivation_tests {
     /// accessor's guard checks.
     fn create_group(
         txn: &mut WriteDbTransaction<'_>,
-        signer: &LeafSigningKey,
+        signer: LeafSigningKeyRef<'_>,
         user_id: UserId,
         is_self_group: bool,
     ) -> anyhow::Result<Group> {
@@ -625,7 +631,7 @@ mod derivation_tests {
     fn self_update_and_merge(
         group: &mut Group,
         txn: &mut WriteDbTransaction<'_>,
-        signer: &LeafSigningKey,
+        signer: LeafSigningKeyRef<'_>,
     ) -> anyhow::Result<()> {
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         let (t_mls_group, pq_mls_group) = group.apq_mls_groups_mut()?;
@@ -634,7 +640,7 @@ mod derivation_tests {
             &mut *pq_mls_group,
         )
         .force_self_update(true)
-        .finalize(&provider, signer, |_| true, |_| true)?;
+        .finalize(&provider, &signer, |_| true, |_| true)?;
         t_mls_group.merge_pending_commit(&provider)?;
         pq_mls_group.merge_pending_commit(&provider)?;
         Ok(())
@@ -646,14 +652,15 @@ mod derivation_tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn stable_within_epoch() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let (_sg_signer, signer) = self_group_signer()?;
+        let sg_signer = self_group_signer()?;
+        let signer = LeafSigningKeyRef::SelfGroup(&sg_signer);
 
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
         let mut group = create_group(
             &mut txn,
-            &signer,
+            signer,
             UserId::random("example.com".parse()?),
             true,
         )?;
@@ -670,21 +677,22 @@ mod derivation_tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn rotates_across_epoch() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let (_sg_signer, signer) = self_group_signer()?;
+        let sg_signer = self_group_signer()?;
+        let signer = LeafSigningKeyRef::SelfGroup(&sg_signer);
 
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
         let mut group = create_group(
             &mut txn,
-            &signer,
+            signer,
             UserId::random("example.com".parse()?),
             true,
         )?;
 
         let key_before = group.self_group_message_key(&mut txn).await?;
 
-        self_update_and_merge(&mut group, &mut txn, &signer)?;
+        self_update_and_merge(&mut group, &mut txn, signer)?;
 
         let key_after = group.self_group_message_key(&mut txn).await?;
         assert_ne!(
@@ -706,14 +714,15 @@ mod derivation_tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn stage_settings_update_carries_encrypted_update() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let (sg_signer, signer) = self_group_signer()?;
+        let sg_signer = self_group_signer()?;
+        let signer = LeafSigningKeyRef::SelfGroup(&sg_signer);
 
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
         let mut group = create_group(
             &mut txn,
-            &signer,
+            signer,
             UserId::random("example.com".parse()?),
             true,
         )?;
@@ -761,12 +770,12 @@ mod derivation_tests {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
         let (_as_key, client_signer) = create_test_credentials(user_id.clone());
-        let signer = LeafSigningKey::User(client_signer);
+        let signer = LeafSigningKeyRef::User(&client_signer);
 
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let mut group = create_group(&mut txn, &signer, user_id, false)?;
+        let mut group = create_group(&mut txn, signer, user_id, false)?;
         assert!(group.self_group_message_key(&mut txn).await.is_err());
 
         txn.commit().await?;
@@ -778,18 +787,19 @@ mod derivation_tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn is_self_group_reflects_air_component() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let (_sg_signer, sg_leaf_signer) = self_group_signer()?;
+        let sg_signer = self_group_signer()?;
+        let sg_leaf_signer = LeafSigningKeyRef::SelfGroup(&sg_signer);
         let user_id = UserId::random("example.com".parse()?);
         let (_as_key, client_signer) = create_test_credentials(user_id.clone());
-        let user_leaf_signer = LeafSigningKey::User(client_signer);
+        let user_leaf_signer = LeafSigningKeyRef::User(&client_signer);
 
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let self_group = create_group(&mut txn, &sg_leaf_signer, user_id.clone(), true)?;
+        let self_group = create_group(&mut txn, sg_leaf_signer, user_id.clone(), true)?;
         assert!(self_group.is_self_group());
 
-        let ordinary_group = create_group(&mut txn, &user_leaf_signer, user_id, false)?;
+        let ordinary_group = create_group(&mut txn, user_leaf_signer, user_id, false)?;
         assert!(!ordinary_group.is_self_group());
 
         txn.commit().await?;
@@ -803,14 +813,15 @@ mod derivation_tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn commit_flipping_self_group_flag_is_rejected() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let (_sg_signer, signer) = self_group_signer()?;
+        let sg_signer = self_group_signer()?;
+        let signer = LeafSigningKeyRef::SelfGroup(&sg_signer);
 
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
         let mut group = create_group(
             &mut txn,
-            &signer,
+            signer,
             UserId::random("example.com".parse()?),
             true,
         )?;
@@ -858,13 +869,14 @@ mod derivation_tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn extract_settings_updates_roundtrip() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let (sg_signer, signer) = self_group_signer()?;
+        let sg_signer = self_group_signer()?;
+        let signer = LeafSigningKeyRef::SelfGroup(&sg_signer);
         let user_id = UserId::random("example.com".parse()?);
 
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let mut group = create_group(&mut txn, &signer, user_id.clone(), true)?;
+        let mut group = create_group(&mut txn, signer, user_id.clone(), true)?;
         group.store(&mut txn).await?;
         store_own_client_info(&mut txn, user_id).await?;
 
@@ -899,13 +911,14 @@ mod derivation_tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn extract_blocked_contacts_updates_keeps_entry_order() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let (sg_signer, signer) = self_group_signer()?;
+        let sg_signer = self_group_signer()?;
+        let signer = LeafSigningKeyRef::SelfGroup(&sg_signer);
         let user_id = UserId::random("example.com".parse()?);
 
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let mut group = create_group(&mut txn, &signer, user_id.clone(), true)?;
+        let mut group = create_group(&mut txn, signer, user_id.clone(), true)?;
         group.store(&mut txn).await?;
         store_own_client_info(&mut txn, user_id).await?;
 
@@ -948,13 +961,14 @@ mod derivation_tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn extract_self_group_messages_tolerates_bad_payloads() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let (_sg_signer, signer) = self_group_signer()?;
+        let sg_signer = self_group_signer()?;
+        let signer = LeafSigningKeyRef::SelfGroup(&sg_signer);
         let user_id = UserId::random("example.com".parse()?);
 
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
-        let mut group = create_group(&mut txn, &signer, user_id.clone(), true)?;
+        let mut group = create_group(&mut txn, signer, user_id.clone(), true)?;
         group.store(&mut txn).await?;
         store_own_client_info(&mut txn, user_id).await?;
 

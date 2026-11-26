@@ -264,6 +264,7 @@ impl OutboundServiceContext {
             )
             .await
             .map_err(OutboundServiceError::fatal)?;
+        let signer = signer.as_ref();
         let epoch = params.epoch;
         let sent_tags = params.collision_tags.clone();
         let generation = params.generation;
@@ -367,7 +368,7 @@ impl OutboundServiceContext {
                 let provider = AirOpenMlsProvider::new(txn.as_mut());
                 let params = group.create_message(
                     &provider,
-                    &signer,
+                    &signer.as_ref(),
                     mimi_content,
                     message_status_report,
                 )?;
@@ -408,6 +409,7 @@ impl OutboundServiceContext {
             .new_mls_message(chat, content, None)
             .await
             .map_err(OutboundServiceError::fatal)?;
+        let signer = signer.as_ref();
         let epoch = params.epoch;
         let sent_tags = params.collision_tags.clone();
         let generation = params.generation;

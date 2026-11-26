@@ -679,13 +679,13 @@ impl OutboundServiceContext {
                         self.signing_key(),
                     )
                     .await?;
-                    let identity = signer.room_policy_identity();
+                    let identity = signer.as_ref().room_policy_identity();
                     group.room_state_change_role_identity(
                         &identity,
                         &identity,
                         RoleIndex::Outsider,
                     )?;
-                    let params = group.stage_leave_group(&mut *txn, &signer)?;
+                    let params = group.stage_leave_group(&mut *txn, &signer.as_ref())?;
                     let ear_key = group.group_state_ear_key().clone();
                     Ok(Some((group.group_id().clone(), params, ear_key, signer)))
                 })
@@ -694,6 +694,7 @@ impl OutboundServiceContext {
             let Some((group_id, params, ear_key, signer)) = staged else {
                 continue;
             };
+            let signer = signer.as_ref();
 
             match api_client.ds_self_remove(params, &signer, &ear_key).await {
                 Ok(_) => {}
@@ -788,6 +789,7 @@ fn best_effort(
 
 #[cfg(test)]
 mod tests {
+    use aircommon::credentials::test_utils::random_user_signing_key;
     use std::assert_matches;
 
     use aircommon::{
@@ -980,7 +982,7 @@ mod tests {
         OwnClientInfo::claim_self_group(
             db.write().await?,
             &group_id,
-            &SelfGroupSigningKey::generate(Uuid::new_v4())?,
+            &SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key())?,
         )
         .await?;
         start(&db).await?;
@@ -1008,7 +1010,7 @@ mod tests {
         OwnClientInfo::claim_self_group(
             db.write().await?,
             &group_id,
-            &SelfGroupSigningKey::generate(Uuid::new_v4())?,
+            &SelfGroupSigningKey::generate(Uuid::new_v4(), &random_user_signing_key())?,
         )
         .await?;
         start(&db).await?;

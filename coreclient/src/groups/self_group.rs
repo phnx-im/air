@@ -7,7 +7,7 @@ use aircommon::credentials::LeafCredentialError;
 use aircommon::{
     credentials::{
         LeafCredential,
-        keys::{LeafSigningKey, SelfGroupSigningKey},
+        keys::{LeafSigningKeyRef, SelfGroupSigningKey},
     },
     crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
     messages::{client_ds::AadMessage, client_ds_out::ApqGroupOperationParamsOut},
@@ -146,6 +146,30 @@ impl SelfGroup {
             .collect()
     }
 
+    /// The parsed leaf credential of the own T leaf.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub fn own_credential(&self) -> anyhow::Result<LeafCredential> {
+        let own_leaf = self
+            .group
+            .mls_group()
+            .own_leaf_node()
+            .context("no own leaf node")?;
+        Ok(LeafCredential::from_credential(own_leaf.credential())?)
+    }
+
+    /// The serialized contents of the PQ leaf credentials, in member order.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub fn pq_credential_contents(&self) -> anyhow::Result<Vec<Vec<u8>>> {
+        Ok(self
+            .group
+            .pq()
+            .context("self group without a PQ leg")?
+            .mls_group
+            .members()
+            .map(|member| member.credential.serialized_content().to_vec())
+            .collect())
+    }
+
     /// Stages an empty self-update commit on the self-group carrying a [`KeyPackageUpload`] in its
     /// SafeAAD.
     ///
@@ -157,6 +181,7 @@ impl SelfGroup {
         signer: &SelfGroupSigningKey,
         upload: KeyPackageUpload,
     ) -> anyhow::Result<ApqGroupOperationParamsOut> {
+        let leaf_node_parameters = self.group.self_group_leaf_node_parameters(signer)?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
         let (t_mls_group, pq_mls_group) = self.group.apq_mls_groups_mut()?;
 
@@ -169,10 +194,14 @@ impl SelfGroup {
         let aad = AadMessage::empty_group_operation().tls_serialize_detached()?;
         t_mls_group.set_aad(aad);
 
-        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
-            .force_self_update(true)
-            .create_group_info(true)
-            .finalize(&provider, signer, |_| true, |_| true)?;
+        let mut builder =
+            apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+                .force_self_update(true)
+                .create_group_info(true);
+        if let Some((t_parameters, pq_parameters)) = leaf_node_parameters {
+            builder = builder.leaf_node_parameters(t_parameters, pq_parameters);
+        }
+        let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
 
         ensure!(
             bundle.group_info.is_some(),
@@ -219,6 +248,7 @@ impl SelfGroup {
             .group
             .resolve_vc_emulation_group(&mut connection)
             .await?;
+        let leaf_node_parameters = self.group.self_group_leaf_node_parameters(signer)?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
         let (t_mls_group, pq_mls_group) = self.group.apq_mls_groups_mut()?;
 
@@ -230,6 +260,9 @@ impl SelfGroup {
                 .force_self_update(true)
                 .propose_removals(remove_indices)
                 .create_group_info(true);
+        if let Some((t_parameters, pq_parameters)) = leaf_node_parameters {
+            builder = builder.leaf_node_parameters(t_parameters, pq_parameters);
+        }
         if let Some(group_id) = vc_group_id {
             builder = builder.vc_emulation(group_id);
         }
@@ -311,9 +344,10 @@ impl CoreUser {
         let client_id = OwnClientInfo::load(self.db().read().await?)
             .await?
             .client_id;
-        let self_group_signing_key = SelfGroupSigningKey::generate(client_id)?;
+        let self_group_signing_key =
+            SelfGroupSigningKey::generate(client_id, &key_store.signing_key)?;
 
-        let group_signer = LeafSigningKey::SelfGroup(self_group_signing_key.clone());
+        let group_signer = LeafSigningKeyRef::SelfGroup(&self_group_signing_key);
         let own_user_id = self.user_id().clone();
         let client_reference = self.create_own_client_reference();
         let (group, partial_params, user_profile_key) = self
@@ -321,7 +355,7 @@ impl CoreUser {
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 let (group, partial_params) = Group::create_apq_group(
                     &mut *txn,
-                    &group_signer,
+                    group_signer,
                     own_user_id,
                     identity_link_wrapper_key,
                     group_id,

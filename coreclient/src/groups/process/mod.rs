@@ -85,6 +85,7 @@ impl Group {
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
+        own_user_credential: &UserCredential,
         message: impl Into<ProtocolMessage>,
     ) -> Result<ProcessMessageResult> {
         let processed_message = {
@@ -99,14 +100,21 @@ impl Group {
                 Err(error) => return self.handle_process_message_error(error, message_epoch),
             }
         };
-        self.post_process_message(txn, api_clients, processed_message, None)
-            .await
+        self.post_process_message(
+            txn,
+            api_clients,
+            own_user_credential,
+            processed_message,
+            None,
+        )
+        .await
     }
 
     async fn post_process_message(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
+        own_user_credential: &UserCredential,
         processed_message: ProcessedMessage,
         pq_processed_message: Option<&ProcessedMessage>,
     ) -> Result<ProcessMessageResult> {
@@ -146,6 +154,7 @@ impl Group {
                 self.post_process_staged_commit(
                     txn,
                     api_clients,
+                    own_user_credential,
                     &processed_message,
                     pq_processed_message,
                 )
@@ -210,6 +219,7 @@ impl Group {
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
+        own_user_credential: &UserCredential,
         processed_message: &ProcessedMessage,
         pq_processed_message: Option<&ProcessedMessage>,
     ) -> Result<PostProcessState> {
@@ -291,6 +301,7 @@ impl Group {
             .process_aad_payload(
                 txn,
                 api_clients,
+                own_user_credential,
                 processed_message,
                 pq_staged_commit,
                 sender_credential,
@@ -349,6 +360,7 @@ impl Group {
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
+        own_user_credential: &UserCredential,
         message: impl Into<ApqProtocolMessage>,
     ) -> Result<ProcessMessageResult> {
         if self.pq.is_none() {
@@ -383,8 +395,15 @@ impl Group {
 
         // The PQ message carries no Air-level semantics, so the only post-processing we need to do
         // is on the t-message.
-        let res = Self::post_process_message(self, txn, api_clients, t_message, Some(&pq_message))
-            .await?;
+        let res = Self::post_process_message(
+            self,
+            txn,
+            api_clients,
+            own_user_credential,
+            t_message,
+            Some(&pq_message),
+        )
+        .await?;
 
         // Merge the PQ staged commit or proposal (self-remove)
         match pq_message.into_content() {
