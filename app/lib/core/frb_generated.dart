@@ -21,6 +21,7 @@ import 'api/message_list_cubit.dart';
 import 'api/multi_device.dart';
 import 'api/notification_context.dart';
 import 'api/notifications.dart';
+import 'api/qr_code.dart';
 import 'api/registration.dart';
 import 'api/share_cubit.dart';
 import 'api/types.dart';
@@ -96,7 +97,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -571642129;
+  int get rustContentHash => -1744300906;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -656,6 +657,11 @@ abstract class RustLibApi extends BaseApi {
     required ChatId chatId,
   });
 
+  Future<String?> crateApiUserCubitUserCubitBaseDecodeMultiDeviceLinkingQr({
+    required UserCubitBase that,
+    required LumaFrame frame,
+  });
+
   Future<UiAccountDeletionStatus> crateApiUserCubitUserCubitBaseDeleteAccount({
     required UserCubitBase that,
     required String confirmationText,
@@ -681,11 +687,6 @@ abstract class RustLibApi extends BaseApi {
   UserCubitBase crateApiUserCubitUserCubitBaseNew({
     required User user,
     required NotificationContextBase notificationContext,
-  });
-
-  String? crateApiUserCubitUserCubitBaseParseMultiDeviceLinkingUrl({
-    required UserCubitBase that,
-    required String url,
   });
 
   Future<void> crateApiUserCubitUserCubitBaseRemoveUserFromChat({
@@ -5606,6 +5607,46 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String?> crateApiUserCubitUserCubitBaseDecodeMultiDeviceLinkingQr({
+    required UserCubitBase that,
+    required LumaFrame frame,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_luma_frame(frame, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 117,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kCrateApiUserCubitUserCubitBaseDecodeMultiDeviceLinkingQrConstMeta,
+        argValues: [that, frame],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiUserCubitUserCubitBaseDecodeMultiDeviceLinkingQrConstMeta =>
+      const TaskConstMeta(
+        debugName: "UserCubitBase_decode_multi_device_linking_qr",
+        argNames: ["that", "frame"],
+      );
+
+  @override
   Future<UiAccountDeletionStatus> crateApiUserCubitUserCubitBaseDeleteAccount({
     required UserCubitBase that,
     required String confirmationText,
@@ -5622,7 +5663,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 117,
+            funcId: 118,
             port: port_,
           );
         },
@@ -5660,7 +5701,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 118,
+            funcId: 119,
             port: port_,
           );
         },
@@ -5698,7 +5739,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 119,
+            funcId: 120,
             port: port_,
           );
         },
@@ -5732,7 +5773,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 120,
+            funcId: 121,
           )!;
         },
         codec: SseCodec(
@@ -5769,7 +5810,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 121,
+            funcId: 122,
             port: port_,
           );
         },
@@ -5810,7 +5851,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 122,
+            funcId: 123,
           )!;
         },
         codec: SseCodec(
@@ -5829,45 +5870,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "UserCubitBase_new",
         argNames: ["user", "notificationContext"],
-      );
-
-  @override
-  String? crateApiUserCubitUserCubitBaseParseMultiDeviceLinkingUrl({
-    required UserCubitBase that,
-    required String url,
-  }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-            that,
-            serializer,
-          );
-          sse_encode_String(url, serializer);
-          return pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 123,
-          )!;
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_String,
-          decodeErrorData: null,
-        ),
-        constMeta:
-            kCrateApiUserCubitUserCubitBaseParseMultiDeviceLinkingUrlConstMeta,
-        argValues: [that, url],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiUserCubitUserCubitBaseParseMultiDeviceLinkingUrlConstMeta =>
-      const TaskConstMeta(
-        debugName: "UserCubitBase_parse_multi_device_linking_url",
-        argNames: ["that", "url"],
       );
 
   @override
@@ -10276,6 +10278,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LumaFrame dco_decode_box_autoadd_luma_frame(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_luma_frame(raw);
+  }
+
+  @protected
   MessageContent dco_decode_box_autoadd_message_content(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_message_content(raw);
@@ -11102,6 +11110,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   LogEntryLevel dco_decode_log_entry_level(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return LogEntryLevel.values[raw as int];
+  }
+
+  @protected
+  LumaFrame dco_decode_luma_frame(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return LumaFrame(
+      width: dco_decode_u_32(arr[0]),
+      height: dco_decode_u_32(arr[1]),
+      bytesPerRow: dco_decode_u_32(arr[2]),
+      bytes: dco_decode_list_prim_u_8_strict(arr[3]),
+    );
   }
 
   @protected
@@ -14090,6 +14112,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LumaFrame sse_decode_box_autoadd_luma_frame(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_luma_frame(deserializer));
+  }
+
+  @protected
   MessageContent sse_decode_box_autoadd_message_content(
     SseDeserializer deserializer,
   ) {
@@ -15230,6 +15258,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_i_32(deserializer);
     return LogEntryLevel.values[inner];
+  }
+
+  @protected
+  LumaFrame sse_decode_luma_frame(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_width = sse_decode_u_32(deserializer);
+    var var_height = sse_decode_u_32(deserializer);
+    var var_bytesPerRow = sse_decode_u_32(deserializer);
+    var var_bytes = sse_decode_list_prim_u_8_strict(deserializer);
+    return LumaFrame(
+      width: var_width,
+      height: var_height,
+      bytesPerRow: var_bytesPerRow,
+      bytes: var_bytes,
+    );
   }
 
   @protected
@@ -18942,6 +18985,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_luma_frame(
+    LumaFrame self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_luma_frame(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_message_content(
     MessageContent self,
     SseSerializer serializer,
@@ -20006,6 +20058,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_luma_frame(LumaFrame self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.width, serializer);
+    sse_encode_u_32(self.height, serializer);
+    sse_encode_u_32(self.bytesPerRow, serializer);
+    sse_encode_list_prim_u_8_strict(self.bytes, serializer);
   }
 
   @protected
@@ -22970,6 +23031,17 @@ class UserCubitBaseImpl extends RustOpaque implements UserCubitBase {
         chatId: chatId,
       );
 
+  /// Decodes the QR codes in a camera frame and returns a linking code.
+  ///
+  /// Returns `None` if no readable QR code in the frame holds a multi-device
+  /// linking URL for this user's home server.
+  Future<String?> decodeMultiDeviceLinkingQr({required LumaFrame frame}) =>
+      RustLib.instance.api
+          .crateApiUserCubitUserCubitBaseDecodeMultiDeviceLinkingQr(
+            that: this,
+            frame: frame,
+          );
+
   /// Deletes the account. Once the deletion completes, the unlink reason is
   /// `AccountDeleted`, also when it completes in the background. A failure
   /// counts as reported to the user.
@@ -22996,16 +23068,6 @@ class UserCubitBaseImpl extends RustOpaque implements UserCubitBase {
 
   Future<void> leaveChat(ChatId chatId) => RustLib.instance.api
       .crateApiUserCubitUserCubitBaseLeaveChat(that: this, chatId: chatId);
-
-  /// Extracts the linking code from a scanned QR payload, validating that it targets this user's
-  /// own home server. Returns `None` if `url` is not a multi-device linking URL for this domain.
-  String? parseMultiDeviceLinkingUrl({required String url}) => RustLib
-      .instance
-      .api
-      .crateApiUserCubitUserCubitBaseParseMultiDeviceLinkingUrl(
-        that: this,
-        url: url,
-      );
 
   Future<void> removeUserFromChat(ChatId chatId, UiUserId userId) =>
       RustLib.instance.api.crateApiUserCubitUserCubitBaseRemoveUserFromChat(

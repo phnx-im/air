@@ -1,5 +1,23 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The camera plugin declares this for video recording. We only scan QR
+         codes with the camera. The selector keeps the declarations of other
+         libraries. -->
+    <uses-permission
+        android:name="android.permission.RECORD_AUDIO"
+        tools:node="remove"
+        tools:selector="io.flutter.plugins.camerax" />
+    <!-- Only the QR code scanner uses the camera, and linking also works with
+         a numeric code. Without these entries Google Play hides the app from
+         devices without a camera. The camera permission implies
+         android.hardware.camera, and the camera plugin declares
+         android.hardware.camera.any as required. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.any"
+        android:required="false"
+        tools:replace="android:required" />
     <!-- This permission is required to write to shared external storage. -->
     <!-- On Android 10 (API 29) and above, it's largely ignored for scoped storage operations. -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />

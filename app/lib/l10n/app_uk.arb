@@ -195,6 +195,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "На пристрої, який хочете прив’язати, відкрийте Air і натисніть «Прив’язати до наявного облікового запису» на початковому екрані.",
   "linkedDevicesScreen_linkDialog_scanQrCode": "Сканувати QR-код",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Сканувати QR-код (недоступно)",
+  "qrScanner_permissionDenied": "Щоб відсканувати QR-код, дозвольте Air доступ до камери в налаштуваннях системи.",
+  "qrScanner_cameraUnavailable": "Камера недоступна.",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Ввести цифровий код",
   "linkedDevicesScreen_linkDialog_warning": "Прив’язані пристрої отримають повний доступ до вашого облікового запису Air (зокрема зможуть додавати й відв’язувати будь-які пристрої, включно з поточним). Прив’язуйте лише ті пристрої, яким довіряєте.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Введіть цифровий код, показаний на пристрої, який хочете прив’язати.",

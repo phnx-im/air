@@ -939,6 +939,14 @@
   "@linkedDevicesScreen_linkDialog_scanQrCode_unavailable": {
     "description": "The scan QR code button when this platform has no usable camera. The parenthesis explains why it is disabled."
   },
+  "qrScanner_permissionDenied": "To scan the QR code, allow Air to use the camera in the system settings.",
+  "@qrScanner_permissionDenied": {
+    "description": "Shown inside a QR code scanner when Air may not use the camera. A button below it offers another way to enter what the code holds, for example the numeric code when linking a device. The system settings are the settings of the phone or tablet, not Air's own settings."
+  },
+  "qrScanner_cameraUnavailable": "The camera is not available.",
+  "@qrScanner_cameraUnavailable": {
+    "description": "Shown inside a QR code scanner when the device has no camera or the camera fails to start. A button below it offers another way to enter what the code holds, for example the numeric code when linking a device."
+  },
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Enter numeric code",
   "@linkedDevicesScreen_linkDialog_enterNumericCode": {
     "description": "Button that starts linking by typing a numeric code instead of scanning."

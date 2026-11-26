@@ -12,17 +12,13 @@ import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
+import 'package:air/features/qr_scanner/qr_scanner.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/formatting.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-
-bool get _isQrCodeScannerSupported =>
-    defaultTargetPlatform == .android || defaultTargetPlatform == .iOS;
 
 enum _LinkPage { chooser, scanQrCode, numericCode, linking }
 
@@ -50,12 +46,26 @@ LinkSession _startLinkSession(BuildContext context, String code) {
   );
 }
 
+Future<String?> _decodeLinkingQr(BuildContext context, LumaFrame frame) =>
+    context.read<UserCubit>().decodeLinkingQr(frame);
+
 /// Entry point for linking a new device.
 class LinkDeviceModal extends HookWidget {
-  const LinkDeviceModal({super.key, this.startLinkSession = _startLinkSession});
+  const LinkDeviceModal({
+    super.key,
+    this.startLinkSession = _startLinkSession,
+    this.openCamera = openScannerCamera,
+    this.decodeLinkingQr = _decodeLinkingQr,
+  });
 
   /// Starts the linking session for the [_LinkPage.linking] page.
   final LinkSessionStarter startLinkSession;
+
+  /// Opens the camera for the [_LinkPage.scanQrCode] page.
+  final ScannerCameraOpener openCamera;
+
+  /// Decodes the camera frames on the [_LinkPage.scanQrCode] page.
+  final QrFrameDecoder<String> decodeLinkingQr;
 
   @override
   Widget build(BuildContext context) {
@@ -77,10 +87,13 @@ class LinkDeviceModal extends HookWidget {
         ),
         _LinkPage.scanQrCode => _ScanQrCodePage(
           onBack: backToChooser,
+          openCamera: openCamera,
+          decodeLinkingQr: decodeLinkingQr,
           onCodeScanned: (code) {
             linkingCode.value = code;
             page.value = _LinkPage.linking;
           },
+          onEnterNumericCode: () => page.value = _LinkPage.numericCode,
         ),
         _LinkPage.numericCode => _NumericCodePage(
           onBack: backToChooser,
@@ -168,10 +181,10 @@ class _LinkChooserPage extends StatelessWidget {
         const SizedBox(height: S.s24),
         Button(
           type: .secondary,
-          label: _isQrCodeScannerSupported
+          label: isQrScannerSupported
               ? loc.linkedDevicesScreen_linkDialog_scanQrCode
               : loc.linkedDevicesScreen_linkDialog_scanQrCode_unavailable,
-          state: _isQrCodeScannerSupported ? .active : .disabled,
+          state: isQrScannerSupported ? .active : .disabled,
           icon: (size, color) => AppIcon.qrCode(size: size.width, color: color),
           alignment: .start,
           onPressed: onScanQrCode,
@@ -195,35 +208,20 @@ class _LinkChooserPage extends StatelessWidget {
 }
 
 /// Second page: the QR-code scanner.
-class _ScanQrCodePage extends StatefulWidget {
-  const _ScanQrCodePage({required this.onBack, required this.onCodeScanned});
+class _ScanQrCodePage extends StatelessWidget {
+  const _ScanQrCodePage({
+    required this.onBack,
+    required this.openCamera,
+    required this.decodeLinkingQr,
+    required this.onCodeScanned,
+    required this.onEnterNumericCode,
+  });
 
   final VoidCallback onBack;
+  final ScannerCameraOpener openCamera;
+  final QrFrameDecoder<String> decodeLinkingQr;
   final ValueChanged<String> onCodeScanned;
-
-  @override
-  State<_ScanQrCodePage> createState() => _ScanQrCodePageState();
-}
-
-class _ScanQrCodePageState extends State<_ScanQrCodePage> {
-  /// Latched once a linking code is found, so we stop probing scanned codes
-  /// (the scanner keeps firing until the page is swapped out).
-  bool _handled = false;
-
-  void _onDetect(BarcodeCapture capture) {
-    if (_handled || !mounted) return;
-
-    final userCubit = context.read<UserCubit>();
-    for (final raw in capture.barcodes.map((barcode) => barcode.rawValue)) {
-      if (raw == null) continue;
-      final code = userCubit.parseLinkingUrl(raw);
-      if (code != null) {
-        _handled = true;
-        widget.onCodeScanned(code);
-        return;
-      }
-    }
-  }
+  final VoidCallback onEnterNumericCode;
 
   @override
   Widget build(BuildContext context) {
@@ -236,7 +234,7 @@ class _ScanQrCodePageState extends State<_ScanQrCodePage> {
       children: [
         _LinkModalHeader(
           title: loc.linkedDevicesScreen_linkDialog_scanQrCode,
-          onBack: widget.onBack,
+          onBack: onBack,
         ),
         const SizedBox(height: S.s24),
         AspectRatio(
@@ -245,151 +243,20 @@ class _ScanQrCodePageState extends State<_ScanQrCodePage> {
             borderRadius: BorderRadius.circular(CornerRadius.px16),
             child: ColoredBox(
               color: palette.backgroundBase.secondary,
-              child: _isQrCodeScannerSupported
-                  ? MobileScanner(
-                      tapToFocus: true,
-                      placeholderBuilder: (_) => const _ScannerPlaceholder(),
-                      overlayBuilder: (_, _) => const _CornerBrackets(),
-                      onDetect: _onDetect,
-                    )
-                  : Center(
-                      child: AppIcon.qrCode(
-                        size: 64,
-                        color: palette.text.quaternary,
-                      ),
-                    ),
+              child: QrScannerView(
+                openCamera: openCamera,
+                decode: decodeLinkingQr,
+                onScanned: onCodeScanned,
+                manualEntryLabel:
+                    loc.linkedDevicesScreen_linkDialog_enterNumericCode,
+                onManualEntry: onEnterNumericCode,
+              ),
             ),
           ),
         ),
       ],
     );
   }
-}
-
-/// Four rounded corner brackets framing the scan area, optionally wrapping a
-/// [child] (e.g. the camera icon shown in the placeholder state).
-class _CornerBrackets extends StatelessWidget {
-  const _CornerBrackets({this.child});
-
-  final Widget? child;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.all(S.s24),
-      child: CustomPaint(
-        painter: _CornerBracketsPainter(color: palette.text.quaternary),
-        child: child ?? const SizedBox.expand(),
-      ),
-    );
-  }
-}
-
-/// Shown while the camera is initializing: the corner brackets framing a
-/// centered camera icon. Once the feed is live the icon is gone and only the
-/// brackets remain (see [_CornerBrackets] used as the scanner overlay).
-class _ScannerPlaceholder extends StatelessWidget {
-  const _ScannerPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-
-    return _CornerBrackets(
-      child: Center(
-        child: AppIcon.camera(size: 32, color: palette.text.quaternary),
-      ),
-    );
-  }
-}
-
-/// Paints four 90° corner brackets (with a small radius at the bend) just
-/// inside the available bounds.
-class _CornerBracketsPainter extends CustomPainter {
-  const _CornerBracketsPainter({required this.color});
-
-  final Color color;
-
-  /// Length of each leg of a corner bracket.
-  static const double _legLength = 20;
-
-  /// Radius of the rounded bend joining the two legs.
-  static const double _radius = 6;
-
-  /// Stroke thickness of the brackets.
-  static const double _strokeWidth = 2;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = .stroke
-      ..strokeWidth = _strokeWidth
-      ..strokeCap = .round;
-
-    const double left = _strokeWidth / 2;
-    const double top = _strokeWidth / 2;
-    final double right = size.width - _strokeWidth / 2;
-    final double bottom = size.height - _strokeWidth / 2;
-
-    // Top-left.
-    canvas.drawPath(
-      Path()
-        ..moveTo(left, top + _legLength)
-        ..lineTo(left, top + _radius)
-        ..arcToPoint(
-          const Offset(left + _radius, top),
-          radius: const Radius.circular(_radius),
-        )
-        ..lineTo(left + _legLength, top),
-      paint,
-    );
-
-    // Top-right.
-    canvas.drawPath(
-      Path()
-        ..moveTo(right - _legLength, top)
-        ..lineTo(right - _radius, top)
-        ..arcToPoint(
-          Offset(right, top + _radius),
-          radius: const Radius.circular(_radius),
-        )
-        ..lineTo(right, top + _legLength),
-      paint,
-    );
-
-    // Bottom-right.
-    canvas.drawPath(
-      Path()
-        ..moveTo(right, bottom - _legLength)
-        ..lineTo(right, bottom - _radius)
-        ..arcToPoint(
-          Offset(right - _radius, bottom),
-          radius: const Radius.circular(_radius),
-        )
-        ..lineTo(right - _legLength, bottom),
-      paint,
-    );
-
-    // Bottom-left.
-    canvas.drawPath(
-      Path()
-        ..moveTo(left + _legLength, bottom)
-        ..lineTo(left + _radius, bottom)
-        ..arcToPoint(
-          Offset(left, bottom - _radius),
-          radius: const Radius.circular(_radius),
-        )
-        ..lineTo(left, bottom - _legLength),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_CornerBracketsPainter oldDelegate) =>
-      oldDelegate.color != color;
 }
 
 /// Third page: enter the numeric linking code shown on the new device.

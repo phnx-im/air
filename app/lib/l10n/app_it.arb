@@ -195,6 +195,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "Sul dispositivo che vuoi collegare, apri Air, poi tocca “Collega a un account esistente” nella schermata iniziale.",
   "linkedDevicesScreen_linkDialog_scanQrCode": "Scansiona codice QR",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Scansiona codice QR (non disponibile)",
+  "qrScanner_permissionDenied": "Per scansionare il codice QR, consenti ad Air di usare la fotocamera nelle impostazioni di sistema.",
+  "qrScanner_cameraUnavailable": "La fotocamera non è disponibile.",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Inserisci codice numerico",
   "linkedDevicesScreen_linkDialog_warning": "I dispositivi che colleghi avranno accesso completo al tuo account Air (compresa la possibilità di aggiungere o rimuovere dispositivi, anche questo). Collega solo dispositivi di cui ti fidi.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Inserisci il codice numerico mostrato sul dispositivo che vuoi collegare.",

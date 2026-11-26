@@ -195,6 +195,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "在你想关联的设备上打开 Air，然后在起始屏幕上点击“关联到现有账号”。",
   "linkedDevicesScreen_linkDialog_scanQrCode": "扫描二维码",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "扫描二维码（不可用）",
+  "qrScanner_permissionDenied": "要扫描二维码，请在系统设置中允许 Air 使用相机。",
+  "qrScanner_cameraUnavailable": "相机不可用。",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "输入数字码",
   "linkedDevicesScreen_linkDialog_warning": "你关联的设备将拥有对你 Air 账号的完全访问权限（包括添加或移除设备的权限，甚至包括本设备）。请只关联你信任的设备。",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "输入你想关联的设备上显示的数字码。",

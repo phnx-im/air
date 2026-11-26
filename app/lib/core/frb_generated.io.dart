@@ -21,6 +21,7 @@ import 'api/message_list_cubit.dart';
 import 'api/multi_device.dart';
 import 'api/notification_context.dart';
 import 'api/notifications.dart';
+import 'api/qr_code.dart';
 import 'api/registration.dart';
 import 'api/share_cubit.dart';
 import 'api/types.dart';
@@ -767,6 +768,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   InvitationCode dco_decode_box_autoadd_invitation_code(dynamic raw);
 
   @protected
+  LumaFrame dco_decode_box_autoadd_luma_frame(dynamic raw);
+
+  @protected
   MessageContent dco_decode_box_autoadd_message_content(dynamic raw);
 
   @protected
@@ -1094,6 +1098,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   LogEntryLevel dco_decode_log_entry_level(dynamic raw);
+
+  @protected
+  LumaFrame dco_decode_luma_frame(dynamic raw);
 
   @protected
   MemberDetailsState dco_decode_member_details_state(dynamic raw);
@@ -2212,6 +2219,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  LumaFrame sse_decode_box_autoadd_luma_frame(SseDeserializer deserializer);
+
+  @protected
   MessageContent sse_decode_box_autoadd_message_content(
     SseDeserializer deserializer,
   );
@@ -2651,6 +2661,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   LogEntryLevel sse_decode_log_entry_level(SseDeserializer deserializer);
+
+  @protected
+  LumaFrame sse_decode_luma_frame(SseDeserializer deserializer);
 
   @protected
   MemberDetailsState sse_decode_member_details_state(
@@ -4018,6 +4031,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_luma_frame(
+    LumaFrame self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_message_content(
     MessageContent self,
     SseSerializer serializer,
@@ -4571,6 +4590,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_log_entry_level(LogEntryLevel self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_luma_frame(LumaFrame self, SseSerializer serializer);
 
   @protected
   void sse_encode_member_details_state(

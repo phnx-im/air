@@ -195,6 +195,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "Bağlamak istediğiniz cihazda Air'i açın, ardından başlangıç ekranındaki “Mevcut bir hesaba bağla” butonuna dokunun.",
   "linkedDevicesScreen_linkDialog_scanQrCode": "QR kodunu tara",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "QR kodunu tara (kullanılamıyor)",
+  "qrScanner_permissionDenied": "QR kodunu taramak için sistem ayarlarından Air'in kamerayı kullanmasına izin verin.",
+  "qrScanner_cameraUnavailable": "Kamera kullanılamıyor.",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Sayısal kodu gir",
   "linkedDevicesScreen_linkDialog_warning": "Bağladığınız cihazlar Air hesabınıza tam erişime sahip olur. Cihaz ekleyebilir ve bu cihaz dahil her cihazı kaldırabilirler. Yalnızca güvendiğiniz cihazları bağlayın.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Bağlamak istediğiniz cihazda gösterilen sayısal kodu girin.",

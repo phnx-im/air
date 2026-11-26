@@ -195,6 +195,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "Na urządzeniu, które chcesz połączyć, otwórz aplikację Air, a następnie dotknij „Połącz z istniejącym kontem” na ekranie startowym.",
   "linkedDevicesScreen_linkDialog_scanQrCode": "Zeskanuj kod QR",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Zeskanuj kod QR (niedostępne)",
+  "qrScanner_permissionDenied": "Aby zeskanować kod QR, zezwól Air na dostęp do aparatu w ustawieniach systemu.",
+  "qrScanner_cameraUnavailable": "Aparat jest niedostępny.",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Wpisz kod numeryczny",
   "linkedDevicesScreen_linkDialog_warning": "Urządzenia, które połączysz, będą mieć pełny dostęp do Twojego konta Air (w tym możliwość dodawania i usuwania urządzeń – nawet tego). Łącz tylko urządzenia, którym ufasz.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Wpisz kod numeryczny widoczny na urządzeniu, które chcesz połączyć.",

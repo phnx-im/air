@@ -195,6 +195,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "在你想連結的裝置上開啟 Air，然後在開始畫面點一下「連結至現有帳號」。",
   "linkedDevicesScreen_linkDialog_scanQrCode": "掃描 QR Code",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "掃描 QR Code（無法使用）",
+  "qrScanner_permissionDenied": "若要掃描 QR Code，請在系統設定中允許 Air 使用相機。",
+  "qrScanner_cameraUnavailable": "無法使用相機。",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "輸入數字代碼",
   "linkedDevicesScreen_linkDialog_warning": "你連結的裝置將擁有你 Air 帳號的完整存取權（包括新增或移除裝置的權限，甚至包括這部裝置）。請只連結你信任的裝置。",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "輸入你想連結的裝置上顯示的數字代碼。",

@@ -35,7 +35,8 @@ fn multi_device_linking_url(domain: &Fqdn, code: &str) -> String {
     format!("{LINKING_URL_SCHEME}://{domain}/{LINKING_URL_PATH}?{LINKING_URL_CODE}={code}")
 }
 
-/// Extracts the linking code from a QR payload produced by [`multi_device_linking_url`].
+/// Extracts the linking code from a QR payload produced by
+/// [`multi_device_linking_url`].
 pub(crate) fn linking_code_from_url(fqdn: &Fqdn, url: &str) -> Option<String> {
     let url = Url::parse(url).ok()?;
     if url.scheme() != LINKING_URL_SCHEME {
@@ -291,4 +292,48 @@ pub async fn multi_device_link_client(
     tokio::join!(forward_connected, linking);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const CODE: &str = "482915637204";
+
+    fn fqdn() -> Fqdn {
+        "air.ms".parse().unwrap()
+    }
+
+    #[test]
+    fn reads_linking_url() {
+        let url = multi_device_linking_url(&fqdn(), CODE);
+        assert_eq!(linking_code_from_url(&fqdn(), &url).as_deref(), Some(CODE));
+    }
+
+    #[test]
+    fn rejects_other_payloads() {
+        let cases = [
+            (
+                "another domain",
+                multi_device_linking_url(&"example.com".parse().unwrap(), CODE),
+            ),
+            ("not a URL", "hello world".to_owned()),
+            (
+                "wrong scheme",
+                format!("https://air.ms/multiDeviceLinkingCode?code={CODE}"),
+            ),
+            (
+                "wrong path",
+                format!("air://air.ms/linkingCode?code={CODE}"),
+            ),
+            ("no code", "air://air.ms/multiDeviceLinkingCode".to_owned()),
+            (
+                "empty code",
+                "air://air.ms/multiDeviceLinkingCode?code=".to_owned(),
+            ),
+        ];
+        for (name, url) in cases {
+            assert_eq!(linking_code_from_url(&fqdn(), &url), None, "{name}");
+        }
+    }
 }

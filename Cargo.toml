@@ -113,6 +113,7 @@ rayon = "1.12.0"
 regex = "1.11.1"
 reqwest = { version = "^0.12", features = ["json", "rustls-tls-webpki-roots-no-provider", "http2"], default-features = false }
 rustls = { version = "0.23.46", default-features = false, features = ["prefer-post-quantum", "std"] }
+rxing = { version = "0.9.4", default-features = false, features = ["qrcode", "decoders", "encoding_rs", "multi_barcode_readers"] }
 secrecy = "0.10"
 semver = { version = "1.0", features = ["serde"] }
 serde = { version = "1.0.147", features = ["derive"] }
@@ -170,7 +171,8 @@ openmls_traits = { git = "https://github.com/openmls/openmls", rev = "7c94cc351e
 openmls_sqlite_storage = "=0.3.0"
 
 # Optimize the hot paths of debug builds (privacy pass tokens, username hashing,
-# hashing, SQLite). Integration tests spend most of their time there.
+# hashing, SQLite, QR decoding). Integration tests and QR scanning spend most
+# of their time there.
 [profile.dev.package.curve25519-dalek]
 opt-level = 3
 [profile.dev.package.voprf-ng]
@@ -184,6 +186,8 @@ opt-level = 3
 [profile.dev.package.hybrid-array]
 opt-level = 3
 [profile.dev.package.libsqlite3-sys]
+opt-level = 3
+[profile.dev.package.rxing]
 opt-level = 3
 
 [profile.release]

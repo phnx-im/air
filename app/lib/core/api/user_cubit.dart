@@ -15,6 +15,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
 
+import 'qr_code.dart';
 import 'types.dart';
 import 'user.dart';
 part 'user_cubit.freezed.dart';
@@ -98,6 +99,12 @@ abstract class UserCubitBase implements RustOpaqueInterface {
   /// Their sender is not told.
   Future<void> declineContactRequest(ChatId chatId);
 
+  /// Decodes the QR codes in a camera frame and returns a linking code.
+  ///
+  /// Returns `None` if no readable QR code in the frame holds a multi-device
+  /// linking URL for this user's home server.
+  Future<String?> decodeMultiDeviceLinkingQr({required LumaFrame frame});
+
   /// Deletes the account. Once the deletion completes, the unlink reason is
   /// `AccountDeleted`, also when it completes in the background. A failure
   /// counts as reported to the user.
@@ -125,10 +132,6 @@ abstract class UserCubitBase implements RustOpaqueInterface {
     user: user,
     notificationContext: notificationContext,
   );
-
-  /// Extracts the linking code from a scanned QR payload, validating that it targets this user's
-  /// own home server. Returns `None` if `url` is not a multi-device linking URL for this domain.
-  String? parseMultiDeviceLinkingUrl({required String url});
 
   Future<void> removeUserFromChat(ChatId chatId, UiUserId userId);
 
