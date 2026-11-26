@@ -10,7 +10,9 @@ use aircommon::{
     crypto::aead::keys::EncryptedUserProfileKey,
     messages::client_ds::{AadPayload, CloseConnectionGroupParamsAad, GroupOperationParamsAad},
 };
-use aircoreclient::{ChatStatus, ResyncStatus, clients::MarkChatAsRead};
+use aircoreclient::{
+    AttachmentFile, ChatStatus, ComposedMessage, ResyncStatus, clients::MarkChatAsRead,
+};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::{DateTime, Utc};
 use tempfile::TempDir;
@@ -95,20 +97,23 @@ async fn self_chat_attachment_reaches_sibling() {
     let path = tmp_dir.path().join("test.bin");
     std::fs::write(&path, &attachment).unwrap();
 
-    let upload = alice
-        .upload_chat_attachment(chat_id, &path, MarkChatAsRead::Yes)
+    let staged = alice
+        .stage_attachment(AttachmentFile::borrowed(&path))
         .await
         .unwrap()
         .unwrap();
-    let message = upload
-        .task
-        .await
-        .unwrap_or_else(|error| panic!("upload in the self-group failed: {error:?}"));
-    alice
-        .outbound_service()
-        .enqueue_chat_message(message.id())
-        .await
-        .unwrap();
+    let composed = alice
+        .compose(chat_id)
+        .attachment(staged)
+        .mark_as_read(MarkChatAsRead::Yes)
+        .send();
+    let ComposedMessage { uploads, .. } = Box::pin(composed).await.unwrap();
+    for upload in uploads {
+        upload
+            .task
+            .await
+            .unwrap_or_else(|error| panic!("upload in the self-group failed: {error:?}"));
+    }
     alice.outbound_service().run_once().await;
 
     alice2.drain().await;

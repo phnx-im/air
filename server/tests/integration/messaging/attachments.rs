@@ -541,7 +541,7 @@ async fn rejected_attachment_upload_holds_the_message() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn failed_upload_of_the_old_path_is_retried() {
+async fn failed_upload_is_retried() {
     let mut setup = TestBackend::single().await;
     let [alice, bob] = setup.add_users().await;
     let chat_id = setup.connect_users(&alice, &bob).await;
@@ -551,22 +551,27 @@ async fn failed_upload_of_the_old_path_is_retried() {
     let attachment = vec![0x00, 0x01, 0x02, 0x03];
     let path = setup.temp_dir().join("test.bin");
     std::fs::write(&path, &attachment).unwrap();
-    let upload = alice
-        .upload_chat_attachment(chat_id, &path, MarkChatAsRead::Yes)
+    let staged = alice
+        .stage_attachment(AttachmentFile::borrowed(path))
         .await
         .unwrap()
         .unwrap();
+    let composed = alice
+        .compose(chat_id)
+        .attachment(staged)
+        .mark_as_read(MarkChatAsRead::Yes)
+        .send();
+    let ComposedMessage { message, uploads } = Box::pin(composed).await.unwrap();
+    let message_id = message.id();
+    let [upload] = uploads.try_into().ok().expect("one upload");
     setup
         .listener_control_handle()
         .set_reject_next_request_to("ProvisionAttachment");
-    let Err(UploadTaskError::Failed { message_id, .. }) = upload.task.await else {
-        panic!("an upload the DS rejects should fail");
-    };
-    alice
-        .outbound_service()
-        .fail_enqueued_chat_message(message_id)
-        .await
-        .unwrap();
+    assert_matches!(upload.task.await, Err(UploadTaskError::Failed { .. }));
+    assert_eq!(
+        alice.expect_message(message_id).await.status(),
+        MessageStatus::Error
+    );
 
     for upload in alice.retry_message(message_id).await.unwrap() {
         upload.task.await.expect("upload failed");

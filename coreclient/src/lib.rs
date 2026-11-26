@@ -48,7 +48,6 @@ pub use crate::{
             UploadTaskError,
             progress::{AttachmentProgress, AttachmentProgressEvent},
             stage::{AttachmentFile, StagedAttachment},
-            upload::PendingUpload,
         },
         block_contact::BlockedContactError,
         compose::{

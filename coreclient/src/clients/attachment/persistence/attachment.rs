@@ -220,25 +220,6 @@ impl AttachmentRecord {
         Ok(())
     }
 
-    /// Moves the attachment to a status, but only while it is still in the
-    /// expected one. Returns whether the row changed.
-    pub(crate) async fn update_status_from(
-        mut connection: impl WriteConnection,
-        attachment_id: AttachmentId,
-        from: AttachmentStatus,
-        to: AttachmentStatus,
-    ) -> sqlx::Result<bool> {
-        let current = Self::status(&mut connection, attachment_id).await?;
-        let Some(current) = current else {
-            return Ok(false);
-        };
-        if current != from {
-            return Ok(false);
-        }
-        Self::update_status(connection, attachment_id, to).await?;
-        Ok(true)
-    }
-
     pub(crate) async fn set_content(
         mut connection: impl WriteConnection,
         attachment_id: AttachmentId,
@@ -392,13 +373,12 @@ pub(crate) struct ProcessedMetadata<'a> {
 
 #[cfg(test)]
 mod tests {
-    use chrono::SubsecRound;
     use sqlx::{Pool, Sqlite};
 
     use crate::{
         clients::attachment::persistence::{
             AttachmentContent, AttachmentStatus,
-            test::{count, stored_message, test_attachment_record, test_attachment_record_with},
+            test::{count, stored_message, test_attachment_record},
         },
         db::access::DbAccess,
     };
@@ -503,44 +483,6 @@ mod tests {
             let loaded = AttachmentRecord::status(pool.read().await?, record.attachment_id).await?;
             assert_eq!(loaded, Some(status));
         }
-
-        Ok(())
-    }
-
-    #[sqlx::test]
-    async fn transition_status_only_from_the_expected_status(
-        pool: Pool<Sqlite>,
-    ) -> anyhow::Result<()> {
-        let pool = DbAccess::for_tests(pool);
-        let message = stored_message(&pool).await?;
-        let record = test_attachment_record_with(
-            message.id(),
-            AttachmentStatus::Ready,
-            Utc::now().round_subsecs(6),
-        );
-        record.store(pool.write().await?, Some(b"content")).await?;
-
-        let changed = AttachmentRecord::update_status_from(
-            pool.write().await?,
-            record.attachment_id,
-            AttachmentStatus::Uploading,
-            AttachmentStatus::UploadFailed,
-        )
-        .await?;
-        assert!(!changed);
-        let status = AttachmentRecord::status(pool.read().await?, record.attachment_id).await?;
-        assert_eq!(status, Some(AttachmentStatus::Ready));
-
-        let changed = AttachmentRecord::update_status_from(
-            pool.write().await?,
-            record.attachment_id,
-            AttachmentStatus::Ready,
-            AttachmentStatus::UploadFailed,
-        )
-        .await?;
-        assert!(changed);
-        let status = AttachmentRecord::status(pool.read().await?, record.attachment_id).await?;
-        assert_eq!(status, Some(AttachmentStatus::UploadFailed));
 
         Ok(())
     }

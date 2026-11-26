@@ -7,7 +7,9 @@
 
 use std::time::Duration;
 
-use aircoreclient::{PendingUpload, UploadTaskError, clients::MarkChatAsRead};
+use aircoreclient::{
+    AttachmentFile, ComposedMessage, UploadHandle, UploadTaskError, clients::MarkChatAsRead,
+};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use mimi_content::{MessageStatus, MimiContent};
 use rand::{RngExt, distr::Alphanumeric};
@@ -417,54 +419,45 @@ async fn attachments_finished_after_a_block_are_marked_failed() {
 
     let path = setup.temp_dir().join("attachment.bin");
     std::fs::write(&path, [0u8, 1, 2, 3]).unwrap();
-    let PendingUpload { task: upload, .. } = alice
-        .upload_chat_attachment(chat_id, &path, MarkChatAsRead::Yes)
-        .await
-        .unwrap()
-        .unwrap();
-    let PendingUpload {
-        task: failing_upload,
-        ..
-    } = alice
-        .upload_chat_attachment(chat_id, &path, MarkChatAsRead::Yes)
-        .await
-        .unwrap()
-        .unwrap();
+    let mut sent = Vec::new();
+    for _ in 0..2 {
+        let staged = alice
+            .stage_attachment(AttachmentFile::borrowed(&path))
+            .await
+            .unwrap()
+            .unwrap();
+        let composed = alice
+            .compose(chat_id)
+            .attachment(staged)
+            .mark_as_read(MarkChatAsRead::Yes)
+            .send();
+        let ComposedMessage { message, uploads } = Box::pin(composed).await.unwrap();
+        let [UploadHandle { task, .. }] = uploads.try_into().ok().expect("one upload");
+        sent.push((message.id(), task));
+    }
+    let [(uploaded_id, upload), (failed_id, failing_upload)] =
+        sent.try_into().ok().expect("two messages");
 
     // Alice blocks Bob before the uploads finish.
     alice.block_contact(bob.user_id().clone()).await.unwrap();
 
-    let uploaded = upload.await.unwrap();
-    alice
-        .outbound_service()
-        .enqueue_chat_message(uploaded.id())
-        .await
-        .unwrap();
+    upload.await.unwrap();
 
     setup
         .listener_control_handle()
         .set_reject_next_request_to("ProvisionAttachment");
-    let Err(UploadTaskError::Failed {
-        message_id: failed_id,
-        ..
-    }) = failing_upload.await
-    else {
+    let Err(UploadTaskError::Failed { message_id, .. }) = failing_upload.await else {
         panic!("an upload the DS rejects should fail");
     };
-    alice
-        .outbound_service()
-        .fail_enqueued_chat_message(failed_id)
-        .await
-        .unwrap();
+    assert_eq!(message_id, failed_id);
 
-    // Only the send stage runs. The attachment recovery of a full run would
-    // enqueue the uploaded message by itself.
+    // Only the send stage runs.
     alice
         .outbound_service()
         .send_queued_messages_once()
         .await
         .unwrap();
-    for message_id in [uploaded.id(), failed_id] {
+    for message_id in [uploaded_id, failed_id] {
         assert_eq!(
             alice.expect_message(message_id).await.status(),
             MessageStatus::Error,
