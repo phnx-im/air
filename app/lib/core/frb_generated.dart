@@ -96,7 +96,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -561027157;
+  int get rustContentHash => -571642129;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -1008,6 +1008,8 @@ abstract class RustLibApi extends BaseApi {
   UsernameValidationError? crateApiTypesUiUsernameValidationError({
     required UiUsername that,
   });
+
+  String crateApiMarkdownUserMentionUri({required UiUserId userId});
 
   String crateApiUsernameSuggestionsUsernameFromDisplay({
     required String display,
@@ -8797,6 +8799,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  String crateApiMarkdownUserMentionUri({required UiUserId userId}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_box_autoadd_ui_user_id(userId, serializer);
+          return pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 206,
+          )!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiMarkdownUserMentionUriConstMeta,
+        argValues: [userId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiMarkdownUserMentionUriConstMeta =>
+      const TaskConstMeta(debugName: "user_mention_uri", argNames: ["userId"]);
+
+  @override
   String crateApiUsernameSuggestionsUsernameFromDisplay({
     required String display,
   }) {
@@ -8808,7 +8837,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 206,
+            funcId: 207,
           )!;
         },
         codec: SseCodec(
@@ -10783,6 +10812,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return InlineElement_Image(dco_decode_String(raw[1]));
       case 8:
         return InlineElement_TaskListMarker(dco_decode_bool(raw[1]));
+      case 9:
+        return InlineElement_UserMention(
+          userId: dco_decode_box_autoadd_ui_user_id(raw[1]),
+          hint: dco_decode_String(raw[2]),
+        );
       default:
         throw Exception("unreachable");
     }
@@ -10910,6 +10944,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<NotificationId> dco_decode_list_notification_id(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_notification_id).toList();
+  }
+
+  @protected
+  List<PreviewPart> dco_decode_list_preview_part(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_preview_part).toList();
   }
 
   @protected
@@ -11684,6 +11724,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<PreviewPart>? dco_decode_opt_list_preview_part(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_list_preview_part(raw);
+  }
+
+  @protected
   Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_list_prim_u_8_strict(raw);
@@ -11717,6 +11763,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       hasPendingCommit: dco_decode_bool(arr[5]),
       sizeBytes: dco_decode_u_64(arr[6]),
     );
+  }
+
+  @protected
+  PreviewPart dco_decode_preview_part(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return PreviewPart_Text(dco_decode_String(raw[1]));
+      case 1:
+        return PreviewPart_Mention(
+          userId: dco_decode_box_autoadd_ui_user_id(raw[1]),
+          hint: dco_decode_String(raw[2]),
+        );
+      default:
+        throw Exception("unreachable");
+    }
   }
 
   @protected
@@ -12006,23 +12068,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiChatDetails dco_decode_ui_chat_details(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 14)
-      throw Exception('unexpected arr length: expect 14 but see ${arr.length}');
+    if (arr.length != 15)
+      throw Exception('unexpected arr length: expect 15 but see ${arr.length}');
     return UiChatDetails(
       id: dco_decode_chat_id(arr[0]),
       status: dco_decode_ui_chat_status(arr[1]),
       chatType: dco_decode_ui_chat_type(arr[2]),
       lastUsed: dco_decode_opt_box_autoadd_Chrono_Local(arr[3]),
       unreadMessages: dco_decode_CastedPrimitive_usize(arr[4]),
-      lastMessage: dco_decode_opt_box_autoadd_ui_chat_message(arr[5]),
-      lastReaction: dco_decode_opt_box_autoadd_ui_last_reaction(arr[6]),
-      draft: dco_decode_opt_box_autoadd_ui_message_draft(arr[7]),
-      isApq: dco_decode_bool(arr[8]),
-      isSelfChat: dco_decode_bool(arr[9]),
-      mutedUntil: dco_decode_opt_box_autoadd_ui_chat_muted(arr[10]),
-      pendingCommitFailed: dco_decode_bool(arr[11]),
-      resyncFailed: dco_decode_bool(arr[12]),
-      contactRequestExpiresAt: dco_decode_opt_box_autoadd_Chrono_Utc(arr[13]),
+      unreadMentions: dco_decode_CastedPrimitive_usize(arr[5]),
+      lastMessage: dco_decode_opt_box_autoadd_ui_chat_message(arr[6]),
+      lastReaction: dco_decode_opt_box_autoadd_ui_last_reaction(arr[7]),
+      draft: dco_decode_opt_box_autoadd_ui_message_draft(arr[8]),
+      isApq: dco_decode_bool(arr[9]),
+      isSelfChat: dco_decode_bool(arr[10]),
+      mutedUntil: dco_decode_opt_box_autoadd_ui_chat_muted(arr[11]),
+      pendingCommitFailed: dco_decode_bool(arr[12]),
+      resyncFailed: dco_decode_bool(arr[13]),
+      contactRequestExpiresAt: dco_decode_opt_box_autoadd_Chrono_Utc(arr[14]),
     );
   }
 
@@ -12030,8 +12093,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiChatMessage dco_decode_ui_chat_message(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 7)
-      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
     return UiChatMessage(
       chatId: dco_decode_chat_id(arr[0]),
       id: dco_decode_message_id(arr[1]),
@@ -12042,6 +12105,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ),
       status: dco_decode_ui_message_status(arr[5]),
       reactions: dco_decode_list_ui_reaction(arr[6]),
+      mentions: dco_decode_list_ui_user_id(arr[7]),
     );
   }
 
@@ -12217,6 +12281,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           messageId: dco_decode_box_autoadd_message_id(raw[1]),
           sender: dco_decode_box_autoadd_ui_user_id(raw[2]),
           mimiContent: dco_decode_box_autoadd_ui_mimi_content(raw[3]),
+          mentions: dco_decode_list_ui_user_id(raw[4]),
         );
       default:
         throw Exception("unreachable");
@@ -12378,7 +12443,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
     return UiMimiContent(
       plainBody: dco_decode_opt_String(arr[0]),
-      previewText: dco_decode_opt_String(arr[1]),
+      preview: dco_decode_opt_list_preview_part(arr[1]),
       replaces: dco_decode_opt_list_prim_u_8_strict(arr[2]),
       topicId: dco_decode_list_prim_u_8_strict(arr[3]),
       inReplyTo: dco_decode_opt_list_prim_u_8_strict(arr[4]),
@@ -14673,6 +14738,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 8:
         var var_field0 = sse_decode_bool(deserializer);
         return InlineElement_TaskListMarker(var_field0);
+      case 9:
+        var var_userId = sse_decode_box_autoadd_ui_user_id(deserializer);
+        var var_hint = sse_decode_String(deserializer);
+        return InlineElement_UserMention(userId: var_userId, hint: var_hint);
       default:
         throw UnimplementedError('');
     }
@@ -14867,6 +14936,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <NotificationId>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_notification_id(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<PreviewPart> sse_decode_list_preview_part(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <PreviewPart>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_preview_part(deserializer));
     }
     return ans_;
   }
@@ -16062,6 +16143,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<PreviewPart>? sse_decode_opt_list_preview_part(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_preview_part(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -16112,6 +16206,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       hasPendingCommit: var_hasPendingCommit,
       sizeBytes: var_sizeBytes,
     );
+  }
+
+  @protected
+  PreviewPart sse_decode_preview_part(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        var var_field0 = sse_decode_String(deserializer);
+        return PreviewPart_Text(var_field0);
+      case 1:
+        var var_userId = sse_decode_box_autoadd_ui_user_id(deserializer);
+        var var_hint = sse_decode_String(deserializer);
+        return PreviewPart_Mention(userId: var_userId, hint: var_hint);
+      default:
+        throw UnimplementedError('');
+    }
   }
 
   @protected
@@ -16412,6 +16524,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_chatType = sse_decode_ui_chat_type(deserializer);
     var var_lastUsed = sse_decode_opt_box_autoadd_Chrono_Local(deserializer);
     var var_unreadMessages = sse_decode_CastedPrimitive_usize(deserializer);
+    var var_unreadMentions = sse_decode_CastedPrimitive_usize(deserializer);
     var var_lastMessage = sse_decode_opt_box_autoadd_ui_chat_message(
       deserializer,
     );
@@ -16433,6 +16546,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       chatType: var_chatType,
       lastUsed: var_lastUsed,
       unreadMessages: var_unreadMessages,
+      unreadMentions: var_unreadMentions,
       lastMessage: var_lastMessage,
       lastReaction: var_lastReaction,
       draft: var_draft,
@@ -16456,6 +16570,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_decode_opt_box_autoadd_ui_in_reply_to_message(deserializer);
     var var_status = sse_decode_ui_message_status(deserializer);
     var var_reactions = sse_decode_list_ui_reaction(deserializer);
+    var var_mentions = sse_decode_list_ui_user_id(deserializer);
     return UiChatMessage(
       chatId: var_chatId,
       id: var_id,
@@ -16464,6 +16579,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       inReplyToMessage: var_inReplyToMessage,
       status: var_status,
       reactions: var_reactions,
+      mentions: var_mentions,
     );
   }
 
@@ -16663,10 +16779,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_mimiContent = sse_decode_box_autoadd_ui_mimi_content(
           deserializer,
         );
+        var var_mentions = sse_decode_list_ui_user_id(deserializer);
         return UiInReplyToMessage_Resolved(
           messageId: var_messageId,
           sender: var_sender,
           mimiContent: var_mimiContent,
+          mentions: var_mentions,
         );
       default:
         throw UnimplementedError('');
@@ -16826,7 +16944,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiMimiContent sse_decode_ui_mimi_content(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_plainBody = sse_decode_opt_String(deserializer);
-    var var_previewText = sse_decode_opt_String(deserializer);
+    var var_preview = sse_decode_opt_list_preview_part(deserializer);
     var var_replaces = sse_decode_opt_list_prim_u_8_strict(deserializer);
     var var_topicId = sse_decode_list_prim_u_8_strict(deserializer);
     var var_inReplyTo = sse_decode_opt_list_prim_u_8_strict(deserializer);
@@ -16837,7 +16955,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
     return UiMimiContent(
       plainBody: var_plainBody,
-      previewText: var_previewText,
+      preview: var_preview,
       replaces: var_replaces,
       topicId: var_topicId,
       inReplyTo: var_inReplyTo,
@@ -19445,6 +19563,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case InlineElement_TaskListMarker(field0: final field0):
         sse_encode_i_32(8, serializer);
         sse_encode_bool(field0, serializer);
+      case InlineElement_UserMention(userId: final userId, hint: final hint):
+        sse_encode_i_32(9, serializer);
+        sse_encode_box_autoadd_ui_user_id(userId, serializer);
+        sse_encode_String(hint, serializer);
     }
   }
 
@@ -19615,6 +19737,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_notification_id(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_preview_part(
+    List<PreviewPart> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_preview_part(item, serializer);
     }
   }
 
@@ -20745,6 +20879,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_list_preview_part(
+    List<PreviewPart>? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_preview_part(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_list_prim_u_8_strict(
     Uint8List? self,
     SseSerializer serializer,
@@ -20786,6 +20933,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_usize(self.pendingProposals, serializer);
     sse_encode_bool(self.hasPendingCommit, serializer);
     sse_encode_u_64(self.sizeBytes, serializer);
+  }
+
+  @protected
+  void sse_encode_preview_part(PreviewPart self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case PreviewPart_Text(field0: final field0):
+        sse_encode_i_32(0, serializer);
+        sse_encode_String(field0, serializer);
+      case PreviewPart_Mention(userId: final userId, hint: final hint):
+        sse_encode_i_32(1, serializer);
+        sse_encode_box_autoadd_ui_user_id(userId, serializer);
+        sse_encode_String(hint, serializer);
+    }
   }
 
   @protected
@@ -21048,6 +21209,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_ui_chat_type(self.chatType, serializer);
     sse_encode_opt_box_autoadd_Chrono_Local(self.lastUsed, serializer);
     sse_encode_CastedPrimitive_usize(self.unreadMessages, serializer);
+    sse_encode_CastedPrimitive_usize(self.unreadMentions, serializer);
     sse_encode_opt_box_autoadd_ui_chat_message(self.lastMessage, serializer);
     sse_encode_opt_box_autoadd_ui_last_reaction(self.lastReaction, serializer);
     sse_encode_opt_box_autoadd_ui_message_draft(self.draft, serializer);
@@ -21078,6 +21240,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
     sse_encode_ui_message_status(self.status, serializer);
     sse_encode_list_ui_reaction(self.reactions, serializer);
+    sse_encode_list_ui_user_id(self.mentions, serializer);
   }
 
   @protected
@@ -21232,11 +21395,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         messageId: final messageId,
         sender: final sender,
         mimiContent: final mimiContent,
+        mentions: final mentions,
       ):
         sse_encode_i_32(1, serializer);
         sse_encode_box_autoadd_message_id(messageId, serializer);
         sse_encode_box_autoadd_ui_user_id(sender, serializer);
         sse_encode_box_autoadd_ui_mimi_content(mimiContent, serializer);
+        sse_encode_list_ui_user_id(mentions, serializer);
     }
   }
 
@@ -21385,7 +21550,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_opt_String(self.plainBody, serializer);
-    sse_encode_opt_String(self.previewText, serializer);
+    sse_encode_opt_list_preview_part(self.preview, serializer);
     sse_encode_opt_list_prim_u_8_strict(self.replaces, serializer);
     sse_encode_list_prim_u_8_strict(self.topicId, serializer);
     sse_encode_opt_list_prim_u_8_strict(self.inReplyTo, serializer);

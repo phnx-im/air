@@ -57,6 +57,7 @@ UiChatMessage _message(
   ),
   status: UiMessageStatus.read,
   reactions: reactions,
+  mentions: [],
 );
 
 /// A non-content message, which never joins a group.
@@ -69,6 +70,7 @@ UiChatMessage _event(int id, {Duration after = Duration.zero}) => UiChatMessage(
   ),
   status: UiMessageStatus.read,
   reactions: [],
+  mentions: [],
 );
 
 MessageCubit _createMockMessageCubit({

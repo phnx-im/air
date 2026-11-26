@@ -6,13 +6,17 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:air/app.dart' show scaffoldMessengerKey;
+import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/core/lib.dart' show U8Array32;
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/mention_picker/mention_picker.dart';
+import 'package:air/ds/patterns/mention_picker/mention_picker_tokens.dart';
 import 'package:air/ds/patterns/message_input/message_input_link_preview.dart';
 import 'package:air/ds/patterns/message_input/message_input_quote.dart';
+import 'package:air/ds/patterns/message_input/message_input_tokens.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
 import 'package:air/features/chat/share_target_publisher.dart';
@@ -65,6 +69,7 @@ UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
   chatType: _chat.chatType,
   lastUsed: _chat.lastUsed,
   unreadMessages: _chat.unreadMessages,
+  unreadMentions: _chat.unreadMentions,
   lastMessage: _chat.lastMessage,
   draft: draft,
   isApq: _chat.isApq,
@@ -83,6 +88,7 @@ final _replyDraft = UiMessageDraft(
       messageId: 1.messageId(),
       sender: 2.userId(),
       mimiContent: textContent('Got a link for me?'),
+      mentions: const [],
     ),
   ),
   updatedAt: DateTime.parse('2023-01-01T00:00:00.000Z'),
@@ -288,6 +294,70 @@ void main() {
 
       verifyNever(
         () => chatDetailsCubit.storeDraft(draftMessage: '', isCommitted: false),
+      );
+    });
+  });
+
+  group('MessageComposer mention picker', () {
+    // The field's chrome, keyed by the composer to place the picker.
+    final fieldChrome = find.ancestor(
+      of: find.byType(TextField),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Container && widget.key is GlobalKey,
+      ),
+    );
+
+    Future<void> typeAt(WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), '@');
+      await tester.pumpAndSettle();
+    }
+
+    void enableExperimentalFeatures() {
+      when(() => userSettingsCubit.state).thenReturn(
+        const UserSettings(developerMode: true, experimentalFeatures: true),
+      );
+      // Typing also schedules a link preview, an experimental feature too.
+      when(() => chatDetailsCubit.updateLinkPreviews(any()))
+          .thenAnswer((_) async {});
+    }
+
+    testWidgets('stays closed without experimental features', (tester) async {
+      await typeAt(tester);
+
+      expect(find.byType(MentionPickerRow), findsNothing);
+    });
+
+    testWidgets('floats above the field, flush with its left edge', (
+      tester,
+    ) async {
+      enableExperimentalFeatures();
+      await typeAt(tester);
+
+      final rows = find.byType(MentionPickerRow);
+      // Every member but the reader.
+      expect(rows, findsNWidgets(_members.length - 1));
+
+      final chrome = tester.getRect(fieldChrome);
+      final first = tester.getRect(rows.first);
+      final last = tester.getRect(rows.last);
+      const padding = MentionPickerTokens.padding;
+      expect(first.left - padding.left, chrome.left);
+      expect(
+        last.bottom + padding.bottom,
+        chrome.top - MessageInputTokens.mentionPickerGap,
+      );
+      expect(first.width + padding.horizontal, MentionPickerTokens.width);
+    });
+
+    testWidgets('renders correctly', (tester) async {
+      enableExperimentalFeatures();
+      await typeAt(tester);
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_composer_mention_picker.png'),
       );
     });
   });
@@ -559,6 +629,51 @@ void main() {
 
       expect(find.byType(Menu), findsOneWidget);
       expect(tester.testTextInput.isVisible, isTrue);
+    });
+  });
+
+  group('MessageComposer reply quote', () {
+    testWidgets('names a mention of a member by the local display name', (
+      tester,
+    ) async {
+      final draft = UiMessageDraft(
+        message: '',
+        previewText: '',
+        inReplyTo: (
+          UiMimiId(field0: U8Array32(Uint8List(32))),
+          UiInReplyToMessage.resolved(
+            messageId: 1.messageId(),
+            sender: 2.userId(),
+            mimiContent: UiMimiContent(
+              topicId: Uint8List(0),
+              attachments: [],
+              preview: [
+                const PreviewPart.text('Hi '),
+                PreviewPart.mention(userId: 3.userId(), hint: '@Mallory'),
+                const PreviewPart.text(' and '),
+                PreviewPart.mention(userId: 9.userId(), hint: '@Carol'),
+              ],
+            ),
+            mentions: [3.userId()],
+          ),
+        ),
+        updatedAt: DateTime.parse('2023-01-01T00:00:00.000Z'),
+        isCommitted: true,
+      );
+      when(() => chatDetailsCubit.state).thenReturn(
+        ChatDetailsState(chat: _chatWithDraft(draft), members: _members),
+      );
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byType(MessageInputQuote),
+          matching: find.text('Hi @Eve and @Carol'),
+        ),
+        findsOneWidget,
+      );
     });
   });
 }

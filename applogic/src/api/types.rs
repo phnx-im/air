@@ -17,7 +17,7 @@ pub(crate) use airprotos::client::component::AirFeatures;
 use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatMuted, ChatStatus, ChatType, Contact, ContentMessage,
-    DisplayName, ErrorMessage, EventMessage, InactiveChat, LastReaction, Message,
+    DisplayName, ErrorMessage, EventMessage, InReplyToMessage, InactiveChat, LastReaction, Message,
     MessageAttachments, MessageDraft, MessageVersion, SystemMessage, TargetedMessageContact,
     UserProfile, clients::CoreUser,
 };
@@ -102,6 +102,7 @@ pub struct UiChatDetails {
     pub chat_type: UiChatType,
     pub last_used: Option<DateTime<Local>>,
     pub unread_messages: usize,
+    pub unread_mentions: usize,
     pub last_message: Option<UiChatMessage>,
     pub last_reaction: Option<UiLastReaction>,
     pub draft: Option<UiMessageDraft>,
@@ -193,17 +194,7 @@ impl From<MessageDraft> for UiMessageDraft {
             in_reply_to: in_reply_to.map(|(mimi_id, irt)| {
                 (
                     mimi_id.into(),
-                    match irt {
-                        Some(in_reply_to) => UiInReplyToMessage::Resolved {
-                            message_id: in_reply_to.message_id,
-                            sender: in_reply_to.sender.into(),
-                            mimi_content: UnresolvedMimiContent::from(
-                                in_reply_to.mimi_content.unwrap_or_default(),
-                            )
-                            .resolve(Some(&in_reply_to.attachments)),
-                        },
-                        None => UiInReplyToMessage::NotFound,
-                    },
+                    irt.map_or(UiInReplyToMessage::NotFound, From::from),
                 )
             }),
             editing_id,
@@ -223,7 +214,21 @@ pub enum UiInReplyToMessage {
         message_id: MessageId,
         sender: UiUserId,
         mimi_content: UiMimiContent,
+        /// Mentions of chat members in the replied-to message
+        mentions: Vec<UiUserId>,
     },
+}
+
+impl From<InReplyToMessage> for UiInReplyToMessage {
+    fn from(in_reply_to: InReplyToMessage) -> Self {
+        Self::Resolved {
+            message_id: in_reply_to.message_id,
+            sender: in_reply_to.sender.into(),
+            mimi_content: UnresolvedMimiContent::from(in_reply_to.mimi_content.unwrap_or_default())
+                .resolve(Some(&in_reply_to.attachments)),
+            mentions: in_reply_to.mentions.into_iter().map(From::from).collect(),
+        }
+    }
 }
 
 /// Status of a chat
@@ -408,6 +413,9 @@ pub struct UiChatMessage {
     pub in_reply_to_message: Option<UiInReplyToMessage>,
     pub status: UiMessageStatus,
     pub reactions: Vec<UiReaction>,
+    /// Mentions of chat members, captured when the message was received,
+    /// sent or edited
+    pub mentions: Vec<UiUserId>,
 }
 
 /// Aggregate raw per-user reactions into per-emoji groups, preserving the order
@@ -460,14 +468,7 @@ impl UiChatMessage {
         };
 
         let in_reply_to_message = chat_message.take_in_reply_to().map(|irt| match irt {
-            (_, Some(in_reply_to)) => UiInReplyToMessage::Resolved {
-                message_id: in_reply_to.message_id,
-                sender: in_reply_to.sender.into(),
-                mimi_content: UnresolvedMimiContent::from(
-                    in_reply_to.mimi_content.unwrap_or_default(),
-                )
-                .resolve(Some(&in_reply_to.attachments)),
-            },
+            (_, Some(in_reply_to)) => in_reply_to.into(),
             // this means we have a reference but couldn't load the contents
             // (i.e. deleted for me, or in past history after joining).
             (_, None) => UiInReplyToMessage::NotFound,
@@ -478,6 +479,12 @@ impl UiChatMessage {
         let timestamp = chat_message.timestamp().with_timezone(&Local);
         let reactions = aggregate_reactions(chat_message.reactions());
         let edit_allowance = EditAllowance::of(&chat_message);
+        let mentions = chat_message
+            .mentions()
+            .iter()
+            .cloned()
+            .map(From::from)
+            .collect();
         let message = chat_message.into_message();
 
         Self {
@@ -488,6 +495,7 @@ impl UiChatMessage {
             in_reply_to_message,
             status,
             reactions,
+            mentions,
         }
     }
 

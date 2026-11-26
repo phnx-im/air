@@ -24,6 +24,7 @@ class MessageInput extends StatefulWidget {
     required this.tokens,
     required this.field,
     this.aboveField = const [],
+    this.fieldKey,
     required this.leadingIcon,
     this.onLeading,
     required this.sendIcon,
@@ -44,6 +45,10 @@ class MessageInput extends StatefulWidget {
   /// reply preview. The chrome carries no inset of its own, so each row owns
   /// its spacing on every side and can sit wider or narrower than the field.
   final List<Widget> aboveField;
+
+  /// Key on the field's chrome. The host uses it to float the mention picker
+  /// above the field.
+  final GlobalKey? fieldKey;
 
   /// Attach, or cancel while editing.
   final AppIconType leadingIcon;
@@ -159,6 +164,7 @@ class _MessageInputState extends State<MessageInput>
           const SizedBox(width: MessageInputTokens.gap),
           Expanded(
             child: Container(
+              key: widget.fieldKey,
               constraints: BoxConstraints(minHeight: t.buttonSize),
               decoration: BoxDecoration(
                 color: palette.backgroundElevated.primary,

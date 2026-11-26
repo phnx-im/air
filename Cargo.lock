@@ -286,6 +286,7 @@ dependencies = [
  "percent-encoding",
  "pin-project",
  "privacypass",
+ "pulldown-cmark",
  "rand 0.10.4",
  "regex",
  "reqwest",

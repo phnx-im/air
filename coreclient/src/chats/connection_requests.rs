@@ -1128,7 +1128,9 @@ mod tests {
     ) -> anyhow::Result<(usize, usize)> {
         let own_user = own_user();
         Ok((
-            Chat::unread_messages_count(&mut *txn, chat_id, &own_user).await?,
+            Chat::unread_counts(&mut *txn, chat_id, &own_user)
+                .await?
+                .messages,
             Chat::global_unread_message_count(&mut *txn, &own_user).await?,
         ))
     }

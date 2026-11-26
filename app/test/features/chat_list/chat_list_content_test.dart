@@ -40,6 +40,7 @@ final chats = [
     isSelfChat: false,
     chatType: UiChatType_Connection(userProfiles[1]),
     unreadMessages: 10,
+    unreadMentions: 0,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 1.messageId(),
@@ -58,6 +59,7 @@ final chats = [
         UiReaction(emoji: '❤️', users: [1.userId(), 3.userId()]),
         UiReaction(emoji: '🫪', users: [5.userId()]),
       ],
+      mentions: [],
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
@@ -73,6 +75,7 @@ final chats = [
       UiUsername(plaintext: 'eve_03'),
     ),
     unreadMessages: 0,
+    unreadMentions: 0,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 2.messageId(),
@@ -92,6 +95,7 @@ final chats = [
       reactions: [
         UiReaction(emoji: '❤️', users: [1.userId(), 2.userId()]),
       ],
+      mentions: [],
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
@@ -107,6 +111,7 @@ final chats = [
       UiChatAttributes(title: 'Group', picture: null),
     ),
     unreadMessages: 0,
+    unreadMentions: 0,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 3.messageId(),
@@ -122,6 +127,7 @@ final chats = [
       ),
       status: UiMessageStatus.sent,
       reactions: [],
+      mentions: [],
     ),
     mutedUntil: null,
     pendingCommitFailed: false,
@@ -137,6 +143,7 @@ final chats = [
       UiChatAttributes(title: 'Group', picture: null),
     ),
     unreadMessages: 0,
+    unreadMentions: 0,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 3.messageId(),
@@ -152,6 +159,7 @@ final chats = [
       ),
       status: UiMessageStatus.sent,
       reactions: [],
+      mentions: [],
     ),
     draft: UiMessageDraft(
       message: 'Some draft message',
@@ -172,6 +180,7 @@ final chats = [
     isSelfChat: false,
     chatType: UiChatType_Connection(userProfiles[3]),
     unreadMessages: 0,
+    unreadMentions: 0,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: null,
     mutedUntil: null,
@@ -186,6 +195,7 @@ final chats = [
     isSelfChat: false,
     chatType: UiChatType_Connection(userProfiles[2]),
     unreadMessages: 3,
+    unreadMentions: 0,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 6.messageId(),
@@ -201,6 +211,7 @@ final chats = [
       ),
       status: UiMessageStatus.sent,
       reactions: [],
+      mentions: [],
     ),
     mutedUntil: const UiChatMuted.forever(),
     lastReaction: UiLastReaction(reactor: 1.userId(), emoji: "⏰️"),
@@ -237,15 +248,17 @@ final chats = [
                 size: 1024,
               ),
             ],
-            previewText: '🖼️',
+            preview: const [PreviewPart.text('🖼️')],
           ),
         ),
       ),
       status: UiMessageStatus.sent,
       reactions: [],
+      mentions: [],
     ),
     pendingCommitFailed: false,
     resyncFailed: false,
+    unreadMentions: 0,
   ),
   // Chat where someone sent a file
   UiChatDetails(
@@ -277,15 +290,17 @@ final chats = [
                 size: 128,
               ),
             ],
-            previewText: '📎',
+            preview: const [PreviewPart.text('📎')],
           ),
         ),
       ),
       status: UiMessageStatus.sent,
       reactions: [],
+      mentions: [],
     ),
     pendingCommitFailed: false,
     resyncFailed: false,
+    unreadMentions: 0,
   ),
   // A muted group, with a reaction from someone to our own message
   UiChatDetails(
@@ -312,11 +327,13 @@ final chats = [
       ),
       status: UiMessageStatus.sent,
       reactions: [],
+      mentions: [],
     ),
     mutedUntil: const UiChatMuted.forever(),
     lastReaction: UiLastReaction(reactor: 3.userId(), emoji: "👋"),
     pendingCommitFailed: false,
     resyncFailed: false,
+    unreadMentions: 0,
   ),
 ];
 
@@ -326,7 +343,7 @@ final chatIds = chats.map((chat) => chat.id).toList();
 /// preview.
 UiMimiContent textContent(String body) => UiMimiContent(
   plainBody: body,
-  previewText: body,
+  preview: [PreviewPart.text(body)],
   topicId: Uint8List(0),
   content: simpleMessage(body),
   attachments: [],
@@ -425,6 +442,48 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/chat_list_content.png'),
+      );
+    });
+
+    testWidgets('renders mention badge correctly', (tester) async {
+      // An unmuted chat with unread mentions
+      final mentionChat = UiChatDetails(
+        id: 7.chatId(),
+        status: const UiChatStatus.active(),
+        isApq: false,
+        isSelfChat: false,
+        chatType: UiChatType_Connection(userProfiles[1]),
+        unreadMessages: 5,
+        unreadMentions: 2,
+        lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+        lastMessage: chats[0].lastMessage,
+        mutedUntil: null,
+        pendingCommitFailed: false,
+        resyncFailed: false,
+      );
+      // A muted chat with unread mentions
+      final mutedMentionChat = UiChatDetails(
+        id: 8.chatId(),
+        status: const UiChatStatus.active(),
+        isApq: false,
+        isSelfChat: false,
+        chatType: UiChatType_Connection(userProfiles[2]),
+        unreadMessages: 3,
+        unreadMentions: 1,
+        lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+        lastMessage: chats[5].lastMessage,
+        mutedUntil: const UiChatMuted.forever(),
+        pendingCommitFailed: false,
+        resyncFailed: false,
+      );
+
+      await tester.pumpWidget(
+        buildSubject(chats: [mentionChat, mutedMentionChat, chats[0]]),
+      );
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_content_mentions.png'),
       );
     });
 
@@ -531,6 +590,7 @@ void main() {
         mutedUntil: null,
         pendingCommitFailed: false,
         resyncFailed: false,
+        unreadMentions: 0,
       );
 
       await tester.pumpWidget(buildSubject(chats: [emptyChat, chats[0]]));
@@ -680,7 +740,7 @@ void main() {
         contentChat(
           UiMimiContent(
             plainBody: '- one\n- two',
-            previewText: 'one\ntwo',
+            preview: const [PreviewPart.text('one\ntwo')],
             topicId: Uint8List(0),
             attachments: [],
           ),
@@ -689,6 +749,30 @@ void main() {
       );
 
       expect(find.text('one two'), findsOne);
+    });
+
+    testWidgets('names a mention of a member by the local display name', (
+      tester,
+    ) async {
+      await pumpChat(
+        tester,
+        contentChat(
+          UiMimiContent(
+            topicId: Uint8List(0),
+            attachments: [],
+            preview: [
+              const PreviewPart.text('Hi '),
+              PreviewPart.mention(userId: 3.userId(), hint: '@Mallory'),
+              const PreviewPart.text(' and '),
+              PreviewPart.mention(userId: 9.userId(), hint: '@Carol'),
+            ],
+          ),
+          sender: userProfiles[1].userId,
+          mentions: [3.userId()],
+        ),
+      );
+
+      expect(find.text('Hi @Eve and @Carol'), findsOne);
     });
 
     testWidgets('shows a draft without its markdown', (tester) async {
@@ -714,7 +798,7 @@ void main() {
 final linkContent = UiMimiContent(
   plainBody:
       "I've written up an [introduction to MLS](https://ratchet.ing/mls-intro)",
-  previewText: "I've written up an introduction to MLS",
+  preview: const [PreviewPart.text("I've written up an introduction to MLS")],
   topicId: Uint8List(0),
   attachments: [],
 );
@@ -746,18 +830,19 @@ UiChatDetails attachmentChat(UiAttachment attachment, {UiUserId? sender}) =>
       UiMimiContent(
         topicId: Uint8List(0),
         attachments: [attachment],
-        previewText: attachment.isImage ? '🖼️' : '📎',
+        preview: [PreviewPart.text(attachment.isImage ? '🖼️' : '📎')],
       ),
       sender: sender,
     );
 
 /// A contact chat whose last message has [content], sent by [sender] (the
-/// reader by default) and possibly carrying [reaction].
+/// reader by default) and possibly carrying [reaction] and [mentions].
 UiChatDetails contentChat(
   UiMimiContent content, {
   UiUserId? sender,
   UiLastReaction? reaction,
   UiMessageDraft? draft,
+  List<UiUserId> mentions = const [],
 }) => UiChatDetails(
   id: 8.chatId(),
   status: const UiChatStatus.active(),
@@ -783,12 +868,14 @@ UiChatDetails contentChat(
       if (reaction != null)
         UiReaction(emoji: reaction.emoji, users: [reaction.reactor]),
     ],
+    mentions: mentions,
   ),
   lastReaction: reaction,
   draft: draft,
   mutedUntil: null,
   pendingCommitFailed: false,
   resyncFailed: false,
+  unreadMentions: 0,
 );
 
 /// A contact chat whose last message, "Hello Alice", carries [reaction].
@@ -808,6 +895,7 @@ UiChatDetails groupChat(ChatId id, String title) => UiChatDetails(
   isSelfChat: false,
   pendingCommitFailed: false,
   resyncFailed: false,
+  unreadMentions: 0,
 );
 
 /// The chat of Bob's pending contact request through the group chat
@@ -834,7 +922,9 @@ UiChatDetails requestChat(ChatId groupChatId) => UiChatDetails(
     ),
     status: UiMessageStatus.sent,
     reactions: [],
+    mentions: [],
   ),
   pendingCommitFailed: false,
   resyncFailed: false,
+  unreadMentions: 0,
 );

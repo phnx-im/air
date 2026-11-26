@@ -22,6 +22,7 @@ void main() {
     WidgetTester tester, {
     double maxWidth = 200,
     double rowWidth = 0,
+    double roomAbove = double.infinity,
   }) async {
     final anchorLink = LayerLink();
     focusNode = FocusNode();
@@ -44,6 +45,7 @@ void main() {
       controller.show(
         context: tester.element(find.byType(Scaffold)),
         offset: const Offset(0, _maxHeight),
+        maxHeight: roomAbove,
         suggestions: List.generate(_suggestionCount, (index) => index),
         style: SuggestionOverlayStyle(
           backgroundColor: Colors.white,
@@ -124,6 +126,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(controller.highlightIndex, 0);
     expect(tester.state<ScrollableState>(scrollable).position.pixels, 0);
+  });
+
+  testWidgets('caps its height to the room above the anchor', (tester) async {
+    await pumpOverlay(tester, roomAbove: _rowHeight * 2);
+
+    expect(controller.overlaySize.height, _rowHeight * 2);
   });
 
   testWidgets('constrains its width to the viewport margins', (tester) async {

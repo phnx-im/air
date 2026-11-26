@@ -47,8 +47,12 @@ pub mod grpc;
 mod join_connection_group;
 pub mod process;
 mod resync;
+#[cfg(test)]
+mod self_group_credential_tests;
 mod self_remove;
 pub mod storage;
+#[cfg(test)]
+mod test_utils;
 mod update_user_profile_key;
 mod user_credentials;
 mod welcome_info;

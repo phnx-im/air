@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                message_id AS \"message_id: _\",\n                mimi_id AS \"mimi_id: _\",\n                chat_id AS \"chat_id: _\",\n                timestamp AS \"timestamp: _\",\n                sender_user_uuid AS \"sender_user_uuid: _\",\n                sender_user_domain AS \"sender_user_domain: _\",\n                content AS \"content: _\",\n                sent,\n                status,\n                edited_at AS \"edited_at: _\",\n                b.user_uuid IS NOT NULL AS \"is_blocked!: _\",\n                in_reply_to_mimi_id AS \"in_reply_to_mimi_id: _\"\n            FROM message\n            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid\n                AND b.user_domain = sender_user_domain\n            WHERE chat_id = ?1\n                AND timestamp > ?2\n                AND sender_user_uuid IS NOT NULL\n                AND (sender_user_uuid != ?3 OR sender_user_domain != ?4)\n            ORDER BY timestamp ASC, message_id ASC\n            LIMIT 1",
+  "query": "SELECT\n                message_id AS \"message_id: _\",\n                mimi_id AS \"mimi_id: _\",\n                chat_id AS \"chat_id: _\",\n                timestamp AS \"timestamp: _\",\n                sender_user_uuid AS \"sender_user_uuid: _\",\n                sender_user_domain AS \"sender_user_domain: _\",\n                content AS \"content: _\",\n                sent,\n                status,\n                edited_at AS \"edited_at: _\",\n                b.user_uuid IS NOT NULL AS \"is_blocked!: _\",\n                in_reply_to_mimi_id AS \"in_reply_to_mimi_id: _\",\n                FALSE AS \"mentions_me!: bool\"\n            FROM message\n            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid\n                AND b.user_domain = sender_user_domain\n            WHERE edited_at IS NOT NULL\n            ",
   "describe": {
     "columns": [
       {
@@ -129,10 +129,16 @@
             "name": "in_reply_to_mimi_id"
           }
         }
+      },
+      {
+        "name": "mentions_me!: bool",
+        "ordinal": 12,
+        "type_info": "Integer",
+        "origin": "Expression"
       }
     ],
     "parameters": {
-      "Right": 4
+      "Right": 0
     },
     "nullable": [
       false,
@@ -146,8 +152,9 @@
       false,
       true,
       false,
-      true
+      true,
+      false
     ]
   },
-  "hash": "917858207c7d0fcca6e3d00d69edbcf6c18816f42d24711f79810010bd169dc6"
+  "hash": "8c6102bc582f394ab9900ca2279f8a057a0c4c51b5177bb4538187e4a19b10c7"
 }

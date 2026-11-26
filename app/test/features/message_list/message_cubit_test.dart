@@ -34,6 +34,7 @@ void main() {
         ),
         status: UiMessageStatus.sent,
         reactions: [],
+        mentions: [],
       );
       final b = UiChatMessage(
         id: 1.messageId(),
@@ -54,6 +55,7 @@ void main() {
         ),
         status: UiMessageStatus.sent,
         reactions: [],
+        mentions: [],
       );
       expect(a, equals(b));
     });

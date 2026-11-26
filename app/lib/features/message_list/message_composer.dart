@@ -10,6 +10,7 @@ import 'package:air/features/chat/share_target_publisher.dart';
 import 'package:air/features/emoji/emoji_data.dart';
 import 'package:air/l10n/app_localizations_extension.dart';
 import 'package:air/features/emoji/emoji_autocomplete.dart';
+import 'package:air/features/message_list/mention_autocomplete.dart';
 import 'package:air/ds/components/field/field_chrome.dart';
 import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/patterns/message_input/message_input.dart';
@@ -22,7 +23,9 @@ import 'package:air/features/message_list/link_preview_data.dart';
 import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
+import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/debouncer.dart';
 import 'package:air/features/message_list/widgets/text_autocomplete.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -92,7 +95,9 @@ class _MessageComposerState extends State<MessageComposer>
   String _inputTextCache = '';
   final LayerLink _inputFieldLink = LayerLink();
   final GlobalKey _inputFieldKey = GlobalKey();
+  final GlobalKey _fieldChromeKey = GlobalKey();
   late final TextAutocompleteController<Emoji> _emojiAutocomplete;
+  late final TextAutocompleteController<UiUserProfile> _mentionAutocomplete;
 
   /// Merged once rather than per build: a fresh merge on every rebuild makes
   /// [ListenableBuilder] drop and re-add its listeners each frame.
@@ -122,6 +127,28 @@ class _MessageComposerState extends State<MessageComposer>
     ]);
 
     _chatDetailsCubit = context.read<ChatDetailsCubit>();
+
+    _mentionAutocomplete = TextAutocompleteController<UiUserProfile>(
+      textController: _inputController,
+      focusNode: _focusNode,
+      inputFieldKey: _inputFieldKey,
+      anchorLink: _inputFieldLink,
+      // The picker holds still above the field rather than chasing the caret.
+      above: (key: _fieldChromeKey, gap: MessageInputTokens.mentionPickerGap),
+      vsync: this,
+      contextProvider: () => context,
+      strategy: MentionAutocompleteStrategy(
+        getMembers: () => _chatDetailsCubit.state.members,
+        getProfile: (userId) =>
+            context.read<UsersCubit>().state.profile(userId: userId),
+        getOwnUserId: () => context.read<UserCubit>().state.userId,
+        isEnabled: () =>
+            context.read<UserSettingsCubit>().state.experimentalFeaturesActive,
+      ),
+      // Profiles load lazily; refresh the open picker when they arrive.
+      refreshStream: context.read<UsersCubit>().stream,
+    );
+    _focusNode.addListener(_mentionAutocomplete.handleFocusChange);
 
     // Keep track of whether we loaded a draft for the first time
     bool isDraftLoaded = false;
@@ -282,6 +309,8 @@ class _MessageComposerState extends State<MessageComposer>
 
     _emojiAutocomplete.dispose();
     _focusNode.removeListener(_emojiAutocomplete.handleFocusChange);
+    _mentionAutocomplete.dispose();
+    _focusNode.removeListener(_mentionAutocomplete.handleFocusChange);
     _inputController.dispose();
 
     _draftLoadingSubscription?.cancel();
@@ -361,6 +390,7 @@ class _MessageComposerState extends State<MessageComposer>
             // top inset.
             if (hasLinkPreview) const _LinkPreviewStaged(),
           ],
+          fieldKey: _fieldChromeKey,
           field: _ComposerField(
             focusNode: _focusNode,
             controller: _inputController,
@@ -383,6 +413,11 @@ class _MessageComposerState extends State<MessageComposer>
     final emojiResult = _emojiAutocomplete.handleKeyEvent(evt);
     if (emojiResult != null) {
       return emojiResult;
+    }
+
+    final mentionResult = _mentionAutocomplete.handleKeyEvent(evt);
+    if (mentionResult != null) {
+      return mentionResult;
     }
 
     // Intercept Cmd+V / Ctrl+V on desktop to handle image paste
@@ -773,6 +808,7 @@ class _MessageComposerState extends State<MessageComposer>
       );
     });
     _emojiAutocomplete.handleTextChanged();
+    _mentionAutocomplete.handleTextChanged();
     _scheduleLinkPreviewUpdate(currentText);
   }
 

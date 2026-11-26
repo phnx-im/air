@@ -72,6 +72,7 @@ struct SqlReactionWithTarget {
     edited_at: Option<TimeStamp>,
     is_blocked: bool,
     in_reply_to_mimi_id: Option<MimiId>,
+    mentions_me: bool,
 }
 
 impl From<SqlReactionWithTarget> for (Reaction, ChatMessage) {
@@ -97,6 +98,7 @@ impl From<SqlReactionWithTarget> for (Reaction, ChatMessage) {
             edited_at: row.edited_at,
             is_blocked: row.is_blocked,
             in_reply_to_mimi_id: row.in_reply_to_mimi_id,
+            mentions_me: row.mentions_me,
         });
         (reaction, message)
     }
@@ -248,7 +250,8 @@ impl Reaction {
                 m.status,
                 m.edited_at AS "edited_at: _",
                 b.user_uuid IS NOT NULL AS "is_blocked!: _",
-                m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+                m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _",
+                m.mentions_me
             FROM reaction r
             INNER JOIN message m ON m.mimi_id = r.target_mimi_id
             LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid

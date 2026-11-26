@@ -327,6 +327,13 @@ impl ChatStatus {
     }
 }
 
+/// Unread messages of a chat, and how many of them mention the local user
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct UnreadCounts {
+    pub messages: usize,
+    pub mentions: usize,
+}
+
 #[derive(Eq, PartialEq, Debug, Clone, Hash, Serialize, Deserialize)]
 pub struct InactiveChat {
     pub past_members: Vec<UserId>,

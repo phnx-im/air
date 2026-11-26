@@ -25,6 +25,9 @@ class SuggestionOverlayStyle {
     required this.elevation,
     required this.maxWidth,
     required this.maxHeight,
+    this.minWidth = 0,
+    this.padding = EdgeInsets.zero,
+    this.itemSpacing = 0,
   });
 
   final Color backgroundColor;
@@ -32,6 +35,16 @@ class SuggestionOverlayStyle {
   final Elevation elevation;
   final double maxWidth;
   final double maxHeight;
+
+  /// Lower bound for the overlay width. Between the bounds the overlay sizes
+  /// to its content.
+  final double minWidth;
+
+  /// Inset between the overlay's edge and its rows.
+  final EdgeInsets padding;
+
+  /// Gap between two rows.
+  final double itemSpacing;
 }
 
 enum SuggestionOverlayAnimationPhase { none, entering, exiting }
@@ -53,6 +66,7 @@ class SuggestionOverlayController<T> {
 
   OverlayEntry? _overlayEntry; // Active overlay entry attached to the Overlay.
   Offset _offset = Offset.zero; // Anchor offset relative to the caret.
+  double _maxHeight = double.infinity; // Room above the anchored corner.
   List<T> _suggestions = const []; // Current suggestion list.
   int _highlightIndex = 0; // Keyboard highlight index within suggestions.
   bool _visible = false; // Tracks whether the overlay should be shown.
@@ -73,6 +87,7 @@ class SuggestionOverlayController<T> {
   List<T> get suggestions => _suggestions;
   int get highlightIndex => _highlightIndex;
   Offset get offset => _offset;
+  double get maxHeight => _maxHeight;
   SuggestionOverlayStyle? get style => _style;
   SuggestionOverlayItemBuilder<T>? get itemBuilder => _itemBuilder;
   AnimationController get animationController => _animationController;
@@ -97,9 +112,12 @@ class SuggestionOverlayController<T> {
   ///
   /// [offset] positions the overlay's bottom left corner relative to the
   /// anchor, so callers place it without knowing how tall it renders.
+  /// [maxHeight] is the room above that corner, which caps the overlay on top
+  /// of [SuggestionOverlayStyle.maxHeight].
   Future<void> show({
     required BuildContext context,
     required Offset offset,
+    double maxHeight = double.infinity,
     required List<T> suggestions,
     required SuggestionOverlayStyle style,
     required SuggestionOverlayItemBuilder<T> itemBuilder,
@@ -118,6 +136,7 @@ class SuggestionOverlayController<T> {
     _itemBuilder = itemBuilder;
     _onSelected = onSelected;
     _offset = offset;
+    _maxHeight = maxHeight;
     _suggestions = suggestions;
     _highlightIndex = 0;
     if (_overlayEntry == null) {
@@ -431,14 +450,21 @@ class _SuggestionOverlayBody<T> extends StatelessWidget {
           clipBehavior: .antiAlias,
           child: ConstrainedBox(
             constraints: BoxConstraints(
+              minWidth: min(style.minWidth, availableWidth),
               maxWidth: min(style.maxWidth, availableWidth),
-              maxHeight: min(style.maxHeight, availableHeight),
+              maxHeight: [
+                style.maxHeight,
+                availableHeight,
+                controller.maxHeight,
+              ].reduce(min),
             ),
             child: SingleChildScrollView(
+              padding: style.padding,
               child: IntrinsicWidth(
                 child: Column(
                   mainAxisSize: .min,
                   crossAxisAlignment: .stretch,
+                  spacing: style.itemSpacing,
                   children: List.generate(suggestions.length, (index) {
                     final item = suggestions[index];
                     final isHighlighted = index == controller.highlightIndex;

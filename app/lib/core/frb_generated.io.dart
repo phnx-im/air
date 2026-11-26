@@ -1023,6 +1023,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<NotificationId> dco_decode_list_notification_id(dynamic raw);
 
   @protected
+  List<PreviewPart> dco_decode_list_preview_part(dynamic raw);
+
+  @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
 
   @protected
@@ -1331,6 +1334,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ChatId>? dco_decode_opt_list_chat_id(dynamic raw);
 
   @protected
+  List<PreviewPart>? dco_decode_opt_list_preview_part(dynamic raw);
+
+  @protected
   Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
 
   @protected
@@ -1338,6 +1344,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PqGroupDebugInfo dco_decode_pq_group_debug_info(dynamic raw);
+
+  @protected
+  PreviewPart dco_decode_preview_part(dynamic raw);
 
   @protected
   RangedBlockElement dco_decode_ranged_block_element(dynamic raw);
@@ -2547,6 +2556,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<PreviewPart> sse_decode_list_preview_part(SseDeserializer deserializer);
+
+  @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
 
   @protected
@@ -2947,6 +2959,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ChatId>? sse_decode_opt_list_chat_id(SseDeserializer deserializer);
 
   @protected
+  List<PreviewPart>? sse_decode_opt_list_preview_part(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
@@ -2956,6 +2973,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PqGroupDebugInfo sse_decode_pq_group_debug_info(SseDeserializer deserializer);
+
+  @protected
+  PreviewPart sse_decode_preview_part(SseDeserializer deserializer);
 
   @protected
   RangedBlockElement sse_decode_ranged_block_element(
@@ -4424,6 +4444,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_preview_part(
+    List<PreviewPart> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
 
   @protected
@@ -4919,6 +4945,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_list_preview_part(
+    List<PreviewPart>? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_list_prim_u_8_strict(
     Uint8List? self,
     SseSerializer serializer,
@@ -4935,6 +4967,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     PqGroupDebugInfo self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_preview_part(PreviewPart self, SseSerializer serializer);
 
   @protected
   void sse_encode_ranged_block_element(

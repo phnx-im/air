@@ -24,12 +24,17 @@ use edit::{EDIT_WINDOW, MAX_EDITS};
 pub(crate) mod content;
 pub(crate) mod edit;
 mod event_id;
+pub(crate) mod mentions;
 pub(crate) mod persistence;
 
 #[derive(PartialEq, Debug, Clone)]
 pub(crate) struct TimestampedMessage {
     timestamp: TimeStamp,
     message: Message,
+    mentions_me: bool,
+    /// Mentions of chat members, captured when the message was received,
+    /// sent or edited
+    mentions: Vec<UserId>,
 }
 
 impl TimestampedMessage {
@@ -56,24 +61,36 @@ impl TimestampedMessage {
     pub(crate) fn from_mimi_content_result(
         content: mimi_content::Result<MimiContent>,
         timestamp: TimeStamp,
-        user_id: &UserId,
+        sender: &UserId,
         group: &Group,
     ) -> Self {
-        let message = match content {
-            Ok(content) => Message::Content(Box::new(ContentMessage::new(
-                user_id.clone(),
-                true,
-                content,
-                group.group_id(),
-            ))),
+        let (message, mentions) = match content {
+            Ok(content) => {
+                let mentions = mentions::valid_mentions(&content, group.members());
+                let message = Message::Content(Box::new(ContentMessage::new(
+                    sender.clone(),
+                    true,
+                    content,
+                    group.group_id(),
+                )));
+                (message, mentions)
+            }
             Err(error) => {
                 warn!(%error, "Invalid message content");
-                Message::Event(EventMessage::Error(ErrorMessage::new(
+                let message = Message::Event(EventMessage::Error(ErrorMessage::new(
                     "Invalid message content".to_owned(),
-                )))
+                )));
+                (message, Vec::new())
             }
         };
-        Self { timestamp, message }
+        let own_user_id = group.own_user_id();
+        let mentions_me = sender != own_user_id && mentions.contains(own_user_id);
+        Self {
+            timestamp,
+            message,
+            mentions_me,
+            mentions,
+        }
     }
 
     pub(crate) fn system_message(system_message: SystemMessage, ds_timestamp: TimeStamp) -> Self {
@@ -81,6 +98,8 @@ impl TimestampedMessage {
         Self {
             message,
             timestamp: ds_timestamp,
+            mentions_me: false,
+            mentions: Vec::new(),
         }
     }
 }
@@ -176,6 +195,8 @@ impl ChatMessage {
             timestamped_message: TimestampedMessage {
                 timestamp,
                 message: message.into(),
+                mentions_me: false,
+                mentions: Vec::new(),
             },
             in_reply_to: None,
             status: MessageStatus::Unread,
@@ -198,6 +219,8 @@ impl ChatMessage {
         let timestamped_message = TimestampedMessage {
             message,
             timestamp: TimeStamp::now(),
+            mentions_me: false,
+            mentions: Vec::new(),
         };
         Self {
             chat_id,
@@ -231,6 +254,8 @@ impl ChatMessage {
         let timestamped_message = TimestampedMessage {
             message,
             timestamp: TimeStamp::now(),
+            mentions_me: false,
+            mentions: Vec::new(),
         };
         Self {
             chat_id,
@@ -295,6 +320,25 @@ impl ChatMessage {
 
     pub fn timestamp(&self) -> DateTime<Utc> {
         *self.timestamped_message.timestamp()
+    }
+
+    /// Whether the message body mentions the local user
+    pub fn mentions_me(&self) -> bool {
+        self.timestamped_message.mentions_me
+    }
+
+    pub(crate) fn set_mentions_me(&mut self, mentions_me: bool) {
+        self.timestamped_message.mentions_me = mentions_me;
+    }
+
+    /// Mentions of chat members, captured when the message was received,
+    /// sent or edited
+    pub fn mentions(&self) -> &[UserId] {
+        &self.timestamped_message.mentions
+    }
+
+    pub(crate) fn set_mentions(&mut self, mentions: Vec<UserId>) {
+        self.timestamped_message.mentions = mentions;
     }
 
     #[cfg(test)]
@@ -389,6 +433,8 @@ pub struct InReplyToMessage {
     pub mimi_content: Option<MimiContent>,
     /// Attachment records of the replied-to message.
     pub attachments: MessageAttachments,
+    /// Mentions of chat members in the replied-to message.
+    pub mentions: Vec<UserId>,
 }
 
 // WARNING: If this type is changed, a new `VersionedMessage` variant must be

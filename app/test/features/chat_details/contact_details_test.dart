@@ -47,6 +47,7 @@ void main() {
             chatType: chat.chatType,
             lastUsed: chat.lastUsed,
             unreadMessages: chat.unreadMessages,
+            unreadMentions: chat.unreadMentions,
             lastMessage: chat.lastMessage,
             draft: chat.draft,
             isApq: chat.isApq,

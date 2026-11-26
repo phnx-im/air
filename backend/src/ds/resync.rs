@@ -26,7 +26,7 @@ use super::{
     apq::ApqExternalCommit,
     client_references::ClientReferencesSnapshot,
     group_state::{DsGroupState, leaf_credential_is_valid},
-    user_credentials::Unauthenticated,
+    user_credentials::{EnteringCredentials, Unauthenticated},
 };
 
 /// Outcome of a resync: the message to distribute, plus the queue of the leaf the
@@ -70,6 +70,32 @@ impl DsGroupState {
             return Err(ResyncClientError::InvalidMessage);
         }
         Ok(())
+    }
+
+    /// Returns the credential of the resyncing client.
+    ///
+    /// `removed_indices` are the leaves the resync removes, among them the one the new leaf
+    /// replaces. This function also ensures that the self-group user remains consistent.
+    fn resync_entering_credentials(
+        &self,
+        new_credential: LeafCredential,
+        new_leaf_key: &[u8],
+        removed_indices: &[LeafNodeIndex],
+    ) -> Result<EnteringCredentials, ResyncClientError> {
+        let mut entering_credentials = EnteringCredentials::default();
+        entering_credentials
+            .push(new_credential, new_leaf_key.to_vec())
+            .map_err(|error| {
+                error!(%error, "Invalid resync leaf credential");
+                ResyncClientError::InvalidMessage
+            })?;
+        if self.is_self_group()
+            && !self.self_group_user_is_consistent(&entering_credentials, removed_indices)
+        {
+            error!("Self-group credentials contain different user IDs");
+            return Err(ResyncClientError::InvalidMessage);
+        }
+        Ok(entering_credentials)
     }
 
     /// An external commit re-adds the client at the leftmost blank leaf. If it differs from the
@@ -166,6 +192,11 @@ impl DsGroupState {
 
         // Collect all removed clients except the sender.
         let mut removed_indices = removed_clients(staged_commit_message);
+        let entering_credentials = self.resync_entering_credentials(
+            new_credential,
+            new_leaf.signature_key().as_slice(),
+            &removed_indices,
+        )?;
         let sender_index_pos = removed_indices
             .iter()
             .position(|&index| index == sender_index)
@@ -225,7 +256,7 @@ impl DsGroupState {
                 message: processed_assisted_message_plus.serialized_mls_message,
                 sibling_queue,
             },
-            new_credential.into_user().into_iter().collect(),
+            entering_credentials,
         ))
     }
 
@@ -295,6 +326,11 @@ impl DsGroupState {
             error!(%t_sender_index, "Sender not found in removed clients");
             return Err(ResyncClientError::InvalidMessage);
         };
+        let entering_credentials = t_group_state.resync_entering_credentials(
+            t_new_credential,
+            t_new_leaf.signature_key().as_slice(),
+            &t_removed_indices,
+        )?;
         t_removed_indices.swap_remove(sender_index_pos);
 
         // Change room state roles of removed clients to outsider (in T group)
@@ -351,7 +387,7 @@ impl DsGroupState {
                 ),
                 sibling_queue,
             },
-            t_new_credential.into_user().into_iter().collect(),
+            entering_credentials,
         ))
     }
 }

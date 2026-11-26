@@ -41,7 +41,13 @@ class _Preview extends StatelessWidget {
   Widget build(BuildContext context) {
     final blocks = [
       for (final inner in textContent('See you at 7:30').content!.elements)
-        buildBlockElement(context, inner.element, false),
+        buildBlockElement(
+          context,
+          inner.element,
+          false,
+          mentions: const [],
+          ownUserId: null,
+        ),
     ];
     return Align(
       alignment: Alignment.centerLeft,

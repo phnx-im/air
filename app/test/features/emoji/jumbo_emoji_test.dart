@@ -129,7 +129,7 @@ void main() {
             size: 1024,
           ),
         ],
-        previewText: '📎',
+        preview: const [PreviewPart.text('📎')],
         content: MessageContent(
           elements: [
             RangedBlockElement(

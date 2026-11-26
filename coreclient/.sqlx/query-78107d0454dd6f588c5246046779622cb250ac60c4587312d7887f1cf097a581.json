@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE message\n            SET\n                mimi_id = ?,\n                timestamp = ?,\n                content = ?,\n                sent = ?,\n                edited_at = ?,\n                status = ?,\n                mentions_me = ?\n            WHERE message_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "78107d0454dd6f588c5246046779622cb250ac60c4587312d7887f1cf097a581"
+}

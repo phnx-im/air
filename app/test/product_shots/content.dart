@@ -210,6 +210,7 @@ class _Content {
         isSelfChat: false,
         chatType: _chatType(map),
         unreadMessages: map['unread'] as int,
+        unreadMentions: 0,
         lastUsed: now.subtract(_duration(map['lastUsed'] as YamlMap)),
         lastMessage: _lastChatMessage(
           chatId,
@@ -326,7 +327,7 @@ class _Content {
         edited: false,
         content: UiMimiContent(
           plainBody: body,
-          previewText: body,
+          preview: [PreviewPart.text(body)],
           topicId: Uint8List(0),
           content: _simpleMessage(body),
           attachments: [],
@@ -335,6 +336,7 @@ class _Content {
     ),
     status: status,
     reactions: [],
+    mentions: [],
   );
 
   UiChatMessage _textMessage(
@@ -363,6 +365,7 @@ class _Content {
     ),
     status: status,
     reactions: reactions,
+    mentions: [],
   );
 
   UiChatMessage _imageMessage(
@@ -399,12 +402,13 @@ class _Content {
               ),
             ),
           ],
-          previewText: '🖼️',
+          preview: const [PreviewPart.text('🖼️')],
         ),
       ),
     ),
     status: status,
     reactions: reactions,
+    mentions: [],
   );
 }
 
