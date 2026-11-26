@@ -7,7 +7,9 @@ use std::pin::Pin;
 use aircommon::{crypto::secrets::Secret, identifiers::MimiId};
 use anyhow::{Context, bail, ensure};
 use chrono::Utc;
-use mimi_content::{MessageStatus, MimiContent};
+use mimi_content::{
+    Disposition, MessageStatus, MimiContent, NestedPart, content_container::PartSemantics,
+};
 use thiserror::Error;
 use tokio::task::JoinSet;
 use tracing::error;
@@ -15,6 +17,7 @@ use tracing::error;
 use crate::{
     AttachmentContent, AttachmentId, AttachmentProgress, AttachmentStatus, AttachmentThumbnail,
     BlockedContactError, Chat, ChatId, ChatMessage, MarkChatAsRead, MessageId, UploadTaskError,
+    chats::messages::content::{MimiContentExt as _, is_caption_slot},
     clients::{
         CoreUser,
         attachment::{
@@ -24,13 +27,14 @@ use crate::{
             stage::StagedAttachment,
             thumbnail::store_thumbnail,
             upload::{
-                ATTACHMENT_PART_INDEX, AttachmentMetadata, AttachmentSource, AttachmentSpec,
-                attachment_content, hold_message_with_failed_upload,
+                AttachmentMetadata, AttachmentSource, AttachmentSpec,
+                hold_message_with_failed_upload,
             },
         },
         message::UnsentContent,
     },
     link_preview::{self, CardImage, FetchedLinkPreview},
+    media_type,
     utils::image::{SourceThumbnail, encode_source_thumbnail},
 };
 
@@ -351,22 +355,49 @@ impl MessageComposer<'_> {
             self.replaces.is_none() || self.attachments.is_empty(),
             "an edit cannot add attachments"
         );
+        ensure!(
+            self.link_preview.is_none() || self.attachments.is_empty(),
+            "link preview and attachments are mutually exclusive"
+        );
+
         let mut attachments = std::mem::take(&mut self.attachments).into_iter();
         match (self.text.take(), attachments.next(), attachments.next()) {
+            // text message with an optional link preview
             (Some(text), None, _) => {
                 let keeps_card = matches!(self.link_preview, Some(ComposedLinkPreview::Original));
                 ensure!(
                     !keeps_card || self.replaces.is_some(),
                     "the original card needs a replaced message"
                 );
-                Ok(Shape::Text(text))
+                let original = self
+                    .replaces
+                    .as_ref()
+                    .and_then(|message| message.message().mimi_content());
+                if let Some(original) = original {
+                    let has_attachment = AttachmentPart::collect(original)?
+                        .iter()
+                        .any(|part| part.role == AttachmentRole::Attachment);
+                    if has_attachment {
+                        ensure!(
+                            self.link_preview.is_none(),
+                            "link preview and attachments are mutually exclusive"
+                        );
+                        ensure!(
+                            original.has_caption_slot(),
+                            "the message has no caption slot"
+                        );
+                        return Ok(Shape::CaptionEdit { caption: text });
+                    }
+                }
+                Ok(Shape::Text { text })
             }
-            (None, Some(staged), None) => {
-                ensure!(self.link_preview.is_none(), "link preview without a text");
-                Ok(Shape::SingleAttachment(staged))
-            }
+            // attachments with a caption text
+            (caption, Some(staged), None) => Ok(Shape::Attachments {
+                staged: vec![staged],
+                caption,
+            }),
             (None, None, _) => bail!("nothing to send"),
-            _ => bail!("text with attachments and several attachments are not supported yet"),
+            _ => bail!("several attachments are not supported yet"),
         }
     }
 
@@ -377,92 +408,238 @@ impl MessageComposer<'_> {
         thumbnails: Vec<Option<SourceThumbnail>>,
     ) -> anyhow::Result<Layout> {
         let (mut content, uploads) = match shape {
-            Shape::Text(text) => self.build_text_layout(text, message_id)?,
-            Shape::SingleAttachment(staged) => {
-                let thumbnail = thumbnails.into_iter().next().flatten();
-                build_single_attachment_layout(staged, thumbnail, message_id)?
+            Shape::Text { text } => build_text_layout(
+                text,
+                self.link_preview.as_ref(),
+                self.replaces.as_ref(),
+                message_id,
+            )?,
+            Shape::Attachments { staged, caption } => {
+                build_attachments_layout(staged, thumbnails, caption, message_id)?
+            }
+            Shape::CaptionEdit { caption } => {
+                let original = self
+                    .replaces
+                    .as_ref()
+                    .and_then(|message| message.message().mimi_content())
+                    .context("a caption edit needs a replaced message")?;
+                build_caption_edit_layout(caption, original)?
             }
         };
         content.in_reply_to = self.in_reply_to.map(From::from);
         Ok(Layout { content, uploads })
     }
-
-    fn build_text_layout(
-        &self,
-        text: String,
-        message_id: MessageId,
-    ) -> anyhow::Result<(MimiContent, Vec<PlannedUpload>)> {
-        let salt = *Secret::<16>::random()?.secret();
-        let mut content = MimiContent::simple_markdown_message(text, salt);
-        let mut uploads = Vec::new();
-
-        match &self.link_preview {
-            None => (),
-            Some(ComposedLinkPreview::Original) => {
-                let original = self
-                    .replaces
-                    .as_ref()
-                    .and_then(|message| message.message().mimi_content())
-                    .context("the original card needs a replaced message")?;
-                content = link_preview::with_original_card(content, original)?;
-            }
-            Some(ComposedLinkPreview::Fetched(fetched)) => {
-                let (with_card, image) =
-                    link_preview::with_fetched_card(content, fetched, message_id)?;
-                content = with_card;
-                uploads.extend(image.map(|CardImage { attachment, bytes }| PlannedUpload {
-                    attachment,
-                    source: AttachmentSource::Processed(bytes),
-                    thumbnail: None,
-                }));
-            }
-        }
-
-        Ok((content, uploads))
-    }
 }
 
-/// A single attachment without text.
-fn build_single_attachment_layout(
-    staged: StagedAttachment,
-    thumbnail: Option<SourceThumbnail>,
+/// A text with an optional card.
+///
+/// ```text
+/// text part                            ; partIndex 0
+/// ```
+///
+/// With a card the text moves into a container.
+///
+/// ```text
+/// MultiPart  render, processAll        ; partIndex 0
+/// ├─ text part                         ; 1
+/// ├─ card part                         ; 2
+/// └─ card image part (optional)        ; 3
+/// ```
+///
+/// The image of a fetched card is returned as an upload. The original card
+/// keeps the image of `replaces`.
+fn build_text_layout(
+    text: String,
+    link_preview: Option<&ComposedLinkPreview>,
+    replaces: Option<&ChatMessage>,
     message_id: MessageId,
 ) -> anyhow::Result<(MimiContent, Vec<PlannedUpload>)> {
-    let mut part = staged.provisional_part();
-    AttachmentMetadata::random()?.write_to(&mut part)?;
-    let content = attachment_content(vec![part])?;
+    let salt = *Secret::<16>::random()?.secret();
+    let mut content = MimiContent::simple_markdown_message(text, salt);
+    let mut uploads = Vec::new();
 
-    let is_animated = thumbnail.as_ref().map(|thumbnail| thumbnail.is_animated);
-    let upload = PlannedUpload {
-        attachment: NewAttachment {
-            attachment_id: staged.id(),
-            message_id,
-            part_index: ATTACHMENT_PART_INDEX,
-            role: AttachmentRole::Attachment,
-            filename: Some(staged.filename().to_owned()),
-            content_type: staged.content_type().to_owned(),
-            size: Some(staged.size()),
-            content_hash: None,
-            dimensions: staged.image_dimensions(),
-            blurhash: None,
-            status: AttachmentStatus::Uploading,
-            is_animated,
-            created_at: Utc::now(),
-        },
-        source: AttachmentSource::File {
-            spec: AttachmentSpec {
-                filename: staged.filename().to_owned(),
-                content_type: staged.content_type().to_owned(),
-                is_image: staged.is_image(),
+    match link_preview {
+        None => (),
+        Some(ComposedLinkPreview::Original) => {
+            let original = replaces
+                .and_then(|message| message.message().mimi_content())
+                .context("the original card needs a replaced message")?;
+            content = link_preview::with_original_card(content, original)?;
+        }
+        Some(ComposedLinkPreview::Fetched(fetched)) => {
+            let (with_card, image) = link_preview::with_fetched_card(content, fetched, message_id)?;
+            content = with_card;
+            uploads.extend(image.map(|CardImage { attachment, bytes }| PlannedUpload {
+                attachment,
+                source: AttachmentSource::Processed(bytes),
+                thumbnail: None,
+            }));
+        }
+    }
+
+    Ok((content, uploads))
+}
+
+/// Attachments with an optional caption.
+///
+/// ```text
+/// MultiPart  render, processAll        ; partIndex 0
+/// ├─ caption slot                      ; 1, a null part without a caption
+/// ├─ item                              ; 2..
+/// └─ ...
+///
+/// image item  MultiPart  inline, processAll
+///             ├─ external part
+///             └─ text/blurhash  preview
+/// file item   external part
+/// ```
+fn build_attachments_layout(
+    staged: Vec<StagedAttachment>,
+    thumbnails: Vec<Option<SourceThumbnail>>,
+    caption: Option<String>,
+    message_id: MessageId,
+) -> anyhow::Result<(MimiContent, Vec<PlannedUpload>)> {
+    ensure!(
+        staged.len() == thumbnails.len(),
+        "every attachment needs a thumbnail entry"
+    );
+
+    let mut parts = Vec::with_capacity(staged.len() + 1);
+    parts.push(caption_slot(caption.unwrap_or_default()));
+    let mut attachments = Vec::with_capacity(staged.len());
+    for (staged, thumbnail) in staged.into_iter().zip(thumbnails) {
+        ensure!(
+            staged.is_image() == thumbnail.is_some(),
+            "an image needs its thumbnail"
+        );
+        let mut part = staged.provisional_part();
+        AttachmentMetadata::random()?.write_to(&mut part)?;
+        let item = match &thumbnail {
+            Some(thumbnail) => NestedPart::MultiPart {
+                disposition: Disposition::Inline,
+                part_semantics: PartSemantics::ProcessAll,
+                parts: vec![
+                    part,
+                    NestedPart::SinglePart {
+                        disposition: Disposition::Preview,
+                        language: String::new(),
+                        content_type: media_type::TEXT_BLURHASH.to_owned(),
+                        content: thumbnail.blurhash.clone().into_bytes(),
+                    },
+                ],
+                language: String::new(),
             },
-            file: staged.into_file(),
+            None => part,
+        };
+        parts.push(item);
+        attachments.push((staged, thumbnail));
+    }
+    let content = MimiContent {
+        salt: Secret::<16>::random()?.secret().to_vec(),
+        nested_part: NestedPart::MultiPart {
+            disposition: Disposition::Render,
+            part_semantics: PartSemantics::ProcessAll,
+            parts,
+            language: String::new(),
         },
-        thumbnail: thumbnail.map(|thumbnail| AttachmentThumbnail::Ready {
-            bytes: thumbnail.bytes,
-        }),
+        ..Default::default()
     };
 
-    Ok((content, vec![upload]))
+    let part_indices: Vec<_> = AttachmentPart::collect(&content)?
+        .into_iter()
+        .filter(|part| part.role == AttachmentRole::Attachment)
+        .map(|part| part.index)
+        .collect();
+    ensure!(
+        part_indices.len() == attachments.len(),
+        "the layout needs one part per attachment"
+    );
+
+    let uploads = attachments
+        .into_iter()
+        .zip(part_indices)
+        .map(|((staged, thumbnail), part_index)| {
+            let blurhash = thumbnail
+                .as_ref()
+                .map(|thumbnail| thumbnail.blurhash.clone());
+            let is_animated = thumbnail.as_ref().map(|thumbnail| thumbnail.is_animated);
+            PlannedUpload {
+                attachment: NewAttachment {
+                    attachment_id: staged.id(),
+                    message_id,
+                    part_index,
+                    role: AttachmentRole::Attachment,
+                    filename: Some(staged.filename().to_owned()),
+                    content_type: staged.content_type().to_owned(),
+                    size: Some(staged.size()),
+                    content_hash: None,
+                    dimensions: staged.image_dimensions(),
+                    blurhash,
+                    status: AttachmentStatus::Uploading,
+                    is_animated,
+                    created_at: Utc::now(),
+                },
+                source: AttachmentSource::File {
+                    spec: AttachmentSpec {
+                        filename: staged.filename().to_owned(),
+                        content_type: staged.content_type().to_owned(),
+                        is_image: staged.is_image(),
+                    },
+                    file: staged.into_file(),
+                },
+                thumbnail: thumbnail.map(|thumbnail| AttachmentThumbnail::Ready {
+                    bytes: thumbnail.bytes,
+                }),
+            }
+        })
+        .collect();
+
+    Ok((content, uploads))
+}
+
+/// The replaced message with another caption.
+///
+/// Only the caption slot is swapped, an empty caption becomes a null part.
+fn build_caption_edit_layout(
+    caption: String,
+    original: &MimiContent,
+) -> anyhow::Result<(MimiContent, Vec<PlannedUpload>)> {
+    let mut nested_part = original.nested_part.clone();
+    match &mut nested_part {
+        NestedPart::MultiPart {
+            disposition: Disposition::Render,
+            part_semantics: PartSemantics::ProcessAll,
+            parts,
+            ..
+        } => match parts.first_mut() {
+            Some(slot) if is_caption_slot(slot) => *slot = caption_slot(caption),
+            _ => bail!("the message has no caption slot"),
+        },
+        _ => bail!("the message has no caption slot"),
+    }
+    let content = MimiContent {
+        salt: Secret::<16>::random()?.secret().to_vec(),
+        nested_part,
+        ..Default::default()
+    };
+    Ok((content, Vec::new()))
+}
+
+/// Caption slot part, a null part for an empty caption.
+fn caption_slot(caption: String) -> NestedPart {
+    if caption.is_empty() {
+        NestedPart::NullPart {
+            disposition: Disposition::Render,
+            language: String::new(),
+        }
+    } else {
+        NestedPart::SinglePart {
+            disposition: Disposition::Render,
+            language: String::new(),
+            content_type: media_type::TEXT_MARKDOWN.to_owned(),
+            content: caption.into_bytes(),
+        }
+    }
 }
 
 pub struct ComposedMessage {
@@ -489,15 +666,23 @@ pub struct UndecodableAttachment {
 
 /// What a composer holds, once its parts are known to fit together.
 enum Shape {
-    Text(String),
-    SingleAttachment(StagedAttachment),
+    Text {
+        text: String,
+    },
+    Attachments {
+        staged: Vec<StagedAttachment>,
+        caption: Option<String>,
+    },
+    CaptionEdit {
+        caption: String,
+    },
 }
 
 impl Shape {
     fn attachments(&self) -> &[StagedAttachment] {
         match self {
-            Self::Text(_) => &[],
-            Self::SingleAttachment(staged) => std::slice::from_ref(staged),
+            Self::Text { .. } | Self::CaptionEdit { .. } => &[],
+            Self::Attachments { staged, .. } => staged,
         }
     }
 }
@@ -557,4 +742,188 @@ async fn decode_thumbnails(
         }
     }
     Ok(thumbnails)
+}
+
+#[cfg(test)]
+mod tests {
+    use tempfile::{TempDir, tempdir};
+
+    use super::*;
+    use crate::{
+        chats::messages::content::{PartIndex, VisitedPart},
+        clients::attachment::stage::AttachmentFile,
+    };
+
+    fn staged(directory: &TempDir, name: &str, bytes: &[u8]) -> anyhow::Result<StagedAttachment> {
+        let path = directory.path().join(name);
+        std::fs::write(&path, bytes)?;
+        match StagedAttachment::from_file(AttachmentFile::borrowed(path))? {
+            Ok(staged) => Ok(staged),
+            Err(_error) => bail!("attachment must be accepted"),
+        }
+    }
+
+    fn staged_image(directory: &TempDir) -> anyhow::Result<StagedAttachment> {
+        let rgba = vec![127u8; 16 * 16 * 4];
+        let bytes = webpx::Encoder::new_rgba(&rgba, 16, 16)
+            .quality(80.0)
+            .encode(webpx::Unstoppable)?;
+        staged(directory, "image.webp", &bytes)
+    }
+
+    fn staged_file(directory: &TempDir) -> anyhow::Result<StagedAttachment> {
+        staged(directory, "note.txt", b"plain file content")
+    }
+
+    fn thumbnail_of(staged: &StagedAttachment) -> anyhow::Result<Option<SourceThumbnail>> {
+        if staged.is_image() {
+            Ok(Some(encode_source_thumbnail(staged.path())?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn attachments_layout(
+        staged: StagedAttachment,
+        caption: Option<&str>,
+    ) -> anyhow::Result<(MimiContent, Vec<PlannedUpload>)> {
+        let thumbnail = thumbnail_of(&staged)?;
+        build_attachments_layout(
+            vec![staged],
+            vec![thumbnail],
+            caption.map(str::to_owned),
+            MessageId::random(),
+        )
+    }
+
+    /// Texts and attachments (index, blurhash) of the content, in order.
+    fn visit(content: &MimiContent) -> (Vec<String>, Vec<(PartIndex, Option<String>)>) {
+        let mut texts = Vec::new();
+        let mut attachments = Vec::new();
+        content
+            .visit_parts(|part| {
+                match part {
+                    VisitedPart::Text { content, .. } => texts.push(content.to_owned()),
+                    VisitedPart::Attachment {
+                        index, blurhash, ..
+                    } => attachments.push((index, blurhash.map(str::to_owned))),
+                    VisitedPart::LinkPreview { .. } | VisitedPart::Unknown(_) => {}
+                }
+                Ok(())
+            })
+            .unwrap();
+        (texts, attachments)
+    }
+
+    #[test]
+    fn captioned_image_is_laid_out_at_part_index_3() -> anyhow::Result<()> {
+        let directory = tempdir()?;
+        let (content, uploads) = attachments_layout(staged_image(&directory)?, Some("hello"))?;
+
+        let (texts, attachments) = visit(&content);
+        assert_eq!(texts, ["hello"]);
+        let [(index, blurhash)] = attachments.as_slice() else {
+            panic!("expected exactly one attachment");
+        };
+        assert_eq!(*index, PartIndex(3));
+        assert!(blurhash.is_some());
+
+        let [upload] = uploads.as_slice() else {
+            panic!("expected exactly one upload");
+        };
+        assert_eq!(upload.attachment.part_index, PartIndex(3));
+        assert!(upload.attachment.blurhash.is_some());
+        assert!(upload.thumbnail.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn image_without_caption_keeps_part_index_3() -> anyhow::Result<()> {
+        let directory = tempdir()?;
+        let (content, uploads) = attachments_layout(staged_image(&directory)?, None)?;
+
+        let (texts, attachments) = visit(&content);
+        assert!(texts.is_empty());
+        let [(index, blurhash)] = attachments.as_slice() else {
+            panic!("expected exactly one attachment");
+        };
+        assert_eq!(*index, PartIndex(3));
+        assert!(blurhash.is_some());
+        assert!(content.has_caption_slot());
+
+        let [upload] = uploads.as_slice() else {
+            panic!("expected exactly one upload");
+        };
+        assert_eq!(upload.attachment.part_index, PartIndex(3));
+        Ok(())
+    }
+
+    #[test]
+    fn captioned_file_is_laid_out_at_part_index_2_without_blurhash() -> anyhow::Result<()> {
+        let directory = tempdir()?;
+        let (content, uploads) = attachments_layout(staged_file(&directory)?, Some("notes"))?;
+
+        let (texts, attachments) = visit(&content);
+        assert_eq!(texts, ["notes"]);
+        assert_eq!(attachments, [(PartIndex(2), None)]);
+        assert!(content.has_caption_slot());
+
+        let [upload] = uploads.as_slice() else {
+            panic!("expected exactly one upload");
+        };
+        assert_eq!(upload.attachment.part_index, PartIndex(2));
+        assert_eq!(upload.attachment.blurhash, None);
+        assert!(upload.thumbnail.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn caption_edit_keeps_the_attachment_at_part_index_3() -> anyhow::Result<()> {
+        let directory = tempdir()?;
+        let (original, _uploads) = attachments_layout(staged_image(&directory)?, Some("first"))?;
+
+        let (changed, uploads) = build_caption_edit_layout("second".to_owned(), &original)?;
+        assert!(uploads.is_empty());
+        let (texts, attachments) = visit(&changed);
+        assert_eq!(texts, ["second"]);
+        let [(index, blurhash)] = attachments.as_slice() else {
+            panic!("expected exactly one attachment");
+        };
+        assert_eq!(*index, PartIndex(3));
+        assert!(blurhash.is_some());
+
+        let (removed, uploads) = build_caption_edit_layout(String::new(), &changed)?;
+        assert!(uploads.is_empty());
+        let (texts, attachments) = visit(&removed);
+        assert!(texts.is_empty());
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(attachments[0].0, PartIndex(3));
+        assert!(removed.has_caption_slot());
+
+        let (added, uploads) = build_caption_edit_layout("third".to_owned(), &removed)?;
+        assert!(uploads.is_empty());
+        let (texts, attachments) = visit(&added);
+        assert_eq!(texts, ["third"]);
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(attachments[0].0, PartIndex(3));
+        assert!(added.has_caption_slot());
+        Ok(())
+    }
+
+    #[test]
+    fn caption_edit_of_plain_markdown_fails() {
+        let original = MimiContent::simple_markdown_message("hi".to_owned(), [0; 16]);
+        assert!(build_caption_edit_layout("caption".to_owned(), &original).is_err());
+    }
+
+    #[test]
+    fn caption_edit_of_flat_attachment_fails() -> anyhow::Result<()> {
+        let directory = tempdir()?;
+        let original = MimiContent {
+            nested_part: staged_file(&directory)?.provisional_part(),
+            ..Default::default()
+        };
+        assert!(build_caption_edit_layout("caption".to_owned(), &original).is_err());
+        Ok(())
+    }
 }

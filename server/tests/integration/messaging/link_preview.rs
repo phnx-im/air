@@ -7,8 +7,8 @@
 use std::{assert_matches, time::Duration};
 
 use aircoreclient::{
-    AttachmentContent, AttachmentId, AttachmentStatus, ChatId, ChatMessage, ComposedLinkPreview,
-    ComposedMessage, MessageId, MimiContentExt, UploadTaskError,
+    AttachmentContent, AttachmentFile, AttachmentId, AttachmentStatus, ChatId, ChatMessage,
+    ComposedLinkPreview, ComposedMessage, MessageId, MimiContentExt, UploadTaskError,
     clients::CoreUser,
     link_preview::{FetchedLinkPreview, LinkPreview},
 };
@@ -18,6 +18,8 @@ use airserver_test_harness::utils::{
     setup::{TestBackend, TestBackendParams},
 };
 use mimi_content::MessageStatus;
+
+use crate::messaging::attachments::test_picture_bytes;
 
 const LINK_A: &str = "https://a.org";
 const LINK_B: &str = "https://b.org";
@@ -121,6 +123,35 @@ async fn message_with_card_and_image_is_received() {
     let (url, image) = card(&bob, received_id).await.expect("no card");
     assert_eq!(url, LINK_A);
     assert_eq!(download(&bob, image.expect("no image")).await, IMAGE_A);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn card_and_attachment_are_rejected() {
+    let mut setup = TestBackend::single().await;
+    let [alice, bob] = setup.add_users().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+    alice.drain().await;
+    bob.drain().await;
+
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("picture.png");
+    std::fs::write(&path, test_picture_bytes()).unwrap();
+    let staged = alice
+        .stage_attachment(AttachmentFile::borrowed(path))
+        .await
+        .unwrap()
+        .unwrap();
+
+    let composed = alice
+        .compose(chat_id)
+        .text(format!("see {LINK_A}"))
+        .link_preview(fetched(LINK_A, Some(IMAGE_A)))
+        .attachment(staged)
+        .send();
+    assert!(Box::pin(composed).await.is_err());
+
+    alice.outbound_service().run_once().await;
+    assert!(bob.drain().await.new_messages.is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

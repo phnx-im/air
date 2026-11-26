@@ -4,7 +4,10 @@
 
 use aircommon::identifiers::UserId;
 use airprotos::client::self_group::SelfGroupAppMessage;
-use mimi_content::{MimiContent, content_container::NestedPart};
+use mimi_content::{
+    Disposition, MimiContent,
+    content_container::{NestedPart, PartSemantics},
+};
 
 use crate::{chats::messages::mentions::extract_mentions, link_preview::editable_text};
 
@@ -49,11 +52,24 @@ pub trait MimiContentExt {
     /// Returns `None` for any other body.
     fn markdown_text(&self) -> Option<&str>;
 
-    /// Users that the markdown body links to, not yet checked against the chat
-    /// members. This parses the whole markdown body and is therefore expensive.
-    /// Call it only once per message.
+    /// Whether this is an attachment message with a caption slot.
+    ///
+    /// The slot is the first part of the body. It is a markdown part, or a
+    /// null part without a caption.
+    fn has_caption_slot(&self) -> bool;
+
+    /// Caption of an attachment message with a caption slot.
+    ///
+    /// It is empty without a caption. Returns `None` if the message has no
+    /// caption slot.
+    fn caption(&self) -> Option<&str>;
+
+    /// Users that the markdown body or the caption links to, not yet checked
+    /// against the chat members. This parses the whole text and is therefore
+    /// expensive. Call it only once per message.
     fn extract_mentioned_users(&self) -> Vec<UserId> {
         self.markdown_text()
+            .or_else(|| self.caption())
             .map(extract_mentions)
             .unwrap_or_default()
     }
@@ -129,6 +145,55 @@ impl MimiContentExt for MimiContent {
     fn markdown_text(&self) -> Option<&str> {
         editable_text(&self.nested_part)
     }
+
+    fn has_caption_slot(&self) -> bool {
+        let has_slot = match &self.nested_part {
+            NestedPart::MultiPart {
+                disposition: Disposition::Render,
+                part_semantics: PartSemantics::ProcessAll,
+                parts,
+                ..
+            } => parts.first().is_some_and(is_caption_slot),
+            _ => false,
+        };
+        if !has_slot {
+            return false;
+        }
+        let mut has_attachment = false;
+        let _infallible = self.visit_parts(|part| {
+            if let VisitedPart::Attachment { preview: false, .. } = part {
+                has_attachment = true;
+            }
+            Ok(())
+        });
+        has_attachment
+    }
+
+    fn caption(&self) -> Option<&str> {
+        if !self.has_caption_slot() {
+            return None;
+        }
+        let NestedPart::MultiPart { parts, .. } = &self.nested_part else {
+            return None;
+        };
+        match parts.first()? {
+            NestedPart::SinglePart { content, .. } => str::from_utf8(content).ok(),
+            _ => Some(""),
+        }
+    }
+}
+
+/// Whether `part` can be the caption slot of an attachment message.
+pub(crate) fn is_caption_slot(part: &NestedPart) -> bool {
+    match part {
+        NestedPart::NullPart { .. } => true,
+        NestedPart::SinglePart {
+            disposition: Disposition::Render,
+            content_type,
+            ..
+        } => content_type == media_type::TEXT_MARKDOWN,
+        _ => false,
+    }
 }
 
 fn visit_external_parts_mut_impl(
@@ -144,5 +209,111 @@ fn visit_external_parts_mut_impl(
             }
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::identifiers::RemoteAttachmentId;
+    use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
+    use uuid::Uuid;
+
+    use super::*;
+    use crate::AttachmentUrl;
+
+    fn content(nested_part: NestedPart) -> MimiContent {
+        MimiContent {
+            nested_part,
+            ..Default::default()
+        }
+    }
+
+    fn markdown(s: &str) -> NestedPart {
+        NestedPart::SinglePart {
+            disposition: Disposition::Render,
+            language: String::new(),
+            content_type: "text/markdown".to_owned(),
+            content: s.as_bytes().to_vec(),
+        }
+    }
+
+    fn null() -> NestedPart {
+        NestedPart::NullPart {
+            disposition: Disposition::Render,
+            language: String::new(),
+        }
+    }
+
+    fn external(disposition: Disposition) -> NestedPart {
+        let url = AttachmentUrl::new(RemoteAttachmentId::new(Uuid::new_v4()), None);
+        NestedPart::ExternalPart {
+            disposition,
+            language: String::new(),
+            content_type: "image/png".to_owned(),
+            url: url.to_string(),
+            expires: 0,
+            size: 1,
+            enc_alg: EncryptionAlgorithm::None,
+            key: Vec::new(),
+            nonce: Vec::new(),
+            aad: Vec::new(),
+            hash_alg: HashAlgorithm::Unspecified,
+            content_hash: Vec::new(),
+            description: String::new(),
+            filename: String::new(),
+        }
+    }
+
+    fn render_all(parts: Vec<NestedPart>) -> NestedPart {
+        NestedPart::MultiPart {
+            disposition: Disposition::Render,
+            language: String::new(),
+            part_semantics: PartSemantics::ProcessAll,
+            parts,
+        }
+    }
+
+    #[test]
+    fn caption_slot_with_markdown_and_attachment() {
+        let content = content(render_all(vec![
+            markdown("caption"),
+            external(Disposition::Attachment),
+        ]));
+        assert!(content.has_caption_slot());
+        assert_eq!(content.caption(), Some("caption"));
+    }
+
+    #[test]
+    fn caption_slot_with_null_part_and_attachment() {
+        let content = content(render_all(vec![null(), external(Disposition::Attachment)]));
+        assert!(content.has_caption_slot());
+        assert_eq!(content.caption(), Some(""));
+    }
+
+    #[test]
+    fn flat_attachment_has_no_caption_slot() {
+        let content = content(external(Disposition::Attachment));
+        assert!(!content.has_caption_slot());
+    }
+
+    #[test]
+    fn plain_markdown_has_no_caption_slot() {
+        let content = content(markdown("hi"));
+        assert!(!content.has_caption_slot());
+    }
+
+    #[test]
+    fn slot_without_attachment_is_no_caption_slot() {
+        let content = content(render_all(vec![markdown("caption"), markdown("more")]));
+        assert!(!content.has_caption_slot());
+    }
+
+    #[test]
+    fn slot_with_only_a_preview_is_no_caption_slot() {
+        let content = content(render_all(vec![
+            markdown("caption"),
+            external(Disposition::Preview),
+        ]));
+        assert!(!content.has_caption_slot());
     }
 }
