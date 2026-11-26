@@ -264,7 +264,7 @@ fn derived_attachment_id(message_id: MessageId, PartIndex(index): PartIndex) -> 
 
 #[cfg(test)]
 mod tests {
-    use aircommon::{identifiers::UserId, time::TimeStamp};
+    use aircommon::{codec::BlobEncoded, identifiers::UserId, time::TimeStamp};
     use chrono::{DateTime, SubsecRound};
     use mimi_content::{
         Disposition, MimiContent,
@@ -275,7 +275,7 @@ mod tests {
     use uuid::{Uuid, uuid};
 
     use crate::{
-        AttachmentUrl, ChatId, ChatMessage,
+        AttachmentUrl, ChatId,
         chats::messages::ContentMessage,
         chats::persistence::tests::test_chat,
         db::access::DbAccess,
@@ -327,30 +327,52 @@ mod tests {
         }
     }
 
+    /// Stores a message with the columns the schema has before
+    /// `ATTACHMENT_SPLIT_MIGRATION`.
+    ///
+    /// `ChatMessage::store` writes the latest schema, which may have columns
+    /// this migration predates.
     async fn store_message(
         pool: &SqlitePool,
         chat_id: ChatId,
         nested_part: NestedPart,
     ) -> anyhow::Result<MessageId> {
-        let message = ChatMessage::new_for_test(
-            chat_id,
-            MessageId::random(),
-            TimeStamp::now(),
-            ContentMessage::new(
-                UserId::random("localhost".parse()?),
-                false,
-                MimiContent {
-                    salt: Uuid::new_v4().as_bytes().to_vec(),
-                    nested_part,
-                    ..Default::default()
-                },
-                &GroupId::from_slice(&[0]),
-            ),
+        let message_id = MessageId::random();
+        let content = ContentMessage::new(
+            UserId::random("localhost".parse()?),
+            false,
+            MimiContent {
+                salt: Uuid::new_v4().as_bytes().to_vec(),
+                nested_part,
+                ..Default::default()
+            },
+            &GroupId::from_slice(&[0]),
         );
-        message
-            .store(DbAccess::for_tests(pool.clone()).write().await?)
-            .await?;
-        Ok(message.id())
+        let (sender_uuid, sender_domain) = content.sender().clone().into_parts();
+        let versioned = VersionedMessage::from_mimi_content(content.content())?;
+        sqlx::query(
+            "INSERT INTO message (
+                message_id,
+                mimi_id,
+                chat_id,
+                timestamp,
+                sender_user_uuid,
+                sender_user_domain,
+                content,
+                sent
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(message_id)
+        .bind(content.mimi_id())
+        .bind(chat_id)
+        .bind(TimeStamp::now())
+        .bind(sender_uuid)
+        .bind(sender_domain)
+        .bind(BlobEncoded(&versioned))
+        .bind(false)
+        .execute(pool)
+        .await?;
+        Ok(message_id)
     }
 
     struct Legacy {

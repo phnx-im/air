@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n            user_uuid AS \"user_uuid: Uuid\",\n            user_domain AS \"user_domain: Fqdn\"\n        FROM own_client_info",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_uuid: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "user_uuid"
+          }
+        }
+      },
+      {
+        "name": "user_domain: Fqdn",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "user_domain"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "1f732477d13f4a80bb6ce10fbf074970f90e63b93319baba7ded99437b010a9d"
+}

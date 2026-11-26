@@ -268,6 +268,11 @@ impl<C: OutboundServiceWork> OutboundService<C> {
         self.notify_work()
     }
 
+    /// Wakes the outbound service after an upload of a queued message is finished.
+    pub(crate) fn notify_upload_finished(&self) -> WaitForDoneFuture {
+        self.notify_work()
+    }
+
     /// Runs the background task and waits until it is done.
     ///
     /// If the background is already running, just waits until it is done.

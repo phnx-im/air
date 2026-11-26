@@ -72,7 +72,7 @@ use crate::{
         persistence::{delete_client_database, open_lock_file},
     },
 };
-use crate::{ChatId, ChatStatus, key_stores::as_credentials::AsCredentials};
+use crate::{ChatId, ChatStatus, UnreadCounts, key_stores::as_credentials::AsCredentials};
 use crate::{ContactType, user_profiles::UserProfile};
 use crate::{
     MessageId,
@@ -99,6 +99,7 @@ pub(crate) mod attachment;
 mod badge_count;
 pub(crate) mod block_contact;
 pub mod chats;
+pub(crate) mod compose;
 pub(crate) mod connection_offer;
 mod create_user;
 pub mod debug_info;
@@ -859,18 +860,24 @@ impl CoreUser {
     /// Returns how many messages in the chat with the given ID are
     /// marked as unread.
     pub async fn unread_messages_count(&self, chat_id: ChatId) -> usize {
+        self.unread_counts(chat_id).await.messages
+    }
+
+    /// Returns how many messages in the chat with the given ID are marked as
+    /// unread, and how many of them mention the local user.
+    pub async fn unread_counts(&self, chat_id: ChatId) -> UnreadCounts {
         let Ok(connection) = self
             .db()
             .read()
             .await
             .inspect_err(|error| error!(%error, "Failed to get read connection"))
         else {
-            return 0;
+            return UnreadCounts::default();
         };
-        Chat::unread_messages_count(connection, chat_id, self.user_id())
+        Chat::unread_counts(connection, chat_id, self.user_id())
             .await
-            .inspect_err(|error| error!(%error, "Error while fetching unread messages count"))
-            .unwrap_or(0)
+            .inspect_err(|error| error!(%error, "Error while fetching unread counts"))
+            .unwrap_or_default()
     }
 
     pub async fn set_chat_muted_until(

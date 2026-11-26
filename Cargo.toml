@@ -41,7 +41,7 @@ async-trait = "0.1.53"
 aws-config = { version = "1.8.0", default-features = false, features = ["behavior-version-latest", "rt-tokio"] }
 aws-sdk-s3 = { version = "1.119.0", default-features = false, features = ["behavior-version-latest", "http-1x"] }
 axum = { version = "0.8.6", features = ["http2"] }
-base64 = "0.22.1"
+base64 = "0.23.1"
 blake3 = "1.8.2"
 blurhash = "0.2.3"
 bytes = "1.11.1"
@@ -79,19 +79,19 @@ unicode-security = "0.1.3"
 # crate (RUSTSEC-2024-0436) via ravif and exr
 image = { version = "0.25.1", default-features = false, features = ["bmp", "dds", "ff", "gif", "hdr", "ico", "jpeg", "png", "pnm", "qoi", "tga", "tiff", "webp"] }
 indexmap = "2.0"
-infer = "0.19.0"
+infer = "0.22.0"
 insta = { version = "1.42.1", features = ["json"] }
 jni = "0.21"
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 memmap2 = "0.9.5"
 metrics = "0.24.2"
-metrics-exporter-prometheus = { version = "0.17.2", default-features = false }
+metrics-exporter-prometheus = { version = "0.18.3", default-features = false }
 metrics-util = { version = "0.20.4", default-features = false, features = ["debugging"] }
 mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = "603f3e07372119560ce9d60252e5df2f6cbd1e18" }
 mimi_content = { git = "https://github.com/phnx-im/mimi-content", rev = "9690d8f28a5470695b9fb715e284d7ea59d97fc0", features = ["serde"] }
 minicbor = { version = "2.2.1", features = ["std"] }
-minicbor-serde = { version = "0.6", features = ["std"] }
-mockall = "0.13.1"
+minicbor-serde = { version = "0.7", features = ["std"] }
+mockall = "0.15.0"
 mockito = "1.7.0"
 num_enum = "0.7"
 openmls = { git = "https://github.com/openmls/openmls", rev = "7c94cc351ea771771100edca47695055da379a34", features = ["draft-ietf-mls-pq-ciphersuites", "unchecked-conversions", "0-8-1-storage-format", "virtual-clients-draft"] }
@@ -157,12 +157,6 @@ zeroize = "1.8.2"
 # openmls_memory_storage = { path = "../openmls/memory_storage" }
 # openmls_sqlite_storage = { path = "../openmls/sqlite_storage" }
 # openmls_basic_credential = { path = "../openmls/basic_credential" }
-
-# Pull in the unreleased patch of `ml-dsa` #1419 solving stack overflows due to
-# large signatures on the stack
-#
-# [#1419](https://github.com/RustCrypto/signatures/pull/1419)
-ml-dsa = { git = "https://github.com/RustCrypto/signatures", rev = "017ce322cdbdd66a702cc0c4ef676b38022e5cbb" }
 
 # openmls_sqlite_storage 0.3.0 pulls openmls_traits 0.6.0 from
 # crates.io next to the git copy. Keep the rev in sync with the openmls pin.

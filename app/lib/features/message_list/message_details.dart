@@ -226,7 +226,13 @@ class _Version extends StatelessWidget {
     const isSelf = true;
     final blocks = [
       for (final inner in version.content.content?.elements ?? [])
-        buildBlockElement(context, inner.element, isSelf),
+        buildBlockElement(
+          context,
+          inner.element,
+          isSelf,
+          mentions: const [],
+          ownUserId: null,
+        ),
     ];
 
     return Column(

@@ -52,6 +52,7 @@ class MessageRowContainer extends StatelessWidget {
       timestamp,
       status,
       reactions,
+      mentions,
     ) = context.select(
       (MessageCubit cubit) => (
         cubit.state.message.id,
@@ -60,6 +61,7 @@ class MessageRowContainer extends StatelessWidget {
         cubit.state.message.timestamp,
         cubit.state.message.status,
         cubit.state.message.reactions,
+        cubit.state.message.mentions,
       ),
     );
     final isSender = switch (message) {
@@ -107,6 +109,7 @@ class MessageRowContainer extends StatelessWidget {
               isSender: isSender,
               showSender: !isConnectionChat,
               reactions: reactions,
+              mentions: mentions,
               ownUserId: userId,
               isNewest: isNewest,
               isNewestOwn: isNewestOwn,

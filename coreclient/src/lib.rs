@@ -23,6 +23,7 @@ mod utils;
 pub use crate::{
     chats::{
         Chat, ChatAttributes, ChatId, ChatMuted, ChatStatus, ChatType, InactiveChat, MessageDraft,
+        UnreadCounts,
         connection_requests::StoredRequest,
         messages::{
             ChatMessage, ContentMessage, ErrorMessage, EventMessage, InReplyToMessage, Message,
@@ -32,6 +33,7 @@ pub use crate::{
                 media_type::{self, MediaType},
             },
             edit::{EDIT_WINDOW, MAX_EDITS, MessageEditError, MessageVersion},
+            mentions::MARKDOWN_OPTIONS,
         },
         notification_rebuild::ChatNotificationEntry,
         pending::AcceptContactRequestError,
@@ -45,9 +47,14 @@ pub use crate::{
             AttachmentUrl, AttachmentUrlParseError, MessageAttachments, ProvisionAttachmentError,
             UploadTaskError,
             progress::{AttachmentProgress, AttachmentProgressEvent},
+            stage::StagedAttachment,
             upload::PendingUpload,
         },
         block_contact::BlockedContactError,
+        compose::{
+            ComposedLinkPreview, ComposedMessage, MessageComposer, UndecodableAttachment,
+            UploadHandle,
+        },
         debug_info::{TimedTaskDebugInfo, UserDebugInfo},
         invitation_code::{InvitationCode, RequestInvitationCodeError},
         invite_users::InviteUsersResult,

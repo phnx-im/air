@@ -5,18 +5,21 @@
 use aircommon::{identifiers::UserId, time::TimeStamp};
 use anyhow::{Context, bail, ensure};
 use mimi_content::{MessageStatus, MimiContent};
+use openmls::group::GroupId;
 
 use crate::{
-    Chat, ChatId, ChatMessage, ContentMessage, MessageId,
+    Chat, ChatId, ChatMessage, ContentMessage, MessageId, MimiContentExt,
     chats::{
         StatusRecord,
         messages::{
             edit::{MessageEdit, check_own_edit, purge_deleted_message},
+            mentions,
             persistence::{self, DeletedMessageId},
         },
     },
     clients::block_contact::BlockedContactError,
     db::access::WriteDbTransaction,
+    groups::Group,
 };
 
 use super::CoreUser;
@@ -110,7 +113,11 @@ impl CoreUser {
         Box::pin(
             self.db()
                 .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                    if Chat::is_blocked(&mut *txn, chat_id).await? {
+                    let (group_id, is_blocked) =
+                        Chat::load_group_id_and_is_blocked(&mut *txn, chat_id)
+                            .await?
+                            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+                    if is_blocked {
                         bail!(BlockedContactError);
                     }
 
@@ -119,7 +126,7 @@ impl CoreUser {
                         message_id: MessageId::random(),
                         content,
                     }
-                    .store_unsent_message(&mut *txn, self.user_id(), replaces)
+                    .store_unsent_message(&mut *txn, self.user_id(), &group_id, replaces)
                     .await?;
                     self.mark_as_read_until_message(&mut *txn, &message, mark_as_read)
                         .await?;
@@ -161,7 +168,7 @@ impl CoreUser {
     /// Marks the chat as read until `message` and schedules read receipts for
     /// the newly read messages, unless `message` is a deletion or the send must
     /// leave the last-read marker untouched.
-    async fn mark_as_read_until_message(
+    pub(crate) async fn mark_as_read_until_message(
         &self,
         txn: &mut WriteDbTransaction<'_>,
         message: &ChatMessage,
@@ -179,17 +186,18 @@ impl CoreUser {
     }
 }
 
-struct UnsentContent {
-    chat_id: ChatId,
-    message_id: MessageId,
-    content: MimiContent,
+pub(crate) struct UnsentContent {
+    pub(crate) chat_id: ChatId,
+    pub(crate) message_id: MessageId,
+    pub(crate) content: MimiContent,
 }
 
 impl UnsentContent {
-    async fn store_unsent_message(
+    pub(crate) async fn store_unsent_message(
         self,
         txn: &mut WriteDbTransaction<'_>,
         sender: &UserId,
+        group_id: &GroupId,
         replaces: Option<ChatMessage>,
     ) -> anyhow::Result<ChatMessage> {
         let UnsentContent {
@@ -198,9 +206,15 @@ impl UnsentContent {
             mut content,
         } = self;
 
-        let chat = Chat::load(&mut *txn, &chat_id)
-            .await?
-            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+        // Loading the group is costly. We only do it when there are mentions to
+        // check against the members.
+        let mut mentions = content.extract_mentioned_users();
+        if !mentions.is_empty() {
+            let group = Group::load_clean(&mut *txn, group_id)
+                .await?
+                .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+            mentions::retain_members(&mut mentions, group.members());
+        }
 
         let is_deletion = content.nested_part.is_null_part();
 
@@ -232,11 +246,12 @@ impl UnsentContent {
             // Edit the original message and clear its status
             let is_sent = false;
             let mut updated = replaces.clone();
+            updated.set_mentions(mentions);
             updated.set_content_message(ContentMessage::new(
                 sender.clone(),
                 is_sent,
                 content.clone(),
-                chat.group_id(),
+                group_id,
             ));
             if is_deletion {
                 updated.set_status(MessageStatus::Deleted);
@@ -245,6 +260,7 @@ impl UnsentContent {
                 updated.set_edited_at(edit_created_at);
             }
             updated.update(&mut *txn).await?;
+            updated.replace_mentions(&mut *txn).await?;
             StatusRecord::clear(&mut *txn, updated.id()).await?;
 
             if is_deletion {
@@ -264,13 +280,14 @@ impl UnsentContent {
         } else {
             // Store the message as unsent so that we don't lose it in case
             // something goes wrong.
-            let message = ChatMessage::new_unsent_message(
+            let mut message = ChatMessage::new_unsent_message(
                 sender.clone(),
                 chat_id,
                 message_id,
                 content.clone(),
-                chat.group_id(),
+                group_id,
             );
+            message.set_mentions(mentions);
             message.store(&mut *txn).await?;
             message
         };
@@ -303,12 +320,16 @@ mod tests {
     ) -> anyhow::Result<ChatMessage> {
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
+        let (group_id, _is_blocked) =
+            Chat::load_group_id_and_is_blocked(&mut txn, original.chat_id())
+                .await?
+                .context("chat not found")?;
         let message = UnsentContent {
             chat_id: original.chat_id(),
             message_id: MessageId::random(),
             content,
         }
-        .store_unsent_message(&mut txn, sender, Some(original.clone()))
+        .store_unsent_message(&mut txn, sender, &group_id, Some(original.clone()))
         .await?;
         txn.commit().await?;
         Ok(message)

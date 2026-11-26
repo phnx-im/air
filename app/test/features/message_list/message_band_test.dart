@@ -58,6 +58,7 @@ UiChatMessage _message(
   ),
   status: UiMessageStatus.read,
   reactions: reactions,
+  mentions: [],
 );
 
 MessageCubit _createMockMessageCubit({

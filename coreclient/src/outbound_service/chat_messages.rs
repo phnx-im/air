@@ -15,6 +15,7 @@ use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::chats::messages::edit::confirm_own_edit;
+use crate::clients::attachment::AttachmentTransferRecord;
 use crate::clients::block_contact::BlockedContactError;
 use crate::db::access::WriteDbTransaction;
 use crate::groups::{Group, handle_group_gone_on_ds};
@@ -96,8 +97,17 @@ impl OutboundService {
         let message = ChatMessage::load(&mut *txn, message_id)
             .await?
             .with_context(|| format!("Can't find message with id {message_id:?}"))?;
-        let chat_id = message.chat_id();
+        self.enqueue_chat_message_in_chat(txn, message.chat_id(), message_id)
+            .await
+    }
 
+    /// Enqueues a stored message of the chat `chat_id`, without loading it.
+    pub(crate) async fn enqueue_chat_message_in_chat(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        chat_id: ChatId,
+        message_id: MessageId,
+    ) -> anyhow::Result<()> {
         // Sending marks a message of a blocked chat as failed
         let message_queue = ChatMessageQueue::new(chat_id, message_id);
         message_queue.enqueue(txn).await?;
@@ -304,6 +314,11 @@ impl OutboundServiceContext {
                 // A sibling client may have sent the message already.
                 if message.is_sent() {
                     return Ok(None);
+                }
+
+                // Nothing uploads it anymore, so sending it would reference a missing object
+                if AttachmentTransferRecord::has_failed_upload(&mut *txn, message_id).await? {
+                    bail!("Message has a failed upload");
                 }
 
                 let chat_id = message.chat_id();

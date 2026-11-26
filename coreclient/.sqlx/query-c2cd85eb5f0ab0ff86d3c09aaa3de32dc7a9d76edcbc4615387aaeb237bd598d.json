@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO message_mention (\n                message_id,\n                position,\n                user_uuid,\n                user_domain\n            )\n            VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "c2cd85eb5f0ab0ff86d3c09aaa3de32dc7a9d76edcbc4615387aaeb237bd598d"
+}

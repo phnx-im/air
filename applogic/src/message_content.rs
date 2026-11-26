@@ -12,7 +12,7 @@ use mimi_content::{MimiContent, content_container::NestedPart};
 use tracing::warn;
 
 use crate::api::{
-    markdown::{FILE_PREVIEW, IMAGE_PREVIEW, MessageContent},
+    markdown::{FILE_PREVIEW, IMAGE_PREVIEW, MessageContent, PreviewPart},
     message_content::{
         UiImageMetadata, UnresolvedAttachment, UnresolvedLinkPreview, UnresolvedMimiContent,
     },
@@ -21,8 +21,9 @@ use crate::api::{
 pub(crate) trait MimiContentExt {
     fn plain_body(&self) -> Option<&str>;
 
-    /// Plain text preview of the message.
-    fn preview_text(&self) -> Option<String>;
+    /// Plain text preview of the message, with each mention as a part of its
+    /// own.
+    fn preview(&self) -> Option<Vec<PreviewPart>>;
 }
 
 impl MimiContentExt for MimiContent {
@@ -30,8 +31,8 @@ impl MimiContentExt for MimiContent {
         aircoreclient::MimiContentExt::markdown_text(self)
     }
 
-    fn preview_text(&self) -> Option<String> {
-        UnresolvedMimiContent::from(self.clone()).preview_text()
+    fn preview(&self) -> Option<Vec<PreviewPart>> {
+        UnresolvedMimiContent::from(self.clone()).preview()
     }
 }
 
@@ -43,19 +44,19 @@ impl UnresolvedMimiContent {
         self
     }
 
-    /// Plain text preview of the message. Returns `None` when the message is
-    /// deleted.
-    pub(crate) fn preview_text(&self) -> Option<String> {
+    /// Plain text preview of the message, with each mention as a part of its
+    /// own. Returns `None` when the message is deleted.
+    pub(crate) fn preview(&self) -> Option<Vec<PreviewPart>> {
         if let Some(attachment) = self.attachments.first() {
             let preview = if attachment.image_metadata.is_some() {
                 IMAGE_PREVIEW
             } else {
                 FILE_PREVIEW
             };
-            return Some(preview.to_owned());
+            return Some(vec![PreviewPart::Text(preview.to_owned())]);
         }
         let markdown = self.plain_body.as_deref().unwrap_or_default();
-        self.content.as_ref()?.preview_text(markdown)
+        self.content.as_ref()?.preview(markdown)
     }
 }
 
@@ -266,9 +267,27 @@ mod tests {
 
     use super::*;
     use crate::api::{
-        markdown::{BlockElement, RangedBlockElement},
+        markdown::{BlockElement, RangedBlockElement, join_preview},
         message_content::UiLinkPreviewKind,
     };
+
+    /// The preview as text, with each mention as the sender's hint.
+    trait PreviewText {
+        fn preview_text(&self) -> Option<String>;
+    }
+
+    impl PreviewText for MimiContent {
+        fn preview_text(&self) -> Option<String> {
+            UnresolvedMimiContent::from(self.clone()).preview_text()
+        }
+    }
+
+    impl PreviewText for UnresolvedMimiContent {
+        fn preview_text(&self) -> Option<String> {
+            let parts = self.preview()?;
+            Some(join_preview(&parts, |_, hint| hint.to_owned()))
+        }
+    }
 
     fn markdown_message(markdown: &str) -> MimiContent {
         MimiContent::simple_markdown_message(markdown.to_owned(), [0; 16])
@@ -631,7 +650,10 @@ mod tests {
         else {
             panic!("expected an error, got {elements:?}");
         };
-        assert_eq!(resolved.preview_text.as_deref(), Some(FILE_PREVIEW));
+        assert_eq!(
+            resolved.preview,
+            Some(vec![PreviewPart::Text(FILE_PREVIEW.to_owned())])
+        );
 
         // Records not loaded
         let resolved = UnresolvedMimiContent::from(content).resolve(None);
@@ -714,7 +736,7 @@ mod tests {
         let paragraph = MessageContent {
             elements: vec![elements[1].clone()],
         };
-        assert_eq!(paragraph.plain_text(), "*literal*");
+        assert_eq!(paragraph.preview_text("").as_deref(), Some("*literal*"));
     }
 
     #[quickcheck]

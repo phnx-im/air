@@ -35,7 +35,7 @@ impl LinkPreview {
     }
 
     /// First link preview in `content`.
-    pub(crate) fn from_content(content: &MimiContent) -> Option<Self> {
+    pub fn from_content(content: &MimiContent) -> Option<Self> {
         let mut texts = Vec::new();
         let mut card = None;
         content

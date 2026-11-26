@@ -1,0 +1,28 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                COUNT(*) AS \"messages!: u32\",\n                COALESCE(SUM(mentions_me), 0) AS \"mentions!: u32\"\n            FROM\n                message\n            WHERE\n                chat_id = ?1\n                AND sender_user_uuid IS NOT NULL\n                AND sender_user_domain IS NOT NULL\n                AND (sender_user_uuid != ?3 OR sender_user_domain != ?4)\n                AND status != ?2\n                AND timestamp >\n                (\n                    SELECT\n                        last_read\n                    FROM\n                        chat\n                    WHERE\n                        chat_id = ?1\n                )",
+  "describe": {
+    "columns": [
+      {
+        "name": "messages!: u32",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "mentions!: u32",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "695e5cb6fd9a2748c64abfbd94cf283e8ab563706222ea50d3435a5ec6cd6341"
+}

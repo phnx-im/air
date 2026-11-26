@@ -4,7 +4,7 @@
 
 services:
   postgres:
-    image: postgres:18.3
+    image: postgres:18.7
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
@@ -30,7 +30,7 @@ services:
 
   minio:
     # MinIO community distribution
-    image: docker.io/pgsty/silo:RELEASE.2026-09-03T13-18-01Z
+    image: docker.io/pgsty/silo:RELEASE.2026-11-12T00-00-00Z
     restart: unless-stopped
     ports:
       - "9000:9000"

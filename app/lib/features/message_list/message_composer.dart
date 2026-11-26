@@ -10,6 +10,7 @@ import 'package:air/features/chat/share_target_publisher.dart';
 import 'package:air/features/emoji/emoji_data.dart';
 import 'package:air/l10n/app_localizations_extension.dart';
 import 'package:air/features/emoji/emoji_autocomplete.dart';
+import 'package:air/features/message_list/mention_autocomplete.dart';
 import 'package:air/ds/components/field/field_chrome.dart';
 import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/patterns/message_input/message_input.dart';
@@ -22,7 +23,9 @@ import 'package:air/features/message_list/link_preview_data.dart';
 import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
+import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/debouncer.dart';
 import 'package:air/features/message_list/widgets/text_autocomplete.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -73,6 +76,16 @@ class _MessageComposerState extends State<MessageComposer>
   final Debouncer _linkPreviewDebouncer = Debouncer(
     delay: const Duration(milliseconds: 300),
   );
+
+  /// Delays the pending link preview card, so a fetch that fails right away
+  /// never flashes it.
+  final Debouncer _linkPreviewLoadingDebouncer = Debouncer(
+    delay: const Duration(milliseconds: 150),
+  );
+  StreamSubscription<ChatDetailsState>? _linkPreviewSubscription;
+  String? _linkPreviewLoadingUrl;
+  bool _showLinkPreviewLoading = false;
+
   StreamSubscription<ChatDetailsState>? _draftLoadingSubscription;
   final _focusNode = FocusNode();
   late ChatDetailsCubit _chatDetailsCubit;
@@ -82,7 +95,9 @@ class _MessageComposerState extends State<MessageComposer>
   String _inputTextCache = '';
   final LayerLink _inputFieldLink = LayerLink();
   final GlobalKey _inputFieldKey = GlobalKey();
+  final GlobalKey _fieldChromeKey = GlobalKey();
   late final TextAutocompleteController<Emoji> _emojiAutocomplete;
+  late final TextAutocompleteController<UiUserProfile> _mentionAutocomplete;
 
   /// Merged once rather than per build: a fresh merge on every rebuild makes
   /// [ListenableBuilder] drop and re-add its listeners each frame.
@@ -113,6 +128,28 @@ class _MessageComposerState extends State<MessageComposer>
 
     _chatDetailsCubit = context.read<ChatDetailsCubit>();
 
+    _mentionAutocomplete = TextAutocompleteController<UiUserProfile>(
+      textController: _inputController,
+      focusNode: _focusNode,
+      inputFieldKey: _inputFieldKey,
+      anchorLink: _inputFieldLink,
+      // The picker holds still above the field rather than chasing the caret.
+      above: (key: _fieldChromeKey, gap: MessageInputTokens.mentionPickerGap),
+      vsync: this,
+      contextProvider: () => context,
+      strategy: MentionAutocompleteStrategy(
+        getMembers: () => _chatDetailsCubit.state.members,
+        getProfile: (userId) =>
+            context.read<UsersCubit>().state.profile(userId: userId),
+        getOwnUserId: () => context.read<UserCubit>().state.userId,
+        isEnabled: () =>
+            context.read<UserSettingsCubit>().state.experimentalFeaturesActive,
+      ),
+      // Profiles load lazily; refresh the open picker when they arrive.
+      refreshStream: context.read<UsersCubit>().stream,
+    );
+    _focusNode.addListener(_mentionAutocomplete.handleFocusChange);
+
     // Keep track of whether we loaded a draft for the first time
     bool isDraftLoaded = false;
 
@@ -136,6 +173,11 @@ class _MessageComposerState extends State<MessageComposer>
     // A share can arrive for the chat that is already open.
     _navigationSubscription = _navigationCubit.stream.listen(
       (_) => _maybeApplyPendingShare(),
+    );
+
+    _onLinkPreviewChanged(_chatDetailsCubit.state.linkPreview);
+    _linkPreviewSubscription = _chatDetailsCubit.stream.listen(
+      (state) => _onLinkPreviewChanged(state.linkPreview),
     );
 
     _draftLoadingSubscription = _chatDetailsCubit.stream.listen((state) {
@@ -257,6 +299,8 @@ class _MessageComposerState extends State<MessageComposer>
 
     _storeDraftDebouncer.dispose();
     _linkPreviewDebouncer.dispose();
+    _linkPreviewLoadingDebouncer.dispose();
+    _linkPreviewSubscription?.cancel();
 
     _chatDetailsCubit.storeDraft(
       draftMessage: _inputController.text.trim(),
@@ -265,6 +309,8 @@ class _MessageComposerState extends State<MessageComposer>
 
     _emojiAutocomplete.dispose();
     _focusNode.removeListener(_emojiAutocomplete.handleFocusChange);
+    _mentionAutocomplete.dispose();
+    _focusNode.removeListener(_mentionAutocomplete.handleFocusChange);
     _inputController.dispose();
 
     _draftLoadingSubscription?.cancel();
@@ -295,7 +341,11 @@ class _MessageComposerState extends State<MessageComposer>
         chat?.draft?.inReplyTo?.$1,
         chat?.isConfirmed ?? false,
         (chat?.unreadMessages ?? 0) > 0,
-        cubit.state.linkPreview != null && chat?.draft?.editingId == null,
+        switch (cubit.state.linkPreview) {
+          null => false,
+          UiComposerLinkPreview_Loading() => _showLinkPreviewLoading,
+          UiComposerLinkPreview_Ready() => true,
+        },
       );
     });
 
@@ -334,12 +384,13 @@ class _MessageComposerState extends State<MessageComposer>
           onScrollBack: () => controller?.scrollToBottom(),
           aboveField: [
             if (editingId != null) _EditBanner(editingId: editingId),
-            // Above the quote: it is attached, not part of what is replied to.
+            // In the order the sent message shows them.
+            if (inReplyToId != null) _ReplyPreview(last: !hasLinkPreview),
             // Only present while staged, an empty row would cost the field its
             // top inset.
             if (hasLinkPreview) const _LinkPreviewStaged(),
-            if (inReplyToId != null) const _ReplyPreview(),
           ],
+          fieldKey: _fieldChromeKey,
           field: _ComposerField(
             focusNode: _focusNode,
             controller: _inputController,
@@ -362,6 +413,11 @@ class _MessageComposerState extends State<MessageComposer>
     final emojiResult = _emojiAutocomplete.handleKeyEvent(evt);
     if (emojiResult != null) {
       return emojiResult;
+    }
+
+    final mentionResult = _mentionAutocomplete.handleKeyEvent(evt);
+    if (mentionResult != null) {
+      return mentionResult;
     }
 
     // Intercept Cmd+V / Ctrl+V on desktop to handle image paste
@@ -511,8 +567,17 @@ class _MessageComposerState extends State<MessageComposer>
   }
 
   bool _resetDraft(ChatDetailsCubit cubit) {
-    // if we are replying to a message, reset only this
-    if (cubit.state.chat?.draft?.inReplyTo != null) {
+    // One thing per press: link preview, then reply, then edit.
+    final linkUrl = switch (cubit.state.linkPreview) {
+      UiComposerLinkPreview_Ready(:final card) => card.url,
+      UiComposerLinkPreview_Loading(:final url) when _showLinkPreviewLoading =>
+        url,
+      _ => null,
+    };
+    if (linkUrl != null) {
+      cubit.dismissLinkPreview(linkUrl);
+      return true;
+    } else if (cubit.state.chat?.draft?.inReplyTo != null) {
       cubit.resetDraftReply();
       return true;
     } else if (cubit.state.chat?.draft?.editingId != null) {
@@ -736,13 +801,31 @@ class _MessageComposerState extends State<MessageComposer>
       );
     });
     _emojiAutocomplete.handleTextChanged();
+    _mentionAutocomplete.handleTextChanged();
     _scheduleLinkPreviewUpdate(currentText);
+  }
+
+  /// Restarts the pending card's delay whenever the fetched address changes.
+  void _onLinkPreviewChanged(UiComposerLinkPreview? preview) {
+    final url = switch (preview) {
+      UiComposerLinkPreview_Loading(:final url) => url,
+      _ => null,
+    };
+    if (url == _linkPreviewLoadingUrl) return;
+    _linkPreviewLoadingUrl = url;
+    _linkPreviewLoadingDebouncer.cancel();
+    if (_showLinkPreviewLoading) {
+      setState(() => _showLinkPreviewLoading = false);
+    }
+    if (url == null) return;
+    _linkPreviewLoadingDebouncer.run(() {
+      if (mounted) setState(() => _showLinkPreviewLoading = true);
+    });
   }
 
   /// Asks Rust to resolve a preview for the first link in [text].
   ///
-  /// Experimental, and skipped while editing, since an edit keeps the original
-  /// message's preview.
+  /// Experimental.
   void _scheduleLinkPreviewUpdate(String text) {
     _linkPreviewDebouncer.run(() {
       if (!mounted) return;
@@ -750,7 +833,7 @@ class _MessageComposerState extends State<MessageComposer>
           .read<UserSettingsCubit>()
           .state
           .experimentalFeaturesActive;
-      if (!enabled || _chatDetailsCubit.state.chat?.draft?.editingId != null) {
+      if (!enabled) {
         return;
       }
       _chatDetailsCubit
@@ -819,7 +902,10 @@ class _EditBanner extends StatelessWidget {
 
 /// The quoted message, shown above the field while a reply is staged.
 class _ReplyPreview extends StatelessWidget {
-  const _ReplyPreview();
+  const _ReplyPreview({required this.last});
+
+  /// Whether the field follows directly, see [MessageInputQuote.last].
+  final bool last;
 
   @override
   Widget build(BuildContext context) {
@@ -833,6 +919,7 @@ class _ReplyPreview extends StatelessWidget {
       preview: quote.preview,
       senderName: quote.senderName,
       thumbnail: quotedThumbnail(context, inReplyTo.$2),
+      last: last,
       onRemove: () => context.read<ChatDetailsCubit>().resetDraftReply(),
     );
   }
@@ -844,16 +931,16 @@ class _LinkPreviewStaged extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (preview, isEditing) = context.select(
-      (ChatDetailsCubit cubit) =>
-          (cubit.state.linkPreview, cubit.state.chat?.draft?.editingId != null),
+    final preview = context.select(
+      (ChatDetailsCubit cubit) => cubit.state.linkPreview,
     );
-    if (preview == null || isEditing) return const SizedBox.shrink();
+    if (preview == null) return const SizedBox.shrink();
 
     final cubit = context.read<ChatDetailsCubit>();
     return switch (preview) {
       UiComposerLinkPreview_Loading(:final url) => MessageInputLinkPreview(
         url: url,
+        onRemove: () => cubit.dismissLinkPreview(url),
       ),
       UiComposerLinkPreview_Ready(:final card, :final image) =>
         MessageInputLinkPreview(

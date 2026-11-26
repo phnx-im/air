@@ -16,7 +16,7 @@ use airapiclient::{
 use aircommon::{
     credentials::keys::ClientKeyType,
     crypto::{
-        aead::{AeadCiphertext, AeadEncryptable, keys::AttachmentEarKey},
+        aead::{AeadKey, keys::AttachmentEarKey},
         secrets::Secret,
         signatures::private_keys::SigningKey,
     },
@@ -32,8 +32,10 @@ use mimi_content::{
     MimiContent,
     content_container::{Disposition, NestedPart, PartSemantics},
 };
+use openmls::group::GroupId;
 use reqwest::Body;
 use sha2::{Digest, Sha256};
+use tls_codec::Serialize;
 use tokio::task::spawn_blocking;
 use tokio_stream::StreamExt;
 use tokio_util::io::ReaderStream;
@@ -51,14 +53,16 @@ use crate::{
             AttachmentBytes, AttachmentRecord, AttachmentTransferRecord, MessageAttachmentRecord,
             NewAttachment,
             aead::{AIR_ATTACHMENT_ENCRYPTION_ALG, AIR_ATTACHMENT_HASH_ALG},
-            persistence::{AttachmentRole, ProcessedMetadata},
+            persistence::{AttachmentRole, ProcessedMetadata, TransferFailure},
             process::AttachmentPart,
             progress::{AttachmentProgress, AttachmentProgressSender},
             thumbnail::store_thumbnail,
         },
     },
+    db::access::WriteDbTransaction,
     groups::{Group, persistence::GroupRef},
     media_type,
+    outbound_service::chat_message_queue::ChatMessageQueue,
     utils::image::{
         ImageProcessingCancellation, ReencodedAttachmentImage, encode_source_thumbnail,
         probe_attachment_image, reencode_attachment_image,
@@ -71,7 +75,7 @@ use crate::{
 const MAX_IMAGE_SOURCE_SIZE: u64 = 100 * 1024 * 1024;
 
 /// Part index of the external part in [`attachment_content`], after the root.
-const ATTACHMENT_PART_INDEX: PartIndex = PartIndex(1);
+pub(crate) const ATTACHMENT_PART_INDEX: PartIndex = PartIndex(1);
 
 impl CoreUser {
     /// Uploads an attachment tied to the user (signed with their signing key)
@@ -234,49 +238,6 @@ impl CoreUser {
         Ok(Ok(PendingUpload::new(attachment_id, progress, task)))
     }
 
-    /// Stores a message with an already processed attachment and returns task that sends it.
-    ///
-    /// `record` is stored for the attachment and `bytes` as its content, so a
-    /// failed upload can be retried.
-    pub(crate) async fn upload_processed_attachment(
-        &self,
-        chat_id: ChatId,
-        record: NewAttachment,
-        content: MimiContent,
-        bytes: Vec<u8>,
-        mark_as_read: MarkChatAsRead,
-    ) -> anyhow::Result<PendingUpload> {
-        let attachment_id = record.attachment_id;
-        let message_id = record.message_id;
-        let message = self
-            .db()
-            .with_write_transaction(async |txn| -> anyhow::Result<ChatMessage> {
-                let message = self
-                    .store_provisional_message(
-                        &mut *txn,
-                        chat_id,
-                        message_id,
-                        content,
-                        mark_as_read,
-                    )
-                    .await?;
-                record.store(&mut *txn, Some(&bytes)).await?;
-                Ok(message)
-            })
-            .await?;
-        debug!(?attachment_id, ?message_id, "stored provisional message");
-
-        // The message is visible from here on.
-        let (progress_tx, progress) = AttachmentProgress::new();
-        let task = self.send_attachment_task(
-            attachment_id,
-            message,
-            AttachmentSource::Processed(bytes),
-            progress_tx,
-        );
-        Ok(PendingUpload::new(attachment_id, progress, task))
-    }
-
     /// Retries a failed attachment send.
     ///
     /// Returns `None` when there is nothing to retry from: the upload was
@@ -339,6 +300,276 @@ impl CoreUser {
             progress_tx,
         );
         Ok(Some(PendingUpload::new(attachment_id, progress, task)))
+    }
+
+    /// Uploads the attachment of a stored message and clears its transfer.
+    ///
+    /// A failure is recorded on the transfer. The message is never deleted.
+    ///
+    /// Part of the new send path behind [`CoreUser::compose`]. It replaces `send_attachment_task`,
+    /// which backs [`CoreUser::upload_chat_attachment`] and
+    /// [`CoreUser::retry_upload_chat_attachment`]. Unlike the old task, the message is already
+    /// queued, so the caller does not enqueue it afterwards.
+    ///
+    /// TODO: Remove the old path once all callers use `compose`.
+    pub(crate) fn upload_message_attachment(
+        &self,
+        chat_id: ChatId,
+        reference: MessageAttachmentRecord,
+        source: AttachmentSource,
+        progress_tx: AttachmentProgressSender,
+    ) -> impl Future<Output = Result<(), UploadTaskError>> + use<> {
+        let core_user = self.clone();
+        async move {
+            let message_id = reference.message_id;
+            let attachment_id = reference.attachment_id;
+            let (failure, task_error) = match Box::pin(core_user.upload_attachment(
+                chat_id,
+                &reference,
+                source,
+                progress_tx,
+            ))
+            .await
+            {
+                Ok(Ok(())) => return Ok(()),
+                Ok(Err(error)) => (TransferFailure::Rejected, UploadTaskError::Provision(error)),
+                Err(error) => (
+                    TransferFailure::Unknown,
+                    UploadTaskError::Failed { message_id, error },
+                ),
+            };
+            if let Err(error) = core_user.fail_upload(&reference, failure).await {
+                error!(%error, ?attachment_id, "Failed to record upload failure");
+            };
+            Err(task_error)
+        }
+    }
+
+    async fn upload_attachment(
+        &self,
+        chat_id: ChatId,
+        reference: &MessageAttachmentRecord,
+        source: AttachmentSource,
+        progress_tx: AttachmentProgressSender,
+    ) -> anyhow::Result<Result<(), ProvisionAttachmentError>> {
+        let attachment_id = reference.attachment_id;
+
+        let mut read = self.db().read().await?;
+        let group = Group::load_ref_with_chat_id(&mut read, chat_id)
+            .await?
+            .context("Group of the attachment is gone")?;
+        group.ensure_clean(read.as_mut())?;
+        drop(read);
+
+        let (content, metadata): (AttachmentBytes, _) = match source {
+            AttachmentSource::File { path, spec } => {
+                let bytes = tokio::fs::read(&path)
+                    .await
+                    .with_context(|| format!("Failed to read file at: {}", path.display()))?;
+                let processing_cancel = ImageProcessingCancellation::new();
+                let _cancel = processing_cancel.cancel_on_drop();
+                let processed = match spawn_blocking(move || {
+                    ProcessedAttachment::from_bytes(bytes, spec, processing_cancel)
+                })
+                .await?
+                {
+                    Ok(processed) => processed,
+                    Err(error) => {
+                        error!(%error, "failed to process attachment to send");
+                        return Ok(Err(ProvisionAttachmentError::DecodingError));
+                    }
+                };
+                let Some(metadata) = self
+                    .persist_processed_part(reference, &processed, &group.group_id)
+                    .await?
+                else {
+                    bail!("Attachment {attachment_id} was deleted while processing");
+                };
+                (processed.content, metadata)
+            }
+            AttachmentSource::Processed(bytes) => {
+                let message = ChatMessage::load(self.db().read().await?, reference.message_id)
+                    .await?
+                    .context("Message of the attachment is gone")?;
+                let part = message
+                    .message()
+                    .mimi_content()
+                    .and_then(|content| content.part_at(reference.part_index))
+                    .context("Part of the attachment is missing")?;
+                (bytes.into(), AttachmentMetadata::from_part(part)?)
+            }
+        };
+
+        // The part is final from here on
+        let signer = self.attachment_signer(&group.attachment_target()).await?;
+        let provisioned = encrypt_and_provision_with(
+            &self.api_client()?,
+            &signer,
+            AttachmentTarget::Group(&group),
+            StorageObjectType::Attachment,
+            &content,
+            metadata,
+        )
+        .await?;
+        let ProvisionedAttachment {
+            ciphertext,
+            response,
+            ..
+        } = match provisioned {
+            Ok(provisioned) => provisioned,
+            Err(error) => return Ok(Err(error)),
+        };
+        drop(content); // release the buffer early
+
+        upload_encrypted_attachment(&self.http_client(), response, progress_tx, ciphertext).await?;
+        debug!(%attachment_id, "uploaded attachment ciphertext");
+
+        self.db()
+            .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                AttachmentRecord::update_status(&mut *txn, attachment_id, AttachmentStatus::Ready)
+                    .await?;
+                hold_message_with_failed_upload(txn, reference.message_id).await
+            })
+            .await?;
+        self.outbound_service().notify_upload_finished();
+        Ok(Ok(()))
+    }
+
+    async fn persist_processed_part(
+        &self,
+        reference: &MessageAttachmentRecord,
+        processed: &ProcessedAttachment,
+        group_id: &GroupId,
+    ) -> anyhow::Result<Option<AttachmentMetadata>> {
+        let attachment_id = reference.attachment_id;
+        let image_data = processed.image_data.as_ref();
+        let dimensions = image_data.map(|data| (data.width, data.height));
+
+        self.db()
+            .with_write_transaction(async |txn| {
+                let Some(mut message) = ChatMessage::load(&mut *txn, reference.message_id).await?
+                else {
+                    return Ok(None);
+                };
+                let content = message
+                    .message_mut()
+                    .mimi_content_mut()
+                    .context("Attachment message without content")?;
+
+                let part = content
+                    .part_at_mut(reference.part_index)
+                    .context("Attachment part is missing in the message")?;
+                let metadata = AttachmentMetadata::from_part(part)?;
+                let NestedPart::ExternalPart {
+                    content_type,
+                    url,
+                    size,
+                    content_hash,
+                    filename,
+                    ..
+                } = part
+                else {
+                    bail!("Attachment part is not an external part");
+                };
+                *url = AttachmentUrl::new(metadata.remote_attachment_id, dimensions).to_string();
+                *content_type = processed.content_type.clone();
+                *size = processed.size;
+                *content_hash = processed.content_hash.clone();
+                *filename = processed.filename.clone();
+
+                let processed_metadata = ProcessedMetadata {
+                    content_type: &processed.content_type,
+                    filename: &processed.filename,
+                    content_hash: &processed.content_hash,
+                    dimensions,
+                    blurhash: image_data.map(|data| data.blurhash.as_str()),
+                    is_animated: image_data.map(|data| data.is_animated),
+                };
+                if !AttachmentRecord::store_processed_content(
+                    &mut *txn,
+                    attachment_id,
+                    processed.content.as_ref(),
+                    processed_metadata,
+                )
+                .await?
+                {
+                    return Ok(None);
+                }
+
+                let parts = AttachmentPart::collect(&*content)?;
+                let remote = parts
+                    .iter()
+                    .find(|part| part.index == reference.part_index)
+                    .and_then(AttachmentPart::remote)
+                    .context("Processed part has no remote record")?;
+                remote.store(&mut *txn, attachment_id).await?;
+
+                // A part without a hash is not processed yet
+                let is_final = parts.iter().all(|part| match part.part {
+                    NestedPart::ExternalPart { content_hash, .. } => !content_hash.is_empty(),
+                    _ => true,
+                });
+                drop(parts);
+
+                if is_final {
+                    // The content is final, so the message gets its Mimi ID
+                    let content = std::mem::take(content);
+                    message.set_content_message(ContentMessage::new(
+                        self.user_id().clone(),
+                        false,
+                        content,
+                        group_id,
+                    ));
+                }
+                message.update(&mut *txn).await?;
+                Ok(Some(metadata))
+            })
+            .await
+    }
+
+    /// Marks the upload as failed.
+    ///
+    /// The message is marked as failed if there is no active upload anymore.
+    async fn fail_upload(
+        &self,
+        reference: &MessageAttachmentRecord,
+        failure: TransferFailure,
+    ) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                AttachmentTransferRecord::fail_upload(&mut *txn, reference.attachment_id, failure)
+                    .await?;
+                hold_message_with_failed_upload(txn, reference.message_id).await
+            })
+            .await?;
+        // A held message no longer holds back its chat
+        self.outbound_service().notify_upload_finished();
+        Ok(())
+    }
+
+    /// Records an upload whose task was dropped as failed.
+    ///
+    /// Does nothing if the upload finished in the meantime.
+    pub async fn fail_cancelled_upload(&self, attachment_id: AttachmentId) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                let Some(reference) =
+                    MessageAttachmentRecord::load_first(&mut *txn, attachment_id).await?
+                else {
+                    return Ok(());
+                };
+                AttachmentTransferRecord::fail_upload(
+                    &mut *txn,
+                    attachment_id,
+                    TransferFailure::Unknown,
+                )
+                .await?;
+                hold_message_with_failed_upload(txn, reference.message_id).await
+            })
+            .await?;
+        // A held message no longer holds back its chat
+        self.outbound_service().notify_upload_finished();
+        Ok(())
     }
 
     /// Processes, provisions and uploads an attachment whose message is already
@@ -700,7 +931,7 @@ impl CoreUser {
 ///
 /// The final message is derived by patching field values into these parts, so
 /// what the UI shows first and what goes on the wire have the same shape.
-fn attachment_content(parts: Vec<NestedPart>) -> anyhow::Result<MimiContent> {
+pub(crate) fn attachment_content(parts: Vec<NestedPart>) -> anyhow::Result<MimiContent> {
     Ok(MimiContent {
         salt: Secret::<16>::random()?.secret().to_vec(),
         nested_part: NestedPart::MultiPart {
@@ -713,8 +944,28 @@ fn attachment_content(parts: Vec<NestedPart>) -> anyhow::Result<MimiContent> {
     })
 }
 
+/// Holds the message as failed once none of its uploads is in flight and at
+/// least one failed.
+pub(crate) async fn hold_message_with_failed_upload(
+    txn: &mut WriteDbTransaction<'_>,
+    message_id: MessageId,
+) -> anyhow::Result<()> {
+    if AttachmentTransferRecord::has_active_upload(&mut *txn, message_id).await?
+        || !AttachmentTransferRecord::has_failed_upload(&mut *txn, message_id).await?
+    {
+        return Ok(());
+    }
+    let Some(message) = ChatMessage::load(&mut *txn, message_id).await? else {
+        return Ok(());
+    };
+    ChatMessageQueue::new(message.chat_id(), message_id)
+        .remove_and_mark_as_failed(txn)
+        .await?;
+    Ok(())
+}
+
 /// What a send task starts from.
-enum AttachmentSource {
+pub(crate) enum AttachmentSource {
     /// First send: the file has not been read or processed yet.
     File { path: PathBuf, spec: AttachmentSpec },
     /// Retry: the processed bytes persisted by the first send.
@@ -722,10 +973,10 @@ enum AttachmentSource {
 }
 
 /// What the send needs to know about an attachment besides its bytes.
-struct AttachmentSpec {
-    filename: String,
-    content_type: String,
-    is_image: bool,
+pub(crate) struct AttachmentSpec {
+    pub(crate) filename: String,
+    pub(crate) content_type: String,
+    pub(crate) is_image: bool,
 }
 
 #[derive(Debug)]
@@ -741,15 +992,18 @@ pub enum UploadTaskError {
 
 /// What the header sniff learned about an attachment, *before* its bytes have
 /// been read or decoded.
-struct ProbedAttachment {
-    filename: String,
-    content_type: String,
-    size: u64,
-    image_dimensions: Option<(u32, u32)>,
+#[derive(Debug, Clone)]
+pub(crate) struct ProbedAttachment {
+    pub(crate) filename: String,
+    pub(crate) content_type: String,
+    pub(crate) size: u64,
+    pub(crate) image_dimensions: Option<(u32, u32)>,
 }
 
 impl ProbedAttachment {
-    fn from_path(path: PathBuf) -> anyhow::Result<Result<Self, ProvisionAttachmentError>> {
+    pub(crate) fn from_path(
+        path: PathBuf,
+    ) -> anyhow::Result<Result<Self, ProvisionAttachmentError>> {
         let size = std::fs::metadata(&path)?.len();
         let image_dimensions = match probe_attachment_image(&path)? {
             Ok(dimensions) => dimensions,
@@ -1009,6 +1263,57 @@ pub struct AttachmentMetadata {
 }
 
 impl AttachmentMetadata {
+    pub(crate) fn random() -> anyhow::Result<Self> {
+        let remote_attachment_id = RemoteAttachmentId::random();
+        let key = AttachmentEarKey::random()?;
+        let nonce = *Secret::<12>::random()?.secret();
+        Ok(Self {
+            remote_attachment_id,
+            key,
+            nonce,
+        })
+    }
+
+    fn from_part(part: &NestedPart) -> anyhow::Result<Self> {
+        let NestedPart::ExternalPart {
+            url, key, nonce, ..
+        } = part
+        else {
+            bail!("not an external part");
+        };
+        let remote_attachment_id = url.parse::<AttachmentUrl>()?.remote_attachment_id();
+        let key = key
+            .as_slice()
+            .try_into()
+            .map(AttachmentEarKey::from_bytes)
+            .ok()
+            .context("invalid attachment key length")?;
+        let nonce = nonce
+            .as_slice()
+            .try_into()
+            .ok()
+            .context("invalid attachment nonce length")?;
+        Ok(Self {
+            remote_attachment_id,
+            key,
+            nonce,
+        })
+    }
+
+    pub(crate) fn write_to(&self, part: &mut NestedPart) -> anyhow::Result<()> {
+        let NestedPart::ExternalPart {
+            url, key, nonce, ..
+        } = part
+        else {
+            bail!("not an external part");
+        };
+        let dimensions = url.parse::<AttachmentUrl>()?.dimensions();
+        *url = AttachmentUrl::new(self.remote_attachment_id, dimensions).to_string();
+        *key = self.key.as_bytes().to_vec();
+        *nonce = self.nonce.to_vec();
+        Ok(())
+    }
+
     pub fn encryption_key(&self) -> &[u8] {
         self.key.as_bytes()
     }
@@ -1044,21 +1349,24 @@ struct ProvisionedAttachment {
     response: ProvisionAttachmentResponse,
 }
 
-async fn encrypt_and_provision(
+async fn encrypt_and_provision_with(
     api_client: &ApiClient,
     signing_key: &SigningKey<ClientKeyType>,
     target: AttachmentTarget<'_>,
     object_type: StorageObjectType,
     content: &AttachmentBytes,
+    metadata: AttachmentMetadata,
 ) -> anyhow::Result<Result<ProvisionedAttachment, ProvisionAttachmentError>> {
-    // encrypt the content
-    let key = AttachmentEarKey::random()?;
-    let ciphertext: AeadCiphertext = content.encrypt(&key)?.into();
-    let (ciphertext, nonce) = ciphertext.into_parts();
+    // Same plaintext encoding as `AeadEncryptable::encrypt`
+    let plaintext = content.tls_serialize_detached()?;
+    let (ciphertext, _nonce) = metadata
+        .key
+        .encrypt_with_nonce(plaintext.as_slice(), metadata.nonce)?
+        .into_parts();
+    drop(plaintext);
 
-    // provision attachment
     let content_length = ciphertext.len().try_into().context("usize overflow")?;
-    let object_id = Uuid::new_v4();
+    let object_id = metadata.remote_attachment_id.uuid();
     let response = match api_client
         .ds_provision_attachment(
             signing_key,
@@ -1082,19 +1390,31 @@ async fn encrypt_and_provision(
 
     let response_object_id: Uuid = response.object_id.context("no object id")?.into();
     ensure!(response_object_id == object_id, "unexpected object id");
-    let remote_attachment_id = RemoteAttachmentId::new(object_id);
-    let attachment = ProvisionedAttachment {
-        metadata: AttachmentMetadata {
-            remote_attachment_id,
-            key,
-            nonce,
-        },
+    Ok(Ok(ProvisionedAttachment {
+        metadata,
         ciphertext,
         response,
-    };
-    Ok(Ok(attachment))
+    }))
 }
 
+async fn encrypt_and_provision(
+    api_client: &ApiClient,
+    signing_key: &SigningKey<ClientKeyType>,
+    target: AttachmentTarget<'_>,
+    object_type: StorageObjectType,
+    content: &AttachmentBytes,
+) -> anyhow::Result<Result<ProvisionedAttachment, ProvisionAttachmentError>> {
+    let metadata = AttachmentMetadata::random()?;
+    encrypt_and_provision_with(
+        api_client,
+        signing_key,
+        target,
+        object_type,
+        content,
+        metadata,
+    )
+    .await
+}
 async fn upload_encrypted_attachment(
     http_client: &reqwest::Client,
     provision_response: ProvisionAttachmentResponse,
@@ -1122,11 +1442,15 @@ async fn upload_encrypted_attachment(
         chunk
     });
 
-    request
-        .body(Body::wrap_stream(stream))
-        .send()
-        .await?
-        .error_for_status()?;
+    let response = request.body(Body::wrap_stream(stream)).send().await?;
+    // The status 412 is interpreted as object exists and it is this one (so
+    // storage is assumed to refuse to override).
+    //
+    // FIXME: In this case, we could check the last 16 bytes of the AES-GCM
+    // ciphertext of the already existing object.
+    if response.status() != reqwest::StatusCode::PRECONDITION_FAILED {
+        response.error_for_status()?;
+    }
 
     progress_tx.completed();
     Ok(())

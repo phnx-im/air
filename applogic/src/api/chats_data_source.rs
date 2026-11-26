@@ -391,6 +391,7 @@ mod tests {
             chat_type,
             last_used: Some(Local::now()),
             unread_messages: 0,
+            unread_mentions: 0,
             last_message: None,
             last_reaction: None,
             draft: None,

@@ -6,13 +6,17 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:air/app.dart' show scaffoldMessengerKey;
+import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/core/lib.dart' show U8Array32;
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/mention_picker/mention_picker.dart';
+import 'package:air/ds/patterns/mention_picker/mention_picker_tokens.dart';
 import 'package:air/ds/patterns/message_input/message_input_link_preview.dart';
 import 'package:air/ds/patterns/message_input/message_input_quote.dart';
+import 'package:air/ds/patterns/message_input/message_input_tokens.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/chat_screen.dart';
 import 'package:air/features/chat/share_target_publisher.dart';
@@ -47,6 +51,9 @@ const _draftDebounce = Duration(seconds: 1);
 /// The composer's link preview debounce.
 const _linkPreviewDebounce = Duration(milliseconds: 300);
 
+/// The composer's delay before it shows a loading link preview.
+const _linkPreviewLoadingDelay = Duration(milliseconds: 150);
+
 const _linkUrl = 'https://air.ms/blog/link-previews';
 
 const _linkCard = UiLinkPreviewCard(
@@ -62,6 +69,7 @@ UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
   chatType: _chat.chatType,
   lastUsed: _chat.lastUsed,
   unreadMessages: _chat.unreadMessages,
+  unreadMentions: _chat.unreadMentions,
   lastMessage: _chat.lastMessage,
   draft: draft,
   isApq: _chat.isApq,
@@ -80,6 +88,7 @@ final _replyDraft = UiMessageDraft(
       messageId: 1.messageId(),
       sender: 2.userId(),
       mimiContent: textContent('Got a link for me?'),
+      mentions: const [],
     ),
   ),
   updatedAt: DateTime.parse('2023-01-01T00:00:00.000Z'),
@@ -289,6 +298,70 @@ void main() {
     });
   });
 
+  group('MessageComposer mention picker', () {
+    // The field's chrome, keyed by the composer to place the picker.
+    final fieldChrome = find.ancestor(
+      of: find.byType(TextField),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Container && widget.key is GlobalKey,
+      ),
+    );
+
+    Future<void> typeAt(WidgetTester tester) async {
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), '@');
+      await tester.pumpAndSettle();
+    }
+
+    void enableExperimentalFeatures() {
+      when(() => userSettingsCubit.state).thenReturn(
+        const UserSettings(developerMode: true, experimentalFeatures: true),
+      );
+      // Typing also schedules a link preview, an experimental feature too.
+      when(() => chatDetailsCubit.updateLinkPreviews(any()))
+          .thenAnswer((_) async {});
+    }
+
+    testWidgets('stays closed without experimental features', (tester) async {
+      await typeAt(tester);
+
+      expect(find.byType(MentionPickerRow), findsNothing);
+    });
+
+    testWidgets('floats above the field, flush with its left edge', (
+      tester,
+    ) async {
+      enableExperimentalFeatures();
+      await typeAt(tester);
+
+      final rows = find.byType(MentionPickerRow);
+      // Every member but the reader.
+      expect(rows, findsNWidgets(_members.length - 1));
+
+      final chrome = tester.getRect(fieldChrome);
+      final first = tester.getRect(rows.first);
+      final last = tester.getRect(rows.last);
+      const padding = MentionPickerTokens.padding;
+      expect(first.left - padding.left, chrome.left);
+      expect(
+        last.bottom + padding.bottom,
+        chrome.top - MessageInputTokens.mentionPickerGap,
+      );
+      expect(first.width + padding.horizontal, MentionPickerTokens.width);
+    });
+
+    testWidgets('renders correctly', (tester) async {
+      enableExperimentalFeatures();
+      await typeAt(tester);
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_composer_mention_picker.png'),
+      );
+    });
+  });
+
   group('MessageComposer disposal', () {
     testWidgets('drops the pending draft store instead of un-committing', (
       tester,
@@ -345,12 +418,14 @@ void main() {
           .thenAnswer((_) async => null);
     });
 
-    testWidgets('shows the url while loading', (tester) async {
+    testWidgets('shows the url while loading, after a delay', (tester) async {
       stage(const UiComposerLinkPreview.loading(url: _linkUrl));
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();
+      expect(staged(), findsNothing);
 
+      await tester.pump(_linkPreviewLoadingDelay);
       expect(staged(), findsOneWidget);
       expect(
         find.descendant(of: staged(), matching: find.text(_linkUrl)),
@@ -375,7 +450,7 @@ void main() {
           .called(1);
     });
 
-    testWidgets('sits above the reply quote', (tester) async {
+    testWidgets('sits below the reply quote', (tester) async {
       stage(
         const UiComposerLinkPreview.ready(card: _linkCard),
         draft: _replyDraft,
@@ -385,12 +460,12 @@ void main() {
       await tester.pump();
 
       expect(
-        tester.getRect(staged()).bottom,
-        lessThanOrEqualTo(tester.getRect(find.byType(MessageInputQuote)).top),
+        tester.getRect(find.byType(MessageInputQuote)).bottom,
+        lessThanOrEqualTo(tester.getRect(staged()).top),
       );
     });
 
-    testWidgets('is hidden while editing', (tester) async {
+    testWidgets('shows the card while editing', (tester) async {
       stage(
         const UiComposerLinkPreview.ready(card: _linkCard),
         draft: _editDraft,
@@ -399,8 +474,24 @@ void main() {
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
-      expect(staged(), findsNothing);
-      expect(find.text(_linkCard.title), findsNothing);
+      expect(staged(), findsOneWidget);
+      expect(find.text(_linkCard.title), findsOneWidget);
+    });
+
+    testWidgets('shows the url while loading in an edit', (tester) async {
+      stage(
+        const UiComposerLinkPreview.loading(url: _linkUrl),
+        draft: _editDraft,
+      );
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+      await tester.pump(_linkPreviewLoadingDelay);
+
+      expect(
+        find.descendant(of: staged(), matching: find.text(_linkUrl)),
+        findsOneWidget,
+      );
     });
 
     testWidgets('dismissing the card reaches the cubit', (tester) async {
@@ -408,6 +499,24 @@ void main() {
 
       await tester.pumpWidget(buildSubject());
       await tester.pump();
+      await tester.tap(
+        find.descendant(
+          of: staged(),
+          matching: find.byWidgetPredicate(
+            (w) => w is ButtonIcon && w.icon == AppIconType.x,
+          ),
+        ),
+      );
+
+      verify(() => chatDetailsCubit.dismissLinkPreview(_linkUrl)).called(1);
+    });
+
+    testWidgets('dismissing while loading reaches the cubit', (tester) async {
+      stage(const UiComposerLinkPreview.loading(url: _linkUrl));
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+      await tester.pump(_linkPreviewLoadingDelay);
       await tester.tap(
         find.descendant(
           of: staged(),
@@ -465,7 +574,7 @@ void main() {
       verifyNever(() => chatDetailsCubit.updateLinkPreviews(any()));
     });
 
-    testWidgets('leaves links alone while editing', (tester) async {
+    testWidgets('resolves the link while editing', (tester) async {
       when(() => userSettingsCubit.state).thenReturn(experimental);
       when(() => chatDetailsCubit.state).thenReturn(
         ChatDetailsState(chat: _chatWithDraft(_editDraft), members: _members),
@@ -477,10 +586,11 @@ void main() {
       await tester.enterText(find.byType(TextField), 'See $_linkUrl');
       await tester.pump(_linkPreviewDebounce);
 
-      verifyNever(() => chatDetailsCubit.updateLinkPreviews(any()));
+      verify(() => chatDetailsCubit.updateLinkPreviews('See $_linkUrl'))
+          .called(1);
     });
 
-    testWidgets('renders correctly above a reply', (tester) async {
+    testWidgets('renders correctly below a reply', (tester) async {
       stage(
         const UiComposerLinkPreview.ready(
           card: _linkCard,
@@ -519,6 +629,51 @@ void main() {
 
       expect(find.byType(Menu), findsOneWidget);
       expect(tester.testTextInput.isVisible, isTrue);
+    });
+  });
+
+  group('MessageComposer reply quote', () {
+    testWidgets('names a mention of a member by the local display name', (
+      tester,
+    ) async {
+      final draft = UiMessageDraft(
+        message: '',
+        previewText: '',
+        inReplyTo: (
+          UiMimiId(field0: U8Array32(Uint8List(32))),
+          UiInReplyToMessage.resolved(
+            messageId: 1.messageId(),
+            sender: 2.userId(),
+            mimiContent: UiMimiContent(
+              topicId: Uint8List(0),
+              attachments: [],
+              preview: [
+                const PreviewPart.text('Hi '),
+                PreviewPart.mention(userId: 3.userId(), hint: '@Mallory'),
+                const PreviewPart.text(' and '),
+                PreviewPart.mention(userId: 9.userId(), hint: '@Carol'),
+              ],
+            ),
+            mentions: [3.userId()],
+          ),
+        ),
+        updatedAt: DateTime.parse('2023-01-01T00:00:00.000Z'),
+        isCommitted: true,
+      );
+      when(() => chatDetailsCubit.state).thenReturn(
+        ChatDetailsState(chat: _chatWithDraft(draft), members: _members),
+      );
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byType(MessageInputQuote),
+          matching: find.text('Hi @Eve and @Carol'),
+        ),
+        findsOneWidget,
+      );
     });
   });
 }

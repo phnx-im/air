@@ -361,23 +361,20 @@ fn extensions_besides_tombstone(extensions: &Extensions<GroupContext>) -> Vec<Ex
 mod test {
     use aircommon::{
         credentials::{
-            LeafCredential, UserCredentialCsr, UserCredentialPayload, VerifiableUserCredential,
+            UserCredentialCsr, UserCredentialPayload, VerifiableUserCredential,
             keys::{AsIntermediateSignature, ClientVerifyingKey},
         },
         crypto::{aead::keys::EncryptedUserProfileKey, hash::Hash},
-        identifiers::{QsReference, SealedClientReference, UserId},
+        identifiers::UserId,
         messages::{
             client_as::EncryptedFriendshipPackage,
             client_ds::{
                 AadMessage, AadPayload, AddUsersInfo, CloseConnectionGroupParamsAad,
-                GroupOperationParams, GroupOperationParamsAad, JoinConnectionGroupParamsAad,
+                GroupOperationParams, JoinConnectionGroupParamsAad,
             },
             welcome_attribution_info::EncryptedWelcomeAttributionInfo,
         },
-        mls_group_config::{
-            QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_leaf_node_capabilities,
-            default_mls_group_join_config,
-        },
+        mls_group_config::{default_leaf_node_capabilities, default_mls_group_join_config},
         time::TimeStamp,
     };
     use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
@@ -386,38 +383,35 @@ mod test {
         authentication::{
             ApqCredentialWithKey, ApqSignatureKeyPair, ApqSignatureScheme, ApqSigner,
         },
-        commit_builder::ApqCommitMessageBundle,
         external_commit_builder::ApqExternalCommitBuilder,
-        messages::{ApqKeyPackage, ApqMlsMessageOut, ApqRatchetTreeIn, VerifiableApqGroupInfo},
+        messages::{ApqKeyPackage, ApqRatchetTreeIn, VerifiableApqGroupInfo},
     };
-    use mimi_room_policy::{RoomPolicy, VerifiedRoomState};
     use mls_assist::{
-        group::Group,
-        messages::{AssistedMessageOut, AssistedWelcome},
+        messages::AssistedWelcome,
         openmls::{
             component::ComponentData,
             group::{ExternalCommitBuilder, GroupContext},
             prelude::{
-                AppDataUpdateProposal, Ciphersuite, Credential, CredentialWithKey, Extension,
-                Extensions, HpkeCiphertext, KeyPackage, LeafNodeIndex, LeafNodeParameters,
-                MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
-                PURE_PLAINTEXT_WIRE_FORMAT_POLICY, Proposal, SignatureScheme, UnknownExtension,
-                group_info::VerifiableGroupInfo,
+                AppDataUpdateProposal, Ciphersuite, CredentialWithKey, Extensions, KeyPackage,
+                LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsMessageIn, MlsMessageOut,
+                OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, Proposal, SignatureScheme,
             },
         },
         openmls_rust_crypto::OpenMlsRustCrypto,
-        openmls_traits::signatures::Signer,
     };
-    use tls_codec::{Deserialize, DeserializeBytes, Serialize};
+    use tls_codec::{Deserialize, Serialize};
 
     use crate::{
         ds::{
             close_connection_group::CloseConnectionGroupError,
             group_operation::ProcessedGroupOperation,
-            group_state::MemberProfile,
             grpc::ensure_no_tombstone,
             join_connection_group::{ConnectionGroupJoin, JoinConnectionGroupError},
-            process::Provider,
+            test_utils::{
+                add_joiner_profiles, apq_assisted, assisted, ds_group_state,
+                group_context_extensions, group_operation_aad, qs_reference,
+                qs_reference_extension, room_identity, verifiable_group_info,
+            },
         },
         errors::GroupOperationError,
     };
@@ -480,120 +474,12 @@ mod test {
             .unwrap()
     }
 
-    fn room_identity(credential: &Credential) -> Option<Vec<u8>> {
-        LeafCredential::from_credential(credential)
-            .ok()?
-            .room_policy_identity()
-            .to_bytes()
-            .ok()
-    }
-
     fn room_users(state: &DsGroupState) -> Vec<Vec<u8>> {
         state.room_state.users().keys().cloned().collect()
     }
 
-    fn qs_reference() -> QsReference {
-        QsReference {
-            client_homeserver_domain: "example.com".parse().unwrap(),
-            sealed_reference: SealedClientReference::from(HpkeCiphertext {
-                kem_output: vec![1, 2, 3].into(),
-                ciphertext: vec![4, 5, 6].into(),
-            }),
-        }
-    }
-
-    /// Returns the DS state of `group` as its creation leaves it, i.e. with
-    /// the creator's member profile only.
-    fn ds_group_state(creator: &Client, group: &MlsGroup, signer: &impl Signer) -> DsGroupState {
-        let group_info = verifiable_group_info(
-            group
-                .export_group_info(creator.provider.crypto(), signer, false)
-                .unwrap(),
-        );
-        let provider = Provider::default();
-        let ds_group =
-            Group::new(&provider, group_info, group.export_ratchet_tree().into()).unwrap();
-        let creator_identity = group
-            .own_leaf_node()
-            .and_then(|leaf| room_identity(leaf.credential()))
-            .unwrap_or_else(|| b"creator".to_vec());
-        let room_state =
-            VerifiedRoomState::new(creator_identity, RoomPolicy::default_trusted_private())
-                .unwrap();
-        DsGroupState::new(
-            provider,
-            ds_group,
-            EncryptedUserProfileKey::dummy(),
-            qs_reference(),
-            room_state,
-        )
-    }
-
-    fn verifiable_group_info(message: MlsMessageOut) -> VerifiableGroupInfo {
-        let bytes = message.tls_serialize_detached().unwrap();
-        let MlsMessageBodyIn::GroupInfo(group_info) = MlsMessageIn::tls_deserialize_exact(bytes)
-            .unwrap()
-            .extract()
-        else {
-            panic!("expected a group info");
-        };
-        group_info
-    }
-
-    /// Adds the member profiles and room roles the DS records when the
-    /// creator adds members.
-    fn add_joiner_profiles(state: &mut DsGroupState) {
-        let creator = state
-            .leaf_credential(LeafNodeIndex::new(0))
-            .map(|credential| credential.room_policy_identity());
-        let epoch = state.group().epoch();
-        let joiners: Vec<_> = state
-            .group()
-            .members()
-            .map(|member| member.index)
-            .filter(|index| !state.member_profiles.contains_key(index))
-            .collect();
-        for leaf_index in joiners {
-            let profile = MemberProfile {
-                leaf_index,
-                client_queue_config: qs_reference(),
-                activity_time: TimeStamp::now(),
-                activity_epoch: epoch,
-                encrypted_user_profile_key: EncryptedUserProfileKey::dummy(),
-            };
-            state.member_profiles.insert(leaf_index, profile);
-            let joiner = state
-                .leaf_credential(leaf_index)
-                .map(|credential| credential.room_policy_identity());
-            if let (Some(creator), Some(joiner)) = (&creator, joiner)
-                && *creator != joiner
-            {
-                state
-                    .room_state_change_role(creator, &joiner, RoleIndex::Regular)
-                    .unwrap();
-            }
-        }
-    }
-
-    /// The group context of a T group as the client creates it.
-    fn t_group_context_extensions() -> Extensions<GroupContext> {
-        t_group_context_extensions_with(None)
-    }
-
-    fn t_group_context_extensions_with(
-        tombstone: Option<GroupTombstone>,
-    ) -> Extensions<GroupContext> {
-        let app_data = GroupAppData {
-            is_self_group: false,
-            safe_aad_components: None,
-            profile: None,
-            tombstone,
-        };
-        Extensions::from_vec(vec![app_data.to_extension().unwrap()]).unwrap()
-    }
-
     fn new_t_group(creator: &Client) -> MlsGroup {
-        new_t_group_with(creator, t_group_context_extensions())
+        new_t_group_with(creator, group_context_extensions(false, None))
     }
 
     fn new_t_group_with(creator: &Client, extensions: Extensions<GroupContext>) -> MlsGroup {
@@ -720,23 +606,6 @@ mod test {
         (commit, group_info.unwrap().into())
     }
 
-    fn assisted(message: MlsMessageOut, group_info: MlsMessageOut) -> AssistedMessageIn {
-        let bytes = AssistedMessageOut::new(message, Some(group_info))
-            .tls_serialize_detached()
-            .unwrap();
-        AssistedMessageIn::tls_deserialize_exact_bytes(&bytes).unwrap()
-    }
-
-    fn apq_assisted(bundle: ApqCommitMessageBundle) -> ApqAssistedMessageIn {
-        let (t_commit, pq_commit) = bundle.commit.split();
-        let (t_group_info, pq_group_info) =
-            ApqMlsMessageOut::from(bundle.group_info.unwrap()).split();
-        ApqAssistedMessageIn {
-            t_message: assisted(t_commit, t_group_info),
-            pq_message: assisted(pq_commit, pq_group_info),
-        }
-    }
-
     /// Deletes a group of `size` members as its creator and returns the DS
     /// group state afterwards.
     fn delete_t_group(
@@ -771,7 +640,7 @@ mod test {
             group.merge_pending_commit(&creator.provider).unwrap();
         }
 
-        let mut state = ds_group_state(creator, &group, creator.signer.t_signer());
+        let mut state = ds_group_state(&creator.provider, &group, creator.signer.t_signer());
         add_joiner_profiles(&mut state);
         (group, state)
     }
@@ -793,7 +662,10 @@ mod test {
             .with_ciphersuite(apq_ciphersuite())
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
             .with_capabilities(default_leaf_node_capabilities())
-            .with_group_context_extensions(t_group_context_extensions(), Extensions::empty())
+            .with_group_context_extensions(
+                group_context_extensions(false, None),
+                Extensions::empty(),
+            )
             .unwrap()
             .build(
                 &creator.provider,
@@ -836,9 +708,14 @@ mod test {
         }
 
         // The DS records joiners on the T leg only.
-        let mut t_state = ds_group_state(&creator, &group.t_group, creator.signer.t_signer());
+        let mut t_state =
+            ds_group_state(&creator.provider, &group.t_group, creator.signer.t_signer());
         add_joiner_profiles(&mut t_state);
-        let mut pq_state = ds_group_state(&creator, group.pq_group(), creator.signer.pq_signer());
+        let mut pq_state = ds_group_state(
+            &creator.provider,
+            group.pq_group(),
+            creator.signer.pq_signer(),
+        );
 
         let removed = others(&group.t_group);
         let component_data =
@@ -871,12 +748,9 @@ mod test {
     ) -> Result<ProcessedGroupOperation, GroupOperationError> {
         let creator = Client::new();
         let mut group = new_t_group(&creator);
-        let mut state = ds_group_state(&creator, &group, creator.signer.t_signer());
+        let mut state = ds_group_state(&creator.provider, &group, creator.signer.t_signer());
 
-        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
-            new_encrypted_user_profile_keys: Vec::new(),
-        }));
-        group.set_aad(aad.tls_serialize_detached().unwrap());
+        group.set_aad(group_operation_aad(0));
         let (commit, group_info) = t_commit(&creator, &mut group, Vec::new(), Vec::new(), update);
         let params = GroupOperationParams {
             commit: assisted(commit, group_info),
@@ -951,7 +825,7 @@ mod test {
     fn a_delete_that_changes_the_senders_credential_is_rejected() {
         let creator = Client::new();
         let mut group = new_t_group(&creator);
-        let mut state = ds_group_state(&creator, &group, creator.signer.t_signer());
+        let mut state = ds_group_state(&creator.provider, &group, creator.signer.t_signer());
 
         let other_user = UserId::random("example.com".parse().unwrap());
         let credential = ApqCredentialWithKey::new(
@@ -1042,7 +916,7 @@ mod test {
     fn a_group_created_with_a_tombstone_is_rejected() {
         let creator = Client::new();
         let group = new_t_group(&creator);
-        let state = ds_group_state(&creator, &group, creator.signer.t_signer());
+        let state = ds_group_state(&creator.provider, &group, creator.signer.t_signer());
         ensure_created_without_tombstone(state.group()).unwrap();
 
         for tombstone in [
@@ -1056,31 +930,17 @@ mod test {
                 context: TombstoneContext::Unknown,
             },
         ] {
-            let extensions = t_group_context_extensions_with(Some(tombstone));
+            let extensions = group_context_extensions(false, Some(tombstone));
             let group = new_t_group_with(&creator, extensions);
-            let state = ds_group_state(&creator, &group, creator.signer.t_signer());
+            let state = ds_group_state(&creator.provider, &group, creator.signer.t_signer());
             assert!(ensure_created_without_tombstone(state.group()).is_err());
         }
     }
 
-    fn group_operation_aad(new_members: usize) -> Vec<u8> {
-        AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
-            new_encrypted_user_profile_keys: (0..new_members)
-                .map(|_| EncryptedUserProfileKey::dummy())
-                .collect(),
-        }))
-        .tls_serialize_detached()
-        .unwrap()
-    }
-
     fn key_package_with_qs_reference(client: &Client) -> KeyPackage {
-        let qs_reference = Extension::Unknown(
-            QS_CLIENT_REFERENCE_EXTENSION_TYPE,
-            UnknownExtension(qs_reference().tls_serialize_detached().unwrap()),
-        );
         KeyPackage::builder()
             .leaf_node_capabilities(default_leaf_node_capabilities())
-            .leaf_node_extensions(Extensions::single(qs_reference).unwrap())
+            .leaf_node_extensions(Extensions::single(qs_reference_extension()).unwrap())
             .build(
                 T_CIPHERSUITE,
                 &client.provider,
@@ -1097,7 +957,7 @@ mod test {
         let creator = Client::new();
         let joiner = Client::new();
         let mut group = new_t_group(&creator);
-        let mut state = ds_group_state(&creator, &group, creator.signer.t_signer());
+        let mut state = ds_group_state(&creator.provider, &group, creator.signer.t_signer());
 
         group.set_aad(group_operation_aad(1));
         let (commit, welcome, group_info) = group
@@ -1134,6 +994,7 @@ mod test {
             .unwrap()
             .into_parts();
         let user_ids: Vec<_> = credentials
+            .users()
             .iter()
             .map(|credential| credential.user_id().clone())
             .collect();
@@ -1144,7 +1005,7 @@ mod test {
     async fn a_group_operation_that_changes_the_senders_user_id_is_rejected() {
         let creator = Client::new();
         let mut group = new_t_group(&creator);
-        let mut state = ds_group_state(&creator, &group, creator.signer.t_signer());
+        let mut state = ds_group_state(&creator.provider, &group, creator.signer.t_signer());
 
         let other_user = UserId::random("example.com".parse().unwrap());
         let credential = ApqCredentialWithKey::new(
@@ -1327,8 +1188,13 @@ mod test {
     ) -> Result<(DsGroupState, DsGroupState), CloseConnectionGroupError> {
         let inviter = Client::new();
         let group = new_apq_group(&inviter);
-        let mut t_state = ds_group_state(&inviter, &group.t_group, inviter.signer.t_signer());
-        let mut pq_state = ds_group_state(&inviter, group.pq_group(), inviter.signer.pq_signer());
+        let mut t_state =
+            ds_group_state(&inviter.provider, &group.t_group, inviter.signer.t_signer());
+        let mut pq_state = ds_group_state(
+            &inviter.provider,
+            group.pq_group(),
+            inviter.signer.pq_signer(),
+        );
 
         let joiner = Client::new();
         let signer = SharedKey(&joiner.signer);
@@ -1437,6 +1303,7 @@ mod test {
             .unwrap()
             .into_parts();
         let user_ids: Vec<_> = credentials
+            .users()
             .iter()
             .map(|credential| credential.user_id().clone())
             .collect();

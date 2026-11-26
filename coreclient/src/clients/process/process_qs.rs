@@ -1104,6 +1104,7 @@ impl CoreUser {
         for updated_message in &updated_messages {
             changed_chats.push(updated_message.chat_id());
             updated_message.update(&mut *txn).await?;
+            updated_message.replace_mentions(&mut *txn).await?;
         }
 
         // Schedule delivery receipts for incoming new and updated messages.
@@ -1270,10 +1271,12 @@ impl CoreUser {
             let message = handle_message_edit(
                 &mut savepoint_txn,
                 group.group_id(),
+                group.members(),
                 ds_timestamp,
                 sender,
                 mimi_id,
                 std::mem::take(content),
+                self.user_id(),
             )
             .await
             .inspect_err(|error| {

@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS(\n                SELECT 1\n                FROM message_attachment ma\n                JOIN attachment_transfer t ON t.attachment_id = ma.attachment_id\n                WHERE ma.message_id = ?1\n                    AND t.direction = ?2\n                    AND t.state IN (?3, ?4)\n            ) AS \"exists: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "exists: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "de8858d3afe22353678df177f9fe47c3d01dc84ac247f285757c2d43962e877e"
+}

@@ -72,6 +72,7 @@ class TextMessageTile extends HookWidget {
     required this.isSender,
     required this.showSender,
     required this.reactions,
+    required this.mentions,
     required this.ownUserId,
     required this.isNewest,
     required this.isNewestOwn,
@@ -93,6 +94,8 @@ class TextMessageTile extends HookWidget {
   final bool isSender;
   final bool showSender;
   final List<UiReaction> reactions;
+
+  final List<UiUserId> mentions;
   final UiUserId ownUserId;
 
   /// The newest message in the chat.
@@ -164,6 +167,7 @@ class TextMessageTile extends HookWidget {
           isSender: isSender,
           status: status,
           reactions: reactions,
+          mentions: mentions,
           ownUserId: ownUserId,
           timestamp: timestamp,
           showsTime: showsTime,
@@ -280,6 +284,8 @@ class _DetailsPreview extends StatelessWidget {
               inReplyToMessage: tile.inReplyToMessage,
               isSender: tile.isSender,
               senderId: contentMessage.sender,
+              mentions: tile.mentions,
+              ownUserId: tile.ownUserId,
               isHidden: isHidden,
               enableSelection: false,
               maxWidth: constraints.maxWidth,
@@ -359,6 +365,7 @@ class _MessageView extends HookWidget {
     required this.isSender,
     required this.status,
     required this.reactions,
+    required this.mentions,
     required this.ownUserId,
     required this.timestamp,
     required this.showsTime,
@@ -375,6 +382,7 @@ class _MessageView extends HookWidget {
   final bool isSender;
   final UiMessageStatus status;
   final List<UiReaction> reactions;
+  final List<UiUserId> mentions;
   final UiUserId ownUserId;
   final DateTime timestamp;
 
@@ -429,6 +437,7 @@ class _MessageView extends HookWidget {
       stamp: stamp,
       contentMessage: contentMessage,
       inReplyToMessage: inReplyToMessage,
+      mentions: mentions,
       isSender: isSender,
       commands: _MessageCommands(
         context: context,
@@ -466,6 +475,7 @@ class _MessageShell extends StatelessWidget {
     required this.stamp,
     required this.contentMessage,
     required this.inReplyToMessage,
+    required this.mentions,
     required this.isSender,
     required this.commands,
     required this.isDeleted,
@@ -487,6 +497,7 @@ class _MessageShell extends StatelessWidget {
 
   final UiContentMessage contentMessage;
   final UiInReplyToMessage? inReplyToMessage;
+  final List<UiUserId> mentions;
   final bool isSender;
   final _MessageCommands commands;
   final bool isDeleted;
@@ -629,6 +640,8 @@ class _MessageShell extends StatelessWidget {
     inReplyToMessage: inReplyToMessage,
     isSender: isSender,
     senderId: contentMessage.sender,
+    mentions: mentions,
+    ownUserId: commands.ownUserId,
     isHidden: isHidden,
     enableSelection: enableSelection,
     maxWidth: bubbleMaxWidth,
@@ -1056,6 +1069,8 @@ class _MessageContent extends StatelessWidget {
     required this.inReplyToMessage,
     required this.isSender,
     required this.senderId,
+    required this.mentions,
+    required this.ownUserId,
     required this.isHidden,
     required this.enableSelection,
     required this.maxWidth,
@@ -1066,6 +1081,8 @@ class _MessageContent extends StatelessWidget {
   final UiInReplyToMessage? inReplyToMessage;
   final bool isSender;
   final UiUserId senderId;
+  final List<UiUserId> mentions;
+  final UiUserId ownUserId;
   final bool isHidden;
   final bool enableSelection;
 
@@ -1110,7 +1127,13 @@ class _MessageContent extends StatelessWidget {
     final inReplyTo = inReplyToMessage;
     final blocks = [
       for (final inner in content.content?.elements ?? [])
-        buildBlockElement(context, inner.element, isSender),
+        buildBlockElement(
+          context,
+          inner.element,
+          isSender,
+          mentions: mentions,
+          ownUserId: ownUserId,
+        ),
     ];
 
     // An emoji-only body stands on the conversation without a bubble under it,
