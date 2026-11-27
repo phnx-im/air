@@ -93,6 +93,8 @@ class MainFlutterWindow: NSWindow {
       }
     } else if call.method == "requestNotificationPermission" {
       requestNotificationPermission(result: result)
+    } else if call.method == "getInitialLink" {
+      result((NSApp.delegate as? AppDelegate)?.takeInitialLink())
     } else {
       NSLog("Unknown method called: \(call.method)")
       result(FlutterMethodNotImplemented)

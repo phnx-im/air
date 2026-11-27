@@ -59,6 +59,20 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+        <!-- Receives contact links and hands them to the main app. No UI. -->
+        <activity
+            android:name=".LinkActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/ShareTheme">
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="air.ms" android:path="/c/" />
+            </intent-filter>
+        </activity>
         <service
             android:name=".BackgroundFirebaseMessagingService"
             android:exported="false">

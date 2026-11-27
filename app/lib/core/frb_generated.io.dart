@@ -9,6 +9,7 @@ import 'package:convert/convert.dart';
 import 'api/attachments_repository.dart';
 import 'api/chat_details_cubit.dart';
 import 'api/chats_data_source.dart';
+import 'api/contact_link.dart';
 import 'api/invitation_code.dart';
 import 'api/invitation_codes_cubit.dart';
 import 'api/linked_devices_cubit.dart';

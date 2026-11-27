@@ -56,7 +56,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -571642129;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -184400832;
 
 // Section: executor
 
@@ -8818,6 +8818,36 @@ fn wire__crate__api__logging__clear_background_logs_impl(
         },
     )
 }
+fn wire__crate__api__contact_link__contact_link_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "contact_link",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_username = <crate::api::types::UiUsername>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::contact_link::contact_link(api_username))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__registration__create_admission_session_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -9647,6 +9677,36 @@ fn wire__crate__api__notification_context__notification_policy_default_impl(
                     std::result::Result::Ok(output_ok)
                 })())
             }
+        },
+    )
+}
+fn wire__crate__api__contact_link__parse_contact_link_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "parse_contact_link",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_url = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::contact_link::parse_contact_link(api_url))?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
@@ -14587,30 +14647,30 @@ fn pde_ffi_dispatcher_primary_impl(
 175 => wire__crate__api__invitation_code__check_invitation_code_impl(port, ptr, rust_vec_len, data_len),
 176 => wire__crate__api__logging__clear_app_logs_impl(port, ptr, rust_vec_len, data_len),
 177 => wire__crate__api__logging__clear_background_logs_impl(port, ptr, rust_vec_len, data_len),
-178 => wire__crate__api__registration__create_admission_session_impl(port, ptr, rust_vec_len, data_len),
-179 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
-180 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
-181 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
-182 => wire__crate__api__utils__delete_unloaded_client_database_impl(port, ptr, rust_vec_len, data_len),
-183 => wire__crate__api__registration__get_registration_info_impl(port, ptr, rust_vec_len, data_len),
-186 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
-187 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
-188 => wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(port, ptr, rust_vec_len, data_len),
-189 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
-190 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
-191 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
-192 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
-194 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
-195 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
-196 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
-197 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
-198 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
-199 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
-200 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
-201 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
-202 => wire__crate__api__share_cubit__share_state_default_impl(port, ptr, rust_vec_len, data_len),
-203 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
-204 => wire__crate__api__share_cubit__ui_share_send_status_default_impl(port, ptr, rust_vec_len, data_len),
+179 => wire__crate__api__registration__create_admission_session_impl(port, ptr, rust_vec_len, data_len),
+180 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
+181 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
+182 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
+183 => wire__crate__api__utils__delete_unloaded_client_database_impl(port, ptr, rust_vec_len, data_len),
+184 => wire__crate__api__registration__get_registration_info_impl(port, ptr, rust_vec_len, data_len),
+187 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
+188 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
+189 => wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(port, ptr, rust_vec_len, data_len),
+190 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
+191 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
+192 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
+193 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
+195 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
+196 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
+197 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
+198 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
+200 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
+201 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
+202 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
+203 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
+204 => wire__crate__api__share_cubit__share_state_default_impl(port, ptr, rust_vec_len, data_len),
+205 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
+206 => wire__crate__api__share_cubit__ui_share_send_status_default_impl(port, ptr, rust_vec_len, data_len),
                         _ => unreachable!(),
                     }
 }
@@ -14846,18 +14906,20 @@ fn pde_ffi_dispatcher_sync_impl(
             data_len,
         ),
         173 => wire__crate__api__utils__app_version_impl(ptr, rust_vec_len, data_len),
-        184 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
-        185 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
-        193 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
+        178 => wire__crate__api__contact_link__contact_link_impl(ptr, rust_vec_len, data_len),
+        185 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
+        186 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
+        194 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        205 => {
+        199 => wire__crate__api__contact_link__parse_contact_link_impl(ptr, rust_vec_len, data_len),
+        207 => {
             wire__crate__api__types__ui_username_validation_error_impl(ptr, rust_vec_len, data_len)
         }
-        206 => wire__crate__api__markdown__user_mention_uri_impl(ptr, rust_vec_len, data_len),
-        207 => wire__crate__api__username_suggestions__username_from_display_impl(
+        208 => wire__crate__api__markdown__user_mention_uri_impl(ptr, rust_vec_len, data_len),
+        209 => wire__crate__api__username_suggestions__username_from_display_impl(
             ptr,
             rust_vec_len,
             data_len,

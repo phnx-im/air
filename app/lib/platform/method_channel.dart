@@ -21,9 +21,15 @@ final _log = Logger('Platform');
 void initMethodChannel(
   StreamSink<ChatId> openedNotificationSink,
   StreamSink<ShareHandoff> shareHandoffSink,
+  StreamSink<String> openedLinkSink,
 ) {
   platform.setMethodCallHandler(
-    (call) => _handleMethod(call, openedNotificationSink, shareHandoffSink),
+    (call) => _handleMethod(
+      call,
+      openedNotificationSink,
+      shareHandoffSink,
+      openedLinkSink,
+    ),
   );
 }
 
@@ -31,6 +37,7 @@ Future<void> _handleMethod(
   MethodCall call,
   StreamSink<ChatId> openedNotificationSink,
   StreamSink<ShareHandoff> shareHandoffSink,
+  StreamSink<String> openedLinkSink,
 ) async {
   _log.info('Handling method call: ${call.method}');
   switch (call.method) {
@@ -55,6 +62,11 @@ Future<void> _handleMethod(
         shareHandoffSink,
       );
       break;
+    case 'openedLink':
+      if (call.arguments case final String url) {
+        openedLinkSink.add(url);
+      }
+      break;
     case 'backgroundTaskExpired':
       final taskId = call.arguments['taskId'];
       _log.warning('Background task expired (taskId=$taskId)');
@@ -70,6 +82,17 @@ Future<void> _handleMethod(
       break;
     default:
       _log.severe('Unknown method called: ${call.method}');
+  }
+}
+
+/// Fetches the links that opened the app before Dart listened.
+Future<void> consumeInitialLink(StreamSink<String> openedLinkSink) async {
+  if (!Platform.isAndroid && !Platform.isIOS && !Platform.isMacOS) return;
+  try {
+    final url = await platform.invokeMethod<String>('getInitialLink');
+    if (url != null) openedLinkSink.add(url);
+  } on PlatformException catch (e, stacktrace) {
+    _log.severe("Failed to get initial link: '${e.message}'", e, stacktrace);
   }
 }
 

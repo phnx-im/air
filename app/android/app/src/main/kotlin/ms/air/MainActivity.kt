@@ -43,6 +43,8 @@ class MainActivity : FlutterFragmentActivity() {
         private const val APP_DIR_NAME: String = "Air"
 
         const val SHARE_INTO_CHAT: String = "SHARE_INTO_CHAT"
+        const val OPEN_LINK: String = "OPEN_LINK"
+        const val EXTRA_LINK: String = "link"
 
         @Volatile
         private var activeChannelRef: WeakReference<MethodChannel>? = null
@@ -67,6 +69,11 @@ class MainActivity : FlutterFragmentActivity() {
 
     private var pendingInitialShare: Map<String, Any?>? = null
 
+    private var pendingInitialLink: String? = null
+
+    // Whether Dart listens for opened links
+    private var dartListeningForLinks = false
+
     @Volatile
     private var keepSplashScreenOn = true
 
@@ -79,6 +86,13 @@ class MainActivity : FlutterFragmentActivity() {
         // can be delivered once the Flutter engine is ready.
         readNotificationPayload(intent)?.let { pendingInitialNotification = it }
         readSharePayload(intent)?.let { pendingInitialShare = it }
+        // A recreated activity and one reopened from the recents screen get
+        // the intent that first started it, whose link was already opened.
+        val replayed = savedInstanceState != null ||
+            (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0
+        if (!replayed) {
+            readLink(intent)?.let { pendingInitialLink = it }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -91,6 +105,16 @@ class MainActivity : FlutterFragmentActivity() {
                 channel.invokeMethod("openedNotification", it)
             } else {
                 pendingInitialNotification = it
+            }
+            return
+        }
+        // Send the link to Dart, or keep it until Dart is ready
+        readLink(intent)?.let {
+            val channel = channel
+            if (channel != null && dartListeningForLinks) {
+                channel.invokeMethod("openedLink", it)
+            } else {
+                pendingInitialLink = it
             }
             return
         }
@@ -117,6 +141,12 @@ class MainActivity : FlutterFragmentActivity() {
     private fun readSharePayload(intent: Intent): Map<String, Any?>? {
         if (intent.action != SHARE_INTO_CHAT) return null
         return PendingShare.take()
+    }
+
+    // Links arrive through LinkActivity.
+    private fun readLink(intent: Intent): String? {
+        if (intent.action != OPEN_LINK) return null
+        return intent.getStringExtra(EXTRA_LINK)
     }
 
 
@@ -212,6 +242,7 @@ class MainActivity : FlutterFragmentActivity() {
         channel = null
         activeChannelRef = null
         dartListening = false
+        dartListeningForLinks = false
     }
 
     // Configures the Method Channel to communicate with Flutter
@@ -251,6 +282,13 @@ class MainActivity : FlutterFragmentActivity() {
                     val payload = pendingInitialShare
                     pendingInitialShare = null
                     result.success(payload)
+                }
+
+                "getInitialLink" -> {
+                    dartListeningForLinks = true
+                    val link = pendingInitialLink
+                    pendingInitialLink = null
+                    result.success(link)
                 }
 
                 "getDatabasesDirectory" -> {
