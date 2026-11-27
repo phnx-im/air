@@ -463,6 +463,15 @@ impl CoreUser {
         Ok(Resync::status_for_chat(connection, &chat_id).await?)
     }
 
+    /// Makes the backed-off resync of the chat due now.
+    pub async fn make_resync_due(&self, chat_id: ChatId) -> anyhow::Result<()> {
+        sqlx::query("UPDATE resync_queue SET not_before = NULL WHERE chat_id = ?")
+            .bind(chat_id)
+            .execute(self.db().write().await?.as_mut())
+            .await?;
+        Ok(())
+    }
+
     /// Whether any setting changes are still waiting to be synchronized.
     pub async fn has_pending_setting_changes(&self) -> anyhow::Result<bool> {
         use crate::clients::user_settings::SettingChanges;

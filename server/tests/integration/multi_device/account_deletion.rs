@@ -74,8 +74,17 @@ async fn account_deletion_found_by_self_group_operation() -> anyhow::Result<()> 
         Some(UnlinkReason::AccountDeleted)
     );
 
-    // The self group is not resynced automatically.
-    assert!(alice2.resync_status(self_chat_id).await?.is_none());
+    // The queued resync ends the self chat.
+    alice2.outbound_service().run_once().await;
+    let self_chat = alice2
+        .chat(&self_chat_id)
+        .await
+        .expect("the self chat is kept");
+    assert!(self_chat.status().is_inactive());
+    assert_eq!(
+        alice2.account_unlink_reason().await?,
+        Some(UnlinkReason::AccountDeleted)
+    );
 
     Ok(())
 }

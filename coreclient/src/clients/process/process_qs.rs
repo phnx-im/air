@@ -684,7 +684,10 @@ impl CoreUser {
                 let group_id = group.group_id().clone();
                 match Resync::status(&mut *txn, &group_id).await? {
                     None => {
-                        warn!(%chat_id, ?group_id, %reason, "Group is out of sync");
+                        warn!(
+                            %chat_id, ?group_id, %reason,
+                            "Group is out of sync; scheduling resync"
+                        );
                         Resync::for_group(chat_id, group.group(), reason)
                             .enqueue(&mut *txn)
                             .await?;

@@ -309,16 +309,14 @@ async fn a_published_credential_stays_the_same() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn a_resync_publishes_the_credential_among_unsigned_leaves() {
+async fn a_resync_publishes_the_credential() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let alice2 = link_sibling(&alice).await;
-    let alice3 = link_sibling(&alice).await;
     alice2.drain().await;
-    make_unsigned(&alice2, &[&alice, &alice3]).await;
-    make_unpublished(&alice, &[&alice2, &alice3]).await;
+    make_unpublished(&alice, &[&alice2]).await;
 
-    // One leaf is signed, two aren't, and alice's stored credential is signed.
+    // Only alice's own leaf is unsigned, and the resync replaces it.
     let chat_id = self_chat_id(&alice).await;
     alice.enqueue_group_resync(chat_id).await.unwrap();
     alice.outbound_service().run_once().await;
@@ -327,12 +325,66 @@ async fn a_resync_publishes_the_credential_among_unsigned_leaves() {
         "resync should have completed"
     );
     alice2.drain().await;
-    alice3.drain().await;
 
     assert_published(&alice).await;
     assert_eq!(signed_leaves(&alice2).await, 2);
-    send_and_receive(&alice, &[&alice2, &alice3], chat_id, "after resync").await;
-    send_and_receive(&alice2, &[&alice, &alice3], chat_id, "and back").await;
+    send_and_receive(&alice, &[&alice2], chat_id, "after resync").await;
+    send_and_receive(&alice2, &[&alice], chat_id, "and back").await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn a_resync_waits_for_unsigned_sibling_leaves() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice2 = link_sibling(&alice).await;
+    alice2.drain().await;
+    make_unsigned(&alice2, &[&alice]).await;
+
+    let chat_id = self_chat_id(&alice).await;
+    let (epoch_before, _) = alice
+        .group_epoch_and_own_index(chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+    alice.enqueue_group_resync(chat_id).await.unwrap();
+    alice.outbound_service().run_once().await;
+
+    let resync = alice
+        .chat_debug_info(chat_id)
+        .await
+        .unwrap()
+        .resync
+        .expect("the resync should be kept for a retry");
+    assert_eq!(resync.status, "pending");
+    assert_eq!(resync.attempts, 1);
+    assert!(resync.not_before.is_some(), "the retry should back off");
+    let last_error = resync.last_error.unwrap_or_default();
+    assert!(
+        last_error.contains("has no signed credential"),
+        "unexpected error: {last_error}"
+    );
+    let (epoch_after, _) = alice
+        .group_epoch_and_own_index(chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(epoch_before, epoch_after, "no resync commit was sent");
+
+    // Once alice2 publishes a signed credential, the retry goes through.
+    alice2.drain().await;
+    alice2.sign_stored_self_group_credential().await.unwrap();
+    self_update(&alice2, true).await;
+    alice.make_resync_due(chat_id).await.unwrap();
+    alice.outbound_service().run_once().await;
+    assert!(
+        alice.resync_status(chat_id).await.unwrap().is_none(),
+        "resync should have completed"
+    );
+    alice.drain().await;
+    alice2.drain().await;
+    assert_eq!(signed_leaves(&alice).await, 2);
+    send_and_receive(&alice, &[&alice2], chat_id, "after resync").await;
+    send_and_receive(&alice2, &[&alice], chat_id, "and back").await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
