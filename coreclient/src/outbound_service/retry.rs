@@ -68,6 +68,14 @@ impl RetryPolicy {
         max: TimeDelta::hours(1),
     };
 
+    /// A self-group resync waiting for siblings to publish signed credentials. Gives up
+    /// after about 3.4 days.
+    pub(crate) const UNSIGNED_SELF_GROUP_LEAF: Self = Self {
+        max_attempts: 14,
+        base: TimeDelta::minutes(1),
+        max: TimeDelta::hours(24),
+    };
+
     /// The self group and QS client deletion of an account deletion. Once it
     /// is used up, the deletion is aborted.
     pub(crate) const ACCOUNT_DELETION: Self = Self {
@@ -150,6 +158,23 @@ mod tests {
     use crate::job::recoverable::Recoverable;
 
     use super::*;
+
+    #[test]
+    fn an_unsigned_self_group_leaf_is_waited_for_over_three_days() {
+        let policy = RetryPolicy::UNSIGNED_SELF_GROUP_LEAF;
+        let mut waited = TimeDelta::zero();
+        let mut attempts = 0;
+        while let RetryDecision::Backoff {
+            attempts: next,
+            retry_in,
+        } = policy.decide(RecoverableCause::Deferred, attempts)
+        {
+            waited += retry_in;
+            attempts = next;
+        }
+        assert!(waited > TimeDelta::days(3), "{waited}");
+        assert!(waited < TimeDelta::days(4), "{waited}");
+    }
 
     #[test]
     fn error_spends_an_attempt_with_backoff() {

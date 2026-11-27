@@ -10,7 +10,7 @@ use aircommon::{
     crypto::aead::keys::EncryptedUserProfileKey,
     messages::client_ds::{AadPayload, CloseConnectionGroupParamsAad, GroupOperationParamsAad},
 };
-use aircoreclient::{ChatStatus, ResyncStatus, clients::MarkChatAsRead};
+use aircoreclient::{ChatStatus, ReadReceiptsSetting, ResyncStatus, clients::MarkChatAsRead};
 use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
 use chrono::{DateTime, Utc};
 use tempfile::TempDir;
@@ -256,6 +256,45 @@ async fn resync_keeps_sibling_in_sync() {
     // Both devices still see two distinct self-group clients and stay in sync.
     self_group_client_ids(&alice).await;
     self_group_client_ids(&alice2).await;
+    send_and_receive(&alice, &[&alice2], chat_id, "after resync").await;
+    send_and_receive(&alice2, &[&alice], chat_id, "and back").await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn a_missed_self_group_commit_resyncs_automatically() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let alice2 = link_sibling(&alice).await;
+    alice2.drain().await;
+    let chat_id = self_chat_id(&alice).await;
+
+    // Alice2 acks a self-group commit of alice without processing it.
+    alice
+        .set_synced_user_setting(&ReadReceiptsSetting(true))
+        .await
+        .unwrap();
+    alice.outbound_service().run_once().await;
+    let messages = alice2.qs_fetch_messages().await.unwrap();
+    let [commit] = messages.as_slice() else {
+        panic!("alice2 should have one message in the queue");
+    };
+    let (mut stream, responder) = alice2.listen_queue().await.unwrap();
+    responder.ack(commit.sequence_number + 1).await;
+    responder.close(&mut stream).await;
+
+    // A message from the epoch alice2 missed makes it queue a resync.
+    alice.send_text(chat_id, "from the missed epoch").await;
+    alice2.drain().await;
+    assert_eq!(
+        alice2.resync_status(chat_id).await.unwrap(),
+        Some(ResyncStatus::Pending)
+    );
+
+    alice2.outbound_service().run_once().await;
+    assert!(
+        alice2.resync_status(chat_id).await.unwrap().is_none(),
+        "resync should have completed"
+    );
     send_and_receive(&alice, &[&alice2], chat_id, "after resync").await;
     send_and_receive(&alice2, &[&alice], chat_id, "and back").await;
 }

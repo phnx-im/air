@@ -23,7 +23,7 @@ use apqmls::commit_builder::ApqCommitMessageBundle;
 use chrono::{DateTime, Utc};
 use openmls::{
     group::GroupId,
-    prelude::{LeafNodeIndex, MlsMessageOut},
+    prelude::{Credential, LeafNodeIndex, MlsMessageOut},
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, debug, error, info, info_span, warn};
@@ -218,7 +218,7 @@ pub(crate) struct Resync {
     /// accepted [`Self::outgoing_request`] before this resync onboards.
     pub(crate) accepted_friendship_package: Option<EncryptedFriendshipPackage>,
     pub(crate) reason: ResyncReason,
-    /// How many server errors this entry has collected so far.
+    /// How many server errors and deferrals this entry has collected so far.
     pub(crate) attempts: u32,
 }
 
@@ -333,9 +333,10 @@ impl CoreUser {
 impl OutboundServiceContext {
     /// Drains the resync queue.
     ///
-    /// Server errors count towards [`RetryPolicy::RESYNC`] with backoff, then the entry is marked
-    /// `failed` until a manual resync or a processed commit clears it. Other errors retry on the
-    /// next run.
+    /// Server errors count towards [`RetryPolicy::RESYNC`] and self-group leaves without a signed
+    /// credential towards [`RetryPolicy::UNSIGNED_SELF_GROUP_LEAF`], each with backoff. Then the
+    /// entry is marked `failed` until a manual resync or a processed commit clears it. Other
+    /// errors retry on the next run.
     pub(super) async fn perform_queued_resyncs(
         &self,
         run_token: &CancellationToken,
@@ -451,7 +452,12 @@ impl OutboundServiceContext {
                 return Ok(());
             }
             Err(OutboundServiceError::Recoverable(error)) => {
-                match RetryPolicy::RESYNC.decide(error.cause, attempts) {
+                let policy = if error.error.is::<UnsignedSelfGroupLeaf>() {
+                    RetryPolicy::UNSIGNED_SELF_GROUP_LEAF
+                } else {
+                    RetryPolicy::RESYNC
+                };
+                match policy.decide(error.cause, attempts) {
                     RetryDecision::Retry => {
                         warn!(%error, "Resync failed; retrying later");
                     }
@@ -581,8 +587,13 @@ impl Resync {
                 .map_err(OutboundServiceError::fatal)?;
             return Ok(None);
         };
-        let (group, commit, member_profile_infos, members_diff) =
-            joined.map_err(OutboundServiceError::fatal)?;
+        let (group, commit, member_profile_infos, members_diff) = joined.map_err(|error| {
+            if error.is::<UnsignedSelfGroupLeaf>() {
+                OutboundServiceError::Recoverable(Recoverable::deferred(error))
+            } else {
+                OutboundServiceError::fatal(error)
+            }
+        })?;
 
         let (chat_id, chat_created) = match existing_chat_id {
             Some(chat_id) => (chat_id, false),
@@ -798,6 +809,18 @@ impl Resync {
             .map(self_group_leaf_keys)
             .transpose()?;
 
+        let served_leaves_signed = match signer {
+            LeafSigningKeyRef::SelfGroup(_) => ensure_served_self_group_leaves_signed(
+                external_commit_info
+                    .ratchet_tree_in
+                    .full_leaves()
+                    .map(|(_, leaf)| (leaf.credential(), leaf.signature_key().as_slice())),
+                signer.verifying_key().as_slice(),
+                own_user_credential,
+            ),
+            LeafSigningKeyRef::User(_) => Ok(()),
+        };
+
         // Delete any old group states if they exist
         Group::delete_from_db(txn, &self.group_id).await?;
 
@@ -860,6 +883,7 @@ impl Resync {
         if let Some(keys_before) = &self_group_keys_before {
             ensure_self_group_keys_kept(keys_before, &self_group_leaf_keys(&group)?)?;
         }
+        served_leaves_signed?;
 
         let members_after: HashSet<UserId> = group.members().collect();
         let diff = members_before
@@ -910,6 +934,46 @@ impl Resync {
 
         Ok(())
     }
+}
+
+/// A self-group leaf without a signed self-group credential has blocked a
+/// resync of the self group.
+#[derive(Debug, thiserror::Error)]
+#[error("self-group leaf of client {client_id} has no signed credential")]
+struct UnsignedSelfGroupLeaf {
+    client_id: Uuid,
+}
+
+/// Requires every leaf of a served self-group tree, except the one with `own_signature_key`, to
+/// carry a signed self-group credential that verifies for the leaf's signature key and
+/// `own_user`.
+///
+/// Fails with [`UnsignedSelfGroupLeaf`] for the first unsigned leaf, and with another error for an
+/// invalid credential or a leaf without a self-group credential.
+fn ensure_served_self_group_leaves_signed<'a>(
+    leaves: impl Iterator<Item = (&'a Credential, &'a [u8])>,
+    own_signature_key: &[u8],
+    own_user: &UserCredential,
+) -> Result<()> {
+    for (credential, signature_key) in leaves {
+        if signature_key == own_signature_key {
+            continue;
+        }
+        let LeafCredential::SelfGroup(credential) = LeafCredential::from_credential(credential)?
+        else {
+            bail!("user credential in the self group");
+        };
+        if !credential.is_signed() {
+            return Err(UnsignedSelfGroupLeaf {
+                client_id: credential.client_id(),
+            }
+            .into());
+        }
+        credential
+            .verify(signature_key, own_user.user_id(), own_user.verifying_key())
+            .context("invalid self-group credential in the served tree")?;
+    }
+    Ok(())
 }
 
 /// The signature key of each self-group leaf, by client ID.
@@ -1006,39 +1070,11 @@ mod persistence {
     sqlx_text_enum!(ResyncStatus);
 
     impl Resync {
-        /// Whether to skip queueing this resync, because it rejoins the own
-        /// self group without the user asking for it.
-        async fn skip_queueing(&self, connection: impl ReadConnection) -> sqlx::Result<bool> {
-            let automatic = match self.reason {
-                ResyncReason::Manual => false,
-                ResyncReason::FutureEpoch
-                | ResyncReason::MissingPqGroupState
-                | ResyncReason::VirtualClientDesync
-                | ResyncReason::Onboarding
-                | ResyncReason::SiblingAccepted => true,
-            };
-            if !automatic || !OwnClientInfo::is_own_self_group(connection, &self.group_id).await? {
-                return Ok(false);
-            }
-            debug!(
-                ?self.group_id,
-                %self.reason,
-                "Not queueing an automatic resync of the own self group"
-            );
-            Ok(true)
-        }
-
         /// Queues this resync unless the group already has a queue entry.
-        ///
-        /// Skips an automatic resync of the own self group, see
-        /// [`Resync::skip_queueing`].
         pub(crate) async fn enqueue(
             &self,
             mut connection: impl WriteConnection,
         ) -> sqlx::Result<()> {
-            if self.skip_queueing(&mut connection).await? {
-                return Ok(());
-            }
             debug!(
                 ?self.group_id,
                 ?self.chat_id,
@@ -1090,16 +1126,10 @@ mod persistence {
         }
 
         /// Like [`Resync::enqueue`], but resets an existing entry.
-        ///
-        /// An automatic resync of the own self group leaves an existing entry
-        /// untouched.
         pub(crate) async fn enqueue_or_reset(
             &self,
             mut connection: impl WriteConnection,
         ) -> sqlx::Result<()> {
-            if self.skip_queueing(&mut connection).await? {
-                return Ok(());
-            }
             debug!(
                 ?self.group_id,
                 ?self.chat_id,
@@ -1479,7 +1509,12 @@ struct ResyncTCommit {
 mod tests {
     use std::assert_matches;
 
-    use aircommon::crypto::aead::keys::FriendshipPackageEarKey;
+    use aircommon::{
+        credentials::{
+            SelfGroupCredential, keys::UserSigningKey, test_utils::random_user_signing_key,
+        },
+        crypto::aead::keys::FriendshipPackageEarKey,
+    };
     use airprotos::client::component::{GroupTombstone, TombstoneContext};
     use chrono::{TimeDelta, TimeZone};
 
@@ -1512,6 +1547,81 @@ mod tests {
         let error = ensure_self_group_keys_kept(&before, &after).unwrap_err();
         assert!(
             error.to_string().contains("changed in resync"),
+            "unexpected error: {error:#}"
+        );
+    }
+
+    fn signed_self_group_credential(signature_key: &[u8], user: &UserSigningKey) -> Credential {
+        SelfGroupCredential::signed(Uuid::new_v4(), signature_key, user)
+            .unwrap()
+            .to_credential()
+            .unwrap()
+    }
+
+    #[test]
+    fn self_group_resync_accepts_signed_leaves_and_skips_its_own() {
+        let user = random_user_signing_key();
+        let own_key = [0; 32];
+        let leaves = [
+            (
+                SelfGroupCredential::new(Uuid::new_v4())
+                    .to_credential()
+                    .unwrap(),
+                own_key,
+            ),
+            (signed_self_group_credential(&[1; 32], &user), [1; 32]),
+        ];
+        ensure_served_self_group_leaves_signed(
+            leaves
+                .iter()
+                .map(|(credential, key)| (credential, key.as_slice())),
+            &own_key,
+            user.credential(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn self_group_resync_waits_for_an_unsigned_leaf() {
+        let user = random_user_signing_key();
+        let client_id = Uuid::new_v4();
+        let leaves = [
+            (signed_self_group_credential(&[1; 32], &user), [1; 32]),
+            (
+                SelfGroupCredential::new(client_id).to_credential().unwrap(),
+                [2; 32],
+            ),
+        ];
+        let error = ensure_served_self_group_leaves_signed(
+            leaves
+                .iter()
+                .map(|(credential, key)| (credential, key.as_slice())),
+            &[0; 32],
+            user.credential(),
+        )
+        .unwrap_err();
+        let error = error
+            .downcast_ref::<UnsignedSelfGroupLeaf>()
+            .expect("unexpected error");
+        assert_eq!(error.client_id, client_id);
+    }
+
+    #[test]
+    fn self_group_resync_rejects_a_leaf_signed_by_another_user() {
+        let user = random_user_signing_key();
+        let other = random_user_signing_key();
+        let leaves = [(signed_self_group_credential(&[1; 32], &other), [1; 32])];
+        let error = ensure_served_self_group_leaves_signed(
+            leaves
+                .iter()
+                .map(|(credential, key)| (credential, key.as_slice())),
+            &[0; 32],
+            user.credential(),
+        )
+        .unwrap_err();
+        assert!(!error.is::<UnsignedSelfGroupLeaf>(), "{error:#}");
+        assert!(
+            error.to_string().contains("invalid self-group credential"),
             "unexpected error: {error:#}"
         );
     }
@@ -1921,99 +2031,6 @@ mod tests {
             .expect("entry should be due");
         assert_eq!(dequeued.attempts, 1);
 
-        Ok(())
-    }
-
-    const AUTOMATIC_REASONS: [ResyncReason; 5] = [
-        ResyncReason::FutureEpoch,
-        ResyncReason::MissingPqGroupState,
-        ResyncReason::VirtualClientDesync,
-        ResyncReason::Onboarding,
-        ResyncReason::SiblingAccepted,
-    ];
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn automatic_resyncs_of_the_own_self_group_are_not_queued() -> anyhow::Result<()> {
-        for reason in AUTOMATIC_REASONS {
-            for reset in [false, true] {
-                let (pool, resync) = setup(reason).await?;
-                let mut connection = pool.write().await?;
-                OwnClientInfo::store_for_test(&mut connection, Some(resync.group_id.clone()))
-                    .await?;
-
-                if reset {
-                    resync.enqueue_or_reset(&mut connection).await?;
-                } else {
-                    resync.enqueue(&mut connection).await?;
-                }
-
-                assert_eq!(
-                    Resync::status(&mut connection, &resync.group_id).await?,
-                    None,
-                    "{reason}"
-                );
-            }
-        }
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn an_automatic_resync_keeps_a_failed_manual_one_of_the_own_self_group()
-    -> anyhow::Result<()> {
-        let (pool, manual) = setup(ResyncReason::Manual).await?;
-        let mut connection = pool.write().await?;
-        OwnClientInfo::store_for_test(&mut connection, Some(manual.group_id.clone())).await?;
-        manual.enqueue(&mut connection).await?;
-        Resync::mark_failed(&mut connection, &manual.group_id, "boom").await?;
-
-        let automatic = Resync {
-            reason: ResyncReason::FutureEpoch,
-            ..manual
-        };
-        automatic.enqueue_or_reset(&mut connection).await?;
-
-        let info = Resync::debug_info(&mut connection, &automatic.group_id)
-            .await?
-            .context("no queue entry")?;
-        assert_eq!(info.reason, ResyncReason::Manual.as_str());
-        assert_eq!(info.status, ResyncStatus::Failed.as_str());
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn a_manual_resync_of_the_own_self_group_is_queued() -> anyhow::Result<()> {
-        let (pool, resync) = setup(ResyncReason::Manual).await?;
-        let mut connection = pool.write().await?;
-        OwnClientInfo::store_for_test(&mut connection, Some(resync.group_id.clone())).await?;
-
-        resync.enqueue_or_reset(&mut connection).await?;
-
-        assert_eq!(
-            Resync::status(&mut connection, &resync.group_id).await?,
-            Some(ResyncStatus::Pending)
-        );
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn automatic_resyncs_of_other_groups_are_queued() -> anyhow::Result<()> {
-        for reason in AUTOMATIC_REASONS {
-            let (pool, resync) = setup(reason).await?;
-            let mut connection = pool.write().await?;
-            let self_group_id = GroupId::from(QualifiedGroupId::new(
-                Uuid::new_v4(),
-                "example.com".parse()?,
-            ));
-            OwnClientInfo::store_for_test(&mut connection, Some(self_group_id)).await?;
-
-            resync.enqueue(&mut connection).await?;
-
-            assert_eq!(
-                Resync::status(&mut connection, &resync.group_id).await?,
-                Some(ResyncStatus::Pending),
-                "{reason}"
-            );
-        }
         Ok(())
     }
 }
