@@ -363,6 +363,31 @@ pub(crate) async fn send_and_receive(
     }
 }
 
+/// Asserts that both devices sit on the same epoch and share the virtual
+/// client's leaf in `chat_id`.
+pub(crate) async fn assert_same_epoch_and_leaf(
+    device_a: &CoreUser,
+    device_b: &CoreUser,
+    chat_id: ChatId,
+    context: &str,
+) {
+    let a = device_a.group_epoch_and_own_index(chat_id).await.unwrap();
+    assert!(
+        a.is_some(),
+        "{context}: the acting device has no group state"
+    );
+    assert_eq!(
+        device_b.group_epoch_and_own_index(chat_id).await.unwrap(),
+        a,
+        "{context}: the sibling is not on the acting device's epoch and leaf"
+    );
+    assert_eq!(
+        device_b.chat_is_apq(chat_id).await,
+        device_a.chat_is_apq(chat_id).await,
+        "{context}: the sibling did not install the same legs"
+    );
+}
+
 /// Asserts that the device's chat is inactive. With `past_members` given,
 /// also asserts whom the chat remembers.
 pub(crate) async fn assert_inactive(
