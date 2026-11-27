@@ -11,6 +11,9 @@ private let kProtectedBlockedCategory = "protected-blocked"
     private let notificationChannelName: String = AppChannel.name
     private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
     private var storeNotificationsChannel: FlutterMethodChannel?
+    private var pendingInitialLink: String?
+    // Whether Dart listens for opened links
+    private var dartListeningForLinks = false
 
     override func application(
         _ application: UIApplication,
@@ -189,6 +192,15 @@ private let kProtectedBlockedCategory = "protected-blocked"
         storeNotificationsChannel?.invokeMethod(method, arguments: arguments)
     }
 
+    // Sends the link to Dart, or keeps it until Dart is ready
+    func openedLink(_ url: URL) {
+        if dartListeningForLinks, let channel = storeNotificationsChannel {
+            channel.invokeMethod("openedLink", arguments: url.absoluteString)
+        } else {
+            pendingInitialLink = url.absoluteString
+        }
+    }
+
     // Define the handler function
     private func handleMethodCall(
         call: FlutterMethodCall, result: @escaping FlutterResult
@@ -197,6 +209,10 @@ private let kProtectedBlockedCategory = "protected-blocked"
             self.getDeviceToken(result: result)
         } else if call.method == "getPendingAdmissionChallenge" {
             result(self.takePendingAdmissionChallenge())
+        } else if call.method == "getInitialLink" {
+            dartListeningForLinks = true
+            result(pendingInitialLink)
+            pendingInitialLink = nil
         } else if call.method == "getDatabasesDirectory" {
             if let url = AppGroup.databasesDirectory(create: true) {
                 result(url.path)
@@ -528,6 +544,35 @@ func sendNotification(
         if let error = error {
             NSLog("NSE Error adding notification: \(error)")
         }
+    }
+}
+
+// Hands universal links to the app delegate.
+class SceneDelegate: FlutterSceneDelegate {
+    override func scene(
+        _ scene: UIScene,
+        willConnectTo session: UISceneSession,
+        options connectionOptions: UIScene.ConnectionOptions
+    ) {
+        super.scene(scene, willConnectTo: session, options: connectionOptions)
+        // A link that launches the app arrives here
+        for userActivity in connectionOptions.userActivities {
+            forwardLink(of: userActivity)
+        }
+    }
+
+    // A link that opens the running app arrives here
+    override func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        super.scene(scene, continue: userActivity)
+        forwardLink(of: userActivity)
+    }
+
+    private func forwardLink(of userActivity: NSUserActivity) {
+        guard userActivity.activityType == NSUserActivityTypeBrowsingWeb,
+            let url = userActivity.webpageURL,
+            let appDelegate = UIApplication.shared.delegate as? AppDelegate
+        else { return }
+        appDelegate.openedLink(url)
     }
 }
 

@@ -8,6 +8,8 @@ import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/material/scroll_behavior.dart';
 import 'package:air/ds/material/theme_data.dart';
+import 'package:air/features/chat_list/add_contact_dialog.dart';
+import 'package:air/features/chat_list/contact_link_opener.dart';
 import 'package:air/features/navigation/app_router.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/navigation/navigation_restoration.dart';
@@ -27,6 +29,7 @@ import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/util/time/app_clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
@@ -60,6 +63,10 @@ class _AppState extends State<App> {
   final StreamController<ShareHandoff> _shareHandoffController =
       StreamController<ShareHandoff>();
   late final StreamSubscription<ShareHandoff> _shareHandoffSubscription;
+  final StreamController<String> _openedLinkController =
+      StreamController<String>();
+  late final StreamSubscription<String> _openedLinkSubscription;
+  late final ContactLinkOpener _contactLinkOpener;
   final NavigationCubit _navigationCubit = NavigationCubit(
     notificationContext: NotificationContextBase(
       notificationService: DartNotificationServiceExtension.create(),
@@ -80,6 +87,7 @@ class _AppState extends State<App> {
     initMethodChannel(
       _openedNotificationController.sink,
       _shareHandoffController.sink,
+      _openedLinkController.sink,
     );
     _openedNotificationSubscription = _openedNotificationController.stream
         .listen((chatId) {
@@ -90,10 +98,18 @@ class _AppState extends State<App> {
     _shareHandoffSubscription = _shareHandoffController.stream.listen(
       _onShareHandoff,
     );
+    _contactLinkOpener = ContactLinkOpener(
+      navigationCubit: _navigationCubit,
+      show: (username) => unawaited(_showContactLink(username)),
+    );
+    _openedLinkSubscription = _openedLinkController.stream.listen(
+      _onOpenedLink,
+    );
 
     // Fetch potential initial notification that launched the app on Android
     // cold start. The share handoff is consumed in `_loadInitialUser`.
     unawaited(consumeInitialNotification(_openedNotificationController.sink));
+    unawaited(consumeInitialLink(_openedLinkController.sink));
   }
 
   /// Routes content the Android share activity handed over.
@@ -110,6 +126,27 @@ class _AppState extends State<App> {
     );
   }
 
+  void _onOpenedLink(String url) {
+    final username = parseContactLink(url: url);
+    if (username == null) {
+      _log.warning('Dropping an opened link that is not a contact link');
+      return;
+    }
+    _contactLinkOpener.open(username);
+  }
+
+  Future<void> _showContactLink(UiUsername username) async {
+    _appRouter.dismissOverlays();
+    _navigationCubit.openHome();
+    await SchedulerBinding.instance.endOfFrame;
+    final shown = _appRouter.showDialogOverPages(
+      (_) => AddContactDialog(username: username),
+    );
+    if (!shown) {
+      _log.warning('Dropping a contact link: no navigator is mounted');
+    }
+  }
+
   @override
   void dispose() {
     _lifecycleHandler.stop();
@@ -117,6 +154,9 @@ class _AppState extends State<App> {
     _openedNotificationController.close();
     _shareHandoffSubscription.cancel();
     _shareHandoffController.close();
+    _contactLinkOpener.dispose();
+    _openedLinkSubscription.cancel();
+    _openedLinkController.close();
     _userSettingsCubit.close();
     _appLocaleCubit.close();
     _navigationCubit.close();

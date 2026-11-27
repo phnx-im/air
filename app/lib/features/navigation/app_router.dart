@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -44,6 +46,11 @@ class AppRouter implements RouterConfig<EmptyConfig> {
   void dismissOverlays() {
     _routerDelegate.dismissOverlays();
   }
+
+  /// Shows a dialog over the current pages, for callers outside the widget
+  /// tree. Returns false when no navigator is mounted.
+  bool showDialogOverPages(WidgetBuilder builder) =>
+      _routerDelegate.showDialogOverPages(builder);
 
   @override
   BackButtonDispatcher? get backButtonDispatcher => _backButtonDispatcher;
@@ -151,6 +158,13 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
   /// Pop all pageless routes from the navigator.
   void dismissOverlays() {
     _navigatorKey.currentState?.popUntil((route) => !isPageless(route));
+  }
+
+  bool showDialogOverPages(WidgetBuilder builder) {
+    final context = _navigatorKey.currentContext;
+    if (context == null) return false;
+    unawaited(showDialog<void>(context: context, builder: builder));
+    return true;
   }
 
   @override

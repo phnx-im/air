@@ -21,20 +21,38 @@ import 'package:provider/provider.dart';
 final _log = Logger("AddContactDialog");
 
 class AddContactDialog extends HookWidget {
-  const AddContactDialog({super.key});
+  const AddContactDialog({super.key, this.username});
+
+  /// A username from an opened contact link.
+  final UiUsername? username;
 
   @override
   Widget build(context) {
     final usernameHash = useState<UsernameHash?>(null);
     final isSubmitting = useState(false);
-    final isInputValid = useState(false);
+    final isInputValid = useState(username != null);
     final errorMessage = useState<String?>(null);
 
-    final controller = useTextEditingController();
+    final controller = useTextEditingController(text: username?.plaintext);
 
     final focusNode = useFocusNode();
 
     final loc = AppLocalizations.of(context);
+
+    useEffect(() {
+      final username = this.username;
+      if (username == null) return null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        _SubmitHandler(
+          isSubmitting: isSubmitting,
+          errorMessage: errorMessage,
+          usernameHash: usernameHash,
+          value: username.plaintext,
+        )._submit(context);
+      });
+      return null;
+    }, const []);
 
     return AppDialog(
       child: Column(
@@ -54,7 +72,7 @@ class AddContactDialog extends HookWidget {
             tokens: AppTextInputTokens.current,
             label: loc.newConnectionDialog_inputLabel,
             autocorrect: false,
-            autofocus: true,
+            autofocus: username == null,
             controller: controller,
             focusNode: focusNode,
             inputFormatters: const [UsernameInputFormatter()],
@@ -210,6 +228,12 @@ class _SubmitHandler {
   void _checkUsername(BuildContext context, UiUsername username) async {
     isSubmitting.value = true;
     final userCubit = context.read<UserCubit>();
+    if (userCubit.state.usernames.contains(username)) {
+      final loc = AppLocalizations.of(context);
+      errorMessage.value = loc.newConnectionDialog_error_ownUsername;
+      isSubmitting.value = false;
+      return;
+    }
     try {
       final hash = await userCubit.checkUsernameExists(username: username);
       if (!context.mounted) return;
