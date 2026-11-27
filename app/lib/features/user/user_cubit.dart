@@ -161,8 +161,10 @@ class UserCubit implements StateStreamableSource<UiUser> {
     confirmation: confirmation,
   );
 
-  /// Extracts a linking code from a scanned QR payload, validating it targets
-  /// this user's home server. Returns null if it isn't a linking URL for us.
-  String? parseLinkingUrl(String url) =>
-      _impl.parseMultiDeviceLinkingUrl(url: url);
+  /// Decodes the QR codes in a camera [frame] and returns a linking code.
+  ///
+  /// Returns null if the frame holds no QR code with a linking URL for this
+  /// user's home server.
+  Future<String?> decodeLinkingQr(LumaFrame frame) =>
+      _impl.decodeMultiDeviceLinkingQr(frame: frame);
 }

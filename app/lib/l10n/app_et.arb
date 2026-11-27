@@ -195,6 +195,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "Ava Air seadmes, mida soovid linkida, ja puuduta avakuval „Lingi olemasoleva kontoga“.",
   "linkedDevicesScreen_linkDialog_scanQrCode": "Skanni QR-kood",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Skanni QR-kood (pole saadaval)",
+  "qrScanner_permissionDenied": "QR-koodi skannimiseks luba Airil süsteemiseadetes kaamerat kasutada.",
+  "qrScanner_cameraUnavailable": "Kaamera pole saadaval.",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Sisesta numbrikood",
   "linkedDevicesScreen_linkDialog_warning": "Lingitud seadmetel on täielik juurdepääs su Airi kontole (ka võimalus seadmeid lisada või eemaldada, isegi seda seadet). Lingi ainult seadmeid, mida usaldad.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Sisesta numbrikood, mis on kuvatud seadmes, mida soovid linkida.",

@@ -204,6 +204,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "Öffne Air auf dem Gerät, das du verknüpfen möchtest, und tippe dann auf dem Startbildschirm auf \"Mit einem bestehenden Konto verknüpfen\".",
   "linkedDevicesScreen_linkDialog_scanQrCode": "QR-Code scannen",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "QR-Code scannen (nicht verfügbar)",
+  "qrScanner_permissionDenied": "Um den QR-Code zu scannen, erlaube Air in den Systemeinstellungen, die Kamera zu verwenden.",
+  "qrScanner_cameraUnavailable": "Die Kamera ist nicht verfügbar.",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Numerischen Code eingeben",
   "linkedDevicesScreen_linkDialog_warning": "Geräte, die du verknüpfst, haben vollen Zugriff auf dein Air-Konto (einschließlich der Möglichkeit, Geräte hinzuzufügen oder zu entfernen – sogar dieses). Verknüpfe nur Geräte, denen du vertraust.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Gib den numerischen Code ein, der auf dem Gerät angezeigt wird, das du verknüpfen möchtest.",

@@ -204,6 +204,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "Sur l'appareil que vous souhaitez associer, ouvrez Air, puis appuyez sur \"Associer à un compte existant\" sur l'écran d'accueil.",
   "linkedDevicesScreen_linkDialog_scanQrCode": "Scanner le code QR",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Scanner le code QR (indisponible)",
+  "qrScanner_permissionDenied": "Pour scanner le code QR, autorisez Air à utiliser l'appareil photo dans les paramètres du système.",
+  "qrScanner_cameraUnavailable": "L'appareil photo n'est pas disponible.",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Saisir le code numérique",
   "linkedDevicesScreen_linkDialog_warning": "Les appareils que vous associez auront un accès complet à votre compte Air (y compris la possibilité d'ajouter ou de retirer des appareils - même celui-ci). N'associez que des appareils de confiance.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Saisissez le code numérique affiché sur l'appareil que vous souhaitez associer.",

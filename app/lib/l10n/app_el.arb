@@ -195,6 +195,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "Στη συσκευή που θέλετε να συνδέσετε, ανοίξτε το Air και πατήστε «Σύνδεση σε υπάρχοντα λογαριασμό» στην αρχική οθόνη.",
   "linkedDevicesScreen_linkDialog_scanQrCode": "Σάρωση κωδικού QR",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Σάρωση κωδικού QR (μη διαθέσιμη)",
+  "qrScanner_permissionDenied": "Για να σαρώσετε τον κωδικό QR, επιτρέψτε στο Air να χρησιμοποιεί την κάμερα στις ρυθμίσεις του συστήματος.",
+  "qrScanner_cameraUnavailable": "Η κάμερα δεν είναι διαθέσιμη.",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Εισαγωγή αριθμητικού κωδικού",
   "linkedDevicesScreen_linkDialog_warning": "Οι συσκευές που συνδέετε θα έχουν πλήρη πρόσβαση στον λογαριασμό Air σας (μαζί με τη δυνατότητα να προσθέτουν ή να αφαιρούν συσκευές, ακόμη και αυτήν εδώ). Συνδέετε μόνο συσκευές που εμπιστεύεστε.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Εισαγάγετε τον αριθμητικό κωδικό που εμφανίζεται στη συσκευή που θέλετε να συνδέσετε.",

@@ -204,6 +204,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "En el dispositivo que quieres vincular, abre Air y toca \"Vincular a una cuenta existente\" en la pantalla de inicio.",
   "linkedDevicesScreen_linkDialog_scanQrCode": "Escanear código QR",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Escanear código QR (no disponible)",
+  "qrScanner_permissionDenied": "Para escanear el código QR, permite que Air use la cámara en los ajustes del sistema.",
+  "qrScanner_cameraUnavailable": "La cámara no está disponible.",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Introducir código numérico",
   "linkedDevicesScreen_linkDialog_warning": "Los dispositivos que vincules tendrán acceso completo a tu cuenta de Air (incluida la posibilidad de añadir o quitar dispositivos, incluso este). Vincula solo dispositivos de confianza.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Introduce el código numérico que aparece en el dispositivo que quieres vincular.",

@@ -32,6 +32,7 @@ pub mod message_list_cubit;
 pub mod multi_device;
 pub mod notification_context;
 pub mod notifications;
+pub mod qr_code;
 pub mod registration;
 pub mod share_cubit;
 pub mod types;

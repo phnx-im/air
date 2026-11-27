@@ -195,6 +195,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "Al dispositiu que voleu enllaçar, obriu l'Air i toqueu «Enllaça amb un compte existent» a la pantalla d'inici.",
   "linkedDevicesScreen_linkDialog_scanQrCode": "Escaneja el codi QR",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Escaneja el codi QR (no disponible)",
+  "qrScanner_permissionDenied": "Per a escanejar el codi QR, permeteu que l'Air utilitzi la càmera als paràmetres del sistema.",
+  "qrScanner_cameraUnavailable": "La càmera no està disponible.",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Introdueix el codi numèric",
   "linkedDevicesScreen_linkDialog_warning": "Els dispositius que enllaceu tindran accés complet al compte de l'Air (fins i tot podran afegir o eliminar dispositius, inclòs aquest). Enllaceu només dispositius de confiança.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Introduïu el codi numèric que es mostra al dispositiu que voleu enllaçar.",

@@ -6,14 +6,18 @@ import 'dart:async';
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/checkbox/checkbox.dart';
+import 'package:air/features/qr_scanner/qr_scanner.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/you/linking_device_dialog.dart';
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers.dart';
+import '../qr_scanner/fake_scanner_camera.dart';
 
 const _testSize = Size(600, 1000);
+const _linkingCode = '123456789012';
 
 void main() {
   group('LinkDeviceModal linking flow', () {
@@ -229,6 +233,76 @@ void main() {
       await tester.pump();
 
       expect(confirmedName, 'macOS');
+    });
+  });
+
+  group('LinkDeviceModal scanner page', () {
+    Future<void> pumpModal(
+      WidgetTester tester, {
+      required ScannerCameraOpener openCamera,
+      required QrFrameDecoder<String> decode,
+      required LinkSessionStarter startLinkSession,
+    }) async {
+      sizeView(tester, _testSize);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: testThemeData(Brightness.light),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: LinkDeviceModal(
+            startLinkSession: startLinkSession,
+            openCamera: openCamera,
+            decodeLinkingQr: decode,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Scan QR code'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('links with the scanned code', (tester) async {
+      final camera = FakeScannerCamera();
+      final events = StreamController<MultiDeviceLinkEvent>();
+      addTearDown(events.close);
+      final linkedCodes = <String>[];
+      await pumpModal(
+        tester,
+        openCamera: () async => camera,
+        decode: (_, _) async => _linkingCode,
+        startLinkSession: (_, code) {
+          linkedCodes.add(code);
+          return (events: events.stream, confirm: (_) {});
+        },
+      );
+
+      camera.sendFrame();
+      await tester.pump();
+      await tester.pump();
+
+      expect(linkedCodes, [_linkingCode]);
+      expect(camera.disposed, isTrue);
+    });
+
+    testWidgets('offers the numeric code when the camera is denied', (
+      tester,
+    ) async {
+      await pumpModal(
+        tester,
+        openCamera: () async =>
+            throw CameraException('CameraAccessDenied', 'denied'),
+        decode: (_, _) async => null,
+        startLinkSession: (_, _) => throw StateError('not linking'),
+      );
+
+      await tester.tap(find.text('Enter numeric code'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Enter the numeric code shown on the device you want to link.',
+        ),
+        findsOneWidget,
+      );
     });
   });
 }

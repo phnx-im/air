@@ -204,6 +204,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "No dispositivo que queres associar, abre o Air e toca em \"Associar a uma conta existente\" no ecrã inicial.",
   "linkedDevicesScreen_linkDialog_scanQrCode": "Ler código QR",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Ler código QR (indisponível)",
+  "qrScanner_permissionDenied": "Para ler o código QR, permite que o Air use a câmara nas definições do sistema.",
+  "qrScanner_cameraUnavailable": "A câmara não está disponível.",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Introduzir código numérico",
   "linkedDevicesScreen_linkDialog_warning": "Os dispositivos que associares vão ter acesso total à tua conta do Air (incluindo a possibilidade de adicionar ou remover dispositivos, até mesmo este). Associa só dispositivos em que confias.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Introduz o código numérico mostrado no dispositivo que queres associar.",

@@ -204,6 +204,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "På enheten du vill länka, öppna Air och tryck sedan på \"Länka till ett befintligt konto\" på startskärmen.",
   "linkedDevicesScreen_linkDialog_scanQrCode": "Skanna QR-kod",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Skanna QR-kod (inte tillgängligt på den här plattformen)",
+  "qrScanner_permissionDenied": "Tillåt Air att använda kameran i systeminställningarna för att skanna QR-koden.",
+  "qrScanner_cameraUnavailable": "Kameran är inte tillgänglig.",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Ange numerisk kod",
   "linkedDevicesScreen_linkDialog_warning": "Enheter du länkar får full åtkomst till ditt Air-konto (inklusive möjligheten att lägga till eller ta bort enheter – även den här). Länka bara enheter du litar på.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Ange den numeriska koden som visas på enheten du vill länka.",

@@ -195,6 +195,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "Åpne Air på enheten du vil koble til, og trykk på «Koble til en eksisterende konto» på startskjermen.",
   "linkedDevicesScreen_linkDialog_scanQrCode": "Skann QR-kode",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Skann QR-kode (ikke tilgjengelig)",
+  "qrScanner_permissionDenied": "Tillat Air å bruke kameraet i systeminnstillingene for å skanne QR-koden.",
+  "qrScanner_cameraUnavailable": "Kameraet er ikke tilgjengelig.",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Skriv inn tallkode",
   "linkedDevicesScreen_linkDialog_warning": "Enheter du kobler til, får full tilgang til Air-kontoen din (inkludert muligheten til å legge til eller fjerne enheter – også denne). Koble bare til enheter du stoler på.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Skriv inn tallkoden som vises på enheten du vil koble til.",

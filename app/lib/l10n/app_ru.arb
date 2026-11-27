@@ -195,6 +195,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "На устройстве, которое хотите привязать, откройте Air и нажмите «Привязать к существующему аккаунту» на начальном экране.",
   "linkedDevicesScreen_linkDialog_scanQrCode": "Сканировать QR-код",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Сканировать QR-код (недоступно)",
+  "qrScanner_permissionDenied": "Чтобы отсканировать QR-код, разрешите Air доступ к камере в настройках системы.",
+  "qrScanner_cameraUnavailable": "Камера недоступна.",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Ввести цифровой код",
   "linkedDevicesScreen_linkDialog_warning": "Привязанные устройства получат полный доступ к вашему аккаунту Air (в том числе смогут добавлять и отвязывать любые устройства, включая текущее). Привязывайте только те устройства, которым доверяете.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Введите цифровой код, показанный на новом устройстве.",

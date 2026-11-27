@@ -195,6 +195,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "Avaa Air laitteella, jonka haluat linkittää, ja napauta aloitusnäytössä ”Linkitä olemassa olevaan tiliin”.",
   "linkedDevicesScreen_linkDialog_scanQrCode": "Skannaa QR-koodi",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Skannaa QR-koodi (ei käytettävissä)",
+  "qrScanner_permissionDenied": "Jos haluat skannata QR-koodin, salli Airin käyttää kameraa järjestelmän asetuksissa.",
+  "qrScanner_cameraUnavailable": "Kamera ei ole käytettävissä.",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Anna numerokoodi",
   "linkedDevicesScreen_linkDialog_warning": "Linkittämilläsi laitteilla on täysi pääsy Air-tiliisi (ne voivat myös lisätä tai poistaa laitteita, jopa tämän laitteen). Linkitä vain laitteita, joihin luotat.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Anna numerokoodi, joka näkyy linkitettävällä laitteella.",

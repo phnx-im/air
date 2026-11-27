@@ -25,6 +25,8 @@ use url::Url;
 use username::{UsernameBackgroundTasks, UsernameContext};
 
 use crate::api::logging::tar_logs;
+use crate::api::multi_device::linking_code_from_url;
+use crate::api::qr_code::{LumaFrame, decode_qr_code};
 use crate::api::types::UiContact;
 use crate::{
     StreamSink,
@@ -358,12 +360,16 @@ impl UserCubitBase {
 
     // Cubit methods
 
-    /// Extracts the linking code from a scanned QR payload, validating that it targets this user's
-    /// own home server. Returns `None` if `url` is not a multi-device linking URL for this domain.
-    #[frb(sync)]
-    pub fn parse_multi_device_linking_url(&self, url: String) -> Option<String> {
+    /// Decodes the QR codes in a camera frame and returns a linking code.
+    ///
+    /// Returns `None` if no readable QR code in the frame holds a multi-device
+    /// linking URL for this user's home server.
+    pub fn decode_multi_device_linking_qr(
+        &self,
+        frame: LumaFrame,
+    ) -> anyhow::Result<Option<String>> {
         let domain = self.core_user().user_id().domain();
-        crate::api::multi_device::linking_code_from_url(domain, &url)
+        decode_qr_code(&frame, |text| linking_code_from_url(domain, text))
     }
 
     /// Set the display name and/or profile picture of the user.

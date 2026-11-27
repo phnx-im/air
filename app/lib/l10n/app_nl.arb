@@ -195,6 +195,8 @@
   "linkedDevicesScreen_linkDialog_openApp": "Open Air op het apparaat dat je wilt koppelen en tik op het startscherm op ‘Aan bestaand account koppelen’.",
   "linkedDevicesScreen_linkDialog_scanQrCode": "QR-code scannen",
   "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "QR-code scannen (niet beschikbaar)",
+  "qrScanner_permissionDenied": "Sta Air in de systeeminstellingen toe de camera te gebruiken om de QR-code te scannen.",
+  "qrScanner_cameraUnavailable": "De camera is niet beschikbaar.",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Cijfercode invoeren",
   "linkedDevicesScreen_linkDialog_warning": "Apparaten die je koppelt, krijgen volledige toegang tot je Air-account (inclusief de mogelijkheid om apparaten toe te voegen of te verwijderen, zelfs dit apparaat). Koppel alleen apparaten die je vertrouwt.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Voer de cijfercode in die wordt weergegeven op het apparaat dat je wilt koppelen.",

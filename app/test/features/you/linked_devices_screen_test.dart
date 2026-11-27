@@ -2,10 +2,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
+
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/icon_badge/app_icon_badge.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/features/qr_scanner/qr_scanner.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/features/you/linked_devices_screen.dart';
@@ -281,7 +284,13 @@ void main() {
     testWidgets('renders link modal scan QR page', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       try {
-        await pumpDialog(tester, (_) => const LinkDeviceModal());
+        // The camera never comes up, which keeps the placeholder on screen.
+        await pumpDialog(
+          tester,
+          (_) => LinkDeviceModal(
+            openCamera: () => Completer<ScannerCamera?>().future,
+          ),
+        );
 
         await tester.tap(find.text('Scan QR code'));
         await tester.pumpAndSettle();
