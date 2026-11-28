@@ -13,6 +13,7 @@ use std::{
     task::{Context, Poll},
 };
 
+use airbackend::ds::CREATE_STEP_FAULT_PATH;
 use airserver::{Addressed, IntoStream};
 use tokio::{
     io::{AsyncRead, AsyncWrite, ReadBuf},
@@ -20,6 +21,16 @@ use tokio::{
 };
 use tokio_stream::Stream;
 use tonic::transport::server::{Connected, TcpConnectInfo};
+
+/// The method name under which the group creation is intercepted. APQ groups
+/// are created in the create step of a `CreateGroupV2` stream.
+pub fn create_group_method(apq_groups: bool) -> &'static str {
+    if apq_groups {
+        CREATE_STEP_FAULT_PATH
+    } else {
+        "CreateGroup"
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
@@ -46,6 +57,9 @@ impl Mode {
     }
 }
 
+/// Injects faults into the requests of a test server. Each gRPC call counts as
+/// one request, and so does the create step of a group creation stream, under
+/// the method [`CREATE_STEP_FAULT_PATH`].
 #[derive(Clone, Debug)]
 pub struct ControlHandle {
     mode: Arc<AtomicU8>,

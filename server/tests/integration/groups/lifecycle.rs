@@ -9,7 +9,9 @@ use std::slice;
 
 use aircoreclient::SystemMessage;
 
-use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
+use airserver_test_harness::utils::{
+    controlled_listener::create_group_method, core_user_ext::CoreUserExt, setup::TestBackend,
+};
 use chrono::{Duration, Utc};
 use tracing::info;
 
@@ -176,14 +178,6 @@ async fn creation_without_siblings_is_echoed_as_a_receipt() {
     );
 }
 
-fn create_group_method(setup: &TestBackend) -> &'static str {
-    if setup.apq_groups {
-        "CreateApqGroup"
-    } else {
-        "CreateGroup"
-    }
-}
-
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn lost_creation_answer_is_confirmed_by_the_receipt() {
     let mut setup = TestBackend::single().await;
@@ -194,7 +188,7 @@ async fn lost_creation_answer_is_confirmed_by_the_receipt() {
 
     setup
         .listener_control_handle()
-        .set_drop_next_response_to(create_group_method(&setup));
+        .set_drop_next_response_to(create_group_method(setup.apq_groups));
     alice
         .create_chat("answer lost".to_owned(), None, setup.apq_groups)
         .await
@@ -243,10 +237,10 @@ async fn creation_without_receipt_is_discarded_after_a_drain() {
     alice.drain().await;
     let chats_before = alice.ordered_chat_ids().await.unwrap();
 
-    // The request never reaches the DS, but the client can't tell
+    // The DS never creates the group, but the client can't tell
     setup
         .listener_control_handle()
-        .set_drop_next_request_to(create_group_method(&setup));
+        .set_drop_next_request_to(create_group_method(setup.apq_groups));
     alice
         .create_chat("never created".to_owned(), None, setup.apq_groups)
         .await
@@ -276,7 +270,7 @@ async fn rejected_creation_is_discarded_at_once() {
 
     setup
         .listener_control_handle()
-        .set_reject_next_request_to(create_group_method(&setup));
+        .set_reject_next_request_to(create_group_method(setup.apq_groups));
     alice
         .create_chat("rejected".to_owned(), None, setup.apq_groups)
         .await
@@ -284,4 +278,33 @@ async fn rejected_creation_is_discarded_at_once() {
     setup.listener_control_handle().set_normal();
 
     assert_eq!(alice.pending_group_creations().await.unwrap(), 0);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn rejected_reservation_leaves_nothing_behind() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let chats_before = alice.ordered_chat_ids().await.unwrap();
+
+    let reserve_method = if setup.apq_groups {
+        "CreateGroupV2"
+    } else {
+        "RequestGroupId"
+    };
+    setup
+        .listener_control_handle()
+        .set_reject_next_request_to(reserve_method);
+    alice
+        .create_chat("rejected".to_owned(), None, setup.apq_groups)
+        .await
+        .expect_err("the rejection should surface as an error");
+    setup.listener_control_handle().set_normal();
+
+    assert_eq!(alice.pending_group_creations().await.unwrap(), 0);
+    assert_eq!(alice.ordered_chat_ids().await.unwrap(), chats_before);
+
+    alice
+        .create_chat("retried".to_owned(), None, setup.apq_groups)
+        .await
+        .expect("a retry should create the chat");
 }

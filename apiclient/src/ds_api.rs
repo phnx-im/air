@@ -77,6 +77,10 @@ use crate::{ApiClient, ClassifyRequestError, RequestErrorKind, classify_status};
 /// delivery, which the recipient deduplicates.
 const SEND_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// How long we wait for each step answer on a group creation stream. This is
+/// the same as the channel timeout of unary requests.
+const CREATE_GROUP_STEP_TIMEOUT: Duration = Duration::from_secs(30);
+
 /// Errors that can occur when sending requests to the DS.
 #[derive(Debug, thiserror::Error)]
 pub enum DsRequestError {
@@ -269,14 +273,14 @@ fn response_qgid(
 async fn next_create_group_v2_step(
     responses: &mut Streaming<CreateGroupV2Response>,
 ) -> Result<create_group_v2_response::Step, DsRequestError> {
-    responses
-        .message()
-        .await?
-        .and_then(|response| response.step)
-        .ok_or_else(|| {
-            error!("protocol violation: missing group creation stream step");
-            DsRequestError::UnexpectedResponse
-        })
+    let Ok(response) = tokio::time::timeout(CREATE_GROUP_STEP_TIMEOUT, responses.message()).await
+    else {
+        return Err(DsRequestError::Timeout(CREATE_GROUP_STEP_TIMEOUT));
+    };
+    response?.and_then(|response| response.step).ok_or_else(|| {
+        error!("protocol violation: missing group creation stream step");
+        DsRequestError::UnexpectedResponse
+    })
 }
 
 pub enum DsAttachmentTarget<'a> {

@@ -15,6 +15,7 @@ pub(crate) mod debug_info;
 // rotating keys.
 #[allow(dead_code)]
 pub(crate) mod diff;
+pub(crate) mod ds_creation;
 pub(crate) mod ds_teardown;
 pub(crate) mod error;
 pub(crate) mod group_bootstrap;

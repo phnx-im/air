@@ -68,6 +68,10 @@ pub const WELCOME_INFO_EXPIRATION: Duration = Duration::days(90);
 /// comes back later falls back to a resync at the current epoch.
 pub const EPOCH_SNAPSHOT_EXPIRATION: Duration = Duration::days(90);
 
+/// The path passed to the hook set with [`Ds::set_create_step_fault_hook`].
+#[cfg(feature = "test_utils")]
+pub const CREATE_STEP_FAULT_PATH: &str = "CreateGroupV2/Create";
+
 #[derive(Debug, Clone)]
 pub struct Ds {
     own_domain: Fqdn,
@@ -80,6 +84,8 @@ pub struct Ds {
     settings: DsSettings,
     create_group_streams: CreateGroupStreams,
     stop: CancellationToken,
+    #[cfg(feature = "test_utils")]
+    create_step_fault_hook: Option<create_group_stream::fault_hook::CreateStepFaultHook>,
 }
 
 #[derive(Debug)]
@@ -117,6 +123,8 @@ impl BackendService for Ds {
             settings: DsSettings::default(),
             create_group_streams: CreateGroupStreams::default(),
             stop: streams_stop,
+            #[cfg(feature = "test_utils")]
+            create_step_fault_hook: None,
         };
 
         Ok(ds)
@@ -140,6 +148,19 @@ impl Ds {
 
     pub fn set_settings(&mut self, settings: DsSettings) {
         self.settings = settings;
+    }
+
+    /// Runs `hook` with [`CREATE_STEP_FAULT_PATH`] at the start of the create
+    /// step of each group creation stream, before the group is created. An
+    /// error rejects the step with that status.
+    #[cfg(feature = "test_utils")]
+    pub fn set_create_step_fault_hook(
+        &mut self,
+        hook: impl Fn(&str) -> Result<(), tonic::Status> + Send + Sync + 'static,
+    ) {
+        self.create_step_fault_hook = Some(
+            create_group_stream::fault_hook::CreateStepFaultHook::new(hook),
+        );
     }
 
     /// Reserves a fresh group id, and a second one for the PQ leg of an APQ
