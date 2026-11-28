@@ -25,7 +25,7 @@ use crate::{
 };
 
 use super::{
-    types::{ImageData, UiUserId, UiUserProfile},
+    types::{ImageData, UiContactVerification, UiUserId, UiUserProfile},
     user_cubit::UserCubitBase,
 };
 
@@ -48,7 +48,11 @@ impl UsersState {
         let user_id: UserId = user_id
             .map(From::from)
             .unwrap_or_else(|| self.inner.own_user_id.clone());
-        let profile = self.inner.profiles.get(&user_id).cloned();
+        let profile = self
+            .inner
+            .users
+            .get(&user_id)
+            .map(|user| user.profile.clone());
         match profile {
             Some(profile) => profile,
             None => {
@@ -73,9 +77,9 @@ impl UsersState {
             .unwrap_or_else(|| self.inner.own_user_id.clone());
         let display_name = self
             .inner
-            .profiles
+            .users
             .get(&user_id)
-            .map(|profile| profile.display_name.clone());
+            .map(|user| user.profile.display_name.clone());
         match display_name {
             Some(display_name) => display_name,
             None => {
@@ -99,15 +103,32 @@ impl UsersState {
             .unwrap_or_else(|| self.inner.own_user_id.clone());
         let profile_picture = self
             .inner
-            .profiles
+            .users
             .get(&user_id)
-            .map(|profile| profile.profile_picture.clone());
+            .map(|user| user.profile.profile_picture.clone());
         match profile_picture {
             Some(profile_picture) => profile_picture,
             None => {
                 // spawn loading profile
                 self.spawn_load_profile(user_id.clone());
                 None
+            }
+        }
+    }
+
+    /// Returns whether the given user is marked as verified.
+    ///
+    /// If the profile is not yet loaded, `Unverified` is returned and loading of the profile is
+    /// spawned in the background.
+    #[frb(sync)]
+    pub fn verification(&self, user_id: UiUserId) -> UiContactVerification {
+        let user_id = user_id.into();
+        let verification = self.inner.users.get(&user_id).map(|user| user.verification);
+        match verification {
+            Some(verification) => verification,
+            None => {
+                self.spawn_load_profile(user_id);
+                UiContactVerification::Unverified
             }
         }
     }
@@ -128,7 +149,7 @@ impl UsersState {
 pub(crate) struct UsersStateInner {
     load_profile_tx: mpsc::Sender<UserId>,
     own_user_id: UserId,
-    profiles: HashMap<UserId, UiUserProfile>,
+    users: HashMap<UserId, LoadedUser>,
 }
 
 impl UsersStateInner {
@@ -136,33 +157,55 @@ impl UsersStateInner {
         Self {
             load_profile_tx,
             own_user_id,
-            profiles: HashMap::new(),
+            users: HashMap::new(),
         }
     }
 
-    /// Returns `true` if the profile was changed, otherwise `false`.
+    /// Returns `true` if the user was changed, otherwise `false`.
     ///
-    /// A profile is not changed if the profile is the same as the current one.
-    fn set_profile(&mut self, user_id: UserId, profile: UserProfile) -> bool {
-        let profile = UiUserProfile::from_profile(profile);
-        match self.profiles.entry(user_id) {
+    /// A user is not changed if the profile and the verification are the same as the current
+    /// ones.
+    fn set_user(&mut self, user_id: UserId, user: LoadedUser) -> bool {
+        match self.users.entry(user_id) {
             hash_map::Entry::Occupied(mut entry) => {
-                if entry.get() != &profile {
-                    entry.insert(profile);
+                if entry.get() != &user {
+                    entry.insert(user);
                     true
                 } else {
                     false
                 }
             }
             hash_map::Entry::Vacant(entry) => {
-                entry.insert(profile);
+                entry.insert(user);
                 true
             }
         }
     }
 }
 
-/// Provides synchronous access to the profiles of users.
+/// What the state keeps about a user.
+#[derive(Debug, Clone, PartialEq)]
+struct LoadedUser {
+    profile: UiUserProfile,
+    verification: UiContactVerification,
+}
+
+impl LoadedUser {
+    async fn load(core_user: &CoreUser, user_id: &UserId) -> Self {
+        let profile = UiUserProfile::from_profile(core_user.user_profile(user_id).await);
+        let verification = core_user
+            .contact_verification(user_id)
+            .await
+            .inspect_err(|error| error!(%error, "Failed to load the contact verification"))
+            .map_or(UiContactVerification::Unverified, From::from);
+        Self {
+            profile,
+            verification,
+        }
+    }
+}
+
+/// Provides synchronous access to the profiles of users and their verification.
 ///
 /// Caches already loaded profiles. Loads profiles on first access in the background. Automatically
 /// reloads profiles when these are changed/removed.
@@ -228,7 +271,7 @@ impl UsersCubitBase {
     }
 }
 
-/// Loads profile of users in the background.
+/// Loads the profile and the verification of users in the background.
 ///
 /// The profiles are loaded (or removed) when
 ///
@@ -270,8 +313,13 @@ impl ProfileLoadingTask {
                 }
                 user_id = self.load_profile_rx.recv() => {
                     let user_id = user_id?;
-                    let user_profile = self.core_user.user_profile(&user_id).await;
-                    vec![(user_id, Some(user_profile))]
+                    // Every rebuild asks again for a user until the first load
+                    // lands. Notifications keep a loaded user up to date.
+                    if self.state_tx.borrow().inner.users.contains_key(&user_id) {
+                        continue;
+                    }
+                    let user = LoadedUser::load(&self.core_user, &user_id).await;
+                    vec![(user_id, Some(user))]
                 }
                 _ = self.cancel.cancelled() => return None,
             };
@@ -280,13 +328,13 @@ impl ProfileLoadingTask {
             self.state_tx.send_if_modified(|state| {
                 let inner = Arc::make_mut(&mut state.inner);
                 let mut modified = false;
-                for (user_id, profile) in changed_profiles {
-                    if let Some(profile) = profile {
-                        if inner.set_profile(user_id.clone(), profile) {
+                for (user_id, user) in changed_profiles {
+                    if let Some(user) = user {
+                        if inner.set_user(user_id, user) {
                             modified = true;
                         }
                     } else {
-                        inner.profiles.remove(&user_id);
+                        inner.users.remove(&user_id);
                         modified = true;
                     }
                 }
@@ -298,14 +346,14 @@ impl ProfileLoadingTask {
     async fn process_notification(
         &self,
         notification: Arc<DbNotification>,
-    ) -> Vec<(UserId, Option<UserProfile>)> {
+    ) -> Vec<(UserId, Option<LoadedUser>)> {
         let mut changed_profiles = Vec::new();
         for (entity_id, op) in notification.ops.iter() {
             let DbEntityId::User(user_id) = entity_id else {
                 continue;
             };
 
-            let is_loaded = self.state_tx.borrow().inner.profiles.contains_key(user_id);
+            let is_loaded = self.state_tx.borrow().inner.users.contains_key(user_id);
             if !is_loaded {
                 continue;
             }
@@ -314,7 +362,7 @@ impl ProfileLoadingTask {
             if op.contains(DbOperation::Add) || op.contains(DbOperation::Update) {
                 changed_profiles.push((
                     user_id.clone(),
-                    Some(self.core_user.user_profile(user_id).await),
+                    Some(LoadedUser::load(&self.core_user, user_id).await),
                 ));
             } else if op.contains(DbOperation::Remove) {
                 changed_profiles.push((user_id.clone(), None));

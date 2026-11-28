@@ -116,6 +116,9 @@ class UserCubit implements StateStreamableSource<UiUser> {
   Future<void> unblockContact(UiUserId userId) =>
       _impl.unblockContact(userId: userId);
 
+  Future<void> setContactVerified(UiUserId userId, bool verified) =>
+      _impl.setContactVerified(userId: userId, verified: verified);
+
   Future<void> reportSpam(UiUserId spammerId) =>
       _impl.reportSpam(spammerId: spammerId);
 

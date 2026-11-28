@@ -126,6 +126,7 @@ fn sample_package(
         redeemed_tokens,
         usernames: Vec::new(),
         connection_requests: Vec::new(),
+        contact_verifications: Vec::new(),
         device_name: "Work laptop".to_owned(),
         groups: Vec::new(),
     })
@@ -284,9 +285,10 @@ fn a_full_session_carries_payloads_both_ways() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// A provisioner from before redeemed-token, username and connection-request
-/// sync sends no `redeemed_tokens`, `usernames` or `connection_requests` key.
-/// Linking to it has to work, with all three empty.
+/// A provisioner from before redeemed-token, username, connection-request and
+/// contact-verification sync sends no `redeemed_tokens`, `usernames`,
+/// `connection_requests` or `contact_verifications` key. Linking to it has to
+/// work, with all four empty.
 #[test]
 fn a_package_without_redeemed_tokens_decodes_as_empty() -> anyhow::Result<()> {
     /// The package as an older provisioner serializes it.
@@ -334,6 +336,7 @@ fn a_package_without_redeemed_tokens_decodes_as_empty() -> anyhow::Result<()> {
         redeemed_tokens: _,
         usernames: _,
         connection_requests: _,
+        contact_verifications: _,
         device_name,
         groups,
     } = sample_package(
@@ -372,6 +375,7 @@ fn a_package_without_redeemed_tokens_decodes_as_empty() -> anyhow::Result<()> {
     assert!(decoded.redeemed_tokens.is_empty());
     assert!(decoded.usernames.is_empty());
     assert!(decoded.connection_requests.is_empty());
+    assert!(decoded.contact_verifications.is_empty());
 
     Ok(())
 }

@@ -14,9 +14,9 @@ import 'package:uuid/uuid.dart';
 import 'types.dart';
 import 'user_cubit.dart';
 
-// These functions are ignored because they are not marked as `pub`: `new`, `new`, `process_notification`, `process`, `set_profile`, `spawn_load_profile`, `spawn`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ProfileLoadingTask`, `UsersStateInner`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `load`, `new`, `new`, `process_notification`, `process`, `set_user`, `spawn_load_profile`, `spawn`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `LoadedUser`, `ProfileLoadingTask`, `UsersStateInner`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UsersCubitBase>>
 abstract class UsersCubitBase implements RustOpaqueInterface {
@@ -59,4 +59,10 @@ abstract class UsersState implements RustOpaqueInterface {
   /// If the profile is not yet loaded, `null` is returned and loading of the profile is spawned
   /// in the background.
   ImageData? profilePicture({UiUserId? userId});
+
+  /// Returns whether the given user is marked as verified.
+  ///
+  /// If the profile is not yet loaded, `Unverified` is returned and loading of the profile is
+  /// spawned in the background.
+  UiContactVerification verification({required UiUserId userId});
 }

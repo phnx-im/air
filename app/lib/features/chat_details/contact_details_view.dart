@@ -13,6 +13,7 @@ import 'package:air/ds/components/button_cta/button_cta_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
+import 'package:air/features/user/contact_verification.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/features/user/avatar.dart';
@@ -93,6 +94,10 @@ class ContactDetailsView extends StatelessWidget {
             textAlign: .center,
             style: typeScale.header.xl.style(weight: Weight.emphasized),
           ),
+
+          const SizedBox(height: S.s4),
+
+          Center(child: ContactVerificationLabel(userId: profile.userId)),
 
           const SizedBox(height: S.s24),
 

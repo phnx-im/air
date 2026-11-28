@@ -521,5 +521,15 @@ TextSpan buildSystemMessageText(
           nameOf(contact),
         ),
       ),
+    UiSystemMessage_ContactVerified(:final contact) => emphasizedText(
+      (marks) => loc.systemMessage_contactVerified(marks[0]),
+      [user(contact)],
+      nameStyle,
+    ),
+    UiSystemMessage_ContactUnverified(:final contact) => emphasizedText(
+      (marks) => loc.systemMessage_contactUnverified(marks[0]),
+      [user(contact)],
+      nameStyle,
+    ),
   };
 }

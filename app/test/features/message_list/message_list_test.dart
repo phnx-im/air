@@ -1251,6 +1251,62 @@ final selfChatDetails = UiChatDetails(
   unreadMentions: 0,
 );
 
+UiChatMessage _contactChatRow(int id, String timestamp, UiMessage message) =>
+    UiChatMessage(
+      id: id.messageId(),
+      chatId: chatId,
+      timestamp: DateTime.parse(timestamp),
+      message: message,
+      status: UiMessageStatus.read,
+      reactions: [],
+      mentions: [],
+    );
+
+UiMessage _contactChatText(int sender, String body) => UiMessage_Content(
+  UiContentMessage(
+    sender: sender.userId(),
+    sent: true,
+    edited: false,
+    content: textContent(body),
+  ),
+);
+
+final contactVerificationMessages = [
+  _contactChatRow(
+    60,
+    '2023-01-04T09:00:00.000Z',
+    _contactChatText(2, 'Can we compare safety codes at lunch?'),
+  ),
+  _contactChatRow(
+    61,
+    '2023-01-04T12:30:00.000Z',
+    UiMessage_Display(
+      UiEventMessage.system(
+        UiSystemMessage.contactVerified(contact: 2.userId()),
+      ),
+    ),
+  ),
+  _contactChatRow(
+    62,
+    '2023-01-04T12:31:00.000Z',
+    _contactChatText(1, 'Done, the codes match'),
+  ),
+  _contactChatRow(
+    63,
+    '2023-01-04T18:00:00.000Z',
+    UiMessage_Display(
+      UiEventMessage.system(
+        UiSystemMessage.contactUnverified(contact: 2.userId()),
+      ),
+    ),
+  ),
+  _contactChatRow(
+    64,
+    '2023-01-04T18:01:00.000Z',
+    _contactChatText(1, 'Tapped the switch by accident, will fix it'),
+  ),
+];
+
 class MockLinkedDevicesCubit extends MockCubit<LinkedDevicesState>
     implements LinkedDevicesCubit {}
 
@@ -1883,6 +1939,28 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/message_list_self_chat_devices.png'),
+      );
+    });
+
+    testWidgets('renders contact verification changes', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1500);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      when(() => chatDetailsCubit.state).thenReturn(
+        ChatDetailsState(chat: chats[0], members: [1.userId(), 2.userId()]),
+      );
+      messageListCubit.setState(
+        contactVerificationMessages,
+        isConnectionChat: true,
+      );
+
+      await tester.pumpWidget(buildSubject());
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_contact_verification.png'),
       );
     });
 

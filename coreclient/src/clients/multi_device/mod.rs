@@ -71,6 +71,9 @@ use crate::{
         CoreUser, ListenQueueError, ListenResponse,
         api_clients::ApiClients,
         block_contact::persistence::{apply_blocked_contacts_update, blocked_contacts_snapshot},
+        contact_verification::sync::{
+            apply_contact_verifications_update, contact_verifications_snapshot,
+        },
         create_user::QsRegisteredUserState,
         linked_devices::current_platform,
         listen_response,
@@ -1163,6 +1166,7 @@ impl CoreUser {
         let redeemed_tokens =
             privacy_pass::redeemed_tokens_snapshot(self.db().read().await?).await?;
         let usernames = usernames_snapshot(self.db().read().await?).await?;
+        let contact_verifications = contact_verifications_snapshot(self.db().read().await?).await?;
         let connection_requests = self
             .db()
             .with_read_transaction(async |txn| requests_snapshot(txn).await)
@@ -1188,6 +1192,7 @@ impl CoreUser {
             redeemed_tokens,
             usernames,
             connection_requests,
+            contact_verifications,
             device_name,
             groups,
         })
@@ -1384,6 +1389,7 @@ impl CoreUser {
             redeemed_tokens,
             usernames,
             connection_requests,
+            contact_verifications,
             device_name: _,
             groups,
         } = package;
@@ -1442,6 +1448,7 @@ impl CoreUser {
                 apply_blocked_contacts_update(txn, &blocked_contacts).await?;
                 privacy_pass::apply_redeemed_tokens(txn, &redeemed_tokens).await?;
                 apply_usernames_update(txn, &usernames).await?;
+                apply_contact_verifications_update(txn, &contact_verifications).await?;
                 store_provisioned_requests(txn, &connection_requests, Utc::now()).await?;
                 skip_signed_connection_package_upload(&mut *txn).await?;
 

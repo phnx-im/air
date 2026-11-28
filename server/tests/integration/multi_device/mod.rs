@@ -25,6 +25,7 @@ mod settings;
 mod signed_credentials;
 mod tokens;
 mod usernames;
+mod verification;
 
 use std::{
     assert_matches,

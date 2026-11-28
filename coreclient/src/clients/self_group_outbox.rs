@@ -20,6 +20,7 @@ pub(crate) enum OutboxKind {
     ConnectionRequest,
     Username,
     ChatMute,
+    ContactVerification,
 }
 
 impl OutboxKind {
@@ -33,6 +34,7 @@ impl OutboxKind {
             OutboxKind::ConnectionRequest => "connection_request",
             OutboxKind::Username => "username",
             OutboxKind::ChatMute => "chat_mute",
+            OutboxKind::ContactVerification => "contact_verification",
         }
     }
 }

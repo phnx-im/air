@@ -56,7 +56,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -571642129;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1852955630;
 
 // Section: executor
 
@@ -6684,6 +6684,69 @@ fn wire__crate__api__user_cubit__UserCubitBase_set_app_state_impl(
         },
     )
 }
+fn wire__crate__api__user_cubit__UserCubitBase_set_contact_verified_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "UserCubitBase_set_contact_verified",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>,
+            >>::sse_decode(&mut deserializer);
+            let api_user_id = <crate::api::types::UiUserId>::sse_decode(&mut deserializer);
+            let api_verified = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::user_cubit::UserCubitBase::set_contact_verified(
+                                &*api_that_guard,
+                                api_user_id,
+                                api_verified,
+                            )
+                            .await?;
+                        std::result::Result::Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__user_cubit__UserCubitBase_set_profile_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -8638,6 +8701,56 @@ fn wire__crate__api__users_cubit__UsersState_profile_picture_impl(
                 }
                 let api_that_guard = api_that_guard.unwrap();
                 let output_ok = Ok::<_, ()>(crate::api::users_cubit::UsersState::profile_picture(
+                    &*api_that_guard,
+                    api_user_id,
+                ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__users_cubit__UsersState_verification_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "UsersState_verification",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UsersState>,
+            >>::sse_decode(&mut deserializer);
+            let api_user_id = <crate::api::types::UiUserId>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = Ok::<_, ()>(crate::api::users_cubit::UsersState::verification(
                     &*api_that_guard,
                     api_user_id,
                 ))?;
@@ -13684,6 +13797,18 @@ impl SseDecode for crate::api::types::UiContact {
     }
 }
 
+impl SseDecode for crate::api::types::UiContactVerification {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::UiContactVerification::Unverified,
+            1 => crate::api::types::UiContactVerification::Verified,
+            _ => unreachable!("Invalid variant for UiContactVerification: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for crate::api::types::UiContentMessage {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -14278,6 +14403,18 @@ impl SseDecode for crate::api::types::UiSystemMessage {
                     contact: var_contact,
                 };
             }
+            23 => {
+                let mut var_contact = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::ContactVerified {
+                    contact: var_contact,
+                };
+            }
+            24 => {
+                let mut var_contact = <crate::api::types::UiUserId>::sse_decode(deserializer);
+                return crate::api::types::UiSystemMessage::ContactUnverified {
+                    contact: var_contact,
+                };
+            }
             _ => {
                 unimplemented!("");
             }
@@ -14553,64 +14690,65 @@ fn pde_ffi_dispatcher_primary_impl(
 127 => wire__crate__api__user_cubit__UserCubitBase_retract_contact_request_impl(port, ptr, rust_vec_len, data_len),
 128 => wire__crate__api__user_cubit__UserCubitBase_safety_codes_impl(port, ptr, rust_vec_len, data_len),
 129 => wire__crate__api__user_cubit__UserCubitBase_set_app_state_impl(port, ptr, rust_vec_len, data_len),
-130 => wire__crate__api__user_cubit__UserCubitBase_set_profile_impl(port, ptr, rust_vec_len, data_len),
-132 => wire__crate__api__user_cubit__UserCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
-133 => wire__crate__api__user_cubit__UserCubitBase_unblock_contact_impl(port, ptr, rust_vec_len, data_len),
-134 => wire__crate__api__user_cubit__UserCubitBase_upload_logs_impl(port, ptr, rust_vec_len, data_len),
-135 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
-138 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_default_emoji_skin_tone_impl(port, ptr, rust_vec_len, data_len),
-139 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_delete_expired_contact_requests_impl(port, ptr, rust_vec_len, data_len),
-140 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_developer_mode_impl(port, ptr, rust_vec_len, data_len),
-141 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_dismissed_version_expiry_impl(port, ptr, rust_vec_len, data_len),
-142 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_experimental_features_impl(port, ptr, rust_vec_len, data_len),
-143 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_generate_link_previews_impl(port, ptr, rust_vec_len, data_len),
-144 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_interface_scale_impl(port, ptr, rust_vec_len, data_len),
-145 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_limit_animated_images_loops_impl(port, ptr, rust_vec_len, data_len),
-146 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_locale_impl(port, ptr, rust_vec_len, data_len),
-147 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_read_receipts_impl(port, ptr, rust_vec_len, data_len),
-148 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_send_on_enter_impl(port, ptr, rust_vec_len, data_len),
-149 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_sidebar_width_impl(port, ptr, rust_vec_len, data_len),
-151 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
-153 => wire__crate__api__user__User_danger_reset_self_group_impl(port, ptr, rust_vec_len, data_len),
-154 => wire__crate__api__user__User_load_impl(port, ptr, rust_vec_len, data_len),
-155 => wire__crate__api__user__User_load_client_records_impl(port, ptr, rust_vec_len, data_len),
-156 => wire__crate__api__user__User_load_default_impl(port, ptr, rust_vec_len, data_len),
-157 => wire__crate__api__user__User_new_impl(port, ptr, rust_vec_len, data_len),
-158 => wire__crate__api__user__User_prepare_for_background_impl(port, ptr, rust_vec_len, data_len),
-159 => wire__crate__api__user__User_refresh_all_profiles_impl(port, ptr, rust_vec_len, data_len),
-161 => wire__crate__api__user__User_trigger_timed_task_impl(port, ptr, rust_vec_len, data_len),
-162 => wire__crate__api__user__User_update_push_token_impl(port, ptr, rust_vec_len, data_len),
-163 => wire__crate__api__user__User_user_debug_info_impl(port, ptr, rust_vec_len, data_len),
-165 => wire__crate__api__users_cubit__UsersCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
-169 => wire__crate__api__users_cubit__UsersCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
-174 => wire__crate__api__chat_details_cubit__chat_details_state_default_impl(port, ptr, rust_vec_len, data_len),
-175 => wire__crate__api__invitation_code__check_invitation_code_impl(port, ptr, rust_vec_len, data_len),
-176 => wire__crate__api__logging__clear_app_logs_impl(port, ptr, rust_vec_len, data_len),
-177 => wire__crate__api__logging__clear_background_logs_impl(port, ptr, rust_vec_len, data_len),
-178 => wire__crate__api__registration__create_admission_session_impl(port, ptr, rust_vec_len, data_len),
-179 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
-180 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
-181 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
-182 => wire__crate__api__utils__delete_unloaded_client_database_impl(port, ptr, rust_vec_len, data_len),
-183 => wire__crate__api__registration__get_registration_info_impl(port, ptr, rust_vec_len, data_len),
-186 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
-187 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
-188 => wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(port, ptr, rust_vec_len, data_len),
-189 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
-190 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
-191 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
-192 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
-194 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
-195 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
-196 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
-197 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
-198 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
-199 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
-200 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
-201 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
-202 => wire__crate__api__share_cubit__share_state_default_impl(port, ptr, rust_vec_len, data_len),
-203 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
-204 => wire__crate__api__share_cubit__ui_share_send_status_default_impl(port, ptr, rust_vec_len, data_len),
+130 => wire__crate__api__user_cubit__UserCubitBase_set_contact_verified_impl(port, ptr, rust_vec_len, data_len),
+131 => wire__crate__api__user_cubit__UserCubitBase_set_profile_impl(port, ptr, rust_vec_len, data_len),
+133 => wire__crate__api__user_cubit__UserCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
+134 => wire__crate__api__user_cubit__UserCubitBase_unblock_contact_impl(port, ptr, rust_vec_len, data_len),
+135 => wire__crate__api__user_cubit__UserCubitBase_upload_logs_impl(port, ptr, rust_vec_len, data_len),
+136 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
+139 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_default_emoji_skin_tone_impl(port, ptr, rust_vec_len, data_len),
+140 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_delete_expired_contact_requests_impl(port, ptr, rust_vec_len, data_len),
+141 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_developer_mode_impl(port, ptr, rust_vec_len, data_len),
+142 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_dismissed_version_expiry_impl(port, ptr, rust_vec_len, data_len),
+143 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_experimental_features_impl(port, ptr, rust_vec_len, data_len),
+144 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_generate_link_previews_impl(port, ptr, rust_vec_len, data_len),
+145 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_interface_scale_impl(port, ptr, rust_vec_len, data_len),
+146 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_limit_animated_images_loops_impl(port, ptr, rust_vec_len, data_len),
+147 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_locale_impl(port, ptr, rust_vec_len, data_len),
+148 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_read_receipts_impl(port, ptr, rust_vec_len, data_len),
+149 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_send_on_enter_impl(port, ptr, rust_vec_len, data_len),
+150 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_set_sidebar_width_impl(port, ptr, rust_vec_len, data_len),
+152 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
+154 => wire__crate__api__user__User_danger_reset_self_group_impl(port, ptr, rust_vec_len, data_len),
+155 => wire__crate__api__user__User_load_impl(port, ptr, rust_vec_len, data_len),
+156 => wire__crate__api__user__User_load_client_records_impl(port, ptr, rust_vec_len, data_len),
+157 => wire__crate__api__user__User_load_default_impl(port, ptr, rust_vec_len, data_len),
+158 => wire__crate__api__user__User_new_impl(port, ptr, rust_vec_len, data_len),
+159 => wire__crate__api__user__User_prepare_for_background_impl(port, ptr, rust_vec_len, data_len),
+160 => wire__crate__api__user__User_refresh_all_profiles_impl(port, ptr, rust_vec_len, data_len),
+162 => wire__crate__api__user__User_trigger_timed_task_impl(port, ptr, rust_vec_len, data_len),
+163 => wire__crate__api__user__User_update_push_token_impl(port, ptr, rust_vec_len, data_len),
+164 => wire__crate__api__user__User_user_debug_info_impl(port, ptr, rust_vec_len, data_len),
+166 => wire__crate__api__users_cubit__UsersCubitBase_close_impl(port, ptr, rust_vec_len, data_len),
+170 => wire__crate__api__users_cubit__UsersCubitBase_stream_impl(port, ptr, rust_vec_len, data_len),
+176 => wire__crate__api__chat_details_cubit__chat_details_state_default_impl(port, ptr, rust_vec_len, data_len),
+177 => wire__crate__api__invitation_code__check_invitation_code_impl(port, ptr, rust_vec_len, data_len),
+178 => wire__crate__api__logging__clear_app_logs_impl(port, ptr, rust_vec_len, data_len),
+179 => wire__crate__api__logging__clear_background_logs_impl(port, ptr, rust_vec_len, data_len),
+180 => wire__crate__api__registration__create_admission_session_impl(port, ptr, rust_vec_len, data_len),
+181 => wire__crate__api__logging__create_log_stream_impl(port, ptr, rust_vec_len, data_len),
+182 => wire__crate__api__utils__delete_client_database_impl(port, ptr, rust_vec_len, data_len),
+183 => wire__crate__api__utils__delete_databases_impl(port, ptr, rust_vec_len, data_len),
+184 => wire__crate__api__utils__delete_unloaded_client_database_impl(port, ptr, rust_vec_len, data_len),
+185 => wire__crate__api__registration__get_registration_info_impl(port, ptr, rust_vec_len, data_len),
+188 => wire__crate__api__invitation_codes_cubit__invitation_codes_state_default_impl(port, ptr, rust_vec_len, data_len),
+189 => wire__crate__api__utils__is_image_file_impl(port, ptr, rust_vec_len, data_len),
+190 => wire__crate__api__linked_devices_cubit__linked_devices_state_default_impl(port, ptr, rust_vec_len, data_len),
+191 => wire__crate__api__user_settings_cubit__load_user_settings_impl(port, ptr, rust_vec_len, data_len),
+192 => wire__crate__api__member_details_cubit__member_details_state_default_impl(port, ptr, rust_vec_len, data_len),
+193 => wire__crate__api__markdown__message_content_error_impl(port, ptr, rust_vec_len, data_len),
+194 => wire__crate__api__markdown__message_content_parse_markdown_impl(port, ptr, rust_vec_len, data_len),
+196 => wire__crate__api__message_list_cubit__message_list_state_default_impl(port, ptr, rust_vec_len, data_len),
+197 => wire__crate__api__multi_device__multi_device_link_client_impl(port, ptr, rust_vec_len, data_len),
+198 => wire__crate__api__multi_device__multi_device_provision_client_impl(port, ptr, rust_vec_len, data_len),
+199 => wire__crate__api__notification_context__notification_policy_default_impl(port, ptr, rust_vec_len, data_len),
+200 => wire__crate__api__logging__read_app_logs_impl(port, ptr, rust_vec_len, data_len),
+201 => wire__crate__api__logging__read_background_logs_impl(port, ptr, rust_vec_len, data_len),
+202 => wire__crate__api__utils__read_clipboard_file_paths_impl(port, ptr, rust_vec_len, data_len),
+203 => wire__crate__api__utils__read_clipboard_image_impl(port, ptr, rust_vec_len, data_len),
+204 => wire__crate__api__share_cubit__share_state_default_impl(port, ptr, rust_vec_len, data_len),
+205 => wire__crate__api__logging__tar_logs_impl(port, ptr, rust_vec_len, data_len),
+206 => wire__crate__api__share_cubit__ui_share_send_status_default_impl(port, ptr, rust_vec_len, data_len),
                         _ => unreachable!(),
                     }
 }
@@ -14804,60 +14942,63 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
-        131 => wire__crate__api__user_cubit__UserCubitBase_state_impl(ptr, rust_vec_len, data_len),
-        136 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_is_closed_impl(
+        132 => wire__crate__api__user_cubit__UserCubitBase_state_impl(ptr, rust_vec_len, data_len),
+        137 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_is_closed_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        137 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_new_impl(
+        138 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_new_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        150 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_state_impl(
+        151 => wire__crate__api__user_settings_cubit__UserSettingsCubitBase_state_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        152 => wire__crate__api__user__User_client_record_id_impl(ptr, rust_vec_len, data_len),
-        160 => wire__crate__api__user__User_signal_pending_store_notifications_impl(
+        153 => wire__crate__api__user__User_client_record_id_impl(ptr, rust_vec_len, data_len),
+        161 => wire__crate__api__user__User_signal_pending_store_notifications_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        164 => wire__crate__api__user__User_user_id_impl(ptr, rust_vec_len, data_len),
-        166 => wire__crate__api__users_cubit__UsersCubitBase_is_closed_impl(
+        165 => wire__crate__api__user__User_user_id_impl(ptr, rust_vec_len, data_len),
+        167 => wire__crate__api__users_cubit__UsersCubitBase_is_closed_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        167 => wire__crate__api__users_cubit__UsersCubitBase_new_impl(ptr, rust_vec_len, data_len),
-        168 => {
+        168 => wire__crate__api__users_cubit__UsersCubitBase_new_impl(ptr, rust_vec_len, data_len),
+        169 => {
             wire__crate__api__users_cubit__UsersCubitBase_state_impl(ptr, rust_vec_len, data_len)
         }
-        170 => {
+        171 => {
             wire__crate__api__users_cubit__UsersState_display_name_impl(ptr, rust_vec_len, data_len)
         }
-        171 => wire__crate__api__users_cubit__UsersState_profile_impl(ptr, rust_vec_len, data_len),
-        172 => wire__crate__api__users_cubit__UsersState_profile_picture_impl(
+        172 => wire__crate__api__users_cubit__UsersState_profile_impl(ptr, rust_vec_len, data_len),
+        173 => wire__crate__api__users_cubit__UsersState_profile_picture_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        173 => wire__crate__api__utils__app_version_impl(ptr, rust_vec_len, data_len),
-        184 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
-        185 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
-        193 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
+        174 => {
+            wire__crate__api__users_cubit__UsersState_verification_impl(ptr, rust_vec_len, data_len)
+        }
+        175 => wire__crate__api__utils__app_version_impl(ptr, rust_vec_len, data_len),
+        186 => wire__crate__api__types__image_data_compute_hash_impl(ptr, rust_vec_len, data_len),
+        187 => wire__crate__api__logging__init_rust_logging_impl(ptr, rust_vec_len, data_len),
+        195 => wire__crate__api__markdown__message_content_parse_markdown_raw_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        205 => {
+        207 => {
             wire__crate__api__types__ui_username_validation_error_impl(ptr, rust_vec_len, data_len)
         }
-        206 => wire__crate__api__markdown__user_mention_uri_impl(ptr, rust_vec_len, data_len),
-        207 => wire__crate__api__username_suggestions__username_from_display_impl(
+        208 => wire__crate__api__markdown__user_mention_uri_impl(ptr, rust_vec_len, data_len),
+        209 => wire__crate__api__username_suggestions__username_from_display_impl(
             ptr,
             rust_vec_len,
             data_len,
@@ -17151,6 +17292,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiContact>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::UiContactVerification {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Unverified => 0.into_dart(),
+            Self::Verified => 1.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::UiContactVerification
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiContactVerification>
+    for crate::api::types::UiContactVerification
+{
+    fn into_into_dart(self) -> crate::api::types::UiContactVerification {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::types::UiContentMessage {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -17882,6 +18044,12 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
             crate::api::types::UiSystemMessage::SentConnectionRequestAlreadyConnected {
                 contact,
             } => [22.into_dart(), contact.into_into_dart().into_dart()].into_dart(),
+            crate::api::types::UiSystemMessage::ContactVerified { contact } => {
+                [23.into_dart(), contact.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::types::UiSystemMessage::ContactUnverified { contact } => {
+                [24.into_dart(), contact.into_into_dart().into_dart()].into_dart()
+            }
             _ => {
                 unimplemented!("");
             }
@@ -20974,6 +21142,22 @@ impl SseEncode for crate::api::types::UiContact {
     }
 }
 
+impl SseEncode for crate::api::types::UiContactVerification {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::UiContactVerification::Unverified => 0,
+                crate::api::types::UiContactVerification::Verified => 1,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for crate::api::types::UiContentMessage {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -21473,6 +21657,14 @@ impl SseEncode for crate::api::types::UiSystemMessage {
                 contact,
             } => {
                 <i32>::sse_encode(22, serializer);
+                <crate::api::types::UiUserId>::sse_encode(contact, serializer);
+            }
+            crate::api::types::UiSystemMessage::ContactVerified { contact } => {
+                <i32>::sse_encode(23, serializer);
+                <crate::api::types::UiUserId>::sse_encode(contact, serializer);
+            }
+            crate::api::types::UiSystemMessage::ContactUnverified { contact } => {
+                <i32>::sse_encode(24, serializer);
                 <crate::api::types::UiUserId>::sse_encode(contact, serializer);
             }
             _ => {

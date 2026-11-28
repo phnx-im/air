@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/status_label/status_label_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/widgets.dart';
 
@@ -36,8 +37,13 @@ class ChatHeaderBarTokens {
   /// Gap between the avatar and the title column.
   static const double gap = S.s12;
 
-  /// Gap between the name and the subtitle.
+  /// Gap between the name and the status line.
   static const double titleGap = S.s2;
+
+  /// The status line under the name. The pill's height comes from the
+  /// avatar, so the line drops its leading like the name does.
+  static StatusLabelTokens get status =>
+      StatusLabelTokens(text: typeScale.body.xs, tight: true);
 
   /// Inset between the pill's edge and its content. The leading side is tight
   /// (the avatar sits nearly flush), the trailing side carries the text inset.

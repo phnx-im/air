@@ -195,6 +195,18 @@
       }
     }
   },
+  "safetyCodeScreen_markAsVerified": "Mark as verified",
+  "@safetyCodeScreen_markAsVerified": {
+    "description": "Label of the toggle row under the safety code. Turning it on marks the person as verified after the user compared the safety code with them, turning it off removes the mark."
+  },
+  "contactVerification_verified": "Verified",
+  "@contactVerification_verified": {
+    "description": "Status line with a shield glyph under a person's name, on their profile, on the safety code pane and in the header of the one-to-one chat. Says that the user marked the person as verified. Keep it as short as the source, it shares one line with the glyph."
+  },
+  "contactVerification_unverified": "Unverified",
+  "@contactVerification_unverified": {
+    "description": "Status line with a person glyph under a person's name, on their profile and on the safety code pane. Says that the user has not marked the person as verified. Keep it as short as the source, it shares one line with the glyph."
+  },
 
   "chatDetailsScreen_unknownChat": "Unknown chat",
   "@chatDetailsScreen_unknownChat": {
@@ -1213,6 +1225,24 @@
   "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} is already your contact. This request was closed.",
   "@systemMessage_sentConnectionRequestAlreadyConnected": {
     "description": "System message in the chat of a contact request the user sent, once the request closed because its recipient is a contact of the user already, for example through another username. The placeholder is the display name of that contact.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "systemMessage_contactVerified": "You marked {displayName} as verified.",
+  "@systemMessage_contactVerified": {
+    "description": "System message in the one-to-one chat with a contact, after the user marked the contact as verified on the safety code pane, on this device or on another of their devices. Visible only to the user. The placeholder is the display name of the contact.",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      }
+    }
+  },
+  "systemMessage_contactUnverified": "You marked {displayName} as unverified.",
+  "@systemMessage_contactUnverified": {
+    "description": "System message in the one-to-one chat with a contact, after the user turned off the verified mark of the contact on the safety code pane, on this device or on another of their devices. Visible only to the user. The placeholder is the display name of the contact.",
     "placeholders": {
       "displayName": {
         "type": "String"

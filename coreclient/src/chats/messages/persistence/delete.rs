@@ -54,7 +54,8 @@ impl DeletedMessageId {
             | OutboxKind::DeletedChat
             | OutboxKind::ConnectionRequest
             | OutboxKind::Username
-            | OutboxKind::ChatMute => None,
+            | OutboxKind::ChatMute
+            | OutboxKind::ContactVerification => None,
         }
     }
 }

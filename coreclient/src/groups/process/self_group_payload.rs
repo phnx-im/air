@@ -12,7 +12,7 @@ use crate::{
         connection_requests::{self, ConnectionRequestEffects},
     },
     clients::{
-        block_contact,
+        block_contact, contact_verification,
         user_settings::{SettingChanges, apply_settings_update, merge_settings_update},
     },
     db::access::WriteDbTransaction,
@@ -90,6 +90,17 @@ pub(super) async fn apply_self_group_payload(
         chats::persistence::complete_sent_mutes(txn, &payload.chat_mutes).await?;
     } else {
         chats::persistence::apply_chat_mutes_update(txn, &payload.chat_mutes).await?;
+    }
+
+    if own_echo {
+        contact_verification::sync::complete_sent_entries(txn, &payload.contact_verifications)
+            .await?;
+    } else {
+        contact_verification::sync::apply_contact_verifications_update(
+            txn,
+            &payload.contact_verifications,
+        )
+        .await?;
     }
 
     // Deletions go last, so a chat a sibling erased stays erased even if this

@@ -859,5 +859,45 @@ void main() {
         matchesGoldenFile('goldens/chat_screen_dark.png'),
       );
     });
+
+    group('header of a 1:1 chat', () {
+      final contactChat = chats[0];
+      final contactId = userProfiles[1].userId;
+
+      setUp(() {
+        when(() => chatDetailsCubit.state).thenReturn(
+          ChatDetailsState(chat: contactChat, members: [1.userId(), contactId]),
+        );
+        when(() => navigationCubit.state).thenReturn(
+          NavigationState.home(
+            home: HomeNavigationState(chatId: contactChat.id),
+          ),
+        );
+        messageListCubit.setState(const []);
+      });
+
+      testWidgets('renders correctly (verified contact)', (tester) async {
+        when(() => contactsCubit.state).thenReturn(
+          MockUsersState(profiles: userProfiles, verified: {contactId}),
+        );
+
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+
+        expect(find.text('Verified'), findsOneWidget);
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('goldens/chat_screen_verified_contact.png'),
+        );
+      });
+
+      testWidgets('leaves out an unverified contact', (tester) async {
+        await tester.pumpWidget(buildSubject());
+        await tester.pump();
+
+        expect(find.text('Verified'), findsNothing);
+        expect(find.text('Unverified'), findsNothing);
+      });
+    });
   });
 }

@@ -6,6 +6,7 @@ import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat_details/contact_details_view.dart';
 import 'package:air/features/chat_details/mute_button.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
+import 'package:air/features/user/users_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
@@ -26,19 +27,28 @@ void main() {
   group('ContactDetails', () {
     late MockChatDetailsCubit chatDetailsCubit;
     late MockUserSettingsCubit userSettingsCubit;
+    late MockUsersCubit usersCubit;
 
     setUp(() {
       chatDetailsCubit = MockChatDetailsCubit();
       userSettingsCubit = MockUserSettingsCubit();
+      usersCubit = MockUsersCubit();
     });
 
     Widget buildSubject(
       Relationship relationship, {
       UiChatMuted? mutedUntil,
       bool developerMode = false,
+      bool verified = false,
     }) {
       when(() => userSettingsCubit.state)
           .thenReturn(UserSettings(developerMode: developerMode));
+      when(() => usersCubit.state).thenReturn(
+        MockUsersState(
+          profiles: userProfiles,
+          verified: {if (verified) userProfiles[1].userId},
+        ),
+      );
       when(() => chatDetailsCubit.state).thenReturn(
         ChatDetailsState(
           chat: UiChatDetails(
@@ -63,6 +73,7 @@ void main() {
         providers: [
           BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
           BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+          BlocProvider<UsersCubit>.value(value: usersCubit),
         ],
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
@@ -130,6 +141,20 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/contact_details_contact_muted_forever.png'),
+      );
+    });
+
+    testWidgets('renders correctly (contact, verified)', (tester) async {
+      await tester.pumpWidget(
+        buildSubject(
+          ContactRelationship(contactChatId: chat.id, isBlocked: false),
+          verified: true,
+        ),
+      );
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/contact_details_contact_verified.png'),
       );
     });
 
@@ -209,6 +234,21 @@ void main() {
         matchesGoldenFile('goldens/contact_details_mute_menu_desktop.png'),
       );
     }, variant: desktopPlatform);
+
+    testWidgets('states the verification under the name', (tester) async {
+      final relationship = ContactRelationship(
+        contactChatId: chat.id,
+        isBlocked: false,
+      );
+
+      await tester.pumpWidget(buildSubject(relationship));
+      expect(find.text('Unverified'), findsOneWidget);
+      expect(find.text('Verified'), findsNothing);
+
+      await tester.pumpWidget(buildSubject(relationship, verified: true));
+      expect(find.text('Verified'), findsOneWidget);
+      expect(find.text('Unverified'), findsNothing);
+    });
 
     testWidgets('debug info is absent outside developer mode', (tester) async {
       await tester.pumpWidget(

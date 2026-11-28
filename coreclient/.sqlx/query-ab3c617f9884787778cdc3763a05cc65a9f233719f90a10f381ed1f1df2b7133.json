@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM contact_verification WHERE user_uuid = ?1 AND user_domain = ?2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "ab3c617f9884787778cdc3763a05cc65a9f233719f90a10f381ed1f1df2b7133"
+}

@@ -55,6 +55,7 @@ pub use crate::{
             ComposedLinkPreview, ComposedMessage, MessageComposer, UndecodableAttachment,
             UploadHandle,
         },
+        contact_verification::ContactVerificationStatus,
         debug_info::{TimedTaskDebugInfo, UserDebugInfo},
         invitation_code::{InvitationCode, RequestInvitationCodeError},
         invite_users::InviteUsersResult,

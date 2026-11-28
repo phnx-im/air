@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{credentials::UserCredential, identifiers::UserId};
+use aircommon::{credentials::UserCredential, crypto::hash::Hash, identifiers::UserId};
 use sqlx::{query, query_scalar};
 
 use crate::db::access::{ReadConnection, WriteConnection};
@@ -27,6 +27,24 @@ impl StorableUserCredential {
         .fetch_optional(connection.as_mut())
         .await
         .map(|res| res.map(StorableUserCredential::new))
+    }
+
+    /// The fingerprint of the credential pinned for the user on this device.
+    pub(crate) async fn load_fingerprint(
+        mut connection: impl ReadConnection,
+        user_id: &UserId,
+    ) -> sqlx::Result<Option<Hash<UserCredential>>> {
+        let uuid = user_id.uuid();
+        let domain = user_id.domain();
+        query_scalar!(
+            r#"SELECT fingerprint AS "fingerprint: _"
+                FROM user_credential
+                WHERE user_uuid = ?1 AND user_domain = ?2"#,
+            uuid,
+            domain,
+        )
+        .fetch_optional(connection.as_mut())
+        .await
     }
 
     /// Stores `self` as the user credential of its user id.

@@ -46,6 +46,9 @@
   "safetyCodeScreen_copyHint_desktop": "Zum Kopieren klicken",
   "safetyCodeScreen_copiedToClipboard": "In Zwischenablage kopiert",
   "safetyCodeScreen_safetyCodeExplanation": "Vergleiche den Sicherheitscode mit dem, den {displayName} sieht. Wenn die Codes übereinstimmen, weißt du, dass ihr Ende-zu-Ende-verschlüsselte Nachrichten miteinander austauscht.",
+  "safetyCodeScreen_markAsVerified": "Als verifiziert markieren",
+  "contactVerification_verified": "Verifiziert",
+  "contactVerification_unverified": "Nicht verifiziert",
   "chatDetailsScreen_unknownChat": "Unbekannter Chat",
   "selfChatTitle": "Notizen an mich",
 
@@ -251,6 +254,8 @@
   "systemMessage_connectionRequestExpired": "Kontaktanfrage abgelaufen.",
   "systemMessage_sentConnectionRequestExpired": "Deine Kontaktanfrage ist abgelaufen. Wenn du diese Person weiterhin als Kontakt hinzufügen möchtest, sende ihr eine neue Anfrage.",
   "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} ist bereits dein Kontakt. Diese Anfrage wurde geschlossen.",
+  "systemMessage_contactVerified": "Du hast {displayName} als verifiziert markiert.",
+  "systemMessage_contactUnverified": "Du hast {displayName} als nicht verifiziert markiert.",
   "sentContactRequest_title": "Du hast eine Kontaktanfrage gesendet",
   "sentContactRequest_titleWithName": "Du hast {displayName} eine Kontaktanfrage gesendet",
   "sentContactRequest_toUsername": "an den Benutzernamen {username}",

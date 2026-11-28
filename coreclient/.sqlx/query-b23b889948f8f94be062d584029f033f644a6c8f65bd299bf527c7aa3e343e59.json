@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                    user_uuid AS \"user_uuid: _\",\n                    user_domain AS \"user_domain: _\",\n                    credential_fingerprint AS \"credential_fingerprint: _\",\n                    verified_at AS \"verified_at: _\"\n                FROM contact_verification\n                ORDER BY user_uuid, user_domain",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_uuid: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "contact_verification",
+            "name": "user_uuid"
+          }
+        }
+      },
+      {
+        "name": "user_domain: _",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "contact_verification",
+            "name": "user_domain"
+          }
+        }
+      },
+      {
+        "name": "credential_fingerprint: _",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "contact_verification",
+            "name": "credential_fingerprint"
+          }
+        }
+      },
+      {
+        "name": "verified_at: _",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "contact_verification",
+            "name": "verified_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b23b889948f8f94be062d584029f033f644a6c8f65bd299bf527c7aa3e343e59"
+}

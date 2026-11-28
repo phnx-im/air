@@ -686,6 +686,15 @@ pub enum SystemMessage {
     SentConnectionRequestAlreadyConnected {
         contact: UserId,
     },
+    /// We marked the contact as verified, on this device or another one.
+    ContactVerified {
+        contact: UserId,
+    },
+    /// We removed the verification mark of the contact, on this device or
+    /// another one.
+    ContactUnverified {
+        contact: UserId,
+    },
 }
 
 impl EventMessage {
@@ -772,7 +781,9 @@ impl SystemMessage {
             | SystemMessage::ConnectionRequestUnavailable
             | SystemMessage::ConnectionRequestExpired
             | SystemMessage::SentConnectionRequestExpired
-            | SystemMessage::SentConnectionRequestAlreadyConnected { .. } => None,
+            | SystemMessage::SentConnectionRequestAlreadyConnected { .. }
+            | SystemMessage::ContactVerified { .. }
+            | SystemMessage::ContactUnverified { .. } => None,
         }
     }
 
@@ -802,7 +813,9 @@ impl SystemMessage {
             | SystemMessage::ConnectionRequestUnavailable
             | SystemMessage::ConnectionRequestExpired
             | SystemMessage::SentConnectionRequestExpired
-            | SystemMessage::SentConnectionRequestAlreadyConnected { .. } => true,
+            | SystemMessage::SentConnectionRequestAlreadyConnected { .. }
+            | SystemMessage::ContactVerified { .. }
+            | SystemMessage::ContactUnverified { .. } => true,
         }
     }
 
@@ -933,6 +946,14 @@ impl SystemMessage {
             SystemMessage::SentConnectionRequestAlreadyConnected { contact } => {
                 let display_name = core_user.user_profile(contact).await.display_name;
                 format!("{display_name} is already your contact. This request was closed.")
+            }
+            SystemMessage::ContactVerified { contact } => {
+                let display_name = core_user.user_profile(contact).await.display_name;
+                format!("You marked {display_name} as verified.")
+            }
+            SystemMessage::ContactUnverified { contact } => {
+                let display_name = core_user.user_profile(contact).await.display_name;
+                format!("You marked {display_name} as unverified.")
             }
             SystemMessage::CreateGroup(user_id) => {
                 let user_display_name = core_user.user_profile(user_id).await.display_name;

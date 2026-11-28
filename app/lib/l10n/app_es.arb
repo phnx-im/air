@@ -46,6 +46,9 @@
   "safetyCodeScreen_copyHint_desktop": "Haz clic para copiar",
   "safetyCodeScreen_copiedToClipboard": "Copiado al portapapeles",
   "safetyCodeScreen_safetyCodeExplanation": "Compara el código de seguridad que ves tú con el que ve {displayName}. Si los códigos coinciden, sabes que envías y recibes mensajes cifrados de extremo a extremo con la persona correcta.",
+  "safetyCodeScreen_markAsVerified": "Marcar como verificado",
+  "contactVerification_verified": "Verificado",
+  "contactVerification_unverified": "No verificado",
   "chatDetailsScreen_unknownChat": "Chat desconocido",
   "selfChatTitle": "Notas para mí",
 
@@ -251,6 +254,8 @@
   "systemMessage_connectionRequestExpired": "La solicitud de contacto ha caducado.",
   "systemMessage_sentConnectionRequestExpired": "Tu solicitud de contacto ha caducado. Si todavía quieres añadir a esta persona como contacto, envíale una nueva solicitud.",
   "systemMessage_sentConnectionRequestAlreadyConnected": "{displayName} ya es tu contacto. Esta solicitud se ha cerrado.",
+  "systemMessage_contactVerified": "Has marcado a {displayName} como verificado.",
+  "systemMessage_contactUnverified": "Has marcado a {displayName} como no verificado.",
   "sentContactRequest_title": "Has enviado una solicitud de contacto",
   "sentContactRequest_titleWithName": "Has enviado una solicitud de contacto a {displayName}",
   "sentContactRequest_toUsername": "al nombre de usuario {username}",

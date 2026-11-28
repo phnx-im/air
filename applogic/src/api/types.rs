@@ -16,10 +16,10 @@ pub(crate) use airprotos::client::component::AirFeatures;
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
-    Asset, ChatAttributes, ChatMessage, ChatMuted, ChatStatus, ChatType, Contact, ContentMessage,
-    DisplayName, ErrorMessage, EventMessage, InReplyToMessage, InactiveChat, LastReaction, Message,
-    MessageAttachments, MessageDraft, MessageVersion, SystemMessage, TargetedMessageContact,
-    UserProfile, clients::CoreUser,
+    Asset, ChatAttributes, ChatMessage, ChatMuted, ChatStatus, ChatType, Contact,
+    ContactVerificationStatus, ContentMessage, DisplayName, ErrorMessage, EventMessage,
+    InReplyToMessage, InactiveChat, LastReaction, Message, MessageAttachments, MessageDraft,
+    MessageVersion, SystemMessage, TargetedMessageContact, UserProfile, clients::CoreUser,
 };
 use chrono::{DateTime, Local, Utc};
 use flutter_rust_bridge::frb;
@@ -683,6 +683,12 @@ pub enum UiSystemMessage {
     SentConnectionRequestAlreadyConnected {
         contact: UiUserId,
     },
+    ContactVerified {
+        contact: UiUserId,
+    },
+    ContactUnverified {
+        contact: UiUserId,
+    },
 }
 
 /// The group chat a connection request came through.
@@ -794,6 +800,12 @@ impl From<SystemMessage> for UiSystemMessage {
                     contact: contact.into(),
                 }
             }
+            SystemMessage::ContactVerified { contact } => UiSystemMessage::ContactVerified {
+                contact: contact.into(),
+            },
+            SystemMessage::ContactUnverified { contact } => UiSystemMessage::ContactUnverified {
+                contact: contact.into(),
+            },
         }
     }
 }
@@ -877,6 +889,22 @@ impl UiUserProfile {
             user_id: user_id.into(),
             display_name: display_name.into_string(),
             profile_picture: None,
+        }
+    }
+}
+
+/// Whether the user marked another user as verified
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub enum UiContactVerification {
+    Unverified,
+    Verified,
+}
+
+impl From<ContactVerificationStatus> for UiContactVerification {
+    fn from(status: ContactVerificationStatus) -> Self {
+        match status {
+            ContactVerificationStatus::Unverified => Self::Unverified,
+            ContactVerificationStatus::Verified => Self::Verified,
         }
     }
 }

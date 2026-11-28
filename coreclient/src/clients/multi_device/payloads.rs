@@ -20,8 +20,8 @@ use aircommon::crypto::signatures::keys::{QsClientSigningKey, QsUserSigningKey};
 use aircommon::identifiers::{QsClientId, QsUserId, UserId};
 use aircommon::messages::FriendshipToken;
 use airprotos::client::self_group::{
-    BlockedContactEntry, ConnectionRequestEntry, LinkedDevice, RedeemedTokens, SettingsUpdate,
-    TokenSeed, UsernameEntry,
+    BlockedContactEntry, ConnectionRequestEntry, ContactVerificationEntry, LinkedDevice,
+    RedeemedTokens, SettingsUpdate, TokenSeed, UsernameEntry,
 };
 use apqmls::messages::ApqKeyPackage;
 use openmls::group::GroupId;
@@ -80,6 +80,9 @@ pub(crate) struct ProvisioningPackage {
     /// new device needs these keys to listen to the usernames and act on them.
     #[serde(default)]
     pub(crate) usernames: Vec<UsernameEntry>,
+    /// The users marked as verified.
+    #[serde(default)]
+    pub(crate) contact_verifications: Vec<ContactVerificationEntry>,
 }
 
 /// What the new device sends back inside the pairing group.

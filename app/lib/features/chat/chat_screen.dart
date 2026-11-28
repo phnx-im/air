@@ -17,7 +17,9 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/chat_header_bar/chat_header_bar.dart';
 import 'package:air/ds/patterns/chat_header_bar/chat_header_bar_tokens.dart';
+import 'package:air/features/user/contact_verification.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/users_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:flutter/material.dart';
@@ -315,7 +317,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
     final developerMode = context.select(
       (UserSettingsCubit cubit) => cubit.state.developerMode,
     );
-    final (chatId, title, hasDetails) = context.select((
+    final (chatId, title, hasDetails, contactId) = context.select((
       ChatDetailsCubit cubit,
     ) {
       final chat = cubit.state.chat;
@@ -326,9 +328,21 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
         UiChatType_Connection() => !(chat?.isSelfChat ?? false),
         _ => false,
       };
+      final contactId = switch (chat?.chatType) {
+        UiChatType_Connection(field0: final profile) => profile.userId,
+        _ => null,
+      };
 
-      return (chat?.id, chat?.title(loc), hasDetails);
+      return (chat?.id, chat?.title(loc), hasDetails, contactId);
     });
+    // The header leaves an unverified contact alone, the line only appears
+    // once there is something to say.
+    final verified = context.select(
+      (UsersCubit cubit) =>
+          contactId != null &&
+          cubit.state.verification(userId: contactId) ==
+              UiContactVerification.verified,
+    );
 
     VoidCallback? onTap;
     if (hasDetails) {
@@ -343,6 +357,10 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
       child: ChatHeaderBar(
         tokens: tokens,
         name: title ?? "",
+        statusLabel: verified
+            ? UiContactVerification.verified.label(loc)
+            : null,
+        statusIcon: verified ? UiContactVerification.verified.icon : null,
         avatar: ChatAvatar(chatId: chatId, size: tokens.avatarSize),
         onTap: onTap,
         onBack: context.breakpoint.isSmall ? () => _back(context) : null,
