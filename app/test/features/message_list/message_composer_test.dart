@@ -148,6 +148,8 @@ void main() {
         isCommitted: any(named: "isCommitted"),
       ),
     ).thenAnswer((_) async {});
+    when(() => chatDetailsCubit.updateLinkPreviews(any()))
+        .thenAnswer((_) async {});
     when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     when(() => navigationCubit.state).thenReturn(_navState);
 
@@ -318,9 +320,6 @@ void main() {
       when(() => userSettingsCubit.state).thenReturn(
         const UserSettings(developerMode: true, experimentalFeatures: true),
       );
-      // Typing also schedules a link preview, an experimental feature too.
-      when(() => chatDetailsCubit.updateLinkPreviews(any()))
-          .thenAnswer((_) async {});
     }
 
     testWidgets('stays closed without experimental features', (tester) async {
@@ -392,11 +391,6 @@ void main() {
   });
 
   group('MessageComposer link preview', () {
-    const experimental = UserSettings(
-      developerMode: true,
-      experimentalFeatures: true,
-    );
-
     Finder staged() => find.byType(MessageInputLinkPreview);
 
     void stage(UiComposerLinkPreview preview, {UiMessageDraft? draft}) {
@@ -410,8 +404,6 @@ void main() {
     }
 
     setUp(() {
-      when(() => chatDetailsCubit.updateLinkPreviews(any()))
-          .thenAnswer((_) async {});
       when(() => chatDetailsCubit.dismissLinkPreview(any()))
           .thenAnswer((_) async {});
       when(() => chatDetailsCubit.composerLinkPreviewImage(any()))
@@ -530,8 +522,6 @@ void main() {
     });
 
     testWidgets('resolves the link after the debounce', (tester) async {
-      when(() => userSettingsCubit.state).thenReturn(experimental);
-
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
@@ -545,8 +535,6 @@ void main() {
     });
 
     testWidgets('resolves only the last text typed', (tester) async {
-      when(() => userSettingsCubit.state).thenReturn(experimental);
-
       await tester.pumpWidget(buildSubject());
       await tester.pump();
 
@@ -562,20 +550,7 @@ void main() {
       );
     });
 
-    testWidgets('leaves links alone without experimental features', (
-      tester,
-    ) async {
-      await tester.pumpWidget(buildSubject());
-      await tester.pump();
-
-      await tester.enterText(find.byType(TextField), 'See $_linkUrl');
-      await tester.pump(_linkPreviewDebounce);
-
-      verifyNever(() => chatDetailsCubit.updateLinkPreviews(any()));
-    });
-
     testWidgets('resolves the link while editing', (tester) async {
-      when(() => userSettingsCubit.state).thenReturn(experimental);
       when(() => chatDetailsCubit.state).thenReturn(
         ChatDetailsState(chat: _chatWithDraft(_editDraft), members: _members),
       );
