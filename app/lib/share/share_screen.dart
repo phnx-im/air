@@ -9,17 +9,25 @@ import 'package:air/ds/components/list_row/list_row.dart';
 import 'package:air/ds/components/list_row/list_row_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/message_bubble/message_bubble.dart';
+import 'package:air/ds/patterns/message_input/message_input_link_preview.dart';
 import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/ds/patterns/modal/modal_stack.dart';
 import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:air/features/attachments/attachment_file_view.dart';
 import 'package:air/features/chat_details/member_search_field.dart';
+import 'package:air/features/message_list/link_preview_data.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/share/share_cubit.dart';
 import 'package:air/share/share_payload.dart';
+import 'package:air/util/debouncer.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:logging/logging.dart';
+
+final _log = Logger('ShareScreen');
 
 /// The two steps of the share flow.
 ///
@@ -67,13 +75,51 @@ class _ShareScreenViewState extends State<ShareScreenView> {
   _ShareStep _step = _ShareStep.destinations;
   bool _preselectionApplied = false;
 
+  final _linkPreviewDebouncer = Debouncer(
+    delay: const Duration(milliseconds: 300),
+  );
+
+  /// The text the link preview was last resolved for.
+  String? _linkPreviewText;
+
   bool get _lostItems => widget.payload.droppedAttachments > 0;
+
+  /// The text message that is sent: the caption, then the shared text.
+  String get _message => [
+    _captionController.text.trim(),
+    widget.payload.text,
+  ].nonNulls.where((text) => text.isNotEmpty).join('\n\n');
+
+  @override
+  void initState() {
+    super.initState();
+    _captionController.addListener(
+      () => _linkPreviewDebouncer.run(_updateLinkPreview),
+    );
+  }
 
   @override
   void dispose() {
+    _linkPreviewDebouncer.dispose();
     _searchController.dispose();
     _captionController.dispose();
     super.dispose();
+  }
+
+  /// Asks the cubit to resolve a preview for the first link of the message.
+  void _updateLinkPreview() {
+    if (!mounted) return;
+    final cubit = context.read<IOSShareCubit>();
+    if (!cubit.state.loaded || !cubit.state.signedIn) return;
+    final message = _message;
+    if (message == _linkPreviewText) return;
+    _linkPreviewText = message;
+    cubit
+        .updateLinkPreviews(message)
+        .catchError(
+          (Object e, StackTrace st) =>
+              _log.warning("Failed to update link previews", e, st),
+        );
   }
 
   void _applyPreselection(BuildContext context, ShareState state) {
@@ -114,10 +160,7 @@ class _ShareScreenViewState extends State<ShareScreenView> {
     }
     final cubit = context.read<IOSShareCubit>();
     cubit.resetSendStatus();
-    final message = [
-      widget.payload.text,
-      _captionController.text.trim(),
-    ].nonNulls.where((text) => text.isNotEmpty).join('\n\n');
+    final message = _message;
     // Content a chat already received is skipped by the cubit, so a retry
     // hands over the full selection again.
     cubit.send(
@@ -132,6 +175,7 @@ class _ShareScreenViewState extends State<ShareScreenView> {
     return BlocConsumer<IOSShareCubit, ShareState>(
       listener: (context, state) {
         _applyPreselection(context, state);
+        _updateLinkPreview();
         // A share that lost items keeps the sheet open, so the notice about
         // them is seen rather than replaced by a silent success.
         if (state.sendStatus is UiShareSendStatus_Done && !_lostItems) {
@@ -249,6 +293,7 @@ class _ShareScreenViewState extends State<ShareScreenView> {
       ),
       footer: _ComposeFooter(
         sendStatus: state.sendStatus,
+        linkPreview: state.linkPreview,
         captionController: _captionController,
         confirmWhenSent: _lostItems,
       ),
@@ -642,11 +687,13 @@ class _ChatTile extends StatelessWidget {
 class _ComposeFooter extends StatelessWidget {
   const _ComposeFooter({
     required this.sendStatus,
+    required this.linkPreview,
     required this.captionController,
     required this.confirmWhenSent,
   });
 
   final UiShareSendStatus sendStatus;
+  final UiComposerLinkPreview? linkPreview;
   final TextEditingController captionController;
 
   /// Whether a finished send waits for the person to close the sheet instead
@@ -755,6 +802,8 @@ class _ComposeFooter extends StatelessWidget {
           ),
           const SizedBox(height: S.s8),
         ],
+        if (linkPreview case final linkPreview?)
+          _LinkPreviewStaged(preview: linkPreview),
         TextField(
           controller: captionController,
           textInputAction: TextInputAction.done,
@@ -771,6 +820,75 @@ class _ComposeFooter extends StatelessWidget {
             focusedBorder: captionBorder,
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// The link preview of the message, shown above the caption field.
+class _LinkPreviewStaged extends StatelessWidget {
+  const _LinkPreviewStaged({required this.preview});
+
+  final UiComposerLinkPreview preview;
+
+  @override
+  Widget build(BuildContext context) {
+    final cubit = context.read<IOSShareCubit>();
+    return switch (preview) {
+      UiComposerLinkPreview_Loading(:final url) => MessageInputLinkPreview(
+        url: url,
+        onRemove: () => cubit.dismissLinkPreview(url),
+      ),
+      UiComposerLinkPreview_Ready(:final card, :final image) =>
+        MessageInputLinkPreview(
+          url: card.url,
+          data: card.toData(
+            imageWidth: image?.width.toDouble(),
+            imageHeight: image?.height.toDouble(),
+          ),
+          imageBuilder: image == null
+              ? null
+              : (fit) => _LinkPreviewImage(
+                  url: card.url,
+                  blurhash: image.blurhash,
+                  fit: fit,
+                ),
+          onRemove: () => cubit.dismissLinkPreview(card.url),
+        ),
+    };
+  }
+}
+
+/// The preview's image. The blurhash shows until the bytes load.
+class _LinkPreviewImage extends HookWidget {
+  const _LinkPreviewImage({
+    required this.url,
+    required this.blurhash,
+    required this.fit,
+  });
+
+  final String url;
+  final String? blurhash;
+  final BoxFit fit;
+
+  @override
+  Widget build(BuildContext context) {
+    final cubit = context.read<IOSShareCubit>();
+    final future = useMemoized(() => cubit.linkPreviewImage(url), [url]);
+    final bytes = useFuture(future).data;
+    final hash = blurhash;
+    return Stack(
+      fit: .expand,
+      children: [
+        ColoredBox(color: SemanticPalette.of(context).fill.tertiary),
+        if (hash != null) BlurHash(hash: hash),
+        if (bytes != null)
+          Image.memory(
+            bytes,
+            fit: fit,
+            gaplessPlayback: true,
+            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+          ),
       ],
     );
   }
