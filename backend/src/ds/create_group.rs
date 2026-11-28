@@ -572,6 +572,11 @@ impl<Qep: QsConnector, As: AsConnector> CreateGroupStreamBackend for GrpcDs<Qep,
         reservation: &StreamReservation,
         payload: CreateApqGroupPayload,
     ) -> Result<(), Status> {
+        #[cfg(feature = "test_utils")]
+        if let Some(hook) = &self.ds.create_step_fault_hook {
+            hook.run()?;
+        }
+
         let t_group_data = payload
             .t_group_data
             .as_ref()

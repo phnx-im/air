@@ -115,6 +115,41 @@ pub(super) trait CreateGroupStreamBackend {
     ) -> impl Future<Output = Result<(), Status>> + Send;
 }
 
+#[cfg(feature = "test_utils")]
+pub(super) mod fault_hook {
+    use std::sync::Arc;
+
+    use tonic::Status;
+
+    use crate::ds::CREATE_STEP_FAULT_PATH;
+
+    /// Test-only hook run with [`CREATE_STEP_FAULT_PATH`] at the start of the
+    /// create step of each stream, before the group is created. An error
+    /// rejects the step with that status.
+    #[derive(Clone)]
+    pub(in crate::ds) struct CreateStepFaultHook(Arc<FaultHookFn>);
+
+    type FaultHookFn = dyn Fn(&str) -> Result<(), Status> + Send + Sync;
+
+    impl CreateStepFaultHook {
+        pub(in crate::ds) fn new(
+            hook: impl Fn(&str) -> Result<(), Status> + Send + Sync + 'static,
+        ) -> Self {
+            Self(Arc::new(hook))
+        }
+
+        pub(in crate::ds) fn run(&self) -> Result<(), Status> {
+            (self.0)(CREATE_STEP_FAULT_PATH)
+        }
+    }
+
+    impl std::fmt::Debug for CreateStepFaultHook {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_tuple("CreateStepFaultHook").finish_non_exhaustive()
+        }
+    }
+}
+
 /// Authenticated creation streams, per user and in total.
 #[derive(Debug, Clone, Default)]
 pub(super) struct CreateGroupStreams {

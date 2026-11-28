@@ -21,7 +21,10 @@ use crate::{
     Chat, ChatAttributes, ChatId,
     db::access::WriteConnection,
     groups::{
-        Group, NewGroupContext, pending_creation::PendingGroupCreation, self_group::SelfGroup,
+        Group, NewGroupContext,
+        ds_creation::{ReservedGroup, reserve_group},
+        pending_creation::PendingGroupCreation,
+        self_group::SelfGroup,
     },
     job::{
         Job, JobContext, JobError,
@@ -112,12 +115,22 @@ impl CreateChat {
             .encrypt(&identity_link_wrapper_key)
             .context("Failed to encrypt group profile")?;
 
-        // If we can't get a new group ID, we can't create the chat. Getting a
-        // new group ID is repeatable.
+        // If we can't reserve group IDs, we can't create the chat. A retry
+        // reserves new IDs, and for APQ groups each reservation consumes one
+        // unit of the user's group creation allowance.
         let api_client = api_clients.default_client()?;
-        let (group_id, pq_group_id, group_profile_provisioning) = api_client
-            .ds_request_group_id(Some(group_profile_bytes.len()), is_apq)
-            .await?;
+        let (reserved, creator) = reserve_group(
+            &api_client,
+            &key_store.signing_key,
+            Some(group_profile_bytes.len()),
+            is_apq,
+        )
+        .await?;
+        let ReservedGroup {
+            group_id,
+            pq_group_id,
+            group_profile_provisioning,
+        } = reserved;
 
         let external_group_profile = if let Some(provisioning) = group_profile_provisioning
             && let Some(object_id) = provisioning.object_id
@@ -221,8 +234,13 @@ impl CreateChat {
         let mut params = partial_params.into_params(client_reference, encrypted_user_profile_key);
         params.group_bootstrap = group_bootstrap;
         let group_id = group.group_id();
-        if let Err(error) = api_client
-            .ds_create_group(params, &key_store.signing_key, group.group_state_ear_key())
+        if let Err(error) = creator
+            .create(
+                &api_client,
+                params,
+                &key_store.signing_key,
+                group.group_state_ear_key(),
+            )
             .await
         {
             let error = JobError::from(error);

@@ -8,7 +8,9 @@
 use aircoreclient::{
     ChatId, ChatStatus, ChatType, EventMessage, Message, SystemMessage, clients::CoreUser,
 };
-use airserver_test_harness::utils::{core_user_ext::CoreUserExt, setup::TestBackend};
+use airserver_test_harness::utils::{
+    controlled_listener::create_group_method, core_user_ext::CoreUserExt, setup::TestBackend,
+};
 
 use super::send_and_receive;
 
@@ -686,11 +688,7 @@ async fn rejected_connection_creation_has_no_echo() {
 
     // `add_contact` fetches a connection package and a group id first, so the
     // rejection is aimed at the create itself.
-    let create_group = if setup.apq_groups {
-        "CreateApqGroup"
-    } else {
-        "CreateGroup"
-    };
+    let create_group = create_group_method(setup.apq_groups);
     setup
         .listener_control_handle()
         .set_reject_next_request_to(create_group);
@@ -855,11 +853,7 @@ async fn lost_creation_answer_is_confirmed_by_the_bootstrap_echo() {
     let alice2 = alice.add_synced_device().await;
     let chats_before = alice.ordered_chat_ids().await.unwrap();
 
-    let create_group = if setup.apq_groups {
-        "CreateApqGroup"
-    } else {
-        "CreateGroup"
-    };
+    let create_group = create_group_method(setup.apq_groups);
     setup
         .listener_control_handle()
         .set_drop_next_response_to(create_group);

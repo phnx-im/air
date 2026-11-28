@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use airapiclient::ds_api::DsGroupReservation;
 #[cfg(any(test, feature = "test_utils"))]
 use aircommon::credentials::LeafCredentialError;
 use aircommon::{
@@ -325,27 +326,31 @@ impl CoreUser {
     async fn create_self_group(&self) -> anyhow::Result<Option<Group>> {
         let api_client = self.api_client()?;
 
-        // Request group IDs
-        let provision_group_profile_size = None;
-        let request_pq_group_id = true;
-        let (group_id, pq_group_id, _) = api_client
-            .ds_request_group_id(provision_group_profile_size, request_pq_group_id)
-            .await?;
-        let pq_group_id = pq_group_id.context("Missing PQ group ID")?;
-
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
         // The self chat's title is constant, so the group carries no profile.
         let group_data = GroupData::empty();
 
         // Self-group leaves carry a SelfGroupCredential that identifies the device by its client
-        // id and are signed by a per-device key. The creation request itself is authenticated by
-        // the user credential sent alongside it.
+        // id and are signed by a per-device key. The creation itself is authenticated by the user
+        // signing key that opens the creation stream.
         let key_store = self.key_store();
         let client_id = OwnClientInfo::load(self.db().read().await?)
             .await?
             .client_id;
         let self_group_signing_key =
             SelfGroupSigningKey::generate(client_id, &key_store.signing_key)?;
+
+        // Reserve group IDs. Local work that doesn't need them is done above, because the
+        // creation stream stays open until the group is created.
+        let provision_group_profile_size = None;
+        let (reservation, creator) = api_client
+            .ds_prepare_group_creation(&key_store.signing_key, provision_group_profile_size)
+            .await?;
+        let DsGroupReservation {
+            group_id,
+            pq_group_id,
+            ..
+        } = reservation;
 
         let group_signer = LeafSigningKeyRef::SelfGroup(&self_group_signing_key);
         let own_user_id = self.user_id().clone();
@@ -378,15 +383,12 @@ impl CoreUser {
         let encrypted_user_profile_key =
             user_profile_key.encrypt(group.identity_link_wrapper_key(), self.user_id())?;
         let mut params = partial_params.into_params(client_reference, encrypted_user_profile_key);
-        // Self-group leaves carry no user credential, so the creation is authenticated by the
-        // user credential sent with the request instead.
+        // Self-group leaves carry no user credential, so the DS takes the creator from this one.
+        // It must belong to the user that opened the creation stream.
         params.creator_user_credential = Some(key_store.signing_key.credential().clone());
 
         // Create group on the server
-        if let Err(error) = api_client
-            .ds_create_group(params, &key_store.signing_key, group.group_state_ear_key())
-            .await
-        {
+        if let Err(error) = creator.create(params, group.group_state_ear_key()).await {
             self.db()
                 .with_write_transaction(async |txn| -> anyhow::Result<()> {
                     Group::delete_from_db(&mut *txn, group.group_id()).await?;

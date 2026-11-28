@@ -275,6 +275,7 @@ pub(crate) async fn spawn_app(
     storage_config.max_attachment_size = max_attachment_size;
     ds.set_storage(Storage::new(storage_config));
     ds.set_settings(ds_settings);
+    ds.set_create_step_fault_hook(fault_hook.clone());
 
     let as_connector = SimpleAsConnector::new(&auth_service);
 

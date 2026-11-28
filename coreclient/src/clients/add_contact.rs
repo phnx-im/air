@@ -43,7 +43,9 @@ use crate::{
     contacts::{PartialContact, PartialContactType, TargetedMessageContact, UsernameContact},
     db::access::WriteDbTransaction,
     groups::{
-        Group, NewGroupContext, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider,
+        Group, NewGroupContext, PartialCreateGroupParams,
+        ds_creation::{GroupCreator, ReservedGroup, reserve_group},
+        openmls_provider::AirOpenMlsProvider,
         self_group::SelfGroup,
     },
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
@@ -156,9 +158,13 @@ impl CoreUser {
         // No need to provision a group profile here, because we only have the group title and no
         // any additional data to upload.
         let provision_group_profile = None;
-        let (group_id, pq_group_id, _) = client
-            .ds_request_group_id(provision_group_profile, is_apq)
-            .await?;
+        let (reserved, creator) =
+            reserve_group(&client, self.signing_key(), provision_group_profile, is_apq).await?;
+        let ReservedGroup {
+            group_id,
+            pq_group_id,
+            ..
+        } = reserved;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: verified_connection_package,
             group_id,
@@ -190,6 +196,7 @@ impl CoreUser {
         let cleanup = local_partial_contact.cleanup();
         let result = Box::pin(local_partial_contact.create_connection_group_via_username(
             &client,
+            creator,
             self.signing_key(),
             connection_offer_responder,
         ))
@@ -251,9 +258,13 @@ impl CoreUser {
         // No need to provision a group profile here, because we only have the group title and no
         // any additional data to upload.
         let provision_group_profile = None;
-        let (group_id, pq_group_id, _) = client
-            .ds_request_group_id(provision_group_profile, is_apq)
-            .await?;
+        let (reserved, creator) =
+            reserve_group(&client, self.signing_key(), provision_group_profile, is_apq).await?;
+        let ReservedGroup {
+            group_id,
+            pq_group_id,
+            ..
+        } = reserved;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: user_id,
             group_id,
@@ -285,8 +296,11 @@ impl CoreUser {
         // Phase 5: Create the connection group on the DS and send off the connection offer
         let cleanup = local_partial_contact.cleanup();
         let result = Box::pin(
-            local_partial_contact
-                .create_connection_group_via_targeted_message(&client, self.signing_key()),
+            local_partial_contact.create_connection_group_via_targeted_message(
+                &client,
+                creator,
+                self.signing_key(),
+            ),
         )
         .await;
         match result {
@@ -646,6 +660,7 @@ impl LocalUsernameContact<UsernamePayload> {
     async fn create_connection_group_via_username(
         self,
         client: &ApiClient,
+        creator: GroupCreator,
         signer: &UserSigningKey,
         responder: AsConnectionOfferResponder,
     ) -> Result<ChatId, ConnectionGroupError> {
@@ -662,8 +677,8 @@ impl LocalUsernameContact<UsernamePayload> {
         } = self;
 
         info!("Creating connection group on DS");
-        client
-            .ds_create_group(params, signer, group.group_state_ear_key())
+        creator
+            .create(client, params, signer, group.group_state_ear_key())
             .await
             .map_err(|error| ConnectionGroupError::NotCreated(error.into()))?;
 
@@ -689,6 +704,7 @@ impl LocalUsernameContact<TargetedMessagePayload> {
     async fn create_connection_group_via_targeted_message(
         self,
         client: &ApiClient,
+        creator: GroupCreator,
         signer: &UserSigningKey,
     ) -> Result<ChatId, ConnectionGroupError> {
         let Self {
@@ -704,8 +720,8 @@ impl LocalUsernameContact<TargetedMessagePayload> {
         } = self;
 
         info!("Creating connection group on DS");
-        client
-            .ds_create_group(params, signer, group.group_state_ear_key())
+        creator
+            .create(client, params, signer, group.group_state_ear_key())
             .await
             .map_err(|error| ConnectionGroupError::NotCreated(error.into()))?;
 
